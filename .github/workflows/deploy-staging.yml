@@ -24,7 +24,7 @@ jobs:
         run: |
           if [ -z "${DATABASE_URL}" ]; then echo "Sin DATABASE_URL_STAGING aún; se salta"; exit 0; fi
           corepack enable && pnpm install --frozen-lockfile
-          pnpm -s migrate:deploy
+          pnpm run migrate:deploy
 
       - name: Deploy en Dokploy
         env:
