@@ -4,3 +4,6 @@ packages:
   - "packages/modules/*"
 allowBuilds:
   esbuild: set this to true or false
+
+onlyBuiltDependencies:
+  - esbuild
