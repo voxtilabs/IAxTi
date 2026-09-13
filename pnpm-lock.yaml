@@ -218,6 +218,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@nestjs/common':
         specifier: ^11.0.0
         version: 11.2.3(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
@@ -276,10 +279,20 @@ importers:
         version: 5.9.3
 
   packages/core:
+    dependencies:
+      yaml:
+        specifier: ^2.6.0
+        version: 2.9.1
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(supports-color@7.2.0)(yaml@2.9.1)
 
   packages/db:
     dependencies:
