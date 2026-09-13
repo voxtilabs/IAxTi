@@ -58,7 +58,7 @@ pnpm turbo build        # compila
 pnpm turbo typecheck    # tipos
 pnpm turbo lint         # lint
 docker compose up       # local: postgres + redis + los 5 servicios
-pnpm seed               # tenant de prueba (cuando exista, #18)
+pnpm seed               # tenant demo con ADMIN y USER (idempotente)
 ```
 
 ## Flujo de trabajo

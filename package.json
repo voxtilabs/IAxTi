@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "turbo test",
     "migrate:deploy": "pnpm --filter @iaxti/db run build && pnpm --filter @iaxti/db run migrate",
-    "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs"
+    "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
+    "seed": "pnpm --filter @iaxti/seed run build && pnpm --filter @iaxti/seed run seed"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
