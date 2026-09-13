@@ -4,7 +4,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { redisConnection } from '@iaxti/core';
+import { createPool } from '@iaxti/db';
 import { AppModule, registry } from './app.module';
+import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
+import { dbRoleResolver, type RoleResolver } from './auth/role-resolver';
 import { AuthzGuard } from './authz/authz.guard';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
@@ -12,6 +15,8 @@ import { requestIdMiddleware } from './request-id';
 
 export interface CreateAppOptions {
   rateLimitPerMinute?: number;
+  jwtVerify?: JwtVerifier | null;
+  resolveRole?: RoleResolver | null;
 }
 
 export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
@@ -25,9 +30,17 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   if (process.env.REDIS_URL || options.rateLimitPerMinute !== undefined) {
     app.useGlobalGuards(new RateLimitGuard(redisConnection(), options.rateLimitPerMinute));
   }
-  // Autorización (ADR-0008): módulo activo + permiso del rol, en todo endpoint
-  // que lo declare. La identidad es stub por headers hasta #7 (JWT Supabase).
-  app.useGlobalGuards(new AuthzGuard(app.get(Reflector), registry));
+  // Autorización (ADR-0008): módulo activo + permiso del rol. Identidad:
+  // JWT de Supabase (JWKS/ES256) con rol desde user_roles; headers como
+  // fallback de desarrollo hasta hardening.
+  const jwtVerify = options.jwtVerify !== undefined ? options.jwtVerify : supabaseJwtVerifier();
+  const resolveRole =
+    options.resolveRole !== undefined
+      ? options.resolveRole
+      : process.env.DATABASE_URL
+        ? dbRoleResolver(createPool())
+        : null;
+  app.useGlobalGuards(new AuthzGuard(app.get(Reflector), registry, { jwtVerify, resolveRole }));
 
   const config = new DocumentBuilder()
     .setTitle('IAxTi API')

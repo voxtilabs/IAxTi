@@ -96,15 +96,15 @@ describe('guard de autorización (unidad, módulo apagado)', () => {
     } as unknown as ExecutionContext;
   }
 
-  it('módulo apagado responde MODULE_DISABLED aunque el rol tenga el permiso', () => {
+  it('módulo apagado responde MODULE_DISABLED aunque el rol tenga el permiso', async () => {
     const registry = fixtureRegistry();
     const guard = new AuthzGuard(new Reflector(), registry);
 
-    expect(guard.canActivate(contexto())).toBe(true); // activo: pasa
+    await expect(guard.canActivate(contexto())).resolves.toBe(true); // activo: pasa
 
     registry.disable('calendar');
     try {
-      guard.canActivate(contexto());
+      await guard.canActivate(contexto());
       expect.unreachable('debió lanzar');
     } catch (error) {
       const response = (error as { getResponse: () => { code: string } }).getResponse();

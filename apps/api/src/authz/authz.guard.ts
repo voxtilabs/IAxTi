@@ -8,6 +8,8 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { ModuleRegistry } from '@iaxti/core';
 import { baseRoleHasPermission, isBaseRole } from '@iaxti/module-authorization';
+import type { JwtVerifier } from '../auth/jwt';
+import type { RoleResolver } from '../auth/role-resolver';
 import type { WithRequestId } from '../request-id';
 import { MODULE_KEY, PERMISSION_KEY } from './decorators';
 
@@ -17,13 +19,22 @@ export interface Actor {
   role: string;
 }
 
+export interface AuthzOptions {
+  /** Verificación del Bearer de Supabase; null desactiva ese camino. */
+  jwtVerify?: JwtVerifier | null;
+  /** Rol desde user_roles; null obliga al stub de headers. */
+  resolveRole?: RoleResolver | null;
+}
+
 /**
  * Guard único de autorización (ADR-0008): módulo activo + permiso del rol.
  * La verificación de dueño/equipo del objeto la agrega cada caso de uso.
  *
- * IDENTIDAD (stub hasta #7): X-User-Id, X-Tenant-Id y X-Role. Cuando llegue
- * Supabase Auth, el JWT reemplaza los headers y este guard no cambia.
- * El evento permission.denied se conecta al outbox junto con #7.
+ * Identidad, en orden: (1) Authorization: Bearer <jwt de Supabase> +
+ * X-Tenant-Id, con el rol resuelto desde user_roles; (2) fallback de
+ * desarrollo por headers X-User-Id/X-Tenant-Id/X-Role — se retira en
+ * hardening (#79-#84). El evento permission.denied al outbox llega cuando la
+ * API tenga pool cableado en todos los ambientes.
  */
 @Injectable()
 export class AuthzGuard implements CanActivate {
@@ -32,11 +43,12 @@ export class AuthzGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly registry: ModuleRegistry,
+    private readonly options: AuthzOptions = {},
   ) {
     this.catalog = new Set(registry.permissionsCatalog().keys());
   }
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const moduleId = this.reflector.getAllAndOverride<string | undefined>(MODULE_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -55,7 +67,7 @@ export class AuthzGuard implements CanActivate {
     }
 
     if (permission) {
-      const actor = this.actorFrom(context);
+      const actor = await this.actorFrom(context);
       const allowed = isBaseRole(actor.role)
         ? baseRoleHasPermission(actor.role, permission, this.catalog)
         : false; // roles custom llegan con #73, vía base de datos
@@ -74,8 +86,40 @@ export class AuthzGuard implements CanActivate {
     return true;
   }
 
-  private actorFrom(context: ExecutionContext): Actor {
+  private async actorFrom(context: ExecutionContext): Promise<Actor> {
     const request = context.switchToHttp().getRequest<WithRequestId>();
+    const authorization = request.headers.authorization;
+
+    if (typeof authorization === 'string' && authorization.startsWith('Bearer ') && this.options.jwtVerify) {
+      let userId: string;
+      try {
+        ({ userId } = await this.options.jwtVerify(authorization.slice(7)));
+      } catch {
+        throw new UnauthorizedException({
+          code: 'TOKEN_INVALID',
+          message: 'Tu sesión no es válida o venció. Inicia sesión de nuevo.',
+        });
+      }
+      const tenantId = request.headers['x-tenant-id'];
+      if (typeof tenantId !== 'string') {
+        throw new UnauthorizedException({
+          code: 'TENANT_REQUIRED',
+          message: 'Indica el negocio (X-Tenant-Id) para continuar.',
+        });
+      }
+      const role = this.options.resolveRole
+        ? await this.options.resolveRole(tenantId, userId)
+        : null;
+      if (!role) {
+        throw new ForbiddenException({
+          code: 'NOT_A_MEMBER',
+          message: 'No perteneces a este negocio. Pide una invitación a quien lo administra.',
+        });
+      }
+      return { userId, tenantId, role };
+    }
+
+    // Fallback de desarrollo (se retira en hardening).
     const userId = request.headers['x-user-id'];
     const tenantId = request.headers['x-tenant-id'];
     const role = request.headers['x-role'];
