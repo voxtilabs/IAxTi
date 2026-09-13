@@ -1,0 +1,77 @@
+# Local: postgres + redis + los cinco servicios desde la imagen única.
+# `docker compose up` y todos responden /health (SPEC §37: ambiente local).
+# Supabase local o proyecto dev personal reemplazan a postgres cuando el
+# issue #4 conecte la base real.
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: infra/docker/Dockerfile
+  image: iaxti-local
+  restart: unless-stopped
+  environment: &app-env
+    DATABASE_URL: postgres://iaxti:iaxti@postgres:5432/iaxti
+    REDIS_URL: redis://redis:6379
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: iaxti
+      POSTGRES_PASSWORD: iaxti
+      POSTGRES_DB: iaxti
+    ports: ["5432:5432"]
+    volumes: [pg-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iaxti"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: [redis-data:/data]
+
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: api
+    ports: ["3000:3000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  workers:
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: workers
+    depends_on: [redis]
+
+  agents:
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: agents
+    depends_on: [redis]
+
+  web:
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: web
+    ports: ["3002:3000"]
+
+  admin:
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: admin
+    ports: ["3003:3000"]
+
+volumes:
+  pg-data:
+  redis-data:
