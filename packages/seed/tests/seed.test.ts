@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
-import { createPool } from '@iaxti/db';
+import { createPool, runMigrations } from '@iaxti/db';
 import { seed, TENANT_NAME, USERS } from '../src/seed';
 
 // En CI no hay SUPABASE_*: el seed usa uuids deterministas — la idempotencia
@@ -12,6 +12,7 @@ let admin: Pool;
 
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
+  await runMigrations(admin); // CI parte con base virgen
   // Hermético: el tenant demo puede existir con usuarios de OTRO modo
   // (uuids reales de Supabase vs deterministas); se parte de cero.
   const previo = await admin.query('SELECT id FROM tenants WHERE name = $1', [TENANT_NAME]);
