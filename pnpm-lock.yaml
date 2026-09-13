@@ -351,10 +351,26 @@ importers:
         version: 5.9.3
 
   packages/modules/organizations:
+    dependencies:
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      pg:
+        specifier: ^8.13.0
+        version: 8.23.0
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.23.1
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(supports-color@7.2.0)(yaml@2.9.1)
 
   packages/sdk:
     devDependencies:
