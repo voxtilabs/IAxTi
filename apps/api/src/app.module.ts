@@ -1,11 +1,12 @@
 import { Controller, Get, Module, NotFoundException, Param } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ModuleRegistry } from '@iaxti/core';
+import { RequireModule, RequirePermission } from './authz/decorators';
 
 // El registry se construye una vez al arrancar; una validación fallida
 // (ciclo, colisión, dependencia inexistente) aborta el proceso a propósito
 // (SPEC §26). Los controllers no llevan lógica: solo exponen el registry.
-const registry = new ModuleRegistry().load();
+export const registry = new ModuleRegistry().load();
 
 @Controller()
 class HealthController {
@@ -52,7 +53,7 @@ class MeController {
 
 @ApiTags('demo')
 @Controller('demo')
-class DemoErroresController {
+class DemoController {
   /** Existe solo para verificar el formato de error único; se retira con el primer recurso real. */
   @Get('no-existe/:id')
   @ApiOperation({ summary: 'Demostración del formato de error' })
@@ -63,7 +64,16 @@ class DemoErroresController {
       details: [{ id }],
     });
   }
+
+  /** Demostración del guard de autorización; se retira con el primer recurso real. */
+  @Get('protegido')
+  @RequireModule('audit')
+  @RequirePermission('audit.read')
+  @ApiOperation({ summary: 'Demostración de @RequireModule + @RequirePermission' })
+  protegido() {
+    return { ok: true };
+  }
 }
 
-@Module({ controllers: [HealthController, MeController, DemoErroresController] })
+@Module({ controllers: [HealthController, MeController, DemoController] })
 export class AppModule {}
