@@ -23,15 +23,21 @@ jobs:
         env:
           DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           COMPOSE_ID: ${{ inputs.ambiente == 'production' && secrets.DOKPLOY_COMPOSE_ID_PROD || secrets.DOKPLOY_COMPOSE_ID_STAGING }}
           TAG: ${{ inputs.tag }}
         run: |
           # Dokploy toma IMAGE de las variables del proyecto: se actualiza y redeploya
           curl -fsS -X POST "${DOKPLOY_URL}/api/compose.update" \
             -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
             -H "Content-Type: application/json" \
             -d "{\"composeId\": \"${COMPOSE_ID}\", \"env\": \"IMAGE=ghcr.io/voxtilabs/iaxti:${TAG}\"}" || true
           curl -fsS -X POST "${DOKPLOY_URL}/api/compose.deploy" \
             -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
             -H "Content-Type: application/json" \
             -d "{\"composeId\": \"${COMPOSE_ID}\"}"
