@@ -10,5 +10,9 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@iaxti/core": "workspace:*",
+    "@iaxti/db": "workspace:*"
   }
 }
