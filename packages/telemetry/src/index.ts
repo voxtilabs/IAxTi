@@ -26,11 +26,11 @@ export function initObservability(serviceName: string): void {
     // El exportador OTLP y sus cabeceras salen de las variables estándar
     // OTEL_EXPORTER_OTLP_* que el SDK lee solo.
     process.env.OTEL_SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? `iaxti-${serviceName}`;
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    /* eslint-disable @typescript-eslint/no-require-imports */
     const { NodeSDK } = require('@opentelemetry/sdk-node') as typeof import('@opentelemetry/sdk-node');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getNodeAutoInstrumentations } =
       require('@opentelemetry/auto-instrumentations-node') as typeof import('@opentelemetry/auto-instrumentations-node');
+    /* eslint-enable @typescript-eslint/no-require-imports */
 
     const sdk = new NodeSDK({
       instrumentations: [
