@@ -1,3 +1,4 @@
+import './instrument';
 import { createServer } from 'node:http';
 import { createPool } from '@iaxti/db';
 import {

@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@iaxti/telemetry": "workspace:*",
     "next": "^15.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

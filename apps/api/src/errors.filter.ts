@@ -6,6 +6,7 @@ import {
   type ExceptionFilter,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { captureError } from '@iaxti/telemetry';
 import type { WithRequestId } from './request-id';
 
 /** Formato de error único de la plataforma (SPEC §28). */
@@ -67,8 +68,10 @@ export class ErrorsFilter implements ExceptionFilter {
         if (Array.isArray(b.details)) details = b.details;
       }
     } else {
-      // Error no controlado: se loguea completo, al cliente va el genérico.
+      // Error no controlado: se loguea completo y va a Sentry (no-op sin
+      // DSN); al cliente solo el genérico con su requestId.
       console.error(`[${requestId}]`, exception);
+      captureError(exception, { requestId, path: request.url });
     }
 
     const body: ApiError = { code, message, requestId, details };
