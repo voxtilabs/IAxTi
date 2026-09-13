@@ -61,6 +61,15 @@ jobs:
       - name: Dependency-cruiser (fronteras de módulos)
         run: pnpm depcruise
 
+      # ADR-0008: prohibido condicionar por rol; el único traductor
+      # rol → permisos es domain/base-roles.ts del módulo authorization.
+      - name: Sin condicionales por rol
+        run: |
+          if grep -rn --include='*.ts' -E "\brole\b *===" apps packages | grep -v 'domain/base-roles'; then
+            echo "Prohibido condicionar por rol fuera de base-roles.ts (ADR-0008)"; exit 1
+          fi
+          echo "sin condicionales por rol"
+
       - name: Build
         run: pnpm build
 

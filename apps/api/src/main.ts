@@ -2,8 +2,10 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { redisConnection } from '@iaxti/core';
-import { AppModule } from './app.module';
+import { AppModule, registry } from './app.module';
+import { AuthzGuard } from './authz/authz.guard';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { requestIdMiddleware } from './request-id';
@@ -23,6 +25,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   if (process.env.REDIS_URL || options.rateLimitPerMinute !== undefined) {
     app.useGlobalGuards(new RateLimitGuard(redisConnection(), options.rateLimitPerMinute));
   }
+  // Autorización (ADR-0008): módulo activo + permiso del rol, en todo endpoint
+  // que lo declare. La identidad es stub por headers hasta #7 (JWT Supabase).
+  app.useGlobalGuards(new AuthzGuard(app.get(Reflector), registry));
 
   const config = new DocumentBuilder()
     .setTitle('IAxTi API')
