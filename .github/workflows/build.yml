@@ -10,8 +10,6 @@ on:
 jobs:
   build-image:
     runs-on: ubuntu-latest
-    # No falla mientras el Dockerfile no exista (llega con el issue #2)
-    if: ${{ hashFiles('infra/docker/Dockerfile') != '' }}
     permissions:
       contents: read
       packages: write
