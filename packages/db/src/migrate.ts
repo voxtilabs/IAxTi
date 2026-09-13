@@ -96,8 +96,18 @@ export async function runMigrations(pool: Pool, modulesDir = findModulesDir()): 
       )
     `);
 
-    for (const moduleId of topologicalOrder(modulesDir)) {
-      const dir = join(modulesDir, moduleId, 'migrations');
+    // Migraciones de plataforma (packages/db/migrations) primero: outbox,
+    // schema base — de las que ningún módulo es dueño.
+    const platformDir = join(modulesDir, '..', 'db', 'migrations');
+    const targets: Array<{ moduleId: string; dir: string }> = [
+      ...(existsSync(platformDir) ? [{ moduleId: '_platform', dir: platformDir }] : []),
+      ...topologicalOrder(modulesDir).map((moduleId) => ({
+        moduleId,
+        dir: join(modulesDir, moduleId, 'migrations'),
+      })),
+    ];
+
+    for (const { moduleId, dir } of targets) {
       if (!existsSync(dir)) continue;
       const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
 
