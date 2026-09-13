@@ -1,0 +1,23 @@
+module:
+  id: identity
+  version: 0.1.0
+  core: true
+depends_on:
+  required: []
+  optional: []
+permissions:
+  - users.read
+  - users.invite
+  - users.manage
+events:
+  publishes:
+    - user.registered
+    - user.invited
+    - user.joined_tenant
+    - user.login_failed
+  consumes: []
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.identity
