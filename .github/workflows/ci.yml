@@ -11,6 +11,25 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: iaxti
+          POSTGRES_PASSWORD: iaxti
+          POSTGRES_DB: iaxti
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U iaxti"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgres://iaxti:iaxti@127.0.0.1:5432/iaxti
+      REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v4
 
@@ -44,3 +63,8 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Unit + integración (Postgres y Redis reales) + combinación de módulos.
+      # Concurrencia 1: los paquetes comparten la base del servicio.
+      - name: Tests
+        run: pnpm turbo test --concurrency=1
