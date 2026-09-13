@@ -2,8 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "packages/modules/*"
-allowBuilds:
-  esbuild: set this to true or false
 
-onlyBuiltDependencies:
-  - esbuild
+# pnpm 12 bloquea los build scripts de dependencias salvo lista explícita.
+allowBuilds:
+  esbuild: true
