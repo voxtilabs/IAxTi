@@ -33,7 +33,7 @@ jobs:
         run: |
           if [ -z "${DATABASE_URL}" ]; then echo "Sin DATABASE_URL_PROD aún; se salta"; exit 0; fi
           corepack enable && pnpm install --frozen-lockfile
-          pnpm -s migrate:deploy
+          pnpm run migrate:deploy
 
       - name: Deploy prod en Dokploy
         env:

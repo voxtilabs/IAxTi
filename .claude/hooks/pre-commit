@@ -16,10 +16,10 @@ run() { # $1 nombre  $2... comando
 }
 
 if command -v pnpm >/dev/null 2>&1 && [ -f package.json ]; then
-  run "lint"      pnpm -s lint
-  run "typecheck" pnpm -s typecheck
+  run "lint"      pnpm run lint
+  run "typecheck" pnpm run typecheck
   if [ -f .dependency-cruiser.cjs ] || [ -f .dependency-cruiser.js ]; then
-    run "dependency-cruiser" pnpm -s depcruise
+    run "dependency-cruiser" pnpm run depcruise
   fi
 fi
 

@@ -2,16 +2,20 @@
   "name": "iaxti",
   "private": true,
   "packageManager": "pnpm@12.4.1",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "eslint .",
     "test": "turbo test",
-    "migrate:deploy": "pnpm --filter @iaxti/db run build && pnpm --filter @iaxti/db run migrate"
+    "migrate:deploy": "pnpm --filter @iaxti/db run build && pnpm --filter @iaxti/db run migrate",
+    "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
+    "dependency-cruiser": "^16.8.0",
     "eslint": "^9.30.0",
     "turbo": "^2.5.0",
     "typescript": "^5.7.0",
