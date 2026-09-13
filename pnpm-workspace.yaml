@@ -4,7 +4,7 @@ packages:
   - "packages/modules/*"
 
 # pnpm 12 bloquea los build scripts de dependencias salvo lista explícita.
+# esbuild lo necesita vitest; scarf es telemetría y queda denegada a propósito.
 allowBuilds:
-  '@scarf/scarf': set this to true or false
+  '@scarf/scarf': false
   esbuild: true
-  "@scarf/scarf": false # telemetría que arrastra @nestjs/swagger: bloqueada a propósito
