@@ -4,9 +4,9 @@ packages:
   - "packages/modules/*"
 
 # pnpm 12 bloquea los build scripts de dependencias salvo lista explícita.
-# esbuild lo necesita vitest; scarf es telemetría y queda denegada a propósito.
+# OJO: pnpm appendea placeholders inválidos aquí durante `pnpm install` cuando
+# aparece una dep nueva con scripts — revisar este archivo antes de commitear.
 allowBuilds:
   '@scarf/scarf': false
   esbuild: true
   msgpackr-extract: true
-  msgpackr-extract: set this to true or false
