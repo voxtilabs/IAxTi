@@ -1,3 +1,4 @@
+import './instrument';
 import { createServer } from 'node:http';
 
 const service = process.env.SERVICE ?? 'agents';

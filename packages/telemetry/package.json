@@ -1,0 +1,20 @@
+{
+  "name": "@iaxti/telemetry",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentelemetry/auto-instrumentations-node": "^0.52.0",
+    "@opentelemetry/sdk-node": "^0.54.0",
+    "@sentry/node": "^8.40.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
