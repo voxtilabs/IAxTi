@@ -2,16 +2,27 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
+import { redisConnection } from '@iaxti/core';
 import { AppModule } from './app.module';
 import { ErrorsFilter } from './errors.filter';
+import { RateLimitGuard } from './rate-limit.guard';
 import { requestIdMiddleware } from './request-id';
 
-export async function createApp(): Promise<INestApplication> {
+export interface CreateAppOptions {
+  rateLimitPerMinute?: number;
+}
+
+export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, { logger: ['warn', 'error'] });
   app.use(requestIdMiddleware);
   // /v1 en la ruta (SPEC §28); health queda fuera para Dokploy/Uptime Kuma.
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready', 'health/modules'] });
   app.useGlobalFilters(new ErrorsFilter());
+
+  // Rate limiting por tenant/API key (SPEC §28); requiere Redis configurado.
+  if (process.env.REDIS_URL || options.rateLimitPerMinute !== undefined) {
+    app.useGlobalGuards(new RateLimitGuard(redisConnection(), options.rateLimitPerMinute));
+  }
 
   const config = new DocumentBuilder()
     .setTitle('IAxTi API')
