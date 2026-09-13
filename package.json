@@ -7,7 +7,8 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "eslint .",
-    "test": "turbo test"
+    "test": "turbo test",
+    "migrate:deploy": "pnpm --filter @iaxti/db run build && pnpm --filter @iaxti/db run migrate"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
