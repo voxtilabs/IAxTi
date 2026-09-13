@@ -1,3 +1,7 @@
+<!-- docs/SPEC.md · fuente de verdad de IAxTi · consolidado el 2026-09-13:
+Prompt maestro (partes A-E) + secciones 39-40, con las correcciones del anexo
+aplicadas. Las versiones anteriores del documento fueron eliminadas del repo. -->
+
 # IAxTi — Prompt maestro
 
 Documento único de producto, negocio y arquitectura. Se pega completo como primer
@@ -184,7 +188,7 @@ planes del SuperAdmin.
 | Conversaciones activas / mes | tope del plan | tope mayor | tope mayor |
 | Cuota de IA / mes | incluida, con tope | mayor | mayor, ampliable |
 | Módulos | crm, conversations, agents (copiloto), calendar, payments | + automations completo, knowledge ampliado, integrations | + roles custom, API, webhooks, analytics avanzado, envíos segmentados |
-| Retención de conversaciones | 12 meses | 24 meses | ilimitada |
+| Retención de conversaciones (sección 39) | 12 meses | 24 meses | ilimitada |
 | Soporte | WhatsApp, horario hábil | WhatsApp prioritario | WhatsApp prioritario + persona asignada |
 
 Reglas del modelo:
@@ -256,7 +260,8 @@ Aplican en todos los módulos.
   "BASTA", "STOP", "no me escriban" y equivalentes marcan opt-out automático.
 - **Un dueño por oportunidad** y uno por conversación. Reasignar deja rastro.
 - **Nada se borra físicamente** desde la interfaz: se archiva. El borrado real es
-  por solicitud del titular o por política de retención, y queda auditado.
+  por solicitud del titular o por política de retención, y queda auditado
+  (ver sección 39).
 - **Idioma:** español de Chile, tuteo, sin jerga técnica para el usuario.
 
 ---
@@ -389,8 +394,10 @@ está pendiente y nunca deja a alguien sin respuesta.
 **Entidades**
 
 - `Conversation`: contacto, canal, cuenta de canal, estado, dueño, equipo,
-  prioridad, último mensaje entrante (para la ventana de 24 h), primera respuesta,
-  etiquetas, oportunidad vinculada.
+  prioridad, último mensaje entrante (para la ventana de 24 h), último mensaje en
+  cualquier dirección (`last_message_at`), bandera `archived_at` sobre `resolved`
+  (sección 39; no es un estado nuevo), primera respuesta, etiquetas, oportunidad
+  vinculada.
 - `Message`: dirección (in/out), tipo (texto, imagen, audio, documento, ubicación,
   contacto, plantilla, interactivo), contenido, adjuntos, estado de entrega
   (`queued → sent → delivered → read → failed`), autor (usuario, agente, sistema),
@@ -756,7 +763,9 @@ auditado con `actor_kind = superadmin`.
 - **Tenants:** lista con estado, plan, uso, salud de canales; crear, suspender,
   reactivar, cambiar plan, extender prueba, entrar en modo soporte (lectura, con
   aviso al tenant y en audit).
-- **Planes:** definir límites y módulos por plan sin desplegar; precios viven aquí.
+- **Planes:** definir límites y módulos por plan sin desplegar; precios viven
+  aquí. Incluye `retention_months` (sección 39) y `api_requests_month` (cuota
+  mensual de la API por tenant, con override por tenant validado ≤ plan).
 - **Módulos:** habilitar, deshabilitar, kill-switch, versión, dependencias, health,
   tenants que lo usan.
 - **Centro de IA:** ejecuciones, éxito, latencia, tokens y costo por tenant, agente,
@@ -846,10 +855,10 @@ antes de implementar.
 | Cómputo | Docker → **VPS con Dokploy**: api, workers, agents desde una imagen construida en GitHub Actions y publicada en GHCR | Segundo VPS → Docker Swarm multi-nodo (Dokploy) → Cloud Run / GKE + Helm. Misma imagen en todas las etapas (sección 36) |
 | Colas | BullMQ sobre Redis (contenedor Dokploy con AOF) | Redis gestionado cuando haya más de un nodo |
 | WhatsApp | Kapso detrás de `ChannelProvider` con vocabulario de Meta | Tech Provider propio cuando el margen de Kapso lo justifique |
-| LLM | Gemini vía Vertex AI | Segundo proveedor por configuración del agente |
+| LLM | Gemini por la Developer API (tier pago) con `@ai-sdk/google` | Vertex AI por residencia o contrato; segundo proveedor por configuración del agente (sección 40) |
 | Observabilidad | Sentry + OpenTelemetry → Grafana Cloud + Langfuse Cloud | Langfuse self-hosted por contrato |
-| Borde | Cloudflare delante de Vercel y Cloud Run | — |
-| IaC y CI | Terraform (un proyecto GCP por ambiente) + GitHub Actions | — |
+| Borde | Cloudflare delante del VPS (proxy, WAF, rate limit) | — |
+| IaC y CI | GitHub Actions; compose versionado en `infra/dokploy/` | Terraform entra con la nube (sección 36) |
 
 ## 26. Repositorio y sistema de módulos
 
@@ -1004,10 +1013,10 @@ Cada feature que toque datos personales o IA actualiza su fila. Nunca se escribe
 |---|---|---|---|
 | 0 Discovery | — | Este documento, ADRs, CLAUDE.md, `.claude/`, issues | Mi aprobación |
 | 1 Fundación | 1–3 | Monorepo, registro de módulos, núcleo (identity, organizations, authorization, audit), RLS, OpenAPI, CI completo, Cloud Run + Terraform en dev | Test de combinación verde; un tenant de prueba con dos usuarios y roles |
-| 2 CRM núcleo | 4–7 | crm, conversations (sin canal real), quick replies, web y admin con Pulso en día y noche, importación CSV | Un supervisor asigna una conversación simulada y la resuelve desde el celular |
+| 2 CRM núcleo | 4–7 | crm, conversations (sin canal real), quick replies, web y admin con Pulso en día y noche, importación CSV, cierre automático y archivo (sección 39) | Un supervisor asigna una conversación simulada y la resuelve desde el celular |
 | 3 IA + WhatsApp | 8–11 | channels + whatsapp (Kapso) + webchat, agents (copiloto assist y autónomo por horario, configurador), knowledge, notifications, Langfuse, cuota | **Demo vendible:** onboarding completo en 10 minutos con número real |
 | 4 Agenda y cobro | 12–14 | calendar, payments, automations (tres reglas + secuencias básicas), integrations (Drive, Gmail lectura), analytics básico, billing con planes | Primer cliente en prueba gratis |
-| 5 Crecimiento | con feedback | SuperAdmin completo, roles custom, Instagram y Messenger, automatizaciones avanzadas, envíos segmentados, API y webhooks, evaluación continua | Diez clientes pagando |
+| 5 Crecimiento | con feedback | SuperAdmin completo, roles custom, Instagram y Messenger, automatizaciones avanzadas, envíos segmentados, API por tenant y webhooks, retención por plan (sección 39), evaluación continua | Diez clientes pagando |
 | 6 Hardening | con volumen | Load testing, DR probado, matriz de compliance completa, Tech Provider si conviene, GKE si un cliente lo exige | Primer cliente que pida contrato de tratamiento de datos |
 
 Al terminar la fase 3 se sale a vender. Nada de fase 5 se adelanta.
@@ -1077,11 +1086,13 @@ No escribas código de producto.
    módulos, permisos, flujo de un mensaje de WhatsApp de punta a punta (webhook →
    cola → conversación → copiloto → sugerencia → envío → estado), flujo del
    configurador, flujo de un pago, ciclo de vida del tenant.
-5. Genera `docs/adr/0001` a `0010`: stack TypeScript · Supabase como datos e
-   identidad · Cloud Run antes que GKE · BullMQ antes que Pub/Sub · Kapso ahora y
-   Tech Provider después · Langfuse + OpenTelemetry · sistema de módulos · modelo
-   de autorización · Pulso como sistema de diseño · modo assist por defecto y
-   autónomo opt-in.
+5. Genera `docs/adr/0001` a `0012`: stack TypeScript · Supabase como datos e
+   identidad · VPS con Dokploy antes que la nube (condiciones en la sección 38) ·
+   BullMQ antes que Pub/Sub · Kapso ahora y Tech Provider después · Langfuse +
+   OpenTelemetry · sistema de módulos · modelo de autorización · Pulso como
+   sistema de diseño · modo assist por defecto y autónomo opt-in · Gemini
+   Developer API antes que Vertex AI · cierre, archivo y retención de
+   conversaciones (sección 39).
 6. Genera `docs/SECURITY_BASELINE.md`, `docs/COMPLIANCE_BASELINE.md` con la matriz
    de la sección 30 poblada con los controles de este documento, y
    `docs/IMPLEMENTATION_PLAN.md` por semanas según la 31, con las funciones de
@@ -1245,8 +1256,7 @@ queda en un ADR con la fecha en que se revisa.
 ### Topología inicial (un VPS)
 
 ```
-VPS (4 vCPU / 8 GB / NVMe · región más cercana a Chile disponible: Santiago,
-     São Paulo o, si no hay, Miami)
+VPS (4 vCPU / 8 GB / NVMe · la misma región que el proyecto de Supabase)
 ├── Dokploy (panel en dominio propio, solo tras Cloudflare Access)
 ├── Traefik (TLS, rutas)
 ├── proyecto iaxti-staging
@@ -1362,3 +1372,148 @@ Lo que se hace desde la fase 1 para que este camino sea real y no una promesa:
   genéricos, nada más.
 - Métricas de p95, cola y CPU por servicio desde el día uno, para que "cuándo"
   sea un número y no una sensación.
+
+## 39. Retención, cierre automático y borrado de conversaciones
+
+Tres mecanismos distintos que no se confunden. "Inactividad" en una bandeja
+significa cerrar, no borrar: una conversación es el historial del contacto y en un
+CRM ese historial es el activo. Ninguno se ejecuta desde la interfaz; los tres
+corren en `workers`, cola `scheduled`, y quedan en audit.
+
+| Mecanismo | Quién lo configura | Dónde | Qué hace | Por defecto |
+|---|---|---|---|---|
+| Cierre automático | ADMIN del tenant | Configuración → Conversaciones | `open` o `pending` sin mensaje entrante por N días pasa a `resolved`. No borra nada | 7 días |
+| Archivo | ADMIN del tenant | ídem | `resolved` sin actividad por N meses recibe `archived_at`; sale de la bandeja y de los filtros, sigue en búsqueda y en la ficha | 3 meses |
+| Retención | SUPERADMIN | Planes (por plan) · Tenant → Plan (override ≤ plan) | Borrado físico de conversación, mensajes, notas, asignaciones y adjuntos con `last_message_at` anterior al corte | Base 12 · Crece 24 · Equipo ilimitada |
+
+Reglas:
+
+- La inactividad se mide con `last_message_at`, en cualquier dirección. Cierre y
+  archivo miran además `last_inbound_at` (el que ya existe para la ventana de 24 h).
+- La retención borra `Conversation`, `Message`, `InternalNote`, `Assignment` y los
+  objetos de R2 asociados. `Contact`, `Deal` y `Appointment` no se tocan. La ficha
+  muestra "Conversaciones anteriores eliminadas por la política de retención del
+  plan", con la fecha del corte.
+- Nunca se borra una conversación en `new`, `open` o `snoozed` aunque supere el
+  corte. Primero la cierra el cierre automático; la corrida siguiente la borra.
+- Borrado por lotes de 1.000 conversaciones por transacción. Las llaves de R2 se
+  leen antes del `DELETE` y se borran después del commit, con reintento idempotente;
+  si R2 falla, el job reintenta solo esa parte.
+- Una entrada de audit por tenant y por corrida: `actor_kind = system`,
+  `action = conversations.retention.purged`, metadata con corte, cantidad y rango de
+  ids. No una entrada por conversación: inflaría audit sin agregar información.
+- Bajar de plan acorta la retención: el tenant recibe aviso 30 días antes de la
+  primera purga con el plazo nuevo, con la cantidad exacta que se borraría. Subir de
+  plan no recupera nada.
+- Tenants en `trial` vencido, `read_only`, `suspended` o `deleted` no entran aquí:
+  los cubre el ciclo de vida de `organizations` (30 días después de la prueba, 90
+  días de impago). Es otro job, en otro módulo.
+- Módulo `conversations` con kill-switch: el job se salta, como todo job de módulo
+  apagado (sección 26, regla 5).
+- La solicitud del titular (Ley 21.719) es un flujo aparte: borra todo lo del
+  contacto en todos los módulos, en cualquier plan, y deja registro de la solicitud.
+
+Datos:
+
+```
+PlanLimits.retention_months           int | null    null = ilimitada
+Tenant.settings.retention_months      int | null    override, validado ≤ plan al guardar y al cambiar de plan
+Tenant.settings.auto_resolve_days     int           por defecto 7, mínimo 1
+Tenant.settings.archive_after_months  int | null    por defecto 3, null desactiva
+Conversation.last_message_at          timestamptz   trigger en Message, cualquier dirección
+Conversation.last_inbound_at          timestamptz   ya existe
+Conversation.archived_at              timestamptz | null   bandera, no un estado nuevo
+índices   conversations (tenant_id, state, last_message_at desc)
+          conversations (tenant_id, archived_at)
+          messages (tenant_id, conversation_id, created_at desc)
+```
+
+Jobs (BullMQ, cola `scheduled`, repetibles, zona `America/Santiago`):
+
+```
+conversations.auto_resolve    cada hora      por tenant activo
+conversations.archive         diario 03:00   por tenant activo
+conversations.retention       diario 04:00   por tenant activo con retención finita
+```
+
+Cada job padre recorre tenants y encola un job hijo por tenant. Un tenant grande no
+bloquea a los demás y los reintentos son por tenant. Métricas por corrida: tenants
+procesados, conversaciones cerradas, archivadas y borradas, duración.
+
+Eventos: `conversation.auto_resolved`, `conversation.archived`,
+`conversations.retention.purged` (uno por tenant y corrida).
+
+Pantalla del ADMIN, según Pulso: campo de 46 px con el número en JetBrains Mono,
+label "Cerrar conversaciones sin respuesta del cliente después de", ayuda en
+`--text-muted` con la próxima corrida, un solo botón primario "Guardar", aviso
+"Plazo guardado". Lo mismo para el archivo. La retención se muestra en solo lectura
+junto al plan: "Tu plan conserva las conversaciones 12 meses".
+
+Pantalla del SUPERADMIN: en Planes, `retention_months` por plan; en Tenant → Plan,
+el override con validación y con el conteo de conversaciones que borraría la
+próxima corrida, para que nadie ponga 1 y borre un año sin verlo.
+
+Lo que no se hace, y por qué:
+
+- `pg_cron` en Supabase para la purga. El borrado tiene que auditar en la misma
+  transacción, borrar en R2 y respetar el kill-switch; eso vive en `workers`, no en
+  la base. `pg_cron` queda para tareas puramente de base (refrescar vistas
+  materializadas, por ejemplo).
+- Particionar `messages` por mes. ADR cuando pase 20 millones de filas; ahí la
+  retención pasa a ser `DROP PARTITION` y deja de costar I/O.
+- Borrar por "inactividad" en días. Eso es cierre automático; el borrado va en
+  meses y por plan.
+
+---
+
+## 40. Costos de la etapa 1 y reglas de eficiencia
+
+Fijos, USD por mes, antes del primer cliente pagando. Precios de septiembre 2026;
+se verifican al contratar y se anotan en `docs/COSTS.md` con la fecha.
+
+| Componente | Plan | USD/mes |
+|---|---|---|
+| VPS 4 vCPU / 8 GB NVMe en São Paulo (Vultr o Akamai) | — | 60–75 |
+| Supabase | Pro (prod) + segundo proyecto para staging | 25 + 10 |
+| Cloudflare | Free + Access (hasta 50 usuarios) + R2 (10 GB incluidos, luego 0,015/GB) | 0–5 |
+| GHCR | Free con política de limpieza: se conservan las últimas 10 imágenes | 0 |
+| Langfuse | Hobby; Core desde fase 3, cuando entran evaluaciones y anotación (sección 13) | 0, luego 29 |
+| Sentry · Grafana Cloud · Uptime Kuma | Free | 0 |
+| Vercel | No se usa: `web` y `admin` corren en el VPS (secciones 28 y 36) | 0 |
+| **Total** | | **~100–120 · ~130–150 desde fase 3** |
+
+Variables, con tope por tenant y traspasados al plan (sección 6): tokens de Gemini
+y conversaciones de Meta vía Kapso. Son los únicos costos que crecen con los
+clientes; todo lo demás es plano hasta la etapa 2 del camino de escalado.
+
+Reglas:
+
+- **VPS y Supabase en la misma región.** Con la base en São Paulo y la API en
+  Santiago, cada query paga ~40 ms de ida y vuelta, y una vista de bandeja hace
+  decenas. Si el costo obliga, la alternativa coherente es Supabase `us-east` + VPS
+  en Ashburn (~20 USD/mes en Hetzner), aceptando ~130 ms para el usuario en Chile.
+  Se decide en un ADR; no se mezclan.
+- **Supabase Free no se usa ni para staging.** Se pausa a los 7 días sin actividad
+  y un staging pausado un lunes cuesta más que 10 USD.
+- **Gemini por la Developer API, tier pago, con `@ai-sdk/google`,** hasta que un
+  cliente exija Vertex AI por residencia o contrato. Cambiar es cambiar el provider
+  en la configuración del agente. Evita proyecto GCP, IAM y credenciales antes de
+  que Terraform exista. Nunca el tier gratis: sus condiciones permiten usar los
+  datos para entrenamiento y aquí van datos de clientes.
+- **Palancas de costo de IA, en orden de impacto:** tamaño del contexto por
+  sugerencia (`conversations.get_context` con N pequeño y resumen del resto);
+  modelo por tarea (Flash para clasificar, transcribir y sugerir; Pro solo para el
+  configurador); cache de la base de conocimiento por tenant; cuota visible al
+  80 % y al 100 % (sección 6). Borrar conversaciones viejas no está en esta lista:
+  30 tenants activos generan del orden de 1 GB al mes y el GB extra en Supabase
+  cuesta 0,125 USD.
+- **Realtime de la bandeja por broadcast** desde la API (o `realtime.send` en un
+  trigger), nunca por `postgres_changes`: cada cambio se evalúa contra RLS por cada
+  suscriptor y el costo crece con tenants × usuarios. Además el frontend no lee
+  tablas directamente (sección 25), así que `postgres_changes` rompería esa regla.
+- **Adjuntos nunca en Postgres.** R2 desde el día uno; el egress de Supabase
+  (250 GB en Pro) es para filas, no para audios.
+- **Se mide desde el día uno:** costo de IA por tenant y por día, conversaciones
+  de Meta por tenant, tamaño de la base, egress, CPU y memoria por contenedor.
+  Alerta si cualquiera crece más de 30 % semana a semana. "Cuándo escalar" es un
+  número (sección 38), no una sensación.

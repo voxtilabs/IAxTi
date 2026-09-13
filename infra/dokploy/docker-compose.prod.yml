@@ -1,0 +1,44 @@
+# iaxti-prod · igual que staging pero con imagen inmutable por tag.
+# IMAGE se fija en Dokploy en cada release: ghcr.io/voxtilabs/iaxti:vX.Y.Z
+# Redis con backup diario a R2 configurado desde Dokploy (SPEC §36).
+
+services:
+  web:
+    image: ${IMAGE}
+    environment: { SERVICE: web }
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 30s, timeout: 5s, retries: 3 }
+
+  admin:
+    image: ${IMAGE}
+    environment: { SERVICE: admin }
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 30s, timeout: 5s, retries: 3 }
+
+  api:
+    image: ${IMAGE}
+    environment: { SERVICE: api }
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 15s, timeout: 5s, retries: 3 }
+
+  workers:
+    image: ${IMAGE}
+    environment: { SERVICE: workers }
+    restart: unless-stopped
+    depends_on: [redis]
+
+  agents:
+    image: ${IMAGE}
+    environment: { SERVICE: agents }
+    restart: unless-stopped
+    depends_on: [redis]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

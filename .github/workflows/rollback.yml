@@ -1,0 +1,37 @@
+# Rollback = redeploy de una imagen anterior por tag. Menos de dos minutos.
+# Como las migraciones son aditivas, la versión anterior funciona con el
+# esquema nuevo: el rollback es SOLO de imagen (SPEC §37).
+name: rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a redesplegar (vX.Y.Z)"
+        required: true
+      ambiente:
+        description: "staging o production"
+        required: true
+        default: production
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente }}
+    steps:
+      - name: Redeploy imagen anterior vía Dokploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          COMPOSE_ID: ${{ inputs.ambiente == 'production' && secrets.DOKPLOY_COMPOSE_ID_PROD || secrets.DOKPLOY_COMPOSE_ID_STAGING }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          # Dokploy toma IMAGE de las variables del proyecto: se actualiza y redeploya
+          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.update" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${COMPOSE_ID}\", \"env\": \"IMAGE=ghcr.io/voxtilabs/iaxti:${TAG}\"}" || true
+          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.deploy" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${COMPOSE_ID}\"}"

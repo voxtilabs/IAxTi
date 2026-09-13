@@ -1,0 +1,48 @@
+# Migraciones en Supabase staging (con lock, ANTES del deploy) y deploy vía
+# API de Dokploy. Si las migraciones fallan, el deploy no ocurre (SPEC §37).
+# Secrets requeridos (environment "staging"): DATABASE_URL_STAGING,
+# DOKPLOY_URL, DOKPLOY_API_KEY, DOKPLOY_COMPOSE_ID_STAGING, STAGING_BASE_URL.
+name: deploy-staging
+
+on:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Migraciones (antes del deploy, nunca en el contenedor)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then echo "Sin DATABASE_URL_STAGING aún; se salta"; exit 0; fi
+          corepack enable && pnpm install --frozen-lockfile
+          pnpm -s migrate:deploy
+
+      - name: Deploy en Dokploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_STAGING }}
+        run: |
+          if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
+          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.deploy" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${COMPOSE_ID}\"}"
+
+      - name: Smoke
+        env:
+          BASE: ${{ secrets.STAGING_BASE_URL }}
+        run: |
+          if [ -z "${BASE}" ]; then echo "Sin STAGING_BASE_URL aún; se salta"; exit 0; fi
+          for path in /health /api/health; do
+            curl -fsS -m 10 "${BASE}${path}" >/dev/null && echo "ok ${path}" || exit 1
+          done

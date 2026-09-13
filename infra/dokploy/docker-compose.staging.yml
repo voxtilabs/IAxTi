@@ -1,0 +1,46 @@
+# iaxti-staging · Dokploy lo importa desde el repo (SPEC §36).
+# Imagen única construida en GitHub Actions y publicada en GHCR; el VPS solo
+# hace pull. Secrets SOLO como variables de entorno del proyecto en Dokploy.
+# IMAGE se fija en Dokploy: ghcr.io/voxtilabs/iaxti:staging
+
+services:
+  web:
+    image: ${IMAGE}
+    environment: { SERVICE: web }
+    env_file: []
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 30s, timeout: 5s, retries: 3 }
+
+  admin:
+    image: ${IMAGE}
+    environment: { SERVICE: admin }
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 30s, timeout: 5s, retries: 3 }
+
+  api:
+    image: ${IMAGE}
+    environment: { SERVICE: api }
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 15s, timeout: 5s, retries: 3 }
+
+  workers:
+    image: ${IMAGE}
+    environment: { SERVICE: workers }
+    restart: unless-stopped
+    depends_on: [redis]
+
+  agents:
+    image: ${IMAGE}
+    environment: { SERVICE: agents }
+    restart: unless-stopped
+    depends_on: [redis]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

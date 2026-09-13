@@ -1,0 +1,35 @@
+# Construye la imagen única y la publica en GHCR con :sha y :staging.
+# El VPS nunca construye: solo hace pull (ADR-0003).
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    # No falla mientras el Dockerfile no exista (llega con el issue #2)
+    if: ${{ hashFiles('infra/docker/Dockerfile') != '' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/voxtilabs/iaxti:${{ github.sha }}
+            ghcr.io/voxtilabs/iaxti:staging
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

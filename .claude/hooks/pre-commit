@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Pre-commit de IAxTi: lint, typecheck, dependency-cruiser, gitleaks.
+# Se activa con: git config core.hooksPath .claude/hooks
+# Cada paso se salta con aviso si la herramienta aún no está instalada
+# (la fundación las va agregando por issue); en CI todos son bloqueantes.
+set -euo pipefail
+
+run() { # $1 nombre  $2... comando
+  local name="$1"; shift
+  if command -v "${1%% *}" >/dev/null 2>&1 || [ -f "node_modules/.bin/${1%% *}" ]; then
+    echo "pre-commit · $name"
+    "$@" || { echo "pre-commit FALLÓ en $name"; exit 1; }
+  else
+    echo "pre-commit · $name: herramienta no instalada, se salta (CI la exige)"
+  fi
+}
+
+if command -v pnpm >/dev/null 2>&1 && [ -f package.json ]; then
+  run "lint"      pnpm -s lint
+  run "typecheck" pnpm -s typecheck
+  if [ -f .dependency-cruiser.cjs ] || [ -f .dependency-cruiser.js ]; then
+    run "dependency-cruiser" pnpm -s depcruise
+  fi
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit · gitleaks"
+  gitleaks protect --staged --redact || { echo "pre-commit FALLÓ: posible secreto en el diff"; exit 1; }
+else
+  echo "pre-commit · gitleaks no instalado, se salta (CI lo exige)"
+fi

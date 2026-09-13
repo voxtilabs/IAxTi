@@ -1,0 +1,55 @@
+# Promoción a producción: tag vX.Y.Z → retag de la imagen ya probada en
+# staging (bit a bit la misma) → aprobación manual (environment production)
+# → migraciones prod → deploy Dokploy → smoke. Rollback = workflow rollback.
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: production   # aprobación manual configurada en el environment
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retag imagen :sha → :vX.Y.Z (no se reconstruye)
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker pull "ghcr.io/voxtilabs/iaxti:${GITHUB_SHA}" || docker pull "ghcr.io/voxtilabs/iaxti:staging"
+          SRC=$(docker images -q | head -1)
+          docker tag "$SRC" "ghcr.io/voxtilabs/iaxti:${TAG}"
+          docker push "ghcr.io/voxtilabs/iaxti:${TAG}"
+
+      - name: Migraciones prod (con lock, antes del deploy)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then echo "Sin DATABASE_URL_PROD aún; se salta"; exit 0; fi
+          corepack enable && pnpm install --frozen-lockfile
+          pnpm -s migrate:deploy
+
+      - name: Deploy prod en Dokploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_PROD }}
+        run: |
+          if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
+          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.deploy" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${COMPOSE_ID}\"}"
+
+      - name: Smoke prod
+        env:
+          BASE: ${{ secrets.PROD_BASE_URL }}
+        run: |
+          if [ -z "${BASE}" ]; then echo "Sin PROD_BASE_URL aún; se salta"; exit 0; fi
+          curl -fsS -m 10 "${BASE}/health" >/dev/null
