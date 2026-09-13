@@ -1,0 +1,13 @@
+# Conector de Cloudflare Tunnel (issue #15/#16): expone el panel de Dokploy
+# como https://dokploy.iaxti.cl detrás de Cloudflare Access, SIN abrir puertos
+# en el VPS. Se despliega como compose en Dokploy con la variable TUNNEL_TOKEN
+# (se obtiene al crear el túnel; requiere Zero Trust habilitado en la cuenta).
+# network_mode: host para alcanzar el panel en localhost:3000 y a Traefik en
+# localhost:80/443 (dominios de staging).
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
