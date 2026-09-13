@@ -1,0 +1,22 @@
+module:
+  id: authorization
+  version: 0.1.0
+  core: true
+depends_on:
+  required: [identity, organizations]
+  optional: []
+permissions:
+  - roles.read
+  - roles.manage
+  - apikeys.manage
+events:
+  publishes:
+    - role.created
+    - role.assigned
+    - permission.denied
+  consumes: []
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.authorization

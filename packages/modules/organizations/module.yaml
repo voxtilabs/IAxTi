@@ -1,0 +1,24 @@
+module:
+  id: organizations
+  version: 0.1.0
+  core: true
+depends_on:
+  required: [identity]
+  optional: []
+permissions:
+  - tenant.read
+  - tenant.settings
+  - tenant.billing
+  - teams.manage
+events:
+  publishes:
+    - tenant.created
+    - tenant.plan_changed
+    - tenant.state_changed
+    - usage.threshold_reached
+  consumes: []
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.organizations
