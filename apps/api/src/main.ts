@@ -1,6 +1,7 @@
 import './instrument';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -22,7 +23,13 @@ export interface CreateAppOptions {
 }
 
 export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule, { logger: ['warn', 'error'] });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ['warn', 'error'],
+    rawBody: false,
+  });
+  // El CSV de importación (#34) viaja en el body: 2 MB alcanzan para miles
+  // de filas sin abrir la puerta a payloads absurdos.
+  app.useBodyParser('json', { limit: '2mb' });
   app.use(requestIdMiddleware);
   // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
   // En producción CORS_ORIGINS es una lista cerrada; sin la variable (dev,

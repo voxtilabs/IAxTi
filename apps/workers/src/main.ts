@@ -10,6 +10,7 @@ import {
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
 import { realtimeConsumers } from './realtime';
+import { onContactMerged } from '@iaxti/module-conversations';
 import {
   enqueueTenantChildren,
   runArchiveTenant,
@@ -31,7 +32,16 @@ function start(): void {
   const registry = new ModuleRegistry().load();
   const pool = createPool();
 
-  const dispatcher = new OutboxDispatcher(pool, registry, [...realtimeConsumers()]);
+  const dispatcher = new OutboxDispatcher(pool, registry, [
+    ...realtimeConsumers(),
+    // Fusión de contactos (#34): la bandeja re-apunta su historia.
+    {
+      name: 'conversations.contact_merged',
+      moduleId: 'conversations',
+      event: 'contact.merged',
+      handler: onContactMerged,
+    },
+  ]);
   dispatcher.start(500);
   console.log('workers: despachador de outbox activo (500 ms)');
 

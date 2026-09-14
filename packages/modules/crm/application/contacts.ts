@@ -80,7 +80,19 @@ export async function ensureContactByPhone(
     [input.tenantId, phone],
   );
   if ((existing.rowCount ?? 0) > 0) {
-    return { contact: rowToContact(existing.rows[0]), created: false };
+    const row = existing.rows[0];
+    // Un contacto fusionado apunta a su principal (#34): el canal siempre
+    // conversa con el que quedó vivo.
+    if (row.merged_into) {
+      const principal = await client.query(
+        'SELECT * FROM contacts WHERE tenant_id = $1 AND id = $2',
+        [input.tenantId, row.merged_into],
+      );
+      if ((principal.rowCount ?? 0) > 0) {
+        return { contact: rowToContact(principal.rows[0]), created: false };
+      }
+    }
+    return { contact: rowToContact(row), created: false };
   }
   const contact = await createContact(client, { ...input, phone, actor: 'system' });
   return { contact, created: true };
@@ -198,4 +210,40 @@ export async function canReceiveBusinessInitiated(
   if (opted_out_at) return false;
   // Escribió primero (origen de canal) o dio opt-in registrado.
   return Boolean(opt_in_at) || origin === 'whatsapp' || origin === 'webchat';
+}
+
+/** Lista para /contactos (#34): búsqueda por nombre o teléfono, cursor. */
+export async function listContacts(
+  client: PoolClient,
+  tenantId: string,
+  filters: { q?: string; cursor?: string; limit?: number } = {},
+): Promise<{ items: Contact[]; nextCursor: string | null }> {
+  const limit = Math.min(filters.limit ?? 25, 100);
+  const params: unknown[] = [tenantId];
+  const where = ['tenant_id = $1', 'merged_into IS NULL'];
+  if (filters.q?.trim()) {
+    params.push(`%${filters.q.trim()}%`);
+    where.push(`(name ILIKE $${params.length} OR phone LIKE $${params.length})`);
+  }
+  if (filters.cursor) {
+    const [ts, id] = Buffer.from(filters.cursor, 'base64url').toString().split('|');
+    if (!ts || !id) throw new Error('Ese cursor no es válido. Vuelve a la primera página.');
+    params.push(ts, id);
+    where.push(`(last_activity_at, id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
+  }
+  params.push(limit + 1);
+  const r = await client.query(
+    `SELECT * FROM contacts WHERE ${where.join(' AND ')}
+      ORDER BY last_activity_at DESC, id DESC LIMIT $${params.length}`,
+    params,
+  );
+  const hasMore = r.rows.length > limit;
+  const rows = hasMore ? r.rows.slice(0, limit) : r.rows;
+  const last = rows.at(-1);
+  return {
+    items: rows.map(rowToContact),
+    nextCursor: hasMore && last
+      ? Buffer.from(`${(last.last_activity_at as Date).toISOString()}|${last.id}`).toString('base64url')
+      : null,
+  };
 }
