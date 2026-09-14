@@ -265,7 +265,7 @@ export async function getSessionReplies(
   const r = await client.query(
     `SELECT id, body, created_at FROM messages
       WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'out' ${after}
-      ORDER BY created_at`,
+      ORDER BY seq`,
     params,
   );
   return r.rows.map((row) => ({ id: row.id, body: row.body ?? null, createdAt: row.created_at }));

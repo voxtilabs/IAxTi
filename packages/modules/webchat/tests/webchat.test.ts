@@ -31,6 +31,7 @@ beforeAll(async () => {
     END $$
   `);
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
+  await admin.query('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_app');
   await admin.query(
     'GRANT SELECT, INSERT, UPDATE ON contacts, conversations, messages, assignments, channel_accounts, webchat_widgets, webchat_sessions, tenants, user_roles TO iaxti_app',
   );
@@ -111,7 +112,7 @@ describe('el visitante (#46)', () => {
 
     // El pendiente se volcó EN ORDEN antes del mensaje nuevo.
     const mensajes = await admin.query(
-      `SELECT m.body FROM messages m WHERE m.tenant_id = $1 AND m.conversation_id = $2 ORDER BY m.created_at`,
+      `SELECT m.body FROM messages m WHERE m.tenant_id = $1 AND m.conversation_id = $2 ORDER BY m.seq`,
       [tenant, identificado.conversationId],
     );
     expect(mensajes.rows.map((r) => r.body)).toEqual([

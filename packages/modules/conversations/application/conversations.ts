@@ -442,7 +442,7 @@ export async function listMessages(
 ): Promise<Message[]> {
   const r = await client.query(
     `SELECT * FROM messages WHERE tenant_id = $1 AND conversation_id = $2
-     ORDER BY created_at DESC LIMIT $3`,
+     ORDER BY seq DESC LIMIT $3`,
     [tenantId, conversationId, Math.min(limit, 100)],
   );
   return r.rows.map(rowToMessage);
