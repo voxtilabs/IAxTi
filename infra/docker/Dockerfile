@@ -26,8 +26,10 @@ COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /app/apps/workers/dist ./apps/workers/dist
 COPY --from=build /app/apps/workers/package.json ./apps/workers/package.json
+COPY --from=build /app/apps/workers/node_modules ./apps/workers/node_modules
 COPY --from=build /app/apps/agents/dist ./apps/agents/dist
 COPY --from=build /app/apps/agents/package.json ./apps/agents/package.json
+COPY --from=build /app/apps/agents/node_modules ./apps/agents/node_modules
 # TODOS los packages del workspace: los symlinks de node_modules apuntan a
 # ../../packages/* y cualquiera ausente rompe el arranque (lo cazó workers
 # con @iaxti/telemetry). Incluye los manifiestos que lee el registry.
