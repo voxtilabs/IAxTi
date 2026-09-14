@@ -1,0 +1,60 @@
+/*
+ * Base de Pulso: lo que el documento define fuera de los tokens
+ * (tipografía §3, foco §9, marca §11). Sin hex: todo por token.
+ */
+
+body {
+  background: var(--bg);
+  color: var(--text-body);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  color: var(--text);
+  margin: 0;
+}
+h1 { font-weight: 800; letter-spacing: -0.045em; }
+h2 { font-weight: 700; font-size: 34px; letter-spacing: -0.035em; }
+h3 { font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+
+/* La mono es obligatoria en montos, UF, RUT, fechas, plazos e ids (§3). */
+.dato, code, .mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+}
+.rotulo {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+a { color: var(--action-text); }
+
+/* Foco visible, no negociable (§9). La única "sombra" permitida. */
+:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Marca (§11): el lockup inline lee los tokens y cambia de modo solo. */
+.marca { display: inline-block; line-height: 0; }
+.marca svg { height: 30px; width: auto; display: block; }
+.marca:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

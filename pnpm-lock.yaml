@@ -190,6 +190,9 @@ importers:
       '@iaxti/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      '@iaxti/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       next:
         specifier: ^15.4.0
         version: 15.5.25(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -292,6 +295,9 @@ importers:
       '@iaxti/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      '@iaxti/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       next:
         specifier: ^15.4.0
         version: 15.5.25(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -563,9 +569,15 @@ importers:
 
   packages/ui:
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(supports-color@7.2.0)(yaml@2.9.1)
 
 packages:
 
