@@ -3,5 +3,13 @@
 export const MODULE_ID = 'audit' as const;
 export { writeAudit, verifyChain } from './src/write';
 export type { AuditEntry, ActorKind, ChainCheck } from './src/write';
-export { searchAudit } from './src/search';
+export { searchAudit, searchAuditGlobal } from './src/search';
 export type { AuditFilter } from './src/search';
+export {
+  auditToCsv,
+  auditToJson,
+  signExport,
+  verifyExport,
+  COLUMNAS_EXPORT,
+} from './src/export';
+export type { SignedExport, AuditExportRow } from './src/export';

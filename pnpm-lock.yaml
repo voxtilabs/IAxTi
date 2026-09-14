@@ -255,6 +255,9 @@ importers:
       '@iaxti/module-analytics':
         specifier: workspace:*
         version: link:../../packages/modules/analytics
+      '@iaxti/module-audit':
+        specifier: workspace:*
+        version: link:../../packages/modules/audit
       '@iaxti/module-authorization':
         specifier: workspace:*
         version: link:../../packages/modules/authorization

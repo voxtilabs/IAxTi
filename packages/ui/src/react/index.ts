@@ -50,3 +50,5 @@ export {
 } from './ui/icons';
 export { CanalChip, CanalIcono, nombreCanal, nombreVisible, NOMBRE_CANAL } from './canal';
 export type { CanalId } from './canal';
+export { AuditExplorer } from './audit-explorer';
+export type { AuditFetcher, AuditRow, ChainCheckDto, SignedExportDto } from './audit-explorer';

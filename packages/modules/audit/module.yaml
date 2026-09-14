@@ -12,7 +12,8 @@ events:
   publishes: []
   consumes: []
 tools: []
-nav: []
+nav:
+  - { label: Auditoría, path: /ajustes/auditoria, permission: audit.read }
 widgets: []
 plan_min: base
 flag: module.audit

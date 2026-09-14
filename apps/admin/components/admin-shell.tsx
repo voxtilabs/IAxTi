@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import {
+  AuditExplorer,
   ModeToggle,
   RequireSession,
   SessionProvider,
   useSession,
+  type AuditFetcher,
   type PublicConfig,
 } from '@iaxti/ui/react';
 
@@ -466,6 +468,48 @@ function TablaModulos() {
   );
 }
 
+/**
+ * El explorador GLOBAL (#72): los mismos componentes que ve el ADMIN de un
+ * tenant, con alcance total. La verificación de la cadena es por tenant —
+ * la cadena de hash lo es—, así que se pide el tenant en el filtro.
+ */
+function AuditGlobal() {
+  const { session, config } = useSession();
+  if (!session) return null;
+  const qs = (p: Record<string, string>) => new URLSearchParams(p).toString();
+  const llamar = async (path: string, init?: RequestInit) => {
+    const res = await fetch(`${config.apiUrl}/v1${path}`, {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      ...init,
+    });
+    if (!res.ok) {
+      const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(cuerpo?.message ?? `No pudimos consultar el libro (HTTP ${res.status}).`);
+    }
+    return res.json();
+  };
+  const fetcher: AuditFetcher = {
+    global: true,
+    search: (p) => llamar(`/platform/audit?${qs(p)}`),
+    verify: (tenantId) =>
+      llamar(`/platform/audit/verify?tenantId=${tenantId ?? ''}`, { method: 'POST', body: '{}' }),
+    exportar: (format, p) => llamar(`/platform/audit/export?${qs({ ...p, format })}`),
+  };
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-xl font-bold text-ink">Auditoría</h2>
+      <p className="mb-4 text-sm text-muted">
+        El libro de todos los tenants. Para verificar la cadena, pon el tenant en el filtro: la
+        cadena de hash es por tenant.
+      </p>
+      <AuditExplorer fetcher={fetcher} />
+    </div>
+  );
+}
+
 export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSvg: string }) {
   return (
     <SessionProvider config={config}>
@@ -488,6 +532,7 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
             <TablaPlanes />
             <TablaModulos />
             <TablaConsumoApi />
+            <AuditGlobal />
           </main>
         </div>
       </RequireSession>
