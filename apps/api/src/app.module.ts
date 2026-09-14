@@ -35,6 +35,7 @@ import { AnalyticsController } from './analytics.controller';
 import { ApiUsageController } from './api-usage.controller';
 import { ApiKeysController } from './apikeys.controller';
 import { WebhooksSalientesController } from './webhooks-salientes.controller';
+import { RolesController } from './roles.controller';
 import { PaymentsController, PaymentWebhooksController } from './payments.controller';
 import { BillingController } from './billing.controller';
 
@@ -248,6 +249,7 @@ const controllers = [
   ApiKeysController,
   ApiUsageController,
   WebhooksSalientesController,
+  RolesController,
   PaymentsController,
   PaymentWebhooksController,
   BillingController,

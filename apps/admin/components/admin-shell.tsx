@@ -45,8 +45,9 @@ function TablaTenants() {
   const { session, config } = useSession();
   const [tenants, setTenants] = useState<TenantRow[] | null>(null);
   const [sinAcceso, setSinAcceso] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => {
+  const cargar = () => {
     if (!session) return;
     void fetch(`${config.apiUrl}/v1/platform/tenants`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
@@ -54,7 +55,28 @@ function TablaTenants() {
       if (res.status === 403) return setSinAcceso(true);
       if (res.ok) setTenants(await res.json());
     });
-  }, [session, config.apiUrl]);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(cargar, [session, config.apiUrl]);
+
+  const accion = async (path: string, init?: RequestInit) => {
+    if (!session) return;
+    setAviso(null);
+    const res = await fetch(`${config.apiUrl}/v1${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      ...init,
+    });
+    if (!res.ok) {
+      const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+      setAviso(cuerpo?.message ?? `Error ${res.status}`);
+      return;
+    }
+    cargar();
+  };
 
   if (sinAcceso) {
     return (
@@ -67,11 +89,17 @@ function TablaTenants() {
   if (!tenants) return <p className="text-muted">Cargando tenants…</p>;
 
   return (
+    <div>
+      {aviso && (
+        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">
+          {aviso}
+        </p>
+      )}
     <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-rest text-left">
-            {['Negocio', 'Rubro', 'Plan', 'Estado', 'Creado'].map((h) => (
+            {['Negocio', 'Rubro', 'Plan', 'Estado', 'Creado', 'Acciones'].map((h) => (
               <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
             ))}
           </tr>
@@ -90,10 +118,78 @@ function TablaTenants() {
               <td className="dato px-4 py-4 text-right text-ink">
                 {new Date(t.createdAt).toISOString().slice(0, 10)}
               </td>
+              <td className="px-4 py-4">
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    aria-label={`Plan de ${t.name}`}
+                    className="rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body"
+                    value={t.plan}
+                    onChange={(e) =>
+                      void accion(`/platform/tenants/${t.id}/plan`, {
+                        body: JSON.stringify({ plan: e.target.value }),
+                      })
+                    }
+                  >
+                    {['base', 'crece', 'equipo'].map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  {t.state === 'suspended' || t.state === 'read_only' || t.state === 'past_due' ? (
+                    <button
+                      type="button"
+                      className="rounded-boton border border-good-soft-br bg-good-soft px-2 py-1 text-xs text-good-text"
+                      onClick={() =>
+                        void accion(`/platform/tenants/${t.id}/state`, {
+                          body: JSON.stringify({ action: 'reactivate' }),
+                        })
+                      }
+                    >
+                      Reactivar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded-boton border border-bad-soft-br bg-bad-soft px-2 py-1 text-xs text-bad-text"
+                      onClick={() =>
+                        void accion(`/platform/tenants/${t.id}/state`, {
+                          body: JSON.stringify({ action: 'suspend' }),
+                        })
+                      }
+                    >
+                      Suspender
+                    </button>
+                  )}
+                  {t.state === 'trial' && (
+                    <button
+                      type="button"
+                      className="rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body"
+                      onClick={() =>
+                        void accion(`/platform/tenants/${t.id}/extend-trial`, {
+                          body: JSON.stringify({ days: 14 }),
+                        })
+                      }
+                    >
+                      +14 días
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="rounded-boton border border-warn-soft-br bg-warn-soft px-2 py-1 text-xs text-warn-text"
+                    onClick={() =>
+                      void accion(`/platform/tenants/${t.id}/support`, {
+                        body: JSON.stringify({ hours: 4 }),
+                      })
+                    }
+                  >
+                    Soporte 4 h
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

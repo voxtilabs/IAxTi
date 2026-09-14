@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import { withTenant } from '@iaxti/db';
 import { roleOf } from '@iaxti/module-identity';
+import { customRolePermissions } from '@iaxti/module-authorization';
 import { isPlatformAdmin } from '@iaxti/module-platform';
 
 export type RoleResolver = (tenantId: string, userId: string) => Promise<string | null>;
@@ -38,5 +39,22 @@ export function dbRoleResolver(pool: Pool): RoleResolver {
     const role = await withTenant(pool, tenantId, (c) => roleOf(c, tenantId, userId));
     cache.set(key, { role, at: Date.now() });
     return role;
+  };
+}
+
+/** Permisos de roles CUSTOM (#73) desde la base, con cache de 60 s. */
+export function dbCustomPermissionsResolver(
+  pool: Pool,
+): (tenantId: string, roleName: string) => Promise<string[] | null> {
+  const cache = new Map<string, { perms: string[] | null; at: number }>();
+  return async (tenantId, roleName) => {
+    const key = `${tenantId}:${roleName}`;
+    const hit = cache.get(key);
+    if (hit && Date.now() - hit.at < TTL_MS) return hit.perms;
+    const perms = await withTenant(pool, tenantId, (c) =>
+      customRolePermissions(c, tenantId, roleName),
+    );
+    cache.set(key, { perms, at: Date.now() });
+    return perms;
   };
 }
