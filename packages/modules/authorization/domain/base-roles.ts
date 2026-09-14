@@ -34,6 +34,7 @@ const USER_PERMS = new Set([
   'conversations.resolve',
   'conversations.notes',
   'notifications.manage_own',
+  'agents.use', // "Usar el copiloto" ✓ USER (matriz §23)
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
@@ -46,6 +47,7 @@ const SUPERVISOR_EXTRA = new Set([
   'conversations.read_all',
   'conversations.assign',
   'quickreplies.manage',
+  'agents.usage.read', // "Ver consumo y costo de IA" ✓ SUPERVISOR (§23)
 ]);
 
 const RULES: Record<BaseRole, Rule> = {

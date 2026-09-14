@@ -1,0 +1,29 @@
+# agents (#47, SPEC §13): el runtime de los tres agentes. Proveedor y
+# modelo POR TAREA vía configuración (ADR-0011): cambiar de modelo no es un
+# deploy — la palanca de costo nº 2 de §40. NUNCA el tier gratis de ningún
+# proveedor (sus condiciones permiten entrenar con datos de clientes).
+module:
+  id: agents
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, audit]
+  optional: []
+permissions:
+  - agents.use
+  - agents.configure
+  - agents.usage.read
+events:
+  publishes:
+    - agent.executed
+    - agent.suggested
+    - agent.acted
+    - agent.escalated
+    - agent.failed
+    - agent.quota_threshold
+  consumes: []
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.agents

@@ -24,6 +24,7 @@ import { WebhooksController } from './webhooks.controller';
 import { ChannelsController, WebchatAdminController } from './channels.controller';
 import { WebchatController } from './webchat.controller';
 import { NotificationsController } from './notifications.controller';
+import { AgentsController } from './agents.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -164,6 +165,7 @@ const controllers = [
   WebchatAdminController,
   WebchatController,
   NotificationsController,
+  AgentsController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 
