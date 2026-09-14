@@ -50,3 +50,20 @@ export {
 export type { ConversationMode, AutonomousOutcome } from './application/autonomous';
 export { detectEscalation, parseAutonomous, formatoAutonomo } from './domain/escalation';
 export type { EscalationReason, AutonomousPayload } from './domain/escalation';
+export {
+  snapshotConfig,
+  proposeConfiguration,
+  getProposal,
+  pendingProposal,
+  applyProposal,
+  dismissProposal,
+} from './application/configurator';
+export type { Proposal } from './application/configurator';
+export {
+  VERTICALS,
+  VERTICAL_BASES,
+  parseConfiguration,
+  buildDiff,
+  formatoConfiguracion,
+} from './domain/configurator';
+export type { Vertical, ConfigProposal, ConfigDiff, ConfigDiffItem, ConfigSnapshot } from './domain/configurator';

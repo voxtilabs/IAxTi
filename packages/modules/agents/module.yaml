@@ -8,7 +8,7 @@ module:
   core: false
 depends_on:
   required: [identity, organizations, audit]
-  optional: []
+  optional: [conversations, crm, whatsapp]
 permissions:
   - agents.use
   - agents.configure

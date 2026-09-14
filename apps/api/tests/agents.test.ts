@@ -73,6 +73,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
+  await admin.query('DELETE FROM agent_proposals WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM agent_executions WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM agents WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM user_roles WHERE tenant_id = $1', [tenant]);
@@ -125,6 +126,31 @@ describe('/v1/agents (#47)', () => {
     });
     expect(res.status).toBe(503);
     expect((await res.json()).code).toBe('PROVIDER_UNAVAILABLE');
+  });
+
+  it('el configurador (#50) es del ADMIN; sin llave avisa claro; sin texto 400', async () => {
+    const negado = await pedir(vendedor, '/agents/configurador', {
+      method: 'POST',
+      body: JSON.stringify({ description: 'Barbería en Ñuñoa', vertical: 'belleza' }),
+    });
+    expect(negado.status).toBe(403);
+
+    const sinTexto = await pedir(duena, '/agents/configurador', {
+      method: 'POST',
+      body: JSON.stringify({ vertical: 'belleza' }),
+    });
+    expect(sinTexto.status).toBe(400);
+
+    // En este ambiente no hay llaves de proveedor: avisa, no adivina.
+    const sinLlave = await pedir(duena, '/agents/configurador', {
+      method: 'POST',
+      body: JSON.stringify({ description: 'Barbería en Ñuñoa, 3 barberos', vertical: 'belleza' }),
+    });
+    expect(sinLlave.status).toBe(503);
+    expect((await sinLlave.json()).code).toBe('PROVIDER_UNAVAILABLE');
+
+    // Sin propuesta pendiente, el GET devuelve vacío (200).
+    expect((await pedir(duena, '/agents/configurador')).status).toBe(200);
   });
 
   it('el consumo es de supervisión (§23): USER 403, SUPERVISORA 200', async () => {

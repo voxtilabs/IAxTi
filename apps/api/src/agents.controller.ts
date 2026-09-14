@@ -27,6 +27,12 @@ import {
   updateAgent,
 } from '@iaxti/module-agents';
 import { getTenantSettings } from '@iaxti/module-organizations';
+import {
+  applyProposal,
+  dismissProposal,
+  pendingProposal,
+  proposeConfiguration,
+} from '@iaxti/module-agents';
 import type { AgentInput, AgentTask, Provider } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { actorCan } from './authz/can';
@@ -185,6 +191,89 @@ export class AgentsController {
         });
       }
       return res;
+    });
+  }
+
+  // --- El configurador (#50): propone un diff, el usuario decide ---
+
+  @Get('configurador')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'La propuesta pendiente del configurador (si hay)' })
+  async configuradorPendiente(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) => pendingProposal(c, actor.tenantId));
+  }
+
+  @Post('configurador')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'Arma la propuesta del CRM a partir de la descripción del negocio' })
+  async configuradorProponer(
+    @Req() request: WithUser,
+    @Body() body: { description?: string; vertical?: string },
+  ) {
+    const actor = actorOf(request);
+    if (!body?.description?.trim()) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Cuéntanos primero de qué se trata el negocio.',
+        details: [{ field: 'description' }],
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const agentes = await listAgents(c, actor.tenantId);
+      const agente = agentes.find((a) => a.active);
+      if (agente && !providerAvailable(agente.provider as Provider)) {
+        throw new ServiceUnavailableException({
+          code: 'PROVIDER_UNAVAILABLE',
+          message:
+            'El proveedor de IA de este asistente aún no tiene llave configurada en este ambiente.',
+        });
+      }
+      const res = await proposeConfiguration(c, {
+        tenantId: actor.tenantId,
+        description: body.description!,
+        vertical: body.vertical,
+        actorUserId: actor.userId,
+        requestId: request.requestId,
+      });
+      if (res.status === 'failed') {
+        throw new BadRequestException({ code: 'CONFIGURATOR_FAILED', message: res.error });
+      }
+      return res.proposal;
+    });
+  }
+
+  @Post('configurador/:pid/aplicar')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'Aplica el diff con los permisos del usuario (user via agent)' })
+  async configuradorAplicar(@Req() request: WithUser, @Param('pid') pid: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        return await applyProposal(c, {
+          tenantId: actor.tenantId,
+          proposalId: pid,
+          actorUserId: actor.userId,
+          requestId: request.requestId,
+        });
+      } catch (err) {
+        throw new BadRequestException({ code: 'PROPOSAL_GONE', message: (err as Error).message });
+      }
+    });
+  }
+
+  @Post('configurador/:pid/descartar')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'Descarta la propuesta' })
+  async configuradorDescartar(@Req() request: WithUser, @Param('pid') pid: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        await dismissProposal(c, { tenantId: actor.tenantId, proposalId: pid, actorUserId: actor.userId });
+        return { dismissed: true };
+      } catch (err) {
+        throw new BadRequestException({ code: 'PROPOSAL_GONE', message: (err as Error).message });
+      }
     });
   }
 }

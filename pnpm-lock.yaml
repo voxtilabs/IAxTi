@@ -515,6 +515,9 @@ importers:
       '@iaxti/module-conversations':
         specifier: workspace:*
         version: link:../conversations
+      '@iaxti/module-crm':
+        specifier: workspace:*
+        version: link:../crm
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../organizations
