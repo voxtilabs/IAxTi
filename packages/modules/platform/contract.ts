@@ -13,3 +13,13 @@ export {
   supportStatus,
 } from './application/tenants-admin';
 export type { TenantDetail } from './application/tenants-admin';
+export {
+  listPlans,
+  updatePlan,
+  modulesAdmin,
+  setModuleFlag,
+  applyModuleFlags,
+  tenantRetentionPreview,
+  setRetentionOverridePlatform,
+} from './application/planes';
+export type { PlanRow, ModuleAdminRow } from './application/planes';

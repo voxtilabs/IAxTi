@@ -265,6 +265,207 @@ function TablaConsumoApi() {
   );
 }
 
+interface PlanRow2 {
+  plan: string;
+  priceClp: number | null;
+  iaExecutionsMonth: number;
+  retentionMonths: number | null;
+  apiRequestsMonth: number | null;
+  modules: string[];
+}
+
+/** Planes como configuración (#69): editar sin desplegar. */
+function TablaPlanes() {
+  const { session, config } = useSession();
+  const [planes, setPlanes] = useState<PlanRow2[] | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const cargar = () => {
+    if (!session) return;
+    void fetch(`${config.apiUrl}/v1/platform/plans`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (res) => {
+      if (res.ok) setPlanes(await res.json());
+    });
+  };
+  useEffect(cargar, [session, config.apiUrl]);
+
+  const editar = async (plan: string, campo: string, valor: string) => {
+    if (!session) return;
+    setAviso(null);
+    const n = valor === '' ? null : Number(valor);
+    const res = await fetch(`${config.apiUrl}/v1/platform/plans/${plan}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ [campo]: n }),
+    });
+    if (!res.ok) {
+      const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+      setAviso(cuerpo?.message ?? `Error ${res.status}`);
+    }
+    cargar();
+  };
+
+  if (!planes) return null;
+  return (
+    <div className="mt-10">
+      <h2 className="mb-2 text-xl font-bold text-ink">Planes</h2>
+      <p className="mb-4 text-sm text-muted">Configuración, no código: los cambios rigen sin desplegar.</p>
+      {aviso && (
+        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">{aviso}</p>
+      )}
+      <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-rest text-left">
+              {['Plan', 'Precio CLP', 'IA/mes', 'Retención (meses)', 'API/mes', 'Módulos'].map((h) => (
+                <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {planes.map((p) => (
+              <tr key={p.plan} className="border-t border-line">
+                <td className="px-4 py-3 font-medium text-ink">{p.plan}</td>
+                {(
+                  [
+                    ['priceClp', p.priceClp],
+                    ['iaExecutionsMonth', p.iaExecutionsMonth],
+                    ['retentionMonths', p.retentionMonths],
+                    ['apiRequestsMonth', p.apiRequestsMonth],
+                  ] as const
+                ).map(([campo, valor]) => (
+                  <td key={campo} className="px-4 py-3">
+                    <input
+                      aria-label={`${campo} de ${p.plan}`}
+                      className="dato w-28 rounded-campo border border-line bg-bg px-2 py-1 text-right text-sm text-ink"
+                      defaultValue={valor ?? ''}
+                      placeholder="∞"
+                      onBlur={(e) => void editar(p.plan, campo, e.target.value)}
+                    />
+                  </td>
+                ))}
+                <td className="dato px-4 py-3 text-xs text-muted">{p.modules.join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+interface ModuloRow {
+  id: string;
+  version: string;
+  core: boolean;
+  active: boolean;
+  killSwitch: boolean;
+  dependsOn: string[];
+  tenantsUsing: number;
+}
+
+/** Módulos con kill-switch (#69): el registry valida dependencias. */
+function TablaModulos() {
+  const { session, config } = useSession();
+  const [modulos, setModulos] = useState<ModuloRow[] | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const cargar = () => {
+    if (!session) return;
+    void fetch(`${config.apiUrl}/v1/platform/modules`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (res) => {
+      if (res.ok) setModulos(await res.json());
+    });
+  };
+  useEffect(cargar, [session, config.apiUrl]);
+
+  const accionar = async (id: string, action: string) => {
+    if (!session) return;
+    setAviso(null);
+    const res = await fetch(`${config.apiUrl}/v1/platform/modules/${id}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) {
+      const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+      setAviso(cuerpo?.message ?? `Error ${res.status}`);
+      return;
+    }
+    setModulos(await res.json());
+  };
+
+  if (!modulos) return null;
+  return (
+    <div className="mt-10">
+      <h2 className="mb-2 text-xl font-bold text-ink">Módulos</h2>
+      {aviso && (
+        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">{aviso}</p>
+      )}
+      <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-rest text-left">
+              {['Módulo', 'Versión', 'Estado', 'Depende de', 'Tenants', 'Acciones'].map((h) => (
+                <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {modulos.map((m) => (
+              <tr key={m.id} className="border-t border-line">
+                <td className="px-4 py-3 font-medium text-ink">{m.id}{m.core && <span className="rotulo ml-2">núcleo</span>}</td>
+                <td className="dato px-4 py-3 text-body">{m.version}</td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-boton border px-3 py-1 text-xs font-medium ${
+                    m.killSwitch
+                      ? 'bg-bad-soft text-bad-text border-bad-soft-br'
+                      : m.active
+                        ? 'bg-good-soft text-good-text border-good-soft-br'
+                        : 'bg-rest text-muted border-line'
+                  }`}>
+                    {m.killSwitch ? 'kill-switch' : m.active ? 'activo' : 'apagado'}
+                  </span>
+                </td>
+                <td className="dato px-4 py-3 text-xs text-muted">{m.dependsOn.join(', ') || '—'}</td>
+                <td className="dato px-4 py-3 text-right text-body">{m.tenantsUsing}</td>
+                <td className="px-4 py-3">
+                  {!m.core && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body"
+                        onClick={() => void accionar(m.id, m.active ? 'disable' : 'enable')}
+                      >
+                        {m.active ? 'Apagar' : 'Encender'}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-boton border border-bad-soft-br bg-bad-soft px-2 py-1 text-xs text-bad-text"
+                        onClick={() => void accionar(m.id, m.killSwitch ? 'kill_off' : 'kill_on')}
+                      >
+                        {m.killSwitch ? 'Soltar kill' : 'Kill-switch'}
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSvg: string }) {
   return (
     <SessionProvider config={config}>
@@ -284,6 +485,8 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
           <main className="mx-auto max-w-contenido px-4 py-8">
             <h2 className="mb-4 text-xl font-bold text-ink">Tenants</h2>
             <TablaTenants />
+            <TablaPlanes />
+            <TablaModulos />
             <TablaConsumoApi />
           </main>
         </div>

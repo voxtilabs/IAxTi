@@ -30,6 +30,7 @@ import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules,
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
 import { billingConsumers, sweepBilling } from '@iaxti/module-billing';
+import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
@@ -77,6 +78,10 @@ function start(): void {
   ]);
   dispatcher.start(500);
   console.log('workers: despachador de outbox activo (500 ms)');
+
+  // Flags de módulos SIN desplegar (#69): al arrancar y cada 60 s.
+  void applyModuleFlags(pool, registry).catch(() => {});
+  setInterval(() => void applyModuleFlags(pool, registry).catch(() => {}), 60_000).unref?.();
 
   if (process.env.REDIS_URL) {
     const scheduled = createQueue('scheduled', redisConnection());

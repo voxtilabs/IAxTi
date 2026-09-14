@@ -34,6 +34,7 @@
     "@iaxti/telemetry": "workspace:*",
     "bullmq": "^5.34.0",
     "ioredis": "^5.4.0",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "@iaxti/module-platform": "workspace:*"
   }
 }

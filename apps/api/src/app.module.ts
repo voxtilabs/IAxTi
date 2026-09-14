@@ -20,10 +20,16 @@ import {
   adminExtendTrial,
   adminSetTenantState,
   endSupportSession,
+  listPlans,
   listTenants,
+  modulesAdmin,
+  setModuleFlag,
+  setRetentionOverridePlatform,
   startSupportSession,
   supportStatus,
   tenantDetail,
+  tenantRetentionPreview,
+  updatePlan,
 } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
@@ -317,6 +323,96 @@ class PlatformController {
   async endSupport(@Req() request: WithUser, @Param('id') id: string) {
     await endSupportSession(platformPool(), { tenantId: id, adminUser: request.user!.userId });
     return { ended: true };
+  }
+
+  // --- Planes y módulos sin desplegar (#69, SPEC §22) ---
+
+  @Get('plans')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Los planes con límites, precios y módulos' })
+  async plans() {
+    return listPlans(platformPool());
+  }
+
+  @Put('plans/:plan')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Edita el plan — configuración, no código' })
+  async updatePlan(@Req() request: WithUser, @Param('plan') plan: string, @Body() body: Record<string, unknown>) {
+    try {
+      return await updatePlan(platformPool(), {
+        plan,
+        changes: body as never,
+        knownModules: registry.health().map((h) => h.id),
+        adminUser: request.user!.userId,
+      });
+    } catch (err) {
+      throw new BadRequestException({ code: 'PLAN_INVALID', message: (err as Error).message });
+    }
+  }
+
+  @Get('modules')
+  @RequireModule('platform')
+  @RequirePermission('platform.modules')
+  @ApiOperation({ summary: 'Los módulos: estado vivo, dependencias y uso' })
+  async modules() {
+    return modulesAdmin(platformPool(), registry);
+  }
+
+  @Post('modules/:id')
+  @RequireModule('platform')
+  @RequirePermission('platform.modules')
+  @ApiOperation({ summary: 'Enciende/apaga/kill-switch — el registry valida dependencias' })
+  async setModule(@Req() request: WithUser, @Param('id') id: string, @Body() body: { action?: string }) {
+    const acciones = ['enable', 'disable', 'kill_on', 'kill_off'];
+    if (!acciones.includes(body?.action ?? '')) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: `La acción es una de: ${acciones.join(', ')}.`,
+      });
+    }
+    try {
+      return await setModuleFlag(platformPool(), registry, {
+        moduleId: id,
+        action: body!.action as 'enable',
+        adminUser: request.user!.userId,
+      });
+    } catch (err) {
+      throw new BadRequestException({ code: 'MODULE_INVALID', message: (err as Error).message });
+    }
+  }
+
+  @Get('tenants/:id/retention')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'La retención del tenant CON el conteo de la próxima purga' })
+  async tenantRetention(@Param('id') id: string) {
+    const pool = platformPool();
+    const client = await pool.connect();
+    try {
+      return await tenantRetentionPreview(client, id);
+    } catch (err) {
+      throw new BadRequestException({ code: 'TENANT_INVALID', message: (err as Error).message });
+    } finally {
+      client.release();
+    }
+  }
+
+  @Put('tenants/:id/retention')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Override de retención por tenant — validado ≤ plan' })
+  async setTenantRetention(@Req() request: WithUser, @Param('id') id: string, @Body() body: { months?: number | null }) {
+    try {
+      return await setRetentionOverridePlatform(platformPool(), {
+        tenantId: id,
+        months: body?.months ?? null,
+        adminUser: request.user!.userId,
+      });
+    } catch (err) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
+    }
   }
 }
 

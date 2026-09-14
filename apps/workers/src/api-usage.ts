@@ -27,11 +27,16 @@ export async function flushApiUsage(pool: Pool, redis: IORedis): Promise<number>
     const valor = Number(await redis.getdel(key));
     if (!Number.isFinite(valor) || valor <= 0) continue;
     const [, , tenantId, dia] = key.split(':');
-    await withTenant(pool, tenantId, async (client) => {
-      await incrementUsage(client, tenantId, 'api_requests', valor, new Date(`${dia}T12:00:00Z`));
-      await bump(client, { tenantId, metric: 'api_requests' as never, value: valor, day: new Date(`${dia}T12:00:00Z`) });
-    });
-    volcadas += 1;
+    try {
+      await withTenant(pool, tenantId, async (client) => {
+        await incrementUsage(client, tenantId, 'api_requests', valor, new Date(`${dia}T12:00:00Z`));
+        await bump(client, { tenantId, metric: 'api_requests' as never, value: valor, day: new Date(`${dia}T12:00:00Z`) });
+      });
+      volcadas += 1;
+    } catch (err) {
+      // Un tenant borrado no puede matar el flush completo de todos.
+      console.warn(`api-usage: la key ${key} no se pudo volcar: ${(err as Error).message}`);
+    }
   }
 
   for (const key of await scanKeys(redis, 'apiq:e:*')) {
@@ -42,15 +47,19 @@ export async function flushApiUsage(pool: Pool, redis: IORedis): Promise<number>
     const tenantId = partes[2];
     const dia = partes[3];
     const endpoint = partes.slice(4).join(':');
-    await withTenant(pool, tenantId, (client) =>
-      bump(client, {
-        tenantId,
-        metric: `api_ep:${endpoint}`.slice(0, 200) as never,
-        value: valor,
-        day: new Date(`${dia}T12:00:00Z`),
-      }),
-    );
-    volcadas += 1;
+    try {
+      await withTenant(pool, tenantId, (client) =>
+        bump(client, {
+          tenantId,
+          metric: `api_ep:${endpoint}`.slice(0, 200) as never,
+          value: valor,
+          day: new Date(`${dia}T12:00:00Z`),
+        }),
+      );
+      volcadas += 1;
+    } catch (err) {
+      console.warn(`api-usage: la key ${key} no se pudo volcar: ${(err as Error).message}`);
+    }
   }
   return volcadas;
 }
