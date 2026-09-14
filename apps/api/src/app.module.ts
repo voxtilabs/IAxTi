@@ -16,6 +16,7 @@ import { apiPool } from './db';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
+import { SettingsController } from './settings.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -146,6 +147,7 @@ const controllers = [
   PlatformController,
   DemoController,
   ConversationsController,
+  SettingsController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 

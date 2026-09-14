@@ -258,6 +258,9 @@ importers:
       '@iaxti/module-identity':
         specifier: workspace:*
         version: link:../../packages/modules/identity
+      '@iaxti/module-organizations':
+        specifier: workspace:*
+        version: link:../../packages/modules/organizations
       '@iaxti/module-platform':
         specifier: workspace:*
         version: link:../../packages/modules/platform
@@ -504,6 +507,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../crm
+      '@iaxti/module-organizations':
+        specifier: workspace:*
+        version: link:../organizations
       pg:
         specifier: ^8.13.0
         version: 8.23.0

@@ -22,6 +22,7 @@ events:
     - message.sent
     - message.failed
     - sla.first_response_breached
+    - conversation.unattended
     - conversation.handoff_requested
     - conversation.auto_resolved
     - conversation.archived

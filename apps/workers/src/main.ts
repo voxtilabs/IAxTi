@@ -5,10 +5,12 @@ import {
   ModuleRegistry,
   OutboxDispatcher,
   createModuleWorker,
+  createQueue,
   redisConnection,
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
 import { realtimeConsumers } from './realtime';
+import { sweepConversationAlerts } from './sweeps';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -32,11 +34,26 @@ function start(): void {
       'scheduled',
       registry,
       async (job) => {
+        if (job.name === 'conversations.checks') {
+          const res = await sweepConversationAlerts(pool);
+          if (res.unattended || res.breached) {
+            console.log(
+              `scheduled: alertas de bandeja — ${res.unattended} sin dueño, ${res.breached} SLA vencido (${res.tenants} tenants)`,
+            );
+          }
+          return res;
+        }
         console.log(`scheduled: job ${job.name} procesado`);
         return { ok: true };
       },
       redisConnection(),
     );
+    // Avisos de bandeja (#38): cada minuto, por tenant operativo. add con el
+    // mismo jobId+repeat es idempotente entre reinicios.
+    const scheduled = createQueue('scheduled', redisConnection());
+    void scheduled
+      .add('conversations.checks', { moduleId: 'conversations' }, { repeat: { every: 60_000 } })
+      .catch((err) => console.error('scheduled: no se pudo programar conversations.checks', err));
     console.log('workers: worker de cola scheduled activo');
 
     // El camino de entrada de mensajes (#35/#36): simulador hoy, canales

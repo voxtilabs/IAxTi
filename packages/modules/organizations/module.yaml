@@ -18,7 +18,8 @@ events:
     - usage.threshold_reached
   consumes: []
 tools: []
-nav: []
+nav:
+  - { label: Ajustes, path: /ajustes/bandeja, permission: tenant.settings }
 widgets: []
 plan_min: base
 flag: module.organizations
