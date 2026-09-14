@@ -49,27 +49,17 @@ export async function activeAgent(client: PoolClient, tenantId: string): Promise
 }
 
 /**
- * La corrida del copiloto por mensaje entrante: contexto con N pequeño +
- * resumen rodante (refrescado aquí mismo cuando hay cola vieja), UNA
- * generación que devuelve sugerencia + intención + calificación +
- * "¿creo la oportunidad?" — y jamás actúa sola en assist.
+ * El contexto con el resumen rodante al día — palanca de costo nº 1 (§40):
+ * si quedó cola sin resumir, se comprime ANTES de generar; el hilo completo
+ * jamás viaja al modelo. Lo comparten sugerir (#48) y responder (#49).
  */
-export async function suggestForInbound(
+export async function refreshedContext(
   client: PoolClient,
-  input: {
-    tenantId: string;
-    conversationId: string;
-    messageId?: string;
-    requestId?: string;
-  },
-  modelPortFactory: ModelPortFactory = aiSdkModelPort,
-): Promise<Suggestion | null> {
-  const agent = await activeAgent(client, input.tenantId);
-  if (!agent) return null;
-
+  input: { tenantId: string; conversationId: string; requestId?: string },
+  agent: Agent,
+  modelPortFactory: ModelPortFactory,
+): Promise<Awaited<ReturnType<typeof getContext>>> {
   let ctx = await getContext(client, input.tenantId, input.conversationId);
-  // Palanca de costo nº 1 (§40): si quedó cola sin resumir, se comprime
-  // ANTES de sugerir — el hilo completo jamás viaja al modelo.
   if (ctx.unsummarized > 0) {
     const minSeq = ctx.lastMessages[0]?.seq ?? 0;
     const viejos = await client.query(
@@ -103,6 +93,29 @@ export async function suggestForInbound(
       ctx = { ...ctx, summary: resumen.text.trim() };
     }
   }
+  return ctx;
+}
+
+/**
+ * La corrida del copiloto por mensaje entrante: contexto con N pequeño +
+ * resumen rodante (refrescado aquí mismo cuando hay cola vieja), UNA
+ * generación que devuelve sugerencia + intención + calificación +
+ * "¿creo la oportunidad?" — y jamás actúa sola en assist.
+ */
+export async function suggestForInbound(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    messageId?: string;
+    requestId?: string;
+  },
+  modelPortFactory: ModelPortFactory = aiSdkModelPort,
+): Promise<Suggestion | null> {
+  const agent = await activeAgent(client, input.tenantId);
+  if (!agent) return null;
+
+  const ctx = await refreshedContext(client, input, agent, modelPortFactory);
 
   const contexto = [
     `Cliente: ${ctx.contact.name ?? 'sin nombre'}${ctx.contact.phone ? ` (${ctx.contact.phone})` : ''}.`,

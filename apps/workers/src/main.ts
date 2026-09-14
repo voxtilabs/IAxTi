@@ -149,11 +149,13 @@ function start(): void {
     );
     console.log('workers: worker de cola inbound activo');
 
-    // La cola agents (#48): sugerencias y transcripciones del copiloto.
+    // La cola agents (#48/#49): sugerencias, transcripciones y el modo
+    // autónomo del copiloto; sus salientes van por la MISMA cola outbound.
+    const outboundQueue = createQueue('outbound', redisConnection());
     createModuleWorker(
       'agents',
       registry,
-      async (job) => processSuggest(pool, job.data as unknown as SuggestJob),
+      async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { outbound: outboundQueue }),
       redisConnection(),
     );
     console.log('workers: worker de cola agents activo');

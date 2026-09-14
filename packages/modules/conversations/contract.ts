@@ -11,6 +11,7 @@ export {
   updateSummary,
   updateTranscription,
   assignConversation,
+  requestHandoff,
   changeConversationState,
   getConversation,
   listMessages,

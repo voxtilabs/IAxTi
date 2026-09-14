@@ -4,7 +4,7 @@
 export const PROVIDERS = ['google', 'anthropic', 'glm'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
-export const TASKS = ['clasificar', 'sugerir', 'configurar', 'conocer', 'resumir', 'transcribir'] as const;
+export const TASKS = ['clasificar', 'sugerir', 'responder', 'configurar', 'conocer', 'resumir', 'transcribir'] as const;
 export type AgentTask = (typeof TASKS)[number];
 
 export interface TaskModel {
@@ -21,6 +21,7 @@ export interface TaskModel {
 export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   clasificar: { provider: 'google', model: 'gemini-2.5-flash' },
   sugerir: { provider: 'google', model: 'gemini-2.5-flash' },
+  responder: { provider: 'google', model: 'gemini-2.5-flash' },
   configurar: { provider: 'google', model: 'gemini-2.5-pro' },
   conocer: { provider: 'google', model: 'gemini-2.5-flash' },
   resumir: { provider: 'google', model: 'gemini-2.5-flash' },

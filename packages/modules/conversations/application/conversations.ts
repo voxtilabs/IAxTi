@@ -604,3 +604,43 @@ export async function updateTranscription(
     [input.tenantId, input.messageId, input.transcription],
   );
 }
+
+/**
+ * Pedir humano (#49): publica `conversation.handoff_requested` y, si la
+ * regla del tenant nombra a alguien, asigna. Sin regla queda en la cola
+ * (owner null) para que el equipo la tome. La llama el copiloto al escalar
+ * y también sirve para el "quiero hablar con una persona" del cliente.
+ */
+export async function requestHandoff(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    toOwnerId?: string | null;
+    reason: string;
+    actor: string;
+    requestId?: string;
+  },
+): Promise<void> {
+  if (input.toOwnerId) {
+    await assignConversation(client, {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      toOwnerId: input.toOwnerId,
+      reason: input.reason,
+      actor: input.actor,
+      requestId: input.requestId,
+    });
+  }
+  await publishEvent(client, {
+    name: 'conversation.handoff_requested',
+    tenantId: input.tenantId,
+    payload: {
+      conversationId: input.conversationId,
+      toOwnerId: input.toOwnerId ?? null,
+      reason: input.reason,
+    },
+    actor: input.actor,
+    requestId: input.requestId,
+  });
+}

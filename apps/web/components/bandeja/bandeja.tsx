@@ -292,6 +292,7 @@ export function Bandeja() {
           mensajes={mensajes}
           atajos={atajos}
           sugerencia={sugerencia}
+          modo={analisis?.mode ?? null}
           miId={miId}
           aviso={aviso}
           onSugerencia={async (accion, extra) => {
@@ -305,6 +306,19 @@ export function Bandeja() {
               );
               if (accion !== 'feedback') setSugerencia(null);
               if (accion === 'send') await Promise.all([cargarConversacion(seleccion), cargarLista()]);
+            } catch (err) {
+              setAviso((err as Error).message);
+            }
+          }}
+          onModo={async (modo) => {
+            if (!session || !tenant || !seleccion) return;
+            setAviso(null);
+            try {
+              await apiFetch(config, session, tenant, `/conversations/${seleccion}/agent-mode`, {
+                method: 'POST',
+                body: JSON.stringify({ mode: modo }),
+              });
+              setAnalisis((a) => (a ? { ...a, mode: modo } : a));
             } catch (err) {
               setAviso((err as Error).message);
             }

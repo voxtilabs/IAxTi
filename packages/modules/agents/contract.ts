@@ -38,3 +38,15 @@ export { parseSuggestion, FORMATO_SUGERENCIA } from './domain/parser';
 export type { SuggestionPayload } from './domain/parser';
 export { aiSdkTranscriber } from './application/models';
 export type { TranscribePort } from './application/models';
+export {
+  conversationMode,
+  setConversationMode,
+  effectiveMode,
+  inAutonomousHours,
+  guardrailLimits,
+  escalate,
+  autoRespondForInbound,
+} from './application/autonomous';
+export type { ConversationMode, AutonomousOutcome } from './application/autonomous';
+export { detectEscalation, parseAutonomous, formatoAutonomo } from './domain/escalation';
+export type { EscalationReason, AutonomousPayload } from './domain/escalation';
