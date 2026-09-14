@@ -27,15 +27,37 @@ describe('cabeceras de seguridad', () => {
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
   });
 
-  it('HSTS solo sobre HTTPS: en http local dejaría al navegador sin poder entrar', async () => {
-    const plano = await fetch(`${base}/health`);
-    expect(plano.headers.get('strict-transport-security')).toBeNull();
+  it('HSTS no sale en desarrollo: sobre http dejaría al navegador sin poder entrar', async () => {
+    const antes = process.env.IAXTI_ENV;
+    delete process.env.IAXTI_ENV;
+    try {
+      const plano = await fetch(`${base}/health`);
+      expect(plano.headers.get('strict-transport-security')).toBeNull();
 
-    // Detrás de Cloudflare la petición llega con la marca del protocolo real.
-    const trasProxy = await fetch(`${base}/health`, {
-      headers: { 'x-forwarded-proto': 'https' },
-    });
-    expect(trasProxy.headers.get('strict-transport-security')).toMatch(/max-age=31536000/);
+      // Un proxy que declara el protocolo real igual lo enciende.
+      const trasProxy = await fetch(`${base}/health`, {
+        headers: { 'x-forwarded-proto': 'https' },
+      });
+      expect(trasProxy.headers.get('strict-transport-security')).toMatch(/max-age=31536000/);
+    } finally {
+      if (antes === undefined) delete process.env.IAXTI_ENV;
+      else process.env.IAXTI_ENV = antes;
+    }
+  });
+
+  it('en un ambiente desplegado sale SIEMPRE, aunque el último salto sea http', async () => {
+    // Detrás de Cloudflare Tunnel + Traefik, `x-forwarded-proto` llega como
+    // http: el tramo final hacia la app no es TLS. Confiar solo en el proto
+    // dejaba staging sin HSTS para siempre — lo cazó el escaneo real.
+    const antes = process.env.IAXTI_ENV;
+    process.env.IAXTI_ENV = 'staging';
+    try {
+      const res = await fetch(`${base}/health`, { headers: { 'x-forwarded-proto': 'http' } });
+      expect(res.headers.get('strict-transport-security')).toMatch(/max-age=31536000/);
+    } finally {
+      if (antes === undefined) delete process.env.IAXTI_ENV;
+      else process.env.IAXTI_ENV = antes;
+    }
   });
 
   it('el widget de webchat es cross-origin a propósito; el resto de la API no', async () => {

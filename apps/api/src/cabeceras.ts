@@ -23,9 +23,17 @@ export function cabecerasMiddleware(req: Request, res: Response, next: NextFunct
   // El navegador respeta el Content-Type que declaramos en vez de adivinarlo.
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
-  // Un año de HTTPS obligatorio. Se manda solo sobre TLS: en desarrollo
-  // (http local) haría que el navegador se niegue a volver a entrar.
-  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+  // Un año de HTTPS obligatorio, PERO nunca en desarrollo: mandarlo sobre
+  // http local deja al navegador negándose a volver a entrar al dev server.
+  //
+  // El detalle que solo se ve en el entorno real: detrás de Cloudflare
+  // Tunnel + Traefik, `x-forwarded-proto` llega como **http** —el último
+  // salto hacia la app no es TLS— aunque el cliente haya hablado https. Con
+  // la condición basada solo en el proto, HSTS no salía NUNCA en staging.
+  // Por eso manda el ambiente, que sí sabemos, y el proto queda de refuerzo
+  // para cuando la app se sirva directo por TLS.
+  const desplegado = ['staging', 'production'].includes(process.env.IAXTI_ENV ?? '');
+  if (desplegado || req.secure || req.headers['x-forwarded-proto'] === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
 
