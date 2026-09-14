@@ -16,7 +16,8 @@ events:
     - permission.denied
   consumes: []
 tools: []
-nav: []
+nav:
+  - { label: API, path: /ajustes/api, permission: apikeys.manage }
 widgets: []
 plan_min: base
 flag: module.authorization

@@ -17,6 +17,10 @@ export interface Actor {
   userId: string;
   tenantId: string;
   role: string;
+  /** 'apikey' cuando la request llegó con X-Api-Key (#24). */
+  kind?: 'user' | 'apikey';
+  /** Los scopes de la key: el techo de lo que puede hacer. */
+  scopes?: string[];
 }
 
 export interface AuthenticatedUser {
@@ -33,6 +37,8 @@ export interface WithUser extends WithRequestId {
 export interface AuthzOptions {
   /** Verificación del Bearer de Supabase; null desactiva ese camino. */
   jwtVerify?: JwtVerifier | null;
+  /** Resuelve X-Api-Key (#24): hash → tenant + scopes; null lo apaga. */
+  resolveApiKey?: ((token: string) => Promise<{ id: string; tenantId: string; scopes: string[] } | null>) | null;
   /** Rol desde user_roles; null obliga al stub de headers. */
   resolveRole?: RoleResolver | null;
   /** ¿SUPERADMIN de plataforma? (tabla platform_admins, cross-tenant). */
@@ -112,9 +118,15 @@ export class AuthzGuard implements CanActivate {
 
     if (permission) {
       const actor = await this.actorFrom(context);
-      const allowed = isBaseRole(actor.role)
-        ? baseRoleHasPermission(actor.role, permission, this.catalog)
-        : false; // roles custom llegan con #73, vía base de datos
+      // API key (#24): el techo son SUS scopes — que ya nacieron como
+      // subconjunto del catálogo del tenant; jamás cross-tenant (el
+      // tenant viene DE la key, no de un header).
+      const allowed =
+        actor.kind === 'apikey'
+          ? (actor.scopes ?? []).includes(permission)
+          : isBaseRole(actor.role)
+            ? baseRoleHasPermission(actor.role, permission, this.catalog)
+            : false; // roles custom llegan con #73, vía base de datos
 
       const request = context.switchToHttp().getRequest<WithUser>();
       request.actor = actor;
@@ -161,6 +173,25 @@ export class AuthzGuard implements CanActivate {
   private async actorFrom(context: ExecutionContext): Promise<Actor> {
     const request = context.switchToHttp().getRequest<WithRequestId>();
     const authorization = request.headers.authorization;
+
+    // X-Api-Key (#24): mismo guard, mismos códigos de error.
+    const apiKeyHeader = request.headers['x-api-key'];
+    if (typeof apiKeyHeader === 'string' && apiKeyHeader && this.options.resolveApiKey) {
+      const resolved = await this.options.resolveApiKey(apiKeyHeader);
+      if (!resolved) {
+        throw new UnauthorizedException({
+          code: 'API_KEY_INVALID',
+          message: 'Esa API key no es válida, venció o fue revocada.',
+        });
+      }
+      return {
+        userId: `apikey:${resolved.id}`,
+        tenantId: resolved.tenantId,
+        role: 'APIKEY',
+        kind: 'apikey',
+        scopes: resolved.scopes,
+      };
+    }
 
     if (typeof authorization === 'string' && authorization.startsWith('Bearer ') && this.options.jwtVerify) {
       let userId: string;
