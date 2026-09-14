@@ -1,7 +1,10 @@
 # Migraciones en Supabase staging (con lock, ANTES del deploy) y deploy vía
-# API de Dokploy. Si las migraciones fallan, el deploy no ocurre (SPEC §37).
-# Secrets requeridos (environment "staging"): DATABASE_URL_STAGING,
-# DOKPLOY_URL, DOKPLOY_API_KEY, DOKPLOY_COMPOSE_ID_STAGING, STAGING_BASE_URL.
+# API de Dokploy a través de Cloudflare Access. La imagen se fija por SHA del
+# commit: `docker compose up` solo recrea cuando la referencia cambia, así
+# cada deploy es exactamente este commit (SPEC §37).
+# Secrets (environment "staging"): DATABASE_URL_STAGING, DOKPLOY_URL,
+# DOKPLOY_API_KEY, CF_ACCESS_CLIENT_ID/SECRET, DOKPLOY_COMPOSE_ID_STAGING,
+# STAGING_BASE_URL.
 name: deploy-staging
 
 on:
@@ -18,35 +21,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
       - name: Migraciones (antes del deploy, nunca en el contenedor)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
         run: |
           if [ -z "${DATABASE_URL}" ]; then echo "Sin DATABASE_URL_STAGING aún; se salta"; exit 0; fi
-          corepack enable && pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile
           pnpm run migrate:deploy
 
-      - name: Deploy en Dokploy
+      - name: Deploy en Dokploy (imagen fijada al SHA del commit)
         env:
           DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_STAGING }}
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
-          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.deploy" \
-            -H "x-api-key: ${DOKPLOY_API_KEY}" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-            -H "Content-Type: application/json" \
-            -d "{\"composeId\": \"${COMPOSE_ID}\"}"
+          auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+
+          env_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.env')
+          env_nuevo=$(printf '%s\n' "$env_actual" | sed "s|^IMAGE=.*|IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}|")
+          jq -n --arg id "$COMPOSE_ID" --arg env "$env_nuevo" '{composeId:$id, env:$env}' \
+            | curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" -d @- \
+              "${DOKPLOY_URL}/api/compose.update" >/dev/null
+          echo "IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}"
+
+          curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.deploy" >/dev/null
+
+          echo "Esperando al deploy..."
+          for i in $(seq 1 90); do
+            sleep 10
+            st=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.composeStatus')
+            echo "[$i] $st"
+            if [ "$st" = "done" ]; then exit 0; fi
+            if [ "$st" = "error" ]; then echo "Deploy falló en Dokploy"; exit 1; fi
+          done
+          echo "Timeout esperando el deploy"; exit 1
 
       - name: Smoke
         env:
           BASE: ${{ secrets.STAGING_BASE_URL }}
         run: |
           if [ -z "${BASE}" ]; then echo "Sin STAGING_BASE_URL aún; se salta"; exit 0; fi
-          for path in /health /api/health; do
-            curl -fsS -m 10 "${BASE}${path}" >/dev/null && echo "ok ${path}" || exit 1
-          done
+          sleep 20
+          curl -fsS -m 15 "${BASE}/health" && echo " ← /health ok"
+          curl -fsS -m 15 "${BASE}/health/modules" >/dev/null && echo "/health/modules ok"
