@@ -30,6 +30,7 @@ import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytic
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
 import { billingConsumers, sweepBilling } from '@iaxti/module-billing';
 import { flushApiUsage } from './api-usage';
+import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
 
 const service = process.env.SERVICE ?? 'workers';
@@ -58,6 +59,8 @@ function start(): void {
     ...analyticsConsumers(),
     // Facturas pagadas (#67): el tenant vuelve de past_due solo.
     ...billingConsumers(),
+    // Webhooks salientes (#76): cada evento del catálogo puede salir.
+    ...webhookConsumers(registry.eventsCatalog()),
     ...realtimeConsumers(),
     // Fusión de contactos (#34): la bandeja re-apunta su historia.
     {
@@ -122,6 +125,14 @@ function start(): void {
             const n = await flushApiUsage(pool, redisScheduled);
             if (n > 0) console.log(`scheduled: ${n} contadores de API volcados`);
             return { flushed: n };
+          }
+          // Entregas de webhooks (#76): firma, backoff y apagado con aviso.
+          case 'webhooks.deliver': {
+            const res = await deliverWebhooks(pool);
+            if (res.delivered + res.failed > 0) {
+              console.log(`scheduled: webhooks — ${res.delivered} entregados, ${res.failed} con reintento`);
+            }
+            return res;
           }
           // El ciclo de cobro (#67): facturas, impagos y estados del tenant.
           case 'billing.sweep': {
@@ -203,6 +214,11 @@ function start(): void {
         'api_usage.flush',
         { moduleId: 'organizations' },
         { repeat: { every: 300_000 } },
+      ),
+      scheduled.add(
+        'webhooks.deliver',
+        { moduleId: 'integrations' },
+        { repeat: { every: 60_000 } },
       ),
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');

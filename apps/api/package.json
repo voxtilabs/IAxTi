@@ -20,6 +20,7 @@
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
+    "@iaxti/module-integrations": "workspace:*",
     "@iaxti/module-knowledge": "workspace:*",
     "@iaxti/module-notifications": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",

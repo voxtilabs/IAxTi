@@ -1,0 +1,23 @@
+# integrations (#76, SPEC §24): la otra mitad de la integración junto a la
+# API por tenant — sus sistemas reaccionan a lo que pasa en IAxTi sin
+# polling. Entregas FIRMADAS, reintentos exponenciales, y un endpoint que
+# falla sostenido se apaga con aviso.
+module:
+  id: integrations
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, audit]
+  optional: []
+permissions:
+  - webhooks.manage
+events:
+  publishes:
+    - webhook.failed
+  consumes: []
+tools: []
+nav:
+  - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage }
+widgets: []
+plan_min: base
+flag: module.integrations
