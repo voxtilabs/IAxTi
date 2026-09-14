@@ -18,8 +18,10 @@
   "dependencies": {
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
+    "@iaxti/module-channels": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
+    "@iaxti/module-whatsapp": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
     "bullmq": "^5.34.0",
     "pg": "^8.13.0"

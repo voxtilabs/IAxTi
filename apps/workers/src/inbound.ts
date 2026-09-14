@@ -1,8 +1,11 @@
 import type { Pool } from 'pg';
 import { withTenant } from '@iaxti/db';
+import { storageFromEnv } from '@iaxti/core';
 import { autoAssignNew, receiveInbound } from '@iaxti/module-conversations';
 import type { Channel, MessageType } from '@iaxti/module-conversations';
 import { handleInboundForConsent } from '@iaxti/module-crm';
+import { findAccountById } from '@iaxti/module-channels';
+import { downloadAttachmentsToR2, type AdjuntoEntrante } from '@iaxti/module-whatsapp';
 
 /**
  * El job de la cola `inbound` (SPEC §28): ESTE es el único camino de entrada
@@ -39,6 +42,30 @@ export async function processInbound(pool: Pool, data: InboundJob): Promise<Inbo
     throw new Error('inbound: el job necesita tenantId y phone.');
   }
   return withTenant(pool, data.tenantId, async (client) => {
+    // Adjuntos de WhatsApp (#42): Meta los expira — se bajan AL LLEGAR y van
+    // a R2 por tenant; en el mensaje queda solo la llave (carpeta whatsapp/
+    // del tenant). Si la descarga falla, el mensaje entra igual con la
+    // metadata original: perder el texto por un adjunto sería peor.
+    let attachments = data.attachments;
+    const conMedia = (attachments as AdjuntoEntrante[] | undefined)?.some((a) => a?.mediaId);
+    if (conMedia && data.channel === 'whatsapp' && data.channelAccountId) {
+      try {
+        const account = await findAccountById(client, data.channelAccountId);
+        const apiKey = account?.credentialRef ? process.env[account.credentialRef] : undefined;
+        const storage = storageFromEnv();
+        if (account && apiKey && storage) {
+          attachments = await downloadAttachmentsToR2({
+            tenantId: data.tenantId,
+            conversationId: 'whatsapp',
+            attachments: attachments as AdjuntoEntrante[],
+            apiKey,
+            storage,
+          });
+        }
+      } catch (err) {
+        console.error('inbound: adjunto no descargado —', (err as Error).message);
+      }
+    }
     const res = await receiveInbound(client, {
       tenantId: data.tenantId,
       phone: data.phone,
@@ -46,7 +73,7 @@ export async function processInbound(pool: Pool, data: InboundJob): Promise<Inbo
       channelAccountId: data.channelAccountId,
       type: data.type,
       body: data.body,
-      attachments: data.attachments,
+      attachments,
       providerMessageId: data.providerMessageId,
       requestId: data.requestId,
     });
