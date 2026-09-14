@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import { withTenant } from '@iaxti/db';
-import { receiveInbound } from '@iaxti/module-conversations';
+import { autoAssignNew, receiveInbound } from '@iaxti/module-conversations';
 import type { Channel, MessageType } from '@iaxti/module-conversations';
 import { handleInboundForConsent } from '@iaxti/module-crm';
 
@@ -30,6 +30,8 @@ export interface InboundOutcome {
   conversationCreated: boolean;
   reopened: boolean;
   optedOut: boolean;
+  /** Dueño puesto por la asignación automática del tenant (#38), si hubo. */
+  assignedTo: string | null;
 }
 
 export async function processInbound(pool: Pool, data: InboundJob): Promise<InboundOutcome> {
@@ -59,6 +61,16 @@ export async function processInbound(pool: Pool, data: InboundJob): Promise<Inbo
         requestId: data.requestId,
       }));
     }
+    // Asignación automática según el modo del tenant (#38): solo cuando la
+    // conversación quedó en `new` sin dueño (nueva o reabierta a la cola).
+    let assignedTo: string | null = null;
+    if (!optedOut && res.conversation.state === 'new' && !res.conversation.ownerId) {
+      ({ assignedTo } = await autoAssignNew(client, {
+        tenantId: data.tenantId,
+        conversationId: res.conversation.id,
+        requestId: data.requestId,
+      }));
+    }
     return {
       conversationId: res.conversation.id,
       messageId: res.message.id,
@@ -67,6 +79,7 @@ export async function processInbound(pool: Pool, data: InboundJob): Promise<Inbo
       conversationCreated: res.conversationCreated,
       reopened: res.reopened,
       optedOut,
+      assignedTo,
     };
   });
 }

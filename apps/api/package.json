@@ -14,6 +14,7 @@
     "@iaxti/module-authorization": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
+    "@iaxti/module-organizations": "workspace:*",
     "@iaxti/module-platform": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
     "@nestjs/common": "^11.0.0",
