@@ -1,0 +1,41 @@
+module:
+  id: conversations
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, crm]
+  optional: []
+permissions:
+  - conversations.read
+  - conversations.read_all
+  - conversations.reply
+  - conversations.assign
+  - conversations.resolve
+  - conversations.notes
+  - quickreplies.manage
+events:
+  publishes:
+    - conversation.created
+    - conversation.assigned
+    - conversation.state_changed
+    - message.received
+    - message.sent
+    - message.failed
+    - sla.first_response_breached
+    - conversation.handoff_requested
+    - conversation.auto_resolved
+    - conversation.archived
+    - conversations.retention.purged
+  consumes: []
+tools:
+  - conversations.get_context
+  - conversations.suggest_reply
+  - conversations.send_reply
+  - conversations.set_state
+  - conversations.request_handoff
+nav:
+  - { label: Bandeja, path: /bandeja, permission: conversations.read }
+widgets:
+  - { id: conversations.sin_responder, permission: conversations.read }
+plan_min: base
+flag: module.conversations
