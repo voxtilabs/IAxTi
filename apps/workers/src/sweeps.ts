@@ -6,6 +6,7 @@ import {
   autoResolveTenant,
   checkConversationAlerts,
 } from '@iaxti/module-conversations';
+import { markDueActivities } from '@iaxti/module-crm';
 
 /**
  * El barrido de avisos de la bandeja (#38): recorre los tenants operativos y
@@ -64,4 +65,15 @@ export async function runArchiveTenant(pool: Pool, tenantId: string) {
   const res = await withTenant(pool, tenantId, (c) => archiveTenant(c, tenantId));
   if (res.count > 0) console.log(`archive: ${res.count} archivadas en ${tenantId}`);
   return { tenantId, archived: res.count };
+}
+
+/** Actividades vencidas (#32): activity.due una vez, por tenant operativo. */
+export async function sweepDueActivities(pool: Pool): Promise<{ tenants: number; due: number }> {
+  const ids = await tenantIds(pool);
+  let due = 0;
+  for (const tenantId of ids) {
+    const res = await withTenant(pool, tenantId, (c) => markDueActivities(c, tenantId));
+    due += res.length;
+  }
+  return { tenants: ids.length, due };
 }

@@ -255,6 +255,9 @@ importers:
       '@iaxti/module-conversations':
         specifier: workspace:*
         version: link:../../packages/modules/conversations
+      '@iaxti/module-crm':
+        specifier: workspace:*
+        version: link:../../packages/modules/crm
       '@iaxti/module-identity':
         specifier: workspace:*
         version: link:../../packages/modules/identity

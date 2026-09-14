@@ -21,6 +21,8 @@ export interface InboxFilters {
   ownerId?: string;
   /** …o las suyas MÁS las sin dueño (USER sin read_all: puede tomar de la cola). */
   ownerIdOrUnassigned?: string;
+  /** Historia de UN contacto (la ficha #32): incluye resueltas y archivadas. */
+  contactId?: string;
   view?: 'sin_responder';
   cursor?: string;
   limit?: number;
@@ -69,12 +71,19 @@ export async function listInbox(
 ): Promise<{ items: InboxItem[]; nextCursor: string | null }> {
   const limit = Math.min(filters.limit ?? 25, 100);
   const params: unknown[] = [tenantId];
-  const where: string[] = ['c.tenant_id = $1', 'c.archived_at IS NULL'];
+  const where: string[] = ['c.tenant_id = $1'];
 
+  if (filters.contactId) {
+    // La ficha muestra TODA la historia: archivadas y resueltas incluidas.
+    params.push(filters.contactId);
+    where.push(`c.contact_id = $${params.length}`);
+  } else {
+    where.push('c.archived_at IS NULL');
+  }
   if (filters.state) {
     params.push(filters.state);
     where.push(`c.state = $${params.length}`);
-  } else {
+  } else if (!filters.contactId) {
     where.push(`c.state <> 'resolved'`);
   }
   if (filters.channel) {

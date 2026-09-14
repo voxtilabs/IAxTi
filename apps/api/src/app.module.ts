@@ -18,6 +18,7 @@ import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
 import { SettingsController } from './settings.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
+import { ContactsController } from './contacts.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -151,6 +152,7 @@ const controllers = [
   SettingsController,
   QuickRepliesController,
   EquipoController,
+  ContactsController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 
