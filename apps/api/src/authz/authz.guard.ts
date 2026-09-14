@@ -39,6 +39,8 @@ export interface AuthzOptions {
   jwtVerify?: JwtVerifier | null;
   /** Resuelve X-Api-Key (#24): hash → tenant + scopes; null lo apaga. */
   resolveApiKey?: ((token: string) => Promise<{ id: string; tenantId: string; scopes: string[] } | null>) | null;
+  /** Permisos de un rol CUSTOM (#73): null = sin roles custom. */
+  resolveCustomPermissions?: ((tenantId: string, roleName: string) => Promise<string[] | null>) | null;
   /** Rol desde user_roles; null obliga al stub de headers. */
   resolveRole?: RoleResolver | null;
   /** ¿SUPERADMIN de plataforma? (tabla platform_admins, cross-tenant). */
@@ -126,7 +128,9 @@ export class AuthzGuard implements CanActivate {
           ? (actor.scopes ?? []).includes(permission)
           : isBaseRole(actor.role)
             ? baseRoleHasPermission(actor.role, permission, this.catalog)
-            : false; // roles custom llegan con #73, vía base de datos
+            : this.options.resolveCustomPermissions
+              ? ((await this.options.resolveCustomPermissions(actor.tenantId, actor.role)) ?? []).includes(permission)
+              : false; // sin resolver de custom: rol desconocido = nada
 
       const request = context.switchToHttp().getRequest<WithUser>();
       request.actor = actor;

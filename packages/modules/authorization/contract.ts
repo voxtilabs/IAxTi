@@ -4,3 +4,11 @@ export { BASE_ROLES, baseRoleHasPermission, isBaseRole } from './domain/base-rol
 export type { BaseRole } from './domain/base-roles';
 export { createApiKey, listApiKeys, revokeApiKey, resolveApiKey } from './application/apikeys';
 export type { ApiKey, ResolvedApiKey } from './application/apikeys';
+export {
+  listRoles,
+  createCustomRole,
+  updateCustomRolePermissions,
+  assignRole,
+  customRolePermissions,
+} from './application/roles';
+export type { Role } from './application/roles';
