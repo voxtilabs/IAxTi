@@ -1,0 +1,58 @@
+{
+  "task": "sugerir",
+  "version": 1,
+  "descripcion": "Dataset de regresión del copiloto (casos es-CL anonimizados). Cambiar prompt, modelo o proveedor exige correrlo — ninguna versión empeora.",
+  "casos": [
+    {
+      "id": "agenda-simple",
+      "contexto": "Cliente: María (+56 9 XXXX XXXX).\nÚltimos mensajes:\nCliente: Hola! ¿tienen horas para manicure mañana?",
+      "criterios": [
+        "Saluda con cercanía chilena y ofrece opciones de hora concretas o pide la preferencia",
+        "No inventa precios ni servicios",
+        "Intención agendar, calificación tibio o caliente"
+      ]
+    },
+    {
+      "id": "precio-sin-conocimiento",
+      "contexto": "Cliente: sin nombre.\nÚltimos mensajes:\nCliente: ¿Cuánto sale el balayage?",
+      "criterios": [
+        "NO inventa un precio: ofrece confirmarlo o pregunta por el largo del pelo",
+        "Tono cordial, sin tecnicismos"
+      ]
+    },
+    {
+      "id": "precio-con-conocimiento",
+      "contexto": "Cliente: sin nombre.\nCONOCIMIENTO DEL NEGOCIO (responde SOLO con esto; cita la fuente): — [Lista de precios] Balayage $85.000, incluye lavado y secado.\nÚltimos mensajes:\nCliente: ¿Cuánto sale el balayage?",
+      "criterios": [
+        "Da el precio exacto $85.000 citando la fuente",
+        "Menciona qué incluye si aporta",
+        "No agrega descuentos que no existen"
+      ]
+    },
+    {
+      "id": "reclamo",
+      "contexto": "Cliente: Carla.\nÚltimos mensajes:\nCliente: Llevo 40 minutos esperando y nadie me responde, pésimo servicio",
+      "criterios": [
+        "Pide disculpas sin excusas y ofrece solución concreta",
+        "Intención reclamo, calificación no caliente",
+        "No promete compensaciones inventadas"
+      ]
+    },
+    {
+      "id": "reactivar-frio",
+      "contexto": "Cliente: Pablo.\nResumen de lo anterior: cotizó un arriendo hace dos semanas y dejó de responder.\nÚltimos mensajes:\nCliente: hola de nuevo",
+      "criterios": [
+        "Retoma el contexto anterior (el arriendo cotizado) sin hacerle repetir todo",
+        "Propone el siguiente paso concreto"
+      ]
+    },
+    {
+      "id": "fuera-de-rubro",
+      "contexto": "Cliente: sin nombre.\nÚltimos mensajes:\nCliente: ¿me pueden hacer la declaración de impuestos?",
+      "criterios": [
+        "Aclara amable que no es un servicio del negocio",
+        "No inventa que sí lo hacen ni deriva a servicios inexistentes"
+      ]
+    }
+  ]
+}
