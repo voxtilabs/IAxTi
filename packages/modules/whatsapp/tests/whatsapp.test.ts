@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { createKapsoProvider } from '../application/kapso';
+import { createKapsoProvider, normalizeStatuses } from '../application/kapso';
+import { RateLimitedError, causaLegible, checkNumberRateLimit } from '../application/outbound';
+import { redisConnection } from '@iaxti/core';
 import { downloadAttachmentsToR2 } from '../application/media';
 import {
   connectWhatsAppNumber,
@@ -225,5 +227,34 @@ describe('adjuntos a R2 (#42)', () => {
     expect(putUrl).toContain('/adjuntos/');
     expect(putUrl).toContain(encodeURIComponent(tenant));
     expect(putInit.method).toBe('PUT');
+  });
+});
+
+describe('salida (#43)', () => {
+  it('normaliza los statuses del webhook y traduce los códigos de Meta', () => {
+    const statuses = normalizeStatuses({
+      entry: [{ changes: [{ value: { statuses: [
+        { id: 'wamid.o1', status: 'delivered', pricing: { billable: true, category: 'service' } },
+        { id: 'wamid.o2', status: 'failed', errors: [{ code: 131026, title: 'Message undeliverable' }] },
+        { id: 'wamid.o3', status: 'inventado' },
+      ] } }] }],
+    });
+    expect(statuses).toHaveLength(2);
+    expect(statuses[0]).toMatchObject({ providerMessageId: 'wamid.o1', status: 'delivered' });
+    expect(statuses[0].cost).toMatchObject({ category: 'service' });
+    expect(causaLegible(statuses[1].errorCode)).toBe('El número no tiene WhatsApp.');
+    expect(causaLegible(999999, 'detalle crudo')).toBe('detalle crudo');
+  });
+
+  it('el rate limit por número corta la ráfaga y se reintenta solo', async () => {
+    const redis = redisConnection();
+    try {
+      for (let i = 0; i < 3; i++) await checkNumberRateLimit(redis, 'pn-rate-test', 3);
+      await expect(checkNumberRateLimit(redis, 'pn-rate-test', 3)).rejects.toThrow(RateLimitedError);
+      // Otro número no comparte el cupo.
+      await checkNumberRateLimit(redis, 'pn-otro', 3);
+    } finally {
+      await redis.quit();
+    }
   });
 });

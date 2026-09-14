@@ -99,7 +99,7 @@ describe('POST /webhooks/channels/:accountId', () => {
     const res = await disparar(payload);
     const elapsed = Date.now() - inicio;
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ received: 2 });
+    expect(await res.json()).toEqual({ received: 2, statuses: 0 });
     expect(elapsed).toBeLessThan(1000); // el criterio: 200 en menos de un segundo
     jobIds.push(`in-${cuenta}-w1`, `in-${cuenta}-w2`);
 

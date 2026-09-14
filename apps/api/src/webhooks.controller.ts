@@ -11,6 +11,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import { createQueue, redisConnection } from '@iaxti/core';
 import { findAccountById, getProvider } from '@iaxti/module-channels';
+import { normalizeStatuses } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
 import type { WithRequestId } from './request-id';
 
@@ -71,6 +72,23 @@ export class WebhooksController {
       (request as unknown as { body: unknown }).body,
     );
     const queue = inboundQueue();
+    // Estados de entrega (#43): sent/delivered/read/failed del proveedor.
+    const statuses = account.kind === 'whatsapp'
+      ? normalizeStatuses((request as unknown as { body: unknown }).body)
+      : [];
+    if (statuses.length > 0) {
+      const primer = statuses[0];
+      await queue.add(
+        'delivery-status',
+        {
+          moduleId: 'conversations',
+          tenantId: account.tenantId,
+          statuses,
+          requestId: request.requestId,
+        },
+        { jobId: `st-${account.id}-${primer.providerMessageId}-${primer.status}-${statuses.length}` },
+      );
+    }
     let queued = 0;
     for (const m of mensajes) {
       // jobId = idempotencia: BullMQ ignora un add con id repetido.
@@ -92,6 +110,6 @@ export class WebhooksController {
       );
       queued++;
     }
-    return { received: queued };
+    return { received: queued, statuses: statuses.length };
   }
 }

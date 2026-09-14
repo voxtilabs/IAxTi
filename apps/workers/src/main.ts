@@ -1,6 +1,7 @@
 import './instrument';
 import { createServer } from 'node:http';
 import { createPool } from '@iaxti/db';
+import { DelayedError } from 'bullmq';
 import {
   ModuleRegistry,
   OutboxDispatcher,
@@ -9,6 +10,8 @@ import {
   redisConnection,
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
+import { DelayUntilError, processOutbound } from './outbound';
+import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { realtimeConsumers } from './realtime';
 import { onContactMerged } from '@iaxti/module-conversations';
 import {
@@ -101,15 +104,42 @@ function start(): void {
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');
 
-    // El camino de entrada de mensajes (#35/#36): simulador hoy, canales
-    // reales en Fase 3 — la misma cola y el mismo procesador.
+    // El camino de entrada de mensajes (#35/#36): simulador y WhatsApp por
+    // la misma cola. Los estados de entrega del webhook llegan aquí también.
     createModuleWorker(
       'inbound',
       registry,
-      async (job) => processInbound(pool, job.data as unknown as InboundJob),
+      async (job) => {
+        if (job.name === 'delivery-status') {
+          return processDeliveryStatuses(pool, job.data as unknown as DeliveryStatusJob);
+        }
+        return processInbound(pool, job.data as unknown as InboundJob);
+      },
       redisConnection(),
     );
     console.log('workers: worker de cola inbound activo');
+
+    // La salida de WhatsApp (#43): rate limit por número, backoff de BullMQ,
+    // silencio del tenant para lo iniciado por el negocio.
+    const redisOutbound = redisConnection();
+    createModuleWorker(
+      'outbound',
+      registry,
+      async (job, token) => {
+        try {
+          return await processOutbound(pool, redisOutbound, job as never);
+        } catch (err) {
+          if (err instanceof DelayUntilError) {
+            // El patrón oficial de BullMQ para reprogramar desde el procesador.
+            await job.moveToDelayed(Date.now() + err.ms, token);
+            throw new DelayedError();
+          }
+          throw err;
+        }
+      },
+      redisConnection(),
+    );
+    console.log('workers: worker de cola outbound activo');
   } else {
     console.log('workers: sin REDIS_URL; colas BullMQ esperan configuración');
   }

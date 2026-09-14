@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  UnprocessableEntityException,
   Get,
   NotFoundException,
   Param,
@@ -13,11 +14,13 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { createQueue, redisConnection } from '@iaxti/core';
 import {
   assignConversation,
   changeConversationState,
   getConversation,
   getConversationDetail,
+  isWithin24hWindow,
   listInbox,
   listMessages,
   sendMessage,
@@ -43,6 +46,12 @@ function pool() {
     });
   }
   return p;
+}
+
+let colaOutbound: ReturnType<typeof createQueue> | null = null;
+function outboundQueue(): ReturnType<typeof createQueue> {
+  colaOutbound ??= createQueue('outbound', redisConnection());
+  return colaOutbound;
 }
 
 function actorOf(request: WithUser): Actor {
@@ -158,6 +167,15 @@ export class ConversationsController {
           message: 'Esta conversación la atiende otra persona del equipo.',
         });
       }
+      // La ventana de 24 h se hace cumplir AQUÍ (#43, SPEC §11): fuera de
+      // ella, por WhatsApp solo salen plantillas aprobadas (llegan con #44).
+      if (conversation.channel === 'whatsapp' && !isWithin24hWindow(conversation.lastInboundAt)) {
+        throw new UnprocessableEntityException({
+          code: 'OUTSIDE_WINDOW',
+          message:
+            'Pasaron más de 24 horas desde su último mensaje: por WhatsApp solo salen plantillas aprobadas.',
+        });
+      }
       // Responder desde la cola es tomarla: dueño + new → open (SPEC §11).
       if (conversation.ownerId === null) {
         await assignConversation(c, {
@@ -178,8 +196,8 @@ export class ConversationsController {
         body: body.body,
         requestId: request.requestId,
       });
-      // Sin canal real todavía: el simulador entrega al instante (Fase 3
-      // reemplaza esto por la cola outbound del canal).
+      // Simulador: entrega al instante. WhatsApp: por la cola outbound con
+      // rate limit por número y reintentos (#43).
       if (conversation.channel === 'simulador') {
         return updateDeliveryStatus(c, {
           tenantId: actor.tenantId,
@@ -187,6 +205,18 @@ export class ConversationsController {
           status: 'sent',
           requestId: request.requestId,
         });
+      }
+      if (conversation.channel === 'whatsapp') {
+        await outboundQueue().add(
+          'send',
+          {
+            moduleId: 'whatsapp',
+            tenantId: actor.tenantId,
+            messageId: message.id,
+            requestId: request.requestId,
+          },
+          { jobId: `out-${message.id}` },
+        );
       }
       return message;
     });

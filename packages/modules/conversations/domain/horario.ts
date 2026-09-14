@@ -19,6 +19,20 @@ export const DEFAULT_HORARIO: BusinessHours = {
 
 export type AssignmentMode = 'manual' | 'round_robin' | 'last_owner' | 'ia_horario';
 
+/** Horario de silencio (SPEC §8): ningún envío INICIADO POR EL NEGOCIO
+ *  sale en este rango. Cruza la medianoche (21:00 → 08:00). */
+export interface QuietHours {
+  desde: string; // 'HH:MM'
+  hasta: string;
+  zona: string;
+}
+
+export const DEFAULT_SILENCIO: QuietHours = {
+  desde: '21:00',
+  hasta: '08:00',
+  zona: 'America/Santiago',
+};
+
 export interface BandejaSettings {
   assignmentMode: AssignmentMode;
   /** `new` sin dueño por más de esto avisa al supervisor (SPEC §11). */
@@ -26,6 +40,7 @@ export interface BandejaSettings {
   /** SLA de primera respuesta, en minutos hábiles. */
   slaPrimeraRespuestaMinutos: number;
   horario: BusinessHours;
+  silencio: QuietHours;
 }
 
 const MODOS: AssignmentMode[] = ['manual', 'round_robin', 'last_owner', 'ia_horario'];
@@ -37,6 +52,7 @@ export function bandejaSettings(settings: Record<string, unknown> | null | undef
     alertaSinDuenoMinutos: number;
     slaPrimeraRespuestaMinutos: number;
     horario: Partial<BusinessHours>;
+    silencio: Partial<QuietHours>;
   }>;
   return {
     assignmentMode: MODOS.includes(raw.assignmentMode as AssignmentMode)
@@ -57,6 +73,11 @@ export function bandejaSettings(settings: Record<string, unknown> | null | undef
       desde: raw.horario?.desde ?? DEFAULT_HORARIO.desde,
       hasta: raw.horario?.hasta ?? DEFAULT_HORARIO.hasta,
       zona: raw.horario?.zona ?? DEFAULT_HORARIO.zona,
+    },
+    silencio: {
+      desde: raw.silencio?.desde ?? DEFAULT_SILENCIO.desde,
+      hasta: raw.silencio?.hasta ?? DEFAULT_SILENCIO.hasta,
+      zona: raw.silencio?.zona ?? DEFAULT_SILENCIO.zona,
     },
   };
 }
@@ -132,4 +153,24 @@ export function minutosHabilesEntre(desde: Date, hasta: Date, horario: BusinessH
     cursor = new Date(cursor.getTime() + (restanteHoy + 1) * 60_000);
   }
   return total;
+}
+
+/** ¿Estamos dentro del horario de silencio? Cruza medianoche sin drama. */
+export function enSilencio(silencio: QuietHours, now: Date = new Date()): boolean {
+  const p = partsIn(silencio.zona, now);
+  const minuto = p.hour * 60 + p.minute;
+  const desde = hhmm(silencio.desde);
+  const hasta = hhmm(silencio.hasta);
+  if (desde === hasta) return false; // sin silencio configurado
+  return desde < hasta ? minuto >= desde && minuto < hasta : minuto >= desde || minuto < hasta;
+}
+
+/** Milisegundos hasta que TERMINE el silencio (para reprogramar el envío). */
+export function msHastaFinDeSilencio(silencio: QuietHours, now: Date = new Date()): number {
+  if (!enSilencio(silencio, now)) return 0;
+  const p = partsIn(silencio.zona, now);
+  const minuto = p.hour * 60 + p.minute;
+  const hasta = hhmm(silencio.hasta);
+  const faltan = hasta > minuto ? hasta - minuto : 24 * 60 - minuto + hasta;
+  return faltan * 60_000;
 }
