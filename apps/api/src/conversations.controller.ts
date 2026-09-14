@@ -25,6 +25,7 @@ import {
   listMessages,
   sendMessage,
   updateDeliveryStatus,
+  retentionCutoff,
 } from '@iaxti/module-conversations';
 import type {
   Channel,
@@ -169,7 +170,21 @@ export class ConversationsController {
     if (view === 'mi_cola') filters.ownerId = actor.userId;
     else if (!actorCan(actor, 'conversations.read_all')) filters.ownerIdOrUnassigned = actor.userId;
 
-    return withTenant(pool(), actor.tenantId, (c) => listInbox(c, actor.tenantId, filters));
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const res = await listInbox(c, actor.tenantId, filters);
+      // La ficha del contacto muestra el corte de retención (#77): el
+      // historial anterior a esa fecha ya no existe, por el plan.
+      if (contactId) {
+        const corte = await retentionCutoff(c, actor.tenantId);
+        return {
+          ...res,
+          retention: corte.cutoff
+            ? { cutoff: corte.cutoff.toISOString().slice(0, 10), months: corte.months }
+            : null,
+        };
+      }
+      return res;
+    });
   }
 
   @Get(':id')
