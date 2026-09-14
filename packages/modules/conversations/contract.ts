@@ -53,6 +53,8 @@ export {
   assertConversationTransition,
   assertDeliveryAdvance,
   isWithin24hWindow,
+  isWithinWindow,
+  VENTANA_HORAS,
   CONVERSATION_STATES,
 } from './domain/state';
 export type { ConversationState, DeliveryStatus } from './domain/state';

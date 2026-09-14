@@ -12,6 +12,9 @@ import {
   TabsTrigger,
   cn,
   useSession,
+  CanalChip,
+  nombreCanal,
+  nombreVisible,
 } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import {
@@ -256,12 +259,22 @@ export function Bandeja() {
                     seleccion === c.id && 'bg-rest',
                   )}
                 >
-                  <Avatar nombre={c.contactName} fallback={c.contactPhone} />
+                  <Avatar nombre={c.contactName} fallback={c.contactPhone ?? nombreCanal(c.channel)} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-ink">
-                      {c.contactName ?? c.contactPhone}
+                      {nombreVisible({
+                        name: c.contactName,
+                        phone: c.contactPhone,
+                        channel: c.channel,
+                        identity: c.contactIdentity,
+                      })}
                     </span>
-                    <span className="dato block text-muted">{c.contactPhone}</span>
+                    <span className="dato flex items-center gap-1 text-muted">
+                      {/* De dónde viene el mensaje: con tres canales, saberlo
+                          antes de abrir cambia cómo se responde. */}
+                      <CanalChip canal={c.channel} soloIcono />
+                      {c.contactPhone ?? c.contactIdentity ?? nombreCanal(c.channel)}
+                    </span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
                     <Badge role={ESTADOS[c.state].role}>{ESTADOS[c.state].label}</Badge>

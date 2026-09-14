@@ -30,7 +30,7 @@ beforeAll(async () => {
     END $$
   `);
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
-  await admin.query('GRANT SELECT, INSERT, UPDATE ON contacts, companies, tags, contact_tags, custom_fields TO iaxti_app');
+  await admin.query('GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, companies, tags, contact_tags, custom_fields TO iaxti_app');
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
   const a = await admin.query("INSERT INTO tenants (name) VALUES ('crm-a') RETURNING id");

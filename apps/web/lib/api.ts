@@ -45,7 +45,8 @@ export interface ConversacionItem {
   id: string;
   contactId: string;
   contactName: string | null;
-  contactPhone: string;
+  contactPhone: string | null;
+  contactIdentity?: string | null;
   channel: string;
   state: 'new' | 'open' | 'pending' | 'resolved' | 'snoozed';
   ownerId: string | null;
@@ -97,7 +98,7 @@ export interface BusquedaHit {
   kind: 'mensaje' | 'nota';
   conversationId: string;
   contactName: string | null;
-  contactPhone: string;
+  contactPhone: string | null;
   snippet: string;
   createdAt: string;
 }
@@ -181,7 +182,7 @@ export interface DealCardDto {
   ownerId: string | null;
   contactId: string;
   contactName: string | null;
-  contactPhone: string;
+  contactPhone: string | null;
 }
 
 export interface SavedFilterDto {

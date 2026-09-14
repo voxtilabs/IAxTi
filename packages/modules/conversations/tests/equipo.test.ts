@@ -36,7 +36,7 @@ beforeAll(async () => {
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
   await admin.query('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_app');
   await admin.query(
-    'GRANT SELECT, INSERT, UPDATE ON contacts, conversations, messages, assignments TO iaxti_app',
+    'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, conversations, messages, assignments TO iaxti_app',
   );
   await admin.query('GRANT SELECT, INSERT, UPDATE, DELETE ON quick_replies, internal_notes TO iaxti_app');
   await admin.query('GRANT SELECT ON tenants, user_roles TO iaxti_app');

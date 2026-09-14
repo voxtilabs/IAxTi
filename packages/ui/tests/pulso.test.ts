@@ -61,7 +61,10 @@ describe('sistema Pulso (documento voxtilabs/branding v1.1)', () => {
         }
       }
     }
-    expect(conHex, `Hex suelto prohibido por Pulso:\n${conHex.join('\n')}`).toEqual([]);
+    expect(
+      conHex,
+      `Hex suelto prohibido por Pulso:\n${conHex.join('\n')}\n(ojo: un issue de tres cifras como "#152" en un comentario también parece un color; escríbelo "issue 152")`,
+    ).toEqual([]);
   });
 
   it('el script de modo aplica prefers-color-scheme y respeta la elección guardada', () => {

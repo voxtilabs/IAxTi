@@ -5,7 +5,7 @@ import { dbCustomPermissionsResolver, dbRoleResolver } from '../src/auth/role-re
 
 // El id del tenant llega en una cabecera: cualquiera puede mandar cualquier
 // cosa. Con base configurada —o sea, en staging y producción— un id que no era
-// uuid reventaba la consulta de roles custom (#152) y salía un 500 donde
+// uuid reventaba la consulta de roles custom (issue 152) y salía un 500 donde
 // corresponde un 403. El CI no lo veía porque turbo no propaga DATABASE_URL a
 // los tests: sin pool, el resolver ni se arma.
 

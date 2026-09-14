@@ -48,3 +48,5 @@ export {
   IconoBandeja,
   IconoAlerta,
 } from './ui/icons';
+export { CanalChip, CanalIcono, nombreCanal, nombreVisible, NOMBRE_CANAL } from './canal';
+export type { CanalId } from './canal';

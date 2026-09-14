@@ -9,7 +9,10 @@ import type { Channel, Conversation } from './conversations';
 
 export interface InboxItem extends Conversation {
   contactName: string | null;
-  contactPhone: string;
+  /** null para quien llegó sin teléfono: webchat (#46), Instagram y Messenger (#74). */
+  contactPhone: string | null;
+  /** Identidad en el canal de la conversación, cuando no hay teléfono. */
+  contactIdentity: string | null;
   /** Segundos esperando respuesta; null si el último mensaje fue del negocio. */
   unansweredSeconds: number | null;
 }
@@ -44,7 +47,8 @@ function rowToItem(row: Record<string, unknown>): InboxItem {
     snoozedUntil: (row.snoozed_until as Date) ?? null,
     archivedAt: (row.archived_at as Date) ?? null,
     contactName: (row.contact_name as string) ?? null,
-    contactPhone: row.contact_phone as string,
+    contactPhone: (row.contact_phone as string) ?? null,
+    contactIdentity: (row.contact_identity as string) ?? null,
     unansweredSeconds: row.unanswered_seconds === null ? null : Number(row.unanswered_seconds),
   };
 }
@@ -121,6 +125,9 @@ export async function listInbox(
   params.push(limit + 1);
   const r = await client.query(
     `SELECT c.*, k.name AS contact_name, k.phone AS contact_phone,
+            (SELECT i.identity FROM contact_identities i
+              WHERE i.tenant_id = c.tenant_id AND i.contact_id = k.id AND i.channel = c.channel
+              LIMIT 1) AS contact_identity,
             CASE WHEN c.last_inbound_at = c.last_message_at
                  THEN floor(extract(epoch FROM now() - c.last_inbound_at))
                  ELSE NULL END AS unanswered_seconds
@@ -159,6 +166,9 @@ export async function getConversationDetail(
 ): Promise<ConversationDetail> {
   const r = await client.query(
     `SELECT c.*, k.name AS contact_name, k.phone AS contact_phone,
+            (SELECT i.identity FROM contact_identities i
+              WHERE i.tenant_id = c.tenant_id AND i.contact_id = k.id AND i.channel = c.channel
+              LIMIT 1) AS contact_identity,
             k.email AS contact_email, k.opt_in_at AS contact_opt_in_at,
             k.opted_out_at AS contact_opted_out_at,
             CASE WHEN c.last_inbound_at = c.last_message_at
