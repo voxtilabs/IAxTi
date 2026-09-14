@@ -27,7 +27,8 @@ events:
     - conversation.auto_resolved
     - conversation.archived
     - conversations.retention.purged
-  consumes: []
+  consumes:
+    - contact.merged
 tools:
   - conversations.get_context
   - conversations.suggest_reply

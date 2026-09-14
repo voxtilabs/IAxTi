@@ -541,6 +541,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/module-audit':
+        specifier: workspace:*
+        version: link:../audit
       pg:
         specifier: ^8.13.0
         version: 8.23.0
