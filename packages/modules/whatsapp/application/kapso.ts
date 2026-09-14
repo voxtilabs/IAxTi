@@ -84,11 +84,30 @@ function adjuntosDe(m: MetaMessage): unknown[] | undefined {
 export interface KapsoConfig {
   /** Base del espejo de la Cloud API; el default apunta a Kapso. */
   apiBase?: string;
+  /**
+   * Cómo viaja la credencial. Kapso autentica su espejo con `X-API-Key`; Meta,
+   * el día que seamos Tech Provider (#82), con `Authorization: Bearer`. Es la
+   * otra mitad de "migrar es cambiar base URL y auth" de la ADR-0005.
+   */
+  authScheme?: 'x-api-key' | 'bearer';
   fetchImpl?: typeof fetch;
 }
 
+/** El espejo vive bajo /meta/whatsapp/{versión}; sin eso Kapso responde 404. */
+export const KAPSO_API_BASE_DEFAULT = 'https://api.kapso.ai/meta/whatsapp/v24.0';
+
+function credencialHeaders(apiKey: string, scheme: 'x-api-key' | 'bearer'): Record<string, string> {
+  return scheme === 'bearer' ? { Authorization: `Bearer ${apiKey}` } : { 'X-API-Key': apiKey };
+}
+
+function esquemaDe(config: KapsoConfig): 'x-api-key' | 'bearer' {
+  const crudo = config.authScheme ?? process.env.KAPSO_AUTH_SCHEME;
+  return crudo === 'bearer' ? 'bearer' : 'x-api-key';
+}
+
 export function createKapsoProvider(config: KapsoConfig = {}): ChannelProvider {
-  const apiBase = config.apiBase ?? process.env.KAPSO_API_BASE ?? 'https://api.kapso.ai/meta';
+  const apiBase = config.apiBase ?? process.env.KAPSO_API_BASE ?? KAPSO_API_BASE_DEFAULT;
+  const scheme = esquemaDe(config);
   const fetchImpl = config.fetchImpl ?? fetch;
 
   return {
@@ -103,7 +122,7 @@ export function createKapsoProvider(config: KapsoConfig = {}): ChannelProvider {
       const res = await fetchImpl(`${apiBase}/${phoneNumberId}/messages`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          ...credencialHeaders(apiKey, scheme),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -114,7 +133,12 @@ export function createKapsoProvider(config: KapsoConfig = {}): ChannelProvider {
           ...message.extra,
         }),
       });
-      if (!res.ok) throw new Error(`WhatsApp no aceptó el envío: HTTP ${res.status}`);
+      if (!res.ok) {
+        // El motivo viene en el cuerpo (plantilla no aprobada, ventana cerrada,
+        // número no opt-in). Sin él, depurar un envío caído es adivinar.
+        const motivo = (await res.text().catch(() => '')).slice(0, 300);
+        throw new Error(`WhatsApp no aceptó el envío: HTTP ${res.status} ${motivo}`.trim());
+      }
       const data = (await res.json()) as { messages?: Array<{ id: string }> };
       const id = data.messages?.[0]?.id;
       if (!id) throw new Error('WhatsApp no devolvió el id del mensaje.');
@@ -162,15 +186,14 @@ export async function fetchMediaBytes(
   apiKey: string,
   config: KapsoConfig = {},
 ): Promise<{ bytes: ArrayBuffer; contentType: string }> {
-  const apiBase = config.apiBase ?? process.env.KAPSO_API_BASE ?? 'https://api.kapso.ai/meta';
+  const apiBase = config.apiBase ?? process.env.KAPSO_API_BASE ?? KAPSO_API_BASE_DEFAULT;
+  const credencial = credencialHeaders(apiKey, esquemaDe(config));
   const fetchImpl = config.fetchImpl ?? fetch;
-  const meta = await fetchImpl(`${apiBase}/${mediaId}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
+  const meta = await fetchImpl(`${apiBase}/${mediaId}`, { headers: credencial });
   if (!meta.ok) throw new Error(`No pudimos ubicar el adjunto: HTTP ${meta.status}`);
   const { url, mime_type } = (await meta.json()) as { url?: string; mime_type?: string };
   if (!url) throw new Error('WhatsApp no devolvió la URL del adjunto.');
-  const bin = await fetchImpl(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+  const bin = await fetchImpl(url, { headers: credencial });
   if (!bin.ok) throw new Error(`No pudimos bajar el adjunto: HTTP ${bin.status}`);
   return {
     bytes: await bin.arrayBuffer(),
