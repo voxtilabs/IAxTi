@@ -1,0 +1,9 @@
+apiVersion: v2
+name: iaxti
+description: >-
+  IAxTi en Kubernetes. La MISMA imagen única con cinco entrypoints que corre en
+  Dokploy; lo que cambia es quién la orquesta. Existe para que activar GKE no
+  sea empezar de cero (#83, ADR-0015) — no para desplegarse por defecto.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

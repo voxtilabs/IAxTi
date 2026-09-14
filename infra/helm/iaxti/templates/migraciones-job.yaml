@@ -1,0 +1,45 @@
+{{- if .Values.migraciones.habilitado }}
+{{- /*
+Las migraciones corren ANTES de que entre el código nuevo (hook pre-upgrade).
+Al revés, un pod nuevo levanta contra un esquema viejo y falla de formas que
+cuesta diagnosticar. `before-hook-creation` borra el Job anterior: un Job con
+el mismo nombre no se puede recrear.
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "iaxti.nombre" . }}-migraciones
+  labels:
+    {{- include "iaxti.etiquetas" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  # Sin reintentos automáticos: una migración que falla se mira, no se
+  # reintenta a ciegas.
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "iaxti.etiquetas" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migraciones
+          image: {{ include "iaxti.imagen" . }}
+          # El mismo CLI que corre el deploy de staging, dentro de la
+          # imagen: /app/packages viaja completo (lo exige el registry).
+          # No toma argumentos: migrar es lo único que hace.
+          command: ["node", "/app/packages/db/dist/cli.js"]
+          workingDir: /app
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretoEnv }}
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+{{- end }}

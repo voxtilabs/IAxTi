@@ -1,0 +1,80 @@
+{{- /*
+Un Deployment por servicio, todos desde la MISMA imagen: lo único que cambia
+es SERVICE. Es la propiedad que hace barato tener dos orquestadores.
+*/ -}}
+{{- range $nombre, $svc := .Values.servicios }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iaxti.nombre" $ }}-{{ $nombre }}
+  labels:
+    {{- include "iaxti.etiquetas" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $nombre }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $nombre }}
+  template:
+    metadata:
+      labels:
+        {{- include "iaxti.etiquetas" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $nombre }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: {{ $nombre }}
+          image: {{ include "iaxti.imagen" $ }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SERVICE
+              value: {{ $nombre | quote }}
+            {{- range $k, $v := $.Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          envFrom:
+            # Los secretos viven en un Secret que ya existe: el chart no los
+            # crea ni los ve.
+            - secretRef:
+                name: {{ $.Values.secretoEnv }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.puerto }}
+          {{- if $svc.expuesto }}
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            # Generoso a propósito: reiniciar un pod sano bajo carga empeora
+            # justo el momento en que hay que aguantar.
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          {{- end }}
+          resources:
+            {{- toYaml $svc.recursos | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # El root va de solo lectura; /tmp necesita ser escribible.
+        - name: tmp
+          emptyDir: {}
+{{- end }}
