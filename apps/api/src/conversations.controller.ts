@@ -20,7 +20,7 @@ import {
   changeConversationState,
   getConversation,
   getConversationDetail,
-  isWithin24hWindow,
+  isWithinWindow,
   listInbox,
   listMessages,
   sendMessage,
@@ -252,13 +252,16 @@ export class ConversationsController {
           message: 'Esta conversación la atiende otra persona del equipo.',
         });
       }
-      // La ventana de 24 h se hace cumplir AQUÍ (#43, SPEC §11): fuera de
-      // ella, por WhatsApp solo salen plantillas aprobadas (llegan con #44).
-      if (conversation.channel === 'whatsapp' && !isWithin24hWindow(conversation.lastInboundAt)) {
+      // La ventana se hace cumplir AQUÍ (#43, SPEC §11) y es por canal (#74):
+      // fuera de ella, WhatsApp solo deja salir plantillas aprobadas (#44), y
+      // en Instagram y Messenger hacen falta etiquetas de mensaje.
+      if (!isWithinWindow(conversation.channel, conversation.lastInboundAt)) {
         throw new UnprocessableEntityException({
           code: 'OUTSIDE_WINDOW',
           message:
-            'Pasaron más de 24 horas desde su último mensaje: por WhatsApp solo salen plantillas aprobadas.',
+            conversation.channel === 'whatsapp'
+              ? 'Pasaron más de 24 horas desde su último mensaje: por WhatsApp solo salen plantillas aprobadas.'
+              : 'Pasaron más de 24 horas desde su último mensaje: este canal ya no deja responder hasta que escriba de nuevo.',
         });
       }
       return entregarRespuesta(c, {
@@ -361,11 +364,13 @@ export class ConversationsController {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
       const conversation = await getConversation(c, actor.tenantId, id).catch(notFound);
-      if (conversation.channel === 'whatsapp' && !isWithin24hWindow(conversation.lastInboundAt)) {
+      if (!isWithinWindow(conversation.channel, conversation.lastInboundAt)) {
         throw new UnprocessableEntityException({
           code: 'OUTSIDE_WINDOW',
           message:
-            'Pasaron más de 24 horas desde su último mensaje: por WhatsApp solo salen plantillas aprobadas.',
+            conversation.channel === 'whatsapp'
+              ? 'Pasaron más de 24 horas desde su último mensaje: por WhatsApp solo salen plantillas aprobadas.'
+              : 'Pasaron más de 24 horas desde su último mensaje: este canal ya no deja responder hasta que escriba de nuevo.',
         });
       }
       let sugerencia;

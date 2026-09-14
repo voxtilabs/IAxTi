@@ -48,3 +48,31 @@ export function isWithin24hWindow(lastInboundAt: Date | null, now: Date = new Da
   if (!lastInboundAt) return false;
   return now.getTime() - lastInboundAt.getTime() < 24 * 60 * 60 * 1000;
 }
+
+/**
+ * Cada canal de Meta tiene su ventana desde el último entrante (#74). Las tres
+ * son de 24 h, pero son reglas SEPARADAS: si Meta mueve una, se toca acá y no
+ * en diez `if`. `null` = sin ventana, porque el canal es nuestro.
+ *
+ * Fuera de ventana, cada canal tiene su salida: en WhatsApp la plantilla
+ * aprobada (#44); en Instagram y Messenger, las etiquetas de mensaje —entre
+ * ellas la de agente humano, que estira a 7 días— que aún no implementamos.
+ */
+export const VENTANA_HORAS: Record<string, number | null> = {
+  whatsapp: 24,
+  instagram: 24,
+  messenger: 24,
+  webchat: null,
+  simulador: null,
+};
+
+export function isWithinWindow(
+  channel: string,
+  lastInboundAt: Date | null,
+  now: Date = new Date(),
+): boolean {
+  const horas = VENTANA_HORAS[channel];
+  if (horas === null || horas === undefined) return true;
+  if (!lastInboundAt) return false;
+  return now.getTime() - lastInboundAt.getTime() < horas * 60 * 60 * 1000;
+}

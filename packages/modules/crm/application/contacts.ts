@@ -2,12 +2,25 @@ import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { isOptOutMessage, normalizePhone, normalizeRut } from '../domain/validation';
 
-export type ContactOrigin = 'whatsapp' | 'webchat' | 'importado' | 'manual';
+export type ContactOrigin =
+  | 'whatsapp'
+  | 'webchat'
+  | 'importado'
+  | 'manual'
+  | 'instagram'
+  | 'messenger';
+
+/** Canales que identifican a un contacto (#74). El simulador imita WhatsApp. */
+export type IdentityChannel = 'whatsapp' | 'webchat' | 'instagram' | 'messenger' | 'simulador';
 
 export interface Contact {
   id: string;
   tenantId: string;
-  /** null solo para contactos web identificados por correo (#46). */
+  /**
+   * Teléfono E.164: es la identidad del canal WhatsApp, no la del contacto.
+   * null para quien llegó por webchat con correo (#46) o por Instagram y
+   * Messenger, que solo traen un id de chat (#74).
+   */
   phone: string | null;
   name: string | null;
   email: string | null;
@@ -65,6 +78,125 @@ export async function createContact(client: PoolClient, input: CreateContactInpu
     requestId: input.requestId,
   });
   return contact;
+}
+
+/**
+ * Registra la identidad de un contacto en un canal. Idempotente: la misma
+ * identidad dos veces no duplica ni pisa a quién apunta.
+ */
+export async function linkIdentity(
+  client: PoolClient,
+  input: { tenantId: string; contactId: string; channel: IdentityChannel; identity: string },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO contact_identities (tenant_id, contact_id, channel, identity)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (tenant_id, channel, identity) DO NOTHING`,
+    [input.tenantId, input.contactId, input.channel, input.identity],
+  );
+}
+
+/**
+ * El camino de los canales (SPEC §10, #74): al llegar un mensaje de alguien
+ * desconocido se crea el contacto, lo identifique un teléfono o un id de chat.
+ * Idempotente por (tenant, canal, identidad).
+ *
+ * WhatsApp y el simulador siguen resolviéndose por teléfono —es la identidad
+ * de ese canal y el dedupe histórico vive ahí—; Instagram y Messenger, por la
+ * tabla de identidades, porque no traen teléfono que valga.
+ */
+export async function ensureContactByIdentity(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    channel: IdentityChannel;
+    identity: string;
+    origin: ContactOrigin;
+    name?: string;
+    requestId?: string;
+  },
+): Promise<{ contact: Contact; created: boolean }> {
+  if (input.channel === 'whatsapp' || input.channel === 'simulador') {
+    const res = await ensureContactByPhone(client, {
+      tenantId: input.tenantId,
+      phone: input.identity,
+      origin: input.origin,
+      requestId: input.requestId,
+    });
+    await linkIdentity(client, {
+      tenantId: input.tenantId,
+      contactId: res.contact.id,
+      channel: 'whatsapp',
+      identity: res.contact.phone ?? normalizePhone(input.identity),
+    });
+    return res;
+  }
+
+  const existing = await client.query(
+    `SELECT k.* FROM contact_identities i
+       JOIN contacts k ON k.id = i.contact_id
+      WHERE i.tenant_id = $1 AND i.channel = $2 AND i.identity = $3`,
+    [input.tenantId, input.channel, input.identity],
+  );
+  if ((existing.rowCount ?? 0) > 0) {
+    const row = existing.rows[0];
+    // Un contacto fusionado apunta a su principal (#34): el canal siempre
+    // conversa con el que quedó vivo.
+    if (row.merged_into) {
+      const principal = await client.query(
+        'SELECT * FROM contacts WHERE tenant_id = $1 AND id = $2',
+        [input.tenantId, row.merged_into],
+      );
+      if ((principal.rowCount ?? 0) > 0) {
+        return { contact: rowToContact(principal.rows[0]), created: false };
+      }
+    }
+    return { contact: rowToContact(row), created: false };
+  }
+
+  // Sin teléfono ni correo: el contacto nace con el nombre que dé el canal, o
+  // sin nombre. Inventarle un teléfono sería mentirle a la ficha.
+  const result = await client.query(
+    `INSERT INTO contacts (tenant_id, phone, name, origin)
+     VALUES ($1, NULL, $2, $3) RETURNING *`,
+    [input.tenantId, input.name ?? null, input.origin],
+  );
+  const contact = rowToContact(result.rows[0]);
+  await linkIdentity(client, {
+    tenantId: input.tenantId,
+    contactId: contact.id,
+    channel: input.channel,
+    identity: input.identity,
+  });
+  await publishEvent(client, {
+    name: 'contact.created',
+    tenantId: input.tenantId,
+    payload: { contactId: contact.id, origin: contact.origin },
+    actor: 'system',
+    requestId: input.requestId,
+  });
+  return { contact, created: true };
+}
+
+/**
+ * Identidad del contacto en un canal, para responderle por donde escribió.
+ * WhatsApp cae al teléfono cuando el contacto es anterior a la tabla.
+ */
+export async function identityFor(
+  client: PoolClient,
+  input: { tenantId: string; contactId: string; channel: IdentityChannel },
+): Promise<string | null> {
+  const r = await client.query(
+    `SELECT identity FROM contact_identities
+      WHERE tenant_id = $1 AND contact_id = $2 AND channel = $3 LIMIT 1`,
+    [input.tenantId, input.contactId, input.channel],
+  );
+  if ((r.rowCount ?? 0) > 0) return r.rows[0].identity as string;
+  const k = await client.query('SELECT phone FROM contacts WHERE tenant_id = $1 AND id = $2', [
+    input.tenantId,
+    input.contactId,
+  ]);
+  return (k.rows[0]?.phone as string) ?? null;
 }
 
 /**

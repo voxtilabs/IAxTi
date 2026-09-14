@@ -31,7 +31,7 @@ beforeAll(async () => {
   `);
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
   await admin.query(
-    'GRANT SELECT, INSERT, UPDATE ON contacts, pipelines, stages, deals, loss_reasons, deal_stage_history, activities TO iaxti_app',
+    'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, pipelines, stages, deals, loss_reasons, deal_stage_history, activities TO iaxti_app',
   );
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));

@@ -1,11 +1,12 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
-import { ensureContactByPhone } from '@iaxti/module-crm';
+import { ensureContactByIdentity } from '@iaxti/module-crm';
+import type { ContactOrigin } from '@iaxti/module-crm';
 import type { Contact } from '@iaxti/module-crm';
 import { assertConversationTransition, assertDeliveryAdvance } from '../domain/state';
 import type { ConversationState, DeliveryStatus } from '../domain/state';
 
-export type Channel = 'whatsapp' | 'webchat' | 'simulador';
+export type Channel = 'whatsapp' | 'webchat' | 'simulador' | 'instagram' | 'messenger';
 
 export type MessageType =
   | 'texto'
@@ -101,6 +102,7 @@ export { getConversation };
 
 export interface InboundInput {
   tenantId: string;
+  /** Identidad de quien escribe EN SU CANAL: teléfono, correo o id de chat. */
   phone: string;
   channel?: Channel;
   channelAccountId?: string;
@@ -129,11 +131,17 @@ export interface InboundResult {
  */
 export async function receiveInbound(client: PoolClient, input: InboundInput): Promise<InboundResult> {
   const channel = input.channel ?? 'whatsapp';
-  // El simulador imita WhatsApp; el contacto nace con el origen del canal real.
-  const origin = channel === 'webchat' ? 'webchat' : 'whatsapp';
-  const { contact, created: contactCreated } = await ensureContactByPhone(client, {
+  // El simulador imita WhatsApp; el resto nace con el origen de su propio
+  // canal. `phone` trae la identidad del canal: teléfono en WhatsApp, id de
+  // chat en Instagram y Messenger (#74).
+  const origin: ContactOrigin =
+    channel === 'webchat' || channel === 'instagram' || channel === 'messenger'
+      ? channel
+      : 'whatsapp';
+  const { contact, created: contactCreated } = await ensureContactByIdentity(client, {
     tenantId: input.tenantId,
-    phone: input.phone,
+    channel: channel === 'simulador' ? 'simulador' : channel,
+    identity: input.phone,
     origin,
     requestId: input.requestId,
   });
@@ -506,10 +514,15 @@ export async function getOutboundContext(
   type: MessageType;
 } | null> {
   const r = await client.query(
-    `SELECT m.conversation_id, m.body, m.type, c.channel, c.channel_account_id, k.phone
+    // Se responde por DONDE escribió: la identidad del canal manda y el
+    // teléfono queda de respaldo para los contactos anteriores al #74.
+    `SELECT m.conversation_id, m.body, m.type, c.channel, c.channel_account_id,
+            COALESCE(i.identity, k.phone) AS phone
        FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
        JOIN contacts k ON k.id = c.contact_id
+       LEFT JOIN contact_identities i
+         ON i.tenant_id = m.tenant_id AND i.contact_id = k.id AND i.channel = c.channel
       WHERE m.tenant_id = $1 AND m.id = $2 AND m.direction = 'out'`,
     [tenantId, messageId],
   );
