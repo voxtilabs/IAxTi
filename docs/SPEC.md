@@ -330,9 +330,13 @@ historia, y que cada intención de compra sea una oportunidad con etapa y dueño
 
 **Entidades**
 
-- `Contact`: teléfono E.164 (clave), nombre, correo, RUT, empresa, dueño, etiquetas,
-  campos custom, canales conocidos, consentimiento (opt-in/opt-out con evidencia),
-  origen (whatsapp, webchat, importado, manual), última actividad.
+- `Contact`: nombre, correo, RUT, empresa, dueño, etiquetas, campos custom,
+  consentimiento (opt-in/opt-out con evidencia), origen (whatsapp, webchat,
+  instagram, messenger, importado, manual), última actividad. **La llave es la
+  identidad POR CANAL** (#74): teléfono E.164 en WhatsApp, correo en el webchat,
+  id de chat en Instagram y Messenger. El teléfono sigue siendo la identidad de
+  WhatsApp y la que manda para el dedupe, pero un contacto puede no tener
+  ninguno — quien escribe por Instagram no lo trae.
 - `Company`: nombre, RUT, contactos, campos custom. Opcional; no todos los rubros
   la usan.
 - `Pipeline`: nombre, etapas ordenadas, vertical de origen. Un tenant puede tener
