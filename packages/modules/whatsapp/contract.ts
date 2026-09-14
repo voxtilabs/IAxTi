@@ -19,3 +19,10 @@ export {
 export type { WhatsAppNumber } from './application/numbers';
 export { downloadAttachmentsToR2 } from './application/media';
 export type { AdjuntoEntrante, AdjuntoGuardado } from './application/media';
+export {
+  applyQualityUpdate,
+  normalizeQualityUpdates,
+  isBusinessPaused,
+  resumeBusinessSends,
+} from './application/quality';
+export type { NumberQuality, QualityUpdate } from './application/quality';

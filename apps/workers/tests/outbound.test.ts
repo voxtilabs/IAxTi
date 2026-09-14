@@ -16,6 +16,7 @@ import {
 import type { ChannelProvider } from '@iaxti/module-channels';
 import { DelayUntilError, processOutbound } from '../src/outbound';
 import { processDeliveryStatuses } from '../src/delivery';
+import { applyQualityUpdate, connectWhatsAppNumber } from '@iaxti/module-whatsapp';
 
 // La salida completa (#43) con un adaptador falso detrás del puerto:
 // entrega → sent con wamid; fallo definitivo → failed con causa legible;
@@ -164,6 +165,39 @@ describe('processOutbound (#43)', () => {
     const res = await processOutbound(admin, redis, jobPara(respuesta) as never);
     expect(res.providerMessageId).toBeTruthy(); // la respuesta salió igual
     await admin.query(`UPDATE tenants SET settings = '{}'::jsonb WHERE id = $1`, [tenant]);
+  });
+});
+
+describe('pausa por calidad (#45)', () => {
+  it('en rojo, lo del negocio queda failed con la causa; la respuesta sigue saliendo', async () => {
+    modo = 'ok';
+    await admin.query("UPDATE tenants SET plan = 'crece' WHERE id = $1", [tenant]);
+    await withTenant(admin, tenant, (c) =>
+      connectWhatsAppNumber(c, {
+        tenantId: tenant,
+        name: 'Con calidad',
+        phoneNumberId: 'pn-out-quality',
+        credentialRef: 'FAKE_WA_KEY',
+        webhookSecretRef: 'Y',
+      }),
+    ).then(async (res) => {
+      // La conversación de este test usa la cuenta original: apuntamos el
+      // número de calidad a ESA cuenta para que la pausa la cubra.
+      await admin.query('UPDATE whatsapp_numbers SET channel_account_id = $1 WHERE id = $2', [account, res.number.id]);
+    });
+    await withTenant(admin, tenant, (c) =>
+      applyQualityUpdate(c, { tenantId: tenant, update: { phoneNumberId: 'pn-out-quality', quality: 'red' } }),
+    );
+
+    const iniciado = await nuevoSaliente();
+    const res = await processOutbound(admin, redis, jobPara(iniciado, { initiatedByBusiness: true }) as never);
+    expect(res.failed).toMatch(/pausamos los envíos/);
+    const fila = await admin.query('SELECT delivery_status FROM messages WHERE id = $1', [iniciado]);
+    expect(fila.rows[0].delivery_status).toBe('failed');
+
+    const respuesta = await nuevoSaliente();
+    const ok = await processOutbound(admin, redis, jobPara(respuesta) as never);
+    expect(ok.providerMessageId).toBeTruthy(); // responder nunca se pausa
   });
 });
 

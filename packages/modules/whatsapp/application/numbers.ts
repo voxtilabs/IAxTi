@@ -15,6 +15,9 @@ export interface WhatsAppNumber {
   quality: 'green' | 'yellow' | 'red' | null;
   messagingLimit: string | null;
   connectedAt: Date | null;
+  /** Pausa de envíos del negocio por calidad (#45); la levanta el ADMIN. */
+  businessPausedAt: Date | null;
+  pausedReason: string | null;
 }
 
 function rowToNumber(row: Record<string, unknown>): WhatsAppNumber {
@@ -28,6 +31,8 @@ function rowToNumber(row: Record<string, unknown>): WhatsAppNumber {
     quality: (row.quality as WhatsAppNumber['quality']) ?? null,
     messagingLimit: (row.messaging_limit as string) ?? null,
     connectedAt: (row.connected_at as Date) ?? null,
+    businessPausedAt: (row.business_paused_at as Date) ?? null,
+    pausedReason: (row.paused_reason as string) ?? null,
   };
 }
 
