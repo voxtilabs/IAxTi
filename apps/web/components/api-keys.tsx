@@ -9,6 +9,14 @@ import { apiFetch } from '../lib/api';
 // UNA vez (en mono, con el aviso de copiarlo AHORA); acá después solo
 // queda el nombre, los scopes y el último uso.
 
+interface ConsumoDto {
+  limit: number | null;
+  used: number;
+  pct: number | null;
+  porDia: Array<{ day: string; n: number }>;
+  topEndpoints: Array<{ endpoint: string; n: number }>;
+}
+
 interface KeyDto {
   id: string;
   name: string;
@@ -28,6 +36,7 @@ export function ApiKeys() {
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
   const [vence, setVence] = useState('');
   const [tokenNuevo, setTokenNuevo] = useState<string | null>(null);
+  const [consumo, setConsumo] = useState<ConsumoDto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => setTenant(selectedTenant()), []);
@@ -36,6 +45,7 @@ export function ApiKeys() {
     try {
       setKeys(await apiFetch<KeyDto[]>(config, session, tenant, '/apikeys'));
       setScopes(await apiFetch<string[]>(config, session, tenant, '/apikeys/scopes'));
+      setConsumo(await apiFetch<ConsumoDto>(config, session, tenant, '/api-usage').catch(() => null));
     } catch (err) {
       setAviso((err as Error).message);
       setKeys([]);
@@ -190,6 +200,42 @@ export function ApiKeys() {
           </ul>
         )}
       </div>
+
+      {consumo && (
+        <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="rotulo">Consumo del mes</span>
+            {consumo.pct !== null && consumo.pct >= 80 && (
+              <Badge role={consumo.pct >= 100 ? 'bad' : 'warn'}>Al {consumo.pct} %</Badge>
+            )}
+          </div>
+          <p className="dato mt-2 text-3xl font-bold text-ink">
+            {consumo.used.toLocaleString('es-CL')}
+            {consumo.limit !== null && (
+              <span className="text-lg text-muted"> / {consumo.limit.toLocaleString('es-CL')}</span>
+            )}
+          </p>
+          {consumo.limit !== null && (
+            <div className="mt-3 h-2 overflow-hidden rounded-boton bg-rest" role="progressbar"
+                 aria-valuenow={Math.min(consumo.pct ?? 0, 100)} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full rounded-boton ${(consumo.pct ?? 0) >= 100 ? 'bg-bad' : (consumo.pct ?? 0) >= 80 ? 'bg-warn' : 'bg-action'}`}
+                style={{ width: `${Math.min(consumo.pct ?? 0, 100)}%` }}
+              />
+            </div>
+          )}
+          {consumo.topEndpoints.length > 0 && (
+            <ul className="mt-4 flex flex-col gap-1">
+              {consumo.topEndpoints.slice(0, 5).map((e) => (
+                <li key={e.endpoint} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="dato truncate text-muted">{e.endpoint}</span>
+                  <span className="dato shrink-0 text-body">{e.n.toLocaleString('es-CL')}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {aviso && (
         <p role="alert" className="mt-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">

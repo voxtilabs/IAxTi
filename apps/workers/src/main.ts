@@ -29,6 +29,7 @@ import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules,
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
 import { billingConsumers, sweepBilling } from '@iaxti/module-billing';
+import { flushApiUsage } from './api-usage';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
 
 const service = process.env.SERVICE ?? 'workers';
@@ -73,6 +74,7 @@ function start(): void {
 
   if (process.env.REDIS_URL) {
     const scheduled = createQueue('scheduled', redisConnection());
+    const redisScheduled = redisConnection();
     createModuleWorker(
       'scheduled',
       registry,
@@ -114,6 +116,12 @@ function start(): void {
             const n = await sweepResponseSamples(pool);
             if (n > 0) console.log(`scheduled: ${n} muestras de primera respuesta`);
             return { sampled: n };
+          }
+          // El consumo de API (#26): de Redis a usage_meters/daily_metrics.
+          case 'api_usage.flush': {
+            const n = await flushApiUsage(pool, redisScheduled);
+            if (n > 0) console.log(`scheduled: ${n} contadores de API volcados`);
+            return { flushed: n };
           }
           // El ciclo de cobro (#67): facturas, impagos y estados del tenant.
           case 'billing.sweep': {
@@ -190,6 +198,11 @@ function start(): void {
         'billing.sweep',
         { moduleId: 'billing' },
         { repeat: { pattern: '0 4 * * *', tz: 'America/Santiago' } },
+      ),
+      scheduled.add(
+        'api_usage.flush',
+        { moduleId: 'organizations' },
+        { repeat: { every: 300_000 } },
       ),
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');

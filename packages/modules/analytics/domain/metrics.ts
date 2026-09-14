@@ -16,6 +16,7 @@ export const METRICS = [
   'citas_agendadas',
   'citas_asistidas',
   'pagos_recibidos_clp',
+  'api_requests',
 ] as const;
 export type Metric = (typeof METRICS)[number];
 
@@ -34,6 +35,7 @@ export const DEFINICIONES: Record<Metric | 'primera_respuesta' | 'sin_responder_
   citas_agendadas: 'Citas agendadas en el rango. Se llena cuando el módulo de agenda esté activo (Fase 4).',
   citas_asistidas: 'Citas marcadas como asistidas. Se llena cuando el módulo de agenda esté activo (Fase 4).',
   pagos_recibidos_clp: 'Pagos confirmados en pesos. Se llena cuando el módulo de pagos esté activo (Fase 4).',
+  api_requests: 'Requests a la API pública hechas con API key en el rango (volcadas cada 5 minutos).',
   primera_respuesta: 'Tiempo entre el primer mensaje del cliente y la primera respuesta humana. Mediana y percentil 90 sobre las conversaciones respondidas en el rango.',
   sin_responder_ahora: 'Conversaciones abiertas cuyo último mensaje es del cliente, en este instante.',
   tasa_cierre: 'Ganadas dividido por cerradas (ganadas + perdidas) en el rango.',
