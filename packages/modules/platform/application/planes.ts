@@ -51,6 +51,7 @@ export async function listPlans(client: Pick<Pool, 'query'>): Promise<PlanRow[]>
 const CAMPOS_EDITABLES: Record<string, string> = {
   priceClp: 'price_clp',
   metaIncludedUsd: 'meta_included_usd',
+  iaBudgetUsd: 'ia_budget_usd',
   whatsappNumbers: 'whatsapp_numbers',
   conversationsMonth: 'conversations_month',
   iaExecutionsMonth: 'ia_executions_month',
