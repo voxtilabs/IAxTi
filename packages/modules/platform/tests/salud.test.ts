@@ -2,7 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
-import { estadoGeneral, healthSnapshot, securitySnapshot } from '../application/salud';
+import {
+  chequeoCrecimientoMensajes,
+  estadoGeneral,
+  healthSnapshot,
+  securitySnapshot,
+} from '../application/salud';
 
 // Seguridad y salud (#71): que cada número salga de una fuente real, y que
 // lo que no tiene fuente lo diga en vez de mostrar un cero tranquilizador.
@@ -85,6 +90,24 @@ describe('salud (#71)', () => {
     const snap = await healthSnapshot(admin, { redis: null, env: {} });
     expect(snap.estado).toBe(estadoGeneral(snap.chequeos));
     expect(snap.checkedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('umbral de particionado (#84)', () => {
+  it('avisa por estimación, no contando filas de a una', async () => {
+    const chequeo = await chequeoCrecimientoMensajes(admin);
+    // En una base de pruebas está lejísimos del umbral: tiene que decirlo
+    // así, y traer el número que midió.
+    expect(chequeo.estado).toBe('bien');
+    expect(chequeo.detalle).toMatch(/lejos del umbral/);
+    expect(typeof chequeo.valor).toBe('number');
+    // El umbral explica de dónde sale el número: es una estimación.
+    expect(chequeo.umbral).toMatch(/estimación del planificador/);
+  });
+
+  it('el chequeo entra al tablero de salud', async () => {
+    const snap = await healthSnapshot(admin, { redis: null, env: {} });
+    expect(snap.chequeos.some((c) => c.id === 'mensajes')).toBe(true);
   });
 });
 
