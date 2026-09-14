@@ -13,6 +13,12 @@ on:
         description: 'URL a escanear (por defecto, la de staging)'
         required: false
 
+permissions:
+  contents: read
+  # El informe se publica como issue; sin este permiso el paso falla con
+  # "Resource not accessible by integration" aunque el escaneo salga limpio.
+  issues: write
+
 jobs:
   baseline:
     runs-on: ubuntu-latest
@@ -30,7 +36,9 @@ jobs:
             echo "Sin STAGING_URL configurada: no hay nada que escanear." >> "$GITHUB_STEP_SUMMARY"
             echo "correr=false" >> "$GITHUB_OUTPUT"
           else
-            echo "url=$URL" >> "$GITHUB_OUTPUT"
+            # La API no tiene raíz (404 a propósito): el spider arranca en
+            # /health, que sí responde, y desde ahí recorre igual.
+            echo "url=${URL%/}/health" >> "$GITHUB_OUTPUT"
             echo "correr=true" >> "$GITHUB_OUTPUT"
           fi
 
