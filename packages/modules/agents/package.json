@@ -16,6 +16,7 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
+    "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "ai": "^7.0.99",
     "langfuse": "^3.38.20",

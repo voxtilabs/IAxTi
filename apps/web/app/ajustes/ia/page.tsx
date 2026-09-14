@@ -1,6 +1,7 @@
 import { AppShell, type NavItem } from '../../../components/app-shell';
 import { ConsumoIA } from '../../../components/consumo-ia';
 import { ModoAutonomo } from '../../../components/modo-autonomo';
+import { Configurador } from '../../../components/configurador';
 import { internalApiUrl, publicConfig } from '../../../lib/config';
 import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
@@ -22,6 +23,7 @@ export default async function PaginaConsumoIA() {
   return (
     <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
       <ConsumoIA />
+      <Configurador />
       <ModoAutonomo />
     </AppShell>
   );
