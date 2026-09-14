@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { publishEvent } from '@iaxti/core';
 import { extractMentions } from '../domain/plantillas';
 
 // Quick replies, notas internas y búsqueda (#39, SPEC §11).
@@ -113,7 +114,22 @@ export async function addInternalNote(
      VALUES ($1, $2, $3, $4, $5) RETURNING *`,
     [input.tenantId, input.conversationId, input.authorId, input.body, input.mentions ?? []],
   );
-  return rowToNote(r.rows[0]);
+  const nota = rowToNote(r.rows[0]);
+  // La mención avisa (#55): notifications lo convierte en campana/correo.
+  if (nota.mentions.length > 0) {
+    await publishEvent(client, {
+      name: 'note.mentioned',
+      tenantId: input.tenantId,
+      payload: {
+        noteId: nota.id,
+        conversationId: input.conversationId,
+        mentions: nota.mentions,
+        excerpt: input.body.slice(0, 120),
+      },
+      actor: input.authorId,
+    });
+  }
+  return nota;
 }
 
 export async function listInternalNotes(

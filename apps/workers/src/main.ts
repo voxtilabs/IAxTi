@@ -15,6 +15,7 @@ import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
 import { realtimeConsumers } from './realtime';
 import { onContactMerged } from '@iaxti/module-conversations';
+import { notificationConsumers } from '@iaxti/module-notifications';
 import {
   enqueueTenantChildren,
   runArchiveTenant,
@@ -45,6 +46,8 @@ function start(): void {
       event: 'contact.merged',
       handler: onContactMerged,
     },
+    // La campana y el correo (#55): consumidores idempotentes del catálogo.
+    ...notificationConsumers(),
   ]);
   dispatcher.start(500);
   console.log('workers: despachador de outbox activo (500 ms)');

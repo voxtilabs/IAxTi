@@ -1,0 +1,26 @@
+# notifications (#55, SPEC §21): la campana y el correo. Consume los avisos
+# del catálogo y respeta las preferencias por usuario y tipo; los críticos
+# (número en rojo, impago) no se silencian para el ADMIN.
+module:
+  id: notifications
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations]
+  optional: []
+permissions:
+  - notifications.manage_own
+events:
+  publishes: []
+  consumes:
+    - conversation.unattended
+    - sla.first_response_breached
+    - note.mentioned
+    - activity.due
+    - number.quality_changed
+    - agent.quota_threshold
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.notifications

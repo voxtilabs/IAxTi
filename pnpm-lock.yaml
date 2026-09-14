@@ -264,6 +264,9 @@ importers:
       '@iaxti/module-identity':
         specifier: workspace:*
         version: link:../../packages/modules/identity
+      '@iaxti/module-notifications':
+        specifier: workspace:*
+        version: link:../../packages/modules/notifications
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../../packages/modules/organizations
@@ -401,6 +404,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../../packages/modules/crm
+      '@iaxti/module-notifications':
+        specifier: workspace:*
+        version: link:../../packages/modules/notifications
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../../packages/modules/organizations
@@ -628,6 +634,37 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.23.1
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(jiti@1.21.7)(supports-color@7.2.0)(yaml@2.9.1)
+
+  packages/modules/notifications:
+    dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../core
+      nodemailer:
+        specifier: ^6.9.0
+        version: 6.10.1
+      pg:
+        specifier: ^8.13.0
+        version: 8.23.0
+    devDependencies:
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      '@types/nodemailer':
+        specifier: ^6.4.0
+        version: 6.4.24
       '@types/pg':
         specifier: ^8.11.0
         version: 8.23.1
@@ -2690,6 +2727,9 @@ packages:
   '@types/node@22.20.2':
     resolution: {integrity: sha512-xlvWf4Vs9n1PEVYwP1n4vvG07M6y8WgvJ2t0vbrWTmijsIHp1cS+uJ2kMIRdY3nHZK0nCYKrPeD171+SzF4/zw==}
 
+  '@types/nodemailer@6.4.24':
+    resolution: {integrity: sha512-Ww4u0rT9wQNXh4JiQaIwx3QWdcOFXzOjQA2zc+jtFYNmQiT4mIUqcDin51bDFdkzKubFnQCZNK7FIHlPKQ/q9w==}
+
   '@types/pg-pool@2.0.6':
     resolution: {integrity: sha512-TaAUE5rq2VQYxab5Ts7WZhKNmuN78Q6PiFonTDdpbx8a1H0M1vhy3rhiMjl+e2iHmogyMw7jZF4FrE6eJUy5HQ==}
 
@@ -3692,6 +3732,10 @@ packages:
   node-releases@2.0.55:
     resolution: {integrity: sha512-mIrE/Cw9y+9Au6dS5vDKDhQza9YvG6w+ZrS6X+ZzA7yFW/soAeaups4Qzn1bL6g5FVy8WtP79+0j82oPIbqRjQ==}
     engines: {node: '>=18'}
+
+  nodemailer@6.10.1:
+    resolution: {integrity: sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA==}
+    engines: {node: '>=6.0.0'}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -6366,6 +6410,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/nodemailer@6.4.24':
+    dependencies:
+      '@types/node': 22.20.2
+
   '@types/pg-pool@2.0.6':
     dependencies:
       '@types/pg': 8.23.1
@@ -7443,6 +7491,8 @@ snapshots:
     optional: true
 
   node-releases@2.0.55: {}
+
+  nodemailer@6.10.1: {}
 
   normalize-path@3.0.0: {}
 

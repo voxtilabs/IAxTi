@@ -33,6 +33,7 @@ const USER_PERMS = new Set([
   'conversations.reply',
   'conversations.resolve',
   'conversations.notes',
+  'notifications.manage_own',
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
