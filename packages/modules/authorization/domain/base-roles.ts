@@ -27,6 +27,12 @@ const USER_PERMS = new Set([
   'crm.deals.update',
   'crm.deals.close',
   'crm.activities.manage',
+  // SPEC §23: opera SUS conversaciones; la verificación de dueño la agrega
+  // el caso de uso (read_all es el interruptor "ver todo el equipo").
+  'conversations.read',
+  'conversations.reply',
+  'conversations.resolve',
+  'conversations.notes',
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
@@ -35,6 +41,9 @@ const SUPERVISOR_EXTRA = new Set([
   'audit.read',
   'crm.contacts.merge',
   'crm.contacts.export',
+  'conversations.read_all',
+  'conversations.assign',
+  'quickreplies.manage',
 ]);
 
 const RULES: Record<BaseRole, Rule> = {
