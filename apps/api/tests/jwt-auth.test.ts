@@ -23,6 +23,7 @@ const adminUser = randomUUID();
 const extraño = randomUUID();
 
 beforeAll(async () => {
+  process.env.DATABASE_URL = process.env.DATABASE_URL ?? ADMIN_URL; // apiPool (GET /me)
   admin = createPool(ADMIN_URL);
   await runMigrations(admin);
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('test-jwt') RETURNING id");
@@ -67,6 +68,20 @@ afterAll(async () => {
 const url = () => `${base}/v1/demo/protegido`;
 
 describe('autenticación por JWT (Supabase, camino real)', () => {
+  it('GET /v1/me devuelve el usuario y sus negocios; sin sesión, 401', async () => {
+    const res = await fetch(`${base}/v1/me`, {
+      headers: { Authorization: `Bearer ${await firmar(adminUser)}` },
+    });
+    expect(res.status).toBe(200);
+    const me = await res.json();
+    expect(me.userId).toBe(adminUser);
+    expect(me.tenants).toEqual([
+      { tenantId: tenant, tenantName: 'test-jwt', roleName: 'ADMIN' },
+    ]);
+
+    expect((await fetch(`${base}/v1/me`)).status).toBe(401);
+  });
+
   it('Bearer válido + membresía ADMIN: 200', async () => {
     const res = await fetch(url(), {
       headers: { Authorization: `Bearer ${await firmar(adminUser)}`, 'X-Tenant-Id': tenant },

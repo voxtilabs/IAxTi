@@ -1,7 +1,18 @@
-import { Controller, Get, Module, NotFoundException, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Module,
+  NotFoundException,
+  Param,
+  Req,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ModuleRegistry } from '@iaxti/core';
-import { RequireModule, RequirePermission } from './authz/decorators';
+import { tenantsOf } from '@iaxti/module-identity';
+import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
+import type { WithUser } from './authz/authz.guard';
+import { apiPool } from './db';
 
 // El registry se construye una vez al arrancar; una validación fallida
 // (ciclo, colisión, dependencia inexistente) aborta el proceso a propósito
@@ -29,6 +40,32 @@ class HealthController {
 @ApiTags('me')
 @Controller('me')
 class MeController {
+  /**
+   * Quién soy y a qué negocios pertenezco: lo primero que pide el shell
+   * tras el login, para el selector de tenant (SPEC §9: un usuario puede
+   * estar en varios tenants con roles distintos).
+   */
+  @Get()
+  @RequireAuth()
+  @ApiOperation({ summary: 'Usuario de la sesión y sus negocios' })
+  async me(@Req() request: WithUser) {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const user = request.user as { userId: string; email?: string };
+    const client = await pool.connect();
+    try {
+      const tenants = await tenantsOf(client, user.userId);
+      return { userId: user.userId, email: user.email ?? null, tenants };
+    } finally {
+      client.release();
+    }
+  }
+
   /**
    * El frontend arma navegación y widgets desde aquí: un módulo apagado
    * desaparece sin desplegar (SPEC §26 regla 5). El filtro por plan del

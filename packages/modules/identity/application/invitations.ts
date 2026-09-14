@@ -96,6 +96,35 @@ export async function acceptInvitation(
   return { tenantId: inv.tenant_id, roleName: inv.role_name };
 }
 
+export interface Membership {
+  tenantId: string;
+  tenantName: string;
+  roleName: string;
+}
+
+/**
+ * Los negocios a los que pertenece un usuario, para el selector de tenant
+ * del shell (un usuario puede estar en varios con roles distintos, SPEC §9).
+ * Se consulta con la conexión de servicio: cruza tenants ANTES de que exista
+ * un tenant en contexto.
+ */
+export async function tenantsOf(client: PoolClient, userId: string): Promise<Membership[]> {
+  const result = await client.query(
+    `SELECT t.id AS tenant_id, t.name AS tenant_name, r.name AS role_name
+       FROM user_roles ur
+       JOIN tenants t ON t.id = ur.tenant_id
+       JOIN roles r ON r.id = ur.role_id
+      WHERE ur.user_id = $1
+      ORDER BY t.name`,
+    [userId],
+  );
+  return result.rows.map((row) => ({
+    tenantId: row.tenant_id,
+    tenantName: row.tenant_name,
+    roleName: row.role_name,
+  }));
+}
+
 /** Rol del usuario en el tenant (el guard lo consulta por request). */
 export async function roleOf(
   client: PoolClient,

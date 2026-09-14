@@ -4,6 +4,7 @@ export {
   createInvitation,
   acceptInvitation,
   roleOf,
+  tenantsOf,
   upsertProfile,
 } from './application/invitations';
-export type { Invitation } from './application/invitations';
+export type { Invitation, Membership } from './application/invitations';

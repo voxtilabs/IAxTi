@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { MODE_INIT_SCRIPT } from '@iaxti/ui';
 import '@iaxti/ui/pulso-tokens.css';
 import '@iaxti/ui/pulso-base.css';
+import './globals.css';
 
 export const metadata = {
   title: 'IAxTi',
