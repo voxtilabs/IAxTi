@@ -21,6 +21,16 @@ export type {
 } from './application/conversations';
 export { listInbox, getConversationDetail } from './application/inbox';
 export { autoAssignNew } from './application/assignment';
+export {
+  createQuickReply,
+  listQuickReplies,
+  deleteQuickReply,
+  addInternalNote,
+  listInternalNotes,
+  searchConversations,
+} from './application/equipo';
+export type { QuickReply, InternalNote, SearchHit } from './application/equipo';
+export { renderQuickReply, quickReplyVariables, extractMentions } from './domain/plantillas';
 export { checkConversationAlerts } from './application/sla';
 export { bandejaSettings, minutosHabilesEntre, DEFAULT_HORARIO } from './domain/horario';
 export type { AssignmentMode, BandejaSettings, BusinessHours } from './domain/horario';

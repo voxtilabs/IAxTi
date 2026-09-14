@@ -1,7 +1,8 @@
 'use client';
 
-import { Avatar, Badge, Button, IconoVolver } from '@iaxti/ui/react';
-import type { ConversacionDetalle } from '../../lib/api';
+import { useState } from 'react';
+import { Avatar, Badge, Button, IconoVolver, Textarea } from '@iaxti/ui/react';
+import type { ConversacionDetalle, NotaDto } from '../../lib/api';
 import { ESTADOS, fmtEspera } from './estado';
 
 function Fila({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
@@ -16,11 +17,17 @@ function Fila({ rotulo, children }: { rotulo: string; children: React.ReactNode 
 /** Panel derecho (SPEC §11): la ficha mínima; la completa llega con #32. */
 export function Ficha({
   detalle,
+  notas,
   onVolver,
+  onAgregarNota,
 }: {
   detalle: ConversacionDetalle | null;
+  notas: NotaDto[];
   onVolver: () => void;
+  onAgregarNota: (texto: string) => Promise<void>;
 }) {
+  const [nota, setNota] = useState('');
+  const [guardando, setGuardando] = useState(false);
   if (!detalle) {
     return <p className="p-6 text-sm text-muted">La ficha del contacto aparece al elegir una conversación.</p>;
   }
@@ -66,6 +73,47 @@ export function Ficha({
             'Todavía sin responder'
           )}
         </Fila>
+      </div>
+
+      {/* Notas internas (SPEC §11): visibles SOLO para el equipo. */}
+      <div className="mt-6">
+        <p className="rotulo">Notas del equipo</p>
+        {notas.length === 0 && (
+          <p className="mt-2 text-sm text-muted">Sin notas todavía. El cliente jamás las ve.</p>
+        )}
+        <ul className="mt-2 flex flex-col gap-2">
+          {notas.map((n) => (
+            <li key={n.id} className="rounded-campo border border-warn-soft-br bg-warn-soft p-3">
+              <p className="whitespace-pre-wrap text-sm text-ink">{n.body}</p>
+              <p className="dato mt-1 text-warn-text">
+                {new Date(n.createdAt).toLocaleString('es-CL')}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <form
+          className="mt-3 flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!nota.trim() || guardando) return;
+            setGuardando(true);
+            void onAgregarNota(nota.trim()).then(() => {
+              setNota('');
+              setGuardando(false);
+            });
+          }}
+        >
+          <Textarea
+            aria-label="Nota interna"
+            placeholder="Nota para el equipo (con @menciones)…"
+            rows={2}
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+          />
+          <Button type="submit" variant="secundario" size="chico" disabled={!nota.trim() || guardando}>
+            Guardar nota
+          </Button>
+        </form>
       </div>
 
       <p className="mt-6 text-xs text-muted">

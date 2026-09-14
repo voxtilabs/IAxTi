@@ -5,6 +5,7 @@ import {
   Avatar,
   Badge,
   IconoReloj,
+  Input,
   Skeleton,
   Tabs,
   TabsList,
@@ -15,9 +16,12 @@ import {
 import { selectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
+  type BusquedaHit,
   type ConversacionDetalle,
   type ConversacionItem,
   type Mensaje,
+  type NotaDto,
+  type QuickReplyDto,
 } from '../../lib/api';
 import { Chat } from './chat';
 import { Ficha } from './ficha';
@@ -41,6 +45,10 @@ export function Bandeja() {
   const [mensajes, setMensajes] = useState<Mensaje[] | null>(null);
   const [pane, setPane] = useState<Pane>('lista');
   const [aviso, setAviso] = useState<string | null>(null);
+  const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
+  const [notas, setNotas] = useState<NotaDto[]>([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [hits, setHits] = useState<BusquedaHit[] | null>(null);
   const seleccionRef = useRef<string | null>(null);
   seleccionRef.current = seleccion;
 
@@ -69,12 +77,14 @@ export function Bandeja() {
     async (id: string) => {
       if (!session || !tenant) return;
       try {
-        const [d, m] = await Promise.all([
+        const [d, m, n] = await Promise.all([
           apiFetch<ConversacionDetalle>(config, session, tenant, `/conversations/${id}`),
           apiFetch<Mensaje[]>(config, session, tenant, `/conversations/${id}/messages`),
+          apiFetch<NotaDto[]>(config, session, tenant, `/conversations/${id}/notes`),
         ]);
         setDetalle(d);
         setMensajes(m);
+        setNotas(n);
       } catch (err) {
         setAviso((err as Error).message);
       }
@@ -83,6 +93,13 @@ export function Bandeja() {
   );
 
   useEffect(() => void cargarLista(), [cargarLista]);
+  // Los atajos del negocio + los míos, una vez por tenant.
+  useEffect(() => {
+    if (!session || !tenant) return;
+    void apiFetch<QuickReplyDto[]>(config, session, tenant, '/quick-replies')
+      .then(setAtajos)
+      .catch(() => setAtajos([]));
+  }, [config, session, tenant]);
   useEffect(() => {
     if (seleccion) void cargarConversacion(seleccion);
   }, [seleccion, cargarConversacion]);
@@ -119,6 +136,19 @@ export function Bandeja() {
     }
   }
 
+  async function buscar(q: string): Promise<void> {
+    if (!session || !tenant) return;
+    if (!q.trim()) {
+      setHits(null);
+      return;
+    }
+    try {
+      setHits(await apiFetch<BusquedaHit[]>(config, session, tenant, `/search?q=${encodeURIComponent(q)}`));
+    } catch (err) {
+      setAviso((err as Error).message);
+    }
+  }
+
   if (!tenant) {
     return <p className="p-8 text-muted">Elige un negocio en el selector para ver su bandeja.</p>;
   }
@@ -144,7 +174,54 @@ export function Bandeja() {
               <TabsTrigger value="sin_responder" className="flex-1">Sin responder</TabsTrigger>
             </TabsList>
           </Tabs>
+          <Input
+            type="search"
+            aria-label="Buscar en mensajes y notas"
+            placeholder="Buscar en mensajes y notas…"
+            className="mt-3 h-9 text-sm"
+            value={busqueda}
+            onChange={(e) => {
+              setBusqueda(e.target.value);
+              if (!e.target.value.trim()) setHits(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void buscar(busqueda);
+            }}
+          />
         </div>
+        {hits !== null && (
+          <div className="border-b border-line">
+            <p className="rotulo px-4 pt-3">Resultados</p>
+            {hits.length === 0 && (
+              <p className="px-4 py-3 text-sm text-muted">Nada con “{busqueda}”.</p>
+            )}
+            <ul>
+              {hits.map((h, i) => (
+                <li key={`${h.kind}-${i}`}>
+                  <button
+                    type="button"
+                    className="w-full px-4 py-2 text-left transition-colors hover:bg-rest"
+                    onClick={() => {
+                      setSeleccion(h.conversationId);
+                      setPane('chat');
+                      setHits(null);
+                      setBusqueda('');
+                    }}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                      {h.contactName ?? h.contactPhone}
+                      {h.kind === 'nota' && <Badge role="warn">Nota</Badge>}
+                    </span>
+                    <span
+                      className="block truncate text-xs text-muted [&_b]:text-action-text"
+                      dangerouslySetInnerHTML={{ __html: h.snippet }}
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {aviso && !detalle && (
           <p role="alert" className="m-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">
             {aviso}
@@ -204,6 +281,7 @@ export function Bandeja() {
         <Chat
           detalle={detalle}
           mensajes={mensajes}
+          atajos={atajos}
           miId={miId}
           aviso={aviso}
           onVolver={() => setPane('lista')}
@@ -222,7 +300,23 @@ export function Bandeja() {
           pane === 'ficha' ? 'flex' : 'hidden',
         )}
       >
-        <Ficha detalle={detalle} onVolver={() => setPane('chat')} />
+        <Ficha
+          detalle={detalle}
+          notas={notas}
+          onVolver={() => setPane('chat')}
+          onAgregarNota={async (texto) => {
+            if (!session || !tenant || !seleccion) return;
+            try {
+              await apiFetch(config, session, tenant, `/conversations/${seleccion}/notes`, {
+                method: 'POST',
+                body: JSON.stringify({ body: texto }),
+              });
+              await cargarConversacion(seleccion);
+            } catch (err) {
+              setAviso((err as Error).message);
+            }
+          }}
+        />
       </section>
     </div>
   );

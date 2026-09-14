@@ -52,7 +52,7 @@ test('la supervisora asigna la conversación simulada y la resuelve desde el cel
   await expect(chat.getByText('En curso')).toBeVisible();
 
   // Responde: el mensaje aparece en la conversación y el simulador entrega.
-  await page.getByLabel('Mensaje').fill('¡Hola! Te preparo la cotización altiro.');
+  await page.getByLabel('Mensaje', { exact: true }).fill('¡Hola! Te preparo la cotización altiro.');
   await page.getByLabel('Enviar').click();
   await expect(page.getByText('Te preparo la cotización altiro')).toBeVisible();
 
@@ -65,5 +65,5 @@ test('la supervisora asigna la conversación simulada y la resuelve desde el cel
   await page.getByRole('button', { name: 'Ficha' }).click();
   await expect(page.getByText('Consentimiento')).toBeVisible();
   await page.getByRole('button', { name: 'Volver al chat' }).click();
-  await expect(page.getByLabel('Mensaje')).toBeVisible();
+  await expect(page.getByLabel('Mensaje', { exact: true })).toBeVisible();
 });

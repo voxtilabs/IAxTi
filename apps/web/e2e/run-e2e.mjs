@@ -144,7 +144,15 @@ async function main() {
   const pw = lanzar('playwright', 'npx', ['playwright', 'test'], {}, webDir);
   pw.on('exit', (code) => {
     jwks.close();
-    limpiar(code ?? 1);
+    // En local la base persiste entre corridas: los eventos del e2e quedan
+    // "procesados" para no contaminar los tests del despachador de outbox.
+    const cierre = createPool(DATABASE_URL);
+    cierre
+      .query('UPDATE outbox SET processed_at = now() WHERE tenant_id = $1 AND processed_at IS NULL', [tenant])
+      .catch(() => {})
+      .finally(() => {
+        void cierre.end().finally(() => limpiar(code ?? 1));
+      });
   });
 }
 
