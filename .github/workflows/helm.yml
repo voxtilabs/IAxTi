@@ -1,0 +1,70 @@
+# El chart de GKE se valida SIEMPRE, aunque no se despliegue nunca (#83).
+# Un chart que nadie ejecuta se pudre en silencio, y el día que un cliente
+# exija aislamiento de red no hay tiempo para descubrir que no arranca.
+name: helm
+
+on:
+  pull_request:
+    paths:
+      - 'infra/helm/**'
+      - '.github/workflows/helm.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/helm/**'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - name: Lint
+        run: helm lint infra/helm/iaxti
+
+      - name: Render con los valores por defecto
+        run: helm template iaxti infra/helm/iaxti > /tmp/render.yaml
+
+      - name: El Ingress sin host tiene que FALLAR
+        run: |
+          # Una plantilla que acepta configuración inválida rinde YAML que
+          # no enruta nada y nadie se entera hasta producción.
+          if helm template iaxti infra/helm/iaxti --set ingress.habilitado=true >/dev/null 2>&1; then
+            echo "El chart aceptó un Ingress sin host: eso es un bug del chart."
+            exit 1
+          fi
+          echo "El chart rechaza un Ingress sin host, como corresponde."
+
+      - name: Levantar kind
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: iaxti-chart
+
+      - name: Instalar de verdad contra el clúster
+        run: |
+          kubectl create namespace iaxti
+          # El Secret lo crea el operador en un clúster real; acá se fabrica
+          # uno de mentira para que el chart tenga de dónde leer.
+          kubectl -n iaxti create secret generic iaxti-env \
+            --from-literal=DATABASE_URL=postgres://nadie@localhost:5432/vacio \
+            --from-literal=REDIS_URL=redis://localhost:6379
+          # --wait no: sin imagen publicada para este SHA los pods no arrancan.
+          # Lo que se valida acá es que el API server ACEPTA los manifiestos.
+          helm install iaxti infra/helm/iaxti \
+            --namespace iaxti \
+            --set migraciones.habilitado=false \
+            --dry-run=server
+
+      - name: Qué quedó renderizado
+        if: always()
+        run: |
+          echo '```yaml' >> "$GITHUB_STEP_SUMMARY"
+          head -40 /tmp/render.yaml >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,21 @@
+{{- range $nombre, $svc := .Values.servicios }}
+{{- if $svc.expuesto }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "iaxti.nombre" $ }}-{{ $nombre }}
+  labels:
+    {{- include "iaxti.etiquetas" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $nombre }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $nombre }}
+  ports:
+    - name: http
+      port: {{ $svc.puerto }}
+      targetPort: http
+{{- end }}
+{{- end }}

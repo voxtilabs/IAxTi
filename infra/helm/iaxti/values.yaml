@@ -1,0 +1,66 @@
+# Valores por defecto del chart. Pensados para que `helm template` corra sin
+# nada configurado (así el CI puede validarlo), pero NUNCA para producción:
+# los secretos entran por un Secret externo, jamás por values.
+
+image:
+  repository: ghcr.io/voxtilabs/iaxti
+  # Tag inmutable por release. `latest` está prohibido: un pod que se
+  # reprograma no puede terminar con una versión distinta a sus hermanos.
+  tag: v0.1.0
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Los cinco servicios salen de la misma imagen cambiando SERVICE.
+servicios:
+  web:
+    replicas: 2
+    puerto: 3000
+    expuesto: true
+    recursos: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 512Mi } }
+  admin:
+    replicas: 1
+    puerto: 3000
+    expuesto: true
+    recursos: { requests: { cpu: 50m, memory: 192Mi }, limits: { memory: 384Mi } }
+  api:
+    replicas: 2
+    puerto: 3000
+    expuesto: true
+    recursos: { requests: { cpu: 200m, memory: 384Mi }, limits: { memory: 768Mi } }
+  workers:
+    replicas: 2
+    puerto: 3000
+    expuesto: false
+    recursos: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 512Mi } }
+  agents:
+    replicas: 1
+    puerto: 3000
+    expuesto: false
+    recursos: { requests: { cpu: 100m, memory: 512Mi }, limits: { memory: 1Gi } }
+
+# Nombre del Secret que ya existe en el namespace, con DATABASE_URL,
+# REDIS_URL, SUPABASE_*, ZAVU_*, etc. El chart NO lo crea: un chart que crea
+# secretos termina con los secretos en git.
+secretoEnv: iaxti-env
+
+env:
+  IAXTI_ENV: production
+  API_URL_INTERNAL: http://iaxti-api:3000
+
+ingress:
+  habilitado: false
+  className: gce
+  host: ""
+  # Certificado gestionado por GKE; sin host no se emite nada.
+  annotations: {}
+
+# Job de migraciones ANTES de cada despliegue (hook pre-upgrade). Sin esto,
+# un pod nuevo puede levantar contra un esquema viejo.
+migraciones:
+  habilitado: true
+
+redis:
+  # El chart NO trae Redis: en GKE va Memorystore, igual que Postgres va a
+  # Cloud SQL o Supabase. Dependencias con estado, fuera del chart.
+  externo: true

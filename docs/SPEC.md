@@ -1091,7 +1091,7 @@ No escribas código de producto.
    módulos, permisos, flujo de un mensaje de WhatsApp de punta a punta (webhook →
    cola → conversación → copiloto → sugerencia → envío → estado), flujo del
    configurador, flujo de un pago, ciclo de vida del tenant.
-5. Genera `docs/adr/0001` a `0014`: stack TypeScript · Supabase como datos e
+5. Genera `docs/adr/0001` a `0015`: stack TypeScript · Supabase como datos e
    identidad · VPS con Dokploy antes que la nube (condiciones en la sección 38) ·
    BullMQ antes que Pub/Sub · Zavu como capa de canales y proveedor propio en Fase 7 · Langfuse +
    OpenTelemetry · sistema de módulos · modelo de autorización · Pulso como
@@ -1360,7 +1360,7 @@ anticipación.
 | 1 · Un VPS | Hoy hasta ~30 tenants activos | — | — |
 | 2 · Dos VPS | api p95 > 500 ms sostenido o workers/agents compiten por CPU | Dokploy multi-servidor: VPS-A web + api, VPS-B workers + agents + redis. Redis con contraseña y red privada | Código, compose (se parte en dos), Supabase |
 | 3 · Swarm | Necesito réplicas de api o cero downtime real | Dokploy en modo Swarm, 3 nodos, réplicas de api y agents, Traefik distribuido; Redis gestionado (Upstash o equivalente) | Imagen, migraciones, flags |
-| 4 · Nube gestionada | Cliente exige aislamiento, SLA contractual o residencia; o el equipo crece | Cloud Run (misma imagen) o GKE con el Helm chart que existe desde la fase 1; Terraform entra aquí; Cloud SQL si Supabase no basta | Todo lo demás |
+| 4 · Nube gestionada | Cliente exige aislamiento, SLA contractual o residencia, **por escrito en su contrato** (ADR-0015) | Cloud Run (misma imagen) o GKE con el chart de `infra/helm/iaxti`, validado en CI contra kind aunque no se despliegue; Terraform en `infra/terraform`; Cloud SQL si Supabase no basta | Todo lo demás |
 | 5 · Tenant dedicado | Contrato enterprise | Un despliegue aparte del mismo compose o chart con su propio Postgres | El producto |
 
 Lo que se hace desde la fase 1 para que este camino sea real y no una promesa:
