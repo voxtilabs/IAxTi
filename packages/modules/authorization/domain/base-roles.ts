@@ -14,15 +14,36 @@ export function isBaseRole(name: string): name is BaseRole {
 
 type Rule = (permission: string) => boolean;
 
+// Matriz SPEC §23 aplicada al catálogo actual; cada módulo nuevo agrega aquí
+// lo que sus roles reciben. USER opera lo propio (la verificación de dueño
+// la agrega el caso de uso); SUPERVISOR coordina; ADMIN configura.
+const USER_PERMS = new Set([
+  'tenant.read',
+  'crm.contacts.read',
+  'crm.contacts.create',
+  'crm.contacts.update',
+  'crm.deals.read',
+  'crm.deals.create',
+  'crm.deals.update',
+  'crm.deals.close',
+  'crm.activities.manage',
+]);
+
+const SUPERVISOR_EXTRA = new Set([
+  'users.read',
+  'teams.manage',
+  'audit.read',
+  'crm.contacts.merge',
+  'crm.contacts.export',
+]);
+
 const RULES: Record<BaseRole, Rule> = {
   // Cross-tenant: opera la plataforma y audita; no vende ni configura tenants.
   SUPERADMIN: (p) => p.startsWith('platform.') || p === 'audit.read',
   // Todo lo del tenant salvo la plataforma.
   ADMIN: (p) => !p.startsWith('platform.'),
-  // Coordina: ve equipo y tenant; no configura ni factura (SPEC §23).
-  SUPERVISOR: (p) => ['users.read', 'tenant.read', 'teams.manage', 'audit.read'].includes(p),
-  // Opera lo propio; el detalle por módulo lo agrega cada fase según §23.
-  USER: (p) => ['tenant.read'].includes(p),
+  SUPERVISOR: (p) => USER_PERMS.has(p) || SUPERVISOR_EXTRA.has(p),
+  USER: (p) => USER_PERMS.has(p),
 };
 
 /**
