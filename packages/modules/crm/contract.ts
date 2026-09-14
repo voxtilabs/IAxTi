@@ -11,3 +11,24 @@ export {
 } from './application/contacts';
 export type { Contact, ContactOrigin, CreateContactInput } from './application/contacts';
 export { normalizePhone, normalizeRut, isOptOutMessage } from './domain/validation';
+export {
+  createPipeline,
+  getPipelineStages,
+  ensureDefaultLossReasons,
+  listLossReasons,
+  createDeal,
+  moveDealStage,
+  updateDeal,
+  markStalledDeals,
+  listStalledDeals,
+  DEFAULT_LOSS_REASONS,
+} from './application/deals';
+export type {
+  Pipeline,
+  Stage,
+  Deal,
+  DealCurrency,
+  CreateDealInput,
+  MoveDealInput,
+} from './application/deals';
+export type { StageInput, StageType } from './domain/pipeline';
