@@ -23,7 +23,8 @@ events:
     - agent.quota_threshold
   consumes: []
 tools: []
-nav: []
+nav:
+  - { label: IA, path: /ajustes/ia, permission: agents.use }
 widgets: []
 plan_min: base
 flag: module.agents

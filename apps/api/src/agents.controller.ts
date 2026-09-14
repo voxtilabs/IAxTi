@@ -14,16 +14,22 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
   TASKS,
+  costPerDay,
+  costThisCycle,
   createAgent,
   getAgent,
+  getQuota,
+  iaSettings,
   listAgents,
   listExecutions,
   providerAvailable,
   runAgentTask,
   updateAgent,
 } from '@iaxti/module-agents';
+import { getTenantSettings } from '@iaxti/module-organizations';
 import type { AgentInput, AgentTask, Provider } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -87,6 +93,35 @@ export class AgentsController {
       if (/No encontramos/.test(message)) throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message });
       throw new BadRequestException({ code: 'AGENT_INVALID', message });
     }
+  }
+
+  @Get('usage')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Consumo de IA: asistencias para el equipo, pesos para el dueño' })
+  async usage(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const quota = await getQuota(c, actor.tenantId);
+      const settings = iaSettings(await getTenantSettings(c, actor.tenantId));
+      const base = {
+        used: quota.used,
+        limit: quota.limit,
+        pct: quota.pct,
+        exhausted: quota.exhausted,
+        economicoConfigurado: settings.economico !== null,
+      };
+      // El costo en PESOS es para quien supervisa el gasto (matriz §23).
+      if (!actorCan(actor, 'agents.usage.read')) return base;
+      const costUsd = await costThisCycle(c, actor.tenantId);
+      const usdClp = Number(process.env.USD_CLP_RATE ?? 950);
+      return {
+        ...base,
+        costUsdMonth: Number(costUsd.toFixed(4)),
+        costClpMonth: Math.round(costUsd * usdClp),
+        usdClpRate: usdClp,
+        porDia: await costPerDay(c, actor.tenantId, 7),
+      };
+    });
   }
 
   @Get('executions')

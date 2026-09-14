@@ -29,12 +29,16 @@ export interface IaSettings {
   tasks: Record<AgentTask, TaskModel>;
   /** Redacción de PII antes de mandar trazas a Langfuse (SPEC §13). */
   redactPII: boolean;
+  /** El modelo MÁS BARATO configurado (#52): con la cuota al 100 %, assist
+   *  sigue con este si existe; sin él, se corta con aviso claro. */
+  economico: TaskModel | null;
 }
 
 export function iaSettings(settings: Record<string, unknown> | null | undefined): IaSettings {
   const raw = (settings?.ia ?? {}) as Partial<{
     tasks: Partial<Record<AgentTask, Partial<TaskModel>>>;
     redactPII: boolean;
+    economico: Partial<TaskModel> | null;
   }>;
   const tasks = {} as Record<AgentTask, TaskModel>;
   for (const task of TASKS) {
@@ -46,7 +50,11 @@ export function iaSettings(settings: Record<string, unknown> | null | undefined)
       model: t?.model?.trim() || DEFAULT_TASK_MODELS[task].model,
     };
   }
-  return { tasks, redactPII: raw.redactPII !== false };
+  const economico =
+    raw.economico && PROVIDERS.includes(raw.economico.provider as Provider) && raw.economico.model?.trim()
+      ? { provider: raw.economico.provider as Provider, model: raw.economico.model.trim() }
+      : null;
+  return { tasks, redactPII: raw.redactPII !== false, economico };
 }
 
 /**

@@ -8,6 +8,7 @@ import { estimateCostUsd, iaSettings, redactPII } from '../domain/config';
 import type { AgentTask, Provider } from '../domain/config';
 import { aiSdkModelPort, type ModelPortFactory } from './models';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
+import { afterExecutionQuota, getQuota } from './quota';
 import type { Agent } from './agents';
 
 // El runtime (#47, SPEC §13): una corrida = una Execution completa —
@@ -29,6 +30,8 @@ export interface RunResult {
   /** El fallo SE DEVUELVE, no se lanza: la Execution fallida y su evento
    *  viven en la misma transacción, y un throw los revertiría. */
   status: 'ok' | 'failed';
+  /** true si corrió con el modelo económico por cuota al 100 % (#52). */
+  degraded?: boolean;
   executionId: string;
   text: string | null;
   error: string | null;
@@ -64,9 +67,53 @@ export async function runAgentTask(
   const settings = iaSettings(await getTenantSettings(client, input.tenantId));
   // Por tarea manda la configuración del tenant; el agente es el fallback.
   const porTarea = settings.tasks[input.task];
-  const provider = (porTarea?.provider ?? input.agent.provider) as Provider;
-  const model = porTarea?.model ?? input.agent.model;
+  let provider = (porTarea?.provider ?? input.agent.provider) as Provider;
+  let model = porTarea?.model ?? input.agent.model;
   const traceId = input.requestId ?? randomUUID();
+
+  // La cuota (#52): al 100 %, assist sigue con el modelo económico si el
+  // tenant lo configuró; sin él, se corta con explicación — y sin gastar.
+  const quota = await getQuota(client, input.tenantId);
+  let degraded = false;
+  if (quota.exhausted) {
+    if (settings.economico) {
+      provider = settings.economico.provider;
+      model = settings.economico.model;
+      degraded = true;
+    } else {
+      const rechazo =
+        'La cuota de IA del mes está completa. Sube de plan o configura un modelo económico para seguir.';
+      const fila = await client.query(
+        `INSERT INTO agent_executions
+           (tenant_id, agent_id, task, provider, model, input, latency_ms, trace_id, status, error, explanation)
+         VALUES ($1,$2,$3,$4,$5,$6,0,$7,'failed',$8,$9) RETURNING id`,
+        [
+          input.tenantId,
+          input.agent.id,
+          input.task,
+          provider,
+          model,
+          JSON.stringify({ prompt: input.prompt }),
+          traceId,
+          rechazo,
+          `Tarea "${input.task}" rechazada por cuota (${quota.used}/${quota.limit}).`,
+        ],
+      );
+      return {
+        status: 'failed',
+        executionId: fila.rows[0].id,
+        text: null,
+        error: rechazo,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: null,
+        latencyMs: 0,
+        traceId,
+        provider,
+        model,
+      };
+    }
+  }
 
   // Prompt versionado en Langfuse; sin Langfuse, el fallback CONFIGURADO.
   const system =
@@ -104,11 +151,13 @@ export async function runAgentTask(
         costUsd,
         latencyMs,
         traceId,
-        `Tarea "${input.task}" con ${provider}/${model} en ${latencyMs} ms.`,
+        `Tarea "${input.task}" con ${provider}/${model} en ${latencyMs} ms.` +
+          (degraded ? ' (cuota al 100 %: modelo económico)' : ''),
       ],
     );
-    // El medidor de §6: la cuota por tenant (#52) lee de aquí.
+    // El medidor de §6 y los umbrales de la cuota (#52).
     await incrementUsage(client, input.tenantId, 'ia_executions');
+    await afterExecutionQuota(client, input.tenantId, traceId);
     await publishEvent(client, {
       name: 'agent.executed',
       tenantId: input.tenantId,
@@ -131,6 +180,7 @@ export async function runAgentTask(
     });
     return {
       status: 'ok',
+      degraded,
       executionId: fila.rows[0].id,
       text: res.text,
       error: null,
