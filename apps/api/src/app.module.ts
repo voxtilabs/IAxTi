@@ -51,6 +51,7 @@ import { KnowledgeController } from './knowledge.controller';
 import { AutomationsController } from './automations.controller';
 import { AnalyticsController } from './analytics.controller';
 import { ApiUsageController } from './api-usage.controller';
+import { AuditController, PlatformAuditController } from './audit.controller';
 import { ApiKeysController } from './apikeys.controller';
 import { WebhooksSalientesController } from './webhooks-salientes.controller';
 import { RolesController } from './roles.controller';
@@ -473,6 +474,8 @@ function platformPool() {
 
 const controllers = [
   HealthController,
+  AuditController,
+  PlatformAuditController,
   MeController,
   PlatformController,
   SupportStatusController,
