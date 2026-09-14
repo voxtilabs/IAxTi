@@ -125,6 +125,7 @@ export function Ficha({
           <p className="rotulo">Lectura de la IA</p>
           {analisis.summary && <p className="mt-2 text-sm text-body">{analisis.summary}</p>}
           <p className="mt-2 flex flex-wrap gap-2">
+            {analisis.mode === 'autonomous' && <Badge role="warn">✦ Piloto automático</Badge>}
             {analisis.intent && <Badge role="action">{analisis.intent}</Badge>}
             {analisis.leadScore && (
               <Badge role={analisis.leadScore === 'caliente' ? 'good' : analisis.leadScore === 'tibio' ? 'warn' : 'neutral'}>

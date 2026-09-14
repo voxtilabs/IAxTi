@@ -33,10 +33,14 @@ import type {
   MessageType,
 } from '@iaxti/module-conversations';
 import {
+  activeAgent,
   conversationAnalysis,
+  effectiveMode,
   feedbackSuggestion,
   pendingSuggestion,
   resolveSuggestion,
+  setConversationMode,
+  type ConversationMode,
 } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
@@ -421,8 +425,41 @@ export class ConversationsController {
   @ApiOperation({ summary: 'Resumen, intención y calificación para la ficha' })
   async analisis(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, (c) =>
-      conversationAnalysis(c, actor.tenantId, id),
-    );
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const analisis = await conversationAnalysis(c, actor.tenantId, id);
+      const agent = await activeAgent(c, actor.tenantId);
+      const mode = agent ? await effectiveMode(c, agent, actor.tenantId, id) : 'off';
+      return { ...analisis, mode };
+    });
+  }
+
+  @Post(':id/agent-mode')
+  @RequireModule('agents')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Piloto automático por conversación — jamás por defecto' })
+  async agentMode(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { mode?: string },
+  ) {
+    const actor = actorOf(request);
+    if (!['assist', 'autonomous', 'off'].includes(body?.mode ?? '')) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El modo es assist, autonomous u off.',
+        details: [{ field: 'mode' }],
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      await getConversation(c, actor.tenantId, id).catch(notFound);
+      await setConversationMode(c, {
+        tenantId: actor.tenantId,
+        conversationId: id,
+        mode: body.mode as ConversationMode,
+        actor: actor.userId,
+        requestId: request.requestId,
+      });
+      return { mode: body.mode };
+    });
   }
 }

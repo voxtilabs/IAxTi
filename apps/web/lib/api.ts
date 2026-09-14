@@ -207,6 +207,8 @@ export interface SugerenciaDto {
 }
 
 export interface AnalisisDto {
+  /** Modo EFECTIVO del copiloto en esta conversación (#49). */
+  mode: 'assist' | 'autonomous' | 'off';
   summary: string | null;
   intent: string | null;
   leadScore: string | null;

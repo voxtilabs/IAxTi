@@ -51,6 +51,8 @@ export interface ChatProps {
   mensajes: Mensaje[] | null;
   atajos: QuickReplyDto[];
   sugerencia: SugerenciaDto | null;
+  /** Modo efectivo del copiloto; null = módulo agents apagado. */
+  modo: 'assist' | 'autonomous' | 'off' | null;
   miId: string;
   aviso: string | null;
   onVolver: () => void;
@@ -59,12 +61,13 @@ export interface ChatProps {
   onAsignar: (aQuien: string, motivo?: string) => Promise<void>;
   onEstado: (estado: string, hasta?: string) => Promise<void>;
   onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
+  onModo: (modo: 'assist' | 'autonomous') => Promise<void>;
   onCrearOportunidad: (titulo: string) => Promise<void>;
 }
 
 export function Chat({
-  detalle, mensajes, atajos, sugerencia, miId, aviso,
-  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onCrearOportunidad,
+  detalle, mensajes, atajos, sugerencia, modo, miId, aviso,
+  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCrearOportunidad,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
   const [motivoFeedback, setMotivoFeedback] = useState('');
@@ -118,6 +121,22 @@ export function Chat({
           </p>
           <p className="dato text-muted">{detalle.contactPhone}</p>
         </div>
+        {modo !== null && modo !== 'off' && (
+          <Button
+            variant={modo === 'autonomous' ? 'primario' : 'secundario'}
+            size="chico"
+            data-testid="piloto-automatico"
+            aria-pressed={modo === 'autonomous'}
+            title={
+              modo === 'autonomous'
+                ? 'La IA responde sola en esta conversación. Toca para retomar el control.'
+                : 'La IA solo sugiere. Toca para dejarla responder sola AQUÍ.'
+            }
+            onClick={() => onModo(modo === 'autonomous' ? 'assist' : 'autonomous')}
+          >
+            ✦ {modo === 'autonomous' ? 'Piloto automático' : 'Copiloto'}
+          </Button>
+        )}
         <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
         <Button variant="secundario" size="chico" className="md:hidden" onClick={onVerFicha}>
           <IconoPersona className="h-4 w-4" /> Ficha

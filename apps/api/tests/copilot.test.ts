@@ -113,7 +113,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  for (const tabla of ['suggestions', 'agent_executions', 'agents', 'usage_meters', 'deal_stage_history', 'deals', 'stages', 'pipelines', 'assignments', 'messages', 'conversations', 'contacts', 'user_roles', 'invitations', 'outbox']) {
+  for (const tabla of ['agent_conversation_modes', 'suggestions', 'agent_executions', 'agents', 'usage_meters', 'deal_stage_history', 'deals', 'stages', 'pipelines', 'assignments', 'messages', 'conversations', 'contacts', 'user_roles', 'invitations', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
   // El tenant se queda: audit_log es append-only y lo referencia.
@@ -177,6 +177,30 @@ describe('el copiloto por API (#48)', () => {
     expect(analisis.intent).toBe('cotizar');
     expect(analisis.leadScore).toBe('caliente');
     expect(analisis.acciones.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('el piloto automático por conversación se enciende a mano y se refleja (#49)', async () => {
+    const malo = await pedir(`/conversations/${conversacion}/agent-mode`, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'turbo' }),
+    });
+    expect(malo.status).toBe(400);
+
+    const ok = await pedir(`/conversations/${conversacion}/agent-mode`, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'autonomous' }),
+    });
+    expect(ok.status).toBe(201);
+    const analisis = await (await pedir(`/conversations/${conversacion}/analisis`)).json();
+    expect(analisis.mode).toBe('autonomous');
+
+    // De vuelta a assist: el humano siempre puede retomar el control.
+    await pedir(`/conversations/${conversacion}/agent-mode`, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'assist' }),
+    });
+    const despues = await (await pedir(`/conversations/${conversacion}/analisis`)).json();
+    expect(despues.mode).toBe('assist');
   });
 
   it('"Crear la oportunidad" la crea el HUMANO: pipeline por defecto y él de dueño', async () => {
