@@ -10,6 +10,7 @@ import { createPool } from '@iaxti/db';
 import { AppModule, registry } from './app.module';
 import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
 import { dbCustomPermissionsResolver, dbPlatformAdminResolver, dbRoleResolver, type RoleResolver } from './auth/role-resolver';
+import { registrarRechazo } from './auth/registrar-rechazo';
 import { AuthzGuard } from './authz/authz.guard';
 import { resolveApiKey } from '@iaxti/module-authorization';
 import { applyModuleFlags } from '@iaxti/module-platform';
@@ -116,6 +117,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       resolvePlatformAdmin,
       resolveApiKey: resolveApiKeyOpt,
       resolveCustomPermissions: pool ? dbCustomPermissionsResolver(pool) : null,
+      onDenied: registrarRechazo(pool),
     }),
     // La cuota mensual (#25) corre DESPUÉS del guard: solo API keys.
     new ApiQuotaGuard(redisConnection(), pool),

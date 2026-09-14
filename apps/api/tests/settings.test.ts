@@ -74,7 +74,10 @@ afterAll(async () => {
   await admin.query('DELETE FROM user_roles WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM invitations WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
-  await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
+  // El tenant NO se borra: un 403 en el test deja su rastro en el libro de
+  // auditoría (#71) y ese registro es best-effort, así que puede llegar
+  // después de esta limpieza. Un tenant de prueba de más no le hace daño a
+  // nadie; una carrera intermitente en CI, sí.
   await admin.end();
 });
 
