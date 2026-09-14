@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { createKapsoProvider, normalizeStatuses } from '../application/kapso';
+import { KAPSO_API_BASE_DEFAULT, createKapsoProvider, normalizeStatuses } from '../application/kapso';
 import { RateLimitedError, causaLegible, checkNumberRateLimit } from '../application/outbound';
 import { redisConnection } from '@iaxti/core';
 import { downloadAttachmentsToR2 } from '../application/media';
@@ -134,9 +134,62 @@ describe('adaptador Kapso (vocabulario Cloud API, #42)', () => {
     expect(res.providerMessageId).toBe('wamid.out1');
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://kapso.test/meta/pn-123/messages');
-    expect(init.headers.Authorization).toBe('Bearer api-key-test');
+    // Kapso autentica su espejo con X-API-Key; el Bearer es de Meta (#82).
+    expect(init.headers['X-API-Key']).toBe('api-key-test');
+    expect(init.headers.Authorization).toBeUndefined();
     const body = JSON.parse(init.body);
     expect(body).toMatchObject({ messaging_product: 'whatsapp', to: '56987654321', type: 'text' });
+    delete process.env.KAPSO_KEY_TEST;
+  });
+
+  it('el default apunta al espejo versionado y el esquema bearer queda listo para Meta', async () => {
+    expect(KAPSO_API_BASE_DEFAULT).toBe('https://api.kapso.ai/meta/whatsapp/v24.0');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ messages: [{ id: 'wamid.out2' }] }),
+    });
+    process.env.KAPSO_KEY_TEST = 'api-key-test';
+    const conBearer = createKapsoProvider({ authScheme: 'bearer', fetchImpl: fetchMock });
+    await conBearer.send(
+      {
+        id: 'a1',
+        tenantId: tenant,
+        kind: 'whatsapp',
+        name: 'n',
+        state: 'active',
+        credentialRef: 'KAPSO_KEY_TEST',
+        config: { phoneNumberId: 'pn-123' },
+      },
+      { to: '+56987654321', type: 'texto', body: 'Hola' },
+    );
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${KAPSO_API_BASE_DEFAULT}/pn-123/messages`);
+    expect(init.headers.Authorization).toBe('Bearer api-key-test');
+    delete process.env.KAPSO_KEY_TEST;
+  });
+
+  it('el envío rechazado cuenta el motivo, no solo el número', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => '{"error":{"message":"Recipient not in allowed list"}}',
+    });
+    process.env.KAPSO_KEY_TEST = 'api-key-test';
+    const provider2 = createKapsoProvider({ apiBase: 'https://kapso.test/meta', fetchImpl: fetchMock });
+    await expect(
+      provider2.send(
+        {
+          id: 'a1',
+          tenantId: tenant,
+          kind: 'whatsapp',
+          name: 'n',
+          state: 'active',
+          credentialRef: 'KAPSO_KEY_TEST',
+          config: { phoneNumberId: 'pn-123' },
+        },
+        { to: '+56987654321', type: 'texto', body: 'Hola' },
+      ),
+    ).rejects.toThrow(/Recipient not in allowed list/);
     delete process.env.KAPSO_KEY_TEST;
   });
 });

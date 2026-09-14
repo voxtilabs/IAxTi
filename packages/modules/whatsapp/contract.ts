@@ -1,6 +1,11 @@
 // Única puerta pública del módulo whatsapp (SPEC §26).
 export const MODULE_ID = 'whatsapp' as const;
-export { createKapsoProvider, fetchMediaBytes, normalizeStatuses } from './application/kapso';
+export {
+  KAPSO_API_BASE_DEFAULT,
+  createKapsoProvider,
+  fetchMediaBytes,
+  normalizeStatuses,
+} from './application/kapso';
 export type { DeliveryStatusUpdate } from './application/kapso';
 export {
   deliverOutbound,
