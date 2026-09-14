@@ -26,10 +26,15 @@ export default async function Home() {
           Aquí van a llegar las conversaciones de tu negocio
         </h2>
         <p className="mt-2 max-w-prose text-body">
-          Cuando conectes WhatsApp o actives el chat de tu sitio, cada mensaje aparecerá en esta
-          bandeja con su contacto y su historia. La bandeja completa llega con la siguiente parte
-          de esta fase.
+          Cuando conectes WhatsApp o actives el chat de tu sitio, cada mensaje aparecerá en la
+          bandeja con su contacto y su historia.
         </p>
+        <a
+          href="/bandeja"
+          className="mt-6 inline-flex h-control items-center rounded-boton bg-action px-6 font-medium text-white"
+        >
+          Abrir la bandeja
+        </a>
       </div>
     </AppShell>
   );

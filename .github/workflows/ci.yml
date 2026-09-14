@@ -77,3 +77,10 @@ jobs:
       # Concurrencia 1: los paquetes comparten la base del servicio.
       - name: Tests
         run: pnpm turbo test --concurrency=1
+
+      # Criterio de salida de Fase 2 (#37): el e2e de la bandeja en celular
+      # contra la API y el web reales (JWKS local hace de Supabase Auth).
+      - name: E2E bandeja (Playwright, celular)
+        run: |
+          pnpm --filter @iaxti/web exec playwright install --with-deps chromium
+          node apps/web/e2e/run-e2e.mjs

@@ -14,6 +14,8 @@ interface ShellProps {
   config: PublicConfig;
   marcaSvg: string;
   nav: NavItem[];
+  /** Pantallas a ancho completo (la bandeja): sin contenedor ni padding. */
+  sinMargen?: boolean;
   children: ReactNode;
 }
 
@@ -35,7 +37,7 @@ function CerrarSesion() {
  * armada desde GET /me/modules (un módulo apagado desaparece sin desplegar),
  * selector de negocio y modo día/noche. Funciona a 360 px.
  */
-export function AppShell({ config, marcaSvg, nav, children }: ShellProps) {
+export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellProps) {
   return (
     <SessionProvider config={config}>
       <RequireSession>
@@ -58,7 +60,7 @@ export function AppShell({ config, marcaSvg, nav, children }: ShellProps) {
               </div>
             </div>
           </header>
-          <main className="mx-auto max-w-contenido px-4 py-8">{children}</main>
+          <main className={sinMargen ? '' : 'mx-auto max-w-contenido px-4 py-8'}>{children}</main>
         </div>
       </RequireSession>
     </SessionProvider>

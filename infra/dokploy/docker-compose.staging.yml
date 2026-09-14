@@ -22,6 +22,7 @@ x-env: &app-env
   SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL}
   API_URL_INTERNAL: http://api:3000
   API_URL_PUBLIC: ${API_URL_PUBLIC}
+  CORS_ORIGINS: ${CORS_ORIGINS}
 
 services:
   web:

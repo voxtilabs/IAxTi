@@ -7,3 +7,6 @@ dist/
 .env.*
 !.env.example
 coverage/
+apps/web/e2e/.auth.json
+apps/web/test-results/
+apps/web/playwright-report/

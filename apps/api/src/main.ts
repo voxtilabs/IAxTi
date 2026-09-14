@@ -24,6 +24,26 @@ export interface CreateAppOptions {
 export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule, { logger: ['warn', 'error'] });
   app.use(requestIdMiddleware);
+  // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
+  // En producción CORS_ORIGINS es una lista cerrada; sin la variable (dev,
+  // e2e) se refleja el origen. Los webhooks y la API por token no usan CORS.
+  const origins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: origins.length > 0 ? origins : true,
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'X-Tenant-Id',
+      'X-Request-Id',
+      'X-Api-Key',
+      'Idempotency-Key',
+    ],
+    exposedHeaders: ['X-Request-Id'],
+    maxAge: 86_400,
+  });
   // /v1 en la ruta (SPEC §28); health queda fuera para Dokploy/Uptime Kuma.
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready', 'health/modules'] });
   app.useGlobalFilters(new ErrorsFilter());
