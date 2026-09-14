@@ -28,6 +28,7 @@ import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
+import { billingConsumers, sweepBilling } from '@iaxti/module-billing';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
 
 const service = process.env.SERVICE ?? 'workers';
@@ -54,6 +55,8 @@ function start(): void {
     ...sequenceConsumers(),
     // El dashboard del dueño (#66): contadores por día, POR EVENTO.
     ...analyticsConsumers(),
+    // Facturas pagadas (#67): el tenant vuelve de past_due solo.
+    ...billingConsumers(),
     ...realtimeConsumers(),
     // Fusión de contactos (#34): la bandeja re-apunta su historia.
     {
@@ -111,6 +114,14 @@ function start(): void {
             const n = await sweepResponseSamples(pool);
             if (n > 0) console.log(`scheduled: ${n} muestras de primera respuesta`);
             return { sampled: n };
+          }
+          // El ciclo de cobro (#67): facturas, impagos y estados del tenant.
+          case 'billing.sweep': {
+            const res = await sweepBilling(pool);
+            if (res.issued + res.overdue + res.readOnly > 0) {
+              console.log(`scheduled: billing — ${res.issued} facturas, ${res.overdue} impagas, ${res.readOnly} read_only`);
+            }
+            return res;
           }
           // Links vencidos (#60): created/sent con la fecha pasada.
           case 'payments.expire': {
@@ -174,6 +185,11 @@ function start(): void {
         'payments.expire',
         { moduleId: 'payments' },
         { repeat: { pattern: '45 * * * *', tz: 'America/Santiago' } },
+      ),
+      scheduled.add(
+        'billing.sweep',
+        { moduleId: 'billing' },
+        { repeat: { pattern: '0 4 * * *', tz: 'America/Santiago' } },
       ),
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');
