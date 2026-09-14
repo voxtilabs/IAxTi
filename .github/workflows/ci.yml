@@ -82,5 +82,5 @@ jobs:
       # contra la API y el web reales (JWKS local hace de Supabase Auth).
       - name: E2E bandeja (Playwright, celular)
         run: |
-          pnpm exec playwright install --with-deps chromium
+          pnpm --filter @iaxti/web exec playwright install --with-deps chromium
           node apps/web/e2e/run-e2e.mjs
