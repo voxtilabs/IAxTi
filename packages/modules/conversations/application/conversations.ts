@@ -413,3 +413,80 @@ export async function listMessages(
   );
   return r.rows.map(rowToMessage);
 }
+
+/**
+ * El webhook de estados del canal (#43): ubica el mensaje por el id del
+ * proveedor y avanza la entrega. Meta manda estados fuera de orden y
+ * repetidos: lo no-avanzable se IGNORA en silencio (no es un error).
+ * El costo de Meta, cuando viene, queda en meta.costo.
+ */
+export async function updateDeliveryStatusByProviderId(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    providerMessageId: string;
+    status: DeliveryStatus;
+    error?: string;
+    cost?: Record<string, unknown>;
+    requestId?: string;
+  },
+): Promise<Message | null> {
+  const r = await client.query(
+    `SELECT id FROM messages
+      WHERE tenant_id = $1 AND provider_message_id = $2 AND direction = 'out'`,
+    [input.tenantId, input.providerMessageId],
+  );
+  if (r.rowCount === 0) return null; // estado de un mensaje que no es nuestro
+  try {
+    const message = await updateDeliveryStatus(client, {
+      tenantId: input.tenantId,
+      messageId: r.rows[0].id,
+      status: input.status,
+      error: input.error,
+      requestId: input.requestId,
+    });
+    if (input.cost) {
+      await client.query(
+        `UPDATE messages SET meta = meta || jsonb_build_object('costo', $3::jsonb)
+          WHERE tenant_id = $1 AND id = $2`,
+        [input.tenantId, r.rows[0].id, JSON.stringify(input.cost)],
+      );
+    }
+    return message;
+  } catch {
+    return null; // regresión o terminal repetido: Meta reintenta, nosotros no lloramos
+  }
+}
+
+/** Lo que el worker de salida necesita para entregar un mensaje (#43). */
+export async function getOutboundContext(
+  client: PoolClient,
+  tenantId: string,
+  messageId: string,
+): Promise<{
+  conversationId: string;
+  channel: Channel;
+  channelAccountId: string | null;
+  phone: string;
+  body: string | null;
+  type: MessageType;
+} | null> {
+  const r = await client.query(
+    `SELECT m.conversation_id, m.body, m.type, c.channel, c.channel_account_id, k.phone
+       FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       JOIN contacts k ON k.id = c.contact_id
+      WHERE m.tenant_id = $1 AND m.id = $2 AND m.direction = 'out'`,
+    [tenantId, messageId],
+  );
+  if (r.rowCount === 0) return null;
+  const row = r.rows[0];
+  return {
+    conversationId: row.conversation_id,
+    channel: row.channel,
+    channelAccountId: row.channel_account_id ?? null,
+    phone: row.phone,
+    body: row.body ?? null,
+    type: row.type,
+  };
+}

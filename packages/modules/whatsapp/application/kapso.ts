@@ -37,12 +37,20 @@ interface MetaMessage {
   button?: { text?: string };
 }
 
+interface MetaStatus {
+  id: string; // wamid del saliente
+  status?: string; // sent | delivered | read | failed
+  errors?: Array<{ code?: number; title?: string; message?: string }>;
+  pricing?: Record<string, unknown>;
+}
+
 interface MetaWebhook {
   entry?: Array<{
     changes?: Array<{
       value?: {
         metadata?: { phone_number_id?: string };
         messages?: MetaMessage[];
+        statuses?: MetaStatus[];
       };
     }>;
   }>;
@@ -168,4 +176,36 @@ export async function fetchMediaBytes(
     bytes: await bin.arrayBuffer(),
     contentType: mime_type ?? bin.headers.get('content-type') ?? 'application/octet-stream',
   };
+}
+
+export interface DeliveryStatusUpdate {
+  providerMessageId: string;
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  errorCode?: number;
+  errorDetail?: string;
+  cost?: Record<string, unknown>;
+}
+
+/** Los estados de entrega del webhook de Meta (value.statuses[], #43). */
+export function normalizeStatuses(payload: unknown): DeliveryStatusUpdate[] {
+  const cuerpo = payload as MetaWebhook;
+  const out: DeliveryStatusUpdate[] = [];
+  for (const entry of cuerpo.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const st of change.value?.statuses ?? []) {
+        if (!st.id) continue;
+        const status = st.status as DeliveryStatusUpdate['status'] | undefined;
+        if (!status || !['sent', 'delivered', 'read', 'failed'].includes(status)) continue;
+        const error = st.errors?.[0];
+        out.push({
+          providerMessageId: st.id,
+          status,
+          errorCode: error?.code,
+          errorDetail: error?.message ?? error?.title,
+          cost: st.pricing,
+        });
+      }
+    }
+  }
+  return out;
 }

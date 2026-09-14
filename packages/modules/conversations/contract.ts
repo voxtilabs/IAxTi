@@ -4,6 +4,8 @@ export {
   receiveInbound,
   sendMessage,
   updateDeliveryStatus,
+  updateDeliveryStatusByProviderId,
+  getOutboundContext,
   assignConversation,
   changeConversationState,
   getConversation,
@@ -32,8 +34,15 @@ export {
 export type { QuickReply, InternalNote, SearchHit } from './application/equipo';
 export { renderQuickReply, quickReplyVariables, extractMentions } from './domain/plantillas';
 export { checkConversationAlerts } from './application/sla';
-export { bandejaSettings, minutosHabilesEntre, DEFAULT_HORARIO } from './domain/horario';
-export type { AssignmentMode, BandejaSettings, BusinessHours } from './domain/horario';
+export {
+  bandejaSettings,
+  minutosHabilesEntre,
+  enSilencio,
+  msHastaFinDeSilencio,
+  DEFAULT_HORARIO,
+  DEFAULT_SILENCIO,
+} from './domain/horario';
+export type { AssignmentMode, BandejaSettings, BusinessHours, QuietHours } from './domain/horario';
 export type { InboxItem, InboxFilters, ConversationDetail } from './application/inbox';
 export {
   assertConversationTransition,
