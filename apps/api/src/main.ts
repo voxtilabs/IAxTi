@@ -16,6 +16,7 @@ import { RateLimitGuard } from './rate-limit.guard';
 import { requestIdMiddleware } from './request-id';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { createKapsoProvider } from '@iaxti/module-whatsapp';
+import { webchatProvider } from '@iaxti/module-webchat';
 
 export interface CreateAppOptions {
   rateLimitPerMinute?: number;
@@ -36,6 +37,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   // Adaptadores de canal (#41): el simulador es el primero; Kapso llega en #42.
   if (!getProvider('simulador')) registerProvider(simuladorProvider);
   if (!getProvider('whatsapp')) registerProvider(createKapsoProvider());
+  if (!getProvider('webchat')) registerProvider(webchatProvider);
   app.use(requestIdMiddleware);
   // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
   // En producción CORS_ORIGINS es una lista cerrada; sin la variable (dev,
@@ -59,7 +61,15 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   });
   // /v1 en la ruta (SPEC §28); health queda fuera para Dokploy/Uptime Kuma.
   app.setGlobalPrefix('v1', {
-    exclude: ['health', 'ready', 'health/modules', 'webhooks/channels/:accountId'],
+    exclude: [
+      'health',
+      'ready',
+      'health/modules',
+      'webhooks/channels/:accountId',
+      'webchat/:widgetId/config',
+      'webchat/:widgetId/sessions',
+      'webchat/:widgetId/messages',
+    ],
   });
   app.useGlobalFilters(new ErrorsFilter());
 

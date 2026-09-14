@@ -137,7 +137,29 @@ export async function receiveInbound(client: PoolClient, input: InboundInput): P
     origin,
     requestId: input.requestId,
   });
+  const nucleo = await ingestInbound(client, { ...input, channel, contactId: contact.id });
+  return { contact, contactCreated, ...nucleo };
+}
 
+interface IngestInput {
+  tenantId: string;
+  contactId: string;
+  channel: Channel;
+  channelAccountId?: string;
+  type?: MessageType;
+  body?: string;
+  attachments?: unknown[];
+  providerMessageId?: string;
+  requestId?: string;
+}
+
+/** El núcleo del camino de entrada, ya con contacto resuelto. */
+async function ingestInbound(
+  client: PoolClient,
+  input: IngestInput,
+): Promise<Omit<InboundResult, 'contact' | 'contactCreated'>> {
+  const channel = input.channel;
+  const contact = { id: input.contactId };
   // La conversación viva del contacto en este canal; las archivadas no reviven.
   const existing = await client.query(
     `SELECT * FROM conversations
@@ -205,7 +227,19 @@ export async function receiveInbound(client: PoolClient, input: InboundInput): P
   });
 
   conversation = await getConversation(client, input.tenantId, conversation.id);
-  return { contact, contactCreated, conversation, conversationCreated, reopened, message };
+  return { conversation, conversationCreated, reopened, message };
+}
+
+/**
+ * Entrada con contacto YA resuelto (#46): el webchat identifica al
+ * visitante por teléfono o correo (crm.ensureWebContact) y entra por aquí
+ * al MISMO modelo y la misma bandeja.
+ */
+export async function receiveInboundForContact(
+  client: PoolClient,
+  input: IngestInput,
+): Promise<Omit<InboundResult, 'contact' | 'contactCreated'>> {
+  return ingestInbound(client, input);
 }
 
 export interface SendMessageInput {
@@ -408,7 +442,7 @@ export async function listMessages(
 ): Promise<Message[]> {
   const r = await client.query(
     `SELECT * FROM messages WHERE tenant_id = $1 AND conversation_id = $2
-     ORDER BY created_at DESC LIMIT $3`,
+     ORDER BY seq DESC LIMIT $3`,
     [tenantId, conversationId, Math.min(limit, 100)],
   );
   return r.rows.map(rowToMessage);

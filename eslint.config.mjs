@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/next-env.d.ts',
       '**/*.cjs',
       '**/*.mjs', // scripts de configuración y orquestación (corren en node)
+      '**/public/**', // assets estáticos del navegador (snippet del webchat)
     ],
   },
   eslint.configs.recommended,

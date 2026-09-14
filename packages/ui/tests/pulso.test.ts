@@ -49,6 +49,10 @@ describe('sistema Pulso (documento voxtilabs/branding v1.1)', () => {
       for (const file of walk(base)) {
         if (file.endsWith('pulso-tokens.css')) continue;
         if (file.endsWith('pulso.test.ts')) continue; // este archivo cita hex del documento
+        // El snippet del webchat (#46) corre en SITIOS DE TERCEROS, donde las
+        // variables Pulso no existen: sus dos hex (acción y blanco) son el
+        // único caso legítimo fuera de los tokens.
+        if (file.endsWith('public/webchat.js')) continue;
         const content = readFileSync(file, 'utf8');
         // hex de color CSS/JSX; ignora ids/hashes largos por el límite de 8
         if (/#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{1}|[0-9a-fA-F]{3}|[0-9a-fA-F]{5})?\b(?![\w-])/.test(content)) {
