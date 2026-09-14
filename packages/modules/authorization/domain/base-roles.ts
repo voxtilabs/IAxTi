@@ -38,6 +38,8 @@ const USER_PERMS = new Set([
   'analytics.read', // sus propios números (#66); read_all es de supervisión
   'knowledge.read', // consultar productos/precios del catálogo ✓ USER (#51)
   'automations.enroll', // meter SU conversación a una secuencia (#63)
+  'payments.create_link', // cobrar desde el chat, con tope del tenant (#60, §23)
+  'payments.read',
 ]);
 
 const SUPERVISOR_EXTRA = new Set([

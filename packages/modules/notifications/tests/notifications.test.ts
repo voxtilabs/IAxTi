@@ -68,8 +68,8 @@ afterAll(async () => {
 describe('consumidores (#55)', () => {
   it('registra un consumidor por cada evento del catálogo', () => {
     const consumers = notificationConsumers();
-    expect(consumers).toHaveLength(6);
-    expect(new Set(consumers.map((c) => c.name)).size).toBe(6);
+    expect(consumers).toHaveLength(7);
+    expect(new Set(consumers.map((c) => c.name)).size).toBe(7);
     expect(consumers.every((c) => c.moduleId === 'notifications')).toBe(true);
   });
 
@@ -160,7 +160,7 @@ describe('campana y preferencias (#55)', () => {
 
   it('las preferencias listan los 6 tipos, con la crítica bloqueada para el ADMIN', async () => {
     const deDuena = await withTenant(admin, tenant, (c) => getPreferences(c, tenant, duena, true));
-    expect(deDuena).toHaveLength(6);
+    expect(deDuena).toHaveLength(7);
     const critica = deDuena.find((p) => p.type === 'calidad_numero')!;
     expect(critica.bloqueada).toBe(true);
     expect(critica.campana).toBe(true);
