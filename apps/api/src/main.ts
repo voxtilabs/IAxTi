@@ -11,6 +11,7 @@ import { AppModule, registry } from './app.module';
 import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
 import { dbPlatformAdminResolver, dbRoleResolver, type RoleResolver } from './auth/role-resolver';
 import { AuthzGuard } from './authz/authz.guard';
+import { resolveApiKey } from '@iaxti/module-authorization';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { requestIdMiddleware } from './request-id';
@@ -23,6 +24,7 @@ export interface CreateAppOptions {
   jwtVerify?: JwtVerifier | null;
   resolveRole?: RoleResolver | null;
   resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
+  resolveApiKey?: ((token: string) => Promise<{ id: string; tenantId: string; scopes: string[] } | null>) | null;
 }
 
 export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
@@ -91,8 +93,19 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       : pool
         ? dbPlatformAdminResolver(pool)
         : null;
+  const resolveApiKeyOpt =
+    options.resolveApiKey !== undefined
+      ? options.resolveApiKey
+      : pool
+        ? (token: string) => resolveApiKey(pool, token)
+        : null;
   app.useGlobalGuards(
-    new AuthzGuard(app.get(Reflector), registry, { jwtVerify, resolveRole, resolvePlatformAdmin }),
+    new AuthzGuard(app.get(Reflector), registry, {
+      jwtVerify,
+      resolveRole,
+      resolvePlatformAdmin,
+      resolveApiKey: resolveApiKeyOpt,
+    }),
   );
 
   const config = new DocumentBuilder()
