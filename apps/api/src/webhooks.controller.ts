@@ -11,7 +11,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import { createQueue, redisConnection } from '@iaxti/core';
 import { findAccountById, getProvider } from '@iaxti/module-channels';
-import { normalizeStatuses } from '@iaxti/module-whatsapp';
+import { normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
 import type { WithRequestId } from './request-id';
 
@@ -87,6 +87,22 @@ export class WebhooksController {
           requestId: request.requestId,
         },
         { jobId: `st-${account.id}-${primer.providerMessageId}-${primer.status}-${statuses.length}` },
+      );
+    }
+    // Calidad del número (#45): rating y límite de Meta.
+    const quality = account.kind === 'whatsapp'
+      ? normalizeQualityUpdates((request as unknown as { body: unknown }).body)
+      : [];
+    if (quality.length > 0) {
+      await queue.add(
+        'quality-update',
+        {
+          moduleId: 'whatsapp',
+          tenantId: account.tenantId,
+          updates: quality,
+          requestId: request.requestId,
+        },
+        { jobId: `q-${account.id}-${quality[0].phoneNumberId}-${quality[0].quality ?? quality[0].messagingLimit}` },
       );
     }
     let queued = 0;

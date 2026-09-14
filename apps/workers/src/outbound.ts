@@ -15,6 +15,7 @@ import {
   RateLimitedError,
   causaLegible,
   deliverOutbound,
+  isBusinessPaused,
   type OutboundJobData,
 } from '@iaxti/module-whatsapp';
 
@@ -52,6 +53,17 @@ export async function processOutbound(
     }
 
     if (data.initiatedByBusiness) {
+      // Calidad en rojo (#45): lo del negocio se pausa; reactivar es del ADMIN.
+      const pausa = await isBusinessPaused(client, data.tenantId, ctx.channelAccountId);
+      if (pausa) {
+        await updateDeliveryStatus(client, {
+          tenantId: data.tenantId,
+          messageId: data.messageId,
+          status: 'failed',
+          error: pausa,
+        }).catch(() => {});
+        return { failed: pausa };
+      }
       const settings = bandejaSettings(await getTenantSettings(client, data.tenantId));
       if (enSilencio(settings.silencio)) {
         throw new DelayUntilError(msHastaFinDeSilencio(settings.silencio));

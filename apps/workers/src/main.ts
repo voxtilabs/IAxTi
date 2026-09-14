@@ -12,6 +12,7 @@ import {
 import { processInbound, type InboundJob } from './inbound';
 import { DelayUntilError, processOutbound } from './outbound';
 import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
+import { processQualityUpdates, type QualityUpdateJob } from './quality';
 import { realtimeConsumers } from './realtime';
 import { onContactMerged } from '@iaxti/module-conversations';
 import {
@@ -112,6 +113,9 @@ function start(): void {
       async (job) => {
         if (job.name === 'delivery-status') {
           return processDeliveryStatuses(pool, job.data as unknown as DeliveryStatusJob);
+        }
+        if (job.name === 'quality-update') {
+          return processQualityUpdates(pool, job.data as unknown as QualityUpdateJob);
         }
         return processInbound(pool, job.data as unknown as InboundJob);
       },
