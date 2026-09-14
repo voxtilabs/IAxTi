@@ -12,6 +12,7 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.0",
+    "@types/web-push": "^3.6.4",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
@@ -22,19 +23,20 @@
     "@iaxti/module-analytics": "workspace:*",
     "@iaxti/module-automations": "workspace:*",
     "@iaxti/module-billing": "workspace:*",
-    "@iaxti/module-integrations": "workspace:*",
     "@iaxti/module-channels": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
+    "@iaxti/module-integrations": "workspace:*",
     "@iaxti/module-knowledge": "workspace:*",
     "@iaxti/module-notifications": "workspace:*",
-    "@iaxti/module-payments": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
+    "@iaxti/module-payments": "workspace:*",
+    "@iaxti/module-platform": "workspace:*",
     "@iaxti/module-whatsapp": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
     "bullmq": "^5.34.0",
     "ioredis": "^5.4.0",
     "pg": "^8.13.0",
-    "@iaxti/module-platform": "workspace:*"
+    "web-push": "^3.6.7"
   }
 }

@@ -130,8 +130,13 @@ export interface Preference {
   type: NotificationType;
   campana: boolean;
   correo: boolean;
+  push: boolean;
+  /** WhatsApp al equipo (#78): opt-in y solo para avisos críticos. */
+  whatsapp: boolean;
   /** true = este usuario no puede apagarla (crítica para ADMIN). */
   bloqueada: boolean;
+  /** true = el canal de WhatsApp no aplica a este tipo (no es crítico). */
+  whatsappNoAplica: boolean;
 }
 
 export async function getPreferences(
@@ -141,18 +146,27 @@ export async function getPreferences(
   esAdmin: boolean,
 ): Promise<Preference[]> {
   const r = await client.query(
-    'SELECT type, campana, correo FROM notification_preferences WHERE tenant_id = $1 AND user_id = $2',
+    `SELECT type, campana, correo, push, whatsapp
+       FROM notification_preferences WHERE tenant_id = $1 AND user_id = $2`,
     [tenantId, userId],
   );
   const guardadas = new Map(r.rows.map((row) => [row.type, row]));
   return NOTIFICATION_TYPES.map((type) => {
-    const bloqueada = esAdmin && TIPOS_CRITICOS.has(type);
+    const critica = TIPOS_CRITICOS.has(type);
+    const bloqueada = esAdmin && critica;
     const fila = guardadas.get(type);
     return {
       type,
       campana: bloqueada ? true : (fila?.campana ?? true),
       correo: bloqueada ? true : (fila?.correo ?? true),
+      // El push no se bloquea aunque el aviso sea crítico: depende de un
+      // permiso del navegador que el usuario puede quitar cuando quiera, y
+      // prometer que no se apaga sería mentir.
+      push: fila?.push ?? true,
+      // WhatsApp solo tiene sentido en los críticos, y siempre opt-in.
+      whatsapp: critica ? (fila?.whatsapp ?? false) : false,
       bloqueada,
+      whatsappNoAplica: !critica,
     };
   });
 }
@@ -165,17 +179,33 @@ export async function setPreference(
     type: NotificationType;
     campana: boolean;
     correo: boolean;
+    push?: boolean;
+    whatsapp?: boolean;
     esAdmin: boolean;
   },
 ): Promise<void> {
   if (input.esAdmin && TIPOS_CRITICOS.has(input.type) && (!input.campana || !input.correo)) {
     throw new Error('Este aviso es crítico para quien administra: no se puede silenciar.');
   }
+  if (input.whatsapp && !TIPOS_CRITICOS.has(input.type)) {
+    throw new Error(
+      'Por WhatsApp solo salen los avisos críticos: llenarlo de avisos menores termina con todos silenciados.',
+    );
+  }
   await client.query(
-    `INSERT INTO notification_preferences (tenant_id, user_id, type, campana, correo)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO notification_preferences (tenant_id, user_id, type, campana, correo, push, whatsapp)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (tenant_id, user_id, type)
-       DO UPDATE SET campana = EXCLUDED.campana, correo = EXCLUDED.correo`,
-    [input.tenantId, input.userId, input.type, input.campana, input.correo],
+       DO UPDATE SET campana = EXCLUDED.campana, correo = EXCLUDED.correo,
+                     push = EXCLUDED.push, whatsapp = EXCLUDED.whatsapp`,
+    [
+      input.tenantId,
+      input.userId,
+      input.type,
+      input.campana,
+      input.correo,
+      input.push ?? true,
+      input.whatsapp ?? false,
+    ],
   );
 }

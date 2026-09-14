@@ -7,6 +7,8 @@ import {
   type NotificationType,
 } from './notifications';
 import { sendNotificationEmail } from './email';
+import { sendPushToUser, type PushSender } from './push';
+import { dispatchTeamWhatsApp, type EnvioEquipo } from './equipo-whatsapp';
 
 // Los consumidores del catálogo (#55): idempotentes por processed_events
 // (el despachador entrega UNA vez por consumidor). Aquí se decide QUIÉN
@@ -123,17 +125,37 @@ async function preferenciasDe(
   tenantId: string,
   userIds: string[],
   type: NotificationType,
-): Promise<Map<string, { campana: boolean; correo: boolean }>> {
+): Promise<Map<string, { campana: boolean; correo: boolean; push: boolean }>> {
   if (userIds.length === 0) return new Map();
   const r = await client.query(
-    `SELECT user_id, campana, correo FROM notification_preferences
+    `SELECT user_id, campana, correo, push FROM notification_preferences
       WHERE tenant_id = $1 AND type = $2 AND user_id = ANY($3::uuid[])`,
     [tenantId, type, userIds],
   );
-  return new Map(r.rows.map((row) => [row.user_id, { campana: row.campana, correo: row.correo }]));
+  return new Map(
+    r.rows.map((row) => [
+      row.user_id,
+      { campana: row.campana, correo: row.correo, push: row.push },
+    ]),
+  );
 }
 
-export async function handleNotifiableEvent(event: EventEnvelope, client: PoolClient): Promise<void> {
+/**
+ * Transportes que el worker puede prestarle a los avisos (#78). Van por
+ * fuera del módulo a propósito: notifications no importa whatsapp ni sabe
+ * de VAPID, y si no se los pasan, degrada y el aviso igual queda en la
+ * campana.
+ */
+export interface Transportes {
+  push?: PushSender | null;
+  whatsappEquipo?: EnvioEquipo | null;
+}
+
+export async function handleNotifiableEvent(
+  event: EventEnvelope,
+  client: PoolClient,
+  transportes: Transportes = {},
+): Promise<void> {
   const aviso = await avisoDe(event, client);
   if (!aviso || aviso.recipients.length === 0) return;
   const prefs = await preferenciasDe(client, event.tenantId, aviso.recipients, aviso.type);
@@ -141,7 +163,7 @@ export async function handleNotifiableEvent(event: EventEnvelope, client: PoolCl
   const adminIds = critica ? new Set(await admins(client, event.tenantId)) : new Set<string>();
 
   for (const userId of new Set(aviso.recipients)) {
-    const pref = prefs.get(userId) ?? { campana: true, correo: true };
+    const pref = prefs.get(userId) ?? { campana: true, correo: true, push: true };
     const bloqueada = critica && adminIds.has(userId); // crítica: no silenciable
     await notifyUser(client, {
       tenantId: event.tenantId,
@@ -163,7 +185,27 @@ export async function handleNotifiableEvent(event: EventEnvelope, client: PoolCl
         link: aviso.link,
       }).catch(() => {});
     }
+    if (pref.push) {
+      // Mejor-esfuerzo, igual que el correo: un push que no sale no puede
+      // reintentar el evento entero ni tumbar el resto de los avisos.
+      await sendPushToUser(client, {
+        tenantId: event.tenantId,
+        userId,
+        payload: { title: aviso.title, body: aviso.body, link: aviso.link, tag: aviso.type },
+        sender: transportes.push ?? null,
+      }).catch(() => {});
+    }
   }
+
+  // WhatsApp al equipo: solo críticos, solo quien dio opt-in (#78).
+  await dispatchTeamWhatsApp(client, {
+    tenantId: event.tenantId,
+    type: aviso.type,
+    userIds: [...new Set(aviso.recipients)],
+    title: aviso.title,
+    body: aviso.body,
+    enviar: transportes.whatsappEquipo ?? null,
+  }).catch(() => []);
 }
 
 const EVENTOS = [
@@ -176,12 +218,16 @@ const EVENTOS = [
   'number.quality_changed',
 ] as const;
 
-/** Para registrar en el despachador de workers. */
-export function notificationConsumers(): Consumer[] {
+/**
+ * Para registrar en el despachador de workers. Los transportes se pasan
+ * acá: el worker sabe de VAPID y del canal de WhatsApp; el módulo, no.
+ */
+export function notificationConsumers(transportes: Transportes = {}): Consumer[] {
   return EVENTOS.map((event) => ({
     name: `notifications.${event}`,
     moduleId: 'notifications',
     event,
-    handler: handleNotifiableEvent,
+    handler: (evento: EventEnvelope, client: PoolClient) =>
+      handleNotifiableEvent(evento, client, transportes),
   }));
 }
