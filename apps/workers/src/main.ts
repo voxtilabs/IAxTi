@@ -18,6 +18,7 @@ import { processSuggest, type SuggestJob } from './copilot';
 import { realtimeConsumers } from './realtime';
 import { deleteR2Keys, onContactMerged, purgeTenantRetention, retentionConsumers, tenantsWithRetention } from '@iaxti/module-conversations';
 import { notificationConsumers } from '@iaxti/module-notifications';
+import { transportesDeAviso } from './transportes-aviso';
 import {
   enqueueTenantChildren,
   runArchiveTenant,
@@ -72,7 +73,7 @@ function start(): void {
       handler: onContactMerged,
     },
     // La campana y el correo (#55): consumidores idempotentes del catálogo.
-    ...notificationConsumers(),
+    ...notificationConsumers(transportesDeAviso(pool)),
     // Bajar de plan reduce retención: purga diferida 30 días con aviso (#77).
     ...retentionConsumers(),
   ]);
