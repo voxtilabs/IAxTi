@@ -15,6 +15,7 @@ import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { requestIdMiddleware } from './request-id';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
+import { createKapsoProvider } from '@iaxti/module-whatsapp';
 
 export interface CreateAppOptions {
   rateLimitPerMinute?: number;
@@ -34,6 +35,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   app.useBodyParser('json', { limit: '2mb' });
   // Adaptadores de canal (#41): el simulador es el primero; Kapso llega en #42.
   if (!getProvider('simulador')) registerProvider(simuladorProvider);
+  if (!getProvider('whatsapp')) registerProvider(createKapsoProvider());
   app.use(requestIdMiddleware);
   // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
   // En producción CORS_ORIGINS es una lista cerrada; sin la variable (dev,

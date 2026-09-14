@@ -1,0 +1,21 @@
+# whatsapp (#42, SPEC §12): el adaptador Kapso DETRÁS del puerto de
+# channels, hablando el vocabulario de la Cloud API de Meta — migrar a Tech
+# Provider propio será cambiar solo este adaptador. Kapso SIN lógica de
+# negocio: ni flows, ni agentes, ni base gestionada.
+module:
+  id: whatsapp
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [channels, organizations, identity]
+  optional: []
+permissions:
+  - whatsapp.numbers.manage
+events:
+  publishes: []
+  consumes: []
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.whatsapp
