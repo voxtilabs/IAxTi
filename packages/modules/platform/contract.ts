@@ -23,7 +23,12 @@ export {
   setRetentionOverridePlatform,
 } from './application/planes';
 export type { PlanRow, ModuleAdminRow } from './application/planes';
-export { healthSnapshot, securitySnapshot, estadoGeneral } from './application/salud';
+export {
+  healthSnapshot,
+  securitySnapshot,
+  estadoGeneral,
+  chequeoCrecimientoMensajes,
+} from './application/salud';
 export type { Chequeo, EstadoSalud, Seguridad, SaludInput } from './application/salud';
 export {
   aiMetrics,

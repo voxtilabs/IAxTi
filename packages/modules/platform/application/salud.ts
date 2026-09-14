@@ -142,6 +142,56 @@ function chequeoProveedores(env: NodeJS.ProcessEnv = process.env): Chequeo[] {
   });
 }
 
+/**
+ * Crecimiento de `messages` (#84, ADR-0013). El particionado se activa a los
+ * ~20 millones de filas; esta es la alerta que avisa ANTES, para que la
+ * decisión se tome con tiempo y no con la tabla ya pesada.
+ *
+ * Se usa `reltuples`, la estimación del planificador, NO `count(*)`: contar
+ * decenas de millones de filas cada vez que alguien abre el tablero cuesta
+ * más que el problema que se está vigilando. Para un umbral, la estimación
+ * sobra.
+ */
+const MENSAJES_UMBRAL = 20_000_000;
+const MENSAJES_AVISO = 0.7; // se avisa al 70 % del umbral
+
+export async function chequeoCrecimientoMensajes(pool: Pool): Promise<Chequeo> {
+  const r = await pool
+    .query(
+      `SELECT GREATEST(c.reltuples, 0)::bigint AS filas,
+              pg_total_relation_size(c.oid) AS bytes
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = 'messages' AND n.nspname = 'public'`,
+    )
+    .catch(() => ({ rows: [] as Array<{ filas: string; bytes: string }> }));
+  if (r.rows.length === 0) {
+    return {
+      id: 'mensajes',
+      titulo: 'Crecimiento de mensajes',
+      estado: 'sin_fuente',
+      detalle: 'No pudimos leer el tamaño de la tabla de mensajes.',
+    };
+  }
+  const filas = Number(r.rows[0].filas);
+  const gb = Number(r.rows[0].bytes) / 1024 ** 3;
+  const pct = Math.round((filas / MENSAJES_UMBRAL) * 100);
+  const cerca = filas >= MENSAJES_UMBRAL * MENSAJES_AVISO;
+  return {
+    id: 'mensajes',
+    titulo: 'Crecimiento de mensajes',
+    estado: filas >= MENSAJES_UMBRAL ? 'mal' : cerca ? 'atencion' : 'bien',
+    detalle:
+      filas >= MENSAJES_UMBRAL
+        ? `La tabla cruzó los ${(MENSAJES_UMBRAL / 1e6).toFixed(0)} millones de filas (${gb.toFixed(1)} GB): toca decidir el particionado mensual (ADR-0013, #84).`
+        : cerca
+          ? `Va en ${pct}% del umbral de particionado (${gb.toFixed(1)} GB). Conviene planificar la migración de la ADR-0013 antes de llegar.`
+          : `${(filas / 1e6).toFixed(2)} millones de filas (${gb.toFixed(1)} GB): lejos del umbral de particionado.`,
+    valor: filas,
+    umbral: `atención al ${Math.round(MENSAJES_AVISO * 100)}% de ${(MENSAJES_UMBRAL / 1e6).toFixed(0)} millones · estimación del planificador, no conteo exacto`,
+  };
+}
+
 export interface SaludInput {
   /** Lo que ya dice el registry: no se recalcula nada. */
   modules?: ModuleHealth[];
@@ -204,6 +254,8 @@ export async function healthSnapshot(
         : `${activos} cuenta(s) activa(s).`,
     valor: activos,
   });
+
+  chequeos.push(await chequeoCrecimientoMensajes(pool));
 
   chequeos.push(...chequeoProveedores(input.env));
 
