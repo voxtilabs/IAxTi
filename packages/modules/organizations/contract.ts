@@ -9,7 +9,7 @@ export {
   advanceOnboarding,
 } from './application/tenants';
 export type { Tenant, PlanLimits } from './application/tenants';
-export { incrementUsage, getUsage, periodStart } from './application/usage';
+export { incrementUsage, getUsage, periodStart, apiRequestsLimit } from './application/usage';
 export { getTenantSettings, updateTenantSettings } from './application/settings';
 export type { UsageMetric } from './application/usage';
 export type { TenantState, OnboardingState } from './domain/state';

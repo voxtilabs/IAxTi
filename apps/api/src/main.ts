@@ -14,6 +14,7 @@ import { AuthzGuard } from './authz/authz.guard';
 import { resolveApiKey } from '@iaxti/module-authorization';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
+import { ApiQuotaGuard } from './api-quota.guard';
 import { requestIdMiddleware } from './request-id';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { createKapsoProvider } from '@iaxti/module-whatsapp';
@@ -106,6 +107,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       resolvePlatformAdmin,
       resolveApiKey: resolveApiKeyOpt,
     }),
+    // La cuota mensual (#25) corre DESPUÉS del guard: solo API keys.
+    new ApiQuotaGuard(redisConnection(), pool),
   );
 
   const config = new DocumentBuilder()

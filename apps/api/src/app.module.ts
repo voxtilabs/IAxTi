@@ -6,6 +6,9 @@ import {
   Param,
   Req,
   ServiceUnavailableException,
+  Put,
+  Body,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { tenantsOf } from '@iaxti/module-identity';
@@ -13,6 +16,7 @@ import { listTenants } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
+import { withTenant } from '@iaxti/db';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
@@ -126,6 +130,38 @@ class PlatformController {
     } finally {
       client.release();
     }
+  }
+
+  /** El SuperAdmin sube o baja la cuota mensual de API de UN tenant (#25)
+   *  sin desplegar: settings.api.requestsMonthOverride. */
+  @Put('tenants/:id/api-quota')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Override de cuota mensual de API por tenant' })
+  async apiQuota(@Param('id') id: string, @Body() body: { requestsMonth?: number | null }) {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const valor = body?.requestsMonth ?? null;
+    if (valor !== null && !(Number(valor) > 0)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La cuota es un número positivo, o null para volver al plan.',
+      });
+    }
+    await withTenant(pool, id, (c) =>
+      c.query(
+        `UPDATE tenants SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{api}',
+           COALESCE(settings->'api', '{}'::jsonb) || jsonb_build_object('requestsMonthOverride', $2::numeric))
+          WHERE id = $1`,
+        [id, valor],
+      ),
+    );
+    return { tenantId: id, requestsMonthOverride: valor };
   }
 }
 
