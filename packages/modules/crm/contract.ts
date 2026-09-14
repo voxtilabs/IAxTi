@@ -40,3 +40,11 @@ export {
   getContactFicha,
 } from './application/activities';
 export type { Activity, ActivityType } from './application/activities';
+export {
+  listDeals,
+  listPipelines,
+  listSavedFilters,
+  saveFilter,
+  deleteSavedFilter,
+} from './application/board';
+export type { DealCard, DealFilters, SavedFilter } from './application/board';
