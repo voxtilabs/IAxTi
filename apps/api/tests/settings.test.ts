@@ -87,6 +87,8 @@ describe('GET/PUT /v1/settings/bandeja', () => {
       assignmentMode: 'manual',
       alertaSinDuenoMinutos: 10,
       slaPrimeraRespuestaMinutos: 30,
+      autoResolveDays: 7,
+      archiveAfterMonths: 3,
     });
     expect(s.horario.zona).toBe('America/Santiago');
   });
@@ -94,7 +96,13 @@ describe('GET/PUT /v1/settings/bandeja', () => {
   it('guardar cambia el modo y los minutos; lo inválido cae al defecto', async () => {
     const res = await pedir(dueña, {
       method: 'PUT',
-      body: JSON.stringify({ assignmentMode: 'round_robin', slaPrimeraRespuestaMinutos: 15, alertaSinDuenoMinutos: -3 }),
+      body: JSON.stringify({
+        assignmentMode: 'round_robin',
+        slaPrimeraRespuestaMinutos: 15,
+        alertaSinDuenoMinutos: -3,
+        autoResolveDays: 14,
+        archiveAfterMonths: null,
+      }),
     });
     expect(res.status).toBe(200);
     const s = await res.json();
@@ -102,9 +110,14 @@ describe('GET/PUT /v1/settings/bandeja', () => {
     expect(s.slaPrimeraRespuestaMinutos).toBe(15);
     expect(s.alertaSinDuenoMinutos).toBe(10); // el negativo cayó al defecto
 
+    expect(s.autoResolveDays).toBe(14);
+    expect(s.archiveAfterMonths).toBeNull(); // null desactiva el archivo (§39)
+
     const releido = await (await pedir(dueña)).json();
     expect(releido.assignmentMode).toBe('round_robin');
     expect(releido.slaPrimeraRespuestaMinutos).toBe(15);
+    expect(releido.autoResolveDays).toBe(14);
+    expect(releido.archiveAfterMonths).toBeNull();
   });
 
   it('un USER no ve ni edita los ajustes (403)', async () => {
