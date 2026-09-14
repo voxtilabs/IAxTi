@@ -27,6 +27,7 @@ import { NotificationsController } from './notifications.controller';
 import { AgentsController } from './agents.controller';
 import { KnowledgeController } from './knowledge.controller';
 import { AutomationsController } from './automations.controller';
+import { AnalyticsController } from './analytics.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -170,6 +171,7 @@ const controllers = [
   AgentsController,
   KnowledgeController,
   AutomationsController,
+  AnalyticsController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 

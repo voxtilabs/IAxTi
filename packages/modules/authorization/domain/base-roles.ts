@@ -35,10 +35,12 @@ const USER_PERMS = new Set([
   'conversations.notes',
   'notifications.manage_own',
   'agents.use', // "Usar el copiloto" ✓ USER (matriz §23)
+  'analytics.read', // sus propios números (#66); read_all es de supervisión
   'knowledge.read', // consultar productos/precios del catálogo ✓ USER (#51)
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
+  'analytics.read_all', // los números de todo el equipo (#66, §23)
   'automations.read', // ver reglas y corridas (§23); configurar es del ADMIN
   'users.read',
   'teams.manage',
