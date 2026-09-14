@@ -635,6 +635,9 @@ importers:
 
   packages/modules/authorization:
     dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../core
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit

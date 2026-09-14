@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@iaxti/module-audit": "workspace:*",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "@iaxti/core": "workspace:*"
   }
 }

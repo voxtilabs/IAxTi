@@ -18,6 +18,7 @@ events:
 tools: []
 nav:
   - { label: API, path: /ajustes/api, permission: apikeys.manage }
+  - { label: Roles, path: /ajustes/roles, permission: roles.read }
 widgets: []
 plan_min: base
 flag: module.authorization
