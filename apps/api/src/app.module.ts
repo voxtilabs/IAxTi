@@ -30,6 +30,7 @@ import { AutomationsController } from './automations.controller';
 import { AnalyticsController } from './analytics.controller';
 import { ApiKeysController } from './apikeys.controller';
 import { PaymentsController, PaymentWebhooksController } from './payments.controller';
+import { BillingController } from './billing.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -177,6 +178,7 @@ const controllers = [
   ApiKeysController,
   PaymentsController,
   PaymentWebhooksController,
+  BillingController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 

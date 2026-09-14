@@ -35,7 +35,7 @@ function rowToProvider(row: Record<string, unknown>): PaymentProvider {
 export interface PaymentLink {
   id: string;
   providerId: string;
-  contactId: string;
+  contactId: string | null;
   conversationId: string | null;
   dealId: string | null;
   amountClp: number;
@@ -51,7 +51,7 @@ export function rowToLink(row: Record<string, unknown>): PaymentLink {
   return {
     id: row.id as string,
     providerId: row.provider_id as string,
-    contactId: row.contact_id as string,
+    contactId: (row.contact_id as string) ?? null,
     conversationId: (row.conversation_id as string) ?? null,
     dealId: (row.deal_id as string) ?? null,
     amountClp: Number(row.amount_clp),
@@ -133,7 +133,8 @@ export async function getProviderById(
 
 export interface CreateLinkInput {
   tenantId: string;
-  contactId: string;
+  /** null cuando el cobro es AL TENANT (facturas de billing, #67). */
+  contactId: string | null;
   conversationId?: string;
   dealId?: string;
   /** Escrito a mano, o null para tomarlo de la oportunidad. */
@@ -144,7 +145,8 @@ export interface CreateLinkInput {
   /** El tope del USER (matriz §23); null = sin tope (SUPERVISOR/ADMIN). */
   maxAmountClp?: number | null;
   publicBaseUrl?: string;
-  actorUserId: string;
+  /** null cuando lo crea el sistema (facturas de billing, #67). */
+  actorUserId: string | null;
   requestId?: string;
 }
 
@@ -201,7 +203,7 @@ export async function createPaymentLink(
       amount,
       input.concept.trim(),
       input.expiresHours ?? 72,
-      input.actorUserId,
+      input.actorUserId ?? null,
     ],
   );
   const base = input.publicBaseUrl ?? process.env.PUBLIC_API_URL ?? 'https://api-staging.iaxti.cl';
@@ -222,8 +224,8 @@ export async function createPaymentLink(
   );
   await writeAudit(client, {
     tenantId: input.tenantId,
-    actor: input.actorUserId,
-    actorKind: 'user',
+    actor: input.actorUserId ?? 'system',
+    actorKind: input.actorUserId ? 'user' : 'system',
     action: 'payments.link.create',
     resource: 'payment_link',
     resourceId: r.rows[0].id,
@@ -235,7 +237,7 @@ export async function createPaymentLink(
     name: 'payment_link.created',
     tenantId: input.tenantId,
     payload: { linkId: r.rows[0].id, amountClp: amount, dealId: input.dealId ?? null },
-    actor: input.actorUserId,
+    actor: input.actorUserId ?? 'system',
     requestId: input.requestId,
   });
   return rowToLink(listo.rows[0]);

@@ -15,6 +15,7 @@
     "@iaxti/module-analytics": "workspace:*",
     "@iaxti/module-authorization": "workspace:*",
     "@iaxti/module-automations": "workspace:*",
+    "@iaxti/module-billing": "workspace:*",
     "@iaxti/module-channels": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",

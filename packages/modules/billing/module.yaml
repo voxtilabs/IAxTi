@@ -1,0 +1,26 @@
+# billing (#67, SPEC §20): cobrarle a la pyme de forma clara — los TRES
+# costos separados (plan, exceso de Meta, ampliación de IA) y los estados
+# del tenant (§6) aplicados desde aquí, automático y auditado.
+module:
+  id: billing
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, audit]
+  optional: [payments]
+permissions:
+  - billing.read
+  - billing.manage
+events:
+  publishes:
+    - invoice.issued
+    - invoice.paid
+    - invoice.overdue
+  consumes:
+    - payment.received
+nav:
+  - { label: Facturación, path: /ajustes/facturacion, permission: billing.read }
+tools: []
+widgets: []
+plan_min: base
+flag: module.billing

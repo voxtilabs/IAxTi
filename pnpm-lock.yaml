@@ -261,6 +261,9 @@ importers:
       '@iaxti/module-automations':
         specifier: workspace:*
         version: link:../../packages/modules/automations
+      '@iaxti/module-billing':
+        specifier: workspace:*
+        version: link:../../packages/modules/billing
       '@iaxti/module-channels':
         specifier: workspace:*
         version: link:../../packages/modules/channels
@@ -419,6 +422,9 @@ importers:
       '@iaxti/module-automations':
         specifier: workspace:*
         version: link:../../packages/modules/automations
+      '@iaxti/module-billing':
+        specifier: workspace:*
+        version: link:../../packages/modules/billing
       '@iaxti/module-channels':
         specifier: workspace:*
         version: link:../../packages/modules/channels
@@ -660,6 +666,40 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../crm
+      pg:
+        specifier: ^8.13.0
+        version: 8.23.0
+    devDependencies:
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.23.1
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(jiti@1.21.7)(supports-color@7.2.0)(yaml@2.9.1)
+
+  packages/modules/billing:
+    dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@iaxti/module-audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@iaxti/module-organizations':
+        specifier: workspace:*
+        version: link:../organizations
+      '@iaxti/module-payments':
+        specifier: workspace:*
+        version: link:../payments
       pg:
         specifier: ^8.13.0
         version: 8.23.0
