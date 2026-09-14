@@ -4,6 +4,7 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   {
     ignores: [
+      'infra/**', // scripts k6 (#79): globals propios de k6 (__ENV/__VU)
       '**/node_modules/**',
       '**/dist/**',
       '**/.next/**',
