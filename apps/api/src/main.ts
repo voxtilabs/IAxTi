@@ -18,6 +18,7 @@ import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { ApiQuotaGuard } from './api-quota.guard';
 import { requestIdMiddleware } from './request-id';
+import { cabecerasMiddleware } from './cabeceras';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { createZavuProvider } from '@iaxti/module-whatsapp';
 import { webchatProvider } from '@iaxti/module-webchat';
@@ -46,6 +47,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
     if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
   }
   if (!getProvider('webchat')) registerProvider(webchatProvider);
+  app.use(cabecerasMiddleware);
   app.use(requestIdMiddleware);
   // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
   // En producción CORS_ORIGINS es una lista cerrada; sin la variable (dev,
