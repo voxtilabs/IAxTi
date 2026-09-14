@@ -13,6 +13,7 @@
     "@iaxti/db": "workspace:*",
     "@iaxti/module-authorization": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
+    "@iaxti/module-platform": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",

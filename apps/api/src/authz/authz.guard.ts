@@ -33,6 +33,8 @@ export interface AuthzOptions {
   jwtVerify?: JwtVerifier | null;
   /** Rol desde user_roles; null obliga al stub de headers. */
   resolveRole?: RoleResolver | null;
+  /** ¿SUPERADMIN de plataforma? (tabla platform_admins, cross-tenant). */
+  resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
 }
 
 /**
@@ -84,6 +86,26 @@ export class AuthzGuard implements CanActivate {
         code: 'MODULE_DISABLED',
         message: 'Este módulo no está activo para tu cuenta. Revisa tu plan o pide activarlo.',
       });
+    }
+
+    // platform.*: SUPERADMIN cross-tenant (SPEC §22) — sin X-Tenant-Id;
+    // la pertenencia viene de platform_admins, no de user_roles.
+    if (permission?.startsWith('platform.')) {
+      const request = context.switchToHttp().getRequest<WithUser>();
+      const user = await this.userFrom(context);
+      const isDevSuperadmin =
+        !this.options.resolvePlatformAdmin && request.headers['x-role'] === 'SUPERADMIN';
+      const isAdmin = this.options.resolvePlatformAdmin
+        ? await this.options.resolvePlatformAdmin(user.userId)
+        : isDevSuperadmin;
+      if (!isAdmin || !baseRoleHasPermission('SUPERADMIN', permission, this.catalog)) {
+        throw new ForbiddenException({
+          code: 'PERMISSION_DENIED',
+          message: 'Esta sección es solo para la operación de la plataforma.',
+        });
+      }
+      request.user = user;
+      return true;
     }
 
     if (permission) {

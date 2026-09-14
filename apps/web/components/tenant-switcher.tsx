@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSession } from './session';
+import { useSession } from '@iaxti/ui/react';
 
 interface Membership {
   tenantId: string;

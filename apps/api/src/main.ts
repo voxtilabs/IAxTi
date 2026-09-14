@@ -8,7 +8,7 @@ import { redisConnection } from '@iaxti/core';
 import { createPool } from '@iaxti/db';
 import { AppModule, registry } from './app.module';
 import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
-import { dbRoleResolver, type RoleResolver } from './auth/role-resolver';
+import { dbPlatformAdminResolver, dbRoleResolver, type RoleResolver } from './auth/role-resolver';
 import { AuthzGuard } from './authz/authz.guard';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
@@ -18,6 +18,7 @@ export interface CreateAppOptions {
   rateLimitPerMinute?: number;
   jwtVerify?: JwtVerifier | null;
   resolveRole?: RoleResolver | null;
+  resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
 }
 
 export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
@@ -35,13 +36,18 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   // JWT de Supabase (JWKS/ES256) con rol desde user_roles; headers como
   // fallback de desarrollo hasta hardening.
   const jwtVerify = options.jwtVerify !== undefined ? options.jwtVerify : supabaseJwtVerifier();
+  const pool = process.env.DATABASE_URL ? createPool() : null;
   const resolveRole =
-    options.resolveRole !== undefined
-      ? options.resolveRole
-      : process.env.DATABASE_URL
-        ? dbRoleResolver(createPool())
+    options.resolveRole !== undefined ? options.resolveRole : pool ? dbRoleResolver(pool) : null;
+  const resolvePlatformAdmin =
+    options.resolvePlatformAdmin !== undefined
+      ? options.resolvePlatformAdmin
+      : pool
+        ? dbPlatformAdminResolver(pool)
         : null;
-  app.useGlobalGuards(new AuthzGuard(app.get(Reflector), registry, { jwtVerify, resolveRole }));
+  app.useGlobalGuards(
+    new AuthzGuard(app.get(Reflector), registry, { jwtVerify, resolveRole, resolvePlatformAdmin }),
+  );
 
   const config = new DocumentBuilder()
     .setTitle('IAxTi API')

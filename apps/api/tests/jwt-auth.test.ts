@@ -21,6 +21,7 @@ let tenant: string;
 let firmar: (sub: string) => Promise<string>;
 const adminUser = randomUUID();
 const extraño = randomUUID();
+const platformAdmin = randomUUID();
 
 beforeAll(async () => {
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? ADMIN_URL; // apiPool (GET /me)
@@ -45,12 +46,18 @@ beforeAll(async () => {
       .setExpirationTime('5m')
       .sign(privateKey);
 
+  await admin.query('INSERT INTO platform_admins (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [platformAdmin]);
+
   app = await createApp({
     jwtVerify: async (token) => {
       const { payload } = await jwtVerify(token, jwks, { issuer: ISSUER });
       return { userId: payload.sub as string };
     },
     resolveRole: dbRoleResolver(admin),
+    resolvePlatformAdmin: async (userId) => {
+      const r = await admin.query('SELECT 1 FROM platform_admins WHERE user_id = $1', [userId]);
+      return (r.rowCount ?? 0) > 0;
+    },
   });
   await app.listen(0);
   base = await app.getUrl();
@@ -58,6 +65,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
+  await admin.query('DELETE FROM platform_admins WHERE user_id = $1', [platformAdmin]);
   await admin.query('DELETE FROM user_roles WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM invitations WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
@@ -68,6 +76,21 @@ afterAll(async () => {
 const url = () => `${base}/v1/demo/protegido`;
 
 describe('autenticación por JWT (Supabase, camino real)', () => {
+  it('platform.tenants: solo para administradores de plataforma (SPEC §22)', async () => {
+    const url = `${base}/v1/platform/tenants`;
+    const noPlataforma = await fetch(url, {
+      headers: { Authorization: `Bearer ${await firmar(adminUser)}` },
+    });
+    expect(noPlataforma.status).toBe(403); // ADMIN de tenant ≠ SUPERADMIN
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${await firmar(platformAdmin)}` },
+    });
+    expect(res.status).toBe(200);
+    const lista = await res.json();
+    expect(lista.some((t: { name: string }) => t.name === 'test-jwt')).toBe(true);
+  });
+
   it('GET /v1/me devuelve el usuario y sus negocios; sin sesión, 401', async () => {
     const res = await fetch(`${base}/v1/me`, {
       headers: { Authorization: `Bearer ${await firmar(adminUser)}` },

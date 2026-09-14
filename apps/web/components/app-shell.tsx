@@ -1,9 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { PublicConfig } from '../lib/config';
-import { ModeToggle } from './mode-toggle';
-import { RequireSession, SessionProvider, useSession } from './session';
+import { ModeToggle, RequireSession, SessionProvider, useSession, type PublicConfig } from '@iaxti/ui/react';
 import { TenantSwitcher } from './tenant-switcher';
 
 export interface NavItem {

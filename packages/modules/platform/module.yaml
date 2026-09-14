@@ -1,0 +1,23 @@
+module:
+  id: platform
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations]
+  optional: []
+permissions:
+  - platform.tenants
+  - platform.plans
+  - platform.modules
+  - platform.ai
+  - platform.security
+  - platform.audit
+  - platform.health
+events:
+  publishes: []
+  consumes: []
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.platform
