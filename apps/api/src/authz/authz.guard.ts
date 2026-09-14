@@ -26,6 +26,8 @@ export interface AuthenticatedUser {
 
 export interface WithUser extends WithRequestId {
   user?: AuthenticatedUser;
+  /** Presente tras pasar un @RequirePermission: usuario + tenant + rol. */
+  actor?: Actor;
 }
 
 export interface AuthzOptions {
@@ -114,8 +116,11 @@ export class AuthzGuard implements CanActivate {
         ? baseRoleHasPermission(actor.role, permission, this.catalog)
         : false; // roles custom llegan con #73, vía base de datos
 
+      const request = context.switchToHttp().getRequest<WithUser>();
+      request.actor = actor;
+      request.user = { userId: actor.userId };
+
       if (!allowed) {
-        const request = context.switchToHttp().getRequest<WithRequestId>();
         console.warn(
           `[${request.requestId}] permission.denied tenant=${actor.tenantId} user=${actor.userId} permiso=${permission}`,
         );

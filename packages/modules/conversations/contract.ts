@@ -19,6 +19,8 @@ export type {
   InboundResult,
   SendMessageInput,
 } from './application/conversations';
+export { listInbox, getConversationDetail } from './application/inbox';
+export type { InboxItem, InboxFilters, ConversationDetail } from './application/inbox';
 export {
   assertConversationTransition,
   assertDeliveryAdvance,

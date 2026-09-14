@@ -8,18 +8,17 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ModuleRegistry } from '@iaxti/core';
 import { tenantsOf } from '@iaxti/module-identity';
 import { listTenants } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
+import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
+import { ConversationsController } from './conversations.controller';
 
-// El registry se construye una vez al arrancar; una validación fallida
-// (ciclo, colisión, dependencia inexistente) aborta el proceso a propósito
-// (SPEC §26). Los controllers no llevan lógica: solo exponen el registry.
-export const registry = new ModuleRegistry().load();
+// Los controllers no llevan lógica: solo exponen el registry y los contracts.
+export { registry };
 
 @Controller()
 class HealthController {
@@ -146,6 +145,7 @@ const controllers = [
   MeController,
   PlatformController,
   DemoController,
+  ConversationsController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 
