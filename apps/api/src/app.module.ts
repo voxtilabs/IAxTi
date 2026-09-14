@@ -26,6 +26,7 @@ import { WebchatController } from './webchat.controller';
 import { NotificationsController } from './notifications.controller';
 import { AgentsController } from './agents.controller';
 import { KnowledgeController } from './knowledge.controller';
+import { AutomationsController } from './automations.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -168,6 +169,7 @@ const controllers = [
   NotificationsController,
   AgentsController,
   KnowledgeController,
+  AutomationsController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 
