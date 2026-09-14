@@ -1,6 +1,12 @@
 # ADR 0005 · Kapso ahora, Tech Provider después
 
-**Estado:** aceptada · 2026-09-13
+**Estado:** superada por la [ADR-0014](0014-zavu-como-capa-de-canales.md) · 2026-09-14
+
+> Se mantiene por el registro: la propiedad que compró —migrar es cambiar el
+> adaptador— es justamente lo que permitió cambiar de proveedor sin tocar el
+> dominio. Lo que caducó es la elección de proveedor, no el diseño.
+
+**Estado original:** aceptada · 2026-09-13
 
 ## Contexto
 Ser Meta Tech Provider exige app propia, verificación y operar embedded signup y

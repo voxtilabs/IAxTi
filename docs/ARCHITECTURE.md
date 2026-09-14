@@ -10,7 +10,7 @@ flowchart TB
   subgraph internet[Internet]
     C[Cliente WhatsApp]
     U[Usuario del tenant<br/>navegador / celular]
-    K[Kapso<br/>WhatsApp BSP]
+    K[Zavu<br/>capa de canales<br/>WhatsApp · Instagram · Messenger]
     G[Google<br/>Calendar · Drive · Gmail]
     P[Pasarela de pago]
   end
@@ -109,7 +109,7 @@ que conversa (`on_behalf_of`). Las API keys, con `actor_kind = apikey`.
 ```mermaid
 sequenceDiagram
   participant Cliente
-  participant Kapso
+  participant Zavu
   participant API as api /webhooks
   participant Q as cola inbound
   participant W as workers
@@ -117,11 +117,11 @@ sequenceDiagram
   participant AG as agents (copiloto)
   participant V as Vendedor (bandeja)
 
-  Cliente->>Kapso: mensaje
-  Kapso->>API: webhook (payload Meta, firmado)
+  Cliente->>Zavu: mensaje
+  Zavu->>API: webhook (envelope Zavu, firmado t=,v2=)
   API->>API: verifica firma HMAC
   API->>Q: encola (idempotente por id de mensaje)
-  API-->>Kapso: 200 en < 1 s
+  API-->>Zavu: 200 en < 1 s
   Q->>W: procesa
   W->>DB: contacto (crea si no existe) + conversación + mensaje
   W->>DB: outbox: message.received
@@ -132,9 +132,9 @@ sequenceDiagram
   DB-->>V: sugerencia en aviso action-soft
   V->>API: "Enviar sugerencia" (o edita)
   API->>Q: cola outbound (ventana 24h · silencio · rate limit por número)
-  Q->>Kapso: send
-  Kapso->>Cliente: mensaje
-  Kapso->>API: estados sent/delivered/read → bandeja
+  Q->>Zavu: send
+  Zavu->>Cliente: mensaje
+  Zavu->>API: estados sent/delivered/read → bandeja
 ```
 
 En modo autónomo (opt-in, por horario), el paso del vendedor lo hace el agente

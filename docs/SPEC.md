@@ -196,7 +196,7 @@ Reglas del modelo:
 - **Prueba gratis 14 días** con el número real del cliente conectado y todos los
   módulos de Crece. Sin tarjeta. Al terminar, pasa a Base o elige plan; nada se
   borra durante 30 días más.
-- **Costos de Meta** se muestran tal cual los cobra Kapso/Meta, por conversación y
+- **Costos de Meta** se muestran tal cual los cobra Meta, por conversación y
   categoría, en la pantalla de consumo y en la ficha de cada conversación. Sin
   margen escondido. El plan los incluye hasta un tope; sobre el tope, se cobran al
   costo con aviso previo.
@@ -222,7 +222,7 @@ Diez minutos, sin humanos de nuestro lado. Cada paso se puede saltar y retomar.
    etiquetas, respuestas rápidas y tres automatizaciones. Muestra el "antes" (cómo
    trabaja hoy, en sus palabras) y el "después" (el CRM propuesto). Un botón: "Armar
    mi CRM". Todo se puede editar después.
-3. **Conectar WhatsApp.** Link de setup de Kapso: el cliente entra con Facebook y
+3. **Conectar WhatsApp.** *Partner invitation* de Zavu: el cliente entra con Facebook y
    conecta su número en 5 minutos. Si aún no tiene WhatsApp Business, el flujo lo
    guía. Mientras tanto, el webchat ya funciona.
 4. **Conocimiento.** Sube un PDF, pega el catálogo o escribe sus tres preguntas más
@@ -476,7 +476,7 @@ la IA no sepan de dónde viene un mensaje.
 
 **Reglas de negocio**
 
-- WhatsApp conecta por link de setup de Kapso; el número es del cliente. Un tenant
+- WhatsApp conecta por *partner invitation* de Zavu; el número es del cliente. Un tenant
   tiene tantos números como su plan permita.
 - Webhooks verifican firma, se encolan en `inbound` y responden 200 en menos de
   un segundo. El procesamiento es idempotente por id de mensaje del proveedor.
@@ -774,7 +774,7 @@ auditado con `actor_kind = superadmin`.
 - **Seguridad:** logins fallidos, permisos denegados, IPs bloqueadas, abuso de API,
   webhooks fallidos, números en calidad baja.
 - **Audit:** explorador global con todos los filtros.
-- **Salud:** api, workers, agents, Postgres, Redis, colas, Kapso, Google, Gemini,
+- **Salud:** api, workers, agents, Postgres, Redis, colas, Zavu, Google, Gemini,
   proveedor de pagos.
 - **Permisos:** `platform.tenants`, `platform.plans`, `platform.modules`,
   `platform.ai`, `platform.security`, `platform.audit`, `platform.health`.
@@ -850,11 +850,11 @@ antes de implementar.
 | Lenguaje | TypeScript de punta a punta | — |
 | Frontend | Next.js + Tailwind + shadcn/ui tematizado con Pulso | — |
 | Backend | NestJS, monolito modular | Microservicios: nunca por moda |
-| Agentes | Vercel AI SDK + Chat SDK (adaptador Kapso) + tools MCP | ADK/Python: no |
+| Agentes | Vercel AI SDK + Chat SDK (el canal entra por el adaptador, no por el SDK) + tools MCP | ADK/Python: no |
 | Datos | Supabase Cloud (región São Paulo): Postgres + pgvector, RLS, Auth (Google, MFA), Realtime, PITR | Postgres en el VPS vía Dokploy solo si el costo obliga; Cloud SQL o dedicado si un cliente exige residencia |
 | Cómputo | Docker → **VPS con Dokploy**: api, workers, agents desde una imagen construida en GitHub Actions y publicada en GHCR | Segundo VPS → Docker Swarm multi-nodo (Dokploy) → Cloud Run / GKE + Helm. Misma imagen en todas las etapas (sección 36) |
 | Colas | BullMQ sobre Redis (contenedor Dokploy con AOF) | Redis gestionado cuando haya más de un nodo |
-| WhatsApp | Kapso detrás de `ChannelProvider` con vocabulario de Meta | Tech Provider propio cuando el margen de Kapso lo justifique |
+| Canales | Zavu detrás de `ChannelProvider`: WhatsApp, Instagram y Messenger con un envelope y una firma | Proveedor propio ante Meta en Fase 7, cuando el gatillo del #82 se cumpla |
 | LLM | Gemini por la Developer API (tier pago) con `@ai-sdk/google` | Vertex AI por residencia o contrato; segundo proveedor por configuración del agente (sección 40) |
 | Observabilidad | Sentry + OpenTelemetry → Grafana Cloud + Langfuse Cloud | Langfuse self-hosted por contrato |
 | Borde | Cloudflare delante del VPS (proxy, WAF, rate limit) | — |
@@ -1014,10 +1014,11 @@ Cada feature que toque datos personales o IA actualiza su fila. Nunca se escribe
 | 0 Discovery | — | Este documento, ADRs, CLAUDE.md, `.claude/`, issues | Mi aprobación |
 | 1 Fundación | 1–3 | Monorepo, registro de módulos, núcleo (identity, organizations, authorization, audit), RLS, OpenAPI, CI completo, Cloud Run + Terraform en dev | Test de combinación verde; un tenant de prueba con dos usuarios y roles |
 | 2 CRM núcleo | 4–7 | crm, conversations (sin canal real), quick replies, web y admin con Pulso en día y noche, importación CSV, cierre automático y archivo (sección 39) | Un supervisor asigna una conversación simulada y la resuelve desde el celular |
-| 3 IA + WhatsApp | 8–11 | channels + whatsapp (Kapso) + webchat, agents (copiloto assist y autónomo por horario, configurador), knowledge, notifications, Langfuse, cuota | **Demo vendible:** onboarding completo en 10 minutos con número real |
+| 3 IA + WhatsApp | 8–11 | channels + whatsapp (Zavu, con Instagram y Messenger) + webchat, agents (copiloto assist y autónomo por horario, configurador), knowledge, notifications, Langfuse, cuota | **Demo vendible:** onboarding completo en 10 minutos con número real |
 | 4 Agenda y cobro | 12–14 | calendar, payments, automations (tres reglas + secuencias básicas), integrations (Drive, Gmail lectura), analytics básico, billing con planes | Primer cliente en prueba gratis |
-| 5 Crecimiento | con feedback | SuperAdmin completo, roles custom, Instagram y Messenger, automatizaciones avanzadas, envíos segmentados, API por tenant y webhooks, retención por plan (sección 39), evaluación continua | Diez clientes pagando |
-| 6 Hardening | con volumen | Load testing, DR probado, matriz de compliance completa, Tech Provider si conviene, GKE si un cliente lo exige | Primer cliente que pida contrato de tratamiento de datos |
+| 5 Crecimiento | con feedback | SuperAdmin completo, roles custom, automatizaciones avanzadas, envíos segmentados, API por tenant y webhooks, retención por plan (sección 39), evaluación continua | Diez clientes pagando |
+| 6 Hardening | con volumen | Load testing, DR probado, matriz de compliance completa, GKE si un cliente lo exige | Primer cliente que pida contrato de tratamiento de datos |
+| 7 Nosotros como proveedor | cuando el margen lo pida | App propia de Meta verificada: Tech Provider para WhatsApp y Graph directo para Instagram y Messenger; salida del intermediario ensayada | Un tenant real operando los tres canales sin intermediario, con los números migrados y sin perder historial |
 
 Al terminar la fase 3 se sale a vender. Nada de fase 5 se adelanta.
 
@@ -1086,9 +1087,9 @@ No escribas código de producto.
    módulos, permisos, flujo de un mensaje de WhatsApp de punta a punta (webhook →
    cola → conversación → copiloto → sugerencia → envío → estado), flujo del
    configurador, flujo de un pago, ciclo de vida del tenant.
-5. Genera `docs/adr/0001` a `0012`: stack TypeScript · Supabase como datos e
+5. Genera `docs/adr/0001` a `0014`: stack TypeScript · Supabase como datos e
    identidad · VPS con Dokploy antes que la nube (condiciones en la sección 38) ·
-   BullMQ antes que Pub/Sub · Kapso ahora y Tech Provider después · Langfuse +
+   BullMQ antes que Pub/Sub · Zavu como capa de canales y proveedor propio en Fase 7 · Langfuse +
    OpenTelemetry · sistema de módulos · modelo de autorización · Pulso como
    sistema de diseño · modo assist por defecto y autónomo opt-in · Gemini
    Developer API antes que Vertex AI · cierre, archivo y retención de
@@ -1338,7 +1339,7 @@ Reglas:
 - **Feature flags** para lo que llega a main sin estar listo: el flag del módulo
   (sección 26) o un flag de feature en `organizations`. Main siempre es
   desplegable.
-- **Webhooks externos en staging:** Kapso sandbox y proveedor de pagos en modo
+- **Webhooks externos en staging:** número de prueba de Zavu y proveedor de pagos en modo
   test apuntan al dominio de staging. Nunca un número real en staging.
 - **Semver:** `fix:` → patch, `feat:` → minor, `feat!:` o ADR que rompe contrato →
   major. El changelog se genera desde los títulos de PR.
@@ -1483,7 +1484,7 @@ se verifican al contratar y se anotan en `docs/COSTS.md` con la fecha.
 | **Total** | | **~100–120 · ~130–150 desde fase 3** |
 
 Variables, con tope por tenant y traspasados al plan (sección 6): tokens de Gemini
-y conversaciones de Meta vía Kapso. Son los únicos costos que crecen con los
+y conversaciones de Meta vía Zavu. Son los únicos costos que crecen con los
 clientes; todo lo demás es plano hasta la etapa 2 del camino de escalado.
 
 Reglas:

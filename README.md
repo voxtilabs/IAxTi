@@ -48,9 +48,11 @@ npx skills@latest add mattpocock/skills \
   --skill zoom-out --skill improve-codebase-architecture --skill tdd \
   --skill domain-model -y
 
-# WhatsApp/Kapso: usar SOLO integrate-whatsapp y observe-whatsapp
-# (automate-whatsapp NO: la lógica de negocio no vive en Kapso, SPEC §12)
-npx skills add gokapso/agent-skills
+# Canales/Zavu: usar los skills de transporte (send-message, conversations,
+# channel-setup, whatsapp-templates, webhook-setup, contacts-management).
+# NO usar ai-agent, functions, memory ni broadcast-campaign: la lógica de
+# negocio y la IA no viven en el proveedor de canales (SPEC §12, ADR-0014).
+npx skills add zavudev/zavu-skills
 ```
 
 Dentro de Claude Code (verifica nombres con `/plugin`):

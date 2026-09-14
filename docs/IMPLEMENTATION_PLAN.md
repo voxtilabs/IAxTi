@@ -32,7 +32,7 @@ resuelve desde el celular.
 
 | Semana | Issues |
 |---|---|
-| 8 | #41 puerto channels · #42 Kapso entrante · #47 runtime agents + Langfuse |
+| 8 | #41 puerto channels · #42 Zavu entrante · #47 runtime agents + Langfuse |
 | 9 | #43 salientes/24h · #44 plantillas · #48 copiloto assist · #51 knowledge |
 | 10 | #45 calidad número · #46 webchat · #49 autónomo · #50 configurador · #52 cuota |
 | 11 | #53 evaluación · #54 GLM (decisión) · #55 notifications · #56 onboarding 10 min |

@@ -53,7 +53,7 @@ implementa se cierre; entonces se anota el PR.
 
 ## Rotación y respuesta
 
-- Rotación de secretos documentada por secreto (Dokploy, GHCR, Kapso, Gemini,
+- Rotación de secretos documentada por secreto (Dokploy, GHCR, Zavu, Gemini,
   Supabase, pasarela): al comprometerse, al salir una persona, o cada 6 meses.
 - Un token pegado en un chat o log se considera comprometido y se rota ese día.
 - Incidentes: registrar en un issue `type:security`, línea de tiempo en el
