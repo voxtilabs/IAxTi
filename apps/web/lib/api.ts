@@ -152,3 +152,45 @@ export function fmtClp(valor: string | number | null): string {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })
     .format(Number(valor));
 }
+
+// Tablero y lista de oportunidades (#33).
+export interface StageDto {
+  id: string;
+  name: string;
+  position: number;
+  type: 'open' | 'won' | 'lost';
+  expectedDays: number | null;
+}
+
+export interface PipelineDto {
+  id: string;
+  name: string;
+  stages: StageDto[];
+}
+
+export interface DealCardDto {
+  id: string;
+  title: string;
+  status: 'open' | 'won' | 'lost';
+  stageId: string;
+  stageName: string;
+  value: number | null;
+  currency: 'CLP' | 'UF' | 'USD';
+  valueClp: number | null;
+  stalled: boolean;
+  ownerId: string | null;
+  contactId: string;
+  contactName: string | null;
+  contactPhone: string;
+}
+
+export interface SavedFilterDto {
+  id: string;
+  name: string;
+  filters: Record<string, string>;
+}
+
+export interface LossReasonDto {
+  id: string;
+  label: string;
+}

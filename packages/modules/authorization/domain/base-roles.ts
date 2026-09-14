@@ -41,6 +41,7 @@ const SUPERVISOR_EXTRA = new Set([
   'audit.read',
   'crm.contacts.merge',
   'crm.contacts.export',
+  'crm.read_all',
   'conversations.read_all',
   'conversations.assign',
   'quickreplies.manage',
