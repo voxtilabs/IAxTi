@@ -25,3 +25,11 @@ export {
 export type { PlanRow, ModuleAdminRow } from './application/planes';
 export { healthSnapshot, securitySnapshot, estadoGeneral } from './application/salud';
 export type { Chequeo, EstadoSalud, Seguridad, SaludInput } from './application/salud';
+export {
+  aiMetrics,
+  aiExecutions,
+  promptsActivos,
+  alertasCosto,
+  traceUrl,
+} from './application/centro-ia';
+export type { FilaIA, EjecucionIA, PromptActivo, AlertaCosto, Agrupacion } from './application/centro-ia';

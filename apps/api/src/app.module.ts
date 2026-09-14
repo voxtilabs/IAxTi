@@ -28,6 +28,10 @@ import {
   setRetentionOverridePlatform,
   healthSnapshot,
   securitySnapshot,
+  aiMetrics,
+  aiExecutions,
+  promptsActivos,
+  alertasCosto,
   startSupportSession,
   supportStatus,
   tenantDetail,
@@ -37,6 +41,7 @@ import {
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
+import { usdClpRate } from '@iaxti/module-billing';
 import { withTenant } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
 import { registry } from './registry';
@@ -352,6 +357,59 @@ class PlatformController {
       redis: process.env.REDIS_URL ? redisPlataforma() : null,
       dias: dias ? Math.min(Math.max(Number(dias), 1), 90) : undefined,
     });
+  }
+
+  @Get('ia')
+  @RequireModule('platform')
+  @RequirePermission('platform.ai')
+  @ApiOperation({ summary: 'Métricas de IA por día, tenant, modelo, agente o tarea' })
+  async ia(
+    @Query('groupBy') groupBy?: string,
+    @Query('tenantId') tenantId?: string,
+    @Query('dias') dias?: string,
+  ) {
+    const ventana = dias ? Math.min(Math.max(Number(dias), 1), 90) : 30;
+    const desde = new Date(Date.now() - ventana * 86_400_000);
+    const agrupacion = (['dia', 'tenant', 'modelo', 'agente', 'tarea'] as const).find(
+      (g) => g === groupBy,
+    );
+    if (groupBy && !agrupacion) {
+      throw new BadRequestException({
+        code: 'GROUPBY_INVALID',
+        message: 'Se agrupa por dia, tenant, modelo, agente o tarea.',
+      });
+    }
+    const pool = platformPool();
+    const usdClp = usdClpRate();
+    const [filas, alertas] = await Promise.all([
+      aiMetrics(pool, { groupBy: agrupacion ?? 'dia', tenantId, desde, usdClp }),
+      alertasCosto(pool, { usdClp }),
+    ]);
+    return { desde: desde.toISOString(), usdClp, filas, alertas };
+  }
+
+  @Get('ia/ejecuciones')
+  @RequireModule('platform')
+  @RequirePermission('platform.ai')
+  @ApiOperation({ summary: 'Últimas ejecuciones con su enlace al trace' })
+  async iaEjecuciones(
+    @Query('tenantId') tenantId?: string,
+    @Query('model') model?: string,
+    @Query('fallidas') fallidas?: string,
+  ) {
+    return aiExecutions(platformPool(), {
+      tenantId,
+      model,
+      soloFallidas: fallidas === 'true',
+    });
+  }
+
+  @Get('ia/prompts')
+  @RequireModule('platform')
+  @RequirePermission('platform.ai')
+  @ApiOperation({ summary: 'Prompts vivos por agente y su último score' })
+  async iaPrompts(@Query('tenantId') tenantId?: string) {
+    return promptsActivos(platformPool(), tenantId);
   }
 
   @Get('plans')

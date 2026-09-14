@@ -627,6 +627,210 @@ function SeguridadYSalud() {
   );
 }
 
+
+interface FilaIADto {
+  clave: string;
+  ejecuciones: number;
+  fallidas: number;
+  costUsd: number;
+  costClp: number;
+  latenciaP50: number | null;
+  latenciaP95: number | null;
+  exitoPct: number;
+}
+
+interface AlertaIADto {
+  tenantId: string;
+  nombre: string;
+  plan: string;
+  costClpCiclo: number;
+  presupuestoUsd: number | null;
+  pct: number | null;
+  nivel: 'ok' | 'atencion' | 'excedido';
+}
+
+interface EjecucionIADto {
+  id: string;
+  tenantId: string;
+  task: string;
+  provider: string;
+  model: string;
+  status: string;
+  costUsd: number;
+  latencyMs: number | null;
+  traceId: string | null;
+  traceUrl: string | null;
+  conversationId: string | null;
+  createdAt: string;
+}
+
+const AGRUPACIONES = [
+  { id: 'dia', label: 'Por día' },
+  { id: 'modelo', label: 'Por modelo' },
+  { id: 'tenant', label: 'Por tenant' },
+  { id: 'tarea', label: 'Por tarea' },
+] as const;
+
+const clp = (n: number) => `$${n.toLocaleString('es-CL')}`;
+
+/** Centro de IA (#70): si el modelo barato conviene, se ve acá. */
+function CentroIA() {
+  const { session, config } = useSession();
+  const [groupBy, setGroupBy] = useState<string>('modelo');
+  const [datos, setDatos] = useState<{ filas: FilaIADto[]; alertas: AlertaIADto[]; usdClp: number } | null>(null);
+  const [ejecuciones, setEjecuciones] = useState<EjecucionIADto[]>([]);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    const traer = async (path: string) => {
+      const res = await fetch(`${config.apiUrl}/v1${path}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error(`No pudimos consultar ${path} (HTTP ${res.status}).`);
+      return res.json();
+    };
+    void Promise.all([traer(`/platform/ia?groupBy=${groupBy}`), traer('/platform/ia/ejecuciones')])
+      .then(([m, e]) => {
+        setDatos(m);
+        setEjecuciones(e);
+      })
+      .catch((err: Error) => setAviso(err.message));
+  }, [session, config.apiUrl, groupBy]);
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-xl font-bold text-ink">Centro de IA</h2>
+      <p className="mb-4 text-sm text-muted">
+        Costo, éxito y latencia por modelo. El p95 importa más que el promedio: un agente que se
+        cuelga una de cada veinte veces se ve normal en la media y pésimo en la práctica.
+      </p>
+      {aviso && (
+        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text">
+          {aviso}
+        </p>
+      )}
+      <div className="mb-3 flex flex-wrap gap-2">
+        {AGRUPACIONES.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            onClick={() => setGroupBy(g.id)}
+            className={`rounded-boton border px-3 py-1.5 text-sm ${
+              groupBy === g.id ? 'border-action bg-action text-action-contrast' : 'border-line bg-bg text-body'
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      {datos && (
+        <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line bg-rest text-left">
+                {['Clave', 'Ejecuciones', 'Éxito', 'p50', 'p95', 'Costo'].map((h) => (
+                  <th key={h} className="rotulo px-3 py-2 font-normal">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {datos.filas.map((f) => (
+                <tr key={f.clave} className="border-b border-line last:border-0">
+                  <td className="dato px-3 py-2 text-xs text-ink">{f.clave}</td>
+                  <td className="dato px-3 py-2 text-xs text-body">
+                    {f.ejecuciones}
+                    {f.fallidas > 0 && <span className="text-bad-text"> · {f.fallidas} fallidas</span>}
+                  </td>
+                  <td className="dato px-3 py-2 text-xs text-body">{f.exitoPct}%</td>
+                  <td className="dato px-3 py-2 text-xs text-muted">{f.latenciaP50 ?? '—'} ms</td>
+                  <td className="dato px-3 py-2 text-xs text-muted">{f.latenciaP95 ?? '—'} ms</td>
+                  <td className="dato px-3 py-2 text-xs text-ink">{clp(f.costClp)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {datos.filas.length === 0 && (
+            <p className="px-4 py-6 text-sm text-muted">Todavía no hay ejecuciones en la ventana.</p>
+          )}
+        </div>
+      )}
+
+      {datos && datos.alertas.some((a) => a.nivel !== 'ok') && (
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+          {datos.alertas
+            .filter((a) => a.nivel !== 'ok')
+            .map((a) => (
+              <li
+                key={a.tenantId}
+                className={`rounded-tarjeta border px-3 py-2 text-sm ${
+                  a.nivel === 'excedido'
+                    ? 'border-bad-soft-br bg-bad-soft text-bad-text'
+                    : 'border-warn-soft-br bg-warn-soft text-warn-text'
+                }`}
+              >
+                <span className="font-medium">{a.nombre}</span> · plan {a.plan}
+                <p className="mt-1">
+                  {clp(a.costClpCiclo)} este ciclo
+                  {a.pct !== null && ` · ${a.pct}% del presupuesto`}
+                  {a.nivel === 'excedido' ? ' — se pasó.' : ' — va a pasarse.'}
+                </p>
+              </li>
+            ))}
+        </ul>
+      )}
+
+      {ejecuciones.length > 0 && (
+        <>
+          <p className="rotulo mb-2 mt-6">Últimas ejecuciones</p>
+          <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line bg-rest text-left">
+                  {['Cuándo', 'Tenant', 'Tarea', 'Modelo', 'Latencia', 'Estado', 'Trace'].map((h) => (
+                    <th key={h} className="rotulo px-3 py-2 font-normal">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ejecuciones.map((e) => (
+                  <tr key={e.id} className="border-b border-line last:border-0">
+                    <td className="dato px-3 py-2 text-xs text-muted">
+                      {new Date(e.createdAt).toLocaleString('es-CL')}
+                    </td>
+                    <td className="dato px-3 py-2 text-xs text-faint">{e.tenantId.slice(0, 8)}</td>
+                    <td className="dato px-3 py-2 text-xs text-body">{e.task}</td>
+                    <td className="dato px-3 py-2 text-xs text-ink">{e.provider}/{e.model}</td>
+                    <td className="dato px-3 py-2 text-xs text-muted">{e.latencyMs ?? '—'} ms</td>
+                    <td className="px-3 py-2 text-xs">
+                      {e.status === 'ok' ? (
+                        <span className="text-good-text">ok</span>
+                      ) : (
+                        <span className="text-bad-text">falló</span>
+                      )}
+                    </td>
+                    <td className="dato px-3 py-2 text-xs">
+                      {/* Sin Langfuse configurado queda el id, que igual sirve para buscar. */}
+                      {e.traceUrl ? (
+                        <a className="text-action underline" href={e.traceUrl} target="_blank" rel="noreferrer">
+                          ver trace
+                        </a>
+                      ) : (
+                        <span className="text-muted">{e.traceId ?? '—'}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSvg: string }) {
   return (
     <SessionProvider config={config}>
@@ -650,6 +854,7 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
             <TablaModulos />
             <TablaConsumoApi />
             <AuditGlobal />
+            <CentroIA />
             <SeguridadYSalud />
           </main>
         </div>
