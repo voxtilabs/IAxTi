@@ -9,6 +9,18 @@ export type RoleResolver = (tenantId: string, userId: string) => Promise<string 
 const TTL_MS = 60_000;
 
 /**
+ * Un tenant que no es uuid jamás va a calzar con una fila, y preguntarlo a la
+ * base revienta la consulta (`invalid input syntax for type uuid`) — un 500
+ * donde corresponde un 403. El id llega en una cabecera: basta con que alguien
+ * mande cualquier cosa. Se corta antes de tocar la base.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function esTenantPlausible(tenantId: string): boolean {
+  return UUID.test(tenantId);
+}
+
+/**
  * Rol del usuario en el tenant desde user_roles, con cache de 60 s por
  * request-path caliente. Cambiar el rol de alguien tarda a lo más un minuto
  * en notarse — aceptable y documentado.
@@ -33,6 +45,7 @@ export function dbPlatformAdminResolver(pool: Pool): (userId: string) => Promise
 export function dbRoleResolver(pool: Pool): RoleResolver {
   const cache = new Map<string, { role: string | null; at: number }>();
   return async (tenantId, userId) => {
+    if (!esTenantPlausible(tenantId)) return null;
     const key = `${tenantId}:${userId}`;
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < TTL_MS) return hit.role;
@@ -48,6 +61,7 @@ export function dbCustomPermissionsResolver(
 ): (tenantId: string, roleName: string) => Promise<string[] | null> {
   const cache = new Map<string, { perms: string[] | null; at: number }>();
   return async (tenantId, roleName) => {
+    if (!esTenantPlausible(tenantId)) return null;
     const key = `${tenantId}:${roleName}`;
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < TTL_MS) return hit.perms;
