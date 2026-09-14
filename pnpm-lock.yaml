@@ -452,6 +452,9 @@ importers:
       '@iaxti/module-payments':
         specifier: workspace:*
         version: link:../../packages/modules/payments
+      '@iaxti/module-platform':
+        specifier: workspace:*
+        version: link:../../packages/modules/platform
       '@iaxti/module-whatsapp':
         specifier: workspace:*
         version: link:../../packages/modules/whatsapp
@@ -1011,6 +1014,9 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
+      '@iaxti/module-conversations':
+        specifier: workspace:*
+        version: link:../conversations
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2

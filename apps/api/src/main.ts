@@ -12,6 +12,7 @@ import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
 import { dbCustomPermissionsResolver, dbPlatformAdminResolver, dbRoleResolver, type RoleResolver } from './auth/role-resolver';
 import { AuthzGuard } from './authz/authz.guard';
 import { resolveApiKey } from '@iaxti/module-authorization';
+import { applyModuleFlags } from '@iaxti/module-platform';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { ApiQuotaGuard } from './api-quota.guard';
@@ -100,6 +101,11 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       : pool
         ? (token: string) => resolveApiKey(pool, token)
         : null;
+  // Flags de módulos SIN desplegar (#69): al arrancar y cada 60 s.
+  if (pool) {
+    void applyModuleFlags(pool, registry).catch(() => {});
+    setInterval(() => void applyModuleFlags(pool, registry).catch(() => {}), 60_000).unref?.();
+  }
   app.useGlobalGuards(
     new AuthzGuard(app.get(Reflector), registry, {
       jwtVerify,

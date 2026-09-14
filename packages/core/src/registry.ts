@@ -10,6 +10,7 @@ export interface ModuleHealth {
   active: boolean;
   killSwitch: boolean;
   dependsOn: string[];
+  enabled: boolean;
 }
 
 interface PlatformState {
@@ -185,6 +186,7 @@ export class ModuleRegistry {
         version: manifest.module.version,
         core: manifest.module.core === true,
         active: this.isActive(id),
+        enabled: state.enabled,
         killSwitch: state.killSwitch,
         dependsOn: manifest.depends_on?.required ?? [],
       };
