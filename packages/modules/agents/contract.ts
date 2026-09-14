@@ -16,3 +16,11 @@ export type { RunInput, RunResult } from './application/runtime';
 export { aiSdkModelPort, providerAvailable } from './application/models';
 export type { ModelPort, ModelPortFactory, GenerateArgs, GenerateResult } from './application/models';
 export { getVersionedPrompt, traceGeneration, langfuse, resetLangfuse } from './application/langfuse';
+export {
+  getQuota,
+  afterExecutionQuota,
+  isAutonomousPaused,
+  costPerDay,
+  costThisCycle,
+} from './application/quota';
+export type { QuotaState } from './application/quota';
