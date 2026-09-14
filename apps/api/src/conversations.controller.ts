@@ -196,9 +196,9 @@ export class ConversationsController {
         body: body.body,
         requestId: request.requestId,
       });
-      // Simulador: entrega al instante. WhatsApp: por la cola outbound con
-      // rate limit por número y reintentos (#43).
-      if (conversation.channel === 'simulador') {
+      // Simulador y webchat entregan al instante (el widget sondea, #46).
+      // WhatsApp va por la cola outbound con rate limit y reintentos (#43).
+      if (conversation.channel === 'simulador' || conversation.channel === 'webchat') {
         return updateDeliveryStatus(c, {
           tenantId: actor.tenantId,
           messageId: message.id,

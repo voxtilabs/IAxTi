@@ -18,6 +18,7 @@
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "@iaxti/module-platform": "workspace:*",
+    "@iaxti/module-webchat": "workspace:*",
     "@iaxti/module-whatsapp": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
     "@nestjs/common": "^11.0.0",

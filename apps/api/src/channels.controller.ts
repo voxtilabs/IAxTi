@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
@@ -11,6 +12,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { listChannelAccounts } from '@iaxti/module-channels';
 import { listWhatsAppNumbers, resumeBusinessSends } from '@iaxti/module-whatsapp';
+import { createWidget, listWidgets, setWidgetActive } from '@iaxti/module-webchat';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -63,5 +65,54 @@ export class ChannelsController {
       throw new BadRequestException({ code: 'RESUME_REJECTED', message: (err as Error).message });
     }
     return { resumed: true };
+  }
+}
+
+/** Administración del webchat (#46): widgets y su snippet. */
+@ApiTags('channels')
+@Controller('webchat/widgets')
+@RequireModule('webchat')
+export class WebchatAdminController {
+  @Get()
+  @RequirePermission('webchat.manage')
+  @ApiOperation({ summary: 'Widgets del webchat' })
+  async list(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) => listWidgets(c, actor.tenantId));
+  }
+
+  @Post()
+  @RequirePermission('webchat.manage')
+  @ApiOperation({ summary: 'Crea un widget para un dominio' })
+  async create(
+    @Req() request: WithUser,
+    @Body() body: { allowedDomain?: string; name?: string; welcomeMessage?: string },
+  ) {
+    const actor = actorOf(request);
+    if (!body?.allowedDomain?.trim()) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Dinos el dominio del sitio donde vivirá el chat.',
+        details: [{ field: 'allowedDomain' }],
+      });
+    }
+    return withTenant(pool(), actor.tenantId, (c) =>
+      createWidget(c, {
+        tenantId: actor.tenantId,
+        allowedDomain: body.allowedDomain!,
+        name: body.name,
+        welcomeMessage: body.welcomeMessage,
+      }),
+    );
+  }
+
+  @Post(':id/toggle')
+  @RequirePermission('webchat.manage')
+  @ApiOperation({ summary: 'Activa o desactiva el widget (el historial queda)' })
+  async toggle(@Req() request: WithUser, @Param('id') id: string, @Body() body: { active?: boolean }) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      setWidgetActive(c, { tenantId: actor.tenantId, widgetId: id, active: Boolean(body?.active) }),
+    );
   }
 }

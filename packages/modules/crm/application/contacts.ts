@@ -7,7 +7,8 @@ export type ContactOrigin = 'whatsapp' | 'webchat' | 'importado' | 'manual';
 export interface Contact {
   id: string;
   tenantId: string;
-  phone: string;
+  /** null solo para contactos web identificados por correo (#46). */
+  phone: string | null;
   name: string | null;
   email: string | null;
   rut: string | null;
@@ -22,7 +23,7 @@ function rowToContact(row: Record<string, unknown>): Contact {
   return {
     id: row.id as string,
     tenantId: row.tenant_id as string,
-    phone: row.phone as string,
+    phone: (row.phone as string) ?? null,
     name: (row.name as string) ?? null,
     email: (row.email as string) ?? null,
     rut: (row.rut as string) ?? null,
@@ -246,4 +247,63 @@ export async function listContacts(
       ? Buffer.from(`${(last.last_activity_at as Date).toISOString()}|${last.id}`).toString('base64url')
       : null,
   };
+}
+
+/**
+ * El contacto del webchat (#46): se enlaza por teléfono (normalizado, el
+ * mismo camino de siempre) o, si no lo dio, por correo. Nace origin
+ * webchat — escribió primero, así que puede recibir respuestas.
+ */
+export async function ensureWebContact(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    name?: string;
+    phone?: string;
+    email?: string;
+    requestId?: string;
+  },
+): Promise<{ contact: Contact; created: boolean }> {
+  const email = input.email?.trim().toLowerCase() || undefined;
+  if (input.phone?.trim()) {
+    const res = await ensureContactByPhone(client, {
+      tenantId: input.tenantId,
+      phone: input.phone,
+      origin: 'webchat',
+      requestId: input.requestId,
+    });
+    if (input.name || email) {
+      const contact = await updateContact(client, {
+        tenantId: input.tenantId,
+        contactId: res.contact.id,
+        name: res.contact.name ?? input.name,
+        email: res.contact.email ?? email,
+        requestId: input.requestId,
+      });
+      return { contact, created: res.created };
+    }
+    return res;
+  }
+  if (!email) throw new Error('Para seguir la conversación dinos tu teléfono o tu correo.');
+  const existente = await client.query(
+    'SELECT * FROM contacts WHERE tenant_id = $1 AND email = $2 AND phone IS NULL',
+    [input.tenantId, email],
+  );
+  if ((existente.rowCount ?? 0) > 0) {
+    return { contact: rowToContact(existente.rows[0]), created: false };
+  }
+  const r = await client.query(
+    `INSERT INTO contacts (tenant_id, phone, name, email, origin)
+     VALUES ($1, NULL, $2, $3, 'webchat') RETURNING *`,
+    [input.tenantId, input.name ?? null, email],
+  );
+  const contact = rowToContact(r.rows[0]);
+  await publishEvent(client, {
+    name: 'contact.created',
+    tenantId: input.tenantId,
+    payload: { contactId: contact.id, origin: 'webchat' },
+    actor: 'system',
+    requestId: input.requestId,
+  });
+  return { contact, created: true };
 }

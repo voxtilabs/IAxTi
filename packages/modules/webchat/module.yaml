@@ -1,0 +1,20 @@
+# webchat (#46, SPEC §12): el widget propio — demo sin fricción, segundo
+# canal desde el día uno, y la prueba de que el puerto ChannelProvider
+# aguanta más de un canal.
+module:
+  id: webchat
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [channels, organizations, identity, crm]
+  optional: []
+permissions:
+  - webchat.manage
+events:
+  publishes: []
+  consumes: []
+tools: []
+nav: []
+widgets: []
+plan_min: base
+flag: module.webchat

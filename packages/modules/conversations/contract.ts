@@ -2,6 +2,7 @@
 export const MODULE_ID = 'conversations' as const;
 export {
   receiveInbound,
+  receiveInboundForContact,
   sendMessage,
   updateDeliveryStatus,
   updateDeliveryStatusByProviderId,

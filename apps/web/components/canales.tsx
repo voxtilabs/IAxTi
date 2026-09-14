@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Button, Skeleton, useSession } from '@iaxti/ui/react';
+import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
@@ -16,6 +16,13 @@ interface NumeroDto {
   quality: 'green' | 'yellow' | 'red' | null;
   messagingLimit: string | null;
   businessPausedAt?: string | null;
+}
+
+interface WidgetDto {
+  id: string;
+  name: string;
+  allowedDomain: string;
+  active: boolean;
 }
 
 interface CanalDto {
@@ -43,6 +50,8 @@ export function Canales() {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
   const [canales, setCanales] = useState<CanalDto[] | null>(null);
+  const [widgets, setWidgets] = useState<WidgetDto[]>([]);
+  const [dominio, setDominio] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => setTenant(selectedTenant()), []);
@@ -50,6 +59,7 @@ export function Canales() {
     if (!session || !tenant) return;
     try {
       setCanales(await apiFetch<CanalDto[]>(config, session, tenant, '/channels'));
+      setWidgets(await apiFetch<WidgetDto[]>(config, session, tenant, '/webchat/widgets').catch(() => []));
     } catch (err) {
       setAviso((err as Error).message);
     }
@@ -140,6 +150,75 @@ export function Canales() {
           })}
         </ul>
       )}
+
+      {/* Webchat (#46): el widget propio y su snippet de instalación. */}
+      <section className="mt-10">
+        <p className="rotulo">Chat del sitio</p>
+        <h2 className="mt-1 text-lg font-bold text-ink">Webchat</h2>
+        <p className="mt-1 max-w-prose text-sm text-body">
+          Un chat en tu página que cae en la misma bandeja. Sin número, sin fricción: ideal para
+          partir hoy.
+        </p>
+        <form
+          className="mt-4 flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!session || !tenant || !dominio.trim()) return;
+            void apiFetch(config, session, tenant, '/webchat/widgets', {
+              method: 'POST',
+              body: JSON.stringify({ allowedDomain: dominio.trim() }),
+            })
+              .then(() => {
+                setDominio('');
+                return cargar();
+              })
+              .catch((err) => setAviso((err as Error).message));
+          }}
+        >
+          <Input
+            aria-label="Dominio del sitio"
+            placeholder="tunegocio.cl"
+            className="h-9 w-56 text-sm"
+            value={dominio}
+            onChange={(e) => setDominio(e.target.value)}
+          />
+          <Button type="submit" variant="secundario" size="chico" disabled={!dominio.trim()}>
+            Crear widget
+          </Button>
+        </form>
+        <ul className="mt-4 flex flex-col gap-3">
+          {widgets.map((w) => (
+            <li key={w.id} className="rounded-campo border border-line bg-raised p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-ink">{w.name}</span>
+                  <span className="dato text-muted">{w.allowedDomain}</span>
+                </span>
+                <Badge role={w.active ? 'good' : 'neutral'}>{w.active ? 'Activo' : 'Apagado'}</Badge>
+                <Button
+                  variant="fantasma"
+                  size="chico"
+                  onClick={() => {
+                    if (!session || !tenant) return;
+                    void apiFetch(config, session, tenant, `/webchat/widgets/${w.id}/toggle`, {
+                      method: 'POST',
+                      body: JSON.stringify({ active: !w.active }),
+                    }).then(cargar);
+                  }}
+                >
+                  {w.active ? 'Apagar' : 'Encender'}
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                Pega esto antes de {'</body>'} en tu sitio (el historial queda aunque lo apagues):
+              </p>
+              <pre className="dato mt-1 overflow-x-auto rounded-campo bg-rest p-3 text-xs text-ink">
+{`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/webchat.js" data-widget="${w.id}" async></script>`}
+              </pre>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
