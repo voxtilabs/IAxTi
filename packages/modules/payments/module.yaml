@@ -10,6 +10,7 @@ depends_on:
   optional: [crm, conversations]
 permissions:
   - payments.create_link
+  - payments.create_link_unlimited
   - payments.read
   - payments.manage_providers
 events:

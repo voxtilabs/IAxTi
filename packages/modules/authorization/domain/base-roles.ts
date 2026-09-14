@@ -43,6 +43,7 @@ const USER_PERMS = new Set([
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
+  'payments.create_link_unlimited', // cobra sin tope (§23); el USER tiene tope
   'analytics.read_all', // los números de todo el equipo (#66, §23)
   'automations.read', // ver reglas y corridas (§23); configurar es del ADMIN
   'users.read',

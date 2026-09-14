@@ -162,7 +162,8 @@ export class PaymentsController {
       const settings = (await getTenantSettings(c, actor.tenantId)) as {
         pagos?: { maxLinkClpUser?: number };
       };
-      const sinTope = actorCan(actor, 'payments.manage_providers') || actor.role === 'SUPERVISOR';
+      // ADR-0008: jamás condicionar por rol — el tope lo levanta un PERMISO.
+      const sinTope = actorCan(actor, 'payments.create_link_unlimited');
       const tope = sinTope ? null : settings.pagos?.maxLinkClpUser ?? null;
 
       let contactId: string;
