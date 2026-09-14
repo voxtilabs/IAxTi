@@ -1,0 +1,79 @@
+import type { Session } from '@supabase/supabase-js';
+import type { PublicConfig } from '@iaxti/ui/react';
+
+// Cliente mínimo de la API /v1 desde el navegador: Bearer de la sesión +
+// X-Tenant-Id del selector. Los errores llegan en voz Pulso ({code, message}).
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+export async function apiFetch<T>(
+  config: PublicConfig,
+  session: Session,
+  tenantId: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const res = await fetch(`${config.apiUrl}/v1${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'X-Tenant-Id': tenantId,
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const cuerpo = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+    throw new ApiError(
+      cuerpo?.code ?? 'ERROR',
+      cuerpo?.message ?? 'Algo salió mal. Intenta de nuevo.',
+      res.status,
+    );
+  }
+  return res.json() as Promise<T>;
+}
+
+// Formas que devuelve la API de la bandeja (#37).
+export interface ConversacionItem {
+  id: string;
+  contactId: string;
+  contactName: string | null;
+  contactPhone: string;
+  channel: string;
+  state: 'new' | 'open' | 'pending' | 'resolved' | 'snoozed';
+  ownerId: string | null;
+  lastInboundAt: string | null;
+  lastMessageAt: string | null;
+  unansweredSeconds: number | null;
+  snoozedUntil: string | null;
+}
+
+export interface ConversacionDetalle extends ConversacionItem {
+  contactEmail: string | null;
+  contactOptInAt: string | null;
+  contactOptedOutAt: string | null;
+  firstResponseAt: string | null;
+}
+
+/** Ventana de 24 h de WhatsApp desde el último mensaje ENTRANTE (SPEC §11). */
+export function enVentana24h(lastInboundAt: string | null): boolean {
+  if (!lastInboundAt) return false;
+  return Date.now() - new Date(lastInboundAt).getTime() < 24 * 60 * 60 * 1000;
+}
+
+export interface Mensaje {
+  id: string;
+  direction: 'in' | 'out';
+  type: string;
+  body: string | null;
+  deliveryStatus: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
+  authorKind: 'contact' | 'user' | 'agent' | 'system';
+  createdAt: string;
+}

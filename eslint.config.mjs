@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/next-env.d.ts',
       '**/*.cjs',
+      '**/*.mjs', // scripts de configuración y orquestación (corren en node)
     ],
   },
   eslint.configs.recommended,

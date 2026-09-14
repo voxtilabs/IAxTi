@@ -46,6 +46,7 @@ export interface Message {
   authorKind: AuthorKind;
   authorId: string | null;
   providerMessageId: string | null;
+  createdAt: Date;
 }
 
 function rowToConversation(row: Record<string, unknown>): Conversation {
@@ -78,6 +79,7 @@ function rowToMessage(row: Record<string, unknown>): Message {
     authorKind: row.author_kind as AuthorKind,
     authorId: (row.author_id as string) ?? null,
     providerMessageId: (row.provider_message_id as string) ?? null,
+    createdAt: row.created_at as Date,
   };
 }
 
