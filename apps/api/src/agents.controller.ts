@@ -32,7 +32,14 @@ import {
   dismissProposal,
   pendingProposal,
   proposeConfiguration,
+  evalGate,
+  getAgent as getAgentContract,
+  harvestFeedbackCases,
+  listEvalCases,
+  listEvalRuns,
+  runEvaluation,
 } from '@iaxti/module-agents';
+import { ConflictException } from '@nestjs/common';
 import type { AgentInput, AgentTask, Provider } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { actorCan } from './authz/can';
@@ -85,16 +92,35 @@ export class AgentsController {
   async update(@Req() request: WithUser, @Param('id') id: string, @Body() body: Partial<AgentInput> & { active?: boolean }) {
     const actor = actorOf(request);
     try {
-      return await withTenant(pool(), actor.tenantId, (c) =>
-        updateAgent(c, {
+      return await withTenant(pool(), actor.tenantId, async (c) => {
+        // El gate (#53): a una config con score MENOR no se pasa. Solo
+        // bloquea cuando hay evaluaciones de ambas versiones.
+        const cambiaConfig =
+          body.provider !== undefined || body.model !== undefined || body.promptVersion !== undefined;
+        if (cambiaConfig) {
+          const agente = await getAgentContract(c, actor.tenantId, id);
+          const gate = await evalGate(c, actor.tenantId, agente, {
+            provider: body.provider ?? agente.provider,
+            model: body.model ?? agente.model,
+            promptVersion: body.promptVersion ?? agente.promptVersion,
+          });
+          if (!gate.allowed) {
+            throw new ConflictException({
+              code: 'EVAL_REGRESSION',
+              message: `Esa versión rinde peor en la evaluación (${gate.candidata} vs ${gate.actual}). Mejora el prompt o el dataset antes de cambiar.`,
+            });
+          }
+        }
+        return updateAgent(c, {
           ...body,
           tenantId: actor.tenantId,
           agentId: id,
           actor: actor.userId,
           requestId: request.requestId,
-        }),
-      );
+        });
+      });
     } catch (err) {
+      if (err instanceof ConflictException) throw err;
       const message = (err as Error).message;
       if (/No encontramos/.test(message)) throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message });
       throw new BadRequestException({ code: 'AGENT_INVALID', message });
@@ -192,6 +218,49 @@ export class AgentsController {
       }
       return res;
     });
+  }
+
+  // --- La evaluación (#53): ninguna versión empeora ---
+
+  @Post(':id/evaluate')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'Corre el dataset del tenant contra la config actual' })
+  async evaluate(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const agente = await getAgent(c, actor.tenantId, id).catch(() => {
+        throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message: 'No encontramos ese asistente.' });
+      });
+      if (!providerAvailable(agente.provider as Provider)) {
+        throw new ServiceUnavailableException({
+          code: 'PROVIDER_UNAVAILABLE',
+          message: 'El proveedor de IA aún no tiene llave configurada en este ambiente.',
+        });
+      }
+      // El feedback fresco de la bandeja entra al dataset antes de correr.
+      await harvestFeedbackCases(c, actor.tenantId);
+      const cases = await listEvalCases(c, actor.tenantId);
+      if (cases.length === 0) {
+        throw new BadRequestException({
+          code: 'NO_EVAL_CASES',
+          message: 'Aún no hay casos: el pulgar arriba/abajo de la bandeja los va creando.',
+        });
+      }
+      return runEvaluation(c, {
+        tenantId: actor.tenantId,
+        agent: agente,
+        cases,
+        requestId: request.requestId,
+      });
+    });
+  }
+
+  @Get(':id/evals')
+  @RequirePermission('agents.usage.read')
+  @ApiOperation({ summary: 'Las corridas de evaluación del asistente' })
+  async evals(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) => listEvalRuns(c, actor.tenantId, id));
   }
 
   // --- El configurador (#50): propone un diff, el usuario decide ---

@@ -67,3 +67,14 @@ export {
   formatoConfiguracion,
 } from './domain/configurator';
 export type { Vertical, ConfigProposal, ConfigDiff, ConfigDiffItem, ConfigSnapshot } from './domain/configurator';
+export {
+  harvestFeedbackCases,
+  listEvalCases,
+  runEvaluation,
+  listEvalRuns,
+  latestScoreFor,
+  evalGate,
+} from './application/evaluation';
+export type { EvalRun } from './application/evaluation';
+export { formatoJuez, parseJudge } from './domain/judge';
+export type { JudgeScores, EvalCase } from './domain/judge';

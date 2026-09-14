@@ -73,6 +73,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
+  await admin.query('DELETE FROM eval_runs WHERE tenant_id = $1', [tenant]);
+  await admin.query('DELETE FROM eval_cases WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM agent_proposals WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM agent_executions WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM agents WHERE tenant_id = $1', [tenant]);
@@ -158,5 +160,39 @@ describe('/v1/agents (#47)', () => {
     const res = await pedir(supervisora, '/agents/executions');
     expect(res.status).toBe(200);
     expect(Array.isArray(await res.json())).toBe(true);
+  });
+
+  it('el gate de evaluación (#53) bloquea pasar a una config que rinde peor', async () => {
+    const [agente] = await (await pedir(duena, '/agents')).json();
+    // Evidencia: la config vigente (glm-4.6) evaluada 0.9; la candidata 0.4.
+    for (const [provider, model, score] of [
+      ['glm', 'glm-4.6', 0.9],
+      ['google', 'gemini-2.5-flash', 0.4],
+    ] as const) {
+      await admin.query(
+        `INSERT INTO eval_runs (tenant_id, agent_id, provider, model, prompt_version, case_count, scores, score)
+         VALUES ($1, $2, $3, $4, NULL, 1, '[]', $5)`,
+        [tenant, agente.id, provider, model, score],
+      );
+    }
+    const bloqueado = await pedir(duena, `/agents/${agente.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ provider: 'google', model: 'gemini-2.5-flash' }),
+    });
+    expect(bloqueado.status).toBe(409);
+    expect((await bloqueado.json()).code).toBe('EVAL_REGRESSION');
+
+    // Sin evidencia de la candidata, el cambio pasa (no hay con qué comparar).
+    const pasa = await pedir(duena, `/agents/${agente.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-5' }),
+    });
+    expect(pasa.status).toBe(200);
+
+    // Sin evaluar aún, el endpoint avisa que faltan casos.
+    const sinCasos = await pedir(duena, `/agents/${agente.id}/evaluate`, { method: 'POST' });
+    expect(sinCasos.status).toBe(503); // sin llave: primero avisa el proveedor
+    expect((await pedir(vendedor, `/agents/${agente.id}/evals`)).status).toBe(403);
+    expect((await pedir(supervisora, `/agents/${agente.id}/evals`)).status).toBe(200);
   });
 });

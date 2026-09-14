@@ -84,3 +84,11 @@ jobs:
         run: |
           pnpm --filter @iaxti/web exec playwright install --with-deps chromium
           node apps/web/e2e/run-e2e.mjs
+
+      # El dataset de regresión de agentes (#53): con el secret presente
+      # corre de verdad y BLOQUEA si el score baja del baseline versionado;
+      # sin secret avisa y se salta — jamás inventa un score.
+      - name: Evals de agentes (dataset de regresión)
+        env:
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+        run: pnpm --filter @iaxti/module-agents exec node scripts/run-evals.mjs
