@@ -1,0 +1,78 @@
+/*
+ * Tokens del sistema Pulso de VoxTi Labs — copiados TAL CUAL del documento
+ * (voxtilabs/branding, v1.1 sep 2026, sección 2). Este es el ÚNICO archivo
+ * del repo donde puede existir un hex; un test lo hace cumplir.
+ * Ningún componente sabe en qué modo está: pide tokens, el modo decide.
+ */
+
+/* Modo día */
+:root, [data-mode="dia"] {
+  --bg:#FFFFFF;            /* fondo de página */
+  --bg-raised:#F7F8FD;     /* tarjetas, tablas, superficies elevadas */
+  --bg-rest:#E6E9F2;       /* zona de descanso, cifras, estado "antes" */
+  --border:#E6E9F2;        /* filete estándar */
+  --border-strong:#CBD0DE; /* borde de campo y de botón secundario */
+
+  --text:#12141C;          /* titulares y datos */
+  --text-body:#414759;     /* texto corrido */
+  --text-muted:#6E7488;    /* secundario, metadatos, rótulos */
+  --text-faint:#A3A9BC;    /* deshabilitado, placeholder */
+
+  --action:#3D5AFE;        /* relleno de botón primario */
+  --action-hover:#2739D6;
+  --action-text:#2739D6;   /* enlaces y texto azul */
+  --action-soft:#EEF1FF;   /* fondo de aviso y etiqueta */
+  --action-soft-br:#DDE2FF;
+
+  --warn:#FFA51F;          /* ámbar de energía y atención */
+  --warn-text:#96560A;
+  --warn-soft:#FFF6E6;
+  --warn-soft-br:#FFDFA8;
+
+  --good-text:#0F7A52;
+  --good-soft:#E7FAF3;
+  --good-soft-br:#C6F0DF;
+
+  --bad:#E23D5C;           /* relleno de botón destructivo */
+  --bad-text:#A6203C;
+  --bad-soft:#FFEEF1;
+  --bad-soft-br:#FCD6DE;
+
+  --field-bg:#FFFFFF;
+}
+
+/* Modo noche */
+[data-mode="noche"] {
+  --bg:#0B0D14;
+  --bg-raised:#141826;
+  --bg-rest:#1D2233;
+  --border:#262C40;
+  --border-strong:#333A52;
+
+  --text:#EDEFF7;          /* nunca blanco puro: produce halo */
+  --text-body:#B9C0D4;
+  --text-muted:#8189A0;
+  --text-faint:#5A6178;
+
+  --action:#3D5AFE;        /* idéntico al día */
+  --action-hover:#5570FF;
+  --action-text:#93A2FF;   /* recalibrado para leerse sobre oscuro */
+  --action-soft:#171E3D;
+  --action-soft-br:#2A3566;
+
+  --warn:#FFB84D;          /* subido para contraste */
+  --warn-text:#FFB84D;
+  --warn-soft:#2A2012;
+  --warn-soft-br:#4A3A1C;
+
+  --good-text:#4FD9A0;
+  --good-soft:#10281F;
+  --good-soft-br:#1E4536;
+
+  --bad:#D9304F;           /* bajado para que el blanco encima pase AA */
+  --bad-text:#FF8098;
+  --bad-soft:#2A141B;
+  --bad-soft-br:#4D2130;
+
+  --field-bg:#0F1220;      /* más oscuro que la tarjeta, no igual */
+}
