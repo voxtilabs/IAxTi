@@ -26,6 +26,7 @@
     "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-knowledge": "workspace:*",
     "@iaxti/module-notifications": "workspace:*",
+    "@iaxti/module-payments": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "@iaxti/module-whatsapp": "workspace:*",
     "@iaxti/telemetry": "workspace:*",

@@ -27,6 +27,8 @@ import {
 import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
+import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
+import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -110,6 +112,16 @@ function start(): void {
             if (n > 0) console.log(`scheduled: ${n} muestras de primera respuesta`);
             return { sampled: n };
           }
+          // Links vencidos (#60): created/sent con la fecha pasada.
+          case 'payments.expire': {
+            const conVencibles = await tenantsWithExpirableLinks(pool);
+            let total = 0;
+            for (const tenantId of conVencibles) {
+              total += await withTenant(pool, tenantId, (c) => expireLinks(c, tenantId));
+            }
+            if (total > 0) console.log(`scheduled: ${total} links de pago vencidos`);
+            return { expired: total };
+          }
           // Vigencias del conocimiento (#51): vencida, la IA la ignora y avisa.
           case 'knowledge.expire': {
             const conVencibles = await tenantsWithExpirable(pool);
@@ -158,6 +170,11 @@ function start(): void {
         { moduleId: 'analytics' },
         { repeat: { pattern: '15 * * * *', tz: 'America/Santiago' } },
       ),
+      scheduled.add(
+        'payments.expire',
+        { moduleId: 'payments' },
+        { repeat: { pattern: '45 * * * *', tz: 'America/Santiago' } },
+      ),
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');
 
@@ -173,6 +190,10 @@ function start(): void {
         }
         if (job.name === 'quality-update') {
           return processQualityUpdates(pool, job.data as unknown as QualityUpdateJob);
+        }
+        // La confirmación de pagos (#61): verificada y fuera de línea.
+        if (job.name === 'payment-webhook') {
+          return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob);
         }
         const data = job.data as unknown as InboundJob;
         const res = await processInbound(pool, data);

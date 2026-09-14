@@ -282,6 +282,9 @@ importers:
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../../packages/modules/organizations
+      '@iaxti/module-payments':
+        specifier: workspace:*
+        version: link:../../packages/modules/payments
       '@iaxti/module-platform':
         specifier: workspace:*
         version: link:../../packages/modules/platform
@@ -434,6 +437,9 @@ importers:
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../../packages/modules/organizations
+      '@iaxti/module-payments':
+        specifier: workspace:*
+        version: link:../../packages/modules/payments
       '@iaxti/module-whatsapp':
         specifier: workspace:*
         version: link:../../packages/modules/whatsapp
@@ -859,6 +865,40 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.23.1
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(jiti@1.21.7)(supports-color@7.2.0)(yaml@2.9.1)
+
+  packages/modules/payments:
+    dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@iaxti/module-audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@iaxti/module-conversations':
+        specifier: workspace:*
+        version: link:../conversations
+      '@iaxti/module-crm':
+        specifier: workspace:*
+        version: link:../crm
+      pg:
+        specifier: ^8.13.0
+        version: 8.23.0
+    devDependencies:
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2

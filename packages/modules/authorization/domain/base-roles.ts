@@ -38,9 +38,12 @@ const USER_PERMS = new Set([
   'analytics.read', // sus propios números (#66); read_all es de supervisión
   'knowledge.read', // consultar productos/precios del catálogo ✓ USER (#51)
   'automations.enroll', // meter SU conversación a una secuencia (#63)
+  'payments.create_link', // cobrar desde el chat, con tope del tenant (#60, §23)
+  'payments.read',
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
+  'payments.create_link_unlimited', // cobra sin tope (§23); el USER tiene tope
   'analytics.read_all', // los números de todo el equipo (#66, §23)
   'automations.read', // ver reglas y corridas (§23); configurar es del ADMIN
   'users.read',

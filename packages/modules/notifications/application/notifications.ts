@@ -10,6 +10,7 @@ export const NOTIFICATION_TYPES = [
   'tarea_vencida',
   'cuota_ia',
   'calidad_numero',
+  'pago_recibido',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -23,6 +24,7 @@ export const TIPOS_LEGIBLES: Record<NotificationType, string> = {
   tarea_vencida: 'Actividad vencida',
   cuota_ia: 'Cuota de IA por agotarse',
   calidad_numero: 'Calidad del número de WhatsApp',
+  pago_recibido: 'Pago recibido',
 };
 
 export interface Notification {

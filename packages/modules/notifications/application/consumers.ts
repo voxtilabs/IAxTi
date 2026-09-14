@@ -43,6 +43,25 @@ async function admins(client: PoolClient, tenantId: string): Promise<string[]> {
 async function avisoDe(event: EventEnvelope, client: PoolClient): Promise<Aviso | null> {
   const p = event.payload as Record<string, unknown>;
   switch (event.name) {
+    case 'payment.received': {
+      // El dueño de la conversación primero; sin dueño, la supervisión.
+      const destinatarios = new Set(await supervisores(client, event.tenantId));
+      if (p.conversationId) {
+        const conv = await client.query(
+          'SELECT owner_id FROM conversations WHERE tenant_id = $1 AND id = $2',
+          [event.tenantId, p.conversationId],
+        );
+        if (conv.rows[0]?.owner_id) destinatarios.add(conv.rows[0].owner_id);
+      }
+      const monto = Number(p.amountClp);
+      return {
+        type: 'pago_recibido',
+        title: TIPOS_LEGIBLES.pago_recibido,
+        body: Number.isFinite(monto) ? `Entraron $${monto.toLocaleString('es-CL')}.` : undefined,
+        link: p.conversationId ? '/bandeja' : '/ajustes/pagos',
+        recipients: [...destinatarios],
+      };
+    }
     case 'conversation.unattended':
       return {
         type: 'conversacion_sin_dueno',
@@ -148,6 +167,7 @@ export async function handleNotifiableEvent(event: EventEnvelope, client: PoolCl
 }
 
 const EVENTOS = [
+  'payment.received',
   'conversation.unattended',
   'sla.first_response_breached',
   'note.mentioned',
