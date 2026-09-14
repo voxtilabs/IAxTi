@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Avatar, Badge, Button, IconoVolver, Textarea } from '@iaxti/ui/react';
 import type { ConversacionDetalle, NotaDto } from '../../lib/api';
+import { FichaContacto } from '../crm/ficha-contacto';
 import { ESTADOS, fmtEspera } from './estado';
 
 function Fila({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
@@ -116,10 +117,13 @@ export function Ficha({
         </form>
       </div>
 
-      <p className="mt-6 text-xs text-muted">
-        La ficha completa — oportunidades, actividades y campos del negocio — llega con la
-        siguiente parte del CRM.
-      </p>
+      {/* La MISMA ficha del CRM (#32): oportunidades y actividades aquí. */}
+      <div className="mt-6 border-t border-line pt-4">
+        <FichaContacto contactId={detalle.contactId} compacta />
+        <a href={`/contactos/${detalle.contactId}`} className="mt-4 inline-block text-sm text-action-text">
+          Abrir la ficha completa →
+        </a>
+      </div>
     </div>
   );
 }

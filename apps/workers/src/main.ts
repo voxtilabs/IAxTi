@@ -15,6 +15,7 @@ import {
   runArchiveTenant,
   runAutoResolveTenant,
   sweepConversationAlerts,
+  sweepDueActivities,
 } from './sweeps';
 
 const service = process.env.SERVICE ?? 'workers';
@@ -50,6 +51,11 @@ function start(): void {
             }
             return res;
           }
+          case 'crm.activities_due': {
+            const res = await sweepDueActivities(pool);
+            if (res.due) console.log(`scheduled: ${res.due} actividades vencidas avisadas`);
+            return res;
+          }
           // Patrón §39: padre encola un hijo por tenant.
           case 'conversations.auto_resolve':
             return { tenants: await enqueueTenantChildren(pool, scheduled, 'conversations.auto_resolve') };
@@ -71,6 +77,7 @@ function start(): void {
     // misma pauta es idempotente entre reinicios.
     void Promise.all([
       scheduled.add('conversations.checks', { moduleId: 'conversations' }, { repeat: { every: 60_000 } }),
+      scheduled.add('crm.activities_due', { moduleId: 'crm' }, { repeat: { every: 60_000 } }),
       scheduled.add(
         'conversations.auto_resolve',
         { moduleId: 'conversations' },

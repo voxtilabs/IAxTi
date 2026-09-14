@@ -109,3 +109,46 @@ export function renderQuickReply(body: string, vars: Record<string, string | nul
     return valor === null || valor === undefined || valor === '' ? todo : valor;
   });
 }
+
+// La ficha de contacto (#32).
+export interface FichaContacto {
+  contact: {
+    id: string;
+    phone: string;
+    name: string | null;
+    email: string | null;
+    rut: string | null;
+    origin: string;
+    opt_in_at: string | null;
+    opted_out_at: string | null;
+    last_activity_at: string;
+    created_at: string;
+  };
+  deals: Array<{
+    id: string;
+    title: string;
+    status: 'open' | 'won' | 'lost';
+    value: string | null;
+    currency: string;
+    value_clp: string | null;
+    stalled: boolean;
+    stage_name: string;
+    pipeline_name: string;
+    created_at: string;
+  }>;
+  activities: Array<{
+    id: string;
+    type: 'llamada' | 'reunion' | 'tarea' | 'nota';
+    title: string;
+    body: string | null;
+    dueAt: string | null;
+    doneAt: string | null;
+    createdAt: string;
+  }>;
+}
+
+export function fmtClp(valor: string | number | null): string {
+  if (valor === null || valor === undefined) return '—';
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })
+    .format(Number(valor));
+}

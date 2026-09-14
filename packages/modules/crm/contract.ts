@@ -32,3 +32,11 @@ export type {
   MoveDealInput,
 } from './application/deals';
 export type { StageInput, StageType } from './domain/pipeline';
+export {
+  createActivity,
+  completeActivity,
+  listActivitiesByContact,
+  markDueActivities,
+  getContactFicha,
+} from './application/activities';
+export type { Activity, ActivityType } from './application/activities';

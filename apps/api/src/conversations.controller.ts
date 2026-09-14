@@ -73,6 +73,7 @@ export class ConversationsController {
     @Req() request: WithUser,
     @Query('state') state?: string,
     @Query('channel') channel?: string,
+    @Query('contactId') contactId?: string,
     @Query('view') view?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
@@ -81,6 +82,7 @@ export class ConversationsController {
     const filters: InboxFilters = {
       state: state as ConversationState | undefined,
       channel: channel as Channel | undefined,
+      contactId,
       view: view === 'sin_responder' ? 'sin_responder' : undefined,
       cursor,
       limit: limit ? Number(limit) : undefined,
