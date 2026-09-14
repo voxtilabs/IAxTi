@@ -10,7 +10,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
-import { bandejaSettings, cierreSettings } from '@iaxti/module-conversations';
+import { bandejaSettings, cierreSettings, retentionCutoff, scheduleRetentionNotice, setRetentionOverride } from '@iaxti/module-conversations';
 import type { BandejaSettings, CierreSettings } from '@iaxti/module-conversations';
 
 type AjustesBandeja = BandejaSettings & CierreSettings;
@@ -81,4 +81,42 @@ export class SettingsController {
       return { ...limpios, ...cierre };
     });
   }
+  @Get('retencion')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'La retención vigente: plan, override y corte' })
+  async retencion(@Req() request: WithUser) {
+    const actor = request.actor as Actor;
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const r = await retentionCutoff(c, actor.tenantId);
+      return {
+        months: r.months,
+        cutoff: r.cutoff ? r.cutoff.toISOString().slice(0, 10) : null,
+        deferredUntil: r.deferredUntil ? r.deferredUntil.toISOString().slice(0, 10) : null,
+      };
+    });
+  }
+
+  @Put('retencion')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'Acorta la retención (jamás más que el plan) — avisa la purga' })
+  async setRetencion(@Req() request: WithUser, @Body() body: { months?: number | null }) {
+    const actor = request.actor as Actor;
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        await setRetentionOverride(c, { tenantId: actor.tenantId, months: body?.months ?? null });
+      } catch (err) {
+        throw new BadRequestException({ code: 'RETENTION_INVALID', message: (err as Error).message });
+      }
+      // La cantidad EXACTA que capturaría el corte nuevo, con la purga
+      // diferida 30 días (§39) — el aviso viaja en la respuesta.
+      const aviso = await scheduleRetentionNotice(c, actor.tenantId);
+      return {
+        saved: true,
+        purgeNotice: aviso
+          ? { count: aviso.affected, firstPurgeAt: aviso.firstPurgeAt.toISOString().slice(0, 10) }
+          : null,
+      };
+    });
+  }
+
 }

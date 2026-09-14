@@ -48,7 +48,7 @@ const encodeRfc3986 = (s: string) =>
  */
 export function presignUrl(
   config: StorageConfig,
-  method: 'GET' | 'PUT',
+  method: 'GET' | 'PUT' | 'DELETE',
   key: string,
   expiresSeconds = 900,
   now: Date = new Date(),

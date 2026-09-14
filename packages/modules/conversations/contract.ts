@@ -61,3 +61,13 @@ export type { RunResult } from './application/cierre';
 export { cierreSettings } from './domain/cierre';
 export type { CierreSettings } from './domain/cierre';
 export { onContactMerged } from './application/merge-consumer';
+export {
+  retentionCutoff,
+  scheduleRetentionNotice,
+  setRetentionOverride,
+  retentionConsumers,
+  purgeTenantRetention,
+  deleteR2Keys,
+  tenantsWithRetention,
+} from './application/retention';
+export type { RetentionCutoff, PurgeResult } from './application/retention';

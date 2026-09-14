@@ -8,6 +8,7 @@ import {
   createModuleWorker,
   createQueue,
   redisConnection,
+  storageFromEnv,
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
 import { DelayUntilError, processOutbound } from './outbound';
@@ -15,7 +16,7 @@ import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
 import { processSuggest, type SuggestJob } from './copilot';
 import { realtimeConsumers } from './realtime';
-import { onContactMerged } from '@iaxti/module-conversations';
+import { deleteR2Keys, onContactMerged, purgeTenantRetention, retentionConsumers, tenantsWithRetention } from '@iaxti/module-conversations';
 import { notificationConsumers } from '@iaxti/module-notifications';
 import {
   enqueueTenantChildren,
@@ -68,6 +69,8 @@ function start(): void {
     },
     // La campana y el correo (#55): consumidores idempotentes del catálogo.
     ...notificationConsumers(),
+    // Bajar de plan reduce retención: purga diferida 30 días con aviso (#77).
+    ...retentionConsumers(),
   ]);
   dispatcher.start(500);
   console.log('workers: despachador de outbox activo (500 ms)');
@@ -103,6 +106,23 @@ function start(): void {
             return runAutoResolveTenant(pool, (job.data as { tenantId: string }).tenantId);
           case 'conversations.archive.tenant':
             return runArchiveTenant(pool, (job.data as { tenantId: string }).tenantId);
+          // Retención por plan (#77): padre → hijo por tenant activo con
+          // retención finita; R2 se borra TRAS el commit, idempotente.
+          case 'conversations.retention': {
+            const ids = await tenantsWithRetention(pool);
+            for (const tenantId of ids) {
+              await scheduled.add('conversations.retention.tenant', { moduleId: 'conversations', tenantId });
+            }
+            return { tenants: ids.length };
+          }
+          case 'conversations.retention.tenant': {
+            const res = await purgeTenantRetention(pool, (job.data as { tenantId: string }).tenantId);
+            if (!res) return { purged: 0 };
+            const storage = storageFromEnv();
+            const r2 = storage ? await deleteR2Keys(storage, res.r2Keys) : { deleted: 0, failed: res.r2Keys.length };
+            console.log(`retention: ${res.purged} conversaciones purgadas (corte ${res.cutoff}, ${r2.deleted} adjuntos R2)`);
+            return { purged: res.purged, r2 };
+          }
           // El barrido de tiempo del motor (#62): "2 días en etapa",
           // "sin respuesta hace 24 h" — dedupe por objeto y día.
           case 'automations.sweep': {
@@ -173,6 +193,11 @@ function start(): void {
         'conversations.archive',
         { moduleId: 'conversations' },
         { repeat: { pattern: '0 3 * * *', tz: 'America/Santiago' } },
+      ),
+      scheduled.add(
+        'conversations.retention',
+        { moduleId: 'conversations' },
+        { repeat: { pattern: '0 4 * * *', tz: 'America/Santiago' } },
       ),
       scheduled.add(
         'knowledge.expire',

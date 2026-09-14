@@ -28,8 +28,10 @@ events:
     - conversation.auto_resolved
     - conversation.archived
     - conversations.retention.purged
+    - conversations.retention.scheduled
   consumes:
     - contact.merged
+    - tenant.plan_changed
 tools:
   - conversations.get_context
   - conversations.suggest_reply
