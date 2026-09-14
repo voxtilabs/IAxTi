@@ -12,6 +12,7 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
     "@iaxti/module-authorization": "workspace:*",
+    "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-platform": "workspace:*",
     "@iaxti/telemetry": "workspace:*",

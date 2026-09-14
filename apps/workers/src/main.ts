@@ -8,6 +8,7 @@ import {
   redisConnection,
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
+import { realtimeConsumers } from './realtime';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -22,7 +23,7 @@ function start(): void {
   const registry = new ModuleRegistry().load();
   const pool = createPool();
 
-  const dispatcher = new OutboxDispatcher(pool, registry, []);
+  const dispatcher = new OutboxDispatcher(pool, registry, [...realtimeConsumers()]);
   dispatcher.start(500);
   console.log('workers: despachador de outbox activo (500 ms)');
 

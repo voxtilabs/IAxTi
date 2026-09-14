@@ -252,6 +252,9 @@ importers:
       '@iaxti/module-authorization':
         specifier: workspace:*
         version: link:../../packages/modules/authorization
+      '@iaxti/module-conversations':
+        specifier: workspace:*
+        version: link:../../packages/modules/conversations
       '@iaxti/module-identity':
         specifier: workspace:*
         version: link:../../packages/modules/identity
