@@ -3,7 +3,7 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [identity, organizations, crm]
+  required: [identity, organizations, crm, audit]
   optional: []
 permissions:
   - conversations.read

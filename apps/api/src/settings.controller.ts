@@ -10,8 +10,10 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
-import { bandejaSettings } from '@iaxti/module-conversations';
-import type { BandejaSettings } from '@iaxti/module-conversations';
+import { bandejaSettings, cierreSettings } from '@iaxti/module-conversations';
+import type { BandejaSettings, CierreSettings } from '@iaxti/module-conversations';
+
+type AjustesBandeja = BandejaSettings & CierreSettings;
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -40,18 +42,18 @@ export class SettingsController {
   @Get('bandeja')
   @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'Ajustes de asignación y SLA de la bandeja' })
-  async get(@Req() request: WithUser): Promise<BandejaSettings> {
+  async get(@Req() request: WithUser): Promise<AjustesBandeja> {
     const actor = request.actor as Actor;
     const settings = await withTenant(pool(), actor.tenantId, (c) =>
       getTenantSettings(c, actor.tenantId),
     );
-    return bandejaSettings(settings);
+    return { ...bandejaSettings(settings), ...cierreSettings(settings) };
   }
 
   @Put('bandeja')
   @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'Guarda los ajustes de la bandeja' })
-  async put(@Req() request: WithUser, @Body() body: Partial<BandejaSettings>): Promise<BandejaSettings> {
+  async put(@Req() request: WithUser, @Body() body: Partial<AjustesBandeja>): Promise<AjustesBandeja> {
     const actor = request.actor as Actor;
     if (!body || typeof body !== 'object') {
       throw new BadRequestException({
@@ -60,11 +62,23 @@ export class SettingsController {
       });
     }
     return withTenant(pool(), actor.tenantId, async (c) => {
-      const actuales = bandejaSettings(await getTenantSettings(c, actor.tenantId));
+      const guardados = await getTenantSettings(c, actor.tenantId);
       // Normaliza contra el dominio: valores fuera de rango caen al defecto.
-      const limpios = bandejaSettings({ bandeja: { ...actuales, ...body } });
-      await updateTenantSettings(c, actor.tenantId, { bandeja: limpios });
-      return limpios;
+      const limpios = bandejaSettings({ bandeja: { ...bandejaSettings(guardados), ...body } });
+      // Cierre/archivo viven en las claves de §39 (auto_resolve_days, …).
+      const cierre = cierreSettings({
+        auto_resolve_days: body.autoResolveDays ?? cierreSettings(guardados).autoResolveDays,
+        archive_after_months:
+          body.archiveAfterMonths !== undefined
+            ? body.archiveAfterMonths
+            : cierreSettings(guardados).archiveAfterMonths,
+      });
+      await updateTenantSettings(c, actor.tenantId, {
+        bandeja: limpios,
+        auto_resolve_days: cierre.autoResolveDays,
+        archive_after_months: cierre.archiveAfterMonths,
+      });
+      return { ...limpios, ...cierre };
     });
   }
 }

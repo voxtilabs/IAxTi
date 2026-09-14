@@ -13,6 +13,8 @@ interface Ajustes {
   alertaSinDuenoMinutos: number;
   slaPrimeraRespuestaMinutos: number;
   horario: { dias: number[]; desde: string; hasta: string; zona: string };
+  autoResolveDays: number;
+  archiveAfterMonths: number | null;
 }
 
 const MODOS: { value: Ajustes['assignmentMode']; label: string; ayuda: string }[] = [
@@ -157,6 +159,49 @@ export function AjustesBandeja() {
             <span className="text-muted text-sm">hora de Chile</span>
           </span>
         </fieldset>
+        <label className="block">
+          <span className="mb-2 block text-sm font-medium text-ink">
+            Cerrar conversaciones sin respuesta del cliente después de
+          </span>
+          <span className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={1}
+              className="dato w-28 text-base"
+              value={ajustes.autoResolveDays}
+              onChange={(e) => setAjustes({ ...ajustes, autoResolveDays: Number(e.target.value) })}
+            />
+            <span className="text-body">días</span>
+          </span>
+          <span className="mt-2 block text-sm text-muted">
+            La próxima corrida es a la hora en punto. Cerrar no borra nada: la historia queda.
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-sm font-medium text-ink">
+            Archivar conversaciones resueltas después de
+          </span>
+          <span className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={0}
+              className="dato w-28 text-base"
+              value={ajustes.archiveAfterMonths ?? 0}
+              onChange={(e) =>
+                setAjustes({
+                  ...ajustes,
+                  archiveAfterMonths: Number(e.target.value) === 0 ? null : Number(e.target.value),
+                })
+              }
+            />
+            <span className="text-body">meses</span>
+          </span>
+          <span className="mt-2 block text-sm text-muted">
+            La próxima corrida es a las 03:00, hora de Chile. Con 0 no se archiva. Las archivadas
+            salen de la bandeja pero siguen en la búsqueda y en la ficha.
+          </span>
+        </label>
       </div>
 
       {aviso && (

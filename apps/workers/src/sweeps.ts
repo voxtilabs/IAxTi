@@ -1,6 +1,11 @@
 import type { Pool } from 'pg';
+import type { Queue } from 'bullmq';
 import { withTenant } from '@iaxti/db';
-import { checkConversationAlerts } from '@iaxti/module-conversations';
+import {
+  archiveTenant,
+  autoResolveTenant,
+  checkConversationAlerts,
+} from '@iaxti/module-conversations';
 
 /**
  * El barrido de avisos de la bandeja (#38): recorre los tenants operativos y
@@ -23,4 +28,40 @@ export async function sweepConversationAlerts(
     breached += res.breached.length;
   }
   return { tenants: tenants.rowCount ?? 0, unattended, breached };
+}
+
+async function tenantIds(pool: Pool): Promise<string[]> {
+  const r = await pool.query(
+    `SELECT id FROM tenants WHERE COALESCE(state, 'active') IN ('trial','active','past_due')`,
+  );
+  return r.rows.map((row) => row.id);
+}
+
+/**
+ * Patrón §39: el job PADRE recorre tenants y encola un job HIJO por cada
+ * uno — un tenant grande no bloquea a los demás y los reintentos son por
+ * tenant. `job` es 'conversations.auto_resolve' o 'conversations.archive'.
+ */
+export async function enqueueTenantChildren(
+  pool: Pool,
+  queue: Queue,
+  job: 'conversations.auto_resolve' | 'conversations.archive',
+): Promise<number> {
+  const ids = await tenantIds(pool);
+  for (const tenantId of ids) {
+    await queue.add(`${job}.tenant`, { moduleId: 'conversations', tenantId });
+  }
+  return ids.length;
+}
+
+export async function runAutoResolveTenant(pool: Pool, tenantId: string) {
+  const res = await withTenant(pool, tenantId, (c) => autoResolveTenant(c, tenantId));
+  if (res.count > 0) console.log(`auto_resolve: ${res.count} cerradas en ${tenantId}`);
+  return { tenantId, resolved: res.count };
+}
+
+export async function runArchiveTenant(pool: Pool, tenantId: string) {
+  const res = await withTenant(pool, tenantId, (c) => archiveTenant(c, tenantId));
+  if (res.count > 0) console.log(`archive: ${res.count} archivadas en ${tenantId}`);
+  return { tenantId, archived: res.count };
 }

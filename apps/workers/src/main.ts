@@ -10,7 +10,12 @@ import {
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
 import { realtimeConsumers } from './realtime';
-import { sweepConversationAlerts } from './sweeps';
+import {
+  enqueueTenantChildren,
+  runArchiveTenant,
+  runAutoResolveTenant,
+  sweepConversationAlerts,
+} from './sweeps';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -30,30 +35,53 @@ function start(): void {
   console.log('workers: despachador de outbox activo (500 ms)');
 
   if (process.env.REDIS_URL) {
+    const scheduled = createQueue('scheduled', redisConnection());
     createModuleWorker(
       'scheduled',
       registry,
       async (job) => {
-        if (job.name === 'conversations.checks') {
-          const res = await sweepConversationAlerts(pool);
-          if (res.unattended || res.breached) {
-            console.log(
-              `scheduled: alertas de bandeja — ${res.unattended} sin dueño, ${res.breached} SLA vencido (${res.tenants} tenants)`,
-            );
+        switch (job.name) {
+          case 'conversations.checks': {
+            const res = await sweepConversationAlerts(pool);
+            if (res.unattended || res.breached) {
+              console.log(
+                `scheduled: alertas de bandeja — ${res.unattended} sin dueño, ${res.breached} SLA vencido (${res.tenants} tenants)`,
+              );
+            }
+            return res;
           }
-          return res;
+          // Patrón §39: padre encola un hijo por tenant.
+          case 'conversations.auto_resolve':
+            return { tenants: await enqueueTenantChildren(pool, scheduled, 'conversations.auto_resolve') };
+          case 'conversations.archive':
+            return { tenants: await enqueueTenantChildren(pool, scheduled, 'conversations.archive') };
+          case 'conversations.auto_resolve.tenant':
+            return runAutoResolveTenant(pool, (job.data as { tenantId: string }).tenantId);
+          case 'conversations.archive.tenant':
+            return runArchiveTenant(pool, (job.data as { tenantId: string }).tenantId);
+          default:
+            console.log(`scheduled: job ${job.name} procesado`);
+            return { ok: true };
         }
-        console.log(`scheduled: job ${job.name} procesado`);
-        return { ok: true };
       },
       redisConnection(),
     );
-    // Avisos de bandeja (#38): cada minuto, por tenant operativo. add con el
-    // mismo jobId+repeat es idempotente entre reinicios.
-    const scheduled = createQueue('scheduled', redisConnection());
-    void scheduled
-      .add('conversations.checks', { moduleId: 'conversations' }, { repeat: { every: 60_000 } })
-      .catch((err) => console.error('scheduled: no se pudo programar conversations.checks', err));
+    // Repetibles (§39, zona America/Santiago): avisos cada minuto, cierre
+    // automático cada hora, archivo diario a las 03:00. add repetido con la
+    // misma pauta es idempotente entre reinicios.
+    void Promise.all([
+      scheduled.add('conversations.checks', { moduleId: 'conversations' }, { repeat: { every: 60_000 } }),
+      scheduled.add(
+        'conversations.auto_resolve',
+        { moduleId: 'conversations' },
+        { repeat: { pattern: '0 * * * *', tz: 'America/Santiago' } },
+      ),
+      scheduled.add(
+        'conversations.archive',
+        { moduleId: 'conversations' },
+        { repeat: { pattern: '0 3 * * *', tz: 'America/Santiago' } },
+      ),
+    ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');
 
     // El camino de entrada de mensajes (#35/#36): simulador hoy, canales

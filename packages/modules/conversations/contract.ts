@@ -42,3 +42,7 @@ export {
   CONVERSATION_STATES,
 } from './domain/state';
 export type { ConversationState, DeliveryStatus } from './domain/state';
+export { autoResolveTenant, archiveTenant } from './application/cierre';
+export type { RunResult } from './application/cierre';
+export { cierreSettings } from './domain/cierre';
+export type { CierreSettings } from './domain/cierre';
