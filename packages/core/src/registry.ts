@@ -192,6 +192,17 @@ export class ModuleRegistry {
   }
 
   /** Catálogo de permisos generado desde los manifiestos (SPEC §27). */
+  /** Todos los eventos publicables por módulos ACTIVOS (#76): el catálogo
+   *  al que un tenant puede suscribir sus webhooks. */
+  eventsCatalog(): string[] {
+    const eventos: string[] = [];
+    for (const [id, manifest] of this.manifests) {
+      if (!this.isActive(id)) continue;
+      eventos.push(...(manifest.events?.publishes ?? []));
+    }
+    return eventos.sort();
+  }
+
   permissionsCatalog(): Map<string, string> {
     const catalog = new Map<string, string>();
     for (const [id, manifest] of this.manifests) {

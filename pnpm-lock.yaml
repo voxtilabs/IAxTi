@@ -276,6 +276,9 @@ importers:
       '@iaxti/module-identity':
         specifier: workspace:*
         version: link:../../packages/modules/identity
+      '@iaxti/module-integrations':
+        specifier: workspace:*
+        version: link:../../packages/modules/integrations
       '@iaxti/module-knowledge':
         specifier: workspace:*
         version: link:../../packages/modules/knowledge
@@ -434,6 +437,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../../packages/modules/crm
+      '@iaxti/module-integrations':
+        specifier: workspace:*
+        version: link:../../packages/modules/integrations
       '@iaxti/module-knowledge':
         specifier: workspace:*
         version: link:../../packages/modules/knowledge
@@ -812,6 +818,34 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      pg:
+        specifier: ^8.13.0
+        version: 8.23.0
+    devDependencies:
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.23.1
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(jiti@1.21.7)(supports-color@7.2.0)(yaml@2.9.1)
+
+  packages/modules/integrations:
+    dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@iaxti/module-audit':
+        specifier: workspace:*
+        version: link:../audit
       pg:
         specifier: ^8.13.0
         version: 8.23.0
