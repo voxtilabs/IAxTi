@@ -1,7 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Avatar, Badge, Button, IconoVolver, Textarea } from '@iaxti/ui/react';
+import {
+  Avatar,
+  Badge,
+  Button,
+  CanalChip,
+  IconoVolver,
+  Textarea,
+  nombreCanal,
+  nombreVisible,
+} from '@iaxti/ui/react';
 import type { AnalisisDto, ConversacionDetalle, NotaDto } from '../../lib/api';
 import { FichaContacto } from '../crm/ficha-contacto';
 import { ESTADOS, fmtEspera } from './estado';
@@ -48,10 +57,10 @@ export function Ficha({
         <IconoVolver className="h-4 w-4" /> Volver al chat
       </Button>
       <div className="flex items-center gap-3">
-        <Avatar nombre={detalle.contactName} fallback={detalle.contactPhone} />
+        <Avatar nombre={detalle.contactName} fallback={detalle.contactPhone ?? nombreCanal(detalle.channel)} />
         <div className="min-w-0">
           <p className="truncate font-display font-bold text-ink">
-            {detalle.contactName ?? 'Sin nombre aún'}
+            {detalle.contactName ?? nombreVisible({ phone: detalle.contactPhone, channel: detalle.channel })}
           </p>
           <p className="dato text-muted">{detalle.contactPhone}</p>
         </div>
@@ -65,7 +74,7 @@ export function Ficha({
           <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
         </Fila>
         {detalle.contactEmail && <Fila rotulo="Correo">{detalle.contactEmail}</Fila>}
-        <Fila rotulo="Canal">{detalle.channel}</Fila>
+        <Fila rotulo="Canal"><CanalChip canal={detalle.channel} /></Fila>
         {detalle.unansweredSeconds !== null && (
           <Fila rotulo="Esperando respuesta">
             <span className="dato text-warn-text">{fmtEspera(detalle.unansweredSeconds)}</span>
