@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Button, Textarea, useSession } from '@iaxti/ui/react';
+import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
@@ -109,17 +109,17 @@ export function Configurador() {
       {!propuesta && (
         <>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <label className="text-sm text-body" htmlFor="vertical">Rubro</label>
-            <select
-              id="vertical"
-              className="rounded-campo border border-line bg-bg px-3 py-1.5 text-sm text-ink"
-              value={vertical}
-              onChange={(e) => setVertical(e.target.value)}
-            >
-              {VERTICALES.map((v) => (
-                <option key={v.value} value={v.value}>{v.label}</option>
-              ))}
-            </select>
+            <span className="text-sm text-body">Rubro</span>
+            <Select value={vertical} onValueChange={setVertical}>
+              <SelectTrigger aria-label="Rubro" className="w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VERTICALES.map((v) => (
+                  <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <Textarea
             aria-label="Descripción del negocio"

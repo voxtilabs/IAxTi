@@ -22,6 +22,7 @@
     "@iaxti/module-channels": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
+    "@iaxti/module-knowledge": "workspace:*",
     "@iaxti/module-notifications": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "@iaxti/module-whatsapp": "workspace:*",

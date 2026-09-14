@@ -172,7 +172,7 @@ export type AutonomousOutcome =
  */
 export async function autoRespondForInbound(
   client: PoolClient,
-  input: { tenantId: string; conversationId: string; requestId?: string },
+  input: { tenantId: string; conversationId: string; knowledge?: string | null; requestId?: string },
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
   now: Date = new Date(),
 ): Promise<AutonomousOutcome> {
@@ -213,9 +213,12 @@ export async function autoRespondForInbound(
   if (turnos.rows[0].n >= limits.maxAgentTurns) return escalar('sin_avance');
 
   const ctx = await refreshedContext(client, input, agent, modelPortFactory);
+  // Sin conocimiento (#51 apagado o vacío), el prompt ya obliga a escalar
+  // ante precio/stock/plazo que no estén en el contexto: escala MÁS.
   const contexto = [
     `Cliente: ${ctx.contact.name ?? 'sin nombre'}${ctx.contact.phone ? ` (${ctx.contact.phone})` : ''}.`,
     ctx.summary ? `Resumen de lo anterior: ${ctx.summary}` : null,
+    input.knowledge ?? null,
     'Últimos mensajes:',
     ...ctx.lastMessages.map((m) => `${m.direction === 'in' ? 'Cliente' : 'Negocio'}: ${m.body ?? '[adjunto]'}`),
   ]

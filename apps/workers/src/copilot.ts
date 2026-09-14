@@ -8,6 +8,7 @@ import {
   transcribeInboundAudio,
 } from '@iaxti/module-agents';
 import { getConversation, sendMessage, updateDeliveryStatus } from '@iaxti/module-conversations';
+import { embeddingsAvailable, knowledgeContext, searchKnowledge } from '@iaxti/module-knowledge';
 import type { Queue } from 'bullmq';
 import { presignUrl, storageFromEnv } from '@iaxti/core';
 
@@ -22,6 +23,8 @@ export interface SuggestJob {
   messageId: string;
   audioKey?: string;
   audioType?: string;
+  /** El módulo knowledge está activo (#51): el worker consulta el RAG. */
+  knowledgeActivo?: boolean;
   requestId?: string;
 }
 
@@ -62,11 +65,34 @@ export async function processSuggest(
         }
       }
     }
+    // El conocimiento del negocio (#51): retrieval con citas ANTES de
+    // generar — la IA responde con lo que el negocio dice, no lo que
+    // imagina. Sin módulo o sin llaves, sigue sin conocimiento (y el
+    // modo autónomo escala más, por diseño del prompt).
+    let knowledge: string | null = null;
+    if (data.knowledgeActivo && embeddingsAvailable()) {
+      try {
+        const entrante = await client.query(
+          `SELECT COALESCE(body, transcription) AS body FROM messages
+            WHERE tenant_id = $1 AND id = $2`,
+          [data.tenantId, data.messageId],
+        );
+        const pregunta = entrante.rows[0]?.body as string | null;
+        if (pregunta) {
+          knowledge = knowledgeContext(
+            await searchKnowledge(client, { tenantId: data.tenantId, query: pregunta }),
+          );
+        }
+      } catch {
+        /* el RAG caído no frena la sugerencia */
+      }
+    }
     // El modo autónomo primero (#49): responde SOLO cuando el dueño lo
     // permitió; si no toca (assist), cae a la sugerencia de siempre.
     const auto = await autoRespondForInbound(client, {
       tenantId: data.tenantId,
       conversationId: data.conversationId,
+      knowledge,
       requestId: data.requestId,
     });
     if (auto.action === 'escalated') {
@@ -108,6 +134,7 @@ export async function processSuggest(
       tenantId: data.tenantId,
       conversationId: data.conversationId,
       messageId: data.messageId,
+      knowledge,
       requestId: data.requestId,
     });
     return suggestion

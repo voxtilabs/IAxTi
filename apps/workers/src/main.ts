@@ -1,6 +1,6 @@
 import './instrument';
 import { createServer } from 'node:http';
-import { createPool } from '@iaxti/db';
+import { createPool, withTenant } from '@iaxti/db';
 import { DelayedError } from 'bullmq';
 import {
   ModuleRegistry,
@@ -24,6 +24,7 @@ import {
   sweepConversationAlerts,
   sweepDueActivities,
 } from './sweeps';
+import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -83,6 +84,16 @@ function start(): void {
             return runAutoResolveTenant(pool, (job.data as { tenantId: string }).tenantId);
           case 'conversations.archive.tenant':
             return runArchiveTenant(pool, (job.data as { tenantId: string }).tenantId);
+          // Vigencias del conocimiento (#51): vencida, la IA la ignora y avisa.
+          case 'knowledge.expire': {
+            const conVencibles = await tenantsWithExpirable(pool);
+            let total = 0;
+            for (const tenantId of conVencibles) {
+              total += await withTenant(pool, tenantId, (c) => expireSources(c, tenantId));
+            }
+            if (total > 0) console.log(`scheduled: ${total} fuentes de conocimiento vencidas`);
+            return { expired: total };
+          }
           default:
             console.log(`scheduled: job ${job.name} procesado`);
             return { ok: true };
@@ -105,6 +116,11 @@ function start(): void {
         'conversations.archive',
         { moduleId: 'conversations' },
         { repeat: { pattern: '0 3 * * *', tz: 'America/Santiago' } },
+      ),
+      scheduled.add(
+        'knowledge.expire',
+        { moduleId: 'knowledge' },
+        { repeat: { pattern: '30 * * * *', tz: 'America/Santiago' } },
       ),
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');
@@ -137,6 +153,7 @@ function start(): void {
                 messageId: res.messageId,
                 audioKey: data.type === 'audio' ? adjunto?.key : undefined,
                 audioType: adjunto?.contentType,
+                knowledgeActivo: registry.isActive('knowledge'),
                 requestId: data.requestId,
               },
               { jobId: `sg-${res.messageId}` },

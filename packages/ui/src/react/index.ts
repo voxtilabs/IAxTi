@@ -34,6 +34,8 @@ export {
 export { Avatar, iniciales } from './ui/avatar';
 export type { AvatarProps } from './ui/avatar';
 export { Skeleton } from './ui/skeleton';
+export { Switch } from './ui/switch';
+export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 export {
   IconoEnviar,
   IconoVolver,
