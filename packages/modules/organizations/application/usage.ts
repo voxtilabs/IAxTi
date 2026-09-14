@@ -42,3 +42,25 @@ export async function getUsage(
   );
   return result.rowCount === 0 ? 0 : Number(result.rows[0].value);
 }
+
+/**
+ * El tope mensual de requests de la API (#25): override del SuperAdmin
+ * (settings.api.requestsMonthOverride) o el del plan. null = sin plan
+ * conocido (no se corta, pero tampoco se promete infinito).
+ */
+export async function apiRequestsLimit(
+  client: PoolClient,
+  tenantId: string,
+): Promise<number | null> {
+  const r = await client.query(
+    `SELECT t.settings->'api'->>'requestsMonthOverride' AS override, pl.api_requests_month
+       FROM tenants t LEFT JOIN plan_limits pl ON pl.plan = t.plan
+      WHERE t.id = $1`,
+    [tenantId],
+  );
+  if (r.rowCount === 0) return null;
+  const override = Number(r.rows[0].override);
+  if (Number.isFinite(override) && override > 0) return override;
+  const delPlan = r.rows[0].api_requests_month;
+  return delPlan === null ? null : Number(delPlan);
+}
