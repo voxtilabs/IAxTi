@@ -45,6 +45,27 @@ export interface AuthzOptions {
   resolveRole?: RoleResolver | null;
   /** ¿SUPERADMIN de plataforma? (tabla platform_admins, cross-tenant). */
   resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
+  /**
+   * Aviso de rechazo (#71): lo escucha quien quiera dejarlo registrado. Es
+   * BEST-EFFORT — el 403 sale igual aunque el registro falle, porque negar
+   * el acceso importa más que contarlo.
+   */
+  onDenied?: ((info: {
+    kind: 'permiso' | 'autenticacion';
+    tenantId?: string;
+    userId?: string;
+    permission?: string;
+    ip?: string;
+    requestId?: string;
+  }) => void) | null;
+}
+
+/** La IP del cliente detrás de Cloudflare; sin cabecera, la del socket. */
+function ipDe(request: WithRequestId): string | undefined {
+  const cf = request.headers['cf-connecting-ip'] ?? request.headers['x-forwarded-for'];
+  const cruda = Array.isArray(cf) ? cf[0] : cf;
+  const primera = cruda?.split(',')[0]?.trim();
+  return primera || (request as { ip?: string }).ip || undefined;
 }
 
 /**
@@ -140,6 +161,14 @@ export class AuthzGuard implements CanActivate {
         console.warn(
           `[${request.requestId}] permission.denied tenant=${actor.tenantId} user=${actor.userId} permiso=${permission}`,
         );
+        this.options.onDenied?.({
+          kind: 'permiso',
+          tenantId: actor.tenantId,
+          userId: actor.userId,
+          permission,
+          ip: ipDe(request),
+          requestId: request.requestId,
+        });
         throw new ForbiddenException({
           code: 'PERMISSION_DENIED',
           message: 'Tu rol no permite esta acción. Pídele acceso a quien administra el equipo.',
@@ -158,6 +187,13 @@ export class AuthzGuard implements CanActivate {
       try {
         return await this.options.jwtVerify(authorization.slice(7));
       } catch {
+        // Un token que no verifica es el intento de autenticación fallido que
+        // sí podemos ver: el login vive en Supabase, esta puerta es nuestra.
+        this.options.onDenied?.({
+          kind: 'autenticacion',
+          ip: ipDe(request),
+          requestId: request.requestId,
+        });
         throw new UnauthorizedException({
           code: 'TOKEN_INVALID',
           message: 'Tu sesión no es válida o venció. Inicia sesión de nuevo.',

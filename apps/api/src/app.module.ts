@@ -11,6 +11,7 @@ import {
   BadRequestException,
   Post,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { tenantsOf } from '@iaxti/module-identity';
@@ -25,6 +26,8 @@ import {
   modulesAdmin,
   setModuleFlag,
   setRetentionOverridePlatform,
+  healthSnapshot,
+  securitySnapshot,
   startSupportSession,
   supportStatus,
   tenantDetail,
@@ -35,6 +38,7 @@ import { RequireAuth, RequireModule, RequirePermission } from './authz/decorator
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { withTenant } from '@iaxti/db';
+import { redisConnection } from '@iaxti/core';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
@@ -328,6 +332,28 @@ class PlatformController {
 
   // --- Planes y módulos sin desplegar (#69, SPEC §22) ---
 
+  @Get('health')
+  @RequireModule('platform')
+  @RequirePermission('platform.health')
+  @ApiOperation({ summary: 'Salud de todas las dependencias, con umbral y explicación' })
+  async health() {
+    return healthSnapshot(platformPool(), {
+      modules: registry.health(),
+      redis: process.env.REDIS_URL ? redisPlataforma() : null,
+    });
+  }
+
+  @Get('security')
+  @RequireModule('platform')
+  @RequirePermission('platform.security')
+  @ApiOperation({ summary: 'Rechazos, webhooks caídos y números en riesgo' })
+  async security(@Query('dias') dias?: string) {
+    return securitySnapshot(platformPool(), {
+      redis: process.env.REDIS_URL ? redisPlataforma() : null,
+      dias: dias ? Math.min(Math.max(Number(dias), 1), 90) : undefined,
+    });
+  }
+
   @Get('plans')
   @RequireModule('platform')
   @RequirePermission('platform.plans')
@@ -461,6 +487,13 @@ class DemoController {
 
 // El simulador (#36) existe solo en local y staging: en producción la ruta
 // ni se registra (404, no 403). IAXTI_ENV=production la apaga.
+let redisPlataformaSingleton: ReturnType<typeof redisConnection> | null = null;
+/** Una sola conexión para el tablero: abrir una por request no se sostiene. */
+function redisPlataforma() {
+  redisPlataformaSingleton ??= redisConnection();
+  return redisPlataformaSingleton;
+}
+
 function platformPool() {
   const pool = apiPool();
   if (!pool) {

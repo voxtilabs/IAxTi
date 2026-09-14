@@ -92,6 +92,9 @@ export class ApiQuotaGuard implements CanActivate {
 
     if (usada > limit) {
       response.setHeader('Retry-After', String(segundosHastaFinDeMes()));
+      // Contador para el tablero de seguridad (#71): quién choca con su cuota
+      // se ve en un solo lugar, sin recorrer logs.
+      void this.redis.incr('sec:cuota_excedida:total').catch(() => {});
       throw new HttpException(
         {
           code: 'QUOTA_EXCEEDED',

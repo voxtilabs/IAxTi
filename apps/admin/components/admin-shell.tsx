@@ -510,6 +510,123 @@ function AuditGlobal() {
   );
 }
 
+interface ChequeoDto {
+  id: string;
+  titulo: string;
+  estado: 'bien' | 'atencion' | 'mal' | 'sin_fuente';
+  detalle: string;
+  valor?: number | string | null;
+  umbral?: string;
+}
+
+const ESTADO_CHEQUEO: Record<ChequeoDto['estado'], { label: string; clase: string }> = {
+  bien: { label: 'Bien', clase: 'border-good-soft-br bg-good-soft text-good-text' },
+  atencion: { label: 'Atención', clase: 'border-warn-soft-br bg-warn-soft text-warn-text' },
+  mal: { label: 'Mal', clase: 'border-bad-soft-br bg-bad-soft text-bad-text' },
+  sin_fuente: { label: 'Sin fuente', clase: 'border-line bg-rest text-muted' },
+};
+
+function Chequeos({ chequeos }: { chequeos: ChequeoDto[] }) {
+  return (
+    <ul className="grid gap-2 sm:grid-cols-2">
+      {chequeos.map((c) => (
+        <li key={c.id} className={`rounded-tarjeta border px-3 py-2 ${ESTADO_CHEQUEO[c.estado].clase}`}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-medium">{c.titulo}</span>
+            {/* El color nunca es el único portador: el estado va escrito. */}
+            <span className="rotulo">{ESTADO_CHEQUEO[c.estado].label}</span>
+          </div>
+          <p className="mt-1 text-sm">{c.detalle}</p>
+          {c.umbral && <p className="dato mt-1 text-xs opacity-70">Umbral: {c.umbral}</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Seguridad y salud en un solo lugar (#71): qué está mal y dónde. */
+function SeguridadYSalud() {
+  const { session, config } = useSession();
+  const [salud, setSalud] = useState<{ estado: string; chequeos: ChequeoDto[] } | null>(null);
+  const [seguridad, setSeguridad] = useState<{
+    estado: string;
+    desde: string;
+    chequeos: ChequeoDto[];
+    permisosDenegados: Array<{ tenant_id: string; actor: string; ip: string | null; n: number }>;
+    numerosEnRiesgo: Array<{ tenant_id: string; display_phone: string | null; quality: string | null }>;
+  } | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    const traer = async (path: string) => {
+      const res = await fetch(`${config.apiUrl}/v1${path}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error(`No pudimos consultar ${path} (HTTP ${res.status}).`);
+      return res.json();
+    };
+    void Promise.all([traer('/platform/health'), traer('/platform/security')])
+      .then(([h, s]) => {
+        setSalud(h);
+        setSeguridad(s);
+      })
+      .catch((err: Error) => setAviso(err.message));
+  }, [session, config.apiUrl]);
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-xl font-bold text-ink">Seguridad y salud</h2>
+      <p className="mb-4 text-sm text-muted">
+        Todo sale de fuentes reales: el libro de auditoría, la base, Redis y el registro de módulos.
+        Lo que no tiene fuente conectada lo dice, en vez de mostrar un cero tranquilizador.
+      </p>
+      {aviso && (
+        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text">
+          {aviso}
+        </p>
+      )}
+      {salud && (
+        <>
+          <p className="rotulo mb-2">Salud de las dependencias</p>
+          <Chequeos chequeos={salud.chequeos} />
+        </>
+      )}
+      {seguridad && (
+        <>
+          <p className="rotulo mb-2 mt-6">
+            Seguridad · desde {new Date(seguridad.desde).toLocaleDateString('es-CL')}
+          </p>
+          <Chequeos chequeos={seguridad.chequeos} />
+          {seguridad.permisosDenegados.length > 0 && (
+            <div className="mt-4 overflow-x-auto rounded-tarjeta border border-line bg-raised">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line bg-rest text-left">
+                    {['Tenant', 'Actor', 'IP', 'Intentos'].map((h) => (
+                      <th key={h} className="rotulo px-3 py-2 font-normal">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {seguridad.permisosDenegados.map((d, i) => (
+                    <tr key={`${d.actor}-${i}`} className="border-b border-line last:border-0">
+                      <td className="dato px-3 py-2 text-xs text-faint">{d.tenant_id.slice(0, 8)}</td>
+                      <td className="dato px-3 py-2 text-xs text-body">{d.actor.slice(0, 13)}</td>
+                      <td className="dato px-3 py-2 text-xs text-muted">{d.ip ?? '—'}</td>
+                      <td className="dato px-3 py-2 text-xs text-ink">{d.n}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSvg: string }) {
   return (
     <SessionProvider config={config}>
@@ -533,6 +650,7 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
             <TablaModulos />
             <TablaConsumoApi />
             <AuditGlobal />
+            <SeguridadYSalud />
           </main>
         </div>
       </RequireSession>
