@@ -9,10 +9,22 @@ import {
   Put,
   Body,
   BadRequestException,
+  Post,
+  Delete,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { tenantsOf } from '@iaxti/module-identity';
-import { listTenants } from '@iaxti/module-platform';
+import {
+  adminChangePlan,
+  adminCreateTenant,
+  adminExtendTrial,
+  adminSetTenantState,
+  endSupportSession,
+  listTenants,
+  startSupportSession,
+  supportStatus,
+  tenantDetail,
+} from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -198,6 +210,132 @@ class PlatformController {
       client.release();
     }
   }
+
+  // --- Gestión de tenants (#68): crear, estado, plan, prueba, soporte ---
+
+  @Get('tenants/:id')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'El detalle operativo: estado, plan, uso y canales' })
+  async tenantDetail(@Param('id') id: string) {
+    const pool = platformPool();
+    const client = await pool.connect();
+    try {
+      return await tenantDetail(client, id);
+    } catch {
+      throw new NotFoundException({ code: 'TENANT_NOT_FOUND', message: 'No encontramos ese tenant.' });
+    } finally {
+      client.release();
+    }
+  }
+
+  @Post('tenants')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Crea un tenant (nace en prueba)' })
+  async createTenant(@Req() request: WithUser, @Body() body: { name?: string; plan?: string; rubro?: string }) {
+    try {
+      return await adminCreateTenant(platformPool(), {
+        name: body?.name ?? '',
+        plan: body?.plan,
+        rubro: body?.rubro,
+        adminUser: request.user!.userId,
+      });
+    } catch (err) {
+      throw new BadRequestException({ code: 'TENANT_INVALID', message: (err as Error).message });
+    }
+  }
+
+  @Post('tenants/:id/state')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Suspende o reactiva (máquina de estados §6)' })
+  async setState(@Req() request: WithUser, @Param('id') id: string, @Body() body: { action?: string }) {
+    if (body?.action !== 'suspend' && body?.action !== 'reactivate') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'La acción es suspend o reactivate.' });
+    }
+    try {
+      return await adminSetTenantState(platformPool(), {
+        tenantId: id,
+        action: body.action,
+        adminUser: request.user!.userId,
+      });
+    } catch (err) {
+      throw new BadRequestException({ code: 'TENANT_INVALID', message: (err as Error).message });
+    }
+  }
+
+  @Post('tenants/:id/plan')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Cambia el plan — límites del plan aplican al tiro' })
+  async setPlan(@Req() request: WithUser, @Param('id') id: string, @Body() body: { plan?: string }) {
+    try {
+      return await adminChangePlan(platformPool(), {
+        tenantId: id,
+        plan: body?.plan ?? '',
+        adminUser: request.user!.userId,
+      });
+    } catch (err) {
+      throw new BadRequestException({ code: 'TENANT_INVALID', message: (err as Error).message });
+    }
+  }
+
+  @Post('tenants/:id/extend-trial')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Extiende la prueba (1 a 90 días)' })
+  async extendTrial(@Req() request: WithUser, @Param('id') id: string, @Body() body: { days?: number }) {
+    try {
+      return await adminExtendTrial(platformPool(), {
+        tenantId: id,
+        days: Number(body?.days ?? 0),
+        adminUser: request.user!.userId,
+      });
+    } catch (err) {
+      throw new BadRequestException({ code: 'TENANT_INVALID', message: (err as Error).message });
+    }
+  }
+
+  @Post('tenants/:id/support')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Modo soporte: lectura acotada CON aviso al tenant' })
+  async support(@Req() request: WithUser, @Param('id') id: string, @Body() body: { hours?: number; reason?: string }) {
+    return startSupportSession(platformPool(), {
+      tenantId: id,
+      adminUser: request.user!.userId,
+      hours: body?.hours,
+      reason: body?.reason,
+    });
+  }
+
+  @Delete('tenants/:id/support')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Termina el modo soporte' })
+  async endSupport(@Req() request: WithUser, @Param('id') id: string) {
+    await endSupportSession(platformPool(), { tenantId: id, adminUser: request.user!.userId });
+    return { ended: true };
+  }
+}
+
+/** El AVISO del modo soporte, visible para CUALQUIER miembro del tenant. */
+@ApiTags('settings')
+@Controller('support-status')
+class SupportStatusController {
+  @Get()
+  @RequirePermission('tenant.read')
+  @ApiOperation({ summary: '¿El soporte de IAxTi está mirando esta cuenta?' })
+  async status(@Req() request: WithUser) {
+    const pool = platformPool();
+    const client = await pool.connect();
+    try {
+      return await supportStatus(client, (request.actor as { tenantId: string }).tenantId);
+    } finally {
+      client.release();
+    }
+  }
 }
 
 @ApiTags('demo')
@@ -226,10 +364,22 @@ class DemoController {
 
 // El simulador (#36) existe solo en local y staging: en producción la ruta
 // ni se registra (404, no 403). IAXTI_ENV=production la apaga.
+function platformPool() {
+  const pool = apiPool();
+  if (!pool) {
+    throw new ServiceUnavailableException({
+      code: 'DB_NOT_CONFIGURED',
+      message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+    });
+  }
+  return pool;
+}
+
 const controllers = [
   HealthController,
   MeController,
   PlatformController,
+  SupportStatusController,
   DemoController,
   ConversationsController,
   SettingsController,

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { ModeToggle, RequireSession, SessionProvider, useSession, type PublicConfig } from '@iaxti/ui/react';
+import { SoporteAviso } from './soporte-aviso';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 
@@ -43,6 +44,7 @@ export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellPr
     <SessionProvider config={config}>
       <RequireSession>
         <div className="min-h-screen bg-bg">
+          <SoporteAviso />
           <header className="border-b border-line bg-raised">
             <div className="mx-auto flex max-w-contenido flex-wrap items-center gap-4 px-4 py-3">
               <a href="/" className="marca" aria-label="IAxTi, inicio"
