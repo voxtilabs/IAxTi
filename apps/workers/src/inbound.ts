@@ -42,13 +42,13 @@ export async function processInbound(pool: Pool, data: InboundJob): Promise<Inbo
     throw new Error('inbound: el job necesita tenantId y phone.');
   }
   return withTenant(pool, data.tenantId, async (client) => {
-    // Adjuntos de WhatsApp (#42): Meta los expira — se bajan AL LLEGAR y van
-    // a R2 por tenant; en el mensaje queda solo la llave (carpeta whatsapp/
-    // del tenant). Si la descarga falla, el mensaje entra igual con la
-    // metadata original: perder el texto por un adjunto sería peor.
+    // Adjuntos (#42): las URLs del proveedor son firmadas y de vida corta — se
+    // bajan AL LLEGAR y van a R2 por tenant; en el mensaje queda solo la llave
+    // (carpeta whatsapp/ del tenant). Si la descarga falla, el mensaje entra
+    // igual con la metadata original: perder el texto por un adjunto sería peor.
     let attachments = data.attachments;
-    const conMedia = (attachments as AdjuntoEntrante[] | undefined)?.some((a) => a?.mediaId);
-    if (conMedia && data.channel === 'whatsapp' && data.channelAccountId) {
+    const conMedia = (attachments as AdjuntoEntrante[] | undefined)?.some((a) => a?.url);
+    if (conMedia && data.channelAccountId) {
       try {
         const account = await findAccountById(client, data.channelAccountId);
         const apiKey = account?.credentialRef ? process.env[account.credentialRef] : undefined;

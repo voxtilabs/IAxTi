@@ -5,18 +5,35 @@ import type { ChannelAccountRef } from '@iaxti/module-channels';
 // Salida de WhatsApp (#43): la cola `outbound` con rate limit POR NÚMERO y
 // causas de fallo legibles — un "failed" sin explicación mata la confianza.
 
-/** Errores de la Cloud API traducidos a voz Pulso (los que importan). */
-export const CAUSAS_META: Record<number, string> = {
+/**
+ * Causas traducidas a voz Pulso. Los numéricos son de la Cloud API de Meta y
+ * siguen llegando cuando el proveedor los pasa; los de texto son los que
+ * inventa Zavu. Un "failed" sin explicación mata la confianza.
+ */
+export const CAUSAS_META: Record<number | string, string> = {
   131026: 'El número no tiene WhatsApp.',
   131047: 'Pasaron más de 24 horas desde su último mensaje: solo salen plantillas aprobadas.',
   131048: 'WhatsApp pausó los envíos de este número por límite de spam.',
   131049: 'Meta descartó el mensaje para proteger la experiencia del cliente.',
   100: 'El mensaje no pasó la validación de WhatsApp.',
   368: 'La cuenta de WhatsApp está temporalmente bloqueada por políticas.',
+  whatsapp_window_closed:
+    'Pasaron más de 24 horas desde su último mensaje: solo salen plantillas aprobadas.',
+  url_shortener_blocked: 'Los acortadores de enlaces están bloqueados: manda el enlace completo.',
+  url_not_verified: 'Ese enlace todavía no está verificado para enviarse por este canal.',
+  pending_url_verification: 'El enlace quedó esperando verificación antes de poder enviarse.',
+  destination_not_verified: 'Ese destinatario no está verificado todavía en la cuenta.',
+  daily_limit_exceeded: 'Se alcanzó el tope de envíos del día; sigue mañana.',
+  a2p_limit_exceeded: 'Se alcanzó el tope mensual de mensajes del plan.',
+  rate_limited: 'El proveedor pidió bajar el ritmo; se reintenta solo.',
 };
 
-export function causaLegible(codigo?: number, fallback?: string): string {
-  return (codigo && CAUSAS_META[codigo]) || fallback || 'WhatsApp no aceptó el envío. Reintenta en unos minutos.';
+export function causaLegible(codigo?: number | string, fallback?: string): string {
+  return (
+    (codigo !== undefined && CAUSAS_META[codigo]) ||
+    fallback ||
+    'WhatsApp no aceptó el envío. Reintenta en unos minutos.'
+  );
 }
 
 export class RateLimitedError extends Error {

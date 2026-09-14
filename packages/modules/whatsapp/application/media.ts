@@ -1,12 +1,12 @@
 import { attachmentKey, presignUrl } from '@iaxti/core';
 import type { StorageConfig } from '@iaxti/core';
-import { fetchMediaBytes, type KapsoConfig } from './kapso';
+import { fetchMediaBytes, type ZavuConfig } from './zavu';
 
 // Adjuntos de WhatsApp (#42, SPEC §11/§36): Meta los EXPIRA — se descargan
 // al llegar y van a R2 con prefijo por tenant. En Postgres, solo la llave.
 
 export interface AdjuntoEntrante {
-  mediaId?: string;
+  url?: string;
   contentType?: string;
   name?: string;
 }
@@ -25,14 +25,14 @@ export async function downloadAttachmentsToR2(
     apiKey: string;
     storage: StorageConfig;
   },
-  config: KapsoConfig = {},
+  config: ZavuConfig = {},
 ): Promise<AdjuntoGuardado[]> {
   const fetchImpl = config.fetchImpl ?? fetch;
   const guardados: AdjuntoGuardado[] = [];
   for (const adjunto of input.attachments) {
-    if (!adjunto.mediaId) continue;
-    const { bytes, contentType } = await fetchMediaBytes(adjunto.mediaId, input.apiKey, config);
-    const name = adjunto.name ?? adjunto.mediaId;
+    if (!adjunto.url) continue;
+    const { bytes, contentType } = await fetchMediaBytes(adjunto.url, input.apiKey, config);
+    const name = adjunto.name ?? adjunto.url.split('/').pop() ?? 'adjunto';
     const key = attachmentKey(input.tenantId, input.conversationId, name);
     const subida = await fetchImpl(presignUrl(input.storage, 'PUT', key), {
       method: 'PUT',

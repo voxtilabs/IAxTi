@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { ChannelProvider, NormalizedInbound } from '../domain/port';
 
 // El PRIMER adaptador del puerto (#41): el simulador de Fase 2, ahora por el
-// mismo camino que usará Kapso (#42). Firma HMAC-SHA256 del cuerpo crudo en
+// mismo camino que usa Zavu (#42). Firma HMAC-SHA256 del cuerpo crudo en
 // X-Iaxti-Signature — el mismo esquema que Meta usa en X-Hub-Signature-256.
 
 export function firmarWebhook(rawBody: string, secret: string): string {

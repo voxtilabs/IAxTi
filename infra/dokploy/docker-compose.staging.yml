@@ -4,7 +4,7 @@
 #   IMAGE, REDIS_PASSWORD, DATABASE_URL (pooler de Supabase staging),
 #   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWKS_URL, IAXTI_ENV,
 #   SENTRY_DSN, OTEL_EXPORTER_OTLP_* (Grafana Cloud, ADR-0006),
-#   KAPSO_API_KEY y KAPSO_WEBHOOK_SECRET (#42).
+#   ZAVU_API_KEY y ZAVU_WEBHOOK_SECRET (#42).
 
 x-app: &app
   image: ${IMAGE}
@@ -24,11 +24,12 @@ x-env: &app-env
   API_URL_INTERNAL: http://api:3000
   API_URL_PUBLIC: ${API_URL_PUBLIC}
   CORS_ORIGINS: ${CORS_ORIGINS}
-  # WhatsApp vía Kapso (#42): la cuenta guarda el NOMBRE de la variable
-  # (credential_ref), nunca el valor. En sandbox el número es el sandbox.
-  KAPSO_API_KEY: ${KAPSO_API_KEY}
-  KAPSO_API_BASE: ${KAPSO_API_BASE:-https://api.kapso.ai/meta/whatsapp/v24.0}
-  KAPSO_WEBHOOK_SECRET: ${KAPSO_WEBHOOK_SECRET}
+  # Canales vía Zavu (#42, ADR-0014): WhatsApp, Instagram y Messenger con una
+  # sola credencial. La cuenta guarda el NOMBRE de la variable
+  # (credential_ref), nunca el valor. En staging, número de prueba.
+  ZAVU_API_KEY: ${ZAVU_API_KEY}
+  ZAVU_API_BASE: ${ZAVU_API_BASE:-https://api.zavu.dev/v1}
+  ZAVU_WEBHOOK_SECRET: ${ZAVU_WEBHOOK_SECRET}
 
 services:
   web:

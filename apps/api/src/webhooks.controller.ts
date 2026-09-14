@@ -72,8 +72,10 @@ export class WebhooksController {
       (request as unknown as { body: unknown }).body,
     );
     const queue = inboundQueue();
-    // Estados de entrega (#43): sent/delivered/read/failed del proveedor.
-    const statuses = account.kind === 'whatsapp'
+    // Estados de entrega (#43): sent/delivered/read/failed del proveedor. Los
+    // tres canales de Zavu comparten envelope, así que comparten estados.
+    const CANALES_ZAVU = ['whatsapp', 'instagram', 'messenger'];
+    const statuses = CANALES_ZAVU.includes(account.kind)
       ? normalizeStatuses((request as unknown as { body: unknown }).body)
       : [];
     if (statuses.length > 0) {

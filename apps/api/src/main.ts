@@ -18,7 +18,7 @@ import { RateLimitGuard } from './rate-limit.guard';
 import { ApiQuotaGuard } from './api-quota.guard';
 import { requestIdMiddleware } from './request-id';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
-import { createKapsoProvider } from '@iaxti/module-whatsapp';
+import { createZavuProvider } from '@iaxti/module-whatsapp';
 import { webchatProvider } from '@iaxti/module-webchat';
 
 export interface CreateAppOptions {
@@ -38,9 +38,12 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   // El CSV de importación (#34) viaja en el body: 2 MB alcanzan para miles
   // de filas sin abrir la puerta a payloads absurdos.
   app.useBodyParser('json', { limit: '2mb' });
-  // Adaptadores de canal (#41): el simulador es el primero; Kapso llega en #42.
+  // Adaptadores de canal (#41): el simulador es el primero. Zavu (#42) es UN
+  // transporte para tres canales — mismo envelope, misma firma (ADR-0014).
   if (!getProvider('simulador')) registerProvider(simuladorProvider);
-  if (!getProvider('whatsapp')) registerProvider(createKapsoProvider());
+  for (const kind of ['whatsapp', 'instagram', 'messenger'] as const) {
+    if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
+  }
   if (!getProvider('webchat')) registerProvider(webchatProvider);
   app.use(requestIdMiddleware);
   // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
