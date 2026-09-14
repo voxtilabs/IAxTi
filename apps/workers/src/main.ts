@@ -7,6 +7,7 @@ import {
   createModuleWorker,
   redisConnection,
 } from '@iaxti/core';
+import { processInbound, type InboundJob } from './inbound';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -36,6 +37,16 @@ function start(): void {
       redisConnection(),
     );
     console.log('workers: worker de cola scheduled activo');
+
+    // El camino de entrada de mensajes (#35/#36): simulador hoy, canales
+    // reales en Fase 3 — la misma cola y el mismo procesador.
+    createModuleWorker(
+      'inbound',
+      registry,
+      async (job) => processInbound(pool, job.data as unknown as InboundJob),
+      redisConnection(),
+    );
+    console.log('workers: worker de cola inbound activo');
   } else {
     console.log('workers: sin REDIS_URL; colas BullMQ esperan configuración');
   }
