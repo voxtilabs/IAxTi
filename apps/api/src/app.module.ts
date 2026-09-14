@@ -32,6 +32,7 @@ import { AgentsController } from './agents.controller';
 import { KnowledgeController } from './knowledge.controller';
 import { AutomationsController } from './automations.controller';
 import { AnalyticsController } from './analytics.controller';
+import { ApiUsageController } from './api-usage.controller';
 import { ApiKeysController } from './apikeys.controller';
 import { PaymentsController, PaymentWebhooksController } from './payments.controller';
 import { BillingController } from './billing.controller';
@@ -163,6 +164,38 @@ class PlatformController {
     );
     return { tenantId: id, requestsMonthOverride: valor };
   }
+
+  /** El dashboard de consumo de API del SuperAdmin (#26): requests del
+   *  mes por tenant contra su tope, desde UsageMeter. */
+  @Get('api-usage')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Consumo de API por tenant (mes en curso)' })
+  async apiUsage() {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const client = await pool.connect();
+    try {
+      const r = await client.query(
+        `SELECT t.id, t.name, t.plan,
+                COALESCE(um.value, 0)::int AS used,
+                COALESCE((t.settings->'api'->>'requestsMonthOverride')::int, pl.api_requests_month) AS "limit"
+           FROM tenants t
+           LEFT JOIN plan_limits pl ON pl.plan = t.plan
+           LEFT JOIN usage_meters um ON um.tenant_id = t.id AND um.metric = 'api_requests'
+                AND um.period_start = date_trunc('month', now())::date
+          ORDER BY used DESC, t.name`,
+      );
+      return r.rows;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 @ApiTags('demo')
@@ -212,6 +245,7 @@ const controllers = [
   AutomationsController,
   AnalyticsController,
   ApiKeysController,
+  ApiUsageController,
   PaymentsController,
   PaymentWebhooksController,
   BillingController,

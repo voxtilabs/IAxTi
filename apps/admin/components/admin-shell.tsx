@@ -98,6 +98,78 @@ function TablaTenants() {
   );
 }
 
+interface ConsumoRow {
+  id: string;
+  name: string;
+  plan: string;
+  used: number;
+  limit: number | null;
+}
+
+/** El consumo de API por tenant (#26): contra su tope, desde UsageMeter. */
+function TablaConsumoApi() {
+  const { session, config } = useSession();
+  const [filas, setFilas] = useState<ConsumoRow[] | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    void fetch(`${config.apiUrl}/v1/platform/api-usage`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (res) => {
+      if (res.ok) setFilas(await res.json());
+    });
+  }, [session, config.apiUrl]);
+
+  if (!filas) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-4 text-xl font-bold text-ink">Consumo de API (mes en curso)</h2>
+      <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-rest text-left">
+              {['Negocio', 'Plan', 'Requests', 'Tope', '% usado'].map((h) => (
+                <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((t) => {
+              const pct = t.limit ? Math.round((t.used / t.limit) * 100) : null;
+              return (
+                <tr key={t.id} className="border-t border-line">
+                  <td className="px-4 py-4 font-medium text-ink">{t.name}</td>
+                  <td className="px-4 py-4 text-body">{t.plan}</td>
+                  <td className="dato px-4 py-4 text-right text-ink">{t.used.toLocaleString('es-CL')}</td>
+                  <td className="dato px-4 py-4 text-right text-body">
+                    {t.limit === null ? '—' : t.limit.toLocaleString('es-CL')}
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    {pct === null ? (
+                      <span className="text-muted">—</span>
+                    ) : (
+                      <span className={`rounded-boton border px-3 py-1 text-xs font-medium ${
+                        pct >= 100
+                          ? 'bg-bad-soft text-bad-text border-bad-soft-br'
+                          : pct >= 80
+                            ? 'bg-warn-soft text-warn-text border-warn-soft-br'
+                            : 'bg-good-soft text-good-text border-good-soft-br'
+                      }`}>
+                        {pct} %
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSvg: string }) {
   return (
     <SessionProvider config={config}>
@@ -117,6 +189,7 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
           <main className="mx-auto max-w-contenido px-4 py-8">
             <h2 className="mb-4 text-xl font-bold text-ink">Tenants</h2>
             <TablaTenants />
+            <TablaConsumoApi />
           </main>
         </div>
       </RequireSession>
