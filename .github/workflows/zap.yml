@@ -9,6 +9,9 @@
 #  · 2ª corrida: 65 pass, 0 fail, 1 warn — y ese warn es el inverso del
 #    anterior: ZAP marca "contenido no almacenable", que para una API con
 #    `no-store` es exactamente lo correcto. Ignorado con su motivo.
+#  · 3ª corrida: salió justo durante un redeploy y ZAP recibió 404 hasta en
+#    /health, o sea las respuestas del borde sin la app detrás. De ahí el
+#    paso de espera: un escaneo a una app que no está arriba no mide nada.
 name: zap
 
 on:
@@ -50,15 +53,31 @@ jobs:
             echo "correr=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Un escaneo lanzado justo después de un merge llega en medio del
+      # redeploy: ZAP recibe las respuestas del borde con la app reiniciando
+      # y reporta cabeceras "ausentes" que sí están. Pasó en la 3ª corrida.
+      - name: Esperar a que la app responda
+        if: steps.destino.outputs.correr == 'true'
+        run: |
+          URL="${{ steps.destino.outputs.url }}"
+          for i in $(seq 1 30); do
+            CODIGO=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$URL" || echo 000)
+            echo "intento $i: $URL → HTTP $CODIGO"
+            [ "$CODIGO" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "La app no respondió 200 en 5 minutos; no tiene sentido escanear." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
       # Baseline: pasivo. No ataca, no crea datos, no borra nada.
       - name: ZAP baseline
         if: steps.destino.outputs.correr == 'true'
-        uses: zaproxy/action-baseline@v0.12.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: ${{ steps.destino.outputs.url }}
           rules_file_name: .zap/rules.tsv
-          # El nombre por defecto (`zap_scan`) lo rechaza el backend nuevo de
-          # artefactos y tumba el job con el escaneo ya terminado y limpio.
+          # v0.12 subía el informe con upload-artifact v3, que el backend
+          # nuevo de GitHub rechaza: el job moría con el escaneo ya limpio.
           artifact_name: zap-baseline
           # El informe se sube como issue para que quede rastro y no se
           # pierda en los logs de una corrida vieja.
