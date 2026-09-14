@@ -77,3 +77,35 @@ export interface Mensaje {
   authorKind: 'contact' | 'user' | 'agent' | 'system';
   createdAt: string;
 }
+
+export interface QuickReplyDto {
+  id: string;
+  shortcut: string;
+  body: string;
+  userId: string | null;
+}
+
+export interface NotaDto {
+  id: string;
+  authorId: string;
+  body: string;
+  mentions: string[];
+  createdAt: string;
+}
+
+export interface BusquedaHit {
+  kind: 'mensaje' | 'nota';
+  conversationId: string;
+  contactName: string | null;
+  contactPhone: string;
+  snippet: string;
+  createdAt: string;
+}
+
+/** Mismo render que el dominio del módulo: {variable} sin valor queda visible. */
+export function renderQuickReply(body: string, vars: Record<string, string | null | undefined>): string {
+  return body.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (todo, nombre: string) => {
+    const valor = vars[nombre];
+    return valor === null || valor === undefined || valor === '' ? todo : valor;
+  });
+}

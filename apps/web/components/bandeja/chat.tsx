@@ -28,7 +28,7 @@ import {
   Textarea,
   cn,
 } from '@iaxti/ui/react';
-import { enVentana24h, type ConversacionDetalle, type Mensaje } from '../../lib/api';
+import { enVentana24h, renderQuickReply, type ConversacionDetalle, type Mensaje, type QuickReplyDto } from '../../lib/api';
 import { ESTADOS } from './estado';
 
 function HoraDato({ iso }: { iso: string }) {
@@ -49,6 +49,7 @@ function Entrega({ estado }: { estado: Mensaje['deliveryStatus'] }) {
 export interface ChatProps {
   detalle: ConversacionDetalle | null;
   mensajes: Mensaje[] | null;
+  atajos: QuickReplyDto[];
   miId: string;
   aviso: string | null;
   onVolver: () => void;
@@ -59,7 +60,7 @@ export interface ChatProps {
 }
 
 export function Chat({
-  detalle, mensajes, miId, aviso,
+  detalle, mensajes, atajos, miId, aviso,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado,
 }: ChatProps) {
   const [texto, setTexto] = useState('');
@@ -187,6 +188,35 @@ export function Chat({
           plantillas (SPEC §11); llega con los canales reales en Fase 3. */}
       {enVentana ? (
         <form onSubmit={enviar} className="flex items-end gap-2 border-t border-line p-4">
+          {atajos.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secundario" size="icono" aria-label="Atajos de respuesta" className="h-control w-11">
+                  /
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top">
+                <DropdownMenuLabel>Atajos</DropdownMenuLabel>
+                {atajos.map((a) => (
+                  <DropdownMenuItem
+                    key={a.id}
+                    onSelect={() =>
+                      setTexto((previo) =>
+                        (previo ? `${previo} ` : '') +
+                        renderQuickReply(a.body, {
+                          nombre: detalle.contactName,
+                          telefono: detalle.contactPhone,
+                        }),
+                      )
+                    }
+                  >
+                    <span className="dato mr-2 text-muted">/{a.shortcut}</span>
+                    <span className="max-w-56 truncate">{a.body}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Textarea
             aria-label="Mensaje"
             placeholder="Escribe tu respuesta…"
