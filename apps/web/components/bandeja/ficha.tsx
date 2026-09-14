@@ -5,6 +5,7 @@ import { Avatar, Badge, Button, IconoVolver, Textarea } from '@iaxti/ui/react';
 import type { AnalisisDto, ConversacionDetalle, NotaDto } from '../../lib/api';
 import { FichaContacto } from '../crm/ficha-contacto';
 import { ESTADOS, fmtEspera } from './estado';
+import { SecuenciasFicha } from './secuencias-ficha';
 
 function Fila({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
@@ -118,6 +119,9 @@ export function Ficha({
           </Button>
         </form>
       </div>
+
+      {/* Secuencias (#63): el seguimiento como proceso visible. */}
+      <SecuenciasFicha contactId={detalle.contactId} conversationId={detalle.id} />
 
       {/* La lectura de la IA (#48): resumen, intención y calificación. */}
       {analisis && (analisis.summary || analisis.intent || analisis.acciones.length > 0) && (

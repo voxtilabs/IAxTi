@@ -82,7 +82,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  for (const tabla of ['rule_runs', 'rules', 'messages', 'conversations', 'contacts', 'user_roles', 'invitations', 'outbox']) {
+  for (const tabla of ['sequence_enrollments', 'sequences', 'rule_runs', 'rules', 'messages', 'conversations', 'contacts', 'user_roles', 'invitations', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
   await admin.end();
@@ -119,6 +119,43 @@ describe('/v1/automations (#62)', () => {
     });
     expect(res.status).toBe(400);
     expect((await res.json()).message).toContain('horas');
+  });
+
+  it('secuencias (#63): el ADMIN define, el VENDEDOR inscribe y ve la ficha', async () => {
+    const negado = await pedir(vendedor, '/automations/sequences', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'X', steps: [] }),
+    });
+    expect(negado.status).toBe(403);
+
+    const creada = await pedir(duena, '/automations/sequences', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Seguimiento',
+        steps: [
+          { afterHours: 24, onlyIfNoReply: true, action: { kind: 'add_note', params: { body: 'Retomar.' } } },
+        ],
+      }),
+    });
+    expect(creada.status).toBe(201);
+    const seq = await creada.json();
+
+    // El vendedor lista y mete SU conversación (automations.enroll, §23).
+    const lista = await (await pedir(vendedor, '/automations/sequences')).json();
+    expect(lista.map((s: { id: string }) => s.id)).toContain(seq.id);
+
+    const conv = await admin.query('SELECT id, contact_id FROM conversations WHERE tenant_id = $1 LIMIT 1', [tenant]);
+    const inscrita = await pedir(vendedor, `/automations/sequences/${seq.id}/enroll`, {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: conv.rows[0].id }),
+    });
+    expect(inscrita.status).toBe(201);
+    expect((await inscrita.json()).status).toBe('running');
+
+    const ficha = await (
+      await pedir(vendedor, `/automations/sequences/enrollments?contactId=${conv.rows[0].contact_id}`)
+    ).json();
+    expect(ficha[0]).toMatchObject({ status: 'running', sequenceName: 'Seguimiento', totalSteps: 1 });
   });
 
   it('la vista previa muestra a quién le aplicaría hoy, y el switch enciende', async () => {

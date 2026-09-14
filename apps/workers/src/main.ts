@@ -25,7 +25,7 @@ import {
   sweepDueActivities,
 } from './sweeps';
 import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
-import { automationConsumers, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
+import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 
 const service = process.env.SERVICE ?? 'workers';
@@ -48,6 +48,8 @@ function start(): void {
   };
   const dispatcher = new OutboxDispatcher(pool, registry, [
     ...automationConsumers(automationDeps),
+    // El corte de secuencias (#63): responde el cliente o se mueve el deal.
+    ...sequenceConsumers(),
     // El dashboard del dueño (#66): contadores por día, POR EVENTO.
     ...analyticsConsumers(),
     ...realtimeConsumers(),
@@ -98,8 +100,9 @@ function start(): void {
           // "sin respuesta hace 24 h" — dedupe por objeto y día.
           case 'automations.sweep': {
             const n = await sweepTimeRules(pool, automationDeps);
-            if (n > 0) console.log(`scheduled: ${n} reglas de tiempo corridas`);
-            return { ran: n };
+            const pasos = await sweepSequences(pool, automationDeps);
+            if (n + pasos > 0) console.log(`scheduled: ${n} reglas y ${pasos} pasos de secuencia`);
+            return { ran: n, steps: pasos };
           }
           // Muestras de primera respuesta (#66): mediana/p90 sin barrer en vivo.
           case 'analytics.response_samples': {
