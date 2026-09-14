@@ -25,6 +25,7 @@ import {
   sweepDueActivities,
 } from './sweeps';
 import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
+import { automationConsumers, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -39,7 +40,13 @@ function start(): void {
   const registry = new ModuleRegistry().load();
   const pool = createPool();
 
+  // El motor de reglas (#62): consumidores de eventos + barrido de tiempo.
+  // enqueueOutbound se conecta más abajo, cuando la cola outbound exista.
+  const automationDeps: EngineDeps = {
+    activeModules: ['conversations', 'crm'].filter((m) => registry.isActive(m)),
+  };
   const dispatcher = new OutboxDispatcher(pool, registry, [
+    ...automationConsumers(automationDeps),
     ...realtimeConsumers(),
     // Fusión de contactos (#34): la bandeja re-apunta su historia.
     {
@@ -84,6 +91,13 @@ function start(): void {
             return runAutoResolveTenant(pool, (job.data as { tenantId: string }).tenantId);
           case 'conversations.archive.tenant':
             return runArchiveTenant(pool, (job.data as { tenantId: string }).tenantId);
+          // El barrido de tiempo del motor (#62): "2 días en etapa",
+          // "sin respuesta hace 24 h" — dedupe por objeto y día.
+          case 'automations.sweep': {
+            const n = await sweepTimeRules(pool, automationDeps);
+            if (n > 0) console.log(`scheduled: ${n} reglas de tiempo corridas`);
+            return { ran: n };
+          }
           // Vigencias del conocimiento (#51): vencida, la IA la ignora y avisa.
           case 'knowledge.expire': {
             const conVencibles = await tenantsWithExpirable(pool);
@@ -121,6 +135,11 @@ function start(): void {
         'knowledge.expire',
         { moduleId: 'knowledge' },
         { repeat: { pattern: '30 * * * *', tz: 'America/Santiago' } },
+      ),
+      scheduled.add(
+        'automations.sweep',
+        { moduleId: 'automations' },
+        { repeat: { every: 300_000 } },
       ),
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');
@@ -169,6 +188,13 @@ function start(): void {
     // La cola agents (#48/#49): sugerencias, transcripciones y el modo
     // autónomo del copiloto; sus salientes van por la MISMA cola outbound.
     const outboundQueue = createQueue('outbound', redisConnection());
+    automationDeps.enqueueOutbound = async (job) => {
+      await outboundQueue.add(
+        'send',
+        { moduleId: 'whatsapp', tenantId: job.tenantId, messageId: job.messageId, requestId: job.requestId },
+        { jobId: `out-${job.messageId}` },
+      );
+    };
     createModuleWorker(
       'agents',
       registry,

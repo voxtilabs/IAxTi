@@ -19,6 +19,7 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
     "@iaxti/module-agents": "workspace:*",
+    "@iaxti/module-automations": "workspace:*",
     "@iaxti/module-channels": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",

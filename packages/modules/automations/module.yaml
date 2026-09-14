@@ -1,0 +1,31 @@
+# automations (#62, SPEC §15): que el seguimiento que hoy no se hace, se
+# haga. Disparador (evento o tiempo) + condiciones + acciones — y ningún
+# mensaje sale sin consentimiento ni en horario de silencio.
+module:
+  id: automations
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, audit]
+  optional: [conversations, crm]
+permissions:
+  - automations.manage
+  - automations.read
+events:
+  publishes:
+    - automation.ran
+    - automation.failed
+    - automation.paused
+  consumes:
+    - conversation.created
+    - conversation.state_changed
+    - conversation.assigned
+    - deal.created
+    - deal.stage_changed
+    - agent.escalated
+tools: []
+nav:
+  - { label: Automatizaciones, path: /ajustes/automatizaciones, permission: automations.manage }
+widgets: []
+plan_min: base
+flag: module.automations

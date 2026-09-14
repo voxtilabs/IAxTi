@@ -39,6 +39,7 @@ const USER_PERMS = new Set([
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
+  'automations.read', // ver reglas y corridas (§23); configurar es del ADMIN
   'users.read',
   'teams.manage',
   'audit.read',
