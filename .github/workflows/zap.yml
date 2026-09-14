@@ -1,6 +1,14 @@
 # OWASP ZAP contra staging (#81). NO corre en cada PR: un escaneo activo
 # tarda y golpea un entorno real. Va agendado y a mano, y si no hay URL de
 # staging configurada se salta diciéndolo — jamás reporta un verde vacío.
+#
+# Historial de lo que encontró, para no re-analizarlo cada vez:
+#  · 1ª corrida (14-09): 61 pass, 0 fail, 5 warn — todo cabeceras ausentes.
+#    Arregladas en la app y no solo en Cloudflare (PR #171), porque la API
+#    también responde a quien no pasa por el borde.
+#  · 2ª corrida: 65 pass, 0 fail, 1 warn — y ese warn es el inverso del
+#    anterior: ZAP marca "contenido no almacenable", que para una API con
+#    `no-store` es exactamente lo correcto. Ignorado con su motivo.
 name: zap
 
 on:
@@ -49,6 +57,9 @@ jobs:
         with:
           target: ${{ steps.destino.outputs.url }}
           rules_file_name: .zap/rules.tsv
+          # El nombre por defecto (`zap_scan`) lo rechaza el backend nuevo de
+          # artefactos y tumba el job con el escaneo ya terminado y limpio.
+          artifact_name: zap-baseline
           # El informe se sube como issue para que quede rastro y no se
           # pierda en los logs de una corrida vieja.
           allow_issue_writing: true
