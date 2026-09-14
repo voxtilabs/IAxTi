@@ -28,10 +28,10 @@ COPY --from=build /app/apps/workers/dist ./apps/workers/dist
 COPY --from=build /app/apps/workers/package.json ./apps/workers/package.json
 COPY --from=build /app/apps/agents/dist ./apps/agents/dist
 COPY --from=build /app/apps/agents/package.json ./apps/agents/package.json
-# core compilado (la api lo resuelve por el symlink del workspace) y los
-# manifiestos de módulos que el registry lee al arrancar
-COPY --from=build /app/packages/core ./packages/core
-COPY --from=build /app/packages/modules ./packages/modules
+# TODOS los packages del workspace: los symlinks de node_modules apuntan a
+# ../../packages/* y cualquiera ausente rompe el arranque (lo cazó workers
+# con @iaxti/telemetry). Incluye los manifiestos que lee el registry.
+COPY --from=build /app/packages ./packages
 # web y admin en modo standalone (autocontenidos)
 COPY --from=build /app/apps/web/.next/standalone ./standalone-web
 COPY --from=build /app/apps/admin/.next/standalone ./standalone-admin

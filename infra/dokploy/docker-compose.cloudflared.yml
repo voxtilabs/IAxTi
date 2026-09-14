@@ -10,4 +10,4 @@ services:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     network_mode: host
-    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate --edge-ip-version 4 --protocol http2 run --token ${TUNNEL_TOKEN}
