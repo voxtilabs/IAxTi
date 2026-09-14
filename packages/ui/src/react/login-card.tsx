@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import type { PublicConfig } from '../lib/config';
-import { SessionProvider, useSession } from './session';
+import { SessionProvider, useSession, type PublicConfig } from './session';
 
 function Formulario() {
   const { supabase } = useSession();
@@ -69,15 +68,22 @@ function Formulario() {
   );
 }
 
-export function LoginCard({ config, marcaSvg }: { config: PublicConfig; marcaSvg: string }) {
+export interface LoginCardProps {
+  config: PublicConfig;
+  marcaSvg: string;
+  titulo?: string;
+  subtitulo?: string;
+}
+
+export function LoginCard({ config, marcaSvg, titulo, subtitulo }: LoginCardProps) {
   return (
     <SessionProvider config={config}>
       <main className="flex min-h-screen items-center justify-center bg-bg px-4">
         <div className="w-full max-w-md rounded-tarjeta border border-line bg-raised p-8">
           <span className="marca" aria-hidden dangerouslySetInnerHTML={{ __html: marcaSvg }} />
-          <h1 className="mt-6 text-2xl font-extrabold text-ink">Entra a IAxTi</h1>
+          <h1 className="mt-6 text-2xl font-extrabold text-ink">{titulo ?? 'Entra a IAxTi'}</h1>
           <p className="mb-6 mt-1 text-sm text-body">
-            Sin contraseña: te mandamos un enlace a tu correo.
+            {subtitulo ?? 'Sin contraseña: te mandamos un enlace a tu correo.'}
           </p>
           <Formulario />
         </div>

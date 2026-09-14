@@ -1,6 +1,6 @@
-import { LoginCard } from '../../components/login-card';
+import { LoginCard } from '@iaxti/ui/react';
 import { publicConfig } from '../../lib/config';
-import { MARCA_LOCKUP_SVG } from '../../lib/marca-svg';
+import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
 export const dynamic = 'force-dynamic';
 

@@ -10,6 +10,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ModuleRegistry } from '@iaxti/core';
 import { tenantsOf } from '@iaxti/module-identity';
+import { listTenants } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -88,6 +89,31 @@ class MeController {
   }
 }
 
+@ApiTags('platform')
+@Controller('platform')
+class PlatformController {
+  /** Lista read-only para el SuperAdmin (SPEC §22). Mutaciones llegan con #68. */
+  @Get('tenants')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Tenants de la plataforma (solo lectura)' })
+  async tenants() {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const client = await pool.connect();
+    try {
+      return await listTenants(client);
+    } finally {
+      client.release();
+    }
+  }
+}
+
 @ApiTags('demo')
 @Controller('demo')
 class DemoController {
@@ -112,5 +138,5 @@ class DemoController {
   }
 }
 
-@Module({ controllers: [HealthController, MeController, DemoController] })
+@Module({ controllers: [HealthController, MeController, PlatformController, DemoController] })
 export class AppModule {}

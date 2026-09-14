@@ -1,6 +1,6 @@
 import { AppShell, type NavItem } from '../components/app-shell';
 import { internalApiUrl, publicConfig } from '../lib/config';
-import { MARCA_LOCKUP_SVG } from '../lib/marca-svg';
+import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
 export const dynamic = 'force-dynamic';
 

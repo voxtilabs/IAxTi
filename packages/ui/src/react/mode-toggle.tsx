@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getMode, toggleMode, type PulsoMode } from '@iaxti/ui';
+import { getMode, toggleMode, type PulsoMode } from '../mode';
 
 /** Cambia día/noche y persiste la elección por usuario (Pulso §9/§11). */
 export function ModeToggle() {

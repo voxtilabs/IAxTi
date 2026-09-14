@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import { withTenant } from '@iaxti/db';
 import { roleOf } from '@iaxti/module-identity';
+import { isPlatformAdmin } from '@iaxti/module-platform';
 
 export type RoleResolver = (tenantId: string, userId: string) => Promise<string | null>;
 
@@ -11,6 +12,23 @@ const TTL_MS = 60_000;
  * request-path caliente. Cambiar el rol de alguien tarda a lo más un minuto
  * en notarse — aceptable y documentado.
  */
+/** SUPERADMIN de plataforma desde platform_admins, con cache de 60 s. */
+export function dbPlatformAdminResolver(pool: Pool): (userId: string) => Promise<boolean> {
+  const cache = new Map<string, { admin: boolean; at: number }>();
+  return async (userId) => {
+    const hit = cache.get(userId);
+    if (hit && Date.now() - hit.at < TTL_MS) return hit.admin;
+    const client = await pool.connect();
+    try {
+      const admin = await isPlatformAdmin(client, userId);
+      cache.set(userId, { admin, at: Date.now() });
+      return admin;
+    } finally {
+      client.release();
+    }
+  };
+}
+
 export function dbRoleResolver(pool: Pool): RoleResolver {
   const cache = new Map<string, { role: string | null; at: number }>();
   return async (tenantId, userId) => {

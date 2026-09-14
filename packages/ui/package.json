@@ -11,6 +11,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
@@ -22,6 +24,16 @@
     "./pulso-tokens.css": "./pulso-tokens.css",
     "./pulso-base.css": "./pulso-base.css",
     "./tailwind-preset": "./tailwind-preset.cjs",
-    "./marca/*": "./marca/*"
+    "./marca/*": "./marca/*",
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.0"
+  },
+  "peerDependencies": {
+    "react": ">=19"
   }
 }

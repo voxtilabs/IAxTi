@@ -1,8 +1,9 @@
+import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
+import { AdminShell } from '../components/admin-shell';
+import { publicConfig } from '../lib/config';
+
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
-  return (
-    <main>
-      <h1>IAxTi</h1>
-      <p>El SuperAdmin se construye en la fase 2 (issue #29).</p>
-    </main>
-  );
+  return <AdminShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} />;
 }

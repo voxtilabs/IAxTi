@@ -193,6 +193,9 @@ importers:
       '@iaxti/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@supabase/supabase-js':
+        specifier: ^2.48.0
+        version: 2.116.0(@opentelemetry/api@1.9.1)
       next:
         specifier: ^15.4.0
         version: 15.5.25(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -212,6 +215,15 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.3.0(@types/react@19.3.0)
+      autoprefixer:
+        specifier: ^10.4.0
+        version: 10.6.0(postcss@8.5.28)
+      postcss:
+        specifier: ^8.4.0
+        version: 8.5.28
+      tailwindcss:
+        specifier: ^3.4.0
+        version: 3.4.19(yaml@2.9.1)
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -243,6 +255,9 @@ importers:
       '@iaxti/module-identity':
         specifier: workspace:*
         version: link:../../packages/modules/identity
+      '@iaxti/module-platform':
+        specifier: workspace:*
+        version: link:../../packages/modules/platform
       '@iaxti/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
@@ -517,6 +532,28 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.2)(jiti@1.21.7)(supports-color@7.2.0)(yaml@2.9.1)
 
+  packages/modules/platform:
+    dependencies:
+      pg:
+        specifier: ^8.13.0
+        version: 8.23.0
+    devDependencies:
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.23.1
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(jiti@1.21.7)(supports-color@7.2.0)(yaml@2.9.1)
+
   packages/sdk:
     devDependencies:
       typescript:
@@ -580,10 +617,20 @@ importers:
         version: 5.9.3
 
   packages/ui:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.48.0
+        version: 2.116.0(@opentelemetry/api@1.9.1)
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.3.0
+      react:
+        specifier: ^19.0.0
+        version: 19.3.0
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

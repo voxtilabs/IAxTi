@@ -2,7 +2,12 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
-import type { PublicConfig } from '../lib/config';
+export interface PublicConfig {
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  /** URL de la API alcanzable desde el navegador. */
+  apiUrl: string;
+}
 
 interface SessionState {
   supabase: SupabaseClient;
