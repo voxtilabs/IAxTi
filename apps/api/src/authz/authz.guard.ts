@@ -11,12 +11,21 @@ import { baseRoleHasPermission, isBaseRole } from '@iaxti/module-authorization';
 import type { JwtVerifier } from '../auth/jwt';
 import type { RoleResolver } from '../auth/role-resolver';
 import type { WithRequestId } from '../request-id';
-import { MODULE_KEY, PERMISSION_KEY } from './decorators';
+import { AUTH_KEY, MODULE_KEY, PERMISSION_KEY } from './decorators';
 
 export interface Actor {
   userId: string;
   tenantId: string;
   role: string;
+}
+
+export interface AuthenticatedUser {
+  userId: string;
+  email?: string;
+}
+
+export interface WithUser extends WithRequestId {
+  user?: AuthenticatedUser;
 }
 
 export interface AuthzOptions {
@@ -57,7 +66,18 @@ export class AuthzGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!moduleId && !permission) return true; // endpoint público (salud, docs)
+    const requireAuth = this.reflector.getAllAndOverride<boolean | undefined>(AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!moduleId && !permission && !requireAuth) return true; // público (salud, docs)
+
+    // Solo sesión, sin tenant (GET /me): verifica el JWT y adjunta el usuario.
+    if (requireAuth && !permission) {
+      const request = context.switchToHttp().getRequest<WithUser>();
+      request.user = await this.userFrom(context);
+      return true;
+    }
 
     if (moduleId && !this.registry.isActive(moduleId)) {
       throw new ForbiddenException({
@@ -84,6 +104,31 @@ export class AuthzGuard implements CanActivate {
       }
     }
     return true;
+  }
+
+  /** JWT de Supabase o, en desarrollo, el header X-User-Id. */
+  private async userFrom(context: ExecutionContext): Promise<AuthenticatedUser> {
+    const request = context.switchToHttp().getRequest<WithRequestId>();
+    const authorization = request.headers.authorization;
+
+    if (typeof authorization === 'string' && authorization.startsWith('Bearer ') && this.options.jwtVerify) {
+      try {
+        return await this.options.jwtVerify(authorization.slice(7));
+      } catch {
+        throw new UnauthorizedException({
+          code: 'TOKEN_INVALID',
+          message: 'Tu sesión no es válida o venció. Inicia sesión de nuevo.',
+        });
+      }
+    }
+    const userId = request.headers['x-user-id'];
+    if (typeof userId !== 'string') {
+      throw new UnauthorizedException({
+        code: 'UNAUTHORIZED',
+        message: 'Necesitas iniciar sesión para hacer esto.',
+      });
+    }
+    return { userId };
   }
 
   private async actorFrom(context: ExecutionContext): Promise<Actor> {
