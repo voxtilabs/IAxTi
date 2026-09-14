@@ -92,3 +92,14 @@ jobs:
         env:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
         run: pnpm --filter @iaxti/module-agents exec node scripts/run-evals.mjs
+
+      # Análisis estático de seguridad (#81). Corre en CADA PR y BLOQUEA:
+      # un hallazgo de seguridad que solo avisa se ignora a la tercera vez.
+      # El ruleset es el de OWASP + TypeScript de la propia Semgrep.
+      - name: Semgrep (SAST)
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/typescript
+            p/owasp-top-ten
+            p/secrets

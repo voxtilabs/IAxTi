@@ -57,3 +57,5 @@ export { mergeContacts, previewImport, confirmImport } from './application/merge
 export type { ImportPreview, ImportRowResult } from './application/merge';
 export { parseCsv, guessMapping, sniffDelimiter, IMPORT_FIELDS } from './domain/csv';
 export type { ImportField } from './domain/csv';
+export { exportarTitular, suprimirTitular } from './application/titular';
+export type { ExportacionTitular, ResultadoSupresion } from './application/titular';

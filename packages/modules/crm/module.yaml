@@ -10,6 +10,7 @@ permissions:
   - crm.contacts.create
   - crm.contacts.update
   - crm.contacts.merge
+  - crm.titular.manage
   - crm.contacts.export
   - crm.read_all
   - crm.deals.read
