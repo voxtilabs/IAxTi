@@ -25,7 +25,7 @@ técnico (T) / organizacional (O) / legal (L) / contractual (C).
 | Backups y restore probado | A.8.13 | — | — | — | disponibilidad | #80 | T/O | pendiente |
 | Minimización de PII en logs y trazas | A.8.11 | 6.11 | 8.2 | V8 | proporcionalidad | ADR-0006 | T | pendiente |
 | Redacción de PII hacia proveedores de IA | — | 6.11 | 8.2, 9.2 | — | transferencia | ADR-0011, #54 | T/C | pendiente |
-| Transferencia internacional (Supabase, Gemini, Kapso, GLM si se adopta) | A.5.19 | 7.5 | — | — | transferencia internacional | contratos + fila por proveedor | L/C | pendiente |
+| Transferencia internacional (Supabase, Gemini, Zavu, GLM si se adopta) | A.5.19 | 7.5 | — | — | transferencia internacional | contratos + fila por proveedor | L/C | pendiente |
 | Consentimiento y opt-out registrado | — | 7.2 | — | — | base de licitud | #30 (evidencia opt-in) | T/L | pendiente |
 | Derecho de acceso y portabilidad | — | 7.3 | — | — | derechos del titular | exportación total del tenant | T | pendiente |
 | Derecho de supresión | — | 7.3 | — | — | derechos del titular | borrado por solicitud, registrado, todos los módulos | T | pendiente |

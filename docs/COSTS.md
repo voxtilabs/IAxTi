@@ -16,19 +16,27 @@ fecha aquí.
 
 Variables (los únicos que crecen con clientes, con tope por tenant y
 traspasados al plan): tokens de Gemini y conversaciones/mensajes de Meta vía
-Kapso.
+Zavu.
 
 ## Alertas de costo pendientes de incorporar
 
-- **2026-10-01 — cambio de precios de Meta** (fuente: pricing FAQ de Kapso):
+- **2026-10-01 — cambio de precios de Meta**:
   los mensajes no-plantilla dejan de ser gratis y pasan a cobrarse por mensaje
   a tarifa utility. El supuesto "conversaciones de servicio gratis" de la
   sección 40 queda obsoleto → verificar tarifas Chile al implementar #43 y
   recalcular topes por plan (#67).
-- Kapso cobra plataforma por volumen de mensajes/mes (Free 2k · Pro 100k,
-  números extra USD 10 c/u · Platform 1M, USD 5 c/u). Incluirlo en el margen
-  por tenant cuando se fijen precios.
-- WABAs en moneda distinta de USD vía Kapso incluyen margen FX.
+- **Zavu cobra por conexión provisionada** (una conexión = un canal conectado;
+  el plan gratis trae dos, una puede ser WhatsApp). El precio mensual por
+  conexión en plan pago **está pedido y no ha llegado**: es el número que decide
+  el margen por tenant, porque escala con cada cliente.
+- WhatsApp lo factura Meta directo, sin margen del intermediario. Las tarifas de
+  Meta para Chile siguen pendientes de confirmar.
+- SMS a Chile por Zavu, desde crédito prepago: **USD 0.067** ida y vuelta (desde
+  número propio, el cliente puede responder) y **USD 0.034** solo salida (ruta
+  compartida, sin respuestas — sirve para OTP y avisos, jamás para atención).
+  Email: USD 0.40/1k transaccional, USD 0.80/1k marketing.
+- Zavu **no separa la facturación por cliente final**: todo cae a nuestra cuenta
+  y se prorratea por tenant en `usage_meters`.
 
 ## Reglas de eficiencia (SPEC §40)
 
