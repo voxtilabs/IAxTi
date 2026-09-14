@@ -20,6 +20,7 @@ import { SettingsController } from './settings.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
 import { ContactsController } from './contacts.controller';
 import { DealsController } from './deals.controller';
+import { WebhooksController } from './webhooks.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -155,6 +156,7 @@ const controllers = [
   EquipoController,
   ContactsController,
   DealsController,
+  WebhooksController,
   ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
 ];
 

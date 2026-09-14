@@ -14,6 +14,7 @@ import { AuthzGuard } from './authz/authz.guard';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { requestIdMiddleware } from './request-id';
+import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 
 export interface CreateAppOptions {
   rateLimitPerMinute?: number;
@@ -25,11 +26,14 @@ export interface CreateAppOptions {
 export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['warn', 'error'],
-    rawBody: false,
+    // Los webhooks verifican la firma sobre el cuerpo CRUDO (#41).
+    rawBody: true,
   });
   // El CSV de importación (#34) viaja en el body: 2 MB alcanzan para miles
   // de filas sin abrir la puerta a payloads absurdos.
   app.useBodyParser('json', { limit: '2mb' });
+  // Adaptadores de canal (#41): el simulador es el primero; Kapso llega en #42.
+  if (!getProvider('simulador')) registerProvider(simuladorProvider);
   app.use(requestIdMiddleware);
   // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
   // En producción CORS_ORIGINS es una lista cerrada; sin la variable (dev,
@@ -52,7 +56,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
     maxAge: 86_400,
   });
   // /v1 en la ruta (SPEC §28); health queda fuera para Dokploy/Uptime Kuma.
-  app.setGlobalPrefix('v1', { exclude: ['health', 'ready', 'health/modules'] });
+  app.setGlobalPrefix('v1', {
+    exclude: ['health', 'ready', 'health/modules', 'webhooks/channels/:accountId'],
+  });
   app.useGlobalFilters(new ErrorsFilter());
 
   // Rate limiting por tenant/API key (SPEC §28); requiere Redis configurado.

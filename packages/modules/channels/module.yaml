@@ -1,0 +1,30 @@
+# channels NUNCA se apaga por tenant (#41, SPEC §12): sin canales no entra
+# ni sale nada. No es parte del núcleo formal (ese es exactamente identity/
+# organizations/authorization/audit), pero su flag jamás se usa para
+# apagarlo: solo el kill-switch de PLATAFORMA (que deja la API en solo
+# lectura) lo alcanza.
+module:
+  id: channels
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations]
+  optional: []
+permissions:
+  - channels.read
+  - channels.manage
+events:
+  publishes:
+    - channel.connected
+    - channel.degraded
+    - channel.disconnected
+    - template.approved
+    - template.rejected
+    - number.quality_changed
+  consumes: []
+tools: []
+nav:
+  - { label: Canales, path: /ajustes/canales, permission: channels.manage }
+widgets: []
+plan_min: base
+flag: module.channels
