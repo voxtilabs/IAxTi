@@ -310,6 +310,19 @@ export function Bandeja() {
               setAviso((err as Error).message);
             }
           }}
+          onCobrar={async (montoClp, concepto) => {
+            if (!session || !tenant || !seleccion) return;
+            setAviso(null);
+            try {
+              await apiFetch(config, session, tenant, '/payments/links', {
+                method: 'POST',
+                body: JSON.stringify({ conversationId: seleccion, amountClp: montoClp, concept: concepto }),
+              });
+              await cargarConversacion(seleccion);
+            } catch (err) {
+              setAviso((err as Error).message);
+            }
+          }}
           onModo={async (modo) => {
             if (!session || !tenant || !seleccion) return;
             setAviso(null);

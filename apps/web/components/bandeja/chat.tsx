@@ -62,18 +62,22 @@ export interface ChatProps {
   onEstado: (estado: string, hasta?: string) => Promise<void>;
   onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
   onModo: (modo: 'assist' | 'autonomous') => Promise<void>;
+  onCobrar: (montoClp: number, concepto: string) => Promise<void>;
   onCrearOportunidad: (titulo: string) => Promise<void>;
 }
 
 export function Chat({
   detalle, mensajes, atajos, sugerencia, modo, miId, aviso,
-  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCrearOportunidad,
+  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
   const [motivoFeedback, setMotivoFeedback] = useState('');
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [dialogoAsignar, setDialogoAsignar] = useState(false);
+  const [dialogoCobrar, setDialogoCobrar] = useState(false);
+  const [montoCobro, setMontoCobro] = useState('');
+  const [conceptoCobro, setConceptoCobro] = useState('');
   const [aQuien, setAQuien] = useState('');
   const [motivo, setMotivo] = useState('');
   const finRef = useRef<HTMLDivElement>(null);
@@ -154,6 +158,9 @@ export function Chat({
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setDialogoAsignar(true)}>
               Asignar a otra persona…
+            </DropdownMenuItem>
+            <DropdownMenuItem data-testid="cobrar" onSelect={() => setDialogoCobrar(true)}>
+              Cobrar con link de pago…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {detalle.state === 'resolved' ? (
@@ -340,6 +347,52 @@ export function Chat({
           </p>
         </div>
       )}
+
+      <Dialog open={dialogoCobrar} onOpenChange={setDialogoCobrar}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cobrar con link de pago</DialogTitle>
+            <DialogDescription>
+              El link llega al chat y te avisamos apenas paguen. Los montos van en pesos.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="mt-2 flex flex-col gap-1 text-sm text-body">
+            Monto (CLP)
+            <Input
+              type="number"
+              min={1}
+              step={1000}
+              className="dato"
+              value={montoCobro}
+              onChange={(e) => setMontoCobro(e.target.value)}
+              placeholder="45000"
+            />
+          </label>
+          <label className="mt-3 flex flex-col gap-1 text-sm text-body">
+            Concepto
+            <Input
+              value={conceptoCobro}
+              onChange={(e) => setConceptoCobro(e.target.value)}
+              placeholder="Ej: Manicure gel + retiro"
+            />
+          </label>
+          <DialogFooter>
+            <Button variant="secundario" onClick={() => setDialogoCobrar(false)}>Cancelar</Button>
+            <Button
+              data-testid="enviar-cobro"
+              disabled={!(Number(montoCobro) > 0) || !conceptoCobro.trim()}
+              onClick={async () => {
+                await onCobrar(Number(montoCobro), conceptoCobro.trim());
+                setDialogoCobrar(false);
+                setMontoCobro('');
+                setConceptoCobro('');
+              }}
+            >
+              Crear y enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogoAsignar} onOpenChange={setDialogoAsignar}>
         <DialogContent>

@@ -1,0 +1,29 @@
+# payments (#60/#61, SPEC §17): "cobra con links de pago desde el chat".
+# Credenciales SIEMPRE por referencia (nombre de env var, jamás en claro)
+# y proveedor en modo test para staging — nunca credenciales reales ahí.
+module:
+  id: payments
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, audit]
+  optional: [crm, conversations]
+permissions:
+  - payments.create_link
+  - payments.read
+  - payments.manage_providers
+events:
+  publishes:
+    - payment_link.created
+    - payment_link.sent
+    - payment_link.expired
+    - payment.received
+    - payment.failed
+  consumes: []
+tools:
+  - payments.create_link
+nav:
+  - { label: Pagos, path: /ajustes/pagos, permission: payments.manage_providers }
+widgets: []
+plan_min: base
+flag: module.payments
