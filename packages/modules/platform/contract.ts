@@ -2,3 +2,14 @@
 export const MODULE_ID = 'platform' as const;
 export { listTenants, isPlatformAdmin, grantPlatformAdmin } from './application/platform';
 export type { TenantSummary } from './application/platform';
+export {
+  tenantDetail,
+  adminCreateTenant,
+  adminSetTenantState,
+  adminChangePlan,
+  adminExtendTrial,
+  startSupportSession,
+  endSupportSession,
+  supportStatus,
+} from './application/tenants-admin';
+export type { TenantDetail } from './application/tenants-admin';

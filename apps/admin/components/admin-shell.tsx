@@ -56,8 +56,7 @@ function TablaTenants() {
       if (res.ok) setTenants(await res.json());
     });
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(cargar, [session, config.apiUrl]);
+  useEffect(cargar, [session, config.apiUrl]); // cargar es estable por render
 
   const accion = async (path: string, init?: RequestInit) => {
     if (!session) return;
