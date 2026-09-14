@@ -14,6 +14,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
+  createDeal,
   deleteSavedFilter,
   listDeals,
   listLossReasons,
@@ -96,6 +97,50 @@ export class DealsController {
     else if (!actorCan(actor, 'crm.read_all')) filters.ownerIdOrUnassigned = actor.userId;
 
     return withTenant(pool(), actor.tenantId, (c) => listDeals(c, actor.tenantId, filters));
+  }
+
+  @Post('deals')
+  @RequirePermission('crm.deals.create')
+  @ApiOperation({ summary: 'Crea una oportunidad (el copiloto la sugiere, el humano decide)' })
+  async create(
+    @Req() request: WithUser,
+    @Body() body: { contactId?: string; pipelineId?: string; title?: string; value?: number },
+  ) {
+    const actor = actorOf(request);
+    if (!body?.contactId || !body?.title?.trim()) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La oportunidad necesita contacto y título.',
+        details: [{ field: !body?.contactId ? 'contactId' : 'title' }],
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      let pipelineId = body.pipelineId;
+      if (!pipelineId) {
+        const pipes = await listPipelines(c, actor.tenantId);
+        pipelineId = pipes[0]?.id;
+        if (!pipelineId) {
+          throw new BadRequestException({
+            code: 'NO_PIPELINE',
+            message: 'Primero crea un pipeline con sus etapas.',
+          });
+        }
+      }
+      try {
+        return await createDeal(c, {
+          tenantId: actor.tenantId,
+          contactId: body.contactId!,
+          pipelineId,
+          title: body.title!.trim(),
+          value: body.value,
+          ownerId: actor.userId,
+          actor: actor.userId,
+          requestId: request.requestId,
+        });
+      } catch (err) {
+        throw new BadRequestException({ code: 'DEAL_INVALID', message: (err as Error).message });
+      }
+    });
   }
 
   @Post('deals/:id/stage')

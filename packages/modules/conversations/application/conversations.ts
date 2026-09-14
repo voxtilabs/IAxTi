@@ -524,3 +524,83 @@ export async function getOutboundContext(
     type: row.type,
   };
 }
+
+/**
+ * El contexto para la IA (#48, §40 palanca nº 1): los últimos N mensajes
+ * tal cual + el RESUMEN RODANTE del resto — nunca el hilo completo.
+ */
+export async function getContext(
+  client: PoolClient,
+  tenantId: string,
+  conversationId: string,
+  lastN = 8,
+): Promise<{
+  contact: { id: string; name: string | null; phone: string | null };
+  state: ConversationState;
+  summary: string | null;
+  summarySeq: number | null;
+  /** Mensajes viejos SIN resumir aún (para refrescar el resumen). */
+  unsummarized: number;
+  lastMessages: Array<{ direction: 'in' | 'out'; body: string | null; seq: number }>;
+}> {
+  const conv = await client.query(
+    `SELECT c.state, c.summary, c.summary_seq, k.id AS contact_id, k.name, k.phone
+       FROM conversations c JOIN contacts k ON k.id = c.contact_id
+      WHERE c.tenant_id = $1 AND c.id = $2`,
+    [tenantId, conversationId],
+  );
+  if (conv.rowCount === 0) throw new Error('No encontramos esa conversación. Puede que se haya archivado.');
+  const row = conv.rows[0];
+  const ultimos = await client.query(
+    `SELECT direction, COALESCE(body, transcription) AS body, seq FROM messages
+      WHERE tenant_id = $1 AND conversation_id = $2
+      ORDER BY seq DESC LIMIT $3`,
+    [tenantId, conversationId, lastN],
+  );
+  const minSeq = ultimos.rows.at(-1)?.seq ?? null;
+  const sinResumir = minSeq === null
+    ? { rows: [{ n: 0 }] }
+    : await client.query(
+        `SELECT count(*)::int AS n FROM messages
+          WHERE tenant_id = $1 AND conversation_id = $2
+            AND seq < $3 AND seq > COALESCE($4, 0)`,
+        [tenantId, conversationId, minSeq, row.summary_seq],
+      );
+  return {
+    contact: { id: row.contact_id, name: row.name ?? null, phone: row.phone ?? null },
+    state: row.state,
+    summary: row.summary ?? null,
+    summarySeq: row.summary_seq === null ? null : Number(row.summary_seq),
+    unsummarized: sinResumir.rows[0].n,
+    lastMessages: ultimos.rows.reverse().map((m) => ({
+      direction: m.direction,
+      body: m.body ?? null,
+      seq: Number(m.seq),
+    })),
+  };
+}
+
+/** Guarda el resumen rodante hasta `seq` (lo escribe el copiloto, #48). */
+export async function updateSummary(
+  client: PoolClient,
+  input: { tenantId: string; conversationId: string; summary: string; seq: number },
+): Promise<void> {
+  await client.query(
+    `UPDATE conversations SET summary = $3, summary_seq = $4, updated_at = now()
+      WHERE tenant_id = $1 AND id = $2`,
+    [input.tenantId, input.conversationId, input.summary, input.seq],
+  );
+}
+
+/** La transcripción del audio queda como texto BUSCABLE (#48; el índice
+ *  de búsqueda de #39 ya la incluye). */
+export async function updateTranscription(
+  client: PoolClient,
+  input: { tenantId: string; messageId: string; transcription: string },
+): Promise<void> {
+  await client.query(
+    `UPDATE messages SET transcription = $3
+      WHERE tenant_id = $1 AND id = $2 AND type = 'audio'`,
+    [input.tenantId, input.messageId, input.transcription],
+  );
+}

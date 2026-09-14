@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Avatar, Badge, Button, IconoVolver, Textarea } from '@iaxti/ui/react';
-import type { ConversacionDetalle, NotaDto } from '../../lib/api';
+import type { AnalisisDto, ConversacionDetalle, NotaDto } from '../../lib/api';
 import { FichaContacto } from '../crm/ficha-contacto';
 import { ESTADOS, fmtEspera } from './estado';
 
@@ -19,11 +19,13 @@ function Fila({ rotulo, children }: { rotulo: string; children: React.ReactNode 
 export function Ficha({
   detalle,
   notas,
+  analisis,
   onVolver,
   onAgregarNota,
 }: {
   detalle: ConversacionDetalle | null;
   notas: NotaDto[];
+  analisis: AnalisisDto | null;
   onVolver: () => void;
   onAgregarNota: (texto: string) => Promise<void>;
 }) {
@@ -116,6 +118,32 @@ export function Ficha({
           </Button>
         </form>
       </div>
+
+      {/* La lectura de la IA (#48): resumen, intención y calificación. */}
+      {analisis && (analisis.summary || analisis.intent || analisis.acciones.length > 0) && (
+        <div className="mt-6 rounded-campo border border-line bg-rest p-4">
+          <p className="rotulo">Lectura de la IA</p>
+          {analisis.summary && <p className="mt-2 text-sm text-body">{analisis.summary}</p>}
+          <p className="mt-2 flex flex-wrap gap-2">
+            {analisis.intent && <Badge role="action">{analisis.intent}</Badge>}
+            {analisis.leadScore && (
+              <Badge role={analisis.leadScore === 'caliente' ? 'good' : analisis.leadScore === 'tibio' ? 'warn' : 'neutral'}>
+                Lead {analisis.leadScore}
+              </Badge>
+            )}
+          </p>
+          {analisis.acciones.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1">
+              {analisis.acciones.slice(0, 5).map((a, i) => (
+                <li key={i} className="text-xs text-muted">
+                  <span className="dato">{new Date(a.at).toLocaleString('es-CL')}</span> · {a.que}
+                  {' '}({a.estado}{a.feedback ? `, ${a.feedback === 'up' ? '👍' : '👎'}` : ''})
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* La MISMA ficha del CRM (#32): oportunidades y actividades aquí. */}
       <div className="mt-6 border-t border-line pt-4">
