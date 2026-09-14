@@ -14,6 +14,7 @@ import { listTenants } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
+import { SimuladorController } from './simulador.controller';
 
 // El registry se construye una vez al arrancar; una validación fallida
 // (ciclo, colisión, dependencia inexistente) aborta el proceso a propósito
@@ -138,5 +139,15 @@ class DemoController {
   }
 }
 
-@Module({ controllers: [HealthController, MeController, PlatformController, DemoController] })
+// El simulador (#36) existe solo en local y staging: en producción la ruta
+// ni se registra (404, no 403). IAXTI_ENV=production la apaga.
+const controllers = [
+  HealthController,
+  MeController,
+  PlatformController,
+  DemoController,
+  ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
+];
+
+@Module({ controllers })
 export class AppModule {}
