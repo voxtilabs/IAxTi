@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { ModeToggle, RequireSession, SessionProvider, useSession, type PublicConfig } from '@iaxti/ui/react';
 import { TenantSwitcher } from './tenant-switcher';
+import { Campana } from './campana';
 
 export interface NavItem {
   label: string;
@@ -55,6 +56,7 @@ export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellPr
               </nav>
               <div className="ml-auto flex flex-wrap items-center gap-3">
                 <TenantSwitcher />
+                <Campana />
                 <ModeToggle />
                 <CerrarSesion />
               </div>

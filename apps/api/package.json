@@ -16,6 +16,7 @@
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
+    "@iaxti/module-notifications": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "@iaxti/module-platform": "workspace:*",
     "@iaxti/module-webchat": "workspace:*",
