@@ -20,8 +20,10 @@ import {
   type ConversacionDetalle,
   type ConversacionItem,
   type Mensaje,
+  type AnalisisDto,
   type NotaDto,
   type QuickReplyDto,
+  type SugerenciaDto,
 } from '../../lib/api';
 import { Chat } from './chat';
 import { Ficha } from './ficha';
@@ -47,6 +49,8 @@ export function Bandeja() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
   const [notas, setNotas] = useState<NotaDto[]>([]);
+  const [sugerencia, setSugerencia] = useState<SugerenciaDto | null>(null);
+  const [analisis, setAnalisis] = useState<AnalisisDto | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [hits, setHits] = useState<BusquedaHit[] | null>(null);
   const seleccionRef = useRef<string | null>(null);
@@ -77,14 +81,19 @@ export function Bandeja() {
     async (id: string) => {
       if (!session || !tenant) return;
       try {
-        const [d, m, n] = await Promise.all([
+        const [d, m, n, sug, ana] = await Promise.all([
           apiFetch<ConversacionDetalle>(config, session, tenant, `/conversations/${id}`),
           apiFetch<Mensaje[]>(config, session, tenant, `/conversations/${id}/messages`),
           apiFetch<NotaDto[]>(config, session, tenant, `/conversations/${id}/notes`),
+          // agents puede estar apagado: el copiloto simplemente no aparece.
+          apiFetch<SugerenciaDto | null>(config, session, tenant, `/conversations/${id}/suggestion`).catch(() => null),
+          apiFetch<AnalisisDto>(config, session, tenant, `/conversations/${id}/analisis`).catch(() => null),
         ]);
         setDetalle(d);
         setMensajes(m);
         setNotas(n);
+        setSugerencia(sug);
+        setAnalisis(ana);
       } catch (err) {
         setAviso((err as Error).message);
       }
@@ -282,8 +291,37 @@ export function Bandeja() {
           detalle={detalle}
           mensajes={mensajes}
           atajos={atajos}
+          sugerencia={sugerencia}
           miId={miId}
           aviso={aviso}
+          onSugerencia={async (accion, extra) => {
+            if (!session || !tenant || !seleccion || !sugerencia) return;
+            setAviso(null);
+            try {
+              await apiFetch(
+                config, session, tenant,
+                `/conversations/${seleccion}/suggestions/${sugerencia.id}/${accion}`,
+                { method: 'POST', body: JSON.stringify(extra ?? {}) },
+              );
+              if (accion !== 'feedback') setSugerencia(null);
+              if (accion === 'send') await Promise.all([cargarConversacion(seleccion), cargarLista()]);
+            } catch (err) {
+              setAviso((err as Error).message);
+            }
+          }}
+          onCrearOportunidad={async (titulo) => {
+            if (!session || !tenant || !detalle) return;
+            setAviso(null);
+            try {
+              await apiFetch(config, session, tenant, '/deals', {
+                method: 'POST',
+                body: JSON.stringify({ contactId: detalle.contactId, title: titulo }),
+              });
+              setSugerencia((s) => (s ? { ...s, suggestDeal: false } : s));
+            } catch (err) {
+              setAviso((err as Error).message);
+            }
+          }}
           onVolver={() => setPane('lista')}
           onVerFicha={() => setPane('ficha')}
           onResponder={(texto) => accion('/messages', { body: texto })}
@@ -303,6 +341,7 @@ export function Bandeja() {
         <Ficha
           detalle={detalle}
           notas={notas}
+          analisis={analisis}
           onVolver={() => setPane('chat')}
           onAgregarNota={async (texto) => {
             if (!session || !tenant || !seleccion) return;

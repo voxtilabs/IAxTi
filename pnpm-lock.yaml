@@ -398,6 +398,9 @@ importers:
       '@iaxti/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@iaxti/module-agents':
+        specifier: workspace:*
+        version: link:../../packages/modules/agents
       '@iaxti/module-channels':
         specifier: workspace:*
         version: link:../../packages/modules/channels
@@ -509,6 +512,9 @@ importers:
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
+      '@iaxti/module-conversations':
+        specifier: workspace:*
+        version: link:../conversations
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../organizations

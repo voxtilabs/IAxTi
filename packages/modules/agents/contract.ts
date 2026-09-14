@@ -24,3 +24,17 @@ export {
   costThisCycle,
 } from './application/quota';
 export type { QuotaState } from './application/quota';
+export {
+  suggestForInbound,
+  pendingSuggestion,
+  resolveSuggestion,
+  feedbackSuggestion,
+  conversationAnalysis,
+  activeAgent,
+  transcribeInboundAudio,
+} from './application/copilot';
+export type { Suggestion } from './application/copilot';
+export { parseSuggestion, FORMATO_SUGERENCIA } from './domain/parser';
+export type { SuggestionPayload } from './domain/parser';
+export { aiSdkTranscriber } from './application/models';
+export type { TranscribePort } from './application/models';

@@ -194,3 +194,22 @@ export interface LossReasonDto {
   id: string;
   label: string;
 }
+
+// El copiloto (#48).
+export interface SugerenciaDto {
+  id: string;
+  text: string;
+  confidence: number | null;
+  intent: string | null;
+  leadScore: 'frio' | 'tibio' | 'caliente' | null;
+  suggestDeal: boolean;
+  expiresAt: string;
+}
+
+export interface AnalisisDto {
+  summary: string | null;
+  intent: string | null;
+  leadScore: string | null;
+  suggestDeal: boolean;
+  acciones: Array<{ at: string; que: string; estado: string; feedback: string | null }>;
+}

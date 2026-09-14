@@ -28,7 +28,7 @@ import {
   Textarea,
   cn,
 } from '@iaxti/ui/react';
-import { enVentana24h, renderQuickReply, type ConversacionDetalle, type Mensaje, type QuickReplyDto } from '../../lib/api';
+import { enVentana24h, renderQuickReply, type ConversacionDetalle, type Mensaje, type QuickReplyDto, type SugerenciaDto } from '../../lib/api';
 import { ESTADOS } from './estado';
 
 function HoraDato({ iso }: { iso: string }) {
@@ -50,6 +50,7 @@ export interface ChatProps {
   detalle: ConversacionDetalle | null;
   mensajes: Mensaje[] | null;
   atajos: QuickReplyDto[];
+  sugerencia: SugerenciaDto | null;
   miId: string;
   aviso: string | null;
   onVolver: () => void;
@@ -57,12 +58,16 @@ export interface ChatProps {
   onResponder: (texto: string) => Promise<void>;
   onAsignar: (aQuien: string, motivo?: string) => Promise<void>;
   onEstado: (estado: string, hasta?: string) => Promise<void>;
+  onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
+  onCrearOportunidad: (titulo: string) => Promise<void>;
 }
 
 export function Chat({
-  detalle, mensajes, atajos, miId, aviso,
-  onVolver, onVerFicha, onResponder, onAsignar, onEstado,
+  detalle, mensajes, atajos, sugerencia, miId, aviso,
+  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onCrearOportunidad,
 }: ChatProps) {
+  const [motivoAbajo, setMotivoAbajo] = useState(false);
+  const [motivoFeedback, setMotivoFeedback] = useState('');
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [dialogoAsignar, setDialogoAsignar] = useState(false);
@@ -184,6 +189,77 @@ export function Chat({
         </p>
       )}
 
+
+      {/* El copiloto (#48): aviso action-soft sobre el campo — UN toque. */}
+      {sugerencia && enVentana && (
+        <div className="mx-4 mb-2 rounded-campo border border-action-soft-br bg-action-soft p-3">
+          <p className="rotulo">Sugerencia del asistente{sugerencia.confidence !== null && ` · ${Math.round(sugerencia.confidence * 100)} %`}</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{sugerencia.text}</p>
+          {sugerencia.suggestDeal && detalle && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-action-text">
+              Parece que quiere cotizar —
+              <Button
+                variant="soft"
+                size="chico"
+                onClick={() =>
+                  void onCrearOportunidad(
+                    `${sugerencia.intent === 'agendar' ? 'Agendamiento' : 'Cotización'} · ${detalle.contactName ?? detalle.contactPhone}`,
+                  )
+                }
+              >
+                Crear la oportunidad
+              </Button>
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button size="chico" data-testid="enviar-sugerencia" onClick={() => void onSugerencia('send')}>
+              Enviar sugerencia
+            </Button>
+            <Button variant="fantasma" size="chico" onClick={() => void onSugerencia('dismiss')}>
+              Descartar
+            </Button>
+            <span className="ml-auto flex items-center gap-1">
+              <Button
+                variant="fantasma"
+                size="icono"
+                aria-label="La sugerencia sirvió"
+                onClick={() => void onSugerencia('feedback', { feedback: 'up' })}
+              >
+                👍
+              </Button>
+              <Button
+                variant="fantasma"
+                size="icono"
+                aria-label="La sugerencia no sirvió"
+                onClick={() => setMotivoAbajo((v) => !v)}
+              >
+                👎
+              </Button>
+            </span>
+          </div>
+          {motivoAbajo && (
+            <form
+              className="mt-2 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void onSugerencia('feedback', { feedback: 'down', reason: motivoFeedback.trim() || undefined }).then(() => {
+                  setMotivoAbajo(false);
+                  setMotivoFeedback('');
+                });
+              }}
+            >
+              <Input
+                aria-label="Qué estuvo mal"
+                placeholder="¿Qué estuvo mal? (opcional)"
+                className="h-9 text-sm"
+                value={motivoFeedback}
+                onChange={(e) => setMotivoFeedback(e.target.value)}
+              />
+              <Button type="submit" variant="secundario" size="chico">Enviar</Button>
+            </form>
+          )}
+        </div>
+      )}
       {/* Fuera de la ventana de 24 h el campo se reemplaza por el selector de
           plantillas (SPEC §11); llega con los canales reales en Fase 3. */}
       {enVentana ? (

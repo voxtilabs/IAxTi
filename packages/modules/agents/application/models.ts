@@ -79,3 +79,32 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
 }
 
 export type ModelPortFactory = (provider: Provider, model: string) => ModelPort;
+
+/** Transcripción de audio (#48): Gemini multimodal. Inyectable en tests. */
+export interface TranscribePort {
+  transcribe(audio: { bytes: Uint8Array; contentType: string }): Promise<string>;
+}
+
+export function aiSdkTranscriber(model = 'gemini-2.5-flash'): TranscribePort {
+  return {
+    async transcribe(audio) {
+      const res = await generateText({
+        model: languageModel('google', model),
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'file', data: audio.bytes, mediaType: audio.contentType },
+              {
+                type: 'text',
+                text: 'Transcribe este audio al español tal cual se dice, sin comentarios.',
+              },
+            ],
+          },
+        ],
+        maxOutputTokens: 2048,
+      });
+      return res.text.trim();
+    },
+  };
+}

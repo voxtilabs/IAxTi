@@ -13,6 +13,7 @@ import { processInbound, type InboundJob } from './inbound';
 import { DelayUntilError, processOutbound } from './outbound';
 import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
+import { processSuggest, type SuggestJob } from './copilot';
 import { realtimeConsumers } from './realtime';
 import { onContactMerged } from '@iaxti/module-conversations';
 import { notificationConsumers } from '@iaxti/module-notifications';
@@ -110,6 +111,7 @@ function start(): void {
 
     // El camino de entrada de mensajes (#35/#36): simulador y WhatsApp por
     // la misma cola. Los estados de entrega del webhook llegan aquí también.
+    const agentsQueue = createQueue('agents', redisConnection());
     createModuleWorker(
       'inbound',
       registry,
@@ -120,11 +122,41 @@ function start(): void {
         if (job.name === 'quality-update') {
           return processQualityUpdates(pool, job.data as unknown as QualityUpdateJob);
         }
-        return processInbound(pool, job.data as unknown as InboundJob);
+        const data = job.data as unknown as InboundJob;
+        const res = await processInbound(pool, data);
+        // El copiloto (#48) corre DESPUÉS, en su cola: la bandeja no espera.
+        if (registry.isActive('agents') && !res.optedOut) {
+          const adjunto = (data.attachments as Array<{ key?: string; contentType?: string }> | undefined)?.[0];
+          await agentsQueue
+            .add(
+              'suggest',
+              {
+                moduleId: 'agents',
+                tenantId: data.tenantId,
+                conversationId: res.conversationId,
+                messageId: res.messageId,
+                audioKey: data.type === 'audio' ? adjunto?.key : undefined,
+                audioType: adjunto?.contentType,
+                requestId: data.requestId,
+              },
+              { jobId: `sg-${res.messageId}` },
+            )
+            .catch(() => {});
+        }
+        return res;
       },
       redisConnection(),
     );
     console.log('workers: worker de cola inbound activo');
+
+    // La cola agents (#48): sugerencias y transcripciones del copiloto.
+    createModuleWorker(
+      'agents',
+      registry,
+      async (job) => processSuggest(pool, job.data as unknown as SuggestJob),
+      redisConnection(),
+    );
+    console.log('workers: worker de cola agents activo');
 
     // La salida de WhatsApp (#43): rate limit por número, backoff de BullMQ,
     // silencio del tenant para lo iniciado por el negocio.

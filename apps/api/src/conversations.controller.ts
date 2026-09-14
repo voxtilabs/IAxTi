@@ -32,6 +32,12 @@ import type {
   InboxFilters,
   MessageType,
 } from '@iaxti/module-conversations';
+import {
+  conversationAnalysis,
+  feedbackSuggestion,
+  pendingSuggestion,
+  resolveSuggestion,
+} from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { actorCan } from './authz/can';
@@ -57,6 +63,66 @@ function outboundQueue(): ReturnType<typeof createQueue> {
 function actorOf(request: WithUser): Actor {
   // El guard de @RequirePermission siempre lo adjunta.
   return request.actor as Actor;
+}
+
+interface EntregaInput {
+  actor: Actor;
+  conversationId: string;
+  conversation: Awaited<ReturnType<typeof getConversation>>;
+  texto: string;
+  type: MessageType;
+  requestId?: string;
+}
+
+/** El flujo de responder (reply y "Enviar sugerencia" comparten camino). */
+async function entregarRespuesta(
+  c: Parameters<typeof sendMessage>[0],
+  input: EntregaInput,
+) {
+  const { actor, conversation, conversationId } = input;
+  // Responder desde la cola es tomarla: dueño + new → open (SPEC §11).
+  if (conversation.ownerId === null) {
+    await assignConversation(c, {
+      tenantId: actor.tenantId,
+      conversationId,
+      toOwnerId: actor.userId,
+      reason: 'respondió desde la bandeja',
+      actor: actor.userId,
+      requestId: input.requestId,
+    });
+  }
+  const message = await sendMessage(c, {
+    tenantId: actor.tenantId,
+    conversationId,
+    authorKind: 'user',
+    authorId: actor.userId,
+    type: input.type,
+    body: input.texto,
+    requestId: input.requestId,
+  });
+  // Simulador y webchat entregan al instante (el widget sondea, #46).
+  // WhatsApp va por la cola outbound con rate limit y reintentos (#43).
+  if (conversation.channel === 'simulador' || conversation.channel === 'webchat') {
+    return updateDeliveryStatus(c, {
+      tenantId: actor.tenantId,
+      messageId: message.id,
+      status: 'sent',
+      requestId: input.requestId,
+    });
+  }
+  if (conversation.channel === 'whatsapp') {
+    await outboundQueue().add(
+      'send',
+      {
+        moduleId: 'whatsapp',
+        tenantId: actor.tenantId,
+        messageId: message.id,
+        requestId: input.requestId,
+      },
+      { jobId: `out-${message.id}` },
+    );
+  }
+  return message;
 }
 
 function notFound(): never {
@@ -176,49 +242,14 @@ export class ConversationsController {
             'Pasaron más de 24 horas desde su último mensaje: por WhatsApp solo salen plantillas aprobadas.',
         });
       }
-      // Responder desde la cola es tomarla: dueño + new → open (SPEC §11).
-      if (conversation.ownerId === null) {
-        await assignConversation(c, {
-          tenantId: actor.tenantId,
-          conversationId: id,
-          toOwnerId: actor.userId,
-          reason: 'respondió desde la bandeja',
-          actor: actor.userId,
-          requestId: request.requestId,
-        });
-      }
-      const message = await sendMessage(c, {
-        tenantId: actor.tenantId,
+      return entregarRespuesta(c, {
+        actor,
         conversationId: id,
-        authorKind: 'user',
-        authorId: actor.userId,
+        conversation,
+        texto: body.body!,
         type: (body.type as MessageType) ?? 'texto',
-        body: body.body,
         requestId: request.requestId,
       });
-      // Simulador y webchat entregan al instante (el widget sondea, #46).
-      // WhatsApp va por la cola outbound con rate limit y reintentos (#43).
-      if (conversation.channel === 'simulador' || conversation.channel === 'webchat') {
-        return updateDeliveryStatus(c, {
-          tenantId: actor.tenantId,
-          messageId: message.id,
-          status: 'sent',
-          requestId: request.requestId,
-        });
-      }
-      if (conversation.channel === 'whatsapp') {
-        await outboundQueue().add(
-          'send',
-          {
-            moduleId: 'whatsapp',
-            tenantId: actor.tenantId,
-            messageId: message.id,
-            requestId: request.requestId,
-          },
-          { jobId: `out-${message.id}` },
-        );
-      }
-      return message;
     });
   }
 
@@ -285,5 +316,113 @@ export class ConversationsController {
         });
       }
     });
+  }
+
+  // --- El copiloto en assist (#48): el humano manda con un toque ---
+
+  @Get(':id/suggestion')
+  @RequireModule('agents')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'La sugerencia vigente del copiloto' })
+  async suggestion(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      pendingSuggestion(c, actor.tenantId, id),
+    );
+  }
+
+  @Post(':id/suggestions/:sid/send')
+  @RequirePermission('conversations.reply')
+  @ApiOperation({ summary: 'Envía la sugerencia tal cual — un toque' })
+  async sendSuggestion(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Param('sid') sid: string,
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const conversation = await getConversation(c, actor.tenantId, id).catch(notFound);
+      if (conversation.channel === 'whatsapp' && !isWithin24hWindow(conversation.lastInboundAt)) {
+        throw new UnprocessableEntityException({
+          code: 'OUTSIDE_WINDOW',
+          message:
+            'Pasaron más de 24 horas desde su último mensaje: por WhatsApp solo salen plantillas aprobadas.',
+        });
+      }
+      let sugerencia;
+      try {
+        sugerencia = await resolveSuggestion(c, { tenantId: actor.tenantId, suggestionId: sid, status: 'sent' });
+      } catch (err) {
+        throw new BadRequestException({ code: 'SUGGESTION_GONE', message: (err as Error).message });
+      }
+      if (sugerencia.conversationId !== id) notFound();
+      return entregarRespuesta(c, {
+        actor,
+        conversationId: id,
+        conversation,
+        texto: sugerencia.text,
+        type: 'texto',
+        requestId: request.requestId,
+      });
+    });
+  }
+
+  @Post(':id/suggestions/:sid/dismiss')
+  @RequireModule('agents')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Descarta la sugerencia' })
+  async dismissSuggestion(@Req() request: WithUser, @Param('id') id: string, @Param('sid') sid: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        const s = await resolveSuggestion(c, { tenantId: actor.tenantId, suggestionId: sid, status: 'dismissed' });
+        if (s.conversationId !== id) notFound();
+        return { dismissed: true };
+      } catch (err) {
+        throw new BadRequestException({ code: 'SUGGESTION_GONE', message: (err as Error).message });
+      }
+    });
+  }
+
+  @Post(':id/suggestions/:sid/feedback')
+  @RequireModule('agents')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Pulgar arriba/abajo con motivo — alimenta la evaluación' })
+  async suggestionFeedback(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Param('sid') sid: string,
+    @Body() body: { feedback?: 'up' | 'down'; reason?: string },
+  ) {
+    const actor = actorOf(request);
+    if (body?.feedback !== 'up' && body?.feedback !== 'down') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El feedback es up o down.',
+        details: [{ field: 'feedback' }],
+      });
+    }
+    await withTenant(pool(), actor.tenantId, (c) =>
+      feedbackSuggestion(c, {
+        tenantId: actor.tenantId,
+        suggestionId: sid,
+        feedback: body.feedback!,
+        reason: body.reason,
+      }),
+    ).catch((err) => {
+      throw new BadRequestException({ code: 'SUGGESTION_GONE', message: (err as Error).message });
+    });
+    return { saved: true };
+  }
+
+  @Get(':id/analisis')
+  @RequireModule('agents')
+  @RequirePermission('conversations.read')
+  @ApiOperation({ summary: 'Resumen, intención y calificación para la ficha' })
+  async analisis(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      conversationAnalysis(c, actor.tenantId, id),
+    );
   }
 }
