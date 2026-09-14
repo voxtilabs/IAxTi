@@ -1,0 +1,29 @@
+# analytics (#66, SPEC §19): que el dueño sepa cómo va el negocio sin
+# configurar un reporte. Todo se agrega POR EVENTO en tablas por día y
+# tenant — nada de consultas pesadas en vivo, y ningún número inventado.
+module:
+  id: analytics
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, audit]
+  optional: []
+permissions:
+  - analytics.read
+  - analytics.read_all
+events:
+  publishes: []
+  consumes:
+    - conversation.created
+    - conversation.state_changed
+    - deal.created
+    - deal.won
+    - deal.lost
+    - agent.executed
+    - message.sent
+tools: []
+nav:
+  - { label: Reportes, path: /reportes, permission: analytics.read }
+widgets: []
+plan_min: base
+flag: module.analytics

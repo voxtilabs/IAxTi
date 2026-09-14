@@ -26,6 +26,7 @@ import {
 } from './sweeps';
 import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 import { automationConsumers, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
+import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = Number(process.env.PORT ?? 3000);
@@ -47,6 +48,8 @@ function start(): void {
   };
   const dispatcher = new OutboxDispatcher(pool, registry, [
     ...automationConsumers(automationDeps),
+    // El dashboard del dueño (#66): contadores por día, POR EVENTO.
+    ...analyticsConsumers(),
     ...realtimeConsumers(),
     // Fusión de contactos (#34): la bandeja re-apunta su historia.
     {
@@ -98,6 +101,12 @@ function start(): void {
             if (n > 0) console.log(`scheduled: ${n} reglas de tiempo corridas`);
             return { ran: n };
           }
+          // Muestras de primera respuesta (#66): mediana/p90 sin barrer en vivo.
+          case 'analytics.response_samples': {
+            const n = await sweepResponseSamples(pool);
+            if (n > 0) console.log(`scheduled: ${n} muestras de primera respuesta`);
+            return { sampled: n };
+          }
           // Vigencias del conocimiento (#51): vencida, la IA la ignora y avisa.
           case 'knowledge.expire': {
             const conVencibles = await tenantsWithExpirable(pool);
@@ -140,6 +149,11 @@ function start(): void {
         'automations.sweep',
         { moduleId: 'automations' },
         { repeat: { every: 300_000 } },
+      ),
+      scheduled.add(
+        'analytics.response_samples',
+        { moduleId: 'analytics' },
+        { repeat: { pattern: '15 * * * *', tz: 'America/Santiago' } },
       ),
     ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
     console.log('workers: worker de cola scheduled activo');

@@ -12,6 +12,7 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
     "@iaxti/module-agents": "workspace:*",
+    "@iaxti/module-analytics": "workspace:*",
     "@iaxti/module-authorization": "workspace:*",
     "@iaxti/module-automations": "workspace:*",
     "@iaxti/module-channels": "workspace:*",

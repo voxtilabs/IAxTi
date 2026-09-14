@@ -252,6 +252,9 @@ importers:
       '@iaxti/module-agents':
         specifier: workspace:*
         version: link:../../packages/modules/agents
+      '@iaxti/module-analytics':
+        specifier: workspace:*
+        version: link:../../packages/modules/analytics
       '@iaxti/module-authorization':
         specifier: workspace:*
         version: link:../../packages/modules/authorization
@@ -407,6 +410,9 @@ importers:
       '@iaxti/module-agents':
         specifier: workspace:*
         version: link:../../packages/modules/agents
+      '@iaxti/module-analytics':
+        specifier: workspace:*
+        version: link:../../packages/modules/analytics
       '@iaxti/module-automations':
         specifier: workspace:*
         version: link:../../packages/modules/automations
@@ -539,6 +545,34 @@ importers:
       langfuse:
         specifier: ^3.38.20
         version: 3.38.20
+      pg:
+        specifier: ^8.13.0
+        version: 8.23.0
+    devDependencies:
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.2
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.23.1
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.2)(jiti@1.21.7)(supports-color@7.2.0)(yaml@2.9.1)
+
+  packages/modules/analytics:
+    dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@iaxti/module-audit':
+        specifier: workspace:*
+        version: link:../audit
       pg:
         specifier: ^8.13.0
         version: 8.23.0
