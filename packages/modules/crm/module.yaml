@@ -1,0 +1,49 @@
+module:
+  id: crm
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations]
+  optional: []
+permissions:
+  - crm.contacts.read
+  - crm.contacts.create
+  - crm.contacts.update
+  - crm.contacts.merge
+  - crm.contacts.export
+  - crm.deals.read
+  - crm.deals.create
+  - crm.deals.update
+  - crm.deals.close
+  - crm.pipelines.manage
+  - crm.fields.manage
+  - crm.activities.manage
+events:
+  publishes:
+    - contact.created
+    - contact.updated
+    - contact.merged
+    - contact.opted_out
+    - deal.created
+    - deal.stage_changed
+    - deal.won
+    - deal.lost
+    - deal.stalled
+    - activity.due
+  consumes: []
+tools:
+  - crm.find_contact
+  - crm.create_contact
+  - crm.update_contact
+  - crm.create_deal
+  - crm.move_deal
+  - crm.add_note
+  - crm.create_task
+  - crm.get_history
+nav:
+  - { label: Contactos, path: /contactos, permission: crm.contacts.read }
+  - { label: Oportunidades, path: /oportunidades, permission: crm.deals.read }
+widgets:
+  - { id: crm.resumen, permission: crm.deals.read }
+plan_min: base
+flag: module.crm
