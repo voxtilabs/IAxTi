@@ -28,3 +28,14 @@ export {
   validateRule,
 } from './domain/rules';
 export type { Trigger, Condition, Action, ActionKind, RuleShape, RuleTemplate } from './domain/rules';
+export {
+  createSequence,
+  listSequences,
+  validateSteps,
+  enroll,
+  sequenceConsumers,
+  sweepSequences,
+  enrollmentsForContact,
+  stopEnrollment,
+} from './application/sequences';
+export type { Sequence, SequenceStep, Enrollment } from './application/sequences';

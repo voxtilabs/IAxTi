@@ -11,11 +11,15 @@ depends_on:
 permissions:
   - automations.manage
   - automations.read
+  - automations.enroll
 events:
   publishes:
     - automation.ran
     - automation.failed
     - automation.paused
+    - sequence.started
+    - sequence.stopped
+    - sequence.completed
   consumes:
     - conversation.created
     - conversation.state_changed
@@ -23,6 +27,7 @@ events:
     - deal.created
     - deal.stage_changed
     - agent.escalated
+    - message.received
 tools: []
 nav:
   - { label: Automatizaciones, path: /ajustes/automatizaciones, permission: automations.manage }

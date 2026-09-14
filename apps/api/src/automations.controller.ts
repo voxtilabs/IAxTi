@@ -22,9 +22,15 @@ import {
   previewRule,
   seedTemplates,
   setRuleActive,
+  createSequence,
+  listSequences,
+  enroll,
+  enrollmentsForContact,
+  stopEnrollment,
   ACTION_REQUIREMENTS,
   type Action,
   type Condition,
+  type SequenceStep,
   type Trigger,
 } from '@iaxti/module-automations';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -116,6 +122,97 @@ export class AutomationsController {
   async runs(@Req() request: WithUser, @Query('ruleId') ruleId?: string) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, (c) => listRuns(c, actor.tenantId, ruleId));
+  }
+
+  // --- Secuencias (#63): el seguimiento multi-paso que se corta solo ---
+
+  @Get('sequences')
+  @RequirePermission('automations.enroll')
+  @ApiOperation({ summary: 'Las secuencias disponibles (para iniciar seguimiento)' })
+  async sequences(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) => listSequences(c, actor.tenantId));
+  }
+
+  @Post('sequences')
+  @RequirePermission('automations.manage')
+  @ApiOperation({ summary: 'Crea una secuencia (pasos con esperas y condición)' })
+  async createSeq(
+    @Req() request: WithUser,
+    @Body() body: { name?: string; steps?: SequenceStep[] },
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        return await createSequence(c, {
+          tenantId: actor.tenantId,
+          name: body.name ?? '',
+          steps: body.steps ?? [],
+          actor: actor.userId,
+          requestId: request.requestId,
+        });
+      } catch (err) {
+        throw new BadRequestException({ code: 'SEQUENCE_INVALID', message: (err as Error).message });
+      }
+    });
+  }
+
+  @Get('sequences/enrollments')
+  @RequirePermission('automations.enroll')
+  @ApiOperation({ summary: 'El estado de las secuencias de un contacto (ficha)' })
+  async enrollments(@Req() request: WithUser, @Query('contactId') contactId?: string) {
+    const actor = actorOf(request);
+    if (!contactId) return [];
+    return withTenant(pool(), actor.tenantId, (c) =>
+      enrollmentsForContact(c, actor.tenantId, contactId),
+    );
+  }
+
+  @Post('sequences/:sid/enroll')
+  @RequirePermission('automations.enroll')
+  @ApiOperation({ summary: 'Mete la conversación a la secuencia' })
+  async enrollConv(
+    @Req() request: WithUser,
+    @Param('sid') sid: string,
+    @Body() body: { conversationId?: string; dealId?: string },
+  ) {
+    const actor = actorOf(request);
+    if (!body?.conversationId) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Falta la conversación.',
+        details: [{ field: 'conversationId' }],
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        return await enroll(c, {
+          tenantId: actor.tenantId,
+          sequenceId: sid,
+          conversationId: body.conversationId!,
+          dealId: body.dealId,
+          actor: actor.userId,
+          requestId: request.requestId,
+        });
+      } catch (err) {
+        throw new BadRequestException({ code: 'ENROLL_INVALID', message: (err as Error).message });
+      }
+    });
+  }
+
+  @Post('sequences/enrollments/:eid/stop')
+  @RequirePermission('automations.enroll')
+  @ApiOperation({ summary: 'Detiene la secuencia para esa conversación' })
+  async stopSeq(@Req() request: WithUser, @Param('eid') eid: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        await stopEnrollment(c, { tenantId: actor.tenantId, enrollmentId: eid, actor: actor.userId });
+        return { stopped: true };
+      } catch (err) {
+        throw new BadRequestException({ code: 'ENROLL_INVALID', message: (err as Error).message });
+      }
+    });
   }
 
   @Get(':id/preview')

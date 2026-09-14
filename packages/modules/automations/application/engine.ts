@@ -34,7 +34,7 @@ export interface RunResult {
   detail: string | null;
 }
 
-async function loadObject(
+export async function loadObject(
   client: PoolClient,
   tenantId: string,
   kind: 'conversation' | 'deal',
@@ -77,7 +77,7 @@ async function loadObject(
   };
 }
 
-async function executeAction(
+export async function executeAction(
   client: PoolClient,
   input: {
     tenantId: string;

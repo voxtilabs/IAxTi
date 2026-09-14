@@ -37,6 +37,7 @@ const USER_PERMS = new Set([
   'agents.use', // "Usar el copiloto" ✓ USER (matriz §23)
   'analytics.read', // sus propios números (#66); read_all es de supervisión
   'knowledge.read', // consultar productos/precios del catálogo ✓ USER (#51)
+  'automations.enroll', // meter SU conversación a una secuencia (#63)
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
