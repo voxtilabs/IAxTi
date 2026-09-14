@@ -1,0 +1,47 @@
+# OWASP ZAP contra staging (#81). NO corre en cada PR: un escaneo activo
+# tarda y golpea un entorno real. Va agendado y a mano, y si no hay URL de
+# staging configurada se salta diciéndolo — jamás reporta un verde vacío.
+name: zap
+
+on:
+  schedule:
+    # Lunes temprano: el hallazgo llega con la semana por delante.
+    - cron: '0 11 * * 1'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'URL a escanear (por defecto, la de staging)'
+        required: false
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ¿Hay a quién escanear?
+        id: destino
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: |
+          URL="${{ github.event.inputs.target }}"
+          URL="${URL:-$STAGING_URL}"
+          if [ -z "$URL" ]; then
+            echo "Sin STAGING_URL configurada: no hay nada que escanear." >> "$GITHUB_STEP_SUMMARY"
+            echo "correr=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$URL" >> "$GITHUB_OUTPUT"
+            echo "correr=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Baseline: pasivo. No ataca, no crea datos, no borra nada.
+      - name: ZAP baseline
+        if: steps.destino.outputs.correr == 'true'
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ steps.destino.outputs.url }}
+          rules_file_name: .zap/rules.tsv
+          # El informe se sube como issue para que quede rastro y no se
+          # pierda en los logs de una corrida vieja.
+          allow_issue_writing: true
+          fail_action: false

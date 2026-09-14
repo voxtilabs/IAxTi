@@ -20,6 +20,8 @@ import {
   listContacts,
   mergeContacts,
   previewImport,
+  exportarTitular,
+  suprimirTitular,
 } from '@iaxti/module-crm';
 import type { ActivityType, ImportField } from '@iaxti/module-crm';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -117,6 +119,49 @@ export class ContactsController {
   }
 
   /** Fusión (#34): solo SUPERVISOR/ADMIN (crm.contacts.merge, §23). */
+  @Get(':id/titular')
+  @RequirePermission('crm.titular.manage')
+  @ApiOperation({ summary: 'Todo lo que tenemos de esta persona, para entregárselo' })
+  async exportarTitular(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        exportarTitular(c, {
+          tenantId: actor.tenantId,
+          contactId: id,
+          actor: actor.userId,
+          requestId: request.requestId,
+        }),
+      );
+    } catch (err) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: (err as Error).message });
+    }
+  }
+
+  @Post(':id/titular/suprimir')
+  @RequirePermission('crm.titular.manage')
+  @ApiOperation({ summary: 'Suprime los datos personales por solicitud del titular' })
+  async suprimirTitular(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { motivo?: string },
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        suprimirTitular(c, {
+          tenantId: actor.tenantId,
+          contactId: id,
+          actor: actor.userId,
+          motivo: body?.motivo ?? '',
+          requestId: request.requestId,
+        }),
+      );
+    } catch (err) {
+      throw new BadRequestException({ code: 'SUPRESION_RECHAZADA', message: (err as Error).message });
+    }
+  }
+
   @Post(':id/merge')
   @RequirePermission('crm.contacts.merge')
   @ApiOperation({ summary: 'Fusiona un duplicado en este contacto' })
