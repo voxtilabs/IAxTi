@@ -184,6 +184,29 @@ describe('el copiloto (#48)', () => {
     expect(ej.rows[0].n).toBe(1);
   });
 
+  it('el conocimiento (#51) entra al contexto de la sugerencia con su cita', async () => {
+    let promptVisto = '';
+    const espia: ModelPortFactory = () => ({
+      async generate(args) {
+        promptVisto = args.prompt;
+        return { text: JSON_SUGERENCIA, tokensIn: 10, tokensOut: 10 };
+      },
+    });
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(
+        c,
+        {
+          tenantId: tenant,
+          conversationId: conversacion,
+          knowledge: 'CONOCIMIENTO DEL NEGOCIO (cita la fuente):\n— [Lista de precios] Manicure gel $18.000.',
+        },
+        espia,
+      ),
+    );
+    expect(promptVisto).toContain('[Lista de precios]');
+    expect(promptVisto).toContain('cita la fuente');
+  });
+
   it('sin agente activo no sugiere nada (y no gasta)', async () => {
     await admin.query(`UPDATE agents SET default_mode = 'off' WHERE tenant_id = $1`, [tenant]);
     const res = await withTenant(admin, tenant, (c) =>

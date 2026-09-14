@@ -108,6 +108,8 @@ export async function suggestForInbound(
     tenantId: string;
     conversationId: string;
     messageId?: string;
+    /** Bloque de conocimiento del negocio con citas (#51), si el módulo está activo. */
+    knowledge?: string | null;
     requestId?: string;
   },
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
@@ -120,6 +122,7 @@ export async function suggestForInbound(
   const contexto = [
     `Cliente: ${ctx.contact.name ?? 'sin nombre'}${ctx.contact.phone ? ` (${ctx.contact.phone})` : ''}.`,
     ctx.summary ? `Resumen de lo anterior: ${ctx.summary}` : null,
+    input.knowledge ?? null,
     'Últimos mensajes:',
     ...ctx.lastMessages.map((m) => `${m.direction === 'in' ? 'Cliente' : 'Negocio'}: ${m.body ?? '[adjunto]'}`),
   ]

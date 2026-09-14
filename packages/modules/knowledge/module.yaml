@@ -1,0 +1,27 @@
+# knowledge (#51, SPEC §14): RAG sobre lo que el negocio DICE — fuentes con
+# vigencia, embeddings en pgvector con RLS, citas obligatorias y el catálogo
+# con precio y stock como CAMPOS (la IA nunca los inventa: los consulta).
+module:
+  id: knowledge
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [identity, organizations, audit]
+  optional: [crm]
+permissions:
+  - knowledge.manage
+  - knowledge.read
+events:
+  publishes:
+    - knowledge.source_added
+    - knowledge.source_expired
+    - knowledge.reindexed
+  consumes: []
+tools:
+  - knowledge.search
+  - knowledge.get_product
+nav:
+  - { label: Conocimiento, path: /ajustes/conocimiento, permission: knowledge.manage }
+widgets: []
+plan_min: base
+flag: module.knowledge

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Input, Skeleton, useSession } from '@iaxti/ui/react';
+import { Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
@@ -83,17 +83,20 @@ export function ModoAutonomo() {
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <label className="text-sm text-body" htmlFor="modo-defecto">Cuando nadie mira</label>
-        <select
-          id="modo-defecto"
-          className="rounded-campo border border-line bg-bg px-3 py-1.5 text-sm text-ink"
+        <span className="text-sm text-body">Cuando nadie mira</span>
+        <Select
           value={agente.defaultMode}
-          onChange={(e) => void guardar({ defaultMode: e.target.value as AgenteDto['defaultMode'] })}
+          onValueChange={(v) => void guardar({ defaultMode: v as AgenteDto['defaultMode'] })}
         >
-          <option value="assist">Solo sugiere (recomendado)</option>
-          <option value="autonomous">Responde sola en el horario de abajo</option>
-          <option value="off">Apagada</option>
-        </select>
+          <SelectTrigger aria-label="Modo por defecto" className="w-72">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="assist">Solo sugiere (recomendado)</SelectItem>
+            <SelectItem value="autonomous">Responde sola en el horario de abajo</SelectItem>
+            <SelectItem value="off">Apagada</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {agente.defaultMode === 'autonomous' && (

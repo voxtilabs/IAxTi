@@ -35,6 +35,7 @@ const USER_PERMS = new Set([
   'conversations.notes',
   'notifications.manage_own',
   'agents.use', // "Usar el copiloto" ✓ USER (matriz §23)
+  'knowledge.read', // consultar productos/precios del catálogo ✓ USER (#51)
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
