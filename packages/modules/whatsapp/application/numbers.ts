@@ -2,14 +2,19 @@ import type { PoolClient } from 'pg';
 import { createChannelAccount, setChannelState } from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
 
-// WhatsAppNumber (#42): los ids de Meta en NUESTRA base. El número es del
-// cliente; cuántos puede conectar lo dice su plan (plan_limits).
+// WhatsAppNumber (#42, ADR-0014): el número es del cliente y lo conecta él
+// mismo por *partner invitation*; cuántos puede conectar lo dice su plan
+// (plan_limits). El identificador operativo es el `senderId` de Zavu; los ids
+// de Meta se guardan cuando aparecen, para el día del proveedor propio (#82).
 
 export interface WhatsAppNumber {
   id: string;
   tenantId: string;
   channelAccountId: string;
-  phoneNumberId: string;
+  /** El sender de Zavu: por acá entra y sale todo hoy. */
+  senderId: string | null;
+  /** Ids de Meta: solo si el proveedor los expone. */
+  phoneNumberId: string | null;
   wabaId: string | null;
   displayPhone: string | null;
   quality: 'green' | 'yellow' | 'red' | null;
@@ -25,7 +30,8 @@ function rowToNumber(row: Record<string, unknown>): WhatsAppNumber {
     id: row.id as string,
     tenantId: row.tenant_id as string,
     channelAccountId: row.channel_account_id as string,
-    phoneNumberId: row.phone_number_id as string,
+    senderId: (row.sender_id as string) ?? null,
+    phoneNumberId: (row.phone_number_id as string) ?? null,
     wabaId: (row.waba_id as string) ?? null,
     displayPhone: (row.display_phone as string) ?? null,
     quality: (row.quality as WhatsAppNumber['quality']) ?? null,
@@ -47,16 +53,18 @@ async function numerosPermitidos(client: PoolClient, tenantId: string): Promise<
 }
 
 /**
- * El cierre del link de setup de Kapso: con los ids que devuelve se crea la
- * cuenta de canal (credencial POR REFERENCIA) y el número. Valida el tope
- * del plan ANTES de conectar.
+ * El cierre de la *partner invitation*: con el `senderId` que llega en
+ * `invitation.status_changed` (estado `completed`, nunca `failed` — que no es
+ * terminal) se crea la cuenta de canal (credencial POR REFERENCIA) y el
+ * número. Valida el tope del plan ANTES de conectar.
  */
 export async function connectWhatsAppNumber(
   client: PoolClient,
   input: {
     tenantId: string;
     name: string;
-    phoneNumberId: string;
+    senderId: string;
+    phoneNumberId?: string;
     wabaId?: string;
     displayPhone?: string;
     credentialRef: string;
@@ -80,15 +88,26 @@ export async function connectWhatsAppNumber(
     name: input.name,
     credentialRef: input.credentialRef,
     webhookSecretRef: input.webhookSecretRef,
-    config: { phoneNumberId: input.phoneNumberId, wabaId: input.wabaId ?? null },
+    config: {
+      senderId: input.senderId,
+      phoneNumberId: input.phoneNumberId ?? null,
+      wabaId: input.wabaId ?? null,
+    },
   });
   let row;
   try {
     const r = await client.query(
       `INSERT INTO whatsapp_numbers
-         (tenant_id, channel_account_id, phone_number_id, waba_id, display_phone, connected_at)
-       VALUES ($1, $2, $3, $4, $5, now()) RETURNING *`,
-      [input.tenantId, account.id, input.phoneNumberId, input.wabaId ?? null, input.displayPhone ?? null],
+         (tenant_id, channel_account_id, sender_id, phone_number_id, waba_id, display_phone, connected_at)
+       VALUES ($1, $2, $3, $4, $5, $6, now()) RETURNING *`,
+      [
+        input.tenantId,
+        account.id,
+        input.senderId,
+        input.phoneNumberId ?? null,
+        input.wabaId ?? null,
+        input.displayPhone ?? null,
+      ],
     );
     row = r.rows[0];
   } catch (err) {
@@ -117,13 +136,11 @@ export async function listWhatsAppNumbers(
   return r.rows.map(rowToNumber);
 }
 
-/** El webhook trae phone_number_id: con esto se ubica tenant y cuenta. */
-export async function findNumberByPhoneNumberId(
+/** El envelope trae `senderId`: con eso se ubica tenant y cuenta. */
+export async function findNumberBySenderId(
   client: PoolClient,
-  phoneNumberId: string,
+  senderId: string,
 ): Promise<WhatsAppNumber | null> {
-  const r = await client.query('SELECT * FROM whatsapp_numbers WHERE phone_number_id = $1', [
-    phoneNumberId,
-  ]);
+  const r = await client.query('SELECT * FROM whatsapp_numbers WHERE sender_id = $1', [senderId]);
   return r.rowCount === 0 ? null : rowToNumber(r.rows[0]);
 }

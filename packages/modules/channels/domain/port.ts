@@ -1,5 +1,5 @@
 // El puerto ChannelProvider (#41, SPEC §12): la bandeja y la IA no saben de
-// dónde viene un mensaje. Instagram o Messenger (Fase 5) son SOLO un
+// dónde viene un mensaje. Instagram o Messenger (#74) son SOLO un
 // adaptador nuevo que implementa esta interfaz. Puro: sin base ni HTTP.
 
 export const CHANNEL_KINDS = ['whatsapp', 'webchat', 'instagram', 'messenger', 'simulador'] as const;
@@ -65,7 +65,8 @@ export interface ChannelProvider {
   normalize(payload: unknown): NormalizedInbound[];
 }
 
-// Registro de adaptadores: Kapso (#42) y webchat (#46) se enchufan aquí.
+// Registro de adaptadores: Zavu (#42) —que sirve whatsapp, instagram y
+// messenger con el mismo código— y webchat (#46) se enchufan aquí.
 const providers = new Map<ChannelKind, ChannelProvider>();
 
 export function registerProvider(provider: ChannelProvider): void {

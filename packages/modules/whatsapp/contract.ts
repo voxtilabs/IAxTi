@@ -1,12 +1,14 @@
 // Única puerta pública del módulo whatsapp (SPEC §26).
 export const MODULE_ID = 'whatsapp' as const;
 export {
-  KAPSO_API_BASE_DEFAULT,
-  createKapsoProvider,
+  ZAVU_API_BASE_DEFAULT,
+  createZavuProvider,
+  verifyZavuSignature,
   fetchMediaBytes,
   normalizeStatuses,
-} from './application/kapso';
-export type { DeliveryStatusUpdate } from './application/kapso';
+  referralDe,
+} from './application/zavu';
+export type { DeliveryStatusUpdate } from './application/zavu';
 export {
   deliverOutbound,
   checkNumberRateLimit,
@@ -15,11 +17,11 @@ export {
   CAUSAS_META,
 } from './application/outbound';
 export type { OutboundJobData } from './application/outbound';
-export type { KapsoConfig } from './application/kapso';
+export type { ZavuConfig } from './application/zavu';
 export {
   connectWhatsAppNumber,
   listWhatsAppNumbers,
-  findNumberByPhoneNumberId,
+  findNumberBySenderId,
 } from './application/numbers';
 export type { WhatsAppNumber } from './application/numbers';
 export { downloadAttachmentsToR2 } from './application/media';
