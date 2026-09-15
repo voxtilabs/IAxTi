@@ -87,5 +87,31 @@ jobs:
             fi
             sleep 10
           done
-          curl -fsS -m 15 "${BASE}/health" && echo " ← /health ok"
-          curl -fsS -m 15 "${BASE}/health/modules" >/dev/null && echo "/health/modules ok"
+          # `curl -f` que falla solo dice el código. Cuando la API no arranca,
+          # el proxy contesta un 404 pelado y ese 404 no explica nada: el
+          # 15/09 costó una hora de apuestas a ciegas. Acá se imprime SIEMPRE
+          # el cuerpo —el "404 page not found" de Traefik no se parece en
+          # nada al de la app— y el host al que se está pegando.
+          echo "Host: $(printf '%s' "${BASE}" | sed -E 's#^https?://([^/]+).*#\1#')"
+
+          mirar() {
+            ruta="$1"
+            cuerpo=$(curl -sS -m 15 -w '\n%{http_code}' "${BASE}${ruta}" 2>&1) || true
+            codigo=$(printf '%s' "$cuerpo" | tail -1)
+            echo "--- ${ruta} -> ${codigo}"
+            printf '%s\n' "$cuerpo" | head -n -1 | head -c 600
+            echo
+            [ "$codigo" = "200" ]
+          }
+
+          fallo=0
+          mirar /health || fallo=1
+          mirar /health/modules || fallo=1
+          # `/ready` SÍ mira las dependencias: una API viva sin base contesta
+          # /health en 200 y no sirve para nada. Sin esto, un despliegue con
+          # la base inalcanzable se declaraba bueno — y así estuvo staging.
+          mirar /ready || fallo=1
+          if [ "$fallo" != "0" ]; then
+            echo "El despliegue quedó arriba pero no sano: los cuerpos de arriba dicen por qué."
+            exit 1
+          fi
