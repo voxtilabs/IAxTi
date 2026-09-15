@@ -61,6 +61,17 @@ export type { ImportField } from './domain/csv';
 export { exportarTitular, suprimirTitular } from './application/titular';
 export type { ExportacionTitular, ResultadoSupresion } from './application/titular';
 export {
+  listCustomFields,
+  createCustomField,
+  deleteCustomField,
+  validarCustom,
+  paraLaIa,
+  llaveDeCampo,
+  TIPOS_DE_CAMPO,
+  ENTIDADES_CON_CAMPOS,
+} from './application/campos';
+export type { CampoPersonalizado, TipoDeCampo, EntidadConCampos } from './application/campos';
+export {
   listTags,
   createTag,
   updateTag,
