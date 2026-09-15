@@ -17,6 +17,7 @@ import { applyModuleFlags } from '@iaxti/module-platform';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { ApiQuotaGuard } from './api-quota.guard';
+import { IdempotenciaInterceptor } from './idempotencia.interceptor';
 import { requestIdMiddleware } from './request-id';
 import { cabecerasMiddleware } from './cabeceras';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
@@ -124,6 +125,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
     // La cuota mensual (#25) corre DESPUÉS del guard: solo API keys.
     new ApiQuotaGuard(redisConnection(), pool),
   );
+  // Idempotency-Key (SPEC §28): DESPUÉS del guard, que es quien resuelve el
+  // tenant — la llave es por tenant, como todo acá.
+  if (pool) app.useGlobalInterceptors(new IdempotenciaInterceptor(pool));
 
   const config = new DocumentBuilder()
     .setTitle('IAxTi API')
