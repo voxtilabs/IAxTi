@@ -55,6 +55,7 @@ import { redisConnection } from '@iaxti/core';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
+import { CamposController } from './campos.controller';
 import { SettingsController } from './settings.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
 import { ContactsController } from './contacts.controller';
@@ -663,6 +664,7 @@ const controllers = [
   SupportStatusController,
   DemoController,
   ConversationsController,
+  CamposController,
   SettingsController,
   QuickRepliesController,
   EquipoController,

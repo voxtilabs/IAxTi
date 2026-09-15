@@ -87,7 +87,6 @@ const PENDIENTES: Record<string, string> = {
   'tenant.billing': 'Ver y cambiar el plan desde la app; hoy lo hace el SuperAdmin (#69).',
   'whatsapp.numbers.manage':
     'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',
-  'crm.fields.manage': 'Campos personalizados del CRM: no construido.',
   'crm.pipelines.manage': 'Editar pipelines desde la app: hoy se crean por el configurador (#50).',
   'crm.contacts.update': 'Cubierto por crm.contacts.create en el controlador; falta separar la edición.',
   'crm.deals.close': 'Cerrar una oportunidad usa crm.deals.update; falta separar el cierre.',

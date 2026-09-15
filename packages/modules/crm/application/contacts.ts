@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { listCustomFields, validarCustom } from './campos';
 import { isOptOutMessage, normalizePhone, normalizeRut } from '../domain/validation';
 
 export type ContactOrigin =
@@ -246,6 +247,17 @@ export async function updateContact(
   },
 ): Promise<Contact> {
   const rut = input.rut !== undefined ? (input.rut ? normalizeRut(input.rut) : null) : undefined;
+
+  // Los campos personalizados se validan contra lo DECLARADO (issue 248):
+  // tipo, obligatoriedad y opciones de lista. Lo que el negocio ya tenía
+  // guardado de antes sigue pasando — declarar un campo nuevo no puede
+  // romper todas las fichas viejas de golpe.
+  let custom = input.custom;
+  if (custom && Object.keys(custom).length > 0) {
+    const declarados = await listCustomFields(client, input.tenantId, 'contact').catch(() => []);
+    custom = validarCustom(declarados, custom);
+  }
+
   const result = await client.query(
     `UPDATE contacts SET
        name = COALESCE($3, name),
@@ -265,7 +277,7 @@ export async function updateContact(
       rut !== undefined,
       rut ?? null,
       input.ownerId ?? null,
-      input.custom ? JSON.stringify(input.custom) : null,
+      custom ? JSON.stringify(custom) : null,
     ],
   );
   if (result.rowCount === 0) throw new Error('No encontramos ese contacto. Puede que se haya eliminado.');
