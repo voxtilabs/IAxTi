@@ -81,7 +81,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  for (const tabla of ['idempotency_keys', 'deals', 'contacts', 'user_roles', 'invitations', 'outbox']) {
+  // `deal_stage_history` antes que `deals`: la historia apunta al trato.
+  for (const tabla of [
+    'idempotency_keys',
+    'deal_stage_history',
+    'deals',
+    'contacts',
+    'user_roles',
+    'invitations',
+    'outbox',
+  ]) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
   await admin.end();
