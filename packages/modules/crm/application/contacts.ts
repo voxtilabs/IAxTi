@@ -329,6 +329,17 @@ export async function handleInboundForConsent(
 }
 
 /** ¿Puede recibir mensajes iniciados por el negocio? (SPEC §8) */
+/**
+ * Orígenes en los que el contacto escribió PRIMERO. `importado` y `manual`
+ * no están: ahí el contacto nunca nos habló, y necesita opt-in explícito.
+ */
+export const ORIGENES_DE_CANAL: readonly ContactOrigin[] = [
+  'whatsapp',
+  'webchat',
+  'instagram',
+  'messenger',
+];
+
 export async function canReceiveBusinessInitiated(
   client: PoolClient,
   tenantId: string,
@@ -341,8 +352,12 @@ export async function canReceiveBusinessInitiated(
   if (result.rowCount === 0) return false;
   const { opt_in_at, opted_out_at, origin } = result.rows[0];
   if (opted_out_at) return false;
-  // Escribió primero (origen de canal) o dio opt-in registrado.
-  return Boolean(opt_in_at) || origin === 'whatsapp' || origin === 'webchat';
+  // Escribió primero (origen de canal) o dio opt-in registrado. Los
+  // orígenes que valen son TODOS los canales: quien nos escribió por
+  // Instagram o Messenger (#74) inició la conversación igual que quien
+  // escribió por WhatsApp. Dejarlos fuera los trataba como sin opt-in y
+  // mataba en silencio toda automatización hacia ellos.
+  return Boolean(opt_in_at) || ORIGENES_DE_CANAL.includes(origin as ContactOrigin);
 }
 
 /** Lista para /contactos (#34): búsqueda por nombre o teléfono, cursor. */

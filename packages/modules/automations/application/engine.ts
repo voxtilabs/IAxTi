@@ -9,6 +9,7 @@ import {
   updateDeliveryStatus,
 } from '@iaxti/module-conversations';
 import { canReceiveBusinessInitiated, createActivity, moveDealStage } from '@iaxti/module-crm';
+import { isWithinWindow, salePorProveedor } from '@iaxti/module-conversations';
 import type { ActivityType } from '@iaxti/module-crm';
 import { evaluateConditions, ruleModuleGaps, type Action } from '../domain/rules';
 import { rowToRule, type Rule } from './rules';
@@ -148,6 +149,20 @@ export async function executeAction(
       // Consentimiento SIEMPRE (SPEC §8): sin opt-in no sale nada.
       const puede = await canReceiveBusinessInitiated(client, tenantId, objeto.contactId as string);
       if (!puede) throw new Error('SIN_CONSENTIMIENTO');
+      // La ventana de mensajería, ANTES de escribir nada (SPEC §11): fuera
+      // de ella el proveedor rechaza el envío, el mensaje queda `failed` en
+      // la bandeja y, a los tres fallos, la regla se detiene sola para ese
+      // objeto. Saltarse el paso con su motivo es mucho más honesto — es lo
+      // que ya hacían las secuencias.
+      if (salePorProveedor(objeto.channel as string)) {
+        const ultimo = await client.query(
+          'SELECT last_inbound_at FROM conversations WHERE tenant_id = $1 AND id = $2',
+          [tenantId, conversationId],
+        );
+        if (!isWithinWindow(objeto.channel as string, ultimo.rows[0]?.last_inbound_at ?? null)) {
+          throw new Error('FUERA_DE_VENTANA');
+        }
+      }
       const message = await sendMessage(client, {
         tenantId,
         conversationId,
@@ -156,13 +171,14 @@ export async function executeAction(
         body: String(action.params.body ?? ''),
         requestId: input.requestId,
       });
-      if (objeto.channel === 'whatsapp') {
+      if (salePorProveedor(objeto.channel as string)) {
         if (!deps.enqueueOutbound) throw new Error('La cola de salida no está disponible.');
         // La cola outbound aplica el silencio del tenant (#43): un envío
         // iniciado por el negocio en horario de silencio SE DIFIERE allá.
         await deps.enqueueOutbound({ tenantId, messageId: message.id, requestId: input.requestId });
         return 'mensaje en cola (respeta silencio y consentimiento)';
       }
+      // Solo el webchat y el simulador llegan acá: se entregan en la app.
       await updateDeliveryStatus(client, {
         tenantId,
         messageId: message.id,
@@ -256,6 +272,11 @@ export async function runRule(
     return res;
   } catch (err) {
     const mensaje = (err as Error).message;
+    if (mensaje === 'FUERA_DE_VENTANA') {
+      // Tampoco es un fallo de la regla: es la ventana de mensajería (§11).
+      // Contarlo como fallo detendría la regla a los tres intentos.
+      return registrar('skipped', 'fuera de la ventana de mensajería: queda para una plantilla (#44)');
+    }
     if (mensaje === 'SIN_CONSENTIMIENTO') {
       // No es un fallo de la regla: es la ley del consentimiento (§8).
       return registrar('skipped', 'el contacto no tiene consentimiento para iniciados del negocio');

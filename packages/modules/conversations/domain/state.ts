@@ -66,6 +66,21 @@ export const VENTANA_HORAS: Record<string, number | null> = {
   simulador: null,
 };
 
+/**
+ * Canales que salen por un proveedor externo y por lo tanto pasan por la
+ * cola `outbound`. El webchat y el simulador se entregan DENTRO de la app:
+ * ahí escribir la fila del mensaje ES entregarlo.
+ *
+ * La distinción importaba poco cuando el único canal con proveedor era
+ * WhatsApp. Con Instagram y Messenger (#74), un `=== 'whatsapp'` deja los
+ * otros dos marcados como enviados sin que salga nada.
+ */
+export const CANALES_POR_PROVEEDOR = ['whatsapp', 'instagram', 'messenger'] as const;
+
+export function salePorProveedor(canal: string): boolean {
+  return (CANALES_POR_PROVEEDOR as readonly string[]).includes(canal);
+}
+
 export function isWithinWindow(
   channel: string,
   lastInboundAt: Date | null,
