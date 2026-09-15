@@ -230,6 +230,9 @@ importers:
 
   apps/agents:
     dependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@iaxti/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
