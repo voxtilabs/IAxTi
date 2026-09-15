@@ -12,6 +12,22 @@ Formato: fecha · simulacro · ambiente · tiempo real · compromiso · desvío.
 | _(pendiente)_ | Restore de Redis desde R2 | staging | — | < 15 min | — |
 | _(pendiente)_ | VPS completo limpio | — | — | RTO < 1 h | — |
 
+## Simulacro 1 · rollback en staging (2026-09-14) — FALLÓ, y sirvió
+
+Primer intento del simulacro de rollback. **Falló, y por eso valió la pena.**
+
+Se pasó el SHA **incompleto** (los tags de imagen son el SHA de 40
+caracteres). Dokploy no encontró la imagen y el redeploy quedó en `error`.
+Staging **no se cayó** —Dokploy mantuvo los contenedores viejos corriendo—
+pero el proyecto quedó con `IMAGE` apuntando a algo inexistente hasta el
+siguiente deploy.
+
+Lo que enseñó: **el rollback tenía que verificar que la imagen existe antes
+de tocar la configuración**. Se corre bajo presión, con el tag copiado a
+mano, y con el incidente original todavía abierto. Agregado.
+
+Tiempo: no aplica (abortó). Se repite con el SHA completo.
+
 ## Hallazgos del primer repaso (2026-09-14)
 
 Antes de correr ningún simulacro, leer el procedimiento ya encontró un
