@@ -89,7 +89,14 @@ export async function exigeRolQueRespetaRls(
     'quedan visibles desde la cuenta de otro. Conecta con un rol de aplicación ' +
     'sin superusuario ni BYPASSRLS (runbook: "el rol de la aplicación").';
 
-  if (entorno === 'production') throw new Error(mensaje);
+  // NO se corta el arranque, en ningún entorno. Un proceso que muere al
+  // partir entra en ciclo de reinicio, el proxy le quita la ruta y lo que
+  // ve cualquiera es un 404 sin explicación: el diagnóstico queda escondido
+  // justo cuando más se necesita. Me pasó con staging el 15/09.
+  //
+  // Negarse a SERVIR es la respuesta correcta para producción, y va aparte
+  // (issue 227): el proceso sigue vivo, los logs se leen, /health responde
+  // y ninguna request toca datos.
   console.error(`SIN AISLAMIENTO (${entorno}): ${mensaje}`);
   recordarCadaTanto(entorno, mensaje);
   return estado;
