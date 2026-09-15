@@ -81,3 +81,15 @@ export {
   ROLES_DE_ETIQUETA,
 } from './application/tags';
 export type { Etiqueta, RolDeEtiqueta } from './application/tags';
+export {
+  listCustomFields,
+  createCustomField,
+  deleteCustomField,
+  validarCustom,
+  paraLaIa,
+  llaveDeCampo,
+  TIPOS_DE_CAMPO,
+  ENTIDADES_CON_CAMPOS,
+} from './application/campos';
+export type { CampoPersonalizado, TipoDeCampo, EntidadConCampos } from './application/campos';
+
