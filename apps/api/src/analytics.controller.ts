@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
-import { getDashboard } from '@iaxti/module-analytics';
+import { getDashboard, esDia, ultimosDias, TZ_POR_DEFECTO } from '@iaxti/module-analytics';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
@@ -48,15 +48,23 @@ export class AnalyticsController {
     @Query('ownerId') ownerId?: string,
   ) {
     const actor = actorOf(request);
-    const hasta = to ? new Date(to) : new Date();
-    const desde = from ? new Date(from) : new Date(hasta.getTime() - 29 * 86_400_000);
-    if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime()) || desde > hasta) {
+    // Los días viajan como texto AAAA-MM-DD en la zona del negocio: mandar
+    // un Date hace que Postgres lo convierta y el rango se corra un día
+    // entero (en Chile, cada noche a partir de las 21:00).
+    // Mediodía UTC como ancla al calcular desde un `to` dado: así ninguna
+    // zona horaria corre el día al restar.
+    const ancla = to && esDia(to) ? new Date(`${to}T12:00:00Z`) : new Date();
+    const pordefecto = ultimosDias(30, TZ_POR_DEFECTO, ancla);
+    const hasta = to ?? pordefecto.to;
+    const desde = from ?? pordefecto.from;
+    if (!esDia(desde) || !esDia(hasta) || desde > hasta) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'El rango de fechas no se entiende (from y to como AAAA-MM-DD).',
       });
     }
-    if (hasta.getTime() - desde.getTime() > MAX_RANGO_DIAS * 86_400_000) {
+    const dias = (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000;
+    if (dias > MAX_RANGO_DIAS) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'El rango máximo es un año.',
