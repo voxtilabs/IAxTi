@@ -32,7 +32,7 @@ implementa se cierre; entonces se anota el PR.
 
 | Control | Implementación | Referencia | Estado |
 |---|---|---|---|
-| Borde | Cloudflare: proxy, WAF gestionado, rate limit /api/* y /webhooks/* | #16 | hecho |
+| Borde | Cloudflare: proxy, WAF gestionado, rate limit /api/* y /webhooks/* | #16 | hecho — **pendiente acotar las reglas por hostname**: hoy son por zona y también alcanzan a la landing (ver runbooks/DOMINIOS.md) |
 | Acceso administrativo | Cloudflare Access para panel Dokploy y admin staging; SSH solo con llave desde IP autorizada; VPS solo 80/443 desde rangos CF | #16 | hecho — con el panel de Dokploy caído hoy (#133) |
 | Webhooks entrantes | Firma verificada (HMAC), encolado, idempotencia por id, respuesta < 1 s | SPEC §12, #41 | hecho — firma sobre el cuerpo crudo, encolado idempotente |
 | Webhooks salientes | HMAC por endpoint, secreto rotable, panel de entregas | #76 (F5) | hecho — HMAC por endpoint con secreto rotable |
