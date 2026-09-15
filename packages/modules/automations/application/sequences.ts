@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
-import { isWithin24hWindow } from '@iaxti/module-conversations';
+import { isWithinWindow, salePorProveedor } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
 import { ruleModuleGaps, ACTION_REQUIREMENTS, type Action } from '../domain/rules';
 import { executeAction, loadObject, type EngineDeps } from './engine';
@@ -283,14 +283,17 @@ export async function sweepSequences(pool: Pool, deps: EngineDeps): Promise<numb
         const objeto = await loadObject(client, tenantId, 'conversation', fila.conversation_id);
         if (!objeto) continue;
         try {
-          if (paso.action.kind === 'send_message' && objeto.channel === 'whatsapp') {
+          if (paso.action.kind === 'send_message' && salePorProveedor(objeto.channel as string)) {
             const conv = await client.query(
               'SELECT last_inbound_at FROM conversations WHERE tenant_id = $1 AND id = $2',
               [tenantId, fila.conversation_id],
             );
-            if (!isWithin24hWindow(conv.rows[0]?.last_inbound_at ?? null)) {
-              // Fuera de ventana: por WhatsApp solo salen plantillas (#44).
-              detalle = 'fuera de la ventana de 24 h: el paso queda para la plantilla (#44)';
+            // La ventana es POR CANAL: Instagram y Messenger tienen la suya,
+            // y aplicarles la de WhatsApp era casualidad, no criterio. El
+            // canal sale del objeto, que ya lo trae cargado.
+            if (!isWithinWindow(objeto.channel as string, conv.rows[0]?.last_inbound_at ?? null)) {
+              // Fuera de ventana solo salen plantillas (#44).
+              detalle = 'fuera de la ventana de mensajería: el paso queda para la plantilla (#44)';
               await avanzar(client, fila, steps, detalle);
               n += 1;
               continue;

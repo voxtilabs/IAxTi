@@ -54,6 +54,8 @@ export {
   assertDeliveryAdvance,
   isWithin24hWindow,
   isWithinWindow,
+  salePorProveedor,
+  CANALES_POR_PROVEEDOR,
   VENTANA_HORAS,
   CONVERSATION_STATES,
 } from './domain/state';
