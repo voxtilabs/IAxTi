@@ -78,26 +78,37 @@ describe('el rol de la conexión decide si RLS existe (issue 211)', () => {
     if (dueño.seSalta) expect(await ver(admin)).toBeGreaterThan(0);
   });
 
-  it('en producción el arranque revienta; en staging y desarrollo grita y sigue', async () => {
+  it('grita en todos lados y no mata el proceso en ninguno', async () => {
     // Con un rol de mentira, para que la regla no dependa de cómo esté
     // configurada la base de quien corra el test.
     const comoSuperusuario = {
       query: async () => ({ rows: [{ rol: 'postgres', super: true, bypass: false }] }),
     } as unknown as Pool;
 
-    await expect(exigeRolQueRespetaRls(comoSuperusuario, 'production')).rejects.toThrow(
-      /políticas por tenant/,
-    );
-    // Staging NO se cae: ahí no hay datos reales y tumbarlo no protege a
-    // nadie, pero el aviso sale igual (issue 211).
+    // Ni producción: un proceso muerto al arrancar es un 404 sin
+    // explicación (issue 227 se ocupa de negarse a servir, que es distinto).
+    await expect(exigeRolQueRespetaRls(comoSuperusuario, 'production')).resolves.toMatchObject({
+      seSalta: true,
+    });
     await expect(exigeRolQueRespetaRls(comoSuperusuario, 'staging')).resolves.toMatchObject({
       seSalta: true,
     });
-    // En desarrollo tampoco frena a nadie: avisa y sigue.
     await expect(exigeRolQueRespetaRls(comoSuperusuario, 'development')).resolves.toMatchObject({
       seSalta: true,
     });
     // Y el rol de aplicación de verdad pasa en cualquier entorno.
     await expect(exigeRolQueRespetaRls(app, 'production')).resolves.toMatchObject({ seSalta: false });
+  });
+
+  it('si la base no contesta, la aplicación arranca igual y lo dice', async () => {
+    // Una comprobación de seguridad no puede volverse una dependencia dura
+    // del arranque: `/health` es liveness justamente para no tener ninguna.
+    const caida = {
+      query: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    } as unknown as Pool;
+    const estado = await exigeRolQueRespetaRls(caida, 'production', 1);
+    expect(estado).toMatchObject({ verificado: false, seSalta: false, rol: 'desconocido' });
   });
 });

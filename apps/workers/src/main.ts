@@ -51,12 +51,10 @@ function start(): void {
   const pool = createPool();
   // Igual que la API (issue 211): un rol que se salta RLS no sirve. Los
   // workers escriben en nombre de cada tenant, así que acá importa lo mismo.
-  // `start()` no es async, así que el fallo se convierte en lo único que
-  // corresponde: caerse, y ruidosamente. Un worker que sigue vivo mientras
-  // escribe datos cruzados es peor que un worker caído.
+  // Grita si la conexión no respeta RLS; no se mata solo (issue 227: lo
+  // correcto es negarse a trabajar con el proceso vivo, no desaparecer).
   void exigeRolQueRespetaRls(pool).catch((err) => {
     console.error(`workers: ${(err as Error).message}`);
-    process.exit(1);
   });
 
   // El motor de reglas (#62): consumidores de eventos + barrido de tiempo.

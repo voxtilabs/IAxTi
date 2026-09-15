@@ -53,27 +53,26 @@ corren antes del despliegue, en su propio paso— siguen usando el dueño.
 
 ## El guardián
 
-La API y los workers **no arrancan en `production`** si la conexión se puede
-saltar RLS (`exigeRolQueRespetaRls`, issue 211).
-
-En `staging` y en desarrollo sí arrancan, pero gritan en el log al partir y
+La API y los workers comprueban al arrancar si la conexión puede saltarse
+RLS (`exigeRolQueRespetaRls`, issue 211). Si puede, **gritan** al partir y
 cada media hora:
 
 ```
 SIN AISLAMIENTO (staging): La base acepta esta conexión con el rol "…"
 ```
 
-La razón de la diferencia es que en staging no hay datos reales —nunca un
-número de WhatsApp de verdad— y tumbar el ambiente no protegería a nadie.
-Que el aviso esté ahí no lo vuelve aceptable: **staging también tiene que
-usar el rol de aplicación**, y mientras no lo use, el aislamiento entre
-tenants no se está probando en ninguna parte salvo en los tests de RLS.
+**No matan el proceso, en ningún entorno.** Matarlo suena decidido y es
+peor: el contenedor entra en ciclo de reinicio, el proxy le quita la ruta y
+lo que ve cualquiera es un 404 pelado, con el motivo real enterrado en un
+log al que hay que entrar a buscar. Pasó con staging el 15/09.
 
-Si el arranque en producción falla con
+Lo que corresponde en producción —negarse a servir con el proceso vivo— va
+en el issue 227.
 
-> La base acepta esta conexión con el rol "…", que es superusuario
-
-no hay que apagar el guardián: hay que crear el rol de aplicación.
+Si la base no contesta cuando se hace la comprobación, la aplicación
+arranca igual y lo dice: una comprobación de seguridad no puede volverse una
+dependencia dura del arranque (`/health` es liveness justamente para no
+tener ninguna).
 
 ## Cómo comprobarlo a mano
 
