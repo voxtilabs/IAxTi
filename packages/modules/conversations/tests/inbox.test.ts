@@ -29,6 +29,10 @@ beforeAll(async () => {
   await admin.query(
     'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, conversations, messages, assignments TO iaxti_app',
   );
+  // `usage_meters`: desde #213 cada conversación que recibe algo cuenta como
+  // activa del ciclo, y eso lo escribe el MISMO camino de entrada. El rol de
+  // la aplicación necesita poder sumarlo o la bandeja deja de recibir.
+  await admin.query('GRANT SELECT, INSERT, UPDATE ON usage_meters TO iaxti_app');
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('inbox') RETURNING id");
