@@ -11,6 +11,8 @@ import {
   clienteZavu,
   conectarSender,
   elegirSender,
+  llaveSirveParaAmbiente,
+  quienSoy,
 } from '@iaxti/module-whatsapp';
 
 function arg(nombre, pordefecto) {
@@ -35,9 +37,26 @@ const webhookSecretRef = arg('webhook-secret-ref', 'ZAVU_WEBHOOK_SECRET');
 
 const llamar = clienteZavu(apiKey);
 
-const { data: senders = [] } = await llamar('/senders').then((r) =>
-  Array.isArray(r) ? { data: r } : r,
+// Antes que nada: ¿esta llave puede tocar este ambiente? Lo responde la
+// API (`isTestMode`), no el prefijo del token — un token se renombra, la
+// respuesta de la API no.
+const proyecto = await quienSoy(llamar);
+const veredicto = llaveSirveParaAmbiente(proyecto, process.env.IAXTI_ENV);
+console.log(
+  `\nProyecto: ${proyecto.project.name} · llave de ${proyecto.isTestMode ? 'PRUEBA' : 'PRODUCCIÓN'}` +
+    ` · ambiente: ${process.env.IAXTI_ENV ?? 'sin declarar'}`,
 );
+if (!veredicto.ok) {
+  console.error(`\n${veredicto.motivo}`);
+  process.exit(1);
+}
+
+// La API pagina con `{items, nextCursor}`. Lo descubrí llamándola: el
+// script leía `data` y reportaba "0 senders" con el proyecto lleno.
+const respuesta = await llamar('/senders');
+const senders = Array.isArray(respuesta)
+  ? respuesta
+  : (respuesta.items ?? respuesta.data ?? []);
 
 console.log(`\nSenders del proyecto (${senders.length}):`);
 for (const s of senders) {

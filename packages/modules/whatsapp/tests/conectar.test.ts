@@ -5,6 +5,8 @@ import {
   EVENTOS_WEBHOOK,
   conectarSender,
   elegirSender,
+  llaveSirveParaAmbiente,
+  quienSoy,
   urlWebhook,
   type SenderZavu,
 } from '../application/conectar';
@@ -33,6 +35,44 @@ afterAll(async () => {
   await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
   await admin.end();
+});
+
+describe('la llave tiene que calzar con el ambiente', () => {
+  const prueba = { project: { id: 'p1', name: 'VoxTi Labs' }, isTestMode: true };
+  const produccion = { project: { id: 'p1', name: 'VoxTi Labs' }, isTestMode: false };
+
+  it('una llave de PRODUCCIÓN no entra a staging', () => {
+    // Es la regla que hasta ahora vivía en la cabeza de alguien: en
+    // producción se manda desde el número real del negocio, y una prueba
+    // mal apuntada le escribe de verdad a clientes de verdad.
+    const r = llaveSirveParaAmbiente(produccion, 'staging');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toMatch(/mensajes reales a clientes reales/);
+  });
+
+  it('sin ambiente declarado también se rechaza la de producción', () => {
+    expect(llaveSirveParaAmbiente(produccion, undefined).ok).toBe(false);
+  });
+
+  it('una llave de PRUEBA no sirve para producción: no saldría nada', () => {
+    const r = llaveSirveParaAmbiente(prueba, 'production');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toMatch(/no saldrían de verdad/);
+  });
+
+  it('cada una en su ambiente, pasa', () => {
+    expect(llaveSirveParaAmbiente(prueba, 'staging').ok).toBe(true);
+    expect(llaveSirveParaAmbiente(prueba, undefined).ok).toBe(true);
+    expect(llaveSirveParaAmbiente(produccion, 'production').ok).toBe(true);
+  });
+
+  it('decide por lo que responde la API, no por el prefijo del token', async () => {
+    // Un token se puede renombrar; `isTestMode` lo dice la API.
+    const llamar = vi.fn().mockResolvedValue(produccion);
+    const yo = await quienSoy(llamar);
+    expect(llamar).toHaveBeenCalledWith('/me');
+    expect(yo.isTestMode).toBe(false);
+  });
 });
 
 describe('elegir el sender', () => {

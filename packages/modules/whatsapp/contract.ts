@@ -36,8 +36,10 @@ export type { NumberQuality, QualityUpdate } from './application/quality';
 export {
   clienteZavu,
   elegirSender,
+  quienSoy,
+  llaveSirveParaAmbiente,
   conectarSender,
   urlWebhook,
   EVENTOS_WEBHOOK,
 } from './application/conectar';
-export type { SenderZavu, LlamarZavu, ResultadoConexion } from './application/conectar';
+export type { SenderZavu, LlamarZavu, ResultadoConexion, ProyectoZavu } from './application/conectar';
