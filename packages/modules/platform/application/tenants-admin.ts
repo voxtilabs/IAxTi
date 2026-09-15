@@ -216,6 +216,35 @@ export async function endSupportSession(
   });
 }
 
+/**
+ * La sesión de soporte VIVA de este admin sobre este tenant (issue 219).
+ *
+ * Todo el aparato del modo soporte existía —sesión con vencimiento, aviso al
+ * cliente, audit, cierre anticipado— y no daba acceso a nada: el rol sale de
+ * `user_roles` y el SuperAdmin no está ahí. La ceremonia sin la capacidad.
+ *
+ * Devuelve la sesión SOLO si es de este admin, es de este tenant, no se cerró
+ * y no venció. Cualquier duda devuelve null: el camino de soporte tiene que
+ * ser imposible de pisar sin sesión.
+ */
+export async function activeSupportSession(
+  client: Pick<Pool, 'query'> | PoolClient,
+  input: { tenantId: string; adminUser: string },
+): Promise<{ id: string; endsAt: Date } | null> {
+  if (!input.tenantId?.trim() || !input.adminUser?.trim()) return null;
+  const r = await client
+    .query(
+      `SELECT id, ends_at FROM platform_support_sessions
+        WHERE tenant_id = $1 AND admin_user = $2
+          AND ended_at IS NULL AND ends_at > now()
+        ORDER BY ends_at DESC LIMIT 1`,
+      [input.tenantId, input.adminUser],
+    )
+    .catch(() => ({ rows: [] as Array<{ id: string; ends_at: Date }> }));
+  const fila = r.rows[0];
+  return fila ? { id: String(fila.id), endsAt: fila.ends_at } : null;
+}
+
 /** El AVISO del tenant: la app lo muestra mientras el soporte mira. */
 export async function supportStatus(
   client: PoolClient,

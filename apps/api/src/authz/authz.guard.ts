@@ -16,12 +16,29 @@ import { AUTH_KEY, MODULE_KEY, PERMISSION_KEY } from './decorators';
 /** Lo que solo lee: pasa aunque el módulo esté fuera del plan (SPEC §6). */
 const SOLO_LEE = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/**
+ * Lo que puede ver el SUPERADMIN en modo soporte (SPEC §23: la columna dice
+ * "soporte" en ver conversaciones y ver el CRM, y raya en todo lo demás).
+ *
+ * Es una lista a mano, y a propósito: que agregar un permiso nuevo no lo
+ * reparta solo al soporte. Escribir NUNCA, sea cual sea el permiso.
+ */
+const PERMISOS_DE_SOPORTE = new Set([
+  'conversations.read',
+  'conversations.read_all',
+  'crm.contacts.read',
+  'crm.deals.read',
+  'crm.read_all',
+]);
+
 export interface Actor {
   userId: string;
   tenantId: string;
   role: string;
-  /** 'apikey' cuando la request llegó con X-Api-Key (#24). */
-  kind?: 'user' | 'apikey';
+  /** 'apikey' con X-Api-Key (#24); 'soporte' con sesión de soporte viva (issue 219). */
+  kind?: 'user' | 'apikey' | 'soporte';
+  /** La sesión de soporte que habilitó este acceso, para el audit. */
+  supportSessionId?: string;
   /** Los scopes de la key: el techo de lo que puede hacer. */
   scopes?: string[];
 }
@@ -49,6 +66,13 @@ export interface AuthzOptions {
   /** ¿SUPERADMIN de plataforma? (tabla platform_admins, cross-tenant). */
   resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
   /**
+   * Sesión de soporte VIVA de este SUPERADMIN sobre este tenant (issue 219).
+   * null lo apaga: sin esto, el modo soporte no da acceso a nada.
+   */
+  resolveSupportSession?:
+    | ((tenantId: string, userId: string) => Promise<{ id: string } | null>)
+    | null;
+  /**
    * El acceso del TENANT a un módulo según su plan (issue 209): 'completo'
    * o 'solo_lectura'. null lo apaga (tests y desarrollo sin base).
    */
@@ -60,6 +84,18 @@ export interface AuthzOptions {
    * BEST-EFFORT — el 403 sale igual aunque el registro falle, porque negar
    * el acceso importa más que contarlo.
    */
+  /** Rastro de cada acceso del soporte (issue 219). Best-effort. */
+  onSupportAccess?:
+    | ((info: {
+        tenantId: string;
+        userId: string;
+        sessionId?: string;
+        permission?: string;
+        resource?: string;
+        ip?: string;
+        requestId?: string;
+      }) => void)
+    | null;
   onDenied?: ((info: {
     kind: 'permiso' | 'autenticacion';
     tenantId?: string;
@@ -88,6 +124,10 @@ function ipDe(request: WithRequestId): string | undefined {
  * hardening (#79-#84). El evento permission.denied al outbox llega cuando la
  * API tenga pool cableado en todos los ambientes.
  */
+function request0(context: ExecutionContext): { method: string } {
+  return context.switchToHttp().getRequest<{ method: string }>();
+}
+
 @Injectable()
 export class AuthzGuard implements CanActivate {
   private readonly catalog: ReadonlySet<string>;
@@ -155,7 +195,9 @@ export class AuthzGuard implements CanActivate {
       // subconjunto del catálogo del tenant; jamás cross-tenant (el
       // tenant viene DE la key, no de un header).
       const allowed =
-        actor.kind === 'apikey'
+        actor.kind === 'soporte'
+          ? PERMISOS_DE_SOPORTE.has(permission) && SOLO_LEE.has(request0(context).method)
+          : actor.kind === 'apikey'
           ? (actor.scopes ?? []).includes(permission)
           : isBaseRole(actor.role)
             ? baseRoleHasPermission(actor.role, permission, this.catalog)
@@ -179,6 +221,19 @@ export class AuthzGuard implements CanActivate {
             message: 'Tu plan no incluye esta función. Puedes ver lo que ya tienes, pero no crear ni cambiar.',
           });
         }
+      }
+
+      // El soporte mirando: queda escrito en el libro del tenant.
+      if (actor.kind === 'soporte' && allowed) {
+        this.options.onSupportAccess?.({
+          tenantId: actor.tenantId,
+          userId: actor.userId,
+          sessionId: actor.supportSessionId,
+          permission,
+          resource: request.path,
+          ip: ipDe(request),
+          requestId: request.requestId,
+        });
       }
 
       if (!allowed) {
@@ -278,6 +333,19 @@ export class AuthzGuard implements CanActivate {
         ? await this.options.resolveRole(tenantId, userId)
         : null;
       if (!role) {
+        // Modo soporte (SPEC §22 y §23, issue 219): el SUPERADMIN no está en
+        // `user_roles` de un cliente y no debe estarlo. Entra SOLO si es
+        // admin de plataforma Y tiene una sesión de soporte viva sobre ESTE
+        // tenant. Las dos cosas, o `NOT_A_MEMBER` como siempre.
+        const soporte =
+          this.options.resolvePlatformAdmin && this.options.resolveSupportSession
+            ? (await this.options.resolvePlatformAdmin(userId))
+              ? await this.options.resolveSupportSession(tenantId, userId)
+              : null
+            : null;
+        if (soporte) {
+          return { userId, tenantId, role: 'SUPERADMIN', kind: 'soporte', supportSessionId: soporte.id };
+        }
         throw new ForbiddenException({
           code: 'NOT_A_MEMBER',
           message: 'No perteneces a este negocio. Pide una invitación a quien lo administra.',
