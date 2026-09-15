@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diaEn, esDia, ultimosDias, TZ_POR_DEFECTO } from '../domain/dias';
+import { diaEn, esDia, mesEn, ultimosDias, TZ_POR_DEFECTO } from '../src/dias';
 
 // El bug que originó esto (#66): `bump` escribía el día en UTC y el rango
 // del tablero se calculaba en hora local. En Chile son dos fechas distintas
@@ -28,6 +28,13 @@ describe('el día del negocio', () => {
   it('un rango de un solo día es válido', () => {
     const rango = ultimosDias(1, TZ_POR_DEFECTO, nocheChilena);
     expect(rango.from).toBe(rango.to);
+  });
+
+  it('el mes del negocio también corre: las últimas horas del mes son del mes', () => {
+    // 1 de octubre 02:00 UTC = 30 de septiembre 23:00 en Chile.
+    const finDeMes = new Date('2026-10-01T02:00:00Z');
+    expect(mesEn('UTC', finDeMes)).toBe('2026-10-01');
+    expect(mesEn(TZ_POR_DEFECTO, finDeMes)).toBe('2026-09-01');
   });
 
   it('esDia rechaza lo que no es una fecha de calendario', () => {

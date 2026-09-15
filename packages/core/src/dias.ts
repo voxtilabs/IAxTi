@@ -1,6 +1,10 @@
-// El "día" de las métricas (#66). Suena trivial y no lo es: escribir el
-// bucket con una noción de día y consultarlo con otra hace que los números
-// de hoy desaparezcan del tablero.
+// El "día" del negocio. Suena trivial y no lo es: escribir un bucket con
+// una noción de día y consultarlo con otra hace que los números de hoy
+// desaparezcan del tablero (issue 182), y que una regla "una vez al día" se
+// dispare dos veces la misma tarde.
+//
+// Vive en core, no en analytics, porque lo usan varios módulos y tener DOS
+// definiciones de "hoy" es exactamente el bug que esto viene a cerrar.
 //
 // Lo que pasaba: `bump` guardaba el día en **UTC** y el rango del dashboard
 // viajaba como `Date` de JS, que node-postgres serializa en hora LOCAL y el
@@ -44,4 +48,13 @@ export function esDia(valor: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
   const d = new Date(`${valor}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && diaEn('UTC', d) === valor;
+}
+
+/**
+ * `AAAA-MM-01` del mes del negocio: el ciclo mensual de cuotas y facturación.
+ * Con el mes en UTC, las últimas tres horas de cada mes en Chile ya contaban
+ * para el mes siguiente.
+ */
+export function mesEn(timeZone = TZ_POR_DEFECTO, cuando: Date = new Date()): string {
+  return `${diaEn(timeZone, cuando).slice(0, 7)}-01`;
 }

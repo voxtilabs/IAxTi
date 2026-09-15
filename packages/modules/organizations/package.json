@@ -16,6 +16,7 @@
     "vitest": "^3.0.0"
   },
   "dependencies": {
+    "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
     "pg": "^8.13.0"
   }

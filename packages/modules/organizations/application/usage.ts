@@ -1,10 +1,15 @@
 import type { PoolClient } from 'pg';
+import { TZ_POR_DEFECTO, mesEn } from '@iaxti/core';
 
 export type UsageMetric = 'conversations' | 'ia_executions' | 'storage_mb' | 'api_requests';
 
-/** Inicio del ciclo mensual del período que contiene `at`. */
+/**
+ * Inicio del ciclo mensual del período que contiene `at`, en la zona del
+ * NEGOCIO. Con el mes en UTC, las últimas tres horas de cada mes en Chile
+ * ya contaban para el mes siguiente: la cuota se reseteaba antes de tiempo.
+ */
 export function periodStart(at = new Date()): string {
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  return mesEn(process.env.IAXTI_TZ ?? TZ_POR_DEFECTO, at);
 }
 
 /**
