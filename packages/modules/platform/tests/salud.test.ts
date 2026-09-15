@@ -4,6 +4,7 @@ import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import {
   chequeoCrecimientoMensajes,
+  chequeoEventosAbandonados,
   estadoGeneral,
   healthSnapshot,
   securitySnapshot,
@@ -108,6 +109,44 @@ describe('umbral de particionado (#84)', () => {
   it('el chequeo entra al tablero de salud', async () => {
     const snap = await healthSnapshot(admin, { redis: null, env: {} });
     expect(snap.chequeos.some((c) => c.id === 'mensajes')).toBe(true);
+  });
+});
+
+describe('eventos abandonados (#71)', () => {
+  it('sin abandonados dice que no hay, con el umbral explícito', async () => {
+    const chequeo = await chequeoEventosAbandonados(admin);
+    expect(chequeo.estado).toBe('bien');
+    expect(chequeo.valor).toBe(0);
+    expect(chequeo.umbral).toMatch(/> 0/);
+  });
+
+  it('un evento que agotó los reintentos es MAL, no "atención"', async () => {
+    // El despachador deja de intentar a los 5 fallos y lo abandona con su
+    // último error. Hasta ahora nadie miraba esa pila.
+    await admin.query(
+      `INSERT INTO outbox (tenant_id, name, payload, attempts, last_error)
+       VALUES ($1, 'payment.received', '{}'::jsonb, 5, 'el consumidor explotó')`,
+      [tenant],
+    );
+    const chequeo = await chequeoEventosAbandonados(admin);
+    expect(chequeo.estado).toBe('mal');
+    expect(chequeo.valor).toBe(1);
+    // El motivo viaja: sin él, "1 evento abandonado" no se puede accionar.
+    expect(chequeo.detalle).toMatch(/el consumidor explotó/);
+    // Y ensucia el general del tablero.
+    const snap = await healthSnapshot(admin, { redis: null, env: {} });
+    expect(snap.estado).toBe('mal');
+    await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  });
+
+  it('un evento con reintentos pendientes NO cuenta: todavía puede salir', async () => {
+    await admin.query(
+      `INSERT INTO outbox (tenant_id, name, payload, attempts, last_error)
+       VALUES ($1, 'payment.received', '{}'::jsonb, 2, 'falló una vez')`,
+      [tenant],
+    );
+    expect((await chequeoEventosAbandonados(admin)).valor).toBe(0);
+    await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
   });
 });
 

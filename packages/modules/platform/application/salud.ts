@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import type Redis from 'ioredis';
-import { QUEUE_NAMES, type ModuleHealth } from '@iaxti/core';
+import { MAX_ATTEMPTS, QUEUE_NAMES, type ModuleHealth } from '@iaxti/core';
 
 // Seguridad y salud del SuperAdmin (#71, prompt maestro §22). Una persona
 // opera todo esto sola: necesita UN lugar que diga qué está mal y dónde.
@@ -192,6 +192,59 @@ export async function chequeoCrecimientoMensajes(pool: Pool): Promise<Chequeo> {
   };
 }
 
+/**
+ * Eventos abandonados del outbox (#71). El despachador reintenta hasta
+ * MAX_ATTEMPTS y después deja el evento quieto, con su último error. Eso
+ * está bien —no se puede reintentar para siempre— pero hasta ahora nadie
+ * miraba esa pila: un `payment.received` abandonado es un aviso que el
+ * negocio nunca recibió y de cuya ausencia nadie se entera.
+ *
+ * Por eso es `mal` y no `atención`: si hay uno, alguien se quedó sin saber
+ * algo.
+ */
+export async function chequeoEventosAbandonados(pool: Pool): Promise<Chequeo> {
+  const r = await pool
+    .query(
+      `SELECT count(*)::int AS n,
+              min(occurred_at) AS mas_viejo,
+              (array_agg(DISTINCT left(last_error, 120)))[1:3] AS errores
+         FROM outbox
+        WHERE processed_at IS NULL AND attempts >= $1`,
+      [MAX_ATTEMPTS],
+    )
+    .catch(() => ({ rows: [] as Array<{ n: number; mas_viejo: Date | null; errores: string[] }> }));
+  if (r.rows.length === 0) {
+    return {
+      id: 'outbox',
+      titulo: 'Eventos abandonados',
+      estado: 'sin_fuente',
+      detalle: 'No pudimos leer el outbox.',
+    };
+  }
+  const { n, mas_viejo: masViejo, errores } = r.rows[0];
+  if (n === 0) {
+    return {
+      id: 'outbox',
+      titulo: 'Eventos abandonados',
+      estado: 'bien',
+      detalle: `Ningún evento se quedó sin entregar tras ${MAX_ATTEMPTS} intentos.`,
+      valor: 0,
+      umbral: `cualquiera > 0 es un aviso que alguien no recibió`,
+    };
+  }
+  const desde = masViejo ? new Date(masViejo).toLocaleString('es-CL') : 'fecha desconocida';
+  return {
+    id: 'outbox',
+    titulo: 'Eventos abandonados',
+    estado: 'mal',
+    detalle:
+      `${n} evento(s) se quedaron sin entregar tras ${MAX_ATTEMPTS} intentos; el más viejo es del ${desde}. ` +
+      `Cada uno es algo que alguien no supo. Motivos: ${(errores ?? []).filter(Boolean).join(' · ') || 'sin registrar'}`,
+    valor: n,
+    umbral: 'cualquiera > 0',
+  };
+}
+
 export interface SaludInput {
   /** Lo que ya dice el registry: no se recalcula nada. */
   modules?: ModuleHealth[];
@@ -255,6 +308,7 @@ export async function healthSnapshot(
     valor: activos,
   });
 
+  chequeos.push(await chequeoEventosAbandonados(pool));
   chequeos.push(await chequeoCrecimientoMensajes(pool));
 
   chequeos.push(...chequeoProveedores(input.env));
