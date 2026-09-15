@@ -33,3 +33,11 @@ export {
   resumeBusinessSends,
 } from './application/quality';
 export type { NumberQuality, QualityUpdate } from './application/quality';
+export {
+  clienteZavu,
+  elegirSender,
+  conectarSender,
+  urlWebhook,
+  EVENTOS_WEBHOOK,
+} from './application/conectar';
+export type { SenderZavu, LlamarZavu, ResultadoConexion } from './application/conectar';
