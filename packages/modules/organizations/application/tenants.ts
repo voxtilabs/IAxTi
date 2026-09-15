@@ -15,6 +15,7 @@ export interface Tenant {
   state: TenantState;
   onboardingState: OnboardingState;
   trialEndsAt: Date | null;
+  stateSince: Date | null;
 }
 
 export interface PlanLimits {
@@ -38,6 +39,7 @@ function rowToTenant(row: Record<string, unknown>): Tenant {
     state: row.state as TenantState,
     onboardingState: row.onboarding_state as OnboardingState,
     trialEndsAt: (row.trial_ends_at as Date) ?? null,
+    stateSince: (row.state_since as Date) ?? null,
   };
 }
 
@@ -70,7 +72,9 @@ export async function changeTenantState(
   const current = await getTenant(client, id);
   assertTransition(current.state, to);
   const result = await client.query(
-    'UPDATE tenants SET state = $2 WHERE id = $1 RETURNING *',
+    // `state_since` arranca de nuevo con cada cambio: los plazos de §6 (30
+    // días en solo lectura, 90 suspendido) se cuentan desde acá.
+    'UPDATE tenants SET state = $2, state_since = now() WHERE id = $1 RETURNING *',
     [id, to],
   );
   return rowToTenant(result.rows[0]);
