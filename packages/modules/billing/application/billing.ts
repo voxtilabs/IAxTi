@@ -24,6 +24,8 @@ function fecha(v: unknown): string {
   return String(v).slice(0, 10);
 }
 const DIAS_GRACIA_READONLY = 7;
+/** §6: treinta días en solo lectura y la cuenta se suspende. */
+const DIAS_HASTA_SUSPENDER = 30;
 
 export interface Subscription {
   id: string;
@@ -244,8 +246,14 @@ export function billingConsumers(): Consumer[] {
  */
 export async function sweepBilling(
   pool: Pool,
-): Promise<{ issued: number; overdue: number; readOnly: number; trialsVencidas: number }> {
-  const res = { issued: 0, overdue: 0, readOnly: 0, trialsVencidas: 0 };
+): Promise<{
+  issued: number;
+  overdue: number;
+  readOnly: number;
+  trialsVencidas: number;
+  suspendidos: number;
+}> {
+  const res = { issued: 0, overdue: 0, readOnly: 0, trialsVencidas: 0, suspendidos: 0 };
 
   // 0. La prueba TERMINA (§6). `trial_ends_at` se escribía al crear el
   // tenant, se mostraba en el panel y el SuperAdmin la podía extender, y
@@ -372,6 +380,39 @@ export async function sweepBilling(
         result: 'ok',
       });
       res.readOnly += 1;
+    });
+  }
+
+  // 4. Treinta días en solo lectura → suspendido (§6). La transición existía
+  // solo a mano, desde el panel del SuperAdmin: el plazo no lo contaba nadie.
+  // Es barata y reversible — el tenant ya no enviaba nada (#204).
+  const enSoloLectura = await pool.query(
+    `SELECT id FROM tenants
+      WHERE state = 'read_only' AND state_since < now() - make_interval(days => $1)`,
+    [DIAS_HASTA_SUSPENDER],
+  );
+  for (const fila of enSoloLectura.rows) {
+    await withTenant(pool, fila.id, async (client) => {
+      const tenant = await getTenant(client, fila.id);
+      if (tenant.state !== 'read_only') return;
+      await changeTenantState(client, fila.id, 'suspended');
+      await writeAudit(client, {
+        tenantId: fila.id,
+        actor: 'system',
+        actorKind: 'system',
+        action: 'billing.tenant.suspended',
+        resource: 'tenant',
+        resourceId: fila.id,
+        result: 'ok',
+        metadata: { desde: tenant.stateSince },
+      });
+      await publishEvent(client, {
+        name: 'tenant.state_changed',
+        tenantId: fila.id,
+        payload: { from: 'read_only', to: 'suspended', motivo: 'treinta días en solo lectura' },
+        actor: 'system',
+      });
+      res.suspendidos += 1;
     });
   }
   return res;
