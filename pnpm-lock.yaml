@@ -169,6 +169,12 @@ importers:
       '@eslint/js':
         specifier: ^9.30.0
         version: 9.39.5
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:packages/db
+      '@iaxti/module-whatsapp':
+        specifier: workspace:*
+        version: link:packages/modules/whatsapp
       dependency-cruiser:
         specifier: ^16.8.0
         version: 16.10.4

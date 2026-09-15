@@ -43,6 +43,54 @@ export function clienteZavu(apiKey: string, apiBase = process.env.ZAVU_API_BASE 
   };
 }
 
+export interface ProyectoZavu {
+  project: { id: string; name: string; isSubAccount?: boolean };
+  apiKey?: { id: string };
+  /** La API lo dice; el prefijo del token es solo una pista. */
+  isTestMode: boolean;
+}
+
+/**
+ * Qué llave es esta, según la API y no según su prefijo. `GET /v1/me`
+ * responde `isTestMode`, y eso es lo que decide si puede tocar un ambiente.
+ */
+export async function quienSoy(llamar: LlamarZavu): Promise<ProyectoZavu> {
+  return (await llamar('/me')) as ProyectoZavu;
+}
+
+/**
+ * La regla que hasta ahora vivía solo en la cabeza de alguien: **una llave
+ * de producción no entra a staging**. En producción se manda desde el
+ * número real del negocio a clientes reales; una prueba mal apuntada les
+ * escribe de verdad, y eso no se deshace con un rollback.
+ *
+ * Se decide con `isTestMode` de la API, no con el prefijo del token: un
+ * token se puede renombrar, lo que la API responde no.
+ */
+export function llaveSirveParaAmbiente(
+  proyecto: ProyectoZavu,
+  ambiente: string | undefined,
+): { ok: true } | { ok: false; motivo: string } {
+  const esProduccion = ambiente === 'production';
+  if (esProduccion && proyecto.isTestMode) {
+    return {
+      ok: false,
+      motivo:
+        'Esta es una llave de PRUEBA y el ambiente es producción: los mensajes no saldrían de verdad.',
+    };
+  }
+  if (!esProduccion && !proyecto.isTestMode) {
+    return {
+      ok: false,
+      motivo:
+        `Esta es una llave de PRODUCCIÓN y el ambiente es "${ambiente ?? 'sin declarar'}". ` +
+        'Conectarla acá manda mensajes reales a clientes reales desde el número del negocio. ' +
+        'Usa la llave de prueba, o declara IAXTI_ENV=production si de verdad es producción.',
+    };
+  }
+  return { ok: true };
+}
+
 /**
  * De todos los senders del proyecto, cuál sirve para este canal. Con varios,
  * no se adivina: se listan y se pide elegir. Conectar el número equivocado

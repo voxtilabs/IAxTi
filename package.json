@@ -17,6 +17,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
+    "@iaxti/db": "workspace:*",
+    "@iaxti/module-whatsapp": "workspace:*",
     "dependency-cruiser": "^16.8.0",
     "eslint": "^9.30.0",
     "turbo": "^2.5.0",
