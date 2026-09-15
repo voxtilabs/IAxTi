@@ -11,6 +11,7 @@ flowchart TB
     C[Cliente WhatsApp]
     U[Usuario del tenant<br/>navegador / celular]
     K[Zavu<br/>capa de canales<br/>WhatsApp · Instagram · Messenger]
+    L[Landing comercial<br/>iaxti.cl · www<br/>Vercel — NO es la app]
     G[Google<br/>Calendar · Drive · Gmail]
     P[Pasarela de pago]
   end
