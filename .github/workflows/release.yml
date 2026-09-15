@@ -1,6 +1,19 @@
-# Promoción a producción: tag vX.Y.Z → retag de la imagen ya probada en
+# Promoción a producción: tag vX.Y.Z → retag de la imagen YA PROBADA en
 # staging (bit a bit la misma) → aprobación manual (environment production)
 # → migraciones prod → deploy Dokploy → smoke. Rollback = workflow rollback.
+#
+# Tres cosas que este workflow hacía mal y que solo se habrían visto el día
+# de la primera release de verdad (#80):
+#   1. Elegía la imagen con `docker images -q | head -1`, o sea "la primera
+#      que haya en el runner". Podía promover una imagen distinta a la del
+#      commit. Ahora se etiqueta la referencia exacta que se bajó.
+#   2. Si no existía la imagen del commit, caía en `:staging` sin decir
+#      nada. `:staging` es un tag móvil: la release habría promovido otro
+#      commit mientras el comentario de arriba seguía prometiendo "bit a bit
+#      la misma". Ahora falla y explica qué falta.
+#   3. Desplegaba sin fijar IMAGE, así que producción redesplegaba lo que ya
+#      tenía: el tag de release no llegaba nunca. Ahora se fija igual que en
+#      staging (leer el env, cambiar UNA línea) y se espera a que termine.
 name: release
 
 on:
@@ -22,10 +35,18 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker pull "ghcr.io/voxtilabs/iaxti:${GITHUB_SHA}" || docker pull "ghcr.io/voxtilabs/iaxti:staging"
-          SRC=$(docker images -q | head -1)
-          docker tag "$SRC" "ghcr.io/voxtilabs/iaxti:${TAG}"
+          ORIGEN="ghcr.io/voxtilabs/iaxti:${GITHUB_SHA}"
+          if ! docker pull "$ORIGEN"; then
+            echo "No existe $ORIGEN."
+            echo "Una release promueve la imagen EXACTA de su commit. Si el build de"
+            echo "$GITHUB_SHA todavía no terminó, espera; si falló, arréglalo y re-taguea."
+            echo "Lo que NO se hace es promover ':staging', que apunta a otro commit."
+            exit 1
+          fi
+          # La referencia exacta, no "la primera imagen del runner".
+          docker tag "$ORIGEN" "ghcr.io/voxtilabs/iaxti:${TAG}"
           docker push "ghcr.io/voxtilabs/iaxti:${TAG}"
+          echo "Promovida $ORIGEN → ghcr.io/voxtilabs/iaxti:${TAG}"
 
       - name: Migraciones prod (con lock, antes del deploy)
         env:
@@ -35,25 +56,54 @@ jobs:
           corepack enable && pnpm install --frozen-lockfile
           pnpm run migrate:deploy
 
-      - name: Deploy prod en Dokploy
+      - name: Deploy prod en Dokploy (imagen fijada al tag)
         env:
           DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_PROD }}
+          TAG: ${{ github.ref_name }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
-          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.deploy" \
-            -H "x-api-key: ${DOKPLOY_API_KEY}" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-            -H "Content-Type: application/json" \
-            -d "{\"composeId\": \"${COMPOSE_ID}\"}"
+          auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+
+          # `env` es el bloque COMPLETO: se lee, se cambia solo IMAGE y se
+          # devuelve entero. Mandarlo con una línea borraría la configuración.
+          env_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.env')
+          if [ -z "$env_actual" ] || [ "$env_actual" = "null" ]; then
+            echo "No pude leer el entorno de producción: abortando antes de tocar nada."
+            exit 1
+          fi
+          env_nuevo=$(printf '%s\n' "$env_actual" | sed "s|^IMAGE=.*|IMAGE=ghcr.io/voxtilabs/iaxti:${TAG}|")
+          jq -n --arg id "$COMPOSE_ID" --arg env "$env_nuevo" '{composeId:$id, env:$env}' \
+            | curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" -d @- \
+              "${DOKPLOY_URL}/api/compose.update" >/dev/null
+
+          curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.deploy" >/dev/null
+
+          for i in $(seq 1 90); do
+            sleep 10
+            st=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.composeStatus')
+            echo "[$i] $st"
+            [ "$st" = "done" ] && exit 0
+            if [ "$st" = "error" ]; then echo "El deploy falló en Dokploy"; exit 1; fi
+          done
+          echo "Timeout esperando el deploy"; exit 1
 
       - name: Smoke prod
         env:
           BASE: ${{ secrets.PROD_BASE_URL }}
         run: |
           if [ -z "${BASE}" ]; then echo "Sin PROD_BASE_URL aún; se salta"; exit 0; fi
-          curl -fsS -m 10 "${BASE}/health" >/dev/null
+          # Con reintentos: un smoke que corre antes de que los contenedores
+          # terminen de levantar mide la versión ANTERIOR y da un falso verde.
+          for i in $(seq 1 24); do
+            codigo=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "${BASE}/health" || echo 000)
+            echo "[$i] /health → HTTP $codigo"
+            [ "$codigo" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "Producción no respondió tras el deploy. Considera el workflow rollback."
+          exit 1
