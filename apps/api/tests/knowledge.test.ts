@@ -45,7 +45,7 @@ beforeAll(async () => {
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? ADMIN_URL;
   admin = createPool(ADMIN_URL);
   await runMigrations(admin);
-  const t = await admin.query("INSERT INTO tenants (name) VALUES ('test-knowledge-api') RETURNING id");
+  const t = await admin.query("INSERT INTO tenants (name, plan) VALUES ('test-knowledge-api', 'crece') RETURNING id");
   tenant = t.rows[0].id;
   for (const [userId, email, roleName] of [
     [duena, 'dueña@know.cl', 'ADMIN'],
