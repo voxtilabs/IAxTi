@@ -6,8 +6,10 @@ import { DEFINICIONES, METRICS, TOTAL_OWNER, type Metric } from '../domain/metri
 
 export interface DashboardInput {
   tenantId: string;
-  from: Date;
-  to: Date; // inclusive
+  /** `AAAA-MM-DD`, ya en la zona del negocio. Texto a propósito: mandar un
+   *  `Date` hace que Postgres lo convierta y el rango se corra un día. */
+  from: string;
+  to: string; // inclusive
   /** Filtra la vista a UN usuario (o el propio, si no tiene read_all). */
   ownerId?: string | null;
 }

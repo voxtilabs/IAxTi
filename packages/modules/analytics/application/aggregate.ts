@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import type { Consumer, EventEnvelope } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import { TOTAL_OWNER, type Metric } from '../domain/metrics';
+import { TZ_POR_DEFECTO, diaEn } from '../domain/dias';
 
 // La agregación (#66): POR EVENTO, en la misma transacción del dispatcher
 // — el dashboard después solo SUMA filas de daily_metrics.
@@ -14,9 +15,12 @@ export async function bump(
     value?: number;
     ownerId?: string | null;
     day?: Date;
+    /** Zona del negocio; define qué día es "hoy" para sus números. */
+    timeZone?: string;
   },
 ): Promise<void> {
-  const day = (input.day ?? new Date()).toISOString().slice(0, 10);
+  // El día del NEGOCIO, no el de UTC: a las 22:00 en Chile todavía es hoy.
+  const day = diaEn(input.timeZone ?? process.env.IAXTI_TZ ?? TZ_POR_DEFECTO, input.day ?? new Date());
   const owners = [TOTAL_OWNER, ...(input.ownerId ? [input.ownerId] : [])];
   for (const owner of owners) {
     await client.query(
@@ -113,13 +117,19 @@ export async function sweepResponseSamples(pool: Pool): Promise<number> {
   for (const { tenant_id: tenantId } of tenants.rows) {
     total += await withTenant(pool, tenantId, async (client) => {
       const r = await client.query(
+        // El día del NEGOCIO, igual que en daily_metrics: `::date` a secas
+        // usa la zona de la SESIÓN (UTC en el servidor) y a las 22:00 en
+        // Chile eso ya es mañana — la muestra caía fuera del rango del
+        // tablero y los percentiles salían vacíos.
         `INSERT INTO response_samples (tenant_id, conversation_id, owner_id, day, seconds)
-         SELECT c.tenant_id, c.id, c.owner_id, c.first_response_at::date,
+         SELECT c.tenant_id, c.id, c.owner_id,
+                (c.first_response_at AT TIME ZONE COALESCE(t.timezone, $2))::date,
                 GREATEST(1, EXTRACT(EPOCH FROM (c.first_response_at - c.created_at)))::int
            FROM conversations c
+           JOIN tenants t ON t.id = c.tenant_id
           WHERE c.tenant_id = $1 AND c.first_response_at > now() - interval '26 hours'
           ON CONFLICT (tenant_id, conversation_id) DO NOTHING`,
-        [tenantId],
+        [tenantId, TZ_POR_DEFECTO],
       );
       return r.rowCount ?? 0;
     });
