@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
-import { changeTenantState, getTenant, getTenantSettings } from '@iaxti/module-organizations';
+import { changePlan, changeTenantState, getTenant, getTenantSettings } from '@iaxti/module-organizations';
 import { createPaymentLink, listProviders } from '@iaxti/module-payments';
 import { buildInvoiceLines, invoiceTotal, type InvoiceLine } from '../domain/pricing';
 
@@ -242,8 +242,55 @@ export function billingConsumers(): Consumer[] {
  * aplica los estados del tenant (§6: past_due → read_only) — automático
  * y auditado.
  */
-export async function sweepBilling(pool: Pool): Promise<{ issued: number; overdue: number; readOnly: number }> {
-  const res = { issued: 0, overdue: 0, readOnly: 0 };
+export async function sweepBilling(
+  pool: Pool,
+): Promise<{ issued: number; overdue: number; readOnly: number; trialsVencidas: number }> {
+  const res = { issued: 0, overdue: 0, readOnly: 0, trialsVencidas: 0 };
+
+  // 0. La prueba TERMINA (§6). `trial_ends_at` se escribía al crear el
+  // tenant, se mostraba en el panel y el SuperAdmin la podía extender, y
+  // nadie actuaba sobre ella: la prueba gratis no se acababa nunca.
+  //
+  // Quien ya eligió plan y tiene suscripción viva pasa a `active`. Quien no,
+  // queda en solo lectura con sus datos intactos.
+  //
+  // Los 30 días de gracia de §6 (read_only → suspended) todavía NO los
+  // cuenta nadie: esa transición solo existe a mano, desde el panel del
+  // SuperAdmin. Va en su propio cambio.
+  const vencidasPrueba = await pool.query(
+    `SELECT t.id, s.status AS suscripcion
+       FROM tenants t LEFT JOIN subscriptions s ON s.tenant_id = t.id
+      WHERE t.state = 'trial' AND t.trial_ends_at IS NOT NULL AND t.trial_ends_at < now()`,
+  );
+  for (const fila of vencidasPrueba.rows) {
+    await withTenant(pool, fila.id, async (client) => {
+      const tenant = await getTenant(client, fila.id);
+      if (tenant.state !== 'trial') return;
+      const eligio = fila.suscripcion === 'active';
+      await changeTenantState(client, fila.id, eligio ? 'active' : 'read_only');
+      if (!eligio) {
+        // La prueba traía los módulos de Crece regalados; se terminó.
+        await changePlan(client, fila.id, 'base');
+      }
+      await writeAudit(client, {
+        tenantId: fila.id,
+        actor: 'system',
+        actorKind: 'system',
+        action: eligio ? 'billing.trial.convertida' : 'billing.trial.vencida',
+        resource: 'tenant',
+        resourceId: fila.id,
+        result: 'ok',
+        metadata: { trialEndsAt: tenant.trialEndsAt },
+      });
+      await publishEvent(client, {
+        name: 'tenant.state_changed',
+        tenantId: fila.id,
+        payload: { from: 'trial', to: eligio ? 'active' : 'read_only', motivo: 'prueba vencida' },
+        actor: 'system',
+      });
+      res.trialsVencidas += 1;
+    });
+  }
 
   // 1. Ciclos vencidos → factura del período que terminó + avanzar ciclo.
   const vencidas = await pool.query(
