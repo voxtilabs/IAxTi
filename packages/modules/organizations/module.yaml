@@ -16,7 +16,15 @@ events:
     - tenant.plan_changed
     - tenant.state_changed
     - usage.threshold_reached
-  consumes: []
+    - tenant.settings_changed
+  consumes:
+    # El onboarding avanza con lo que de verdad pasa (SPEC §7, issue del
+    # onboarding que no avanzaba): cada paso escucha el evento que lo nombra.
+    - tenant.settings_changed
+    - channel.connected
+    - knowledge.source_added
+    - user.invited
+    - message.sent
 tools: []
 nav:
   - { label: Ajustes, path: /ajustes/bandeja, permission: tenant.settings }

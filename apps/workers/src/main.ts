@@ -19,6 +19,7 @@ import { processSuggest, type SuggestJob } from './copilot';
 import { realtimeConsumers } from './realtime';
 import { deleteR2Keys, onContactMerged, purgeTenantRetention, retentionConsumers, tenantsWithRetention } from '@iaxti/module-conversations';
 import { notificationConsumers } from '@iaxti/module-notifications';
+import { onboardingConsumers } from '@iaxti/module-organizations';
 import { transportesDeAviso } from './transportes-aviso';
 import {
   enqueueTenantChildren,
@@ -84,6 +85,9 @@ function start(): void {
     ...notificationConsumers(transportesDeAviso(pool)),
     // Bajar de plan reduce retención: purga diferida 30 días con aviso (#77).
     ...retentionConsumers(),
+    // El onboarding avanza con lo que de verdad pasa (SPEC §7): la máquina
+    // existía entera y no la movía nadie.
+    ...onboardingConsumers(),
   ]);
   dispatcher.start(500);
   console.log('workers: despachador de outbox activo (500 ms)');
