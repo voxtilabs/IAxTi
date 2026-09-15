@@ -40,6 +40,11 @@ import {
   updatePlan,
 } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
+import {
+  accesoAlModulo,
+  modulosDelPlan,
+  modulosVendibles,
+} from '@iaxti/module-organizations';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { usdClpRate } from '@iaxti/module-billing';
@@ -98,6 +103,9 @@ class HealthController {
   }
 }
 
+const actorOf = (request: WithUser): { tenantId: string; userId: string } =>
+  request.actor as { tenantId: string; userId: string };
+
 @ApiTags('me')
 @Controller('me')
 class MeController {
@@ -129,8 +137,11 @@ class MeController {
 
   /**
    * El frontend arma navegación y widgets desde aquí: un módulo apagado
-   * desaparece sin desplegar (SPEC §26 regla 5). El filtro por plan del
-   * tenant se suma cuando exista autenticación (#7/#9).
+   * desaparece sin desplegar (SPEC §26 regla 5).
+   *
+   * SIN sesión a propósito: las páginas lo piden desde el servidor, antes de
+   * que exista un tenant elegido, y sirve para dibujar el menú. Lo que el
+   * PLAN del tenant permite va en `modules/plan`, que sí pide sesión.
    */
   @Get('modules')
   @ApiOperation({ summary: 'Módulos activos con su navegación y widgets' })
@@ -146,6 +157,45 @@ class MeController {
           widgets: manifest.widgets ?? [],
         };
       });
+  }
+
+  /**
+   * Lo mismo, pero diciendo la verdad sobre el plan (issue 215): cada módulo
+   * viene con su `acceso`.
+   *
+   * `solo_lectura` no significa esconderlo — §6 es explícito en que bajar de
+   * plan deja el módulo en solo lectura, no lo borra —, significa que el
+   * menú lo muestra con candado en vez de dejar que alguien escriba media
+   * regla y se entere al guardar.
+   */
+  @Get('modules/plan')
+  @RequirePermission('tenant.read')
+  @ApiOperation({ summary: 'Módulos activos con el acceso que da el plan del tenant' })
+  async modulesPlan(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    const activos = registry
+      .health()
+      .filter((m) => m.active)
+      .map((m) => ({ id: m.id, ...registry.manifest(m.id) }));
+    const pool = apiPool();
+    if (!pool) {
+      return activos.map((m) => ({
+        id: m.id,
+        nav: m.nav ?? [],
+        widgets: m.widgets ?? [],
+        acceso: 'completo' as const,
+      }));
+    }
+    const [vendibles, delPlan] = await Promise.all([
+      modulosVendibles(pool),
+      modulosDelPlan(pool, actor.tenantId),
+    ]);
+    return activos.map((m) => ({
+      id: m.id,
+      nav: m.nav ?? [],
+      widgets: m.widgets ?? [],
+      acceso: accesoAlModulo({ moduleId: m.id, vendibles, delPlan: delPlan.modulos }),
+    }));
   }
 }
 

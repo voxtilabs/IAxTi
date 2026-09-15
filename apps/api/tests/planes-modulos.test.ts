@@ -124,4 +124,26 @@ describe('el plan decide el módulo (SPEC §6)', () => {
     expect(accesoAlModulo({ moduleId: 'platform', vendibles, delPlan: [] })).toBe('completo');
     expect(accesoAlModulo({ moduleId: 'analytics', vendibles, delPlan: ['crm'] })).toBe('solo_lectura');
   });
+
+  it('el menú puede saber qué tiene candado antes de que alguien escriba nada', async () => {
+    await admin.query("UPDATE tenants SET plan = 'base' WHERE id = $1", [tenant]);
+    olvidarPlanes();
+
+    const r = await pedir('/me/modules/plan');
+    expect(r.status).toBe(200);
+    const modulos = (await r.json()) as Array<{ id: string; acceso: string }>;
+    const porId = Object.fromEntries(modulos.map((m) => [m.id, m.acceso]));
+
+    expect(porId.automations).toBe('solo_lectura');
+    expect(porId.crm).toBe('completo');
+    // La infraestructura no depende del plan.
+    expect(porId.identity ?? 'completo').toBe('completo');
+  });
+
+  it('sin sesión, el menú del servidor sigue saliendo como siempre', async () => {
+    const r = await fetch(`${base}/v1/me/modules`);
+    expect(r.status).toBe(200);
+    const modulos = (await r.json()) as Array<{ id: string }>;
+    expect(modulos.length).toBeGreaterThan(3);
+  });
 });
