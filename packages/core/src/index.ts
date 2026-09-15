@@ -19,3 +19,5 @@ export {
   huellaDelPedido,
 } from './idempotencia';
 export type { Reserva } from './idempotencia';
+export { crearZip, crc32 } from './zip';
+export type { ArchivoZip } from './zip';
