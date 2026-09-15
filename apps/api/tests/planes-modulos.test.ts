@@ -117,6 +117,23 @@ describe('el plan decide el módulo (SPEC §6)', () => {
     expect(crear.status).toBeLessThan(300);
   });
 
+  it('la interfaz puede preguntar el acceso de cada módulo', async () => {
+    // Sin esto el menú ofrece lo que el plan no incluye y el tope se
+    // descubre al apretar guardar (issue 215).
+    await admin.query("UPDATE tenants SET plan = 'base' WHERE id = $1", [tenant]);
+    olvidarPlanes();
+
+    const r = await pedir('/me/modules/acceso');
+    expect(r.status).toBe(200);
+    const filas = (await r.json()) as Array<{ id: string; acceso: string }>;
+    const porId = new Map(filas.map((f) => [f.id, f.acceso]));
+
+    expect(porId.get('automations')).toBe('solo_lectura');
+    expect(porId.get('crm')).toBe('completo');
+    // La infraestructura no depende del plan.
+    expect(porId.get('identity')).toBe('completo');
+  });
+
   it('la infraestructura no depende del plan; lo vendible sí', async () => {
     const vendibles = await modulosVendibles(admin);
     expect(vendibles).not.toContain('identity');
