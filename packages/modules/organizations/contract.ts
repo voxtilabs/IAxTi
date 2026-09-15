@@ -16,6 +16,13 @@ export type { TenantState, OnboardingState } from './domain/state';
 export { puedeEnviar } from './domain/state';
 export { zonaDelTenant, olvidarZonas } from './application/zona';
 export {
+  exportarTenant,
+  TABLAS_EXPORTADAS,
+  FUERA_DE_LA_EXPORTACION,
+  TOPE_POR_TABLA,
+} from './application/exportacion';
+export type { ExportacionTenant } from './application/exportacion';
+export {
   modulosDelPlan,
   modulosVendibles,
   accesoAlModulo,
