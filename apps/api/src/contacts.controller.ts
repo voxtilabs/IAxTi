@@ -9,18 +9,21 @@ import {
   Query,
   Req,
   ServiceUnavailableException,
+  Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { withTenant } from '@iaxti/db';
 import {
   completeActivity,
   confirmImport,
   createActivity,
+  exportarContactos,
+  exportarTitular,
   getContactFicha,
   listContacts,
   mergeContacts,
   previewImport,
-  exportarTitular,
   suprimirTitular,
 } from '@iaxti/module-crm';
 import type { ActivityType, ImportField } from '@iaxti/module-crm';
@@ -61,6 +64,31 @@ export class ContactsController {
     return withTenant(pool(), actor.tenantId, (c) =>
       listContacts(c, actor.tenantId, { q, cursor, limit: limit ? Number(limit) : undefined }),
     );
+  }
+
+  /**
+   * La lista completa en CSV (issue 248). Es la contraparte de la
+   * importación: quien trajo su lista tiene que poder llevársela, y en el
+   * formato que va a abrir — una planilla, no un JSON.
+   *
+   * Los campos personalizados declarados salen como columnas propias.
+   */
+  @Get('exportar')
+  @RequirePermission('crm.contacts.export')
+  @ApiOperation({ summary: 'Exporta los contactos a CSV' })
+  async exportar(@Req() request: WithUser, @Res({ passthrough: true }) res: Response) {
+    const actor = actorOf(request);
+    const { csv, filas } = await withTenant(pool(), actor.tenantId, (c) =>
+      exportarContactos(c, { tenantId: actor.tenantId }),
+    );
+    const dia = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="contactos-${dia}.csv"`);
+    res.setHeader('X-Filas', String(filas));
+    // El BOM hace que Excel en español abra los acentos bien. Sin él, la
+    // primera columna llega con la ñ rota y el negocio cree que perdimos su
+    // información.
+    return `\uFEFF${csv}`;
   }
 
   /** Vista previa de importación (#34): valida fila por fila, NADA se escribe. */
