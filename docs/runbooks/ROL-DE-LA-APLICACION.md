@@ -51,6 +51,14 @@ ALTER DEFAULT PRIVILEGES FOR ROLE iaxti IN SCHEMA public
 `DATABASE_URL` de la aplicación apunta a `iaxti_app`. Las migraciones —que
 corren antes del despliegue, en su propio paso— siguen usando el dueño.
 
+Si en vez del `GRANT … ON ALL TABLES` se prefiere enumerar tabla por tabla,
+hay que acordarse de que el camino de entrada de un mensaje escribe en más
+lugares de los que parece: además de `contacts`, `conversations` y
+`messages`, toca `contact_identities`, `assignments`, `outbox` y
+`usage_meters` (esta última desde que cada conversación cuenta como activa
+del ciclo). Los tests de `conversations` enumeran ese mínimo: si algo falta,
+fallan con `permission denied` y ahí queda la lista al día.
+
 ## El guardián
 
 La API y los workers comprueban al arrancar si la conexión puede saltarse
