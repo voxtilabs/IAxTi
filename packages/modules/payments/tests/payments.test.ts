@@ -84,6 +84,62 @@ function proveedor() {
   );
 }
 
+describe('modo live (SPEC §17)', () => {
+  it('fuera de producción NO se puede crear un proveedor en live', async () => {
+    // La API ya lo rechazaba; esto cuida la puerta de atrás: el
+    // configurador, una semilla o un panel nuevo entran por el caso de uso.
+    const antes = process.env.IAXTI_ENV;
+    delete process.env.IAXTI_ENV;
+    try {
+      await expect(
+        withTenant(admin, tenant, (c) =>
+          addProvider(c, {
+            tenantId: tenant,
+            kind: 'flow',
+            name: 'Flow producción',
+            credentialRef: 'FLOW_CRED',
+            mode: 'live',
+            actor: 'u-1',
+          }),
+        ),
+      ).rejects.toThrow(/cobra dinero real/);
+    } finally {
+      if (antes === undefined) delete process.env.IAXTI_ENV;
+      else process.env.IAXTI_ENV = antes;
+    }
+  });
+
+  it('en producción sí, y queda auditado con su modo', async () => {
+    const antes = process.env.IAXTI_ENV;
+    process.env.IAXTI_ENV = 'production';
+    try {
+      const p = await withTenant(admin, tenant, (c) =>
+        addProvider(c, {
+          tenantId: tenant,
+          kind: 'flow',
+          name: 'Flow de verdad',
+          credentialRef: 'FLOW_CRED_PROD',
+          mode: 'live',
+          actor: 'u-1',
+        }),
+      );
+      expect(p.mode).toBe('live');
+      const rastro = await admin.query(
+        `SELECT metadata FROM audit_log WHERE tenant_id = $1 AND action = 'payments.provider.add'
+          ORDER BY id DESC LIMIT 1`,
+        [tenant],
+      );
+      expect(rastro.rows[0].metadata.mode).toBe('live');
+      // Se borra: un proveedor live con una credencial que no existe deja
+      // al resto de la suite eligiendo el proveedor equivocado.
+      await admin.query('DELETE FROM payment_providers WHERE id = $1', [p.id]);
+    } finally {
+      if (antes === undefined) delete process.env.IAXTI_ENV;
+      else process.env.IAXTI_ENV = antes;
+    }
+  });
+});
+
 describe('proveedores (#60)', () => {
   it('la firma de Flow es determinista (params en orden alfabético)', () => {
     const s = flowSign({ apiKey: 'k', amount: '1000', commerceOrder: 'abc' }, 'secreto');

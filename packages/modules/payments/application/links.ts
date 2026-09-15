@@ -85,6 +85,15 @@ export async function addProvider(
   if (/[:=]/.test(input.credentialRef)) {
     throw new Error('Eso parece una credencial. Aquí va el NOMBRE de la variable de entorno.');
   }
+  // Modo live SOLO en producción (SPEC §17). La API ya lo verificaba, pero
+  // la regla vive en el CASO DE USO (ADR-0008): un proveedor en live cobra
+  // dinero de verdad, y no puede depender de por qué puerta se entró —el
+  // configurador, una semilla o un panel nuevo entran por otra.
+  if (input.mode === 'live' && (process.env.IAXTI_ENV ?? 'dev') !== 'production') {
+    throw new Error(
+      'El modo live cobra dinero real: en este ambiente los proveedores van siempre en modo test.',
+    );
+  }
   const r = await client.query(
     `INSERT INTO payment_providers (tenant_id, kind, name, credential_ref, webhook_secret_ref, mode)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
