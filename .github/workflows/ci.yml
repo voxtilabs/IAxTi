@@ -75,8 +75,27 @@ jobs:
 
       # Unit + integración (Postgres y Redis reales) + combinación de módulos.
       # Concurrencia 1: los paquetes comparten la base del servicio.
+      #
+      # `turbo` corre las tareas con un entorno ESTRICTO: hasta que
+      # DATABASE_URL y REDIS_URL se declararon en `passThroughEnv` (turbo.json),
+      # los tests corrían SIN base y todo lo que dependía de ella se saltaba
+      # en silencio. Eso escondió dos bugs reales —un 500 en producción por
+      # un tenant con id inválido (#162) y el día en UTC del tablero (#182)—
+      # que solo aparecieron al correr los mismos tests a mano.
       - name: Tests
         run: pnpm turbo test --concurrency=1
+
+      # Que la base esté DE VERDAD conectada en los tests: si alguien quita
+      # el passThroughEnv, esto falla acá y no seis meses después.
+      - name: Los tests vieron la base
+        run: |
+          psql "${DATABASE_URL}" -tAc "SELECT count(*) FROM tenants" > /tmp/tenants.txt
+          n=$(cat /tmp/tenants.txt)
+          echo "tenants creados por la suite: $n"
+          if [ "$n" -eq 0 ]; then
+            echo "Los tests no escribieron en la base: están corriendo sin ella."
+            exit 1
+          fi
 
       # Criterio de salida de Fase 2 (#37): el e2e de la bandeja en celular
       # contra la API y el web reales (JWKS local hace de Supabase Auth).
