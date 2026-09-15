@@ -81,3 +81,11 @@ export {
   ROLES_DE_ETIQUETA,
 } from './application/tags';
 export type { Etiqueta, RolDeEtiqueta } from './application/tags';
+export {
+  renamePipeline,
+  updateStage,
+  addStage,
+  reorderStages,
+  deleteStage,
+} from './application/pipelines';
+export type { EtapaEditada } from './application/pipelines';
