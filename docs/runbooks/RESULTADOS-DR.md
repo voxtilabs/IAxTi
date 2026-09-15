@@ -7,10 +7,34 @@ Formato: fecha · simulacro · ambiente · tiempo real · compromiso · desvío.
 
 | Fecha | Simulacro | Ambiente | Tiempo real | Compromiso | Resultado |
 |---|---|---|---|---|---|
-| _(pendiente)_ | Rollback de release | staging | — | < 2 min | — |
+| 2026-09-14 | Rollback a versión **no cacheada** | staging | **192 s** | < 120 s | ⚠️ desviación (issue abierto) |
+| 2026-09-14 | Rollback a versión **cacheada** (vuelta) | staging | **24 s** | < 120 s | ✅ |
 | _(pendiente)_ | Restore PITR de Postgres | staging | — | RTO < 1 h | — |
 | _(pendiente)_ | Restore de Redis desde R2 | staging | — | < 15 min | — |
 | _(pendiente)_ | VPS completo limpio | — | — | RTO < 1 h | — |
+
+## Simulacro 2 · rollback en staging (2026-09-14) — cumplido, con desviación
+
+Segundo intento, con el SHA completo. **Funcionó y es verificable desde
+afuera**: se volvió a la imagen anterior al arreglo de HSTS y la cabecera
+`Strict-Transport-Security` **desapareció** de las respuestas; al volver
+adelante, reapareció. Eso es lo que prueba que el rollback cambió el código
+que corre — no que el panel diga "done".
+
+| | ida (a imagen vieja) | vuelta (al main actual) |
+|---|---|---|
+| tiempo | **192 s** | **24 s** |
+| imagen en el host | no estaba: hubo que bajarla | ya estaba, recién usada |
+
+**La diferencia es el `docker pull`.** El compromiso de menos de 2 minutos
+se cumple cuando se vuelve a la versión inmediatamente anterior —que es el
+caso real de un incidente, porque se viene de ella y sigue en caché— y
+**no** se cumple al saltar a una versión más vieja, que hay que bajar de
+GHCR. Eso es una desviación real y quedó como issue, no como nota al pie.
+
+Otro dato del simulacro: **el rollback no es sin corte**. Durante el cambio
+de contenedores hubo unos segundos de 404. Para un incidente en el que la
+app ya está caída da lo mismo; para un rollback preventivo, no.
 
 ## Simulacro 1 · rollback en staging (2026-09-14) — FALLÓ, y sirvió
 
