@@ -2,11 +2,31 @@
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ]
     },
-    "typecheck": { "dependsOn": ["^build"] },
+    "typecheck": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
     "lint": {},
-    "test": { "dependsOn": ["^build"] }
+    "test": {
+      "dependsOn": [
+        "^build"
+      ],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "IAXTI_ENV",
+        "IAXTI_TZ"
+      ]
+    }
   }
 }
