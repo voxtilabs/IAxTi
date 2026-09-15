@@ -9,7 +9,7 @@ import {
   msHastaFinDeSilencio,
   updateDeliveryStatus,
 } from '@iaxti/module-conversations';
-import { getTenantSettings } from '@iaxti/module-organizations';
+import { getTenant, getTenantSettings, puedeEnviar } from '@iaxti/module-organizations';
 import { findAccountById } from '@iaxti/module-channels';
 import {
   RateLimitedError,
@@ -50,6 +50,22 @@ export async function processOutbound(
         error: 'La conversación no tiene un canal conectado.',
       }).catch(() => {});
       return { failed: 'sin canal' };
+    }
+
+    // El estado del tenant manda (SPEC §6): en solo lectura por impago solo
+    // salen respuestas manuales, y de una cuenta suspendida no sale nada.
+    // Se comprueba ANTES que todo lo demás, y acá — este es el único lugar
+    // por donde pasa TODO lo que sale.
+    const tenant = await getTenant(client, data.tenantId);
+    const permiso = puedeEnviar(tenant.state, data.initiatedByBusiness);
+    if (!permiso.ok) {
+      await updateDeliveryStatus(client, {
+        tenantId: data.tenantId,
+        messageId: data.messageId,
+        status: 'failed',
+        error: permiso.motivo,
+      }).catch(() => {});
+      return { failed: permiso.motivo };
     }
 
     if (data.initiatedByBusiness) {
