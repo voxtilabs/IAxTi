@@ -66,8 +66,17 @@ export interface OutboundJobData {
   to: string;
   body?: string;
   type?: string;
-  /** true en plantillas/campañas: respeta el horario de silencio (SPEC §8). */
-  initiatedByBusiness?: boolean;
+  /**
+   * ¿Lo inicia el NEGOCIO (automatización, secuencia, campaña) o es una
+   * persona respondiendo en la bandeja? De esto dependen el horario de
+   * silencio y la pausa por calidad (SPEC §8, #45).
+   *
+   * OBLIGATORIO a propósito: era opcional, y el cableado de automatizaciones
+   * simplemente no lo mandaba. El motor documentaba "la cola aplica el
+   * silencio" y la cola nunca se enteraba de que el envío era del negocio,
+   * así que una automatización de las 3am salía a las 3am.
+   */
+  initiatedByBusiness: boolean;
   requestId?: string;
 }
 

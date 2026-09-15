@@ -221,7 +221,15 @@ export class PaymentsController {
         if (conversation.channel === 'whatsapp') {
           await outboundQueue().add(
             'send',
-            { moduleId: 'whatsapp', tenantId: actor.tenantId, messageId: message.id, requestId: request.requestId },
+            {
+              moduleId: 'whatsapp',
+              tenantId: actor.tenantId,
+              messageId: message.id,
+              requestId: request.requestId,
+              // El link de pago lo manda una persona dentro de una
+              // conversación viva, igual que una respuesta.
+              initiatedByBusiness: false,
+            },
             { jobId: `out-${message.id}` },
           );
         } else {
