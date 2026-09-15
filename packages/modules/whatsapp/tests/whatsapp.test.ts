@@ -339,11 +339,19 @@ describe('salida (#43)', () => {
 
   it('el rate limit por número corta la ráfaga y se reintenta solo', async () => {
     const redis = redisConnection();
+    // Una ventana FIJA, y única para esta corrida: la ventana dura un
+    // segundo, y confiar en que cuatro llamadas caigan todas en el mismo
+    // ponía el test rojo cuando la máquina iba cargada — el contador se
+    // reiniciaba a mitad de camino y el cupo no cortaba.
+    const ventana = 1_700_000_000_000 + Math.floor(Math.random() * 1_000_000) * 1000;
+    const numero = `snd-rate-${ventana}`;
     try {
-      for (let i = 0; i < 3; i++) await checkNumberRateLimit(redis, 'snd-rate-test', 3);
-      await expect(checkNumberRateLimit(redis, 'snd-rate-test', 3)).rejects.toThrow(RateLimitedError);
+      for (let i = 0; i < 3; i++) await checkNumberRateLimit(redis, numero, 3, ventana);
+      await expect(checkNumberRateLimit(redis, numero, 3, ventana)).rejects.toThrow(RateLimitedError);
       // Otro número no comparte el cupo.
-      await checkNumberRateLimit(redis, 'snd-otro', 3);
+      await checkNumberRateLimit(redis, `${numero}-otro`, 3, ventana);
+      // Y la ventana siguiente empieza de cero: el cupo es por segundo.
+      await checkNumberRateLimit(redis, numero, 3, ventana + 1000);
     } finally {
       await redis.quit();
     }
