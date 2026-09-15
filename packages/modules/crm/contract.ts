@@ -93,3 +93,5 @@ export {
 } from './application/campos';
 export type { CampoPersonalizado, TipoDeCampo, EntidadConCampos } from './application/campos';
 
+export { exportarContactos } from './application/exportar-contactos';
+export type { ExportacionContactos } from './application/exportar-contactos';
