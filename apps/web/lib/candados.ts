@@ -1,5 +1,3 @@
-import type { NavItem } from '../components/app-shell';
-
 /**
  * Qué rutas del menú van con candado (issue 215).
  *
@@ -10,7 +8,9 @@ import type { NavItem } from '../components/app-shell';
  * "apikeys" y "roles".
  */
 export function rutasConCandado(
-  modulos: Array<{ id: string; nav?: NavItem[] }>,
+  // Solo hace falta la ruta. Tomar `NavItem` de `app-shell` cerraba un ciclo
+  // de importación (el shell importa esto) y depcruise lo caza.
+  modulos: Array<{ id: string; nav?: Array<{ path: string }> }>,
   acceso: Array<{ id: string; acceso: 'completo' | 'solo_lectura' }>,
 ): Set<string> {
   const limitados = new Set(acceso.filter((m) => m.acceso === 'solo_lectura').map((m) => m.id));
