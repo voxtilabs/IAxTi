@@ -11,3 +11,11 @@ export type { QueueName, ModuleJobData } from './queues';
 export { attachmentKey, presignUrl, firmaPresignada, storageFromEnv } from './storage';
 export type { StorageConfig } from './storage';
 export { diaEn, mesEn, ultimosDias, esDia, TZ_POR_DEFECTO } from './dias';
+export {
+  reservarLlave,
+  guardarRespuesta,
+  soltarLlave,
+  limpiarLlavesVencidas,
+  huellaDelPedido,
+} from './idempotencia';
+export type { Reserva } from './idempotencia';

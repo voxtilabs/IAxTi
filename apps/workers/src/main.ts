@@ -7,6 +7,7 @@ import {
   OutboxDispatcher,
   createModuleWorker,
   createQueue,
+  limpiarLlavesVencidas,
   redisConnection,
   storageFromEnv,
 } from '@iaxti/core';
@@ -147,6 +148,17 @@ function start(): void {
             return { sampled: n };
           }
           // El consumo de API (#26): de Redis a usage_meters/daily_metrics.
+          // Las llaves de idempotencia viven 24 h (SPEC §28): pasado eso,
+          // el mismo pedido vuelve a ser un pedido nuevo.
+          case 'idempotency.sweep': {
+            const tenants = await pool.query("SELECT id FROM tenants WHERE state <> 'deleted'");
+            let borradas = 0;
+            for (const fila of tenants.rows) {
+              borradas += await withTenant(pool, fila.id as string, (c) => limpiarLlavesVencidas(c));
+            }
+            if (borradas > 0) console.log(`scheduled: ${borradas} llaves de idempotencia vencidas`);
+            return { borradas };
+          }
           case 'api_usage.flush': {
             const n = await flushApiUsage(pool, redisScheduled);
             if (n > 0) console.log(`scheduled: ${n} contadores de API volcados`);
@@ -245,6 +257,13 @@ function start(): void {
         'api_usage.flush',
         { moduleId: 'organizations' },
         { repeat: { every: 300_000 } },
+      ),
+      scheduled.add(
+        'idempotency.sweep',
+        // `organizations`, no 'core': el registro solo conoce módulos, y
+        // `isActive('core')` es false — el barrido no habría corrido nunca.
+        { moduleId: 'organizations' },
+        { repeat: { pattern: '20 * * * *', tz: 'America/Santiago' } },
       ),
       scheduled.add(
         'webhooks.deliver',
