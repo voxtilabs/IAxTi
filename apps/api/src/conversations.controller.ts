@@ -123,6 +123,9 @@ async function entregarRespuesta(
         tenantId: actor.tenantId,
         messageId: message.id,
         requestId: input.requestId,
+        // Una persona contestándole a un cliente que escribió: el horario de
+        // silencio protege al cliente de NOSOTROS, no de una respuesta suya.
+        initiatedByBusiness: false,
       },
       { jobId: `out-${message.id}` },
     );

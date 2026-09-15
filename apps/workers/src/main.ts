@@ -305,7 +305,15 @@ function start(): void {
     automationDeps.enqueueOutbound = async (job) => {
       await outboundQueue.add(
         'send',
-        { moduleId: 'whatsapp', tenantId: job.tenantId, messageId: job.messageId, requestId: job.requestId },
+        {
+          moduleId: 'whatsapp',
+          tenantId: job.tenantId,
+          messageId: job.messageId,
+          requestId: job.requestId,
+          // Automatizaciones y secuencias las inicia el negocio: pasan por el
+          // horario de silencio y por la pausa de calidad.
+          initiatedByBusiness: true,
+        },
         { jobId: `out-${job.messageId}` },
       );
     };
