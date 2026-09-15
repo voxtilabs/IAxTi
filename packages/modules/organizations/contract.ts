@@ -15,6 +15,7 @@ export type { UsageMetric } from './application/usage';
 export type { TenantState, OnboardingState } from './domain/state';
 export { puedeEnviar } from './domain/state';
 export { zonaDelTenant, olvidarZonas } from './application/zona';
+export { onboardingConsumers, avanzarPorEvento } from './application/onboarding';
 export {
   exportarTenant,
   TABLAS_EXPORTADAS,
