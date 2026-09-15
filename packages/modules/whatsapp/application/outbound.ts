@@ -50,8 +50,15 @@ export async function checkNumberRateLimit(
   redis: IORedis,
   phoneNumberId: string,
   maxPorSegundo = Number(process.env.WHATSAPP_MSGS_PER_SECOND ?? 10),
+  /**
+   * El instante que define la ventana. Existe para los tests: la ventana
+   * dura un segundo, y una prueba que hace cuatro llamadas confiando en que
+   * caigan todas en el mismo segundo se pone roja sola cuando la máquina va
+   * cargada — el contador se reinicia a mitad de camino y el cupo no corta.
+   */
+  ahora = Date.now(),
 ): Promise<void> {
-  const bucket = Math.floor(Date.now() / 1000);
+  const bucket = Math.floor(ahora / 1000);
   const key = `wa:rate:${phoneNumberId}:${bucket}`;
   const n = await redis.incr(key);
   if (n === 1) await redis.expire(key, 2);
