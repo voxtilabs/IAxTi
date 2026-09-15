@@ -74,6 +74,28 @@ arranca igual y lo dice: una comprobación de seguridad no puede volverse una
 dependencia dura del arranque (`/health` es liveness justamente para no
 tener ninguna).
 
+## Supabase, que es el caso nuestro
+
+En Supabase el rol `postgres` —el que viene en la cadena de conexión que
+entrega el panel— **no es superusuario, pero tiene `BYPASSRLS`**. El efecto
+es idéntico: las políticas no se evalúan.
+
+Es decir: pegar la URL que Supabase da por defecto en `DATABASE_URL` deja la
+aplicación sin aislamiento entre tenants, silenciosamente. Hay que crear el
+rol de aplicación igual que en un Postgres propio:
+
+```sql
+CREATE ROLE iaxti_app LOGIN PASSWORD '<del gestor de secretos>'
+  NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+```
+
+y dárselo a la app; `postgres` queda solo para migraciones.
+
+**Producción no va a servir nada hasta que esto esté hecho** (issue 227):
+responde 503 con `SIN_AISLAMIENTO` en vez de entregar datos que podrían ser
+de otro cliente. No es un contratiempo del despliegue: es la única respuesta
+correcta.
+
 ## Cómo comprobarlo a mano
 
 ```sql

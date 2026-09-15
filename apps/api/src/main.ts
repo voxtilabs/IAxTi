@@ -6,7 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { redisConnection } from '@iaxti/core';
-import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
+import { createPool, exigeRolQueRespetaRls, type EstadoRls } from '@iaxti/db';
 import { AppModule, registry } from './app.module';
 import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
 import { dbCustomPermissionsResolver, dbPlatformAdminResolver, dbRoleResolver, type RoleResolver } from './auth/role-resolver';
@@ -23,6 +23,7 @@ import { RateLimitGuard } from './rate-limit.guard';
 import { accesoAlModulo, modulosDelPlan, modulosVendibles } from '@iaxti/module-organizations';
 import { ApiQuotaGuard } from './api-quota.guard';
 import { IdempotenciaInterceptor } from './idempotencia.interceptor';
+import { AislamientoGuard } from './aislamiento';
 import { requestIdMiddleware } from './request-id';
 import { cabecerasMiddleware } from './cabeceras';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
@@ -124,7 +125,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   // El aislamiento entre tenants no es negociable (issue 211): si la
   // conexión se salta RLS, esto no arranca. Un 503 más tarde sería peor —
   // mientras tanto estaría sirviendo datos cruzados.
-  if (pool) await exigeRolQueRespetaRls(pool);
+  // El estado del aislamiento se comprueba UNA vez al arrancar y queda a
+  // mano: el guard lo consulta sin volver a preguntarle a la base.
+  let aislamiento: EstadoRls | null = null;
+  if (pool) aislamiento = await exigeRolQueRespetaRls(pool);
 
   // Flags de módulos SIN desplegar (#69): al arrancar y cada 60 s.
   if (pool) {
@@ -165,6 +169,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
     }),
     // La cuota mensual (#25) corre DESPUÉS del guard: solo API keys.
     new ApiQuotaGuard(redisConnection(), pool),
+    // Sin aislamiento verificado no se sirve nada (issue 227). Va al final:
+    // que la salud y la documentación sigan abiertas es lo que permite
+    // diagnosticar.
+    new AislamientoGuard(() => aislamiento),
   );
   // Idempotency-Key (SPEC §28): DESPUÉS del guard, que es quien resuelve el
   // tenant — la llave es por tenant, como todo acá.
