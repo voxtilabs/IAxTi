@@ -42,7 +42,13 @@ import {
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
-import { accesoAlModulo, modulosDelPlan, modulosVendibles } from '@iaxti/module-organizations';
+import { writeAudit } from '@iaxti/module-audit';
+import {
+  accesoAlModulo,
+  exportarTenant,
+  modulosDelPlan,
+  modulosVendibles,
+} from '@iaxti/module-organizations';
 import { usdClpRate } from '@iaxti/module-billing';
 import { withTenant } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
@@ -126,6 +132,49 @@ class MeController {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Todo lo del negocio, en un archivo (issue 222).
+   *
+   * La cancelación en un clic la exige antes de cerrar (SPEC §6), el borrado
+   * a los 90 días la ofrece antes de eliminar, y la Ley 21.719 la pide como
+   * portabilidad. No existía ninguna de las tres cosas.
+   *
+   * Es del ADMIN: se lleva TODO lo del negocio, incluidas las conversaciones
+   * de sus clientes, y eso no lo pide cualquiera. Queda en el libro.
+   */
+  @Get('exportacion')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'Exportación completa de los datos del negocio' })
+  async exportacion(@Req() request: WithUser) {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const actor = request.actor as { tenantId: string; userId: string };
+    return withTenant(pool, actor.tenantId, async (c) => {
+      const datos = await exportarTenant(c, { tenantId: actor.tenantId });
+      await writeAudit(c, {
+        tenantId: actor.tenantId,
+        actor: actor.userId,
+        actorKind: 'user',
+        action: 'tenant.exportado',
+        resource: 'tenant',
+        resourceId: actor.tenantId,
+        result: 'ok',
+        requestId: (request as { requestId?: string }).requestId,
+        metadata: {
+          filas: Object.values(datos.resumen).reduce((a, b) => a + b, 0),
+          truncadas: datos.truncadas,
+          adjuntos: datos.adjuntos.length,
+        },
+      });
+      return datos;
+    });
   }
 
   /**
