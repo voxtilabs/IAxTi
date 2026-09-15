@@ -91,11 +91,33 @@ export async function exportarTitular(
   };
 }
 
+/**
+ * Lo que sobrevive a una supresión, a propósito. Está acá y no en un
+ * comentario suelto porque viaja en el resultado y en el audit: si alguien
+ * pregunta qué quedó, la respuesta es esta lista y no la memoria de nadie.
+ */
+export const CONSERVADO = [
+  'audit_log: es append-only y es la evidencia de esta misma supresión',
+  'agent_executions: tokens, costo y latencia — la medición, sin el contenido',
+  'payment_links: montos, estados y fechas, por obligación legal de guarda',
+  'deals: el registro comercial del negocio (su título puede llevar el nombre)',
+  'conversations: la fila vacía y archivada, para que el negocio sepa que hubo un trato',
+] as const;
+
 export interface ResultadoSupresion {
   contactId: string;
   mensajesBorrados: number;
   identidadesBorradas: number;
   adjuntosR2: string[];
+  /** Ejecuciones de IA a las que se les vació el contenido (issue 235). */
+  ejecucionesVaciadas: number;
+  /** Tareas y notas de agenda borradas. */
+  actividadesBorradas: number;
+  /**
+   * Lo que se conserva A PROPÓSITO y por qué: una supresión que no dice qué
+   * dejó en pie no es evidencia de nada.
+   */
+  conservado: readonly string[];
 }
 
 /**
@@ -143,6 +165,20 @@ export async function suprimirTitular(
     for (const fila of adjuntos.rows) if (fila.key) adjuntosR2.push(fila.key as string);
   }
 
+  // Los ids de ejecución de IA ANTES de borrar las sugerencias: la sugerencia
+  // es el único puente hacia `agent_executions`, y ahí está guardado el texto
+  // de la conversación tal cual se le mandó al modelo (issue 235). Borrar los
+  // mensajes y dejar esa copia no es una supresión.
+  const ejecuciones: string[] = [];
+  if (ids.length > 0) {
+    const r = await client.query(
+      `SELECT DISTINCT execution_id FROM suggestions
+        WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[]) AND execution_id IS NOT NULL`,
+      [input.tenantId, ids],
+    );
+    for (const fila of r.rows) if (fila.execution_id) ejecuciones.push(fila.execution_id as string);
+  }
+
   let mensajesBorrados = 0;
   if (ids.length > 0) {
     const borrados = await client.query(
@@ -166,6 +202,53 @@ export async function suprimirTitular(
       [input.tenantId, ids],
     );
   }
+
+  // El contenido de las ejecuciones de IA se vacía; la MEDICIÓN se conserva.
+  // Tokens y costo alimentan la factura y el centro de IA: borrar la fila
+  // entera falsearía cuentas que no son del titular.
+  let ejecucionesVaciadas = 0;
+  if (ejecuciones.length > 0) {
+    const r = await client
+      .query(
+        `UPDATE agent_executions
+            SET input = '{}'::jsonb, output = NULL, explanation = NULL
+          WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+        [input.tenantId, ejecuciones],
+      )
+      .catch(() => ({ rowCount: 0 }));
+    ejecucionesVaciadas = r.rowCount ?? 0;
+  }
+
+  // Las tareas y notas de agenda son texto libre SOBRE esa persona.
+  const actividades = await client
+    .query('DELETE FROM activities WHERE tenant_id = $1 AND contact_id = $2', [
+      input.tenantId,
+      input.contactId,
+    ])
+    .catch(() => ({ rowCount: 0 }));
+
+  // De los cobros se vacía el concepto —lo escribe el negocio y ahí se cuela
+  // el nombre—; montos, estados y fechas se conservan: son registros
+  // financieros con obligación legal de guarda.
+  await client
+    .query(
+      `UPDATE payment_links SET concept = NULL
+        WHERE tenant_id = $1 AND (contact_id = $2 OR conversation_id = ANY($3::uuid[]))`,
+      [input.tenantId, input.contactId, ids],
+    )
+    .catch(() => undefined);
+
+  // Lo que viajó a terceros por webhook lleva el contenido dentro del
+  // payload. La entrega en sí queda registrada; el contenido, no.
+  await client
+    .query(
+      `UPDATE webhook_deliveries SET payload = '{}'::jsonb, response_body = NULL
+        WHERE tenant_id = $1
+          AND (payload::text LIKE '%' || $2::text || '%'
+               OR ($3::uuid[] <> '{}'::uuid[] AND payload::text ~ ANY(SELECT unnest($3::uuid[])::text)))`,
+      [input.tenantId, input.contactId, ids],
+    )
+    .catch(() => undefined);
 
   const identidades = await client.query(
     'DELETE FROM contact_identities WHERE tenant_id = $1 AND contact_id = $2',
@@ -198,6 +281,9 @@ export async function suprimirTitular(
       mensajesBorrados,
       identidadesBorradas: identidades.rowCount ?? 0,
       adjuntos: adjuntosR2.length,
+      ejecucionesVaciadas,
+      actividadesBorradas: actividades.rowCount ?? 0,
+      conservado: CONSERVADO,
     },
   });
 
@@ -206,5 +292,8 @@ export async function suprimirTitular(
     mensajesBorrados,
     identidadesBorradas: identidades.rowCount ?? 0,
     adjuntosR2,
+    ejecucionesVaciadas,
+    actividadesBorradas: actividades.rowCount ?? 0,
+    conservado: CONSERVADO,
   };
 }
