@@ -1,6 +1,6 @@
 import './instrument';
 import { createServer } from 'node:http';
-import { createPool, withTenant } from '@iaxti/db';
+import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
 import { DelayedError } from 'bullmq';
 import {
   ModuleRegistry,
@@ -49,6 +49,15 @@ function start(): void {
   }
   const registry = new ModuleRegistry().load();
   const pool = createPool();
+  // Igual que la API (issue 211): un rol que se salta RLS no sirve. Los
+  // workers escriben en nombre de cada tenant, así que acá importa lo mismo.
+  // `start()` no es async, así que el fallo se convierte en lo único que
+  // corresponde: caerse, y ruidosamente. Un worker que sigue vivo mientras
+  // escribe datos cruzados es peor que un worker caído.
+  void exigeRolQueRespetaRls(pool).catch((err) => {
+    console.error(`workers: ${(err as Error).message}`);
+    process.exit(1);
+  });
 
   // El motor de reglas (#62): consumidores de eventos + barrido de tiempo.
   // enqueueOutbound se conecta más abajo, cuando la cola outbound exista.

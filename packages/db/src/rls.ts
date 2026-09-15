@@ -1,0 +1,64 @@
+import type { Pool, PoolClient } from 'pg';
+
+/**
+ * ¿Esta conexión puede saltarse RLS? (issue 211)
+ *
+ * Postgres NO evalúa las políticas cuando el rol es superusuario o tiene
+ * BYPASSRLS. Da igual que la tabla tenga ENABLE y FORCE y que la política
+ * sea perfecta: no se mira. Y no avisa.
+ *
+ * El aislamiento entre tenants es la promesa central del producto, y hoy
+ * depende por completo de CON QUÉ USUARIO se conecta la aplicación. En un
+ * Postgres levantado por Dokploy el usuario por defecto es superusuario:
+ * basta apuntar ahí el DATABASE_URL para que el aislamiento desaparezca sin
+ * un solo error.
+ */
+export interface EstadoRls {
+  rol: string;
+  superusuario: boolean;
+  bypassrls: boolean;
+  /** true si las políticas NO se van a evaluar para esta conexión. */
+  seSalta: boolean;
+}
+
+export async function estadoRls(client: Pick<Pool, 'query'> | PoolClient): Promise<EstadoRls> {
+  const r = await client.query(
+    `SELECT current_user AS rol,
+            COALESCE(rolsuper, false) AS super,
+            COALESCE(rolbypassrls, false) AS bypass
+       FROM pg_roles WHERE rolname = current_user`,
+  );
+  const fila = r.rows[0] ?? { rol: 'desconocido', super: false, bypass: false };
+  const superusuario = Boolean(fila.super);
+  const bypassrls = Boolean(fila.bypass);
+  return {
+    rol: String(fila.rol),
+    superusuario,
+    bypassrls,
+    seSalta: superusuario || bypassrls,
+  };
+}
+
+/**
+ * Lo mismo, pero con la decisión tomada: en un entorno desplegado esto
+ * TIENE que reventar el arranque. Un 503 al rato sería peor — mientras
+ * tanto la aplicación estaría sirviendo datos cruzados.
+ */
+export async function exigeRolQueRespetaRls(
+  client: Pick<Pool, 'query'> | PoolClient,
+  entorno = process.env.IAXTI_ENV ?? 'development',
+): Promise<EstadoRls> {
+  const estado = await estadoRls(client);
+  if (!estado.seSalta) return estado;
+
+  const motivo = estado.superusuario ? 'es superusuario' : 'tiene BYPASSRLS';
+  const mensaje =
+    `La base acepta esta conexión con el rol "${estado.rol}", que ${motivo}: ` +
+    'Postgres NO evalúa las políticas por tenant y los datos de un cliente ' +
+    'quedan visibles desde la cuenta de otro. Conecta con un rol de aplicación ' +
+    'sin superusuario ni BYPASSRLS (runbook: "el rol de la aplicación").';
+
+  if (entorno === 'production' || entorno === 'staging') throw new Error(mensaje);
+  console.warn(`AVISO (${entorno}): ${mensaje}`);
+  return estado;
+}
