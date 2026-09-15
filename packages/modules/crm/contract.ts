@@ -60,3 +60,13 @@ export { parseCsv, guessMapping, sniffDelimiter, IMPORT_FIELDS } from './domain/
 export type { ImportField } from './domain/csv';
 export { exportarTitular, suprimirTitular } from './application/titular';
 export type { ExportacionTitular, ResultadoSupresion } from './application/titular';
+export {
+  listTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  contactTags,
+  setContactTags,
+  ROLES_DE_ETIQUETA,
+} from './application/tags';
+export type { Etiqueta, RolDeEtiqueta } from './application/tags';
