@@ -16,6 +16,7 @@ events:
     - invoice.issued
     - invoice.paid
     - invoice.overdue
+    - subscription.cancelled
   consumes:
     - payment.received
 nav:

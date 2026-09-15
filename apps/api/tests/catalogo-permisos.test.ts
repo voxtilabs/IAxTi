@@ -83,7 +83,6 @@ const PENDIENTES: Record<string, string> = {
   // Nota: las TOOLS de los agentes (`crm.find_contact`, `conversations.send_reply`…)
   // se declaran en el bloque `tools:` del manifiesto y no son permisos —
   // el registry las filtra por módulo activo. No van acá.
-  'billing.manage': 'Gestión de la suscripción por el propio tenant: hoy solo se lee (#67).',
   'tenant.billing': 'Ver y cambiar el plan desde la app; hoy lo hace el SuperAdmin (#69).',
   'whatsapp.numbers.manage':
     'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',

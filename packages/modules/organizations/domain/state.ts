@@ -12,7 +12,10 @@ export type TenantState = (typeof TENANT_STATES)[number];
 
 const TRANSITIONS: Record<TenantState, TenantState[]> = {
   trial: ['active', 'read_only', 'deleted'],
-  active: ['past_due', 'deleted'],
+  // `read_only` desde `active` es la CANCELACIÓN (SPEC §6): el negocio se
+  // va, sus datos quedan y no sale nada. En el diagrama ese camino terminaba
+  // en `[*]` sin decir dónde, y por eso faltaba acá.
+  active: ['past_due', 'read_only', 'deleted'],
   past_due: ['active', 'read_only'],
   read_only: ['active', 'suspended'],
   suspended: ['active', 'deleted'],

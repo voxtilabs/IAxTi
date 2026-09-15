@@ -71,3 +71,13 @@ export {
   ENTIDADES_CON_CAMPOS,
 } from './application/campos';
 export type { CampoPersonalizado, TipoDeCampo, EntidadConCampos } from './application/campos';
+export {
+  listTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  contactTags,
+  setContactTags,
+  ROLES_DE_ETIQUETA,
+} from './application/tags';
+export type { Etiqueta, RolDeEtiqueta } from './application/tags';

@@ -193,7 +193,7 @@ stateDiagram-v2
   read_only --> active: paga
   read_only --> suspended: 30 días
   suspended --> deleted: 90 días (exportación ofrecida antes)
-  active --> [*]: cancela (exportación completa primero)
+  active --> read_only: cancela (exportación completa primero, al fin del ciclo pagado)
 ```
 
 `read_only`: se reciben mensajes, no se envían salvo respuestas manuales. Bajar
