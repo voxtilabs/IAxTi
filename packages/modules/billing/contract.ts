@@ -7,6 +7,7 @@ export {
   issueInvoiceForCycle,
   billingConsumers,
   sweepBilling,
+  cancelarSuscripcion,
 } from './application/billing';
 export type { Subscription, Invoice } from './application/billing';
 export { planPricing, buildInvoiceLines, invoiceTotal, usdClpRate } from './domain/pricing';

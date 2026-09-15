@@ -240,6 +240,70 @@ export function billingConsumers(): Consumer[] {
 }
 
 /**
+ * Cancelar en un clic (SPEC §6, issue de la cancelación).
+ *
+ * Dos cosas que el SPEC pone juntas y que acá van juntas de verdad: se
+ * cancela en un clic, y la exportación completa va ANTES. El caso de uso
+ * exige que la exportación se haya generado —no se confía en que el
+ * frontend la haya ofrecido— y deja en el audit cuántas filas se llevó.
+ *
+ * Cancelar NO corta el servicio en el acto: el negocio pagó su ciclo y lo
+ * usa hasta el final. En esa fecha el barrido lo pasa a solo lectura, que es
+ * la puerta por donde ya pasa todo lo demás (#204): los datos quedan, no
+ * sale nada, y volver es pagar.
+ */
+export async function cancelarSuscripcion(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    actor: string;
+    motivo?: string;
+    /** Resumen de la exportación que el negocio ya se llevó (#222). */
+    exportacion: { filas: number; generadoEl: string };
+    requestId?: string;
+  },
+): Promise<{ cancelAt: string }> {
+  if (!input.exportacion || !Number.isFinite(input.exportacion.filas)) {
+    throw new Error(
+      'Antes de cancelar hay que entregarle al negocio su exportación completa (SPEC §6).',
+    );
+  }
+  const r = await client.query(
+    `UPDATE subscriptions
+        SET status = 'cancelled', cancelled_at = now(), cancel_at = next_charge_at,
+            cancel_reason = $2, updated_at = now()
+      WHERE tenant_id = $1 AND status <> 'cancelled'
+      RETURNING cancel_at`,
+    [input.tenantId, input.motivo ?? null],
+  );
+  if (r.rowCount === 0) throw new Error('Este negocio no tiene una suscripción activa que cancelar.');
+
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor,
+    actorKind: 'user',
+    action: 'billing.suscripcion.cancelada',
+    resource: 'subscription',
+    resourceId: input.tenantId,
+    result: 'ok',
+    requestId: input.requestId,
+    metadata: {
+      motivo: input.motivo ?? null,
+      cancelAt: r.rows[0].cancel_at,
+      exportacion: input.exportacion,
+    },
+  });
+  await publishEvent(client, {
+    name: 'subscription.cancelled',
+    tenantId: input.tenantId,
+    payload: { cancelAt: r.rows[0].cancel_at, motivo: input.motivo ?? null },
+    actor: input.actor,
+    requestId: input.requestId,
+  });
+  return { cancelAt: fecha(r.rows[0].cancel_at) };
+}
+
+/**
  * El barrido diario (#67): emite los ciclos vencidos, marca overdue y
  * aplica los estados del tenant (§6: past_due → read_only) — automático
  * y auditado.
@@ -252,8 +316,16 @@ export async function sweepBilling(
   readOnly: number;
   trialsVencidas: number;
   suspendidos: number;
+  cancelacionesEfectivas: number;
 }> {
-  const res = { issued: 0, overdue: 0, readOnly: 0, trialsVencidas: 0, suspendidos: 0 };
+  const res = {
+    issued: 0,
+    overdue: 0,
+    readOnly: 0,
+    trialsVencidas: 0,
+    suspendidos: 0,
+    cancelacionesEfectivas: 0,
+  };
 
   // 0. La prueba TERMINA (§6). `trial_ends_at` se escribía al crear el
   // tenant, se mostraba en el panel y el SuperAdmin la podía extender, y
@@ -410,6 +482,30 @@ export async function sweepBilling(
         actor: 'system',
       });
       res.suspendidos += 1;
+    });
+  }
+
+  // 5. La cancelación se hace efectiva cuando termina el ciclo PAGADO (§6).
+  // Hasta esa fecha el negocio sigue igual: cancelar no es apagar la luz.
+  const canceladas = await pool.query(
+    `SELECT tenant_id FROM subscriptions
+      WHERE status = 'cancelled' AND cancel_at IS NOT NULL AND cancel_at <= now()::date`,
+  );
+  for (const fila of canceladas.rows) {
+    await withTenant(pool, fila.tenant_id, async (client) => {
+      const tenant = await getTenant(client, fila.tenant_id);
+      if (tenant.state !== 'active' && tenant.state !== 'past_due' && tenant.state !== 'trial') return;
+      await changeTenantState(client, fila.tenant_id, 'read_only');
+      await writeAudit(client, {
+        tenantId: fila.tenant_id,
+        actor: 'system',
+        actorKind: 'system',
+        action: 'billing.cancelacion.efectiva',
+        resource: 'tenant',
+        resourceId: fila.tenant_id,
+        result: 'ok',
+      });
+      res.cancelacionesEfectivas += 1;
     });
   }
   return res;
