@@ -11,6 +11,7 @@ export {
   startSupportSession,
   endSupportSession,
   supportStatus,
+  activeSupportSession,
 } from './application/tenants-admin';
 export type { TenantDetail } from './application/tenants-admin';
 export {

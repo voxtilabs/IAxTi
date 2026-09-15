@@ -11,9 +11,13 @@ import { AppModule, registry } from './app.module';
 import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
 import { dbCustomPermissionsResolver, dbPlatformAdminResolver, dbRoleResolver, type RoleResolver } from './auth/role-resolver';
 import { registrarRechazo } from './auth/registrar-rechazo';
+import { registrarSoporte } from './auth/registrar-soporte';
 import { AuthzGuard } from './authz/authz.guard';
 import { resolveApiKey } from '@iaxti/module-authorization';
-import { applyModuleFlags } from '@iaxti/module-platform';
+import {
+  activeSupportSession,
+  applyModuleFlags,
+} from '@iaxti/module-platform';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
 import { accesoAlModulo, modulosDelPlan, modulosVendibles } from '@iaxti/module-organizations';
@@ -31,6 +35,10 @@ export interface CreateAppOptions {
   resolveRole?: RoleResolver | null;
   resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
   resolveApiKey?: ((token: string) => Promise<{ id: string; tenantId: string; scopes: string[] } | null>) | null;
+  /** La sesión de soporte del SUPERADMIN (issue 219); null lo apaga. */
+  resolveSupportSession?:
+    | ((tenantId: string, userId: string) => Promise<{ id: string } | null>)
+    | null;
   /** El acceso por PLAN (issue 209); null lo apaga en tests sin base. */
   resolveAccesoModulo?:
     | ((tenantId: string, moduleId: string) => Promise<'completo' | 'solo_lectura'>)
@@ -130,6 +138,14 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       resolvePlatformAdmin,
       resolveApiKey: resolveApiKeyOpt,
       resolveCustomPermissions: pool ? dbCustomPermissionsResolver(pool) : null,
+      // Modo soporte (issue 219): lectura del tenant SOLO con sesión viva.
+      resolveSupportSession:
+        options.resolveSupportSession !== undefined
+          ? options.resolveSupportSession
+          : pool
+            ? (tenantId: string, userId: string) =>
+                activeSupportSession(pool, { tenantId, adminUser: userId })
+            : null,
       // El plan del tenant decide el acceso al módulo (issue 209). Con caché
       // de 5 min: los planes cambian poco y esto corre en cada request.
       resolveAccesoModulo:
@@ -145,6 +161,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
               }
             : null,
       onDenied: registrarRechazo(pool),
+      onSupportAccess: registrarSoporte(pool),
     }),
     // La cuota mensual (#25) corre DESPUÉS del guard: solo API keys.
     new ApiQuotaGuard(redisConnection(), pool),
