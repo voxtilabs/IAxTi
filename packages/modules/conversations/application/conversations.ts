@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { incrementUsage, periodStart } from '@iaxti/module-organizations';
 import { ensureContactByIdentity } from '@iaxti/module-crm';
 import type { ContactOrigin } from '@iaxti/module-crm';
 import type { Contact } from '@iaxti/module-crm';
@@ -226,6 +227,23 @@ async function ingestInbound(
     ],
   );
   const message = rowToMessage(m.rows[0]);
+
+  // Conversación ACTIVA del ciclo (SPEC §9): se cuenta UNA vez por ciclo, la
+  // primera vez que entra algo. El UPDATE es la dedupe: si cambió la fila,
+  // es la primera vez; si no, ya estaba contada. El simulador no cuenta —
+  // es la herramienta de prueba, no un cliente.
+  if (input.channel !== 'simulador') {
+    const contada = await client.query(
+      `UPDATE conversations SET usage_period = $3
+        WHERE tenant_id = $1 AND id = $2 AND usage_period IS DISTINCT FROM $3
+        RETURNING id`,
+      [input.tenantId, conversation.id, periodStart()],
+    );
+    if ((contada.rowCount ?? 0) > 0) {
+      await incrementUsage(client, input.tenantId, 'conversations');
+    }
+  }
+
   await publishEvent(client, {
     name: 'message.received',
     tenantId: input.tenantId,
