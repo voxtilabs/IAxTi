@@ -6,7 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { redisConnection } from '@iaxti/core';
-import { createPool } from '@iaxti/db';
+import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
 import { AppModule, registry } from './app.module';
 import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
 import { dbCustomPermissionsResolver, dbPlatformAdminResolver, dbRoleResolver, type RoleResolver } from './auth/role-resolver';
@@ -113,6 +113,11 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       : pool
         ? (token: string) => resolveApiKey(pool, token)
         : null;
+  // El aislamiento entre tenants no es negociable (issue 211): si la
+  // conexión se salta RLS, esto no arranca. Un 503 más tarde sería peor —
+  // mientras tanto estaría sirviendo datos cruzados.
+  if (pool) await exigeRolQueRespetaRls(pool);
+
   // Flags de módulos SIN desplegar (#69): al arrancar y cada 60 s.
   if (pool) {
     void applyModuleFlags(pool, registry).catch(() => {});
