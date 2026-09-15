@@ -59,6 +59,23 @@ describe('outbox transaccional', () => {
     expect(rows.rowCount).toBe(0);
   });
 
+
+/**
+ * El despachador trabaja sobre TODA la tabla: es un despachador de
+ * plataforma, no de un tenant. Así que antes de contar ticks hay que dejar
+ * el outbox vacío — si no, lo que cuenta este test es cuántos eventos
+ * dejaron pendientes las otras suites, y el número cambia según el orden en
+ * que turbo agende los paquetes (issue 207).
+ */
+async function drenar(): Promise<void> {
+  const consumidorMudo: Consumer[] = [];
+  const dispatcher = new OutboxDispatcher(admin, registry, consumidorMudo);
+  for (let i = 0; i < 50; i++) {
+    if ((await dispatcher.tick()) === 0) return;
+  }
+  throw new Error('el outbox no se vacía: algo lo está llenando en paralelo');
+}
+
   it('entrega una sola vez por consumidor, aunque el tick corra de nuevo', async () => {
     const recibidos: EventEnvelope[] = [];
     const consumers: Consumer[] = [
@@ -71,6 +88,7 @@ describe('outbox transaccional', () => {
         },
       },
     ];
+    await drenar();
     await withTenant(admin, tenant, (c) =>
       publishEvent(c, { name: 'demo.paso', tenantId: tenant, payload: { n: 1 }, requestId: 'req_e2e' }),
     );
@@ -111,6 +129,7 @@ describe('outbox transaccional', () => {
         },
       },
     ];
+    await drenar();
     await withTenant(admin, tenant, (c) => publishEvent(c, { name: 'demo.fragil', tenantId: tenant }));
 
     const dispatcher = new OutboxDispatcher(admin, registry, consumers);
