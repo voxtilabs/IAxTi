@@ -19,6 +19,8 @@ export interface EstadoRls {
   bypassrls: boolean;
   /** true si las políticas NO se van a evaluar para esta conexión. */
   seSalta: boolean;
+  /** false cuando no se pudo preguntar (base caída, red): no sabemos nada. */
+  verificado: boolean;
 }
 
 export async function estadoRls(client: Pick<Pool, 'query'> | PoolClient): Promise<EstadoRls> {
@@ -36,6 +38,7 @@ export async function estadoRls(client: Pick<Pool, 'query'> | PoolClient): Promi
     superusuario,
     bypassrls,
     seSalta: superusuario || bypassrls,
+    verificado: true,
   };
 }
 
@@ -58,8 +61,25 @@ export async function estadoRls(client: Pick<Pool, 'query'> | PoolClient): Promi
 export async function exigeRolQueRespetaRls(
   client: Pick<Pool, 'query'> | PoolClient,
   entorno = process.env.IAXTI_ENV ?? 'development',
+  intentos = 3,
 ): Promise<EstadoRls> {
-  const estado = await estadoRls(client);
+  // Preguntar puede fallar por razones que no tienen NADA que ver con el
+  // aislamiento: la base todavía no acepta conexiones, la red parpadeó. Que
+  // eso tumbe el arranque convierte una comprobación de seguridad en una
+  // dependencia dura, y `/health` es liveness justamente para no tenerlas.
+  let estado: EstadoRls | null = null;
+  for (let i = 0; i < Math.max(1, intentos); i++) {
+    estado = await estadoRls(client).catch(() => null);
+    if (estado) break;
+    if (i < intentos - 1) await new Promise((r) => setTimeout(r, 2_000));
+  }
+  if (!estado) {
+    console.error(
+      'No pudimos comprobar si esta conexión respeta RLS (la base no contestó). ' +
+        'La aplicación arranca, pero el aislamiento entre tenants queda SIN verificar.',
+    );
+    return { rol: 'desconocido', superusuario: false, bypassrls: false, seSalta: false, verificado: false };
+  }
   if (!estado.seSalta) return estado;
 
   const motivo = estado.superusuario ? 'es superusuario' : 'tiene BYPASSRLS';

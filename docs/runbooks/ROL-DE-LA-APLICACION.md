@@ -69,6 +69,15 @@ Que el aviso esté ahí no lo vuelve aceptable: **staging también tiene que
 usar el rol de aplicación**, y mientras no lo use, el aislamiento entre
 tenants no se está probando en ninguna parte salvo en los tests de RLS.
 
+Si la base no contesta cuando se hace la comprobación, la aplicación
+**arranca igual** y lo dice en el log: una comprobación de seguridad no puede
+volverse una dependencia dura del arranque (`/health` es liveness
+justamente para no tener ninguna). Lo que queda sin verificar se anuncia:
+
+```
+No pudimos comprobar si esta conexión respeta RLS (la base no contestó).
+```
+
 Si el arranque en producción falla con
 
 > La base acepta esta conexión con el rol "…", que es superusuario

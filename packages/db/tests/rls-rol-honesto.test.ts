@@ -100,4 +100,16 @@ describe('el rol de la conexión decide si RLS existe (issue 211)', () => {
     // Y el rol de aplicación de verdad pasa en cualquier entorno.
     await expect(exigeRolQueRespetaRls(app, 'production')).resolves.toMatchObject({ seSalta: false });
   });
+
+  it('si la base no contesta, la aplicación arranca igual y lo dice', async () => {
+    // Una comprobación de seguridad no puede volverse una dependencia dura
+    // del arranque: `/health` es liveness justamente para no tener ninguna.
+    const caida = {
+      query: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    } as unknown as Pool;
+    const estado = await exigeRolQueRespetaRls(caida, 'production', 1);
+    expect(estado).toMatchObject({ verificado: false, seSalta: false, rol: 'desconocido' });
+  });
 });
