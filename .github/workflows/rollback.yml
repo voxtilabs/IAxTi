@@ -14,13 +14,17 @@
 #      fallido siguiera al deploy igual, en silencio.
 #   3. Espera, verifica y CRONOMETRA: el compromiso es menos de 2 minutos
 #      (SPEC §15) y eso se mide, no se declara.
+#   4. Comprueba que la imagen EXISTA antes de tocar la configuración: el
+#      primer simulacro falló con un SHA incompleto y dejó el proyecto
+#      apuntando a una imagen inexistente (sin caída, porque Dokploy mantuvo
+#      los contenedores viejos — pero la próxima vez podría no ser así).
 name: rollback
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Imagen a redesplegar: tag de release (vX.Y.Z) o SHA del commit"
+        description: "Imagen a redesplegar: tag de release (vX.Y.Z) o SHA COMPLETO del commit (40 caracteres)"
         required: true
       ambiente:
         description: "staging o production"
@@ -46,6 +50,20 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado; no hay nada que revertir."; exit 1; fi
+
+          # Que la imagen EXISTA antes de tocar la configuración. Un rollback
+          # se escribe bajo presión y con el tag copiado a mano: si no está,
+          # el proyecto queda apuntando a nada y Dokploy falla con el
+          # incidente original todavía abierto. Lo cazó el primer simulacro
+          # (#80), donde el SHA iba incompleto.
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 || true
+          if ! docker manifest inspect "ghcr.io/voxtilabs/iaxti:${TAG}" >/dev/null 2>&1; then
+            echo "No existe la imagen ghcr.io/voxtilabs/iaxti:${TAG}."
+            echo "Los tags son el SHA COMPLETO del commit (40 caracteres) o un tag de release vX.Y.Z."
+            echo "No toqué nada: el proyecto sigue con la imagen que tenía." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
           inicio=$(date +%s)
           auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
 
