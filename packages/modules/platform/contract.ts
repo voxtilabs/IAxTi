@@ -28,6 +28,7 @@ export {
   securitySnapshot,
   estadoGeneral,
   chequeoCrecimientoMensajes,
+  chequeoEventosAbandonados,
 } from './application/salud';
 export type { Chequeo, EstadoSalud, Seguridad, SaludInput } from './application/salud';
 export {

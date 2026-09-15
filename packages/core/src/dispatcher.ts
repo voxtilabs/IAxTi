@@ -14,7 +14,12 @@ export interface Consumer {
   handler: EventHandler;
 }
 
-const MAX_ATTEMPTS = 5;
+/**
+ * Reintentos antes de abandonar un evento. Se exporta porque quien vigila
+ * los abandonados (el tablero de salud, #71) tiene que usar EL MISMO
+ * número: dos definiciones y el panel miente.
+ */
+export const MAX_ATTEMPTS = 5;
 
 /**
  * Despachador del outbox: corre en workers, procesa por lotes con

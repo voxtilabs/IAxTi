@@ -4,7 +4,7 @@ export { findModulesDir, loadManifest, loadAllManifests } from './manifest';
 export type { ModuleManifest } from './manifest';
 export { publishEvent } from './events';
 export type { EventEnvelope, PublishInput } from './events';
-export { OutboxDispatcher } from './dispatcher';
+export { OutboxDispatcher, MAX_ATTEMPTS } from './dispatcher';
 export type { Consumer, EventHandler } from './dispatcher';
 export { QUEUE_NAMES, createQueue, createModuleWorker, redisConnection } from './queues';
 export type { QueueName, ModuleJobData } from './queues';
