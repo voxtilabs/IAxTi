@@ -1,0 +1,121 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Pool } from 'pg';
+import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import {
+  exportarTenant,
+  FUERA_DE_LA_EXPORTACION,
+  TABLAS_EXPORTADAS,
+} from '../application/exportacion';
+
+/**
+ * La exportación completa del tenant (issue 222). Lo que se prueba acá no es
+ * que exporte: es que NO exporte lo de otro negocio y NO exporte un secreto.
+ */
+const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
+
+let admin: Pool;
+let mio: string;
+let ajeno: string;
+let secretoInvitacion: string;
+let secretoLlave: string;
+
+beforeAll(async () => {
+  admin = createPool(ADMIN_URL);
+  await runMigrations(admin);
+  const a = await admin.query("INSERT INTO tenants (name) VALUES ('export-mio') RETURNING id");
+  const b = await admin.query("INSERT INTO tenants (name) VALUES ('export-ajeno') RETURNING id");
+  mio = a.rows[0].id;
+  ajeno = b.rows[0].id;
+
+  for (const [tenant, nombre, fono] of [
+    [mio, 'Clienta mía', '+56933330001'],
+    [ajeno, 'Clienta ajena', '+56933330002'],
+  ] as const) {
+    const c = await admin.query(
+      `INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, $2, $3, 'whatsapp') RETURNING id`,
+      [tenant, nombre, fono],
+    );
+    const conv = await admin.query(
+      `INSERT INTO conversations (tenant_id, contact_id, channel) VALUES ($1, $2, 'whatsapp') RETURNING id`,
+      [tenant, c.rows[0].id],
+    );
+    await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, direction, type, body, author_kind, attachments)
+       VALUES ($1, $2, 'in', 'texto', $3, 'contact', $4::jsonb)`,
+      [tenant, conv.rows[0].id, `mensaje de ${nombre}`, `[{"key":"${tenant}/wa/foto.jpg"}]`],
+    );
+  }
+
+  // Un secreto de cada tipo, para comprobar que ninguno sale. El token es
+  // único en la tabla: se le pega el id del tenant para poder correr el test
+  // más de una vez contra la misma base.
+  secretoInvitacion = `token-secretisimo-${mio}`;
+  secretoLlave = `hash-secretisimo-${mio}`;
+  await admin.query(
+    `INSERT INTO invitations (tenant_id, email, role_name, token, expires_at)
+     VALUES ($1, 'invitada@test.cl', 'USER', $2, now() + interval '7 days')`,
+    [mio, secretoInvitacion],
+  );
+  await admin
+    .query(
+      `INSERT INTO api_keys (tenant_id, name, key_hash, scopes) VALUES ($1, 'integración', $2, '{}')`,
+      [mio, secretoLlave],
+    )
+    .catch(() => undefined);
+});
+
+afterAll(async () => {
+  await admin.end();
+});
+
+describe('exportación del tenant (issue 222)', () => {
+  it('se lleva lo suyo: contactos, conversaciones y mensajes', async () => {
+    const e = await withTenant(admin, mio, (c) => exportarTenant(c, { tenantId: mio }));
+    expect(e.resumen.contacts).toBe(1);
+    expect(e.resumen.messages).toBe(1);
+    expect(JSON.stringify(e.datos.messages)).toContain('Clienta mía');
+    expect(e.adjuntos).toEqual([`${mio}/wa/foto.jpg`]);
+    expect(e.truncadas).toEqual([]);
+  });
+
+  it('JAMÁS lo de otro negocio', async () => {
+    const e = await withTenant(admin, mio, (c) => exportarTenant(c, { tenantId: mio }));
+    const todo = JSON.stringify(e);
+    expect(todo).not.toContain('Clienta ajena');
+    expect(todo).not.toContain('+56933330002');
+    expect(todo).not.toContain(ajeno);
+  });
+
+  it('JAMÁS un secreto', async () => {
+    const e = await withTenant(admin, mio, (c) => exportarTenant(c, { tenantId: mio }));
+    const todo = JSON.stringify(e);
+    expect(todo).not.toContain(secretoInvitacion);
+    expect(todo).not.toContain(secretoLlave);
+    // Pero la invitación SÍ sale, sin su token: es parte de su equipo.
+    expect(todo).toContain('invitada@test.cl');
+  });
+
+  it('dice qué dejó afuera y por qué', async () => {
+    const e = await withTenant(admin, mio, (c) => exportarTenant(c, { tenantId: mio }));
+    expect(Object.keys(e.fuera)).toContain('audit_log');
+    expect(e.fuera.audit_log).toContain('#72');
+    // Ninguna tabla puede estar dentro y fuera a la vez.
+    for (const tabla of TABLAS_EXPORTADAS) {
+      expect(FUERA_DE_LA_EXPORTACION[tabla], `${tabla} está en las dos listas`).toBeUndefined();
+    }
+  });
+
+  it('si algo se cortó por el tope, lo dice en vez de esconderlo', async () => {
+    const e = await withTenant(admin, mio, (c) => exportarTenant(c, { tenantId: mio, tope: 0 }));
+    // tope 0 se sube a 1: con 1 contacto y 1 mensaje no alcanza a truncar,
+    // así que se agrega uno más para forzarlo.
+    expect(e.resumen.contacts).toBeLessThanOrEqual(1);
+    await admin.query(
+      `INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, 'Otra', '+56933330003', 'manual')`,
+      [mio],
+    );
+    const e2 = await withTenant(admin, mio, (c) => exportarTenant(c, { tenantId: mio, tope: 1 }));
+    expect(e2.truncadas).toContain('contacts');
+    expect(e2.resumen.contacts).toBe(1);
+  });
+});
