@@ -119,3 +119,22 @@ describe('exportación del tenant (issue 222)', () => {
     expect(e2.resumen.contacts).toBe(1);
   });
 });
+
+describe('el tope no puede llegar al SQL', () => {
+  it('un tope de mentira no vacía la exportación ni toca la base', async () => {
+    // Tipar el parámetro no alcanza: TypeScript no está del otro lado de un
+    // HTTP, y el tope se interpola en el LIMIT.
+    //
+    // Lo que hacía antes no era inyectar: era peor de otra manera. `LIMIT
+    // NaN` es un error de sintaxis, el catch lo tragaba y la exportación
+    // salía VACÍA — el cliente se llevaba un archivo sin nada creyendo que
+    // eran sus datos.
+    const veneno = '1; DROP TABLE tenants; --' as unknown as number;
+    const e = await withTenant(admin, mio, (c) => exportarTenant(c, { tenantId: mio, tope: veneno }));
+    expect(e.resumen.contacts).toBeGreaterThan(0);
+    expect(e.resumen.messages).toBeGreaterThan(0);
+
+    const siguen = await admin.query('SELECT count(*)::int n FROM tenants WHERE id = $1', [mio]);
+    expect(siguen.rows[0].n).toBe(1);
+  });
+});

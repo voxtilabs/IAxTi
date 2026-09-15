@@ -126,7 +126,13 @@ export async function exportarTenant(
   client: PoolClient,
   input: { tenantId: string; tope?: number },
 ): Promise<ExportacionTenant> {
-  const tope = Math.max(1, input.tope ?? TOPE_POR_TABLA);
+  // Entero y acotado ANTES de acercarse al SQL. El tope se interpola en el
+  // LIMIT —no puede ir como parámetro junto al resto en todas las bases— y
+  // un `tope` que llegue como texto desde una query string sería una
+  // inyección de manual. Tipar el parámetro no alcanza: TypeScript no está
+  // del otro lado de un HTTP.
+  const pedido = Math.floor(Number(input.tope ?? TOPE_POR_TABLA));
+  const tope = Number.isFinite(pedido) ? Math.min(Math.max(1, pedido), TOPE_POR_TABLA) : TOPE_POR_TABLA;
 
   const t = await client.query('SELECT * FROM tenants WHERE id = $1', [input.tenantId]);
   if (t.rowCount === 0) throw new Error('No encontramos ese negocio.');
