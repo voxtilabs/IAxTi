@@ -1,3 +1,4 @@
+import { olvidarPlan } from './plan-modulos';
 import type { PoolClient } from 'pg';
 import {
   assertOnboardingAdvance,
@@ -79,6 +80,9 @@ export async function changeTenantState(
 export async function changePlan(client: PoolClient, id: string, plan: string): Promise<PlanLimits> {
   const limits = await getPlanLimits(client, plan);
   await client.query('UPDATE tenants SET plan = $2 WHERE id = $1', [id, plan]);
+  // Sin esto, subir de plan tardaría hasta cinco minutos en notarse: el
+  // cliente paga y la función sigue negada (issue 209).
+  olvidarPlan(id);
   return limits;
 }
 

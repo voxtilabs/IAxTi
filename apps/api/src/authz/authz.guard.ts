@@ -13,6 +13,9 @@ import type { RoleResolver } from '../auth/role-resolver';
 import type { WithRequestId } from '../request-id';
 import { AUTH_KEY, MODULE_KEY, PERMISSION_KEY } from './decorators';
 
+/** Lo que solo lee: pasa aunque el módulo esté fuera del plan (SPEC §6). */
+const SOLO_LEE = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 export interface Actor {
   userId: string;
   tenantId: string;
@@ -45,6 +48,13 @@ export interface AuthzOptions {
   resolveRole?: RoleResolver | null;
   /** ¿SUPERADMIN de plataforma? (tabla platform_admins, cross-tenant). */
   resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
+  /**
+   * El acceso del TENANT a un módulo según su plan (issue 209): 'completo'
+   * o 'solo_lectura'. null lo apaga (tests y desarrollo sin base).
+   */
+  resolveAccesoModulo?:
+    | ((tenantId: string, moduleId: string) => Promise<'completo' | 'solo_lectura'>)
+    | null;
   /**
    * Aviso de rechazo (#71): lo escucha quien quiera dejarlo registrado. Es
    * BEST-EFFORT — el 403 sale igual aunque el registro falle, porque negar
@@ -156,6 +166,20 @@ export class AuthzGuard implements CanActivate {
       const request = context.switchToHttp().getRequest<WithUser>();
       request.actor = actor;
       request.user = { userId: actor.userId };
+
+      // El PLAN del tenant (SPEC §6, issue 209): el portón de arriba mira un
+      // flag global del despliegue; este mira lo que este tenant paga. Un
+      // módulo fuera de su plan queda en SOLO LECTURA —bajar de plan nunca
+      // borra ni esconde—, así que las lecturas pasan y las escrituras no.
+      if (moduleId && this.options.resolveAccesoModulo) {
+        const acceso = await this.options.resolveAccesoModulo(actor.tenantId, moduleId);
+        if (acceso === 'solo_lectura' && !SOLO_LEE.has(request.method)) {
+          throw new ForbiddenException({
+            code: 'MODULE_NOT_IN_PLAN',
+            message: 'Tu plan no incluye esta función. Puedes ver lo que ya tienes, pero no crear ni cambiar.',
+          });
+        }
+      }
 
       if (!allowed) {
         console.warn(

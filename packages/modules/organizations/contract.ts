@@ -15,3 +15,11 @@ export type { UsageMetric } from './application/usage';
 export type { TenantState, OnboardingState } from './domain/state';
 export { puedeEnviar } from './domain/state';
 export { zonaDelTenant, olvidarZonas } from './application/zona';
+export {
+  modulosDelPlan,
+  modulosVendibles,
+  accesoAlModulo,
+  olvidarPlan,
+  olvidarPlanes,
+} from './application/plan-modulos';
+export type { AccesoModulo } from './application/plan-modulos';

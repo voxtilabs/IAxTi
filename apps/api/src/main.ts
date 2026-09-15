@@ -16,6 +16,7 @@ import { resolveApiKey } from '@iaxti/module-authorization';
 import { applyModuleFlags } from '@iaxti/module-platform';
 import { ErrorsFilter } from './errors.filter';
 import { RateLimitGuard } from './rate-limit.guard';
+import { accesoAlModulo, modulosDelPlan, modulosVendibles } from '@iaxti/module-organizations';
 import { ApiQuotaGuard } from './api-quota.guard';
 import { IdempotenciaInterceptor } from './idempotencia.interceptor';
 import { requestIdMiddleware } from './request-id';
@@ -30,6 +31,10 @@ export interface CreateAppOptions {
   resolveRole?: RoleResolver | null;
   resolvePlatformAdmin?: ((userId: string) => Promise<boolean>) | null;
   resolveApiKey?: ((token: string) => Promise<{ id: string; tenantId: string; scopes: string[] } | null>) | null;
+  /** El acceso por PLAN (issue 209); null lo apaga en tests sin base. */
+  resolveAccesoModulo?:
+    | ((tenantId: string, moduleId: string) => Promise<'completo' | 'solo_lectura'>)
+    | null;
 }
 
 export async function createApp(options: CreateAppOptions = {}): Promise<INestApplication> {
@@ -120,6 +125,20 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       resolvePlatformAdmin,
       resolveApiKey: resolveApiKeyOpt,
       resolveCustomPermissions: pool ? dbCustomPermissionsResolver(pool) : null,
+      // El plan del tenant decide el acceso al módulo (issue 209). Con caché
+      // de 5 min: los planes cambian poco y esto corre en cada request.
+      resolveAccesoModulo:
+        options.resolveAccesoModulo !== undefined
+          ? options.resolveAccesoModulo
+          : pool
+            ? async (tenantId: string, moduleId: string) => {
+                const [vendibles, delPlan] = await Promise.all([
+                  modulosVendibles(pool),
+                  modulosDelPlan(pool, tenantId),
+                ]);
+                return accesoAlModulo({ moduleId, vendibles, delPlan: delPlan.modulos });
+              }
+            : null,
       onDenied: registrarRechazo(pool),
     }),
     // La cuota mensual (#25) corre DESPUÉS del guard: solo API keys.
