@@ -75,6 +75,17 @@ jobs:
           BASE: ${{ secrets.STAGING_BASE_URL }}
         run: |
           if [ -z "${BASE}" ]; then echo "Sin STAGING_BASE_URL aún; se salta"; exit 0; fi
-          sleep 20
+
+          # Dokploy dice "done" cuando aplicó el compose, no cuando la app
+          # atiende. Veinte segundos fijos daban rojos falsos: el 15/09 el
+          # contenedor tardó cuatro minutos y el smoke ya se había ido.
+          echo "Esperando a que la API atienda..."
+          for i in $(seq 1 24); do
+            if curl -sS -o /dev/null -m 10 -w '' "${BASE}/health" 2>/dev/null; then
+              codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/health" || echo 000)
+              [ "$codigo" = "200" ] && break
+            fi
+            sleep 10
+          done
           curl -fsS -m 15 "${BASE}/health" && echo " ← /health ok"
           curl -fsS -m 15 "${BASE}/health/modules" >/dev/null && echo "/health/modules ok"
