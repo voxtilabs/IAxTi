@@ -21,7 +21,6 @@ let base: string;
 let admin: Pool;
 let tenant: string;
 let firmar: (sub: string) => Promise<string>;
-let contacto: string;
 const duena = randomUUID();
 
 async function crearTrato(llave: string | null, body: unknown): Promise<Response> {
@@ -58,10 +57,7 @@ beforeAll(async () => {
       ],
     }),
   );
-  const cont = await withTenant(admin, tenant, (c) =>
-    createContact(c, { tenantId: tenant, name: 'Paula Soto', phone: '+56911110001' }),
-  );
-  contacto = cont.id;
+
 
   const { publicKey, privateKey } = await generateKeyPair('ES256');
   const jwks = createLocalJWKSet({ keys: [{ ...(await exportJWK(publicKey)), alg: 'ES256' }] });
