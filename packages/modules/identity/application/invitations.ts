@@ -154,3 +154,128 @@ export async function upsertProfile(
     [input.userId, input.name ?? null, input.phone ?? null, input.locale ?? null],
   );
 }
+
+export interface MiembroEquipo {
+  userId: string;
+  nombre: string | null;
+  email: string | null;
+  rol: string;
+  desde: Date;
+}
+
+export interface InvitacionPendiente {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  rol: string;
+  expiraEl: Date;
+  vencida: boolean;
+}
+
+/**
+ * Quién tiene acceso hoy al negocio. El correo sale de la invitación que
+ * cada persona aceptó: es lo único que sabemos de ella sin ir a Supabase.
+ */
+export async function listarEquipo(
+  client: PoolClient,
+  tenantId: string,
+): Promise<MiembroEquipo[]> {
+  const r = await client.query(
+    `SELECT ur.user_id, r.name AS rol, ur.created_at AS desde,
+            p.name AS nombre,
+            (SELECT i.email FROM invitations i
+              WHERE i.tenant_id = ur.tenant_id AND i.accepted_by = ur.user_id
+                AND i.email IS NOT NULL
+              ORDER BY i.accepted_at DESC LIMIT 1) AS email
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       LEFT JOIN user_profiles p ON p.user_id = ur.user_id
+      WHERE ur.tenant_id = $1
+      ORDER BY ur.created_at`,
+    [tenantId],
+  );
+  return r.rows.map((row) => ({
+    userId: row.user_id as string,
+    nombre: (row.nombre as string) ?? null,
+    email: (row.email as string) ?? null,
+    rol: row.rol as string,
+    desde: row.desde as Date,
+  }));
+}
+
+/** Invitaciones que todavía no se usan, con las vencidas marcadas. */
+export async function listarInvitaciones(
+  client: PoolClient,
+  tenantId: string,
+): Promise<InvitacionPendiente[]> {
+  const r = await client.query(
+    `SELECT id, email, phone, role_name, expires_at
+       FROM invitations
+      WHERE tenant_id = $1 AND accepted_at IS NULL
+      ORDER BY created_at DESC`,
+    [tenantId],
+  );
+  return r.rows.map((row) => ({
+    id: row.id as string,
+    email: (row.email as string) ?? null,
+    phone: (row.phone as string) ?? null,
+    rol: row.role_name as string,
+    expiraEl: row.expires_at as Date,
+    vencida: new Date(row.expires_at).getTime() < Date.now(),
+  }));
+}
+
+/** Cancela una invitación que todavía no se usó. */
+export async function cancelarInvitacion(
+  client: PoolClient,
+  input: { tenantId: string; invitationId: string },
+): Promise<boolean> {
+  const r = await client.query(
+    `DELETE FROM invitations
+      WHERE tenant_id = $1 AND id = $2 AND accepted_at IS NULL`,
+    [input.tenantId, input.invitationId],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+/**
+ * Saca a alguien del negocio. NO borra su historial: los mensajes que
+ * escribió y las acciones que hizo siguen siendo parte del registro — lo
+ * que se quita es el acceso.
+ *
+ * Nadie puede quitarse a sí mismo, y no se puede dejar el negocio sin
+ * ningún ADMIN: un tenant sin quien lo administre solo se arregla desde la
+ * plataforma, y eso es un ticket de soporte que nadie quiere abrir.
+ */
+export async function quitarDelEquipo(
+  client: PoolClient,
+  input: { tenantId: string; userId: string; actor: string },
+): Promise<void> {
+  if (input.userId === input.actor) {
+    throw new Error('No puedes quitarte a ti mismo: pídeselo a otra persona que administre.');
+  }
+  const objetivo = await client.query(
+    `SELECT r.name AS rol FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+      WHERE ur.tenant_id = $1 AND ur.user_id = $2`,
+    [input.tenantId, input.userId],
+  );
+  if (objetivo.rowCount === 0) {
+    throw new Error('Esa persona no está en este negocio.');
+  }
+  if (objetivo.rows[0].rol === 'ADMIN') {
+    const admins = await client.query(
+      `SELECT count(*)::int AS n FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+        WHERE ur.tenant_id = $1 AND r.name = 'ADMIN'`,
+      [input.tenantId],
+    );
+    if (admins.rows[0].n <= 1) {
+      throw new Error(
+        'Es la única persona que administra el negocio: nombra a otra antes de quitarla.',
+      );
+    }
+  }
+  await client.query('DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2', [
+    input.tenantId,
+    input.userId,
+  ]);
+}

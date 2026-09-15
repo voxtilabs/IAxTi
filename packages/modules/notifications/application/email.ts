@@ -60,11 +60,23 @@ export function renderEmail(input: { title: string; body?: string; link?: string
 
 export async function sendNotificationEmail(
   client: PoolClient,
-  input: { tenantId: string; userId: string; title: string; body?: string; link?: string },
+  input: {
+    tenantId: string;
+    userId: string;
+    title: string;
+    body?: string;
+    link?: string;
+    /**
+     * Destinatario explícito, para quien TODAVÍA no es usuario: una
+     * invitación va a un correo que aún no tiene cuenta y por lo tanto no
+     * se puede resolver desde sus invitaciones aceptadas.
+     */
+    para?: string;
+  },
 ): Promise<boolean> {
   const transport = smtp();
   if (!transport) return false; // sin SMTP todavía: la campana basta
-  const email = await resolveUserEmail(client, input.tenantId, input.userId);
+  const email = input.para ?? (await resolveUserEmail(client, input.tenantId, input.userId));
   if (!email) return false;
   const { subject, html } = renderEmail(input);
   await transport.sendMail({
