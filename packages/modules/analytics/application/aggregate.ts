@@ -1,8 +1,8 @@
 import type { Pool, PoolClient } from 'pg';
-import type { Consumer, EventEnvelope } from '@iaxti/core';
+import { TZ_POR_DEFECTO, diaEn, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import { TOTAL_OWNER, type Metric } from '../domain/metrics';
-import { TZ_POR_DEFECTO, diaEn } from '../domain/dias';
+
 
 // La agregación (#66): POR EVENTO, en la misma transacción del dispatcher
 // — el dashboard después solo SUMA filas de daily_metrics.

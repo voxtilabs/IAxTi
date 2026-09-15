@@ -10,3 +10,4 @@ export { QUEUE_NAMES, createQueue, createModuleWorker, redisConnection } from '.
 export type { QueueName, ModuleJobData } from './queues';
 export { attachmentKey, presignUrl, storageFromEnv } from './storage';
 export type { StorageConfig } from './storage';
+export { diaEn, mesEn, ultimosDias, esDia, TZ_POR_DEFECTO } from './dias';
