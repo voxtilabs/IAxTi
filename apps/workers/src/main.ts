@@ -343,10 +343,36 @@ function start(): void {
   }
 }
 
+// `/health` es "el proceso vive" —si falla, REINICIAN— y por eso no mira
+// dependencias. `/ready` es "puede trabajar ahora": para un consumidor de
+// colas eso significa Redis, que es de lo que vive. Decir que sí sin
+// mirarlo deja al orquestador creyendo que la instancia trabaja cuando no
+// está consumiendo nada (#17).
 const server = createServer((req, res) => {
-  if (req.url === '/health' || req.url === '/ready') {
+  if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', service }));
+    return;
+  }
+  if (req.url === '/ready') {
+    void (async () => {
+      if (!process.env.REDIS_URL) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', service, redis: 'sin configurar' }));
+        return;
+      }
+      const sonda = redisConnection();
+      try {
+        await sonda.ping();
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', service, redis: 'ok' }));
+      } catch (err) {
+        res.writeHead(503, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ status: 'degraded', service, redis: (err as Error).message }));
+      } finally {
+        void sonda.quit().catch(() => {});
+      }
+    })();
     return;
   }
   res.writeHead(404, { 'content-type': 'application/json' });

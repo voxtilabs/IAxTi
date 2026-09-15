@@ -12,6 +12,7 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
+    "@iaxti/core": "workspace:*",
     "@iaxti/telemetry": "workspace:*"
   }
 }

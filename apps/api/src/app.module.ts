@@ -12,6 +12,7 @@ import {
   Post,
   Delete,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { tenantsOf } from '@iaxti/module-identity';
@@ -61,6 +62,8 @@ import { AutomationsController } from './automations.controller';
 import { AnalyticsController } from './analytics.controller';
 import { ApiUsageController } from './api-usage.controller';
 import { AuditController, PlatformAuditController } from './audit.controller';
+import { checkReadiness } from './readiness';
+import type { Response } from 'express';
 import { ApiKeysController } from './apikeys.controller';
 import { WebhooksSalientesController } from './webhooks-salientes.controller';
 import { RolesController } from './roles.controller';
@@ -77,9 +80,15 @@ class HealthController {
     return { status: 'ok', service: 'api' };
   }
 
+  /**
+   * ¿Puede atender tráfico AHORA? Mira las dependencias y responde 503 si
+   * no. `/health` (arriba) es otra cosa: si ese falla, reinician el proceso.
+   */
   @Get('ready')
-  ready() {
-    return { status: 'ok', service: 'api' };
+  async ready(@Res({ passthrough: true }) res: Response) {
+    const estado = await checkReadiness(apiPool(), 'api');
+    if (estado.status !== 'ok') res.status(503);
+    return estado;
   }
 
   @Get('health/modules')
