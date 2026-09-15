@@ -43,6 +43,58 @@ const encodeRfc3986 = (s: string) =>
   encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 
 /**
+ * El núcleo de SigV4, separado de cómo armamos la ruta. Está aparte para
+ * poder verificarlo contra el VECTOR PUBLICADO por AWS: una firma que solo
+ * se compara consigo misma puede estar mal y pasar todos los tests, y el
+ * error aparece recién el día que un cliente manda una foto.
+ */
+export function firmaPresignada(input: {
+  method: 'GET' | 'PUT' | 'DELETE';
+  host: string;
+  /** Ruta canónica YA codificada, con su `/` inicial. */
+  canonicalUri: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  /** `AAAAMMDDTHHMMSSZ`. */
+  amzDate: string;
+  expiresSeconds: number;
+}): { canonicalQuery: string; signature: string } {
+  const dateStamp = input.amzDate.slice(0, 8);
+  const scope = `${dateStamp}/${input.region}/s3/aws4_request`;
+
+  const query: [string, string][] = [
+    ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+    ['X-Amz-Credential', `${input.accessKeyId}/${scope}`],
+    ['X-Amz-Date', input.amzDate],
+    ['X-Amz-Expires', String(input.expiresSeconds)],
+    ['X-Amz-SignedHeaders', 'host'],
+  ];
+  // SigV4 exige el query ORDENADO por nombre de parámetro ya codificado.
+  const canonicalQuery = query
+    .map(([k, v]) => `${encodeRfc3986(k)}=${encodeRfc3986(v)}`)
+    .sort()
+    .join('&');
+
+  const canonicalRequest = [
+    input.method,
+    input.canonicalUri,
+    canonicalQuery,
+    `host:${input.host}\n`,
+    'host',
+    'UNSIGNED-PAYLOAD',
+  ].join('\n');
+
+  const stringToSign = ['AWS4-HMAC-SHA256', input.amzDate, scope, sha256hex(canonicalRequest)].join('\n');
+  const signingKey = hmac(
+    hmac(hmac(hmac(`AWS4${input.secretAccessKey}`, dateStamp), input.region), 's3'),
+    'aws4_request',
+  );
+  const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
+  return { canonicalQuery, signature };
+}
+
+/**
  * URL prefirmada (GET para bajar, PUT para subir), validez en segundos.
  * `now` se inyecta en tests para firmas deterministas.
  */
@@ -53,39 +105,21 @@ export function presignUrl(
   expiresSeconds = 900,
   now: Date = new Date(),
 ): string {
-  const region = config.region ?? 'auto';
   const url = new URL(config.endpoint);
-  const host = url.host;
+  // R2 en estilo path: el bucket va en la ruta, no en el host.
   const canonicalUri = `/${config.bucket}/${key.split('/').map(encodeRfc3986).join('/')}`;
-
   const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  const dateStamp = amzDate.slice(0, 8);
-  const scope = `${dateStamp}/${region}/s3/aws4_request`;
 
-  const query: [string, string][] = [
-    ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
-    ['X-Amz-Credential', `${config.accessKeyId}/${scope}`],
-    ['X-Amz-Date', amzDate],
-    ['X-Amz-Expires', String(expiresSeconds)],
-    ['X-Amz-SignedHeaders', 'host'],
-  ];
-  const canonicalQuery = query
-    .map(([k, v]) => `${encodeRfc3986(k)}=${encodeRfc3986(v)}`)
-    .sort()
-    .join('&');
-
-  const canonicalRequest = [
+  const { canonicalQuery, signature } = firmaPresignada({
     method,
+    host: url.host,
     canonicalUri,
-    canonicalQuery,
-    `host:${host}\n`,
-    'host',
-    'UNSIGNED-PAYLOAD',
-  ].join('\n');
-
-  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${config.secretAccessKey}`, dateStamp), region), 's3'), 'aws4_request');
-  const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: config.region ?? 'auto',
+    amzDate,
+    expiresSeconds,
+  });
 
   return `${url.origin}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
 }
