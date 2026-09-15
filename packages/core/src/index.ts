@@ -8,6 +8,6 @@ export { OutboxDispatcher, MAX_ATTEMPTS } from './dispatcher';
 export type { Consumer, EventHandler } from './dispatcher';
 export { QUEUE_NAMES, createQueue, createModuleWorker, redisConnection } from './queues';
 export type { QueueName, ModuleJobData } from './queues';
-export { attachmentKey, presignUrl, storageFromEnv } from './storage';
+export { attachmentKey, presignUrl, firmaPresignada, storageFromEnv } from './storage';
 export type { StorageConfig } from './storage';
 export { diaEn, mesEn, ultimosDias, esDia, TZ_POR_DEFECTO } from './dias';
