@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { TZ_POR_DEFECTO, diaEn, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
 import { withTenant } from '@iaxti/db';
+import { montoDelCosto } from '../domain/metrics';
 import { TOTAL_OWNER, type Metric } from '../domain/metrics';
 
 
@@ -74,11 +75,13 @@ async function handleEvent(event: EventEnvelope, client: PoolClient): Promise<vo
       await bump(client, { tenantId, metric: 'mensajes_enviados', timeZone });
       // El costo de Meta viaja en meta.costo del mensaje (#43), si existe.
       const fila = await client.query(
-        `SELECT meta->>'costo' AS costo FROM messages WHERE tenant_id = $1 AND id = $2`,
+        // `meta->'costo'` (jsonb), no `->>`: el costo es un OBJETO, y pedirlo
+        // como texto daba `Number('{"amount":…}')` = NaN.
+        `SELECT meta->'costo' AS costo FROM messages WHERE tenant_id = $1 AND id = $2`,
         [tenantId, p.messageId],
       );
-      const costo = Number(fila.rows[0]?.costo);
-      if (Number.isFinite(costo) && costo > 0) {
+      const costo = montoDelCosto(fila.rows[0]?.costo);
+      if (costo !== null) {
         await bump(client, { tenantId, metric: 'costo_meta_usd', value: costo, timeZone });
       }
       return;
