@@ -1,5 +1,6 @@
 import { olvidarPlan } from './plan-modulos';
 import type { PoolClient } from 'pg';
+import { publishEvent } from '@iaxti/core';
 import {
   assertOnboardingAdvance,
   assertTransition,
@@ -54,7 +55,17 @@ export async function createTenant(
      RETURNING *`,
     [input.name, input.rubro ?? null, TRIAL_DAYS],
   );
-  return rowToTenant(result.rows[0]);
+  const tenant = rowToTenant(result.rows[0]);
+  // El manifiesto declara `tenant.created` desde el primer día y no lo
+  // publicaba nadie: quien escribiera un consumidor (onboarding, avisos,
+  // métricas) se habría quedado esperando para siempre.
+  await publishEvent(client, {
+    name: 'tenant.created',
+    tenantId: tenant.id,
+    payload: { name: tenant.name, plan: tenant.plan, trialEndsAt: tenant.trialEndsAt },
+    actor: 'system',
+  });
+  return tenant;
 }
 
 export async function getTenant(client: PoolClient, id: string): Promise<Tenant> {
