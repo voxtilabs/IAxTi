@@ -95,16 +95,24 @@ function parsearFila(fila: string): string[] {
 }
 
 describe('filtros nuevos del explorador (#72)', () => {
+  // Las filas se acotan al tenant A a mano y no por RLS: `admin` conecta con
+  // el dueño de la base, que en local y en CI es superusuario, y para un
+  // superusuario las políticas no se evalúan (issue 211). Lo que este test
+  // prueba son los FILTROS; el aislamiento tiene su propio test, con un rol
+  // que no puede saltárselo.
+  const deA = <T extends { tenant_id: string }>(filas: T[]) =>
+    filas.filter((f) => f.tenant_id === tenantA);
+
   it('filtra por IP y por resultado dentro del tenant', async () => {
-    const porIp = await withTenant(admin, tenantA, (c) => searchAudit(c, { ip: '190.100.1.9' }));
+    const porIp = deA(await withTenant(admin, tenantA, (c) => searchAudit(c, { ip: '190.100.1.9' })));
     expect(porIp).toHaveLength(1);
     expect(porIp[0].action).toBe('deal.deleted');
     // La IP sale como texto, no como el `inet` crudo de Postgres.
     expect(porIp[0].ip).toBe('190.100.1.9');
 
-    const denegados = await withTenant(admin, tenantA, (c) => searchAudit(c, { result: 'denied' }));
+    const denegados = deA(await withTenant(admin, tenantA, (c) => searchAudit(c, { result: 'denied' })));
     expect(denegados).toHaveLength(1);
-    expect(await withTenant(admin, tenantA, (c) => searchAudit(c, { result: 'no-existe' }))).toHaveLength(0);
+    expect(deA(await withTenant(admin, tenantA, (c) => searchAudit(c, { result: 'no-existe' })))).toHaveLength(0);
   });
 });
 
