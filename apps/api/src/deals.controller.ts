@@ -10,18 +10,24 @@ import {
   Query,
   Req,
   ServiceUnavailableException,
+  Put,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
+  addStage,
   createDeal,
   deleteSavedFilter,
+  deleteStage,
   listDeals,
   listLossReasons,
   listPipelines,
   listSavedFilters,
   moveDealStage,
+  renamePipeline,
+  reorderStages,
   saveFilter,
+  updateStage,
 } from '@iaxti/module-crm';
 import type { DealFilters } from '@iaxti/module-crm';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -188,6 +194,117 @@ export class DealsController {
     return withTenant(pool(), actor.tenantId, (c) =>
       listSavedFilters(c, actor.tenantId, actor.userId, view === 'contacts' ? 'contacts' : 'deals'),
     );
+  }
+
+  /**
+   * Editar el embudo (SPEC §23, issue 248). Los pipelines se creaban con el
+   * configurador (#50) y quedaban congelados: un negocio que cambia su forma
+   * de vender tenía que aguantar la que eligió el primer día.
+   *
+   * Borrar una etapa con oportunidades adentro se rechaza a propósito:
+   * moverlas —¿se ganaron?, ¿se perdieron?, ¿siguen abiertas en otra?— es
+   * una decisión del negocio, y tomarla por él le mentiría a sus números.
+   */
+  @Put('pipelines/:id')
+  @RequirePermission('crm.pipelines.manage')
+  @ApiOperation({ summary: 'Renombra el pipeline' })
+  async renombrarPipeline(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { name?: string },
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        renamePipeline(c, { tenantId: actor.tenantId, pipelineId: id, name: body?.name ?? '' }),
+      );
+    } catch (err) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
+    }
+  }
+
+  @Post('pipelines/:id/etapas')
+  @RequirePermission('crm.pipelines.manage')
+  @ApiOperation({ summary: 'Agrega una etapa antes del cierre' })
+  async agregarEtapa(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { name?: string; expectedDays?: number },
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        addStage(c, {
+          tenantId: actor.tenantId,
+          pipelineId: id,
+          name: body?.name ?? '',
+          expectedDays: body?.expectedDays,
+        }),
+      );
+    } catch (err) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
+    }
+  }
+
+  @Put('pipelines/:id/orden')
+  @RequirePermission('crm.pipelines.manage')
+  @ApiOperation({ summary: 'Reordena las etapas abiertas' })
+  async reordenar(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { stageIds?: string[] },
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        reorderStages(c, {
+          tenantId: actor.tenantId,
+          pipelineId: id,
+          stageIds: Array.isArray(body?.stageIds) ? body.stageIds : [],
+        }),
+      );
+    } catch (err) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
+    }
+  }
+
+  @Put('etapas/:id')
+  @RequirePermission('crm.pipelines.manage')
+  @ApiOperation({ summary: 'Renombra la etapa o ajusta su probabilidad y días' })
+  async editarEtapa(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { name?: string; probability?: number | null; expectedDays?: number | null },
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        updateStage(c, {
+          tenantId: actor.tenantId,
+          stageId: id,
+          name: body?.name,
+          probability: body?.probability,
+          expectedDays: body?.expectedDays,
+        }),
+      );
+    } catch (err) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
+    }
+  }
+
+  @Delete('etapas/:id')
+  @RequirePermission('crm.pipelines.manage')
+  @ApiOperation({ summary: 'Borra una etapa vacía' })
+  async borrarEtapa(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    try {
+      await withTenant(pool(), actor.tenantId, (c) =>
+        deleteStage(c, { tenantId: actor.tenantId, stageId: id }),
+      );
+      return { ok: true };
+    } catch (err) {
+      throw new BadRequestException({ code: 'ETAPA_NO_VACIA', message: (err as Error).message });
+    }
   }
 
   @Post('saved-filters')

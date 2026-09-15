@@ -83,3 +83,11 @@ export {
 export type { Etiqueta, RolDeEtiqueta } from './application/tags';
 export { exportarContactos } from './application/exportar-contactos';
 export type { ExportacionContactos } from './application/exportar-contactos';
+export {
+  renamePipeline,
+  updateStage,
+  addStage,
+  reorderStages,
+  deleteStage,
+} from './application/pipelines';
+export type { EtapaEditada } from './application/pipelines';
