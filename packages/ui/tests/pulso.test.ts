@@ -54,16 +54,26 @@ describe('sistema Pulso (documento voxtilabs/branding v1.1)', () => {
         // único caso legítimo fuera de los tokens.
         if (file.endsWith('public/webchat.js')) continue;
         const content = readFileSync(file, 'utf8');
-        // hex de color CSS/JSX; ignora ids/hashes largos por el límite de 8
-        if (/#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{1}|[0-9a-fA-F]{3}|[0-9a-fA-F]{5})?\b(?![\w-])/.test(content)) {
-          const match = content.match(/#[0-9a-fA-F]{3,8}\b/);
-          conHex.push(`${file.replace(REPO + '/', '')} → ${match?.[0]}`);
+        // Hex de color CSS/JSX; el límite de 8 deja fuera ids y hashes largos.
+        //
+        // Un `#` seguido de SOLO DÍGITOS no se marca: es una referencia a un
+        // issue (`#183`), no un color. Esta regla nos mordió tres veces —y
+        // siempre tarde, porque turbo cachea este test y el fallo aparece en
+        // el PR siguiente—. El precio es dejar pasar un color de tres cifras
+        // sin letras (`#123`), que nadie escribe: los tokens de Pulso son de
+        // seis y con letras.
+        const hex = [...content.matchAll(/#([0-9a-fA-F]{3,8})\b(?![\w-])/g)]
+          .map((m) => m[1])
+          .filter((h) => [3, 4, 6, 8].includes(h.length))
+          .filter((h) => /[a-fA-F]/.test(h));
+        if (hex.length > 0) {
+          conHex.push(`${file.replace(REPO + '/', '')} → #${hex[0]}`);
         }
       }
     }
     expect(
       conHex,
-      `Hex suelto prohibido por Pulso:\n${conHex.join('\n')}\n(ojo: un issue de tres cifras como "#152" en un comentario también parece un color; escríbelo "issue 152")`,
+      `Hex suelto prohibido por Pulso:\n${conHex.join('\n')}\nUsa las variables de pulso-tokens.css.`,
     ).toEqual([]);
   });
 
