@@ -1,43 +1,101 @@
-# Rollback = redeploy de una imagen anterior por tag. Menos de dos minutos.
-# Como las migraciones son aditivas, la versión anterior funciona con el
-# esquema nuevo: el rollback es SOLO de imagen (SPEC §37).
+# Rollback = redeploy de una imagen anterior. Como las migraciones son
+# aditivas (SPEC §27), la versión anterior funciona con el esquema nuevo: el
+# rollback es SOLO de imagen, nunca de base.
+#
+# Este workflow se corre cuando algo YA está roto. Por eso hace tres cosas
+# que la versión anterior no hacía, y que costaron un incidente de mentira
+# para descubrirse (#80):
+#   1. Lee el env actual y reemplaza SOLO la línea IMAGE. La versión previa
+#      mandaba `env: "IMAGE=..."` a secas, y el campo `env` de Dokploy es el
+#      bloque COMPLETO: un rollback habría borrado DATABASE_URL, REDIS_*,
+#      SUPABASE_*, ZAVU_*… dejando la app sin configuración justo cuando se
+#      la necesitaba de vuelta.
+#   2. No se traga los errores. El `|| true` de antes hacía que un update
+#      fallido siguiera al deploy igual, en silencio.
+#   3. Espera, verifica y CRONOMETRA: el compromiso es menos de 2 minutos
+#      (SPEC §15) y eso se mide, no se declara.
 name: rollback
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag a redesplegar (vX.Y.Z)"
+        description: "Imagen a redesplegar: tag de release (vX.Y.Z) o SHA del commit"
         required: true
       ambiente:
         description: "staging o production"
         required: true
         default: production
+      motivo:
+        description: "Qué se está arreglando (queda en el registro del simulacro)"
+        required: false
 
 jobs:
   rollback:
     runs-on: ubuntu-latest
     environment: ${{ inputs.ambiente }}
     steps:
-      - name: Redeploy imagen anterior vía Dokploy
+      - name: Redeploy de la imagen anterior, cronometrado
         env:
           DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           COMPOSE_ID: ${{ inputs.ambiente == 'production' && secrets.DOKPLOY_COMPOSE_ID_PROD || secrets.DOKPLOY_COMPOSE_ID_STAGING }}
+          BASE: ${{ inputs.ambiente == 'production' && secrets.PROD_BASE_URL || secrets.STAGING_BASE_URL }}
           TAG: ${{ inputs.tag }}
         run: |
-          # Dokploy toma IMAGE de las variables del proyecto: se actualiza y redeploya
-          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.update" \
-            -H "x-api-key: ${DOKPLOY_API_KEY}" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-            -H "Content-Type: application/json" \
-            -d "{\"composeId\": \"${COMPOSE_ID}\", \"env\": \"IMAGE=ghcr.io/voxtilabs/iaxti:${TAG}\"}" || true
-          curl -fsS -X POST "${DOKPLOY_URL}/api/compose.deploy" \
-            -H "x-api-key: ${DOKPLOY_API_KEY}" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-            -H "Content-Type: application/json" \
-            -d "{\"composeId\": \"${COMPOSE_ID}\"}"
+          if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado; no hay nada que revertir."; exit 1; fi
+          inicio=$(date +%s)
+          auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+
+          # El campo `env` es el bloque completo: se lee, se cambia UNA línea
+          # y se devuelve entero. Mandar solo IMAGE lo borraría todo.
+          env_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.env')
+          if [ -z "$env_actual" ] || [ "$env_actual" = "null" ]; then
+            echo "No pude leer el entorno actual del proyecto: abortando antes de tocar nada."
+            exit 1
+          fi
+          anterior=$(printf '%s\n' "$env_actual" | grep '^IMAGE=' || echo 'IMAGE=(sin fijar)')
+          env_nuevo=$(printf '%s\n' "$env_actual" | sed "s|^IMAGE=.*|IMAGE=ghcr.io/voxtilabs/iaxti:${TAG}|")
+          jq -n --arg id "$COMPOSE_ID" --arg env "$env_nuevo" '{composeId:$id, env:$env}' \
+            | curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" -d @- \
+              "${DOKPLOY_URL}/api/compose.update" >/dev/null
+
+          curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
+            -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.deploy" >/dev/null
+
+          for i in $(seq 1 60); do
+            sleep 5
+            st=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.composeStatus')
+            echo "[$i] $st"
+            [ "$st" = "done" ] && break
+            if [ "$st" = "error" ]; then echo "El redeploy falló en Dokploy"; exit 1; fi
+          done
+
+          # Vivo de verdad, no solo "done" en el panel.
+          if [ -n "$BASE" ]; then
+            for i in $(seq 1 24); do
+              codigo=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "${BASE}/health" || echo 000)
+              echo "salud: HTTP $codigo"
+              [ "$codigo" = "200" ] && break
+              sleep 5
+            done
+            [ "$codigo" = "200" ] || { echo "La app no volvió a responder tras el rollback"; exit 1; }
+          fi
+
+          fin=$(date +%s)
+          segundos=$((fin - inicio))
+          {
+            echo "## Rollback de ${{ inputs.ambiente }}"
+            echo ""
+            echo "- Desde: \`${anterior#IMAGE=}\`"
+            echo "- A: \`ghcr.io/voxtilabs/iaxti:${TAG}\`"
+            echo "- Motivo: ${{ inputs.motivo || 'no indicado' }}"
+            echo "- **Duración: ${segundos} s** (compromiso: menos de 120 s, SPEC §15)"
+            if [ "$segundos" -gt 120 ]; then
+              echo ""
+              echo "> Se pasó del compromiso. Abre un issue con esta corrida: una desviación que no se registra se repite."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "rollback en ${segundos}s"
