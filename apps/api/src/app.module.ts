@@ -42,6 +42,7 @@ import {
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
+import { accesoAlModulo, modulosDelPlan, modulosVendibles } from '@iaxti/module-organizations';
 import { usdClpRate } from '@iaxti/module-billing';
 import { withTenant } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
@@ -128,9 +129,39 @@ class MeController {
   }
 
   /**
+   * Qué puede hacer ESTE tenant en cada módulo, según su plan (issue 215).
+   *
+   * Va aparte de `GET /me/modules` porque aquella es pública y se pide desde
+   * el servidor, sin sesión: la navegación se arma antes de saber quién
+   * mira. Esta pide sesión y tenant, y la interfaz la usa para poner el
+   * candado donde corresponde, en vez de dejar que el cliente escriba algo
+   * que no va a poder guardar.
+   *
+   * `solo_lectura` no es esconder: bajar de plan nunca borra (SPEC §6).
+   */
+  @Get('modules/acceso')
+  @RequirePermission('tenant.read')
+  @ApiOperation({ summary: 'Acceso del tenant a cada módulo según su plan' })
+  async accesoDeModulos(@Req() request: WithUser) {
+    const pool = apiPool();
+    const actor = request.actor as { tenantId: string };
+    const activos = registry.health().filter((m) => m.active);
+    if (!pool) return activos.map((m) => ({ id: m.id, acceso: 'completo' as const }));
+
+    const [vendibles, plan] = await Promise.all([
+      modulosVendibles(pool),
+      modulosDelPlan(pool, actor.tenantId),
+    ]);
+    return activos.map((m) => ({
+      id: m.id,
+      acceso: accesoAlModulo({ moduleId: m.id, vendibles, delPlan: plan.modulos }),
+    }));
+  }
+
+  /**
    * El frontend arma navegación y widgets desde aquí: un módulo apagado
-   * desaparece sin desplegar (SPEC §26 regla 5). El filtro por plan del
-   * tenant se suma cuando exista autenticación (#7/#9).
+   * desaparece sin desplegar (SPEC §26 regla 5). El acceso por PLAN va en
+   * `GET /me/modules/acceso`, que sí pide sesión (issue 215).
    */
   @Get('modules')
   @ApiOperation({ summary: 'Módulos activos con su navegación y widgets' })
