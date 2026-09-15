@@ -40,9 +40,20 @@ export async function estadoRls(client: Pick<Pool, 'query'> | PoolClient): Promi
 }
 
 /**
- * Lo mismo, pero con la decisión tomada: en un entorno desplegado esto
- * TIENE que reventar el arranque. Un 503 al rato sería peor — mientras
- * tanto la aplicación estaría sirviendo datos cruzados.
+ * Lo mismo, pero con la decisión tomada, y la decisión es distinta según
+ * qué haya del otro lado:
+ *
+ * - **producción**: revienta el arranque. Ahí hay conversaciones de clientes
+ *   de clientes, y servirlas cruzadas es el peor resultado posible. Un 503
+ *   al rato sería peor todavía: mientras tanto ya habría cruzado datos.
+ * - **staging y el resto**: grita y sigue. En staging no hay datos reales
+ *   —nunca un número de WhatsApp de verdad—, así que tumbar el ambiente no
+ *   protege a nadie y sí impide trabajar. El aviso se repite cada media
+ *   hora para que no se vuelva paisaje.
+ *
+ * El caso concreto que esto contempla: un Postgres levantado por Dokploy
+ * entrega un usuario superusuario, y staging suele ser el primero en
+ * apuntar ahí.
  */
 export async function exigeRolQueRespetaRls(
   client: Pick<Pool, 'query'> | PoolClient,
@@ -58,7 +69,19 @@ export async function exigeRolQueRespetaRls(
     'quedan visibles desde la cuenta de otro. Conecta con un rol de aplicación ' +
     'sin superusuario ni BYPASSRLS (runbook: "el rol de la aplicación").';
 
-  if (entorno === 'production' || entorno === 'staging') throw new Error(mensaje);
-  console.warn(`AVISO (${entorno}): ${mensaje}`);
+  if (entorno === 'production') throw new Error(mensaje);
+  console.error(`SIN AISLAMIENTO (${entorno}): ${mensaje}`);
+  recordarCadaTanto(entorno, mensaje);
   return estado;
+}
+
+/** Un aviso que solo sale al arrancar se pierde en el primer despliegue. */
+let recordatorio: ReturnType<typeof setInterval> | null = null;
+function recordarCadaTanto(entorno: string, mensaje: string): void {
+  if (recordatorio || process.env.NODE_ENV === 'test') return;
+  recordatorio = setInterval(
+    () => console.error(`SIN AISLAMIENTO (${entorno}): ${mensaje}`),
+    30 * 60_000,
+  );
+  recordatorio.unref?.();
 }

@@ -53,9 +53,23 @@ corren antes del despliegue, en su propio paso— siguen usando el dueño.
 
 ## El guardián
 
-La API y los workers **no arrancan** en `staging` ni en `production` si la
-conexión se puede saltar RLS (`exigeRolQueRespetaRls`, issue 211). En
-desarrollo solo avisa. Si el arranque falla con
+La API y los workers **no arrancan en `production`** si la conexión se puede
+saltar RLS (`exigeRolQueRespetaRls`, issue 211).
+
+En `staging` y en desarrollo sí arrancan, pero gritan en el log al partir y
+cada media hora:
+
+```
+SIN AISLAMIENTO (staging): La base acepta esta conexión con el rol "…"
+```
+
+La razón de la diferencia es que en staging no hay datos reales —nunca un
+número de WhatsApp de verdad— y tumbar el ambiente no protegería a nadie.
+Que el aviso esté ahí no lo vuelve aceptable: **staging también tiene que
+usar el rol de aplicación**, y mientras no lo use, el aislamiento entre
+tenants no se está probando en ninguna parte salvo en los tests de RLS.
+
+Si el arranque en producción falla con
 
 > La base acepta esta conexión con el rol "…", que es superusuario
 
