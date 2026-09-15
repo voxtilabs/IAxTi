@@ -260,11 +260,8 @@ export async function sweepBilling(
   // nadie actuaba sobre ella: la prueba gratis no se acababa nunca.
   //
   // Quien ya eligió plan y tiene suscripción viva pasa a `active`. Quien no,
-  // queda en solo lectura con sus datos intactos.
-  //
-  // Los 30 días de gracia de §6 (read_only → suspended) todavía NO los
-  // cuenta nadie: esa transición solo existe a mano, desde el panel del
-  // SuperAdmin. Va en su propio cambio.
+  // queda en solo lectura con sus datos intactos: los 30 días de gracia de
+  // §6 los cuenta el paso 4 de este mismo barrido.
   const vencidasPrueba = await pool.query(
     `SELECT t.id, s.status AS suscripcion
        FROM tenants t LEFT JOIN subscriptions s ON s.tenant_id = t.id
