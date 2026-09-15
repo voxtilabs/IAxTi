@@ -43,3 +43,37 @@ export const DEFINICIONES: Record<Metric | 'primera_respuesta' | 'sin_responder_
 
 /** El owner sentinel del total por tenant. */
 export const TOTAL_OWNER = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * El monto en dólares que trae el costo del proveedor, si lo trae.
+ *
+ * El costo se guarda TAL CUAL lo manda el proveedor (`meta.costo`), que es un
+ * objeto: `{ amount, currency, category, ... }`. La agregación hacía
+ * `Number(meta->>'costo')` sobre ese objeto —o sea `Number('{"amount":…}')`,
+ * que es NaN— y por eso `costo_meta_usd` no se incrementaba nunca.
+ *
+ * No es solo una pantalla en cero: el excedente de Meta sobre el tope del
+ * plan se factura sumando esa métrica. Con la métrica en cero, el exceso lo
+ * pagábamos nosotros.
+ *
+ * Acepta también un número pelado, por si un proveedor manda solo el monto.
+ * Si no hay monto reconocible devuelve null: preferimos no contar nada antes
+ * que inventar una cifra que después se le cobra a alguien.
+ */
+const LLAVES_DE_MONTO = ['amount', 'amountUsd', 'total', 'totalUsd', 'costUsd', 'value'];
+
+export function montoDelCosto(valor: unknown): number | null {
+  if (typeof valor === 'number') return Number.isFinite(valor) && valor > 0 ? valor : null;
+  if (!valor || typeof valor !== 'object') return null;
+  const obj = valor as Record<string, unknown>;
+
+  // Una moneda declarada y distinta de USD no se suma a un total en USD.
+  const moneda = obj.currency ?? obj.moneda;
+  if (typeof moneda === 'string' && moneda.toUpperCase() !== 'USD') return null;
+
+  for (const llave of LLAVES_DE_MONTO) {
+    const n = Number(obj[llave]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}

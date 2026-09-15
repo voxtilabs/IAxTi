@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { DEFINICIONES, METRICS } from '../domain/metrics';
+import { DEFINICIONES, METRICS, montoDelCosto } from '../domain/metrics';
 import { analyticsConsumers, bump, sweepResponseSamples } from '../application/aggregate';
 import { getDashboard } from '../application/dashboard';
 
@@ -148,5 +148,53 @@ describe('primera respuesta y "sin responder ahora" (#66)', () => {
     expect(d.primeraRespuesta.medianaSeg).toBe(60);
     expect(d.primeraRespuesta.p90Seg).toBeGreaterThan(60);
     expect(d.sinResponderAhora).toBe(1); // la nueva sin respuesta
+  });
+});
+
+describe('el costo del proveedor (issue del costo de Meta)', () => {
+  it('un mensaje con costo del proveedor SUMA en costo_meta_usd', async () => {
+    // Una conversación y un saliente con el costo tal cual lo guarda el
+    // worker de estados: un objeto, no un número.
+    const conv = await admin.query(
+      `INSERT INTO conversations (tenant_id, contact_id, channel, state)
+       SELECT $1, id, 'whatsapp', 'open' FROM contacts WHERE tenant_id = $1 LIMIT 1
+       RETURNING id`,
+      [tenant],
+    );
+    const msg = await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, direction, type, body, author_kind, meta)
+       VALUES ($1, $2, 'out', 'texto', 'hola', 'user', jsonb_build_object('costo',
+         jsonb_build_object('amount', 0.0089, 'currency', 'USD', 'category', 'service')))
+       RETURNING id`,
+      [tenant, conv.rows[0].id],
+    );
+
+    const antes = await admin.query(
+      "SELECT COALESCE(SUM(value), 0)::float AS t FROM daily_metrics WHERE tenant_id = $1 AND metric = 'costo_meta_usd'",
+      [tenant],
+    );
+    await emitir('message.sent', { messageId: msg.rows[0].id, conversationId: conv.rows[0].id });
+    const despues = await admin.query(
+      "SELECT COALESCE(SUM(value), 0)::float AS t FROM daily_metrics WHERE tenant_id = $1 AND metric = 'costo_meta_usd'",
+      [tenant],
+    );
+    // Antes de esto el total no se movía nunca: `Number(meta->>'costo')` era NaN.
+    expect(despues.rows[0].t - antes.rows[0].t).toBeCloseTo(0.0089);
+  });
+
+  it('saca el monto del objeto, del número pelado, y de nada saca nada', () => {
+    // La forma real que guarda `meta.costo`: el objeto del proveedor.
+    expect(montoDelCosto({ amount: 0.0089, currency: 'USD', category: 'service' })).toBeCloseTo(0.0089);
+    expect(montoDelCosto({ totalUsd: 1.5 })).toBe(1.5);
+    expect(montoDelCosto(0.02)).toBe(0.02);
+
+    // Lo que Meta manda en el webhook de estados NO trae monto: categoría y
+    // modelo de precio, nada más. Ahí no hay nada que sumar.
+    expect(montoDelCosto({ billable: true, pricing_model: 'CBP', category: 'service' })).toBeNull();
+    expect(montoDelCosto(null)).toBeNull();
+    expect(montoDelCosto('0.05')).toBeNull();
+
+    // Otra moneda no se suma a un total en dólares.
+    expect(montoDelCosto({ amount: 900, currency: 'CLP' })).toBeNull();
   });
 });
