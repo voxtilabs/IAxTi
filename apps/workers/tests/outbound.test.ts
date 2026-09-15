@@ -234,4 +234,30 @@ describe('estados del webhook (#43)', () => {
     expect(filaFallada.rows[0].delivery_status).toBe('failed');
     expect(filaFallada.rows[0].meta.error).toBe('El número no tiene WhatsApp.');
   });
+
+  it('impago: en solo lectura salen las respuestas manuales, NO lo del negocio', async () => {
+    // El estado se escribe a mano: la máquina de dominio ya está probada
+    // en organizations, acá lo que importa es que alguien la OBEDEZCA.
+    await admin.query("UPDATE tenants SET state = 'read_only' WHERE id = $1", [tenant]);
+
+    const delNegocio = await nuevoSaliente();
+    const frenado = await processOutbound(admin, redis, jobPara(delNegocio, { initiatedByBusiness: true }));
+    expect(frenado.failed).toContain('solo lectura');
+    const estado = await admin.query('SELECT delivery_status, meta FROM messages WHERE id = $1', [delNegocio]);
+    expect(estado.rows[0].delivery_status).toBe('failed');
+    expect(JSON.stringify(estado.rows[0].meta)).toContain('respuestas manuales');
+
+    // Una persona respondiendo en la bandeja sí sale: la bandeja no se corta.
+    const manual = await nuevoSaliente();
+    const salio = await processOutbound(admin, redis, jobPara(manual, { initiatedByBusiness: false }));
+    expect(salio.providerMessageId).toMatch(/^wamid\./);
+
+    // Suspendida no sale nada, ni siquiera lo manual.
+    await admin.query("UPDATE tenants SET state = 'suspended' WHERE id = $1", [tenant]);
+    const otro = await nuevoSaliente();
+    const nada = await processOutbound(admin, redis, jobPara(otro, { initiatedByBusiness: false }));
+    expect(nada.failed).toContain('suspendida');
+
+    await admin.query("UPDATE tenants SET state = 'active' WHERE id = $1", [tenant]);
+  });
 });

@@ -25,6 +25,33 @@ export function assertTransition(from: TenantState, to: TenantState): void {
   }
 }
 
+/**
+ * ¿Puede este tenant MANDAR un mensaje? (SPEC §6)
+ *
+ * La regla del impago está escrita con todas sus letras: en solo lectura
+ * «se reciben mensajes, no se envían salvo respuestas manuales». Estaba
+ * declarada en el SPEC y en el diagrama, y en el código no la aplicaba
+ * nadie: el estado se escribía en `tenants` y el tenant seguía enviando
+ * campañas igual que el día antes de dejar de pagar.
+ *
+ * Entra lo entrante SIEMPRE: la bandeja no se corta nunca.
+ */
+export function puedeEnviar(
+  state: TenantState,
+  initiatedByBusiness: boolean,
+): { ok: true } | { ok: false; motivo: string } {
+  if (state === 'suspended' || state === 'deleted') {
+    return { ok: false, motivo: `La cuenta está ${state === 'deleted' ? 'eliminada' : 'suspendida'}: no salen mensajes.` };
+  }
+  if (state === 'read_only' && initiatedByBusiness) {
+    return {
+      ok: false,
+      motivo: 'La cuenta está en solo lectura por impago: solo salen respuestas manuales.',
+    };
+  }
+  return { ok: true };
+}
+
 export const ONBOARDING_STATES = [
   'registered',
   'configured',

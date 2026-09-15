@@ -13,4 +13,5 @@ export { incrementUsage, getUsage, periodStart, apiRequestsLimit } from './appli
 export { getTenantSettings, updateTenantSettings } from './application/settings';
 export type { UsageMetric } from './application/usage';
 export type { TenantState, OnboardingState } from './domain/state';
+export { puedeEnviar } from './domain/state';
 export { zonaDelTenant, olvidarZonas } from './application/zona';
