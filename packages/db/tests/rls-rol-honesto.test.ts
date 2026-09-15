@@ -78,7 +78,7 @@ describe('el rol de la conexión decide si RLS existe (issue 211)', () => {
     if (dueño.seSalta) expect(await ver(admin)).toBeGreaterThan(0);
   });
 
-  it('en producción y staging el arranque revienta; en desarrollo avisa', async () => {
+  it('en producción el arranque revienta; en staging y desarrollo grita y sigue', async () => {
     // Con un rol de mentira, para que la regla no dependa de cómo esté
     // configurada la base de quien corra el test.
     const comoSuperusuario = {
@@ -88,8 +88,12 @@ describe('el rol de la conexión decide si RLS existe (issue 211)', () => {
     await expect(exigeRolQueRespetaRls(comoSuperusuario, 'production')).rejects.toThrow(
       /políticas por tenant/,
     );
-    await expect(exigeRolQueRespetaRls(comoSuperusuario, 'staging')).rejects.toThrow(/superusuario/);
-    // En desarrollo no frena a nadie: avisa y sigue.
+    // Staging NO se cae: ahí no hay datos reales y tumbarlo no protege a
+    // nadie, pero el aviso sale igual (issue 211).
+    await expect(exigeRolQueRespetaRls(comoSuperusuario, 'staging')).resolves.toMatchObject({
+      seSalta: true,
+    });
+    // En desarrollo tampoco frena a nadie: avisa y sigue.
     await expect(exigeRolQueRespetaRls(comoSuperusuario, 'development')).resolves.toMatchObject({
       seSalta: true,
     });
