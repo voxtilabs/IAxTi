@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { diaEn, publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import { withTenant } from '@iaxti/db';
 import {
   addInternalNote,
@@ -340,10 +341,11 @@ export async function sweepTimeRules(pool: Pool, deps: EngineDeps): Promise<numb
   let corridas = 0;
   // El día del NEGOCIO: con el día en UTC, el dedupe cambiaba a las 21:00
   // en Chile y una regla "una vez al día" podía dispararle DOS veces al
-  // mismo cliente en la misma tarde.
-  const dia = diaEn();
+  // mismo cliente en la misma tarde. Y es el día de CADA negocio: uno en
+  // otra zona cierra su día a otra hora.
   for (const { tenant_id: tenantId } of tenants.rows) {
     corridas += await withTenant(pool, tenantId, async (client) => {
+      const dia = diaEn(await zonaDelTenant(client, tenantId));
       const reglas = await client.query(
         `SELECT * FROM rules WHERE tenant_id = $1 AND active AND trigger->>'kind' = 'time'`,
         [tenantId],
