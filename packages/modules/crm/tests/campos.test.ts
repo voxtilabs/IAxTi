@@ -113,3 +113,37 @@ describe('campos personalizados', () => {
     ).toThrow(/RUT de la empresa/);
   });
 });
+
+describe('exportación de contactos a CSV (issue 248)', () => {
+  it('trae las columnas base, las etiquetas y los campos declarados', async () => {
+    const { exportarContactos } = await import('../application/exportar-contactos');
+    const { csv, filas, columnas } = await en((c) =>
+      exportarContactos(c, { tenantId: tenant }),
+    );
+
+    // Los campos personalizados son columnas propias, no un JSON en una celda.
+    expect(columnas).toContain('Ficha');
+    expect(columnas[0]).toBe('nombre');
+    expect(filas).toBe(1);
+
+    const [cabecera, fila] = csv.split('\n');
+    expect(cabecera).toContain('"telefono"');
+    expect(fila).toContain('"Rosa"');
+    expect(fila).toContain('"+56955550101"');
+    expect(fila).toContain('"42"'); // el campo declarado, en su columna
+  });
+
+  it('un texto con coma o comillas no corre las columnas', async () => {
+    const { exportarContactos } = await import('../application/exportar-contactos');
+    await admin.query(
+      `INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, 'Pérez, Ana "la jefa"', '+56955550102', 'manual')`,
+      [tenant],
+    );
+    const { csv } = await en((c) => exportarContactos(c, { tenantId: tenant }));
+    const lineas = csv.split('\n');
+    // Una fila por contacto: si las comillas corrieran las columnas, esta
+    // fila se partiría en dos.
+    expect(lineas).toHaveLength(3);
+    expect(csv).toContain('"Pérez, Ana ""la jefa"""');
+  });
+});
