@@ -18,7 +18,7 @@ técnico (T) / organizacional (O) / legal (L) / contractual (C).
 |---|---|---|---|---|---|---|---|---|
 | Control de acceso por roles y permisos | A.5.15, A.8.3 | 6.2 | — | V4 | art. seguridad | ADR-0008, #9 | T | hecho — guard único, ADR-0008; el CI falla si aparece un `if (role)` |
 | MFA para administradores | A.5.17 | — | — | V2.8 | — | #7 | T | **pendiente** — Supabase Auth está, el segundo factor no |
-| Aislamiento multi-tenant (guard + RLS) | A.8.3 | 6.4 | — | V4.2 | deber de secreto | #4, #9 | T | hecho — RLS FORCE en toda tabla de negocio + `withTenant` |
+| Aislamiento multi-tenant (guard + RLS) | A.8.3 | 6.4 | — | V4.2 | deber de secreto | #4, #9, #211 | T | hecho, **con una condición**: Postgres no evalúa las políticas si el rol que conecta es superusuario o tiene BYPASSRLS. La aplicación comprueba eso al arrancar y en producción se niega a servir si no se cumple (#227). En Supabase el rol `postgres` tiene BYPASSRLS: el runbook exige un rol de aplicación aparte |
 | Auditoría append-only con integridad | A.8.15 | 6.9 | 8.4 | V7 | evidencia | #10 | T | hecho — hash encadenado, trigger anti UPDATE/DELETE, explorador y export firmado (#72) |
 | Cifrado en tránsito y reposo | A.8.24 | 6.5 | — | V9 | seguridad | ADR-0002/0003 | T | hecho por proveedor — TLS y cifrado en reposo de Supabase, R2 y Cloudflare |
 | Gestión de secretos y rotación | A.8.24 | — | — | V6 | — | SECURITY_BASELINE | T/O | parcial — todo por referencia y fuera de git; la rotación del cierre de construcción está pendiente |
@@ -27,8 +27,8 @@ técnico (T) / organizacional (O) / legal (L) / contractual (C).
 | Redacción de PII hacia proveedores de IA | — | 6.11 | 8.2, 9.2 | — | transferencia | ADR-0011, #54 | T/C | hecho — `redactPII` en el runtime, encendido por defecto |
 | Transferencia internacional (Supabase, Gemini, Zavu, GLM si se adopta) | A.5.19 | 7.5 | — | — | transferencia internacional | contratos + fila por proveedor | L/C | pendiente |
 | Consentimiento y opt-out registrado | — | 7.2 | — | — | base de licitud | #30 (evidencia opt-in) | T/L | hecho — opt-in con evidencia y opt-out por palabra clave |
-| Derecho de acceso y portabilidad | — | 7.3 | — | — | derechos del titular | exportación total del tenant | T | hecho — `GET /contacts/:id/titular` entrega todo, mensajes incluidos (#81) |
-| Derecho de supresión | — | 7.3 | — | — | derechos del titular | borrado por solicitud, registrado, todos los módulos | T | hecho — supresión por solicitud con motivo obligatorio; anonimiza y borra contenido, conserva el rastro contable (#81) |
+| Derecho de acceso y portabilidad | — | 7.3 | — | — | derechos del titular | del titular y del tenant | T | hecho — `GET /contacts/:id/titular` entrega todo lo de una persona (mensajes incluidos), y la exportación completa del negocio existe desde #222: sale con lo que dejó afuera y por qué, y jamás un secreto |
+| Derecho de supresión | — | 7.3 | — | — | derechos del titular | borrado por solicitud, registrado, todos los módulos | T | hecho — motivo obligatorio; despersonaliza el contacto y borra el contenido en TODAS las tablas donde vivía, incluida la copia que quedaba en las ejecuciones de IA (#235). Lo que se conserva —audit, montos, medición— viaja escrito en el resultado y en el libro |
 | Retención definida y aplicada | A.8.10 | 7.4 | — | — | limitación del plazo | ADR-0012, #77 | T | hecho — ADR-0012 y #77, con aviso previo al cambio de plan |
 | Notificación de brechas | A.5.24-26 | — | — | — | notificación | procedimiento en SECURITY_BASELINE | O/L | parcial — el procedimiento está escrito; nunca se ha ensayado |
 | Contrato de tratamiento con cada cliente | — | 8 | — | — | encargado | plantilla legal (#81) | L/C | **pendiente (legal)** — borrador a revisión de abogado; no lo resuelve el código |
@@ -43,7 +43,7 @@ técnico (T) / organizacional (O) / legal (L) / contractual (C).
 | Transferencia internacional · Google Gemini (IA) | A.5.19 | 7.5 | 8.2 | — | transferencia internacional | ADR-0011 + `redactPII` antes de salir | T/L/C | parcial — lo técnico está; el contrato no |
 | Transferencia internacional · Zavu (canales) | A.5.19 | 7.5 | — | — | transferencia internacional | ADR-0014; el contenido de los mensajes pasa por el proveedor | L/C | pendiente |
 | Transferencia internacional · Cloudflare R2 (adjuntos) | A.5.19 | 7.5 | — | — | transferencia internacional | adjuntos por tenant, URLs firmadas de vida corta | L/C | pendiente |
-| Inventario de datos personales por módulo | — | 6.1 | — | — | registro de actividades | se genera desde los manifiestos + esquema | T/O | **pendiente** — se puede generar desde los manifiestos y el esquema; todavía no se generó |
+| Inventario de datos personales por módulo | — | 6.1 | — | — | registro de actividades | [INVENTARIO-DATOS.md](./INVENTARIO-DATOS.md) | T/O | hecho — qué guarda cada tabla, de quién es, si se exporta y qué le pasa al suprimir. Un test falla si aparece una tabla sin inventariar, así que no puede quedar viejo en silencio |
 
 Las referencias a cláusulas ISO/ASVS son orientativas para ordenar el trabajo;
 la numeración exacta se valida con el auditor cuando la certificación empiece
