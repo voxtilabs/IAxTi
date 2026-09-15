@@ -8,7 +8,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
-import { getDashboard, esDia, ultimosDias, TZ_POR_DEFECTO } from '@iaxti/module-analytics';
+import { getDashboard, esDia, ultimosDias } from '@iaxti/module-analytics';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
@@ -54,7 +55,10 @@ export class AnalyticsController {
     // Mediodía UTC como ancla al calcular desde un `to` dado: así ninguna
     // zona horaria corre el día al restar.
     const ancla = to && esDia(to) ? new Date(`${to}T12:00:00Z`) : new Date();
-    const pordefecto = ultimosDias(30, TZ_POR_DEFECTO, ancla);
+    const zona = await withTenant(pool(), actor.tenantId, (c) =>
+      zonaDelTenant(c, actor.tenantId),
+    );
+    const pordefecto = ultimosDias(30, zona, ancla);
     const hasta = to ?? pordefecto.to;
     const desde = from ?? pordefecto.from;
     if (!esDia(desde) || !esDia(hasta) || desde > hasta) {

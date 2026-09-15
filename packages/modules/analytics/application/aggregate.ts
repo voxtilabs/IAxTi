@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { TZ_POR_DEFECTO, diaEn, type Consumer, type EventEnvelope } from '@iaxti/core';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import { withTenant } from '@iaxti/db';
 import { TOTAL_OWNER, type Metric } from '../domain/metrics';
 
@@ -36,38 +37,41 @@ export async function bump(
 async function handleEvent(event: EventEnvelope, client: PoolClient): Promise<void> {
   const p = event.payload as Record<string, unknown>;
   const tenantId = event.tenantId;
+  // El día se cierra en la zona del NEGOCIO, no en la del servidor ni en la
+  // del producto: para un tenant fuera de Chile, "hoy" es otro día.
+  const timeZone = await zonaDelTenant(client, tenantId);
   switch (event.name) {
     case 'conversation.created':
-      return bump(client, { tenantId, metric: 'conversaciones_nuevas' });
+      return bump(client, { tenantId, metric: 'conversaciones_nuevas', timeZone });
     case 'conversation.state_changed':
       if (p.to === 'resolved') {
         // El dueño que resolvió, si el evento vino de un humano.
         const owner = typeof event.actor === 'string' && /^[0-9a-f-]{36}$/.test(event.actor) ? event.actor : null;
-        return bump(client, { tenantId, metric: 'resueltas', ownerId: owner });
+        return bump(client, { tenantId, metric: 'resueltas', ownerId: owner, timeZone });
       }
       return;
     case 'deal.created':
-      return bump(client, { tenantId, metric: 'oportunidades_creadas' });
+      return bump(client, { tenantId, metric: 'oportunidades_creadas', timeZone });
     case 'deal.won': {
-      await bump(client, { tenantId, metric: 'ganadas' });
+      await bump(client, { tenantId, metric: 'ganadas', timeZone });
       const valor = Number(p.valueClp);
       if (Number.isFinite(valor) && valor > 0) {
-        await bump(client, { tenantId, metric: 'valor_ganado_clp', value: valor });
+        await bump(client, { tenantId, metric: 'valor_ganado_clp', value: valor, timeZone });
       }
       return;
     }
     case 'deal.lost':
-      return bump(client, { tenantId, metric: 'perdidas' });
+      return bump(client, { tenantId, metric: 'perdidas', timeZone });
     case 'agent.executed': {
-      await bump(client, { tenantId, metric: 'ia_ejecuciones' });
+      await bump(client, { tenantId, metric: 'ia_ejecuciones', timeZone });
       const costo = Number(p.costUsd);
       if (Number.isFinite(costo) && costo > 0) {
-        await bump(client, { tenantId, metric: 'ia_costo_usd', value: costo });
+        await bump(client, { tenantId, metric: 'ia_costo_usd', value: costo, timeZone });
       }
       return;
     }
     case 'message.sent': {
-      await bump(client, { tenantId, metric: 'mensajes_enviados' });
+      await bump(client, { tenantId, metric: 'mensajes_enviados', timeZone });
       // El costo de Meta viaja en meta.costo del mensaje (#43), si existe.
       const fila = await client.query(
         `SELECT meta->>'costo' AS costo FROM messages WHERE tenant_id = $1 AND id = $2`,
@@ -75,7 +79,7 @@ async function handleEvent(event: EventEnvelope, client: PoolClient): Promise<vo
       );
       const costo = Number(fila.rows[0]?.costo);
       if (Number.isFinite(costo) && costo > 0) {
-        await bump(client, { tenantId, metric: 'costo_meta_usd', value: costo });
+        await bump(client, { tenantId, metric: 'costo_meta_usd', value: costo, timeZone });
       }
       return;
     }

@@ -14,6 +14,7 @@
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
+    "@iaxti/module-organizations": "workspace:*",
     "pg": "^8.13.0"
   },
   "devDependencies": {
