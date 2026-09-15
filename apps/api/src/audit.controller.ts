@@ -99,7 +99,10 @@ export class AuditController {
   }
 
   @Get('export')
-  @RequirePermission('audit.read')
+  // Leer el libro y LLEVÁRSELO no son lo mismo: un export es un archivo que
+  // sale del sistema y sigue existiendo después. Por eso el catálogo tiene
+  // `audit.export` aparte — y hasta ahora no lo usaba nadie.
+  @RequirePermission('audit.export')
   @ApiOperation({ summary: 'Exporta el libro del tenant, firmado' })
   async export(@Req() request: WithUser, @Query() q: Consulta) {
     const actor = actorOf(request);

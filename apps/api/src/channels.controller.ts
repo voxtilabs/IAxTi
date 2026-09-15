@@ -36,7 +36,11 @@ const actorOf = (request: WithUser): Actor => request.actor as Actor;
 @RequireModule('channels')
 export class ChannelsController {
   @Get('channels')
-  @RequirePermission('channels.manage')
+  // Mirar el estado de un número —calidad, pausa— es leer; configurarlo es
+  // otra cosa. El permiso existía en el catálogo sin que ninguna ruta lo
+  // usara. Hoy no cambia quién entra (ADMIN tiene ambos), pero deja la
+  // puerta lista para dárselo a SUPERVISOR cuando se decida.
+  @RequirePermission('channels.read')
   @ApiOperation({ summary: 'Cuentas de canal con sus números y calidad' })
   async list(@Req() request: WithUser) {
     const actor = actorOf(request);
