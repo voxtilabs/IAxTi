@@ -88,7 +88,6 @@ const PENDIENTES: Record<string, string> = {
     'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',
   'crm.contacts.update': 'Cubierto por crm.contacts.create en el controlador; falta separar la edición.',
   'crm.deals.close': 'Cerrar una oportunidad usa crm.deals.update; falta separar el cierre.',
-  'crm.contacts.export': 'Exportación de contactos: no construida.',
 };
 
 describe('catálogo de permisos', () => {

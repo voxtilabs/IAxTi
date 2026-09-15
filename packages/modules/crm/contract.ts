@@ -81,6 +81,8 @@ export {
   ROLES_DE_ETIQUETA,
 } from './application/tags';
 export type { Etiqueta, RolDeEtiqueta } from './application/tags';
+export { exportarContactos } from './application/exportar-contactos';
+export type { ExportacionContactos } from './application/exportar-contactos';
 export {
   renamePipeline,
   updateStage,
