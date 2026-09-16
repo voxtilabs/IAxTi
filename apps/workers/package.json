@@ -23,6 +23,7 @@
     "@iaxti/module-analytics": "workspace:*",
     "@iaxti/module-automations": "workspace:*",
     "@iaxti/module-billing": "workspace:*",
+    "@iaxti/module-calendar": "workspace:*",
     "@iaxti/module-channels": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",

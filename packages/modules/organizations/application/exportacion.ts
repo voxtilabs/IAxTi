@@ -75,6 +75,8 @@ export const TABLAS_EXPORTADAS = [
   'loss_reasons',
   'products',
   'activities',
+  'availability',
+  'appointments',
   'saved_filters',
   'rules',
   'rule_runs',

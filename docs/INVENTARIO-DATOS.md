@@ -36,6 +36,7 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 | `deals` | oportunidades: título, valor, etapa | indirecta | negocio | sí | quedan: registro comercial |
 | `deal_stage_history` | el paso por cada etapa | indirecta | negocio | sí | queda |
 | `activities` | tareas y notas sobre esa persona | directa | ambos | sí | se borran |
+| `appointments` | la cita de una persona: cuándo, con quién y cómo terminó | indirecta | cliente final | sí | se van con el contacto |
 | `webchat_sessions` | la sesión del visitante y su nombre si lo dio | directa | cliente final | sí | se van con el contacto |
 | `payment_links` | monto, concepto y estado del cobro | indirecta | negocio | sí | se vacía el concepto; montos y fechas quedan por obligación de guarda |
 | `payments` | el pago recibido | indirecta | negocio | sí | queda: registro contable |
@@ -65,6 +66,7 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 | `campaigns` | la campaña: plantilla, filtros congelados y estado | no | negocio | sí | queda |
 | `campaign_recipients` | **a quién se le mandó una campaña y qué pasó con cada uno** | indirecta | cliente final | sí | se van con el contacto |
 | `agents`, `agent_conversation_modes` | configuración del copiloto | no | negocio | sí | no aplica |
+| `availability` | los horarios que atiende cada persona del equipo | no | negocio | sí | no aplica |
 | `whatsapp_templates` | las plantillas aprobadas por Meta y su texto | no¹ | negocio | sí | quedan: son del negocio, no de una persona |
 | `sources`, `chunks` | la base de conocimiento y sus trozos indexados | no¹ | negocio | sí | no aplica |
 | `channel_accounts`, `whatsapp_numbers`, `webchat_widgets` | canales conectados y **referencias** a credenciales | no | negocio | sí | no aplica |
