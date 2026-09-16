@@ -23,7 +23,7 @@ import {
 } from '@iaxti/module-automations';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import { sendMessage } from '@iaxti/module-conversations';
-import { enviarPlantilla, numeroEnRojo } from '@iaxti/module-whatsapp';
+import { enviarPlantilla, getTemplate, numeroEnRojo } from '@iaxti/module-whatsapp';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -108,14 +108,21 @@ export class CampanasController {
     }
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
-        crearCampana(c, {
-          tenantId: actor.tenantId,
-          name: body?.name ?? '',
-          templateId: body.templateId!,
-          filtros: body?.filtros ?? {},
-          valores: body?.valores,
-          actor: actor.userId,
-        }),
+        crearCampana(
+          c,
+          {
+            tenantId: actor.tenantId,
+            name: body?.name ?? '',
+            templateId: body.templateId!,
+            filtros: body?.filtros ?? {},
+            valores: body?.valores,
+            actor: actor.userId,
+          },
+          {
+            variablesDePlantilla: async (templateId) =>
+              (await getTemplate(c, actor.tenantId, templateId)).variables,
+          },
+        ),
       );
     } catch (err) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
@@ -148,6 +155,13 @@ export class CampanasController {
             calidadDelNumero: async () =>
               (await numeroEnRojo(c, actor.tenantId)) ? 'rojo' : 'verde',
             puedeIniciar: (contactId) => canReceiveBusinessInitiated(c, actor.tenantId, contactId),
+            datosDelContacto: async (contactId) => {
+              const r = await c.query(
+                'SELECT name, phone FROM contacts WHERE tenant_id = $1 AND id = $2',
+                [actor.tenantId, contactId],
+              );
+              return r.rows[0] ?? {};
+            },
             conversacionDe: async (contactId) => {
               const r = await c.query(
                 `SELECT id FROM conversations

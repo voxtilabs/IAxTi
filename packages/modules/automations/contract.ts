@@ -52,5 +52,6 @@ export {
   obtenerCampana,
   enviarCampana,
   resultadosDeCampana,
+  resolverValores,
 } from './application/campanas';
 export type { Campana, ResultadoEnvio } from './application/campanas';
