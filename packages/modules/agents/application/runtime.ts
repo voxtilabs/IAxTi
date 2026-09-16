@@ -47,8 +47,16 @@ export interface RunResult {
 /**
  * Las tools permitidas de un agente: la intersección entre lo configurado
  * y lo que los MÓDULOS ACTIVOS declaran (SPEC §13) — un módulo apagado se
- * lleva sus tools consigo. La ejecución real de tools llega con el
- * copiloto (#48), con la identidad y permisos del usuario.
+ * lleva sus tools consigo.
+ *
+ * La EJECUCIÓN vive en `herramientas.ts` (issue 240) y hoy alcanza a las de
+ * solo lectura, con la identidad y los permisos de la PERSONA que la
+ * disparó. Las que escriben están declaradas y devuelven un error que lo
+ * dice: hasta dónde actúa la IA sola es una decisión pendiente.
+ *
+ * (El comentario anterior decía que esto llegaba con el copiloto, #48. Ese
+ * issue se cerró hace rato y las herramientas seguían sin ejecutarse: un
+ * puntero vencido hace creer que algo ya se resolvió.)
  */
 export function allowedToolsFor(agent: Agent, registry: ModuleRegistry): string[] {
   const activas = new Set<string>();

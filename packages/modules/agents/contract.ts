@@ -78,3 +78,9 @@ export {
 export type { EvalRun } from './application/evaluation';
 export { formatoJuez, parseJudge } from './domain/judge';
 export type { JudgeScores, EvalCase } from './domain/judge';
+export {
+  ejecutarHerramienta,
+  HERRAMIENTAS_DE_LECTURA,
+  HERRAMIENTAS_QUE_ESCRIBEN,
+} from './application/herramientas';
+export type { ResultadoHerramienta, DepsHerramientas } from './application/herramientas';
