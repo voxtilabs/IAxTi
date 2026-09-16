@@ -25,6 +25,30 @@ import { contactosDelSegmento, previsualizarSegmento, type FiltrosSegmento } fro
  * cola hace el resto.
  */
 
+/**
+ * Los valores de una campaña son PLANTILLAS de valor, no valores.
+ *
+ * `{{1}}` de una plantilla suele ser el nombre de quien lee — y ese cambia
+ * en cada envío. Sin esto, una campaña con variables le manda el mismo
+ * "Hola Ana" a toda la cartera, que es peor que no personalizar nada.
+ *
+ * Lo que no se puede resolver queda VACÍO y no rompe el envío: un mensaje
+ * que dice "Hola," es feo; uno que no sale porque a alguien le falta el
+ * nombre es plata perdida.
+ */
+export function resolverValores(
+  valores: string[],
+  contacto: { name?: string | null; phone?: string | null },
+): string[] {
+  const fuentes: Record<string, string> = {
+    'contacto.nombre': (contacto.name ?? '').trim(),
+    'contacto.telefono': (contacto.phone ?? '').trim(),
+  };
+  return valores.map((v) =>
+    String(v ?? '').replace(/\{\s*(contacto\.[a-z_]+)\s*\}/gi, (_, clave) => fuentes[String(clave).toLowerCase()] ?? ''),
+  );
+}
+
 export interface Campana {
   id: string;
   name: string;
@@ -55,9 +79,27 @@ export async function crearCampana(
     valores?: string[];
     actor?: string;
   },
+  deps: {
+    /** Cuántas variables pide la plantilla. Se comprueba ACÁ. */
+    variablesDePlantilla?: (templateId: string) => Promise<number>;
+  } = {},
 ): Promise<Campana> {
   const name = (input.name ?? '').trim();
   if (!name) throw new Error('La campaña necesita un nombre.');
+
+  // Que los valores calcen con la plantilla se comprueba al CREAR y no al
+  // mandar: descubrirlo destinatario por destinatario significa una campaña
+  // que falla entera después de apretar el botón.
+  if (deps.variablesDePlantilla) {
+    const pide = await deps.variablesDePlantilla(input.templateId);
+    const hay = (input.valores ?? []).length;
+    if (pide !== hay) {
+      throw new Error(
+        `Esa plantilla necesita ${pide} valor${pide === 1 ? '' : 'es'} y la campaña trae ${hay}. ` +
+          'Para el nombre de cada persona usa {contacto.nombre}.',
+      );
+    }
+  }
   const r = await client.query(
     `INSERT INTO campaigns (tenant_id, name, template_id, filters, values, created_by)
      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6) RETURNING *`,
@@ -116,6 +158,8 @@ export async function enviarCampana(
     calidadDelNumero: () => Promise<'verde' | 'amarillo' | 'rojo'>;
     puedeIniciar: (contactId: string) => Promise<boolean>;
     conversacionDe: (contactId: string) => Promise<string | null>;
+    /** Lo que se necesita para personalizar: nombre y teléfono. */
+    datosDelContacto?: (contactId: string) => Promise<{ name?: string | null; phone?: string | null }>;
     enviarPlantilla: (args: {
       conversationId: string;
       contactId: string;
@@ -187,11 +231,14 @@ export async function enviarCampana(
       continue;
     }
     try {
+      // Personalizado por destinatario: `{contacto.nombre}` es el nombre de
+      // quien lee, no el de la primera persona de la lista.
+      const datos = deps.datosDelContacto ? await deps.datosDelContacto(contactId) : {};
       const { messageId } = await deps.enviarPlantilla({
         conversationId,
         contactId,
         templateId: campana.templateId,
-        valores: campana.values,
+        valores: resolverValores(campana.values, datos),
       });
       if (await anotar(contactId, 'queued', null, messageId)) encolados += 1;
     } catch (err) {

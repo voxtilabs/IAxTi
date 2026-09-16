@@ -138,3 +138,31 @@ describe('el tope no puede llegar al SQL', () => {
     expect(siguen.rows[0].n).toBe(1);
   });
 });
+
+describe('nada se queda afuera sin decirlo', () => {
+  it('toda tabla del negocio se exporta o está en la lista de excluidas CON su motivo', async () => {
+    // El agujero que esto tapa: agregar una tabla nueva (plantillas,
+    // campañas) y olvidarse de la exportación. El negocio que se va se
+    // llevaría todo MENOS lo último que construimos, y nadie se enteraría
+    // hasta que alguien pidiera irse.
+    const r = await admin.query(
+      `SELECT DISTINCT table_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND column_name = 'tenant_id'
+        ORDER BY table_name`,
+    );
+    const DE_LOS_TESTS = ['rls_demo'];
+    const tablas = (r.rows as Array<{ table_name: string }>)
+      .map((x) => x.table_name)
+      .filter((t) => !DE_LOS_TESTS.includes(t));
+
+    const exportadas = new Set<string>(TABLAS_EXPORTADAS);
+    const huerfanas = tablas.filter(
+      (t) => !exportadas.has(t) && !(t in FUERA_DE_LA_EXPORTACION),
+    );
+    expect(
+      huerfanas,
+      `Estas tablas no se exportan y tampoco dicen por qué:\n  ${huerfanas.join('\n  ')}\n` +
+        'O van en TABLAS_EXPORTADAS, o en FUERA_DE_LA_EXPORTACION con su motivo.',
+    ).toEqual([]);
+  });
+});

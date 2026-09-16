@@ -44,6 +44,8 @@ export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
   eval_cases: 'Nuestras pruebas de calidad del copiloto.',
   eval_runs: 'Idem eval_cases.',
   agent_quota_alerts: 'Marcas internas para no avisar dos veces por ciclo.',
+  agent_proposals:
+    'Propuestas de configuración que el copiloto sugiere y el ADMIN acepta o descarta: mecánica del configurador, no dato del negocio.',
 };
 
 /**
@@ -80,12 +82,16 @@ export const TABLAS_EXPORTADAS = [
   'saved_filters',
   'rules',
   'rule_runs',
+  'segments',
+  'campaigns',
+  'campaign_recipients',
   'sequences',
   'sequence_enrollments',
   'sources',
   'chunks',
   'channel_accounts',
   'whatsapp_numbers',
+  'whatsapp_templates',
   'webchat_widgets',
   'webchat_sessions',
   'webhook_endpoints',
