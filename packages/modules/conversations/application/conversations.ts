@@ -530,11 +530,17 @@ export async function getOutboundContext(
   phone: string;
   body: string | null;
   type: MessageType;
+  /**
+   * Datos propios del canal que el adaptador necesita. Hoy: la plantilla
+   * aprobada con la que sale un mensaje fuera de la ventana (#44). Viaja en
+   * `meta` del mensaje porque es del mensaje, no de la conversación.
+   */
+  extra: Record<string, unknown> | null;
 } | null> {
   const r = await client.query(
     // Se responde por DONDE escribió: la identidad del canal manda y el
     // teléfono queda de respaldo para los contactos anteriores al #74.
-    `SELECT m.conversation_id, m.body, m.type, c.channel, c.channel_account_id,
+    `SELECT m.conversation_id, m.body, m.type, m.meta, c.channel, c.channel_account_id,
             COALESCE(i.identity, k.phone) AS phone
        FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
@@ -553,6 +559,9 @@ export async function getOutboundContext(
     phone: row.phone,
     body: row.body ?? null,
     type: row.type,
+    extra: (row.meta as { plantilla?: unknown })?.plantilla
+      ? { plantilla: (row.meta as { plantilla: unknown }).plantilla }
+      : null,
   };
 }
 

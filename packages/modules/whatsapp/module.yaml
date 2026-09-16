@@ -11,8 +11,12 @@ depends_on:
   optional: []
 permissions:
   - whatsapp.numbers.manage
+  - whatsapp.templates.manage
 events:
-  publishes: []
+  publishes:
+    - template.sent
+    - template.status_changed
+    - template.submitted
   consumes: []
 tools: []
 nav: []

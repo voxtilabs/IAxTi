@@ -16,6 +16,15 @@ import { runMigrations } from '../src/migrate';
 const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 const INVENTARIO = join(__dirname, '../../../docs/INVENTARIO-DATOS.md');
 
+/**
+ * Tablas que crean los propios tests y no son del producto. Van con nombre
+ * y motivo: una lista de excepciones sin motivo se convierte en el lugar
+ * donde se esconde lo que no se quiso documentar.
+ */
+const DE_LOS_TESTS: Record<string, string> = {
+  rls_demo: 'La crea packages/db/tests/rls.test.ts para probar el aislamiento.',
+};
+
 let admin: Pool;
 
 beforeAll(async () => {
@@ -35,7 +44,9 @@ describe('inventario de datos personales', () => {
         WHERE table_schema = 'public' AND column_name = 'tenant_id'
         ORDER BY table_name`,
     );
-    const tablas = r.rows.map((x) => x.table_name as string);
+    const tablas = r.rows
+      .map((x) => x.table_name as string)
+      .filter((t) => !(t in DE_LOS_TESTS));
     expect(tablas.length).toBeGreaterThan(30);
 
     // La tabla se nombra entre acentos graves en alguna fila del documento.

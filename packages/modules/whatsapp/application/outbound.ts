@@ -84,6 +84,8 @@ export interface OutboundJobData {
    * así que una automatización de las 3am salía a las 3am.
    */
   initiatedByBusiness: boolean;
+  /** Datos propios del canal: hoy, la plantilla aprobada (#44). */
+  extra?: Record<string, unknown>;
   requestId?: string;
 }
 
@@ -101,5 +103,12 @@ export async function deliverOutbound(
   if (!provider) throw new Error(`No hay adaptador para el canal ${account.kind}.`);
   const phoneNumberId = (account.config.phoneNumberId as string) ?? account.id;
   await checkNumberRateLimit(redis, phoneNumberId);
-  return provider.send(account, { to: data.to, type: data.type ?? 'texto', body: data.body });
+  return provider.send(account, {
+    to: data.to,
+    type: data.type ?? 'texto',
+    body: data.body,
+    // La plantilla aprobada, si el mensaje sale con una (#44). El adaptador
+    // decide cómo la manda; acá solo viaja.
+    ...(data.extra ? { extra: data.extra } : {}),
+  });
 }

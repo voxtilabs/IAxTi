@@ -62,6 +62,7 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 | `quick_replies`, `saved_filters` | atajos del equipo | no | negocio | sí | no aplica |
 | `rules`, `rule_runs`, `sequences`, `sequence_enrollments` | automatizaciones y a quién se le aplicaron | indirecta | negocio | sí | quedan |
 | `agents`, `agent_conversation_modes` | configuración del copiloto | no | negocio | sí | no aplica |
+| `whatsapp_templates` | las plantillas aprobadas por Meta y su texto | no¹ | negocio | sí | quedan: son del negocio, no de una persona |
 | `sources`, `chunks` | la base de conocimiento y sus trozos indexados | no¹ | negocio | sí | no aplica |
 | `channel_accounts`, `whatsapp_numbers`, `webchat_widgets` | canales conectados y **referencias** a credenciales | no | negocio | sí | no aplica |
 | `webhook_endpoints` | a dónde avisar, **sin el secreto** | no | negocio | sí, sin el secreto | no aplica |
