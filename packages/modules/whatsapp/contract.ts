@@ -30,6 +30,7 @@ export {
   applyQualityUpdate,
   normalizeQualityUpdates,
   isBusinessPaused,
+  numeroEnRojo,
   resumeBusinessSends,
 } from './application/quality';
 export type { NumberQuality, QualityUpdate } from './application/quality';

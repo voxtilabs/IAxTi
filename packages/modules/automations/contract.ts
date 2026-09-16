@@ -39,3 +39,18 @@ export {
   stopEnrollment,
 } from './application/sequences';
 export type { Sequence, SequenceStep, Enrollment } from './application/sequences';
+export {
+  previsualizarSegmento,
+  contactosDelSegmento,
+  guardarSegmento,
+  listarSegmentos,
+} from './application/segmentos';
+export type { FiltrosSegmento, ContactoDelSegmento } from './application/segmentos';
+export {
+  crearCampana,
+  previsualizarCampana,
+  obtenerCampana,
+  enviarCampana,
+  resultadosDeCampana,
+} from './application/campanas';
+export type { Campana, ResultadoEnvio } from './application/campanas';
