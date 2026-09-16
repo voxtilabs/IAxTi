@@ -57,6 +57,7 @@ import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
 import { CamposController } from './campos.controller';
 import { PlantillasController } from './plantillas.controller';
+import { CampanasController } from './campanas.controller';
 import { TagsController } from './tags.controller';
 import { SettingsController } from './settings.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
@@ -668,6 +669,7 @@ const controllers = [
   ConversationsController,
   CamposController,
   PlantillasController,
+  CampanasController,
   TagsController,
   SettingsController,
   QuickRepliesController,

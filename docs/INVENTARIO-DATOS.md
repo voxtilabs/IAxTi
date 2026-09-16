@@ -61,6 +61,9 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 | `tags`, `custom_fields`, `companies`, `products` | catálogos del negocio | no | negocio | sí | no aplica |
 | `quick_replies`, `saved_filters` | atajos del equipo | no | negocio | sí | no aplica |
 | `rules`, `rule_runs`, `sequences`, `sequence_enrollments` | automatizaciones y a quién se le aplicaron | indirecta | negocio | sí | quedan |
+| `segments` | los filtros de un segmento de la cartera, sin personas adentro | no | negocio | sí | no aplica |
+| `campaigns` | la campaña: plantilla, filtros congelados y estado | no | negocio | sí | queda |
+| `campaign_recipients` | **a quién se le mandó una campaña y qué pasó con cada uno** | indirecta | cliente final | sí | se van con el contacto |
 | `agents`, `agent_conversation_modes` | configuración del copiloto | no | negocio | sí | no aplica |
 | `whatsapp_templates` | las plantillas aprobadas por Meta y su texto | no¹ | negocio | sí | quedan: son del negocio, no de una persona |
 | `sources`, `chunks` | la base de conocimiento y sus trozos indexados | no¹ | negocio | sí | no aplica |

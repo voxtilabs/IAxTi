@@ -163,3 +163,19 @@ export async function resumeBusinessSends(
     requestId: input.requestId,
   }).catch(() => {});
 }
+
+/**
+ * ¿Hay algún número del negocio en calidad ROJA? (#75)
+ *
+ * Una campaña sale por el número del negocio, y mandarle promoción a mil
+ * personas desde un número que Meta ya está mirando es la forma más corta de
+ * perderlo. Esto se consulta ANTES de empezar, no mensaje por mensaje: para
+ * eso ya está la pausa por calidad en la cola.
+ */
+export async function numeroEnRojo(client: PoolClient, tenantId: string): Promise<boolean> {
+  const r = await client.query(
+    `SELECT 1 FROM whatsapp_numbers WHERE tenant_id = $1 AND quality = 'red' LIMIT 1`,
+    [tenantId],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
