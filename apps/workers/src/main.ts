@@ -19,6 +19,7 @@ import { processSuggest, type SuggestJob } from './copilot';
 import { realtimeConsumers } from './realtime';
 import { deleteR2Keys, onContactMerged, purgeTenantRetention, retentionConsumers, tenantsWithRetention } from '@iaxti/module-conversations';
 import { notificationConsumers } from '@iaxti/module-notifications';
+import { barrerRecordatorios } from '@iaxti/module-calendar';
 import { onboardingConsumers } from '@iaxti/module-organizations';
 import { transportesDeAviso } from './transportes-aviso';
 import {
@@ -170,6 +171,23 @@ function start(): void {
             if (borradas > 0) console.log(`scheduled: ${borradas} llaves de idempotencia vencidas`);
             return { borradas };
           }
+          // Recordatorios de cita (#59): 24 h y 2 h antes, por plantilla.
+          // El horario de silencio lo aplica la cola, no esto.
+          case 'calendar.reminders': {
+            const res = await barrerRecordatorios(pool, {
+              enviar: async () => ({
+                enviado: false,
+                // Mandar el recordatorio necesita una plantilla aprobada
+                // (#44) y el número conectado. Mientras no estén, se dice
+                // por qué en vez de fingir que salió.
+                motivo: 'falta la plantilla aprobada del recordatorio',
+              }),
+            });
+            if (res.enviados + res.saltados > 0) {
+              console.log(`scheduled: recordatorios ${res.enviados} enviados, ${res.saltados} sin salir`);
+            }
+            return res;
+          }
           case 'api_usage.flush': {
             const n = await flushApiUsage(pool, redisScheduled);
             if (n > 0) console.log(`scheduled: ${n} contadores de API volcados`);
@@ -268,6 +286,11 @@ function start(): void {
         'api_usage.flush',
         { moduleId: 'organizations' },
         { repeat: { every: 300_000 } },
+      ),
+      scheduled.add(
+        'calendar.reminders',
+        { moduleId: 'calendar' },
+        { repeat: { every: 900_000 } },
       ),
       scheduled.add(
         'idempotency.sweep',

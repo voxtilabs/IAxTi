@@ -58,6 +58,7 @@ import { ConversationsController } from './conversations.controller';
 import { CamposController } from './campos.controller';
 import { PlantillasController } from './plantillas.controller';
 import { CampanasController } from './campanas.controller';
+import { AgendaController } from './agenda.controller';
 import { TagsController } from './tags.controller';
 import { SettingsController } from './settings.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
@@ -670,6 +671,7 @@ const controllers = [
   CamposController,
   PlantillasController,
   CampanasController,
+  AgendaController,
   TagsController,
   SettingsController,
   QuickRepliesController,

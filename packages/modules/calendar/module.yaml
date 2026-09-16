@@ -1,0 +1,30 @@
+module:
+  id: calendar
+  version: 0.1.0
+  core: false
+depends_on:
+  required: [organizations, identity, crm, audit]
+  optional: [whatsapp, automations]
+permissions:
+  - calendar.read
+  - calendar.connect
+  - calendar.book
+  - calendar.manage_availability
+events:
+  publishes:
+    - appointment.created
+    - appointment.reminder_sent
+    - appointment.attended
+    - appointment.no_show
+    - appointment.cancelled
+  consumes: []
+tools:
+  - calendar.get_slots
+  - calendar.book
+  - calendar.reschedule
+  - calendar.cancel
+nav:
+  - { label: Agenda, path: /agenda, permission: calendar.read }
+widgets: []
+plan_min: base
+flag: module.calendar
