@@ -43,3 +43,24 @@ export {
   EVENTOS_WEBHOOK,
 } from './application/conectar';
 export type { SenderZavu, LlamarZavu, ResultadoConexion, ProyectoZavu } from './application/conectar';
+export {
+  listTemplates,
+  createTemplate,
+  updateTemplate,
+  getTemplate,
+  marcarEnviadaARevision,
+  aplicarEstadoDelProveedor,
+  prepararEnvio,
+  enviarPlantilla,
+} from './application/plantillas';
+export type { Plantilla } from './application/plantillas';
+export {
+  CATEGORIAS,
+  ESTADOS_PLANTILLA,
+  validarPlantilla,
+  renderizar,
+  normalizarNombre,
+  variablesDe,
+  puedeEnviarse,
+} from './domain/plantillas';
+export type { CategoriaPlantilla, EstadoPlantilla, PlantillaBorrador } from './domain/plantillas';

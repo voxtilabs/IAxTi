@@ -23,9 +23,10 @@ import {
   isWithinWindow,
   listInbox,
   listMessages,
+  retentionCutoff,
+  salePorProveedor,
   sendMessage,
   updateDeliveryStatus,
-  retentionCutoff,
 } from '@iaxti/module-conversations';
 import type {
   Channel,
@@ -115,7 +116,12 @@ async function entregarRespuesta(
       requestId: input.requestId,
     });
   }
-  if (conversation.channel === 'whatsapp') {
+  // Todo lo que sale por un PROVEEDOR va por la cola: whatsapp, instagram y
+  // messenger (#74). Con `=== 'whatsapp'` los otros dos no caían en ninguna
+  // rama y el mensaje quedaba en `queued` para siempre — escrito en la
+  // bandeja, sin salir nunca y sin que nadie se enterara. Es el mismo error
+  // que tenía el motor de automatizaciones (#201).
+  if (salePorProveedor(conversation.channel)) {
     await outboundQueue().add(
       'send',
       {

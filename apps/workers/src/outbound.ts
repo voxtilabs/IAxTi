@@ -92,7 +92,15 @@ export async function processOutbound(
     try {
       const res = await deliverOutbound(
         account,
-        { ...data, to: ctx.phone, body: ctx.body ?? undefined, type: ctx.type },
+        {
+          ...data,
+          to: ctx.phone,
+          body: ctx.body ?? undefined,
+          type: ctx.type,
+          // La plantilla viaja con el MENSAJE, no con el job: así un
+          // reintento de la cola manda exactamente la misma (#44).
+          ...(ctx.extra ? { extra: ctx.extra } : {}),
+        },
         redis,
       );
       // sent + el wamid en el mensaje: el webhook de estados lo ubica por él.
