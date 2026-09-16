@@ -19,10 +19,22 @@ const en = <T>(fn: (c: never) => Promise<T>) => withTenant(admin, tenant, fn as 
 
 const deps = (over: Partial<DepsHerramientas> = {}): DepsHerramientas => ({
   actorPuede: async () => true,
-  habilitadas: ['conversations.get_context', 'knowledge.search', 'knowledge.get_product'],
+  habilitadas: [
+    'conversations.get_context',
+    'knowledge.search',
+    'knowledge.get_product',
+    'calendar.get_slots',
+  ],
   getContext: async (id) => ({ conversationId: id, mensajes: ['hola'] }),
   buscarConocimiento: async (q) => ({ hits: [`respuesta a ${q}`] }),
   buscarProducto: async (q) => [{ nombre: q, precio: 1990 }],
+  horariosLibres: async () => [
+    { hora: '09:00' },
+    { hora: '09:45' },
+    { hora: '10:30' },
+    { hora: '11:15' },
+    { hora: '12:00' },
+  ],
   ...over,
 });
 
@@ -64,10 +76,42 @@ describe('herramientas de lectura', () => {
     expect(busqueda.ok).toBe(true);
   });
 
+  it('ofrece TRES horarios como mucho: en un chat una lista larga no se lee', async () => {
+    const res = await en((c) =>
+      ejecutarHerramienta(
+        c,
+        {
+          tenantId: tenant,
+          tool: 'calendar.get_slots',
+          args: { dia: '2027-03-01' },
+          actorUserId: usuario,
+        },
+        deps(),
+      ),
+    );
+    expect(res.ok).toBe(true);
+    expect(res.datos).toHaveLength(3);
+  });
+
+  it('un día mal escrito se rechaza antes de tocar la agenda', async () => {
+    const res = await en((c) =>
+      ejecutarHerramienta(
+        c,
+        { tenantId: tenant, tool: 'calendar.get_slots', args: { dia: 'mañana' }, actorUserId: usuario },
+        deps(),
+      ),
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('AAAA-MM-DD');
+  });
+
   it('cada ejecución queda en el libro como acción de la IA, no de la persona', async () => {
+    // Se busca una ejecución concreta y no "la última": el orden de los
+    // tests no puede decidir qué fila mira esta afirmación.
     const r = await admin.query(
       `SELECT actor, actor_kind, action, result FROM audit_log
-        WHERE tenant_id = $1 AND action LIKE 'agent.tool.%' ORDER BY id DESC LIMIT 1`,
+        WHERE tenant_id = $1 AND action = 'agent.tool.knowledge.search' AND result = 'ok'
+        ORDER BY id DESC LIMIT 1`,
       [tenant],
     );
     // El usuario a cuyo nombre actuó, pero marcada como 'agent': si se
@@ -103,7 +147,9 @@ describe('lo que NO puede hacer', () => {
   });
 
   it('no escribe: las que escriben esperan una decisión, y lo dice', async () => {
-    for (const tool of ['conversations.send_reply', 'crm.create_deal']) {
+    // `calendar.book` entra acá a propósito: ofrecer horarios es leer,
+    // tomarlos es escribir.
+    for (const tool of ['conversations.send_reply', 'crm.create_deal', 'calendar.book']) {
       const res = await en((c) =>
         ejecutarHerramienta(
           c,

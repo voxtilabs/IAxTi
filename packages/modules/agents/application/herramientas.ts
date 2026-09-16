@@ -31,12 +31,19 @@ export const HERRAMIENTAS_DE_LECTURA = {
   'conversations.get_context': 'conversations.read',
   'knowledge.search': 'knowledge.read',
   'knowledge.get_product': 'knowledge.read',
+  // Ofrecer horarios es leer la agenda; agendar es otra cosa y por eso
+  // `calendar.book` sigue en la lista de las que escriben (SPEC §16: "la IA
+  // ofrece máximo tres horarios" — ofrecer, no tomar).
+  'calendar.get_slots': 'calendar.read',
 } as const;
 
 export type HerramientaDeLectura = keyof typeof HERRAMIENTAS_DE_LECTURA;
 
 /** Las que escriben: declaradas, todavía sin ejecutar (issue 240). */
 export const HERRAMIENTAS_QUE_ESCRIBEN = [
+  'calendar.book',
+  'calendar.reschedule',
+  'calendar.cancel',
   'conversations.send_reply',
   'conversations.set_state',
   'crm.create_deal',
@@ -61,6 +68,11 @@ export interface DepsHerramientas {
   getContext: (conversationId: string) => Promise<unknown>;
   buscarConocimiento: (query: string) => Promise<unknown>;
   buscarProducto: (query: string) => Promise<unknown>;
+  /**
+   * Los horarios libres de un día. Devuelve TRES como mucho (SPEC §16):
+   * una lista larga en un chat no se lee, se abandona.
+   */
+  horariosLibres?: (dia: string) => Promise<unknown[]>;
 }
 
 export async function ejecutarHerramienta(
@@ -123,6 +135,14 @@ export async function ejecutarHerramienta(
         const query = String(input.args.query ?? '').trim();
         if (!query) throw new Error('Falta qué producto buscar.');
         datos = await deps.buscarProducto(query);
+        break;
+      }
+      case 'calendar.get_slots': {
+        if (!deps.horariosLibres) throw new Error('La agenda no está disponible.');
+        const dia = String(input.args.dia ?? '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) throw new Error('El día va como AAAA-MM-DD.');
+        // TRES como mucho: en un chat, una lista larga no se lee.
+        datos = (await deps.horariosLibres(dia)).slice(0, 3);
         break;
       }
       default:
