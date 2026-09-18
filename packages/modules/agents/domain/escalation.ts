@@ -9,7 +9,9 @@ export type EscalationReason =
   | 'sin_avance'
   | 'confianza_baja'
   | 'monto_alto'
-  | 'error_del_modelo';
+  | 'error_del_modelo'
+  /** El modelo se quedó sin espacio de salida: no falló, no le alcanzó. */
+  | 'respuesta_cortada';
 
 const PIDE_HUMANO =
   /\b(humano|persona\s+real|hablar\s+con\s+(?:alguien|una?\s+person\w*|un\s+ejecutiv\w*)|ejecutiv[oa]|operador\w*|no\s+quiero\s+(?:un\s+)?(?:bot|robot))\b/i;

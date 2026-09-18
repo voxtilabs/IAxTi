@@ -4,7 +4,7 @@ import type { ModuleRegistry } from '@iaxti/core';
 import { publishEvent } from '@iaxti/core';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { incrementUsage } from '@iaxti/module-organizations';
-import { estimateCostUsd, iaSettings, redactPII } from '../domain/config';
+import { DEFAULT_TASK_OUTPUT_TOKENS, estimateCostUsd, iaSettings, redactPII } from '../domain/config';
 import type { AgentTask, Provider } from '../domain/config';
 import { aiSdkModelPort, type HerramientaExpuesta, type ModelPortFactory } from './models';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
@@ -31,6 +31,8 @@ export interface RunInput {
    * siempre.
    */
   tools?: HerramientaExpuesta[];
+  /** Tope de salida. Sin esto, el de la tarea (`DEFAULT_TASK_OUTPUT_TOKENS`). */
+  maxOutputTokens?: number;
 }
 
 export interface RunResult {
@@ -150,6 +152,9 @@ export async function runAgentTask(
     const res = await modelPortFactory(provider, model).generate({
       system,
       prompt: promptCompleto,
+      // El tope lo manda la TAREA, no un default único del puerto: lo que
+      // necesita `configurar` y lo que necesita `resumir` no se parecen.
+      maxOutputTokens: input.maxOutputTokens ?? DEFAULT_TASK_OUTPUT_TOKENS[input.task],
       ...(input.tools?.length ? { tools: input.tools } : {}),
     });
     const latencyMs = Date.now() - inicio;

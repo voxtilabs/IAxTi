@@ -117,6 +117,22 @@ export async function proposeConfiguration(
   if (res.status === 'failed' || !res.text) {
     return { status: 'failed', error: res.error ?? 'El configurador no respondió. Intenta de nuevo.' };
   }
+  // Cortada por el tope de salida. Es la respuesta más larga del producto
+  // —pipeline, respuestas rápidas Y tres plantillas— con el modelo que más
+  // razona, así que es la que más se corta.
+  //
+  // Antes caía en el mismo saco que "no se entendió" y le decía al dueño
+  // que lo intentara "con más detalle": el consejo exactamente al revés,
+  // porque más detalle alarga el contexto y lo corta antes. Y esto es el
+  // ONBOARDING — la primera cosa que hace alguien que recién llega.
+  if (res.truncada) {
+    return {
+      status: 'failed',
+      error:
+        'La propuesta quedó a medias: es muy larga para el espacio disponible. ' +
+        'Prueba con una descripción más corta del negocio.',
+    };
+  }
   const propuesta = parseConfiguration(res.text);
   if (!propuesta) {
     return { status: 'failed', error: 'La propuesta no se entendió. Intenta de nuevo con más detalle.' };

@@ -248,3 +248,37 @@ describe('la corrida autónoma (#49)', () => {
     expect(res).toEqual({ action: 'assist' });
   });
 });
+
+describe('cortado por el tope de salida (#310)', () => {
+  const cortado: ModelPortFactory = () => ({
+    async generate() {
+      // Lo que devuelve de verdad un modelo que razona y se queda sin
+      // espacio: JSON que empieza y no cierra.
+      return { text: '{"respuesta": "¡Hola! Para darte el valor exa', tokensIn: 100, tokensOut: 1500, truncada: true };
+    },
+  });
+
+  it('escala con el motivo VERDADERO, no como error del modelo', async () => {
+    const conv = await conversacionNueva('Hola, ¿cuánto sale el corte?');
+    await withTenant(admin, tenant, (c) =>
+      setConversationMode(c, { tenantId: tenant, conversationId: conv, mode: 'autonomous', actor: 'user-1' }),
+    );
+    const res = await alAire(conv, cortado);
+    expect(res.action).toBe('escalated');
+    // El modelo no falló: no le alcanzó el espacio, y eso se arregla
+    // distinto. Con 'error_del_modelo' el dueño cree que el proveedor anda
+    // mal y no que sus conversaciones son largas.
+    expect(res.reason).toBe('respuesta_cortada');
+  });
+
+  it('nunca le manda media frase al cliente', async () => {
+    const conv = await conversacionNueva('¿Tienen hora mañana?');
+    await withTenant(admin, tenant, (c) =>
+      setConversationMode(c, { tenantId: tenant, conversationId: conv, mode: 'autonomous', actor: 'user-1' }),
+    );
+    const res = await alAire(conv, cortado);
+    expect(res.action).not.toBe('reply');
+    expect(JSON.stringify(res)).not.toContain('valor exa');
+  });
+});
+
