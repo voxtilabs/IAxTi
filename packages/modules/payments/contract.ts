@@ -14,6 +14,7 @@ export {
 } from './application/links';
 export type { PaymentProvider, PaymentLink } from './application/links';
 export { confirmPayment } from './application/confirm';
+export type { DepsConfirmacion } from './application/confirm';
 export type { ConfirmInput, ConfirmResult } from './application/confirm';
 export {
   createFlowProvider,
