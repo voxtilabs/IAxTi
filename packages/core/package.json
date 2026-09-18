@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@iaxti/telemetry": "workspace:*",
     "bullmq": "^5.34.0",
     "ioredis": "^5.4.0",
     "pg": "^8.13.0",
@@ -17,6 +18,8 @@
   },
   "devDependencies": {
     "@iaxti/db": "workspace:*",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-trace-node": "^1.30.0",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.0",
     "typescript": "^5.7.0",
