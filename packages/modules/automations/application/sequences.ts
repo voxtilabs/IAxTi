@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
-import { withTenant } from '@iaxti/db';
+import { idsDeTenants, withTenant } from '@iaxti/db';
 import { isWithinWindow, salePorProveedor } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
 import { ruleModuleGaps, ACTION_REQUIREMENTS, type Action } from '../domain/rules';
@@ -231,10 +231,8 @@ export function sequenceConsumers(): Consumer[] {
  * hasta que las plantillas de #44 existan).
  */
 export async function sweepSequences(pool: Pool, deps: EngineDeps): Promise<number> {
-  const tenants = await pool.query(
-    `SELECT DISTINCT tenant_id FROM sequence_enrollments
-      WHERE status = 'running' AND next_run_at <= now()`,
-  );
+  // De `tenants`, no de `sequence_enrollments` (#286).
+  const tenants = { rows: (await idsDeTenants(pool)).map((id) => ({ tenant_id: id })) };
   let corridos = 0;
   for (const { tenant_id: tenantId } of tenants.rows) {
     corridos += await withTenant(pool, tenantId, async (client) => {

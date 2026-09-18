@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
-import { withTenant } from '@iaxti/db';
+import { porCadaTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import { changePlan, changeTenantState, getTenant, getTenantSettings } from '@iaxti/module-organizations';
 import { createPaymentLink, listProviders } from '@iaxti/module-payments';
@@ -327,59 +327,77 @@ export async function sweepBilling(
     cancelacionesEfectivas: 0,
   };
 
-  // 0. La prueba TERMINA (§6). `trial_ends_at` se escribía al crear el
-  // tenant, se mostraba en el panel y el SuperAdmin la podía extender, y
-  // nadie actuaba sobre ella: la prueba gratis no se acababa nunca.
-  //
-  // Quien ya eligió plan y tiene suscripción viva pasa a `active`. Quien no,
-  // queda en solo lectura con sus datos intactos: los 30 días de gracia de
-  // §6 los cuenta el paso 4 de este mismo barrido.
-  const vencidasPrueba = await pool.query(
-    `SELECT t.id, s.status AS suscripcion
-       FROM tenants t LEFT JOIN subscriptions s ON s.tenant_id = t.id
-      WHERE t.state = 'trial' AND t.trial_ends_at IS NOT NULL AND t.trial_ends_at < now()`,
-  );
-  for (const fila of vencidasPrueba.rows) {
-    await withTenant(pool, fila.id, async (client) => {
-      const tenant = await getTenant(client, fila.id);
-      if (tenant.state !== 'trial') return;
-      const eligio = fila.suscripcion === 'active';
-      await changeTenantState(client, fila.id, eligio ? 'active' : 'read_only');
+  /**
+   * UNA pasada por tenant, con los seis pasos adentro (#286).
+   *
+   * Antes eran seis barridos globales, cada uno con su `SELECT ... FROM
+   * subscriptions/invoices` suelto al pool. Eso no funciona con el rol de
+   * producción: una consulta fuera de `withTenant` corre sin
+   * `app.tenant_id`, RLS evalúa `tenant_id = NULL` y devuelve cero filas.
+   * En desarrollo se veía perfecto porque el rol es superusuario.
+   *
+   * El paso 0 tenía además una trampa más fina: un `LEFT JOIN` a
+   * `subscriptions` desde `tenants`. Como `tenants` no tiene RLS, la
+   * consulta SÍ devolvía filas — pero la parte del join venía siempre en
+   * NULL, así que un tenant que había elegido plan se veía igual que uno
+   * que no, y la prueba vencida lo mandaba a solo lectura.
+   *
+   * Y de paso se gana: una transacción por tenant en vez de seis pasadas,
+   * con los pasos en el orden correcto dentro de la misma.
+   */
+  await porCadaTenant(pool, async (client, tenantId) => {
+    const tenant = await getTenant(client, tenantId);
+
+    // 0. La prueba TERMINA (§6). `trial_ends_at` se escribía al crear el
+    // tenant, se mostraba en el panel y el SuperAdmin la podía extender, y
+    // nadie actuaba sobre ella: la prueba gratis no se acababa nunca.
+    //
+    // Quien ya eligió plan y tiene suscripción viva pasa a `active`. Quien
+    // no, queda en solo lectura con sus datos intactos: los 30 días de
+    // gracia de §6 los cuenta el paso 4.
+    if (tenant.state === 'trial' && tenant.trialEndsAt && tenant.trialEndsAt < new Date()) {
+      const sus = await client.query(`SELECT status FROM subscriptions WHERE tenant_id = $1`, [
+        tenantId,
+      ]);
+      const eligio = sus.rows[0]?.status === 'active';
+      await changeTenantState(client, tenantId, eligio ? 'active' : 'read_only');
       if (!eligio) {
         // La prueba traía los módulos de Crece regalados; se terminó.
-        await changePlan(client, fila.id, 'base');
+        await changePlan(client, tenantId, 'base');
       }
       await writeAudit(client, {
-        tenantId: fila.id,
+        tenantId,
         actor: 'system',
         actorKind: 'system',
         action: eligio ? 'billing.trial.convertida' : 'billing.trial.vencida',
         resource: 'tenant',
-        resourceId: fila.id,
+        resourceId: tenantId,
         result: 'ok',
         metadata: { trialEndsAt: tenant.trialEndsAt },
       });
       await publishEvent(client, {
         name: 'tenant.state_changed',
-        tenantId: fila.id,
+        tenantId,
         payload: { from: 'trial', to: eligio ? 'active' : 'read_only', motivo: 'prueba vencida' },
         actor: 'system',
       });
       res.trialsVencidas += 1;
-    });
-  }
+    }
 
-  // 1. Ciclos vencidos → factura del período que terminó + avanzar ciclo.
-  const vencidas = await pool.query(
-    `SELECT tenant_id, cycle_start, next_charge_at FROM subscriptions
-      WHERE status <> 'cancelled' AND next_charge_at <= now()::date`,
-  );
-  for (const fila of vencidas.rows) {
-    await withTenant(pool, fila.tenant_id, async (client) => {
+    // 1. Ciclo vencido → factura del período que terminó + avanzar ciclo.
+    // `tenant_id = $1` explícito: RLS es la segunda cerradura, no la
+    // primera. Sin el filtro, con el rol superusuario de desarrollo cada
+    // vuelta veía las suscripciones de todos.
+    const ciclo = await client.query(
+      `SELECT cycle_start, next_charge_at FROM subscriptions
+        WHERE tenant_id = $1 AND status <> 'cancelled' AND next_charge_at <= now()::date`,
+      [tenantId],
+    );
+    if (ciclo.rowCount) {
       const invoice = await issueInvoiceForCycle(client, {
-        tenantId: fila.tenant_id,
-        periodStart: fecha(fila.cycle_start),
-        periodEnd: fecha(fila.next_charge_at),
+        tenantId,
+        periodStart: fecha(ciclo.rows[0].cycle_start),
+        periodEnd: fecha(ciclo.rows[0].next_charge_at),
       });
       if (invoice) res.issued += 1;
       await client.query(
@@ -388,125 +406,127 @@ export async function sweepBilling(
                 next_charge_at = (next_charge_at + interval '1 month')::date,
                 updated_at = now()
           WHERE tenant_id = $1`,
-        [fila.tenant_id],
+        [tenantId],
       );
-    });
-  }
+    }
 
-  // 2. Facturas vencidas → overdue + tenant a past_due (§6, auditado).
-  const impagas = await pool.query(
-    `SELECT tenant_id, id FROM invoices WHERE status = 'issued' AND due_at < now()`,
-  );
-  for (const fila of impagas.rows) {
-    await withTenant(pool, fila.tenant_id, async (client) => {
+    // 2. Facturas vencidas → overdue + tenant a past_due (§6, auditado).
+    const impagas = await client.query(
+      `SELECT id FROM invoices WHERE tenant_id = $1 AND status = 'issued' AND due_at < now()`,
+      [tenantId],
+    );
+    for (const fila of impagas.rows) {
       await client.query(`UPDATE invoices SET status = 'overdue' WHERE id = $1`, [fila.id]);
       await client.query(
         `UPDATE subscriptions SET status = 'past_due', updated_at = now() WHERE tenant_id = $1`,
-        [fila.tenant_id],
+        [tenantId],
       );
-      const tenant = await getTenant(client, fila.tenant_id);
-      if (tenant.state === 'active') {
-        await changeTenantState(client, fila.tenant_id, 'past_due');
+      const actual = await getTenant(client, tenantId);
+      if (actual.state === 'active') {
+        await changeTenantState(client, tenantId, 'past_due');
         await writeAudit(client, {
-          tenantId: fila.tenant_id,
+          tenantId,
           actor: 'system',
           actorKind: 'system',
           action: 'billing.tenant.past_due',
           resource: 'tenant',
-          resourceId: fila.tenant_id,
+          resourceId: tenantId,
           result: 'ok',
           metadata: { invoiceId: fila.id },
         });
       }
       await publishEvent(client, {
         name: 'invoice.overdue',
-        tenantId: fila.tenant_id,
+        tenantId,
         payload: { invoiceId: fila.id },
         actor: 'system',
       });
       res.overdue += 1;
-    });
-  }
+    }
 
-  // 3. Overdue con la gracia cumplida → read_only (§6, auditado).
-  const agotadas = await pool.query(
-    `SELECT DISTINCT tenant_id FROM invoices
-      WHERE status = 'overdue' AND due_at < now() - make_interval(days => $1)`,
-    [DIAS_GRACIA_READONLY],
-  );
-  for (const fila of agotadas.rows) {
-    await withTenant(pool, fila.tenant_id, async (client) => {
-      const tenant = await getTenant(client, fila.tenant_id);
-      if (tenant.state !== 'past_due') return;
-      await changeTenantState(client, fila.tenant_id, 'read_only');
-      await writeAudit(client, {
-        tenantId: fila.tenant_id,
-        actor: 'system',
-        actorKind: 'system',
-        action: 'billing.tenant.read_only',
-        resource: 'tenant',
-        resourceId: fila.tenant_id,
-        result: 'ok',
-      });
-      res.readOnly += 1;
-    });
-  }
+    // 3. Overdue con la gracia cumplida → read_only (§6, auditado).
+    const agotada = await client.query(
+      `SELECT 1 FROM invoices
+        WHERE tenant_id = $1 AND status = 'overdue'
+          AND due_at < now() - make_interval(days => $2) LIMIT 1`,
+      [tenantId, DIAS_GRACIA_READONLY],
+    );
+    if (agotada.rowCount) {
+      const actual = await getTenant(client, tenantId);
+      if (actual.state === 'past_due') {
+        await changeTenantState(client, tenantId, 'read_only');
+        await writeAudit(client, {
+          tenantId,
+          actor: 'system',
+          actorKind: 'system',
+          action: 'billing.tenant.read_only',
+          resource: 'tenant',
+          resourceId: tenantId,
+          result: 'ok',
+        });
+        res.readOnly += 1;
+      }
+    }
 
-  // 4. Treinta días en solo lectura → suspendido (§6). La transición existía
-  // solo a mano, desde el panel del SuperAdmin: el plazo no lo contaba nadie.
-  // Es barata y reversible — el tenant ya no enviaba nada (#204).
-  const enSoloLectura = await pool.query(
-    `SELECT id FROM tenants
-      WHERE state = 'read_only' AND state_since < now() - make_interval(days => $1)`,
-    [DIAS_HASTA_SUSPENDER],
-  );
-  for (const fila of enSoloLectura.rows) {
-    await withTenant(pool, fila.id, async (client) => {
-      const tenant = await getTenant(client, fila.id);
-      if (tenant.state !== 'read_only') return;
-      await changeTenantState(client, fila.id, 'suspended');
-      await writeAudit(client, {
-        tenantId: fila.id,
-        actor: 'system',
-        actorKind: 'system',
-        action: 'billing.tenant.suspended',
-        resource: 'tenant',
-        resourceId: fila.id,
-        result: 'ok',
-        metadata: { desde: tenant.stateSince },
-      });
-      await publishEvent(client, {
-        name: 'tenant.state_changed',
-        tenantId: fila.id,
-        payload: { from: 'read_only', to: 'suspended', motivo: 'treinta días en solo lectura' },
-        actor: 'system',
-      });
-      res.suspendidos += 1;
-    });
-  }
+    // 4. Treinta días en solo lectura → suspendido (§6). La transición
+    // existía solo a mano, desde el panel del SuperAdmin: el plazo no lo
+    // contaba nadie. Es barata y reversible — el tenant ya no enviaba nada.
+    const enSoloLectura = await client.query(
+      `SELECT 1 FROM tenants
+        WHERE id = $1 AND state = 'read_only'
+          AND state_since < now() - make_interval(days => $2) LIMIT 1`,
+      [tenantId, DIAS_HASTA_SUSPENDER],
+    );
+    if (enSoloLectura.rowCount) {
+      const actual = await getTenant(client, tenantId);
+      if (actual.state === 'read_only') {
+        await changeTenantState(client, tenantId, 'suspended');
+        await writeAudit(client, {
+          tenantId,
+          actor: 'system',
+          actorKind: 'system',
+          action: 'billing.tenant.suspended',
+          resource: 'tenant',
+          resourceId: tenantId,
+          result: 'ok',
+          metadata: { desde: actual.stateSince },
+        });
+        await publishEvent(client, {
+          name: 'tenant.state_changed',
+          tenantId,
+          payload: { from: 'read_only', to: 'suspended', motivo: '30 días en solo lectura' },
+          actor: 'system',
+        });
+        res.suspendidos += 1;
+      }
+    }
 
-  // 5. La cancelación se hace efectiva cuando termina el ciclo PAGADO (§6).
-  // Hasta esa fecha el negocio sigue igual: cancelar no es apagar la luz.
-  const canceladas = await pool.query(
-    `SELECT tenant_id FROM subscriptions
-      WHERE status = 'cancelled' AND cancel_at IS NOT NULL AND cancel_at <= now()::date`,
-  );
-  for (const fila of canceladas.rows) {
-    await withTenant(pool, fila.tenant_id, async (client) => {
-      const tenant = await getTenant(client, fila.tenant_id);
-      if (tenant.state !== 'active' && tenant.state !== 'past_due' && tenant.state !== 'trial') return;
-      await changeTenantState(client, fila.tenant_id, 'read_only');
-      await writeAudit(client, {
-        tenantId: fila.tenant_id,
-        actor: 'system',
-        actorKind: 'system',
-        action: 'billing.cancelacion.efectiva',
-        resource: 'tenant',
-        resourceId: fila.tenant_id,
-        result: 'ok',
-      });
-      res.cancelacionesEfectivas += 1;
-    });
-  }
+    // 5. La cancelación se hace efectiva cuando termina el ciclo PAGADO
+    // (§6). Hasta esa fecha el negocio sigue igual: cancelar no es apagar
+    // la luz.
+    const cancelada = await client.query(
+      `SELECT 1 FROM subscriptions
+        WHERE tenant_id = $1 AND status = 'cancelled'
+          AND cancel_at IS NOT NULL AND cancel_at <= now()::date LIMIT 1`,
+      [tenantId],
+    );
+    if (cancelada.rowCount) {
+      const actual = await getTenant(client, tenantId);
+      if (actual.state === 'active' || actual.state === 'past_due' || actual.state === 'trial') {
+        await changeTenantState(client, tenantId, 'read_only');
+        await writeAudit(client, {
+          tenantId,
+          actor: 'system',
+          actorKind: 'system',
+          action: 'billing.cancelacion.efectiva',
+          resource: 'tenant',
+          resourceId: tenantId,
+          result: 'ok',
+        });
+        res.cancelacionesEfectivas += 1;
+      }
+    }
+  });
+
   return res;
 }

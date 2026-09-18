@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
-import { withTenant } from '@iaxti/db';
+import { porCadaTenant } from '@iaxti/db';
 
 /**
  * Recordatorios de cita (SPEC §16, #59).
@@ -141,21 +141,15 @@ export async function barrerRecordatorios(
     // cuando haya con qué mandarlo.
     return { enviados: 0, saltados: 0, motivo: 'no hay por dónde mandar el recordatorio' };
   }
-  const tenants = await pool.query(
-    `SELECT DISTINCT tenant_id FROM appointments
-      WHERE status IN ('confirmed','reminded')
-        AND starts_at > $1 AND starts_at <= $1 + interval '25 hours'`,
-    [ahora],
-  );
-
+  // Los tenants salen de `tenants`, no de `appointments` (#286): una
+  // consulta suelta a una tabla con RLS corre sin `app.tenant_id` y devuelve
+  // cero filas con el rol de producción. En desarrollo se veía bien porque
+  // el rol es superusuario.
   let enviados = 0;
   let saltados = 0;
-  for (const fila of tenants.rows) {
-    await withTenant(pool, fila.tenant_id as string, async (client) => {
-      const pendientes = await citasPorRecordar(client, {
-        tenantId: fila.tenant_id as string,
-        ahora,
-      });
+  await porCadaTenant(pool, async (client, tenantId) => {
+    {
+      const pendientes = await citasPorRecordar(client, { tenantId, ahora });
       for (const cita of pendientes) {
         // Marcar primero: ver el comentario de `marcarAvisoEnviado`.
         const primero = await marcarAvisoEnviado(client, {
@@ -171,7 +165,7 @@ export async function barrerRecordatorios(
         if (res.enviado) enviados += 1;
         else saltados += 1;
       }
-    });
-  }
+    }
+  });
   return { enviados, saltados };
 }

@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { TZ_POR_DEFECTO, diaEn, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
-import { withTenant } from '@iaxti/db';
+import { idsDeTenants, withTenant } from '@iaxti/db';
 import { montoDelCosto } from '../domain/metrics';
 import { TOTAL_OWNER, type Metric } from '../domain/metrics';
 
@@ -116,12 +116,11 @@ export function analyticsConsumers(): Consumer[] {
  * respondida — mediana y p90 reales sin barrer messages en vivo.
  */
 export async function sweepResponseSamples(pool: Pool): Promise<number> {
-  const tenants = await pool.query(
-    `SELECT DISTINCT tenant_id FROM conversations
-      WHERE first_response_at > now() - interval '26 hours'`,
-  );
+  // De `tenants`, no de `conversations` (#286): esa tabla tiene RLS y una
+  // consulta suelta devuelve cero filas con el rol de producción — o sea,
+  // el dashboard del dueño se quedaba sin números y nadie veía un error.
   let total = 0;
-  for (const { tenant_id: tenantId } of tenants.rows) {
+  for (const tenantId of await idsDeTenants(pool)) {
     total += await withTenant(pool, tenantId, async (client) => {
       const r = await client.query(
         // El día del NEGOCIO, igual que en daily_metrics: `::date` a secas

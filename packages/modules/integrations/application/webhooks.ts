@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
-import { withTenant } from '@iaxti/db';
+import { porCadaTenant, withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import { MAX_ATTEMPTS, backoffMinutes, newWebhookSecret, signPayload } from '../domain/signing';
 
@@ -246,11 +246,24 @@ export async function deliverWebhooks(
   timeoutMs = 10_000,
 ): Promise<{ delivered: number; failed: number }> {
   const res = { delivered: 0, failed: 0 };
-  const vencidas = await pool.query(
-    `SELECT d.id, d.tenant_id FROM webhook_deliveries d
-      WHERE d.status = 'pending' AND d.next_retry_at <= now()
-      ORDER BY d.next_retry_at LIMIT 100`,
-  );
+  // Por tenant y no de una sola pasada (#286): `webhook_deliveries` tiene
+  // RLS, así que una consulta suelta devuelve cero filas con el rol de
+  // producción. El tope de 100 pasa a ser por tenant, que además reparte
+  // mejor: antes un tenant con mucha cola se comía el turno de los demás.
+  const vencidas = { rows: [] as Array<{ id: string; tenant_id: string }> };
+  await porCadaTenant(pool, async (client, tenantId) => {
+    // `tenant_id = $1` explícito y no solo RLS: la regla del proyecto es
+    // que RLS es la SEGUNDA cerradura, no la primera. Sin el filtro, con el
+    // rol de desarrollo —superusuario— esta consulta devolvía las entregas
+    // de TODOS los tenants en cada vuelta. Lo cazó un test.
+    const r = await client.query(
+      `SELECT id FROM webhook_deliveries
+        WHERE tenant_id = $1 AND status = 'pending' AND next_retry_at <= now()
+        ORDER BY next_retry_at LIMIT 100`,
+      [tenantId],
+    );
+    for (const x of r.rows) vencidas.rows.push({ id: x.id as string, tenant_id: tenantId });
+  });
   for (const fila of vencidas.rows) {
     await withTenant(pool, fila.tenant_id, async (client) => {
       const d = await client.query(

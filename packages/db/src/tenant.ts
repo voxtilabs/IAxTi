@@ -25,3 +25,60 @@ export async function withTenant<T>(
     client.release();
   }
 }
+
+/**
+ * Los ids de tenants sobre los que un barrido tiene que trabajar (#286).
+ *
+ * Existe porque casi todos los barridos empezaban con una consulta suelta a
+ * una tabla de negocio —`SELECT DISTINCT tenant_id FROM appointments ...`— y
+ * eso no funciona con el rol de producción: una consulta fuera de
+ * `withTenant` corre sin `app.tenant_id`, RLS evalúa `tenant_id = NULL` y
+ * devuelve cero filas. En desarrollo no se notaba porque el rol es
+ * superusuario y Postgres ni mira las políticas.
+ *
+ * `tenants` NO tiene RLS, a propósito: es el registro de quiénes existen y
+ * es por donde un barrido debe empezar. Después se entra a cada uno con
+ * `withTenant` y ahí sí se ve su trabajo.
+ *
+ * El precio es pasar de una consulta a N. Con la cantidad de tenants del
+ * primer año no es un problema, y es lo que cuesta que el aislamiento sea
+ * de verdad y no solo en desarrollo.
+ */
+export async function idsDeTenants(
+  pool: Pool,
+  opts: { estados?: readonly string[] } = {},
+): Promise<string[]> {
+  const estados = opts.estados ?? ['trial', 'active', 'past_due', 'read_only', 'suspended'];
+  const r = await pool.query(
+    `SELECT id FROM tenants WHERE COALESCE(state, 'active') = ANY($1) ORDER BY created_at`,
+    [estados],
+  );
+  return r.rows.map((x) => x.id as string);
+}
+
+/**
+ * Recorre los tenants y corre `fn` dentro del contexto de cada uno.
+ *
+ * Un tenant que falla no puede dejar sin barrer a los demás: se anota y se
+ * sigue. Ese detalle importa más de lo que parece — el barrido que se cae en
+ * el primer tenant deja a todos los demás sin servicio y solo se nota
+ * mirando logs.
+ */
+export async function porCadaTenant<T>(
+  pool: Pool,
+  fn: (client: PoolClient, tenantId: string) => Promise<T>,
+  opts: { estados?: readonly string[]; alFallar?: (tenantId: string, err: Error) => void } = {},
+): Promise<T[]> {
+  const salida: T[] = [];
+  for (const tenantId of await idsDeTenants(pool, opts)) {
+    try {
+      salida.push(await withTenant(pool, tenantId, (c) => fn(c, tenantId)));
+    } catch (err) {
+      (opts.alFallar ?? ((t, e) => console.error(`barrido: ${t} falló — ${e.message}`)))(
+        tenantId,
+        err as Error,
+      );
+    }
+  }
+  return salida;
+}
