@@ -6,7 +6,7 @@ import { getTenantSettings } from '@iaxti/module-organizations';
 import { incrementUsage } from '@iaxti/module-organizations';
 import { estimateCostUsd, iaSettings, redactPII } from '../domain/config';
 import type { AgentTask, Provider } from '../domain/config';
-import { aiSdkModelPort, type ModelPortFactory } from './models';
+import { aiSdkModelPort, type HerramientaExpuesta, type ModelPortFactory } from './models';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 import type { Agent } from './agents';
@@ -24,6 +24,13 @@ export interface RunInput {
   /** El MISMO trace desde el request hasta la generación (SPEC §13). */
   requestId?: string;
   actorUserId?: string;
+  /**
+   * Las herramientas que el modelo puede pedir durante esta tarea (#240).
+   * Se arman con `herramientasExpuestas`, que ya dejó adentro la
+   * verificación de permisos y el rastro. Sin ellas, una sola llamada como
+   * siempre.
+   */
+  tools?: HerramientaExpuesta[];
 }
 
 export interface RunResult {
@@ -42,6 +49,8 @@ export interface RunResult {
   traceId: string;
   provider: Provider;
   model: string;
+  /** Qué herramientas pidió el modelo. Vacío si no pidió ninguna. */
+  herramientasUsadas?: string[];
 }
 
 /**
@@ -51,8 +60,10 @@ export interface RunResult {
  *
  * La EJECUCIÓN vive en `herramientas.ts` (issue 240) y hoy alcanza a las de
  * solo lectura, con la identidad y los permisos de la PERSONA que la
- * disparó. Las que escriben están declaradas y devuelven un error que lo
- * dice: hasta dónde actúa la IA sola es una decisión pendiente.
+ * disparó. `herramientas-expuestas.ts` es lo que se le OFRECE al modelo, y
+ * el copiloto se las pasa a `runAgentTask` en `tools`. Las que escriben
+ * están declaradas y ni siquiera se ofrecen: hasta dónde actúa la IA sola
+ * es una decisión pendiente.
  *
  * (El comentario anterior decía que esto llegaba con el copiloto, #48. Ese
  * issue se cerró hace rato y las herramientas seguían sin ejecutarse: un
@@ -137,6 +148,7 @@ export async function runAgentTask(
     const res = await modelPortFactory(provider, model).generate({
       system,
       prompt: promptCompleto,
+      ...(input.tools?.length ? { tools: input.tools } : {}),
     });
     const latencyMs = Date.now() - inicio;
     const costUsd = estimateCostUsd(provider, model, res.tokensIn, res.tokensOut);
@@ -153,14 +165,22 @@ export async function runAgentTask(
         provider,
         model,
         JSON.stringify({ prompt: input.prompt }),
-        JSON.stringify({ text: res.text }),
+        JSON.stringify({
+          text: res.text,
+          // Qué herramientas se usaron queda en la ejecución: sin esto,
+          // una respuesta con precio real y una inventada se ven igual.
+          ...(res.herramientasUsadas?.length ? { herramientas: res.herramientasUsadas } : {}),
+        }),
         res.tokensIn,
         res.tokensOut,
         costUsd,
         latencyMs,
         traceId,
         `Tarea "${input.task}" con ${provider}/${model} en ${latencyMs} ms.` +
-          (degraded ? ' (cuota al 100 %: modelo económico)' : ''),
+          (degraded ? ' (cuota al 100 %: modelo económico)' : '') +
+          (res.herramientasUsadas?.length
+            ? ` Consultó: ${res.herramientasUsadas.join(', ')}.`
+            : ''),
       ],
     );
     // El medidor de §6 y los umbrales de la cuota (#52).
@@ -188,6 +208,7 @@ export async function runAgentTask(
     });
     return {
       status: 'ok',
+      ...(res.herramientasUsadas?.length ? { herramientasUsadas: res.herramientasUsadas } : {}),
       degraded,
       executionId: fila.rows[0].id,
       text: res.text,

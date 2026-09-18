@@ -3,7 +3,7 @@ import { publishEvent } from '@iaxti/core';
 import { getContext, updateSummary, updateTranscription } from '@iaxti/module-conversations';
 import { FORMATO_SUGERENCIA, parseSuggestion } from '../domain/parser';
 import { runAgentTask } from './runtime';
-import type { ModelPortFactory, TranscribePort } from './models';
+import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './models';
 import { aiSdkModelPort, aiSdkTranscriber } from './models';
 import { listAgents, type Agent } from './agents';
 
@@ -111,6 +111,13 @@ export async function suggestForInbound(
     /** Bloque de conocimiento del negocio con citas (#51), si el módulo está activo. */
     knowledge?: string | null;
     requestId?: string;
+    /**
+     * Las herramientas de lectura que el modelo puede pedir (#240). Las arma
+     * el worker con `herramientasExpuestas`, que ya lleva adentro el permiso
+     * de la persona y el rastro. Si no vienen, el copiloto sugiere con lo
+     * que tiene, como hasta ahora.
+     */
+    tools?: HerramientaExpuesta[];
   },
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
 ): Promise<Suggestion | null> {
@@ -138,6 +145,7 @@ export async function suggestForInbound(
       context: contexto,
       prompt: FORMATO_SUGERENCIA,
       requestId: input.requestId,
+      ...(input.tools?.length ? { tools: input.tools } : {}),
     },
     modelPortFactory,
   );
