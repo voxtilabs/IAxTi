@@ -34,7 +34,7 @@ import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
-import { billingConsumers, sweepBilling } from '@iaxti/module-billing';
+import { avisarBorradoPendiente, billingConsumers, sweepBilling } from '@iaxti/module-billing';
 import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
@@ -214,6 +214,15 @@ function start(): void {
             const res = await sweepBilling(pool);
             if (res.issued + res.overdue + res.readOnly > 0) {
               console.log(`scheduled: billing — ${res.issued} facturas, ${res.overdue} impagas, ${res.readOnly} read_only`);
+            // El final del ciclo (#218): el sistema avisa, una persona
+            // borra. Nunca se borra solo — es irreversible y se lleva datos
+            // de los clientes de nuestro cliente.
+            const cola = await avisarBorradoPendiente(pool);
+            if (cola.avisados > 0 || cola.enCola > 0) {
+              console.log(
+                `scheduled: borrado — ${cola.avisados} avisados, ${cola.enCola} esperando decisión del SuperAdmin`,
+              );
+            }
             }
             return res;
           }

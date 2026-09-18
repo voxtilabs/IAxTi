@@ -49,7 +49,7 @@ import {
   modulosDelPlan,
   modulosVendibles,
 } from '@iaxti/module-organizations';
-import { usdClpRate } from '@iaxti/module-billing';
+import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
 import { withTenant } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
 import { registry } from './registry';
@@ -356,6 +356,30 @@ class PlatformController {
     } catch (err) {
       throw new BadRequestException({ code: 'TENANT_INVALID', message: (err as Error).message });
     }
+  }
+
+  /**
+   * La cola de borrado (#218, SPEC §6).
+   *
+   * El ciclo termina en `suspended → deleted` a los 90 días. La decisión
+   * tomada es que **el sistema avisa y una persona borra**: es irreversible
+   * y se lleva datos de los clientes de nuestro cliente. Esto es la lista
+   * para esa persona — quién está en la cola, hace cuánto, y si ya se le
+   * avisó. Borrar sigue siendo `POST tenants/:id/state`, a mano.
+   */
+  @Get('tenants/por-borrar')
+  @RequireModule('platform')
+  @RequirePermission('platform.tenants')
+  @ApiOperation({ summary: 'Tenants suspendidos en cola de borrado (§6)' })
+  async porBorrar() {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    return tenantsPorBorrar(pool);
   }
 
   @Post('tenants/:id/state')

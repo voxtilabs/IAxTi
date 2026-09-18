@@ -147,6 +147,18 @@ async function avisoDe(event: EventEnvelope, client: PoolClient): Promise<Aviso 
         recipients: await admins(client, event.tenantId),
       };
     }
+    case 'tenant.deletion_warned': {
+      const dias = Number(p.diasRestantes ?? 0);
+      return {
+        type: 'estado_cuenta',
+        title: 'Tus datos se van a eliminar',
+        body:
+          `Tu cuenta lleva meses suspendida y en ${dias} días eliminamos los datos. ` +
+          'Descarga tu respaldo desde Ajustes, o elige un plan para recuperar la cuenta.',
+        link: '/ajustes/plan',
+        recipients: await admins(client, event.tenantId),
+      };
+    }
     case 'tenant.state_changed': {
       // A quién se le avisa: al ADMIN, que es quien puede hacer algo.
       const texto = TEXTO_POR_ESTADO[String(p.to)];
@@ -267,6 +279,8 @@ export const EVENTOS = [
   'number.quality_changed',
   // El estado de la cuenta (issue 273): se publicaba y no lo oía nadie.
   'tenant.state_changed',
+  // El aviso antes del borrado (#218): 15 días para exportar o volver.
+  'tenant.deletion_warned',
 ] as const;
 
 /**

@@ -24,6 +24,7 @@ events:
     # declarar es un consumidor que nadie sabe que existe.
     - payment.received
     - tenant.state_changed
+    - tenant.deletion_warned
 tools: []
 nav: []
 widgets: []

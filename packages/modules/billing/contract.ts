@@ -12,3 +12,10 @@ export {
 export type { Subscription, Invoice } from './application/billing';
 export { planPricing, buildInvoiceLines, invoiceTotal, usdClpRate } from './domain/pricing';
 export type { PlanPricing, InvoiceLine } from './domain/pricing';
+export {
+  tenantsPorBorrar,
+  avisarBorradoPendiente,
+  DIAS_HASTA_AVISAR,
+  DIAS_HASTA_BORRAR,
+} from './application/fin-de-ciclo';
+export type { TenantPorBorrar } from './application/fin-de-ciclo';
