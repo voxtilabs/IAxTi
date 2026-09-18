@@ -50,6 +50,13 @@ día/noche por `data-mode`, sin `dark:`, sin hex suelto, sin sombras ni
 gradientes ni emoji, mono para montos/RUT/fechas/ids, un primario por vista,
 360 px, foco visible. Verificar con `/ui-check`.
 
+Pulso son TOKENS; shadcn son los COMPONENTES, y leen variables CSS: no
+compiten, se enchufan. Antes de tocar una pantalla, las skills del repo:
+`iaxti-pulso` (cómo se aplica acá), `shadcn-ui` (traer y configurar
+componentes) y `tailwind-design-system` (el nivel de sistema). Las dos
+últimas son de terceros, con su origen y su hash en `skills-lock.json`; se
+restauran con `npx skills experimental_install`.
+
 ## Desarrollo
 
 ```
