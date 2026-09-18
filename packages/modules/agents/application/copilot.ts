@@ -296,7 +296,7 @@ export async function transcribeInboundAudio(
     await client.query(
       `INSERT INTO agent_executions
          (tenant_id, task, provider, model, input, output, latency_ms, trace_id, explanation)
-       VALUES ($1,'transcribir','google','gemini-2.5-flash',$2,$3,$4,$5,$6)`,
+       VALUES ($1,'transcribir','google','gemini-flash-latest',$2,$3,$4,$5,$6)`,
       [
         input.tenantId,
         JSON.stringify({ messageId: input.messageId, contentType: input.contentType }),

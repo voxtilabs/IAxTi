@@ -71,7 +71,7 @@ export async function createAgent(
         prompt_version, fallback_system_prompt, allowed_tools, default_mode,
         autonomous_hours, limits)
      VALUES ($1,$2,$3,COALESCE($4,'es-CL'),COALESCE($5,'google'),
-             COALESCE($6,'gemini-2.5-flash'),$7,$8,$9,$10,COALESCE($11,'assist'),$12,$13)
+             COALESCE($6,'gemini-flash-latest'),$7,$8,$9,$10,COALESCE($11,'assist'),$12,$13)
      RETURNING *`,
     [
       input.tenantId,

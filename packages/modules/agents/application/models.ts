@@ -134,7 +134,7 @@ export interface TranscribePort {
   transcribe(audio: { bytes: Uint8Array; contentType: string }): Promise<string>;
 }
 
-export function aiSdkTranscriber(model = 'gemini-2.5-flash'): TranscribePort {
+export function aiSdkTranscriber(model = 'gemini-flash-latest'): TranscribePort {
   return {
     async transcribe(audio) {
       const res = await generateText({

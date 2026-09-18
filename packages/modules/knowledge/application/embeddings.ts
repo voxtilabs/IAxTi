@@ -36,7 +36,7 @@ export interface PdfTextPort {
   extract(pdf: { bytes: Uint8Array }): Promise<string>;
 }
 
-export function geminiPdfTextPort(model = 'gemini-2.5-flash'): PdfTextPort {
+export function geminiPdfTextPort(model = 'gemini-flash-latest'): PdfTextPort {
   return {
     async extract(pdf) {
       const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
