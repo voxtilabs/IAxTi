@@ -19,6 +19,11 @@ events:
     - activity.due
     - number.quality_changed
     - agent.quota_threshold
+    # Estos dos tenían su consumidor y no estaban declarados (issue 273):
+    # el manifiesto es de donde sale el catálogo, así que un evento sin
+    # declarar es un consumidor que nadie sabe que existe.
+    - payment.received
+    - tenant.state_changed
 tools: []
 nav: []
 widgets: []
