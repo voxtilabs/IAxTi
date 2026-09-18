@@ -33,22 +33,52 @@ export interface Readiness {
 /** Tope duro: una sonda que espera es una sonda que miente sobre el estado. */
 const TIMEOUT_MS = 2000;
 
-async function conTope<T>(fn: () => Promise<T>, ms = TIMEOUT_MS): Promise<T> {
-  return Promise.race([
-    fn(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`no respondió en ${ms} ms`)), ms).unref?.(),
-    ),
-  ]);
-}
+/**
+ * El motivo del último fallo de cada dependencia.
+ *
+ * El tope corta a los 2 s y el error de verdad llega después —el pool se
+ * rinde a los 5—, así que la carrera siempre la gana el tope y `/ready`
+ * decía "no respondió en 2000 ms" y nada más. Eso es cierto y no sirve:
+ * staging estuvo días diciendo exactamente eso, y el motivo —los paquetes
+ * no llegaban a Supabase— hubo que buscarlo desde el otro lado.
+ *
+ * Ahora la promesa lenta se sigue escuchando aunque el tope haya ganado, y
+ * lo que diga se guarda para la sonda siguiente. La primera vez se ve el
+ * timeout; de ahí en adelante, la causa.
+ *
+ * Distinguir importa: `ENOTFOUND` es DNS, `ETIMEDOUT` o "connection timeout"
+ * es que los paquetes se pierden, `ECONNREFUSED` es que no hay nadie
+ * escuchando. Tres problemas distintos que antes se veían igual.
+ */
+const ultimoFallo = new Map<string, string>();
 
 async function medir(nombre: string, fn: () => Promise<unknown>): Promise<Dependencia> {
   const t0 = Date.now();
+  const real = fn();
+  // Se le engancha el catch ANTES de la carrera: si no, una promesa que
+  // rechaza después del tope queda sin manejar y Node se queja.
+  real.then(
+    () => ultimoFallo.delete(nombre),
+    (err: Error) => ultimoFallo.set(nombre, err.message),
+  );
+
   try {
-    await conTope(fn);
+    await Promise.race([
+      real,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`no respondió en ${TIMEOUT_MS} ms`)), TIMEOUT_MS).unref?.(),
+      ),
+    ]);
     return { nombre, ok: true, ms: Date.now() - t0 };
   } catch (err) {
-    return { nombre, ok: false, ms: Date.now() - t0, detalle: (err as Error).message };
+    const previo = ultimoFallo.get(nombre);
+    const detalle = (err as Error).message;
+    return {
+      nombre,
+      ok: false,
+      ms: Date.now() - t0,
+      detalle: previo && previo !== detalle ? `${detalle} — la vez anterior: ${previo}` : detalle,
+    };
   }
 }
 
