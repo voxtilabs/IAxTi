@@ -62,6 +62,7 @@ import { AgendaController } from './agenda.controller';
 import { ContactoEmpresaController, EmpresasController } from './empresas.controller';
 import { TagsController } from './tags.controller';
 import { SettingsController } from './settings.controller';
+import { OnboardingController } from './onboarding.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
 import { ContactsController } from './contacts.controller';
 import { DealsController } from './deals.controller';
@@ -701,6 +702,7 @@ const controllers = [
   EmpresasController,
   ContactoEmpresaController,
   SettingsController,
+  OnboardingController,
   QuickRepliesController,
   EquipoController,
   ContactsController,

@@ -15,7 +15,10 @@ export type { UsageMetric } from './application/usage';
 export type { TenantState, OnboardingState } from './domain/state';
 export { puedeEnviar } from './domain/state';
 export { zonaDelTenant, olvidarZonas } from './application/zona';
-export { onboardingConsumers, avanzarPorEvento } from './application/onboarding';
+export { onboardingConsumers, avanzarPorEvento, onboardingStatus } from './application/onboarding';
+export type { EstadoOnboarding, EstadoDePaso, OnboardingDeps, Verificador } from './application/onboarding';
+export { PASOS, PASOS_OBLIGATORIOS } from './domain/onboarding-pasos';
+export type { DefinicionDePaso } from './domain/onboarding-pasos';
 export {
   exportarTenant,
   TABLAS_EXPORTADAS,
