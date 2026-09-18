@@ -1,5 +1,7 @@
 'use client';
 
+import { Bot, ThumbsDown, ThumbsUp } from 'lucide-react';
+
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Badge,
@@ -138,7 +140,8 @@ export function Chat({
             }
             onClick={() => onModo(modo === 'autonomous' ? 'assist' : 'autonomous')}
           >
-            ✦ {modo === 'autonomous' ? 'Piloto automático' : 'Copiloto'}
+            <Bot className="size-3.5" aria-hidden />{' '}
+            {modo === 'autonomous' ? 'Piloto automático' : 'Copiloto'}
           </Button>
         )}
         <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
@@ -251,7 +254,7 @@ export function Chat({
                 aria-label="La sugerencia sirvió"
                 onClick={() => void onSugerencia('feedback', { feedback: 'up' })}
               >
-                👍
+                <ThumbsUp className="size-4" aria-hidden />
               </Button>
               <Button
                 variant="fantasma"
@@ -259,7 +262,7 @@ export function Chat({
                 aria-label="La sugerencia no sirvió"
                 onClick={() => setMotivoAbajo((v) => !v)}
               >
-                👎
+                <ThumbsDown className="size-4" aria-hidden />
               </Button>
             </span>
           </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { Bot } from 'lucide-react';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -171,7 +173,10 @@ export function Configurador() {
               </ul>
             </div>
           </div>
-          {propuesta.diff.nota && <p className="mt-3 text-sm text-body">✦ {propuesta.diff.nota}</p>}
+          {propuesta.diff.nota && <p className="mt-3 flex items-start gap-1.5 text-sm text-body">
+              <Bot className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              {propuesta.diff.nota}
+            </p>}
           <p className="mt-2 text-sm text-muted">
             Las plantillas de WhatsApp quedan propuestas: se envían a aprobación de Meta cuando el
             canal esté conectado.

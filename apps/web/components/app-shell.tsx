@@ -9,6 +9,7 @@ import {
   useSession,
   type PublicConfig,
 } from '@iaxti/ui/react';
+import { Lock } from 'lucide-react';
 import { SoporteAviso } from './soporte-aviso';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
@@ -82,9 +83,10 @@ function Navegacion({ nav }: { nav: NavItem[] }) {
           >
             {item.label}
             {conCandado && (
-              <span role="img" aria-label="incluido en un plan superior" className="ml-1">
-                🔒
-              </span>
+              <Lock
+                className="ml-1 inline-block size-3.5 align-[-0.15em]"
+                aria-label="incluido en un plan superior"
+              />
             )}
           </a>
         );

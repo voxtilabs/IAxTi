@@ -1,5 +1,7 @@
 'use client';
 
+import { Bot } from 'lucide-react';
+
 import { useState } from 'react';
 import {
   Avatar,
@@ -142,7 +144,7 @@ export function Ficha({
           <p className="rotulo">Lectura de la IA</p>
           {analisis.summary && <p className="mt-2 text-sm text-body">{analisis.summary}</p>}
           <p className="mt-2 flex flex-wrap gap-2">
-            {analisis.mode === 'autonomous' && <Badge role="warn">✦ Piloto automático</Badge>}
+            {analisis.mode === 'autonomous' && <Badge role="warn"><Bot className="mr-1 inline-block size-3 align-[-0.1em]" aria-hidden />Piloto automático</Badge>}
             {analisis.intent && <Badge role="action">{analisis.intent}</Badge>}
             {analisis.leadScore && (
               <Badge role={analisis.leadScore === 'caliente' ? 'good' : analisis.leadScore === 'tibio' ? 'warn' : 'neutral'}>
@@ -155,7 +157,7 @@ export function Ficha({
               {analisis.acciones.slice(0, 5).map((a, i) => (
                 <li key={i} className="text-xs text-muted">
                   <span className="dato">{new Date(a.at).toLocaleString('es-CL')}</span> · {a.que}
-                  {' '}({a.estado}{a.feedback ? `, ${a.feedback === 'up' ? '👍' : '👎'}` : ''})
+                  {' '}({a.estado}{a.feedback ? `, ${a.feedback === 'up' ? 'sirvió' : 'no sirvió'}` : ''})
                 </li>
               ))}
             </ul>
