@@ -337,7 +337,13 @@ function start(): void {
         }
         // La confirmación de pagos (#61): verificada y fuera de línea.
         if (job.name === 'payment-webhook') {
-          return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob);
+          // Con la cola de salida: el aviso de "pago recibido" se escribía
+          // en la bandeja marcado como enviado y nunca salía al cliente.
+          // Va como iniciado por el negocio, así que respeta el horario de
+          // silencio igual que el resto.
+          return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob, fetch, {
+            enqueueOutbound: automationDeps.enqueueOutbound,
+          });
         }
         const data = job.data as unknown as InboundJob;
         const res = await processInbound(pool, data);

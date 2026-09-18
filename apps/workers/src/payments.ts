@@ -1,7 +1,12 @@
 import type { Pool } from 'pg';
 import { withTenant } from '@iaxti/db';
 import { getTenantSettings } from '@iaxti/module-organizations';
-import { confirmPayment, flowSign, type WebhookPayment } from '@iaxti/module-payments';
+import {
+  confirmPayment,
+  flowSign,
+  type DepsConfirmacion,
+  type WebhookPayment,
+} from '@iaxti/module-payments';
 
 // La confirmación de pagos (#61) corre en la cola inbound (moduleId
 // payments = kill-switch): verifica contra el PROVEEDOR cuando hace
@@ -50,6 +55,7 @@ export async function processPaymentWebhook(
   pool: Pool,
   data: PaymentWebhookJob,
   fetcher: typeof fetch = fetch,
+  deps: DepsConfirmacion = {},
 ): Promise<{ outcome: string }> {
   return withTenant(pool, data.tenantId, async (client) => {
     let pago = data.pago;
@@ -70,17 +76,23 @@ export async function processPaymentWebhook(
     const settings = (await getTenantSettings(client, data.tenantId)) as {
       pagos?: { paidStageName?: string };
     };
-    const res = await confirmPayment(client, {
-      tenantId: data.tenantId,
-      linkId: pago.linkId,
-      status: pago.status,
-      method: pago.method,
-      providerPaymentId: pago.providerPaymentId,
-      receiptUrl: pago.receiptUrl,
-      amountClp: pago.amountClp,
-      paidStageName: settings.pagos?.paidStageName ?? null,
-      requestId: data.requestId,
-    });
+    const res = await confirmPayment(
+      client,
+      {
+        tenantId: data.tenantId,
+        linkId: pago.linkId,
+        status: pago.status,
+        method: pago.method,
+        providerPaymentId: pago.providerPaymentId,
+        receiptUrl: pago.receiptUrl,
+        amountClp: pago.amountClp,
+        paidStageName: settings.pagos?.paidStageName ?? null,
+        requestId: data.requestId,
+      },
+      // La cola de salida: sin esto el aviso de "pago recibido" se escribía
+      // en la bandeja y nunca salía al cliente.
+      deps,
+    );
     return { outcome: res.outcome };
   });
 }
