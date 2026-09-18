@@ -4,12 +4,14 @@ import { randomUUID } from 'node:crypto';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import type { EventEnvelope } from '@iaxti/core';
 import {
+  NOTIFICATION_TYPES,
+  TIPOS_CRITICOS,
   getPreferences,
   listNotifications,
   markRead,
   setPreference,
 } from '../application/notifications';
-import { handleNotifiableEvent, notificationConsumers } from '../application/consumers';
+import { EVENTOS, handleNotifiableEvent, notificationConsumers } from '../application/consumers';
 import { renderEmail } from '../application/email';
 
 const ADMIN_URL =
@@ -68,8 +70,11 @@ afterAll(async () => {
 describe('consumidores (#55)', () => {
   it('registra un consumidor por cada evento del catálogo', () => {
     const consumers = notificationConsumers();
-    expect(consumers).toHaveLength(7);
-    expect(new Set(consumers.map((c) => c.name)).size).toBe(7);
+    // Contra la lista, no contra un número: el 7 escrito a mano se
+    // desactualizaba cada vez que se agregaba un evento, y lo que fallaba
+    // era el test, no el código. Lo que importa es que no falte ninguno.
+    expect(consumers.map((c) => c.event).sort()).toEqual([...EVENTOS].sort());
+    expect(new Set(consumers.map((c) => c.name)).size).toBe(EVENTOS.length);
     expect(consumers.every((c) => c.moduleId === 'notifications')).toBe(true);
   });
 
@@ -158,12 +163,17 @@ describe('campana y preferencias (#55)', () => {
     expect((await avisosDe(supervisora)).unread).toBe(0);
   });
 
-  it('las preferencias listan los 6 tipos, con la crítica bloqueada para el ADMIN', async () => {
+  it('las preferencias listan todos los tipos, con las críticas bloqueadas para el ADMIN', async () => {
     const deDuena = await withTenant(admin, tenant, (c) => getPreferences(c, tenant, duena, true));
-    expect(deDuena).toHaveLength(7);
-    const critica = deDuena.find((p) => p.type === 'calidad_numero')!;
-    expect(critica.bloqueada).toBe(true);
-    expect(critica.campana).toBe(true);
+    expect(deDuena.map((p) => p.type).sort()).toEqual([...NOTIFICATION_TYPES].sort());
+    // Todas las críticas, no una: el día que se agregó la segunda, un test
+    // que miraba solo 'calidad_numero' no habría notado nada.
+    for (const tipo of TIPOS_CRITICOS) {
+      const critica = deDuena.find((p) => p.type === tipo)!;
+      expect(critica, `falta la preferencia de "${tipo}"`).toBeDefined();
+      expect(critica.bloqueada).toBe(true);
+      expect(critica.campana).toBe(true);
+    }
 
     const deVendedor = await withTenant(admin, tenant, (c) => getPreferences(c, tenant, vendedor, false));
     expect(deVendedor.find((p) => p.type === 'calidad_numero')?.bloqueada).toBe(false);

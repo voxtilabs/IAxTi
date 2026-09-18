@@ -42,6 +42,38 @@ async function admins(client: PoolClient, tenantId: string): Promise<string[]> {
   return r.rows.map((row) => row.user_id);
 }
 
+/**
+ * Qué decirle al dueño según a dónde fue a parar su cuenta (issue 273).
+ *
+ * `tenant.state_changed` se publicaba desde el barrido de facturación y no
+ * lo consumía nadie: a un negocio se le vencía la prueba, la cuenta pasaba a
+ * solo lectura, dejaba de poder escribirle a sus clientes — y se enteraba
+ * cuando lo intentaba.
+ *
+ * El texto dice qué pasó y qué hacer, en ese orden. Nada de "el estado de su
+ * organización ha sido actualizado".
+ */
+const TEXTO_POR_ESTADO: Record<string, { titulo: string; cuerpo: string }> = {
+  read_only: {
+    titulo: 'Tu cuenta quedó en solo lectura',
+    cuerpo:
+      'Puedes ver todo lo que tienes, pero no enviar mensajes ni crear nada nuevo. ' +
+      'Elige un plan para volver a trabajar normalmente.',
+  },
+  past_due: {
+    titulo: 'Tienes una factura impaga',
+    cuerpo:
+      'Págala para que la cuenta siga funcionando. Si pasa la fecha de gracia, ' +
+      'la cuenta queda en solo lectura.',
+  },
+  suspended: {
+    titulo: 'Tu cuenta quedó suspendida',
+    cuerpo:
+      'Tus datos siguen ahí y no se borra nada. Para reactivarla, elige un plan ' +
+      'o escríbenos.',
+  },
+};
+
 async function avisoDe(event: EventEnvelope, client: PoolClient): Promise<Aviso | null> {
   const p = event.payload as Record<string, unknown>;
   switch (event.name) {
@@ -112,6 +144,21 @@ async function avisoDe(event: EventEnvelope, client: PoolClient): Promise<Aviso 
         title: TIPOS_LEGIBLES.calidad_numero,
         body: 'Meta bajó la calidad a rojo: pausamos los envíos del negocio para proteger el número.',
         link: '/ajustes/canales',
+        recipients: await admins(client, event.tenantId),
+      };
+    }
+    case 'tenant.state_changed': {
+      // A quién se le avisa: al ADMIN, que es quien puede hacer algo.
+      const texto = TEXTO_POR_ESTADO[String(p.to)];
+      // Un cambio que no le cambia la vida a nadie (por ejemplo volver a
+      // 'active' desde 'trial' porque eligió plan) no se avisa: la campana
+      // vale por lo que interrumpe, no por lo que registra.
+      if (!texto) return null;
+      return {
+        type: 'estado_cuenta',
+        title: texto.titulo,
+        body: texto.cuerpo,
+        link: '/ajustes/plan',
         recipients: await admins(client, event.tenantId),
       };
     }
@@ -208,7 +255,9 @@ export async function handleNotifiableEvent(
   }).catch(() => []);
 }
 
-const EVENTOS = [
+/** Los eventos que este módulo escucha. Exportado para el test que lo
+ *  compara contra el manifiesto: el catálogo sale de ahí. */
+export const EVENTOS = [
   'payment.received',
   'conversation.unattended',
   'sla.first_response_breached',
@@ -216,6 +265,8 @@ const EVENTOS = [
   'activity.due',
   'agent.quota_threshold',
   'number.quality_changed',
+  // El estado de la cuenta (issue 273): se publicaba y no lo oía nadie.
+  'tenant.state_changed',
 ] as const;
 
 /**

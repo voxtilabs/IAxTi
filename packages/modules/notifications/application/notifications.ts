@@ -11,11 +11,18 @@ export const NOTIFICATION_TYPES = [
   'cuota_ia',
   'calidad_numero',
   'pago_recibido',
+  'estado_cuenta',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 /** Los críticos no se silencian para el ADMIN (SPEC §21). */
-export const TIPOS_CRITICOS: ReadonlySet<NotificationType> = new Set(['calidad_numero']);
+// Los críticos no se silencian: que la cuenta quede en solo lectura o
+// suspendida es tan urgente como que Meta baje la calidad del número — en
+// los dos casos el negocio deja de poder escribirle a sus clientes.
+export const TIPOS_CRITICOS: ReadonlySet<NotificationType> = new Set([
+  'calidad_numero',
+  'estado_cuenta',
+]);
 
 export const TIPOS_LEGIBLES: Record<NotificationType, string> = {
   conversacion_sin_dueno: 'Conversación nueva sin dueño',
@@ -25,6 +32,7 @@ export const TIPOS_LEGIBLES: Record<NotificationType, string> = {
   cuota_ia: 'Cuota de IA por agotarse',
   calidad_numero: 'Calidad del número de WhatsApp',
   pago_recibido: 'Pago recibido',
+  estado_cuenta: 'El estado de tu cuenta cambió',
 };
 
 export interface Notification {
