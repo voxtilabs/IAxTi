@@ -11,9 +11,14 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import type { PoolClient } from 'pg';
+import { listChannelAccounts } from '@iaxti/module-channels';
 import {
   createTemplate,
+  crearEnZavu,
+  enviarARevisionEnZavu,
   enviarPlantilla,
+  getTemplate,
   listTemplates,
   marcarEnviadaARevision,
   updateTemplate,
@@ -49,6 +54,31 @@ function pool() {
 
 function actorOf(request: WithUser): Actor {
   return request.actor as Actor;
+}
+
+/**
+ * La cuenta de WhatsApp del negocio, con su credencial POR REFERENCIA. Si no
+ * hay número conectado no hay a quién pedirle la aprobación, y decirlo así
+ * es más útil que un error del proveedor.
+ */
+async function cuentaDeWhatsApp(
+  c: PoolClient,
+  tenantId: string,
+): Promise<{ cfg: { apiKey: string }; senderId: string }> {
+  const cuentas = await listChannelAccounts(c, tenantId);
+  const cuenta = cuentas.find((a) => a.kind === 'whatsapp' && a.state === 'active');
+  if (!cuenta) {
+    throw new Error('Primero conecta el número de WhatsApp del negocio en Ajustes → Canales.');
+  }
+  const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
+  if (!apiKey) {
+    throw new Error(
+      `Falta la variable ${cuenta.credentialRef} en este ambiente (credenciales por referencia).`,
+    );
+  }
+  const senderId = cuenta.config.senderId as string | undefined;
+  if (!senderId) throw new Error('La cuenta de WhatsApp no tiene senderId configurado.');
+  return { cfg: { apiKey }, senderId };
 }
 
 function seVeMal(err: unknown): never {
@@ -112,17 +142,45 @@ export class PlantillasController {
   @Post(':id/revision')
   @RequirePermission('whatsapp.templates.manage')
   @ApiOperation({ summary: 'Manda la plantilla a revisión de Meta' })
-  async revision(@Req() request: WithUser, @Param('id') id: string, @Body() body: { providerId?: string }) {
+  async revision(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
     try {
-      return await withTenant(pool(), actor.tenantId, (c) =>
-        marcarEnviadaARevision(c, {
+      return await withTenant(pool(), actor.tenantId, async (c) => {
+        const plantilla = await getTemplate(c, actor.tenantId, id);
+        const cuenta = await cuentaDeWhatsApp(c, actor.tenantId);
+
+        // Primero el viaje al proveedor, después la marca. Al revés, un fallo
+        // de red dejaría la plantilla diciendo "en revisión" sin que nadie la
+        // haya mandado, y la espera sería eterna.
+        const enZavu = plantilla.providerId
+          ? await enviarARevisionEnZavu(cuenta.cfg, {
+              templateId: plantilla.providerId,
+              senderId: cuenta.senderId,
+              category: plantilla.category,
+            })
+          : await (async () => {
+              const creada = await crearEnZavu(cuenta.cfg, {
+                name: plantilla.name,
+                language: plantilla.language,
+                body: plantilla.body,
+                category: plantilla.category,
+                footer: plantilla.footer,
+                buttons: plantilla.buttons.map((text) => ({ type: 'quick_reply', text })),
+              });
+              return enviarARevisionEnZavu(cuenta.cfg, {
+                templateId: creada.id,
+                senderId: cuenta.senderId,
+                category: plantilla.category,
+              });
+            })();
+
+        return marcarEnviadaARevision(c, {
           tenantId: actor.tenantId,
           templateId: id,
-          providerId: body?.providerId,
+          providerId: enZavu.id,
           requestId: (request as { requestId?: string }).requestId,
-        }),
-      );
+        });
+      });
     } catch (err) {
       seVeMal(err);
     }
