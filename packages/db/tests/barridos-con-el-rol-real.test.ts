@@ -172,11 +172,31 @@ describe('ningún barrido consulta una tabla con RLS fuera de withTenant', () =>
         if (A_PROPOSITO.some((p) => rel.startsWith(p))) continue;
 
         const texto = readFileSync(ruta, 'utf8');
-        // `pool.query(` y lo que venga hasta el cierre del template: basta
-        // para ver de qué tabla lee.
+
+        // 1. `pool.query(...)` directo.
         for (const m of texto.matchAll(/pool\.query\(\s*`([^`]*)`/g)) {
           for (const t of m[1].matchAll(/\bFROM\s+([a-z_]+)/gi)) {
-            if (conRls.has(t[1])) sospechosas.push(`${rel}: SELECT ... FROM ${t[1]}`);
+            if (conRls.has(t[1])) sospechosas.push(`${rel}: pool.query ... FROM ${t[1]}`);
+          }
+        }
+
+        // 2. Funciones que reciben `Pick<PoolClient, 'query'>`.
+        //
+        // Esta segunda mitad se agregó DESPUÉS: la primera versión del test
+        // solo miraba `pool.query(` y se le escaparon CUATRO. Una función
+        // que declara recibir un "cliente" pero a la que se le pasa el pool
+        // —que es lo que hacen los barridos y los webhooks— consulta igual
+        // sin contexto de tenant, y el nombre del parámetro lo disimula.
+        //
+        // Se mira el cuerpo de esas funciones y no todo el archivo: dentro
+        // de un `withTenant` el mismo `client.query` es correcto.
+        for (const m of texto.matchAll(
+          /export async function \w+\([^)]*Pick<PoolClient[^)]*\)[^{]*\{([\s\S]*?)\n\}/g,
+        )) {
+          for (const q of m[1].matchAll(/\bFROM\s+([a-z_]+)/gi)) {
+            if (conRls.has(q[1])) {
+              sospechosas.push(`${rel}: función con Pick<PoolClient> ... FROM ${q[1]}`);
+            }
           }
         }
       }
@@ -196,7 +216,7 @@ describe('ningún barrido consulta una tabla con RLS fuera de withTenant', () =>
 
 describe('resolver una API key con el rol de producción (#286)', () => {
   it('funciona: es un paso ANTERIOR a saber el tenant', async () => {
-    const hash = 'hash-de-prueba-286';
+    const hash = `hash-286-${Date.now()}`;
     await admin.query(
       `INSERT INTO api_keys (tenant_id, name, key_hash, scopes)
        VALUES ($1, 'de prueba', $2, '["crm.contacts.read"]'::jsonb)`,
@@ -224,7 +244,7 @@ describe('resolver una API key con el rol de producción (#286)', () => {
   });
 
   it('una key revocada no resuelve', async () => {
-    const hash = 'hash-revocado-286';
+    const hash = `hash-revocado-286-${Date.now()}`;
     await admin.query(
       `INSERT INTO api_keys (tenant_id, name, key_hash, scopes, revoked_at)
        VALUES ($1, 'revocada', $2, '[]'::jsonb, now())`,
@@ -232,5 +252,55 @@ describe('resolver una API key con el rol de producción (#286)', () => {
     );
     const r = await app.query('SELECT * FROM resolver_api_key($1)', [hash]);
     expect(r.rowCount).toBe(0);
+  });
+});
+
+describe('los webhooks que llegan sin tenant (#286)', () => {
+  it('la cuenta de canal se resuelve: es por donde entra CADA mensaje', async () => {
+    const cuenta = await admin.query(
+      `INSERT INTO channel_accounts (tenant_id, kind, name, state, credential_ref, webhook_secret_ref, config)
+       VALUES ($1,'whatsapp','Número del negocio','active','CRED','SECRET','{}'::jsonb) RETURNING id`,
+      [tenant],
+    );
+    const id = cuenta.rows[0].id as string;
+    await admin.query('GRANT EXECUTE ON FUNCTION tenant_de_cuenta_de_canal(uuid) TO iaxti_app');
+
+    // Directo a la tabla, el rol de producción no ve nada. Eso hacía que el
+    // webhook respondiera "Nada por aquí" a cada mensaje entrante.
+    const directo = await app.query('SELECT count(*)::int AS n FROM channel_accounts WHERE id = $1', [id]);
+    expect(directo.rows[0].n).toBe(0);
+
+    // Por la función acotada sí, y devuelve SOLO el tenant.
+    const r = await app.query('SELECT tenant_de_cuenta_de_canal($1) AS t', [id]);
+    expect(r.rows[0].t).toBe(tenant);
+    expect(Object.keys(r.rows[0])).toEqual(['t']); // ni credencial, ni secreto
+
+    // Y con ese tenant, la cuenta completa se lee bajo RLS como corresponde.
+    const cuentaCompleta = await withTenant(app, tenant, async (c) => {
+      const x = await c.query('SELECT name FROM channel_accounts WHERE id = $1', [id]);
+      return x.rows[0]?.name as string | undefined;
+    });
+    expect(cuentaCompleta).toBe('Número del negocio');
+  });
+
+  it('el proveedor de pagos también: sin esto, un pago no se registra', async () => {
+    const prov = await admin.query(
+      `INSERT INTO payment_providers (tenant_id, kind, name, credential_ref, mode, active)
+       VALUES ($1,'simulado','Flow','CRED_P','test',true) RETURNING id`,
+      [tenant],
+    );
+    const id = prov.rows[0].id as string;
+    await admin.query('GRANT EXECUTE ON FUNCTION tenant_de_proveedor_de_pago(uuid) TO iaxti_app');
+
+    expect((await app.query('SELECT count(*)::int AS n FROM payment_providers WHERE id = $1', [id])).rows[0].n).toBe(0);
+    const r = await app.query('SELECT tenant_de_proveedor_de_pago($1) AS t', [id]);
+    expect(r.rows[0].t).toBe(tenant);
+  });
+
+  it('un id que no existe devuelve nada, no el tenant de otro', async () => {
+    const r = await app.query('SELECT tenant_de_cuenta_de_canal($1) AS t', [
+      '00000000-0000-0000-0000-000000000000',
+    ]);
+    expect(r.rows[0].t).toBeNull();
   });
 });

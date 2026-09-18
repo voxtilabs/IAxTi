@@ -295,10 +295,20 @@ export async function expireSources(client: PoolClient, tenantId: string): Promi
 }
 
 /** Tenants con fuentes por vencer (para el job scheduled sin RLS global). */
+/**
+ * Los tenants a los que les toca vencer fuentes.
+ *
+ * Sale de `tenants`, no de `sources` (#286): `sources` tiene RLS y esta
+ * consulta corre sin `app.tenant_id`, así que con el rol de producción
+ * devolvía cero filas — y ninguna lista de precios vencía nunca. La IA
+ * habría seguido respondiendo con precios que el negocio dio de baja.
+ *
+ * Recibe el pool (no un cliente con tenant) a propósito: es el paso previo
+ * a entrar a cada uno.
+ */
 export async function tenantsWithExpirable(client: Pick<PoolClient, 'query'>): Promise<string[]> {
   const r = await client.query(
-    `SELECT DISTINCT tenant_id FROM sources
-      WHERE status = 'active' AND valid_until IS NOT NULL AND valid_until < now()`,
+    `SELECT id FROM tenants WHERE COALESCE(state, 'active') <> 'deleted' ORDER BY created_at`,
   );
-  return r.rows.map((x) => x.tenant_id);
+  return r.rows.map((x) => x.id);
 }
