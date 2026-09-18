@@ -130,3 +130,59 @@ describe('que no salga dos veces', () => {
     expect(fila.rows[0].reminders_sent).toContain('2h');
   });
 });
+
+describe('cuando no hay por dónde mandar (#59)', () => {
+  async function citaProxima(nombre: string, telefono: string): Promise<string> {
+    const contacto = await admin.query(
+      `INSERT INTO contacts (tenant_id, name, phone, origin)
+       VALUES ($1, $2, $3, 'whatsapp') RETURNING id`,
+      [tenant, nombre, telefono],
+    );
+    const cita = await admin.query(
+      `INSERT INTO appointments (tenant_id, contact_id, owner_id, starts_at, ends_at, status)
+       VALUES ($1, $2, gen_random_uuid(),
+               now() + interval '23 hours 30 minutes', now() + interval '24 hours 30 minutes',
+               'confirmed')
+       RETURNING id`,
+      [tenant, contacto.rows[0].id],
+    );
+    return cita.rows[0].id;
+  }
+
+  it('el barrido NO se come el recordatorio', async () => {
+    const cita = await citaProxima('Sin plantilla', '+56911119999');
+
+    const res = await barrerRecordatorios(admin, {
+      disponible: () => false,
+      enviar: async () => ({ enviado: false, motivo: 'no debería llamarse' }),
+    });
+    expect(res.motivo).toMatch(/no hay por dónde/);
+
+    // Lo que importa: la cita sigue esperando su recordatorio.
+    //
+    // `marcarAvisoEnviado` marca ANTES de enviar y eso está bien —el peor
+    // caso es uno perdido, no tres mandados—, pero ese razonamiento supone
+    // que el envío puede salir. Con un emisor que falla siempre, la cita
+    // quedaba `reminded` y el cliente no se enteraba nunca. Comprobado
+    // antes de arreglarlo: reminders_sent quedaba en ["24h"].
+    const fila = await admin.query(
+      'SELECT reminders_sent, status FROM appointments WHERE id = $1',
+      [cita],
+    );
+    expect(fila.rows[0].reminders_sent).toEqual([]);
+    expect(fila.rows[0].status).toBe('confirmed');
+  });
+
+  it('con emisor disponible sí marca, aunque el envío de una cita falle', async () => {
+    const cita = await citaProxima('Con plantilla', '+56911118888');
+
+    // Un fallo POR CITA sí consume el aviso: reintentarlo sin control es
+    // como se manda el mismo recordatorio tres veces.
+    await barrerRecordatorios(admin, {
+      disponible: () => true,
+      enviar: async () => ({ enviado: false, motivo: 'el número de esta persona rebotó' }),
+    });
+    const fila = await admin.query('SELECT reminders_sent FROM appointments WHERE id = $1', [cita]);
+    expect(fila.rows[0].reminders_sent).toEqual(['24h']);
+  });
+});

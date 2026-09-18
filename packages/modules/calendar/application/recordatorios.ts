@@ -116,10 +116,31 @@ export async function barrerRecordatorios(
   pool: Pool,
   deps: {
     enviar: (cita: CitaPorRecordar) => Promise<{ enviado: boolean; motivo?: string }>;
+    /**
+     * ¿Se puede enviar algo, en general? No por cita: por ambiente.
+     *
+     * `marcarAvisoEnviado` marca ANTES de enviar, y eso está bien razonado:
+     * el peor caso es un recordatorio perdido, y el del orden inverso es
+     * mandarlo tres veces. Pero ese razonamiento supone que el envío PUEDE
+     * salir. Cuando no hay plantilla aprobada ni número conectado, el envío
+     * falla siempre — y entonces "de vez en cuando se pierde" se convierte
+     * en "siempre, y en silencio", con la cita marcada `reminded`, que es
+     * un estado que una persona lee como "al cliente ya se le avisó".
+     *
+     * Sin esta función se asume que sí se puede: el comportamiento de antes
+     * para quien ya tenía un emisor de verdad conectado.
+     */
+    disponible?: () => Promise<boolean> | boolean;
     ahora?: Date;
   },
-): Promise<{ enviados: number; saltados: number }> {
+): Promise<{ enviados: number; saltados: number; motivo?: string }> {
   const ahora = deps.ahora ?? new Date();
+
+  if (deps.disponible && !(await deps.disponible())) {
+    // No se toca nada: las citas siguen esperando su recordatorio para
+    // cuando haya con qué mandarlo.
+    return { enviados: 0, saltados: 0, motivo: 'no hay por dónde mandar el recordatorio' };
+  }
   const tenants = await pool.query(
     `SELECT DISTINCT tenant_id FROM appointments
       WHERE status IN ('confirmed','reminded')
