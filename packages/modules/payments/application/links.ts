@@ -64,6 +64,27 @@ export function rowToLink(row: Record<string, unknown>): PaymentLink {
   };
 }
 
+/**
+ * El modo live cobra dinero real y solo existe en producción (SPEC §17).
+ *
+ * Vive en una función porque hace falta en DOS momentos distintos, y por
+ * mucho tiempo estuvo solo en uno: al dar de alta el proveedor. Eso asume
+ * que la única forma de que exista una fila `mode = 'live'` es haberla
+ * creado en este mismo ambiente — y no es cierto. Basta restaurar un
+ * respaldo de producción en staging, que es algo que se hace, para tener
+ * filas live donde no corresponde.
+ *
+ * Una guarda sobre cómo llegó la fila no protege de lo que la fila es.
+ */
+export function assertModoPermitido(mode: 'test' | 'live'): void {
+  if (mode !== 'live') return;
+  const entorno = process.env.IAXTI_ENV ?? 'dev';
+  if (entorno === 'production') return;
+  throw new Error(
+    'El modo live cobra dinero real: en este ambiente los proveedores van siempre en modo test.',
+  );
+}
+
 export async function addProvider(
   client: PoolClient,
   input: {
@@ -89,11 +110,7 @@ export async function addProvider(
   // la regla vive en el CASO DE USO (ADR-0008): un proveedor en live cobra
   // dinero de verdad, y no puede depender de por qué puerta se entró —el
   // configurador, una semilla o un panel nuevo entran por otra.
-  if (input.mode === 'live' && (process.env.IAXTI_ENV ?? 'dev') !== 'production') {
-    throw new Error(
-      'El modo live cobra dinero real: en este ambiente los proveedores van siempre en modo test.',
-    );
-  }
+  assertModoPermitido(input.mode ?? 'test');
   const r = await client.query(
     `INSERT INTO payment_providers (tenant_id, kind, name, credential_ref, webhook_secret_ref, mode)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
@@ -194,6 +211,12 @@ export async function createPaymentLink(
   if (!provider || !provider.active) {
     throw new Error('Primero conecta un proveedor de pagos en Ajustes → Pagos.');
   }
+  // Y otra vez acá, sobre el proveedor que se va a USAR. Comprobarlo solo
+  // al darlo de alta protege del alta, no del cobro: una fila live que
+  // llegó por otro camino —un respaldo de producción restaurado en
+  // staging— cobraba dinero de verdad sin que nada lo mirara.
+  assertModoPermitido(provider.mode);
+
   const credentials = process.env[provider.credentialRef];
   if (!credentials) {
     throw new Error(`Falta la variable ${provider.credentialRef} en este ambiente (credenciales por referencia).`);
