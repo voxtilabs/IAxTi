@@ -183,11 +183,14 @@ function start(): void {
           // El horario de silencio lo aplica la cola, no esto.
           case 'calendar.reminders': {
             const res = await barrerRecordatorios(pool, {
+              // Mandar el recordatorio necesita una plantilla aprobada (#44)
+              // y el número conectado. Mientras no estén, el barrido NO toca
+              // las citas: marcarlas sin mandar nada las dejaba `reminded`
+              // para siempre, y el recordatorio no salía nunca — ni cuando
+              // la plantilla existiera.
+              disponible: () => false,
               enviar: async () => ({
                 enviado: false,
-                // Mandar el recordatorio necesita una plantilla aprobada
-                // (#44) y el número conectado. Mientras no estén, se dice
-                // por qué en vez de fingir que salió.
                 motivo: 'falta la plantilla aprobada del recordatorio',
               }),
             });
