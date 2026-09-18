@@ -59,6 +59,7 @@ import { CamposController } from './campos.controller';
 import { PlantillasController } from './plantillas.controller';
 import { CampanasController } from './campanas.controller';
 import { AgendaController } from './agenda.controller';
+import { ContactoEmpresaController, EmpresasController } from './empresas.controller';
 import { TagsController } from './tags.controller';
 import { SettingsController } from './settings.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
@@ -673,6 +674,8 @@ const controllers = [
   CampanasController,
   AgendaController,
   TagsController,
+  EmpresasController,
+  ContactoEmpresaController,
   SettingsController,
   QuickRepliesController,
   EquipoController,

@@ -27,6 +27,11 @@ const USER_PERMS = new Set([
   'crm.deals.update',
   'crm.deals.close',
   'crm.activities.manage',
+  // Ver la empresa del contacto y colgarlo de una es parte de editar la
+  // ficha, no de configurar el CRM: crear y archivar empresas
+  // (`crm.companies.manage`) sigue siendo del ADMIN, como pipelines,
+  // campos y etiquetas (§23).
+  'crm.companies.read',
   // SPEC §23: opera SUS conversaciones; la verificación de dueño la agrega
   // el caso de uso (read_all es el interruptor "ver todo el equipo").
   'conversations.read',

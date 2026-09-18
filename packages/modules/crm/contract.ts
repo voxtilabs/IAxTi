@@ -91,3 +91,13 @@ export {
   deleteStage,
 } from './application/pipelines';
 export type { EtapaEditada } from './application/pipelines';
+export {
+  listCompanies,
+  getCompany,
+  createCompany,
+  updateCompany,
+  archiveCompany,
+  asignarEmpresa,
+  companyContacts,
+} from './application/empresas';
+export type { Empresa } from './application/empresas';

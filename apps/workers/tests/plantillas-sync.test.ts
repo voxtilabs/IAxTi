@@ -66,10 +66,11 @@ afterEach(() => {
 
 afterAll(async () => {
   delete process.env.ZAVU_KEY_TEST;
-  for (const tabla of ['outbox', 'audit_log', 'whatsapp_templates', 'channel_accounts']) {
+  // `audit_log` no se borra: es append-only por trigger. Acá no se escribe
+  // ninguna fila, así que el DELETE pasaba de largo sin que se notara.
+  for (const tabla of ['outbox', 'whatsapp_templates', 'channel_accounts']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
-  await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });
 
