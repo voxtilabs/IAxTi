@@ -172,7 +172,14 @@ export type AutonomousOutcome =
  */
 export async function autoRespondForInbound(
   client: PoolClient,
-  input: { tenantId: string; conversationId: string; knowledge?: string | null; requestId?: string },
+  input: {
+    tenantId: string;
+    conversationId: string;
+    knowledge?: string | null;
+    requestId?: string;
+    /** Módulos activos: contra ellos se resuelve el objetivo del agente (#315). */
+    activeModules?: readonly string[];
+  },
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
   now: Date = new Date(),
 ): Promise<AutonomousOutcome> {
@@ -232,6 +239,7 @@ export async function autoRespondForInbound(
       agent,
       task: 'responder',
       context: contexto,
+      ...(input.activeModules ? { activeModules: input.activeModules } : {}),
       prompt: formatoAutonomo({ moneyLimitClp: limits.moneyLimitClp }),
       requestId: input.requestId,
     },

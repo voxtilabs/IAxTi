@@ -55,7 +55,12 @@ export async function activeAgent(client: PoolClient, tenantId: string): Promise
  */
 export async function refreshedContext(
   client: PoolClient,
-  input: { tenantId: string; conversationId: string; requestId?: string },
+  input: {
+    tenantId: string;
+    conversationId: string;
+    requestId?: string;
+    activeModules?: readonly string[];
+  },
   agent: Agent,
   modelPortFactory: ModelPortFactory,
 ): Promise<Awaited<ReturnType<typeof getContext>>> {
@@ -78,6 +83,7 @@ export async function refreshedContext(
         tenantId: input.tenantId,
         agent,
         task: 'resumir',
+        ...(input.activeModules ? { activeModules: input.activeModules } : {}),
         prompt: `Resume en 3 frases lo esencial de esta parte de la conversación (acuerdos, datos del cliente, pendientes):\n${ctx.summary ? `Resumen previo: ${ctx.summary}\n` : ''}${texto}`,
         requestId: input.requestId,
       },
@@ -132,6 +138,8 @@ export async function suggestForInbound(
      * que tiene, como hasta ahora.
      */
     tools?: HerramientaExpuesta[];
+    /** Módulos activos: el objetivo del agente se resuelve contra ellos (#315). */
+    activeModules?: readonly string[];
   },
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
 ): Promise<Suggestion | null> {
@@ -159,6 +167,7 @@ export async function suggestForInbound(
       context: contexto,
       prompt: FORMATO_SUGERENCIA,
       requestId: input.requestId,
+      ...(input.activeModules ? { activeModules: input.activeModules } : {}),
       ...(input.tools?.length ? { tools: input.tools } : {}),
     },
     modelPortFactory,

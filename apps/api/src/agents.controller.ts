@@ -45,6 +45,7 @@ import { RequireModule, RequirePermission } from './authz/decorators';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
+import { registry } from './registry';
 
 function pool() {
   const p = apiPool();
@@ -209,6 +210,10 @@ export class AgentsController {
         context: body.context,
         requestId: request.requestId,
         actorUserId: actor.userId,
+        activeModules: registry
+          .health()
+          .filter((m) => m.active)
+          .map((m) => m.id),
       });
       if (res.status === 'failed') {
         throw new BadRequestException({
@@ -315,6 +320,10 @@ export class AgentsController {
         });
       }
       const res = await proposeConfiguration(c, {
+        activeModules: registry
+          .health()
+          .filter((m) => m.active)
+          .map((m) => m.id),
         tenantId: actor.tenantId,
         description: body.description!,
         vertical: body.vertical,

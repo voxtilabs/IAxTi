@@ -77,6 +77,7 @@ export async function proposeConfiguration(
     whatsappActivo?: boolean;
     actorUserId?: string;
     requestId?: string;
+    activeModules?: readonly string[];
   },
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
 ): Promise<{ status: 'ok'; proposal: Proposal } | { status: 'failed'; error: string }> {
@@ -108,6 +109,7 @@ export async function proposeConfiguration(
       agent,
       task: 'configurar',
       context: contexto,
+      ...(input.activeModules ? { activeModules: input.activeModules } : {}),
       prompt: formatoConfiguracion(VERTICAL_BASES[vertical]),
       requestId: input.requestId,
       actorUserId: input.actorUserId,

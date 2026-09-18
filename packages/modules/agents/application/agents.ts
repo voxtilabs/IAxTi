@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { writeAudit } from '@iaxti/module-audit';
 import { PROVIDERS, type Provider } from '../domain/config';
+import { esObjetivo, type Objetivo } from '../domain/objetivo';
 
 // Agent (#47): el asistente del tenant, con TODO configurable.
 
@@ -19,6 +20,10 @@ export interface Agent {
   defaultMode: 'assist' | 'autonomous' | 'off';
   autonomousHours: Record<string, unknown>;
   limits: Record<string, unknown>;
+  /** Qué tiene que LOGRAR (#315). Null en los agentes de antes: siguen igual. */
+  objetivo: Objetivo | null;
+  /** La palabra del negocio: "una visita a terreno", "una reunión por Meet". */
+  objetivoDetalle: string | null;
   active: boolean;
 }
 
@@ -38,6 +43,8 @@ function rowToAgent(row: Record<string, unknown>): Agent {
     defaultMode: row.default_mode as Agent['defaultMode'],
     autonomousHours: (row.autonomous_hours as Record<string, unknown>) ?? {},
     limits: (row.limits as Record<string, unknown>) ?? {},
+    objetivo: esObjetivo(row.objetivo) ? row.objetivo : null,
+    objetivoDetalle: (row.objetivo_detalle as string) ?? null,
     active: row.active as boolean,
   };
 }
@@ -55,6 +62,8 @@ export interface AgentInput {
   defaultMode?: Agent['defaultMode'];
   autonomousHours?: Record<string, unknown>;
   limits?: Record<string, unknown>;
+  objetivo?: Objetivo | null;
+  objetivoDetalle?: string | null;
 }
 
 export async function createAgent(
@@ -62,6 +71,9 @@ export async function createAgent(
   input: AgentInput & { tenantId: string; actor?: string; requestId?: string },
 ): Promise<Agent> {
   if (!input.name?.trim()) throw new Error('El asistente necesita un nombre visible.');
+  if (input.objetivo != null && !esObjetivo(input.objetivo)) {
+    throw new Error(`Objetivo desconocido: ${input.objetivo}.`);
+  }
   if (input.provider && !PROVIDERS.includes(input.provider)) {
     throw new Error(`Proveedor desconocido: ${input.provider}.`);
   }
@@ -69,9 +81,9 @@ export async function createAgent(
     `INSERT INTO agents
        (tenant_id, name, personality, language, provider, model, prompt_name,
         prompt_version, fallback_system_prompt, allowed_tools, default_mode,
-        autonomous_hours, limits)
+        autonomous_hours, limits, objetivo, objetivo_detalle)
      VALUES ($1,$2,$3,COALESCE($4,'es-CL'),COALESCE($5,'google'),
-             COALESCE($6,'gemini-flash-latest'),$7,$8,$9,$10,COALESCE($11,'assist'),$12,$13)
+             COALESCE($6,'gemini-flash-latest'),$7,$8,$9,$10,COALESCE($11,'assist'),$12,$13,$14,$15)
      RETURNING *`,
     [
       input.tenantId,
@@ -87,6 +99,8 @@ export async function createAgent(
       input.defaultMode ?? null,
       JSON.stringify(input.autonomousHours ?? {}),
       JSON.stringify(input.limits ?? {}),
+      input.objetivo ?? null,
+      input.objetivoDetalle?.trim() || null,
     ],
   );
   const agent = rowToAgent(r.rows[0]);
@@ -114,6 +128,9 @@ export async function updateAgent(
     requestId?: string;
   },
 ): Promise<Agent> {
+  if (input.objetivo != null && !esObjetivo(input.objetivo)) {
+    throw new Error(`Objetivo desconocido: ${input.objetivo}.`);
+  }
   if (input.provider && !PROVIDERS.includes(input.provider)) {
     throw new Error(`Proveedor desconocido: ${input.provider}.`);
   }
@@ -131,6 +148,8 @@ export async function updateAgent(
        default_mode = COALESCE($12, default_mode),
        autonomous_hours = COALESCE($13::jsonb, autonomous_hours),
        limits = COALESCE($14::jsonb, limits),
+       objetivo = COALESCE($16, objetivo),
+       objetivo_detalle = COALESCE($17, objetivo_detalle),
        active = COALESCE($15, active),
        updated_at = now()
      WHERE tenant_id = $1 AND id = $2 RETURNING *`,
@@ -150,6 +169,8 @@ export async function updateAgent(
       input.autonomousHours ? JSON.stringify(input.autonomousHours) : null,
       input.limits ? JSON.stringify(input.limits) : null,
       input.active ?? null,
+      input.objetivo ?? null,
+      input.objetivoDetalle?.trim() || null,
     ],
   );
   if (r.rowCount === 0) throw new Error('No encontramos ese asistente.');

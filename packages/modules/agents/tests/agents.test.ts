@@ -215,3 +215,104 @@ describe('runtime (#47)', () => {
     expect(audit.rows[0].n).toBe(1);
   });
 });
+
+describe('el objetivo llega al prompt y a las herramientas (#315)', () => {
+  it('se guarda, se valida y no rompe a los que ya existen', async () => {
+    // Un agente de antes: sin objetivo, todo igual que siempre.
+    expect(agente.objetivo).toBeNull();
+
+    const conObjetivo = await withTenant(admin, tenant, (c) =>
+      createAgent(c, {
+        tenantId: tenant,
+        name: 'Sofía agenda',
+        objetivo: 'agendar',
+        objetivoDetalle: 'una visita a terreno',
+        actor: 'test',
+      }),
+    );
+    expect(conObjetivo.objetivo).toBe('agendar');
+    expect(conObjetivo.objetivoDetalle).toBe('una visita a terreno');
+
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        createAgent(c, { tenantId: tenant, name: 'X', objetivo: 'conquistar' as never, actor: 'test' }),
+      ),
+    ).rejects.toThrow(/Objetivo desconocido/);
+
+    const cambiado = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, { tenantId: tenant, agentId: conObjetivo.id, objetivo: 'vender', actor: 'test' }),
+    );
+    expect(cambiado.objetivo).toBe('vender');
+    // El detalle no se pierde al cambiar otra cosa.
+    expect(cambiado.objetivoDetalle).toBe('una visita a terreno');
+  });
+
+  it('la instrucción del objetivo va EN el system prompt, con la palabra del negocio', async () => {
+    const agendador = await withTenant(admin, tenant, (c) =>
+      createAgent(c, {
+        tenantId: tenant,
+        name: 'Sofía',
+        objetivo: 'agendar',
+        objetivoDetalle: 'una hora de manicure',
+        fallbackSystemPrompt: 'Eres Sofía. Tutea.',
+        actor: 'test',
+      }),
+    );
+    llamadas.length = 0;
+    await withTenant(admin, tenant, (c) =>
+      runAgentTask(
+        c,
+        {
+          tenantId: tenant,
+          agent: agendador,
+          task: 'responder',
+          prompt: '¿Tienen hora mañana?',
+          activeModules: ['calendar', 'crm'],
+        },
+        fakeFactory,
+      ),
+    );
+    const system = llamadas[0].system!;
+    expect(system).toContain('una hora de manicure');
+    expect(system).toContain('nunca inventes disponibilidad');
+    // Lo que el dueño escribió NO se pierde: el objetivo se suma.
+    expect(system).toContain('Eres Sofía. Tutea.');
+    // Y el objetivo va primero: qué tiene que lograr manda sobre cómo lo dice.
+    expect(system.indexOf('una hora de manicure')).toBeLessThan(system.indexOf('Eres Sofía'));
+  });
+
+  it('sin el módulo que lo hace posible, el agente avisa en vez de prometer', async () => {
+    const agendador = await withTenant(admin, tenant, (c) =>
+      createAgent(c, { tenantId: tenant, name: 'Sin agenda', objetivo: 'agendar', actor: 'test' }),
+    );
+    llamadas.length = 0;
+    await withTenant(admin, tenant, (c) =>
+      runAgentTask(
+        c,
+        // El tenant NO tiene calendar: el agente no puede tomar ninguna hora.
+        { tenantId: tenant, agent: agendador, task: 'responder', prompt: '¿Tienen hora?', activeModules: ['crm'] },
+        fakeFactory,
+      ),
+    );
+    const system = llamadas[0].system!;
+    // Prometer una hora que nadie puede dar es el peor resultado posible, y
+    // la regla ya lo prohibía. Acá deja de depender de que alguien se
+    // acuerde de escribirlo en el prompt.
+    expect(system).toContain('NO tienes cómo cumplir esto');
+    expect(system).toContain('calendar');
+  });
+
+  it('las tools del objetivo se SUMAN a las configuradas, sin saltarse el registry', () => {
+    const registry = new ModuleRegistry().load();
+    const activos = registry.health().filter((m) => m.active).map((m) => m.id);
+    // Un agente sin ninguna tool configurada a mano: el objetivo se las da.
+    const soloObjetivo = { ...agente, allowedTools: [], objetivo: 'vender' as const, objetivoDetalle: null };
+    const tools = allowedToolsFor(soloObjetivo, registry);
+    // Solo las que un módulo ACTIVO declara de verdad: el objetivo propone,
+    // el registry dispone.
+    for (const t of tools) expect(activos).toContain(t.split('.')[0]);
+    // Y lo configurado a mano no se pierde.
+    const conAmbas = allowedToolsFor({ ...soloObjetivo, allowedTools: agente.allowedTools }, registry);
+    expect(conAmbas.length).toBeGreaterThanOrEqual(tools.length);
+  });
+});
