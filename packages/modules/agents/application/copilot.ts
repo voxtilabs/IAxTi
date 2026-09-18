@@ -6,6 +6,7 @@ import { runAgentTask } from './runtime';
 import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './models';
 import { aiSdkModelPort, aiSdkTranscriber } from './models';
 import { listAgents, type Agent } from './agents';
+import { abrirIntento } from './objetivo-medido';
 
 // El copiloto en assist (#48): sugiere, resume, clasifica y califica —
 // el humano manda con un toque. NUNCA crea nada solo en assist.
@@ -157,6 +158,19 @@ export async function suggestForInbound(
   ]
     .filter(Boolean)
     .join('\n');
+
+  // El intento se abre acá: el agente está trabajando esta conversación con
+  // un objetivo (#319). Idempotente — lo que importa es cuándo EMPEZÓ.
+  if (agent.objetivo) {
+    await abrirIntento(client, {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      contactId: ctx.contact.id,
+      agentId: agent.id,
+      objetivo: agent.objetivo,
+      objetivoDetalle: agent.objetivoDetalle,
+    });
+  }
 
   const res = await runAgentTask(
     client,

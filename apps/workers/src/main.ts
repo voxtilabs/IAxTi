@@ -21,6 +21,7 @@ import { deleteR2Keys, onContactMerged, purgeTenantRetention, retentionConsumers
 import { notificationConsumers } from '@iaxti/module-notifications';
 import { barrerRecordatorios } from '@iaxti/module-calendar';
 import { onboardingConsumers } from '@iaxti/module-organizations';
+import { objetivoConsumers } from '@iaxti/module-agents';
 import { transportesDeAviso } from './transportes-aviso';
 import {
   enqueueTenantChildren,
@@ -90,6 +91,11 @@ function start(): void {
     // El onboarding avanza con lo que de verdad pasa (SPEC §7): la máquina
     // existía entera y no la movía nadie.
     ...onboardingConsumers(),
+    // ¿El agente logra su objetivo? (#319) Estos cierran el intento cuando
+    // el resultado llega por afuera: una PERSONA tomó la hora o mandó el
+    // link. Lo que hizo el agente él mismo ya quedó marcado en la
+    // transacción de su tool, así que acá no lo vuelve a contar.
+    ...objetivoConsumers(),
   ]);
   dispatcher.start(500);
   console.log('workers: despachador de outbox activo (500 ms)');

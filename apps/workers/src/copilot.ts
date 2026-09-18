@@ -5,6 +5,7 @@ import {
   PROVIDERS,
   activeAgent,
   allowedToolsFor,
+  marcarLogradoPorElAgente,
   autoRespondForInbound,
   herramientasExpuestas,
   providerAvailable,
@@ -266,7 +267,7 @@ async function herramientasDeLaConversacion(
         const pipelines = await listPipelines(client, data.tenantId);
         const pipeline = pipelines[0];
         if (!pipeline) throw new Error('El negocio todavía no tiene un embudo configurado.');
-        return createDeal(client, {
+        const deal = await createDeal(client, {
           tenantId: data.tenantId,
           contactId: i.contactId,
           pipelineId: pipeline.id,
@@ -277,6 +278,18 @@ async function herramientasDeLaConversacion(
           ownerId: dueno,
           sourceConversationId: data.conversationId,
         });
+        // El agente lo logró ÉL (#319). Es un hecho, no una inferencia: lo
+        // acaba de hacer, en esta transacción y en esta conversación. Se
+        // marca acá y no esperando el evento `deal.created`, porque ese
+        // evento trae contactId y no conversationId — desde afuera no hay
+        // forma de saber si lo hizo el agente o una persona.
+        await marcarLogradoPorElAgente(client, {
+          tenantId: data.tenantId,
+          conversationId: data.conversationId,
+          evento: 'deal.created',
+          referencia: deal.id,
+        });
+        return deal;
       },
     },
   );
