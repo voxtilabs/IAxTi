@@ -77,6 +77,34 @@ describe('sistema Pulso (documento voxtilabs/branding v1.1)', () => {
     ).toEqual([]);
   });
 
+  it('NINGÚN emoji en la interfaz (regla Pulso)', () => {
+    // La regla lo prohíbe con todas sus letras y no lo miraba nadie: había
+    // ocho —🔒 en el menú, 🔔 en la campana, 👍👎 en el copiloto y ✦ en
+    // cuatro sitios—. Y no fue una elección: no había ningún set de iconos
+    // instalado (#292).
+    //
+    // Un emoji se dibuja con la fuente del sistema: se ve distinto en cada
+    // máquina, no hereda el color del texto, no tiene estados y no escala
+    // con la tipografía.
+    const EMOJI =
+      /[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+    const conEmoji: string[] = [];
+    for (const base of [join(REPO, 'apps'), join(REPO, 'packages')]) {
+      for (const file of walk(base)) {
+        if (!/\.tsx$/.test(file)) continue;
+        if (file.endsWith('pulso.test.ts')) continue;
+        const linea = readFileSync(file, 'utf8')
+          .split('\n')
+          .findIndex((l) => EMOJI.test(l));
+        if (linea >= 0) conEmoji.push(`${file.replace(REPO + '/', '')}:${linea + 1}`);
+      }
+    }
+    expect(
+      conEmoji,
+      `Emoji en la interfaz (Pulso los prohíbe). Usa un icono:\n  ${conEmoji.join('\n  ')}`,
+    ).toEqual([]);
+  });
+
   it('el script de modo aplica prefers-color-scheme y respeta la elección guardada', () => {
     expect(MODE_INIT_SCRIPT).toContain('prefers-color-scheme: dark');
     expect(MODE_INIT_SCRIPT).toContain("localStorage.getItem('pulso-mode')");

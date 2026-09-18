@@ -1,5 +1,7 @@
 'use client';
 
+import { Bot } from 'lucide-react';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -71,7 +73,7 @@ export function ModoAutonomo() {
       <div className="flex items-baseline justify-between gap-4">
         <span className="rotulo">Modo autónomo</span>
         {agente.defaultMode === 'autonomous' ? (
-          <Badge role="warn">✦ Por horario</Badge>
+          <Badge role="warn"><Bot className="mr-1 inline-block size-3 align-[-0.1em]" aria-hidden />Por horario</Badge>
         ) : (
           <Badge role="neutral">Solo sugiere</Badge>
         )}
