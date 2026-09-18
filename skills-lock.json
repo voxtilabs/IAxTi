@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "shadcn-ui": {
+      "source": "jezweb/claude-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/frontend/skills/shadcn-ui/SKILL.md",
+      "computedHash": "3c80c7348aaab81e251ae73df8413d41348c3f5fbd0fc1cb398dd423ea7df020"
+    },
+    "tailwind-design-system": {
+      "source": "giuseppe-trisciuoglio/developer-kit",
+      "sourceType": "github",
+      "skillPath": "plugins/developer-kit-typescript/skills/tailwind-design-system/SKILL.md",
+      "computedHash": "fccc3f5d3e026ddc6a4dd41d57808ba5c9636ecff6eff0368fa4619aa89993c6"
+    }
+  }
+}
