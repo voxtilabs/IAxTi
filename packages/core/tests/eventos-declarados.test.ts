@@ -73,3 +73,52 @@ describe('los eventos declarados tienen quien los publique', () => {
     expect(sobrantes, `excepciones de eventos que ya nadie declara: ${sobrantes.join(', ')}`).toEqual([]);
   });
 });
+
+/**
+ * Y el espejo: lo que un módulo declara CONSUMIR tiene que tener un
+ * consumidor de verdad.
+ *
+ * El test de arriba cuida un lado del contrato —lo declarado se publica— y
+ * el otro no lo cuidaba nadie. Un `consumes` sin handler no falla: el evento
+ * pasa por el despachador, no le corresponde a nadie, y el manifiesto sigue
+ * diciendo que ese módulo reacciona. Quien lea el catálogo para saber qué
+ * pasa cuando algo ocurre, va a creerle.
+ *
+ * Se busca el nombre del evento en el código del módulo que lo declara Y en
+ * el de las apps, porque parte del cableado vive ahí: `contact.merged` tiene
+ * su handler en el módulo `conversations` y el registro en el despachador de
+ * `apps/workers`. Buscando solo dentro del módulo, este test lo daba por
+ * huérfano — un falso positivo que me costó entender hasta que miré el
+ * despachador.
+ *
+ * No prueba que el handler esté REGISTRADO —eso lo cuida cada módulo con su
+ * propio test—, pero sí que el evento exista en algún lado: la diferencia
+ * entre "está escrito en otro archivo" y "no está escrito".
+ */
+describe('los eventos que se declaran consumir tienen quien los consuma', () => {
+  it('cada `consumes` del manifiesto aparece en el código de su módulo', () => {
+    const modulesDir = findModulesDir();
+    const huerfanos: string[] = [];
+
+    for (const manifest of loadAllManifests(modulesDir)) {
+      const consumidos = manifest.events?.consumes ?? [];
+      if (consumidos.length === 0) continue;
+      const raiz = join(modulesDir, '..', '..');
+      const codigo = [join(modulesDir, manifest.module.id), join(raiz, 'apps')]
+        .flatMap((d) => fuentes(d))
+        .map((f) => readFileSync(f, 'utf8'))
+        .join('\n');
+      for (const evento of consumidos) {
+        if (!codigo.includes(`'${evento}'`)) {
+          huerfanos.push(`${evento} (lo declara ${manifest.module.id} y no lo maneja)`);
+        }
+      }
+    }
+
+    expect(
+      huerfanos,
+      `eventos declarados como consumidos sin consumidor:\n  ${huerfanos.join('\n  ')}\n` +
+        'Escribe el consumidor, o sácalo del manifiesto: el catálogo es el contrato.',
+    ).toEqual([]);
+  });
+});
