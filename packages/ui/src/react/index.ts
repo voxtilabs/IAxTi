@@ -52,3 +52,4 @@ export { CanalChip, CanalIcono, nombreCanal, nombreVisible, NOMBRE_CANAL } from 
 export type { CanalId } from './canal';
 export { AuditExplorer } from './audit-explorer';
 export type { AuditFetcher, AuditRow, ChainCheckDto, SignedExportDto } from './audit-explorer';
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';

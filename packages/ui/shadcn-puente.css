@@ -1,0 +1,78 @@
+/*
+ * El puente entre shadcn y Pulso (#291).
+ *
+ * shadcn genera componentes que usan SUS nombres de variable —`--background`,
+ * `--primary`, `--muted-foreground`— porque así vienen de su registro. Pulso
+ * usa los suyos, que salen del documento de marca.
+ *
+ * Este archivo los ata, y existe para que `npx shadcn@latest add <lo-que-sea>`
+ * traiga un componente que funciona SIN retocarlo. Es la diferencia entre
+ * "agregar una tabla decente cuesta una tarde" y "cuesta un comando".
+ *
+ * Tres cosas que importan de cómo está hecho:
+ *
+ *   1. `pulso-tokens.css` NO se toca. Ese archivo está copiado tal cual del
+ *      documento de marca y un test lo comprueba. El puente vive aparte
+ *      justamente para que se vea que es una capa de traducción y no una
+ *      modificación de la marca.
+ *   2. Cada línea es una decisión de DISEÑO, no un alias mecánico: qué
+ *      superficie usa un popover, qué color lleva un botón destructivo.
+ *      Están comentadas donde no son obvias.
+ *   3. Todo se define en los DOS modos porque Pulso cambia por
+ *      `data-mode`, no por `dark:`. Acá no hay valores: solo referencias a
+ *      tokens, así que el modo lo resuelve el token y este archivo no se
+ *      entera. Por eso no hay un bloque de noche.
+ */
+
+:root {
+  /* Superficies. shadcn distingue página, tarjeta y popover; Pulso tiene
+     tres superficies y alcanzan: la tarjeta y el popover comparten la
+     elevada, y lo que los separa es el borde (y la sombra de #294, si se
+     aprueba). */
+  --background: var(--bg);
+  --foreground: var(--text-body);
+  --card: var(--bg-raised);
+  --card-foreground: var(--text);
+  --popover: var(--bg-raised);
+  --popover-foreground: var(--text);
+
+  /* El primario es el azul de acción. El texto encima es blanco en los dos
+     modos: el token `--action` es idéntico en día y noche justamente para
+     que esto valga siempre. */
+  --primary: var(--action);
+  /* `white` y no un hex: el test de Pulso prohíbe hex fuera del archivo de
+     tokens, y con razón. Es además la convención que el código ya usaba
+     (`text-white` sobre `bg-action`). El antipatrón de Pulso es el blanco
+     puro en TEXTO NOCTURNO sobre fondo oscuro, no sobre un azul saturado. */
+  --primary-foreground: white;
+
+  /* El secundario NO es un segundo color de marca: es la zona de descanso.
+     Un solo primario por vista (regla de Pulso). */
+  --secondary: var(--bg-rest);
+  --secondary-foreground: var(--text);
+
+  /* `muted` en shadcn es superficie apagada; `muted-foreground` es el texto
+     secundario. Son cosas distintas y por eso salen de tokens distintos. */
+  --muted: var(--bg-rest);
+  --muted-foreground: var(--text-muted);
+
+  /* `accent` es el resaltado de lo que está bajo el cursor o seleccionado en
+     un menú. El azul suave, no el pleno: pintar un item de menú con el
+     primario compite con el botón primario de la vista. */
+  --accent: var(--action-soft);
+  --accent-foreground: var(--action-text);
+
+  --destructive: var(--bad);
+  --destructive-foreground: white;
+
+  --border: var(--border);
+  /* El borde de campo es el fuerte: un input con el filete estándar
+     desaparece dentro de una tarjeta. */
+  --input: var(--border-strong);
+  --ring: var(--action);
+
+  /* shadcn calcula sus radios desde uno solo. Se ancla al de campo (14 px),
+     que es el de la mayoría de sus componentes; los botones piden
+     `rounded-boton` explícito, que en Pulso es una píldora. */
+  --radius: 14px;
+}

@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -13,6 +13,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
+    "tsc-alias": "^1.8.10",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
@@ -36,6 +37,7 @@
     "@radix-ui/react-select": "^2.1.0",
     "@radix-ui/react-switch": "^1.1.0",
     "@radix-ui/react-tabs": "^1.1.0",
+    "@radix-ui/react-tooltip": "^1.2.16",
     "@supabase/supabase-js": "^2.48.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.468.0",

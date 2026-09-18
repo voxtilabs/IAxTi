@@ -8,6 +8,24 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // --- Los nombres de shadcn, atados a Pulso por shadcn-puente.css.
+        //
+        // Están acá para que un componente traído con `npx shadcn add` use
+        // `bg-background` o `text-muted-foreground` y funcione sin retocarlo
+        // (#291). NO son nombres para escribir a mano: en código nuestro se
+        // usan los de abajo, que son los del documento de marca.
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        card: { DEFAULT: 'var(--card)', foreground: 'var(--card-foreground)' },
+        popover: { DEFAULT: 'var(--popover)', foreground: 'var(--popover-foreground)' },
+        primary: { DEFAULT: 'var(--primary)', foreground: 'var(--primary-foreground)' },
+        secondary: { DEFAULT: 'var(--secondary)', foreground: 'var(--secondary-foreground)' },
+        destructive: { DEFAULT: 'var(--destructive)', foreground: 'var(--destructive-foreground)' },
+        accent: { DEFAULT: 'var(--accent)', foreground: 'var(--accent-foreground)' },
+        input: 'var(--input)',
+        ring: 'var(--ring)',
+
+        // --- Los de Pulso, que son los que se escriben.
         bg: 'var(--bg)',
         raised: 'var(--bg-raised)',
         rest: 'var(--bg-rest)',
@@ -15,7 +33,15 @@ module.exports = {
         'line-strong': 'var(--border-strong)',
         ink: 'var(--text)',
         body: 'var(--text-body)',
-        muted: 'var(--text-muted)',
+        muted: {
+          // OJO: en Pulso `text-muted` es TEXTO secundario y en shadcn
+          // `bg-muted` es una SUPERFICIE. Conviven: el DEFAULT sigue siendo
+          // el de Pulso —que es el que usa todo el código— y la superficie
+          // queda como `muted-surface` para lo que venga del registro.
+          DEFAULT: 'var(--text-muted)',
+          surface: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
         faint: 'var(--text-faint)',
         field: 'var(--field-bg)',
         action: {
