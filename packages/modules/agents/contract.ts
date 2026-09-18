@@ -84,3 +84,5 @@ export {
   HERRAMIENTAS_QUE_ESCRIBEN,
 } from './application/herramientas';
 export type { ResultadoHerramienta, DepsHerramientas } from './application/herramientas';
+export { herramientasExpuestas } from './application/herramientas-expuestas';
+export type { HerramientaExpuesta } from './application/models';

@@ -49,7 +49,6 @@ export const HERRAMIENTAS_QUE_ESCRIBEN = [
   'crm.create_deal',
   'crm.update_deal',
   'crm.create_activity',
-  'calendar.book',
   'payments.create_link',
 ] as const;
 

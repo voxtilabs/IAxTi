@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { generateText, jsonSchema, stepCountIs, tool } from 'ai';
 import type { LanguageModel } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -10,16 +10,36 @@ import type { Provider } from '../domain/config';
 // entorno y SIEMPRE tier pago (§40: el gratis entrena con datos de
 // clientes) — sin llave, el proveedor simplemente no está disponible.
 
+/**
+ * Una herramienta ofrecida al modelo (#240). El puerto no sabe de zod ni del
+ * SDK: recibe el esquema de argumentos como JSON Schema y una función que
+ * ejecuta. Quién puede ejecutarla, y si se le permite, lo decide
+ * `ejecutarHerramienta` — acá solo se conecta el cable.
+ */
+export interface HerramientaExpuesta {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  ejecutar: (args: Record<string, unknown>) => Promise<unknown>;
+}
+
 export interface GenerateArgs {
   system?: string;
   prompt: string;
   maxOutputTokens?: number;
+  /**
+   * Si vienen, el modelo puede pedirlas y la respuesta se arma con lo que
+   * devuelvan. Sin herramientas, una sola llamada como siempre.
+   */
+  tools?: HerramientaExpuesta[];
 }
 
 export interface GenerateResult {
   text: string;
   tokensIn: number;
   tokensOut: number;
+  /** Qué herramientas pidió el modelo, en orden. Vacío si no pidió ninguna. */
+  herramientasUsadas?: string[];
 }
 
 export interface ModelPort {
@@ -63,16 +83,45 @@ function languageModel(provider: Provider, model: string): LanguageModel {
 export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
   return {
     async generate(args) {
+      const usadas: string[] = [];
+      const herramientas = Object.fromEntries(
+        (args.tools ?? []).map((h) => [
+          h.name,
+          tool({
+            description: h.description,
+            inputSchema: jsonSchema(h.parameters as Parameters<typeof jsonSchema>[0]),
+            execute: async (entrada: unknown) => {
+              usadas.push(h.name);
+              return h.ejecutar((entrada ?? {}) as Record<string, unknown>);
+            },
+          }),
+        ]),
+      );
+      const conHerramientas = Object.keys(herramientas).length > 0;
+
       const res = await generateText({
         model: languageModel(provider, model),
         system: args.system,
         prompt: args.prompt,
         maxOutputTokens: args.maxOutputTokens ?? 1024,
+        ...(conHerramientas
+          ? {
+              tools: herramientas,
+              // El tope es del bucle, no del modelo: sin él, un modelo que
+              // se obsesiona con una herramienta pide lo mismo para
+              // siempre y la conversación se queda esperando. Cuatro pasos
+              // alcanzan para pedir dos datos y responder.
+              stopWhen: stepCountIs(4),
+            }
+          : {}),
       });
       return {
         text: res.text,
-        tokensIn: res.usage.inputTokens ?? 0,
-        tokensOut: res.usage.outputTokens ?? 0,
+        // Con herramientas hay varios pasos: `usage` ya viene sumado, pero
+        // si el SDK no lo informa, la suma de los pasos es la verdad.
+        tokensIn: res.usage.inputTokens ?? res.steps?.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0) ?? 0,
+        tokensOut: res.usage.outputTokens ?? res.steps?.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0) ?? 0,
+        ...(usadas.length ? { herramientasUsadas: usadas } : {}),
       };
     },
   };

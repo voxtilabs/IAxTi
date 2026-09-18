@@ -388,7 +388,7 @@ function start(): void {
     createModuleWorker(
       'agents',
       registry,
-      async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { outbound: outboundQueue }),
+      async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { outbound: outboundQueue, registry }),
       redisConnection(),
     );
     console.log('workers: worker de cola agents activo');

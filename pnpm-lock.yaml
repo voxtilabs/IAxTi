@@ -440,6 +440,9 @@ importers:
       '@iaxti/module-analytics':
         specifier: workspace:*
         version: link:../../packages/modules/analytics
+      '@iaxti/module-authorization':
+        specifier: workspace:*
+        version: link:../../packages/modules/authorization
       '@iaxti/module-automations':
         specifier: workspace:*
         version: link:../../packages/modules/automations
@@ -458,6 +461,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../../packages/modules/crm
+      '@iaxti/module-identity':
+        specifier: workspace:*
+        version: link:../../packages/modules/identity
       '@iaxti/module-integrations':
         specifier: workspace:*
         version: link:../../packages/modules/integrations
