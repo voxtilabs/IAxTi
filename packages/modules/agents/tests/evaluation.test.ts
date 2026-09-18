@@ -88,7 +88,13 @@ describe('el juez (#53)', () => {
   it('la rúbrica pesa correctness doble y la basura reprueba', () => {
     const notas = parseJudge('{"correctness": 1, "tono": 0.5, "tools": 0.5}');
     expect(notas.total).toBe(0.75); // (2 + 0.5 + 0.5) / 4
-    expect(parseJudge('el asistente estuvo bien').total).toBe(0);
+    const ilegible = parseJudge('el asistente estuvo bien');
+    expect(ilegible.total).toBe(0);
+    // …y el 0 viene marcado como NO medible: "no se pudo leer" no es "salió pésimo".
+    expect(ilegible.medible).toBe(false);
+    expect(parseJudge('{"correctness": 1, "tono": 1, "tools": 1}').medible).toBe(true);
+    // El caso real que lo destapó: el juez cortado a la mitad.
+    expect(parseJudge('{"correctness": 0.8').medible).toBe(false);
     expect(formatoJuez({ contexto: 'x', criterios: ['no inventa'], respuesta: 'y' })).toContain('no inventa');
   });
 
@@ -167,5 +173,94 @@ describe('dataset del tenant y el gate (#53)', () => {
     );
     expect(sinDatos.allowed).toBe(true);
     expect(sinDatos.candidata).toBeNull();
+  });
+});
+
+describe('una respuesta cortada no es una nota de cero (#53)', () => {
+  const CASOS = [
+    { id: 'c1', contexto: 'El cliente pregunta el precio.', criterios: ['no inventa precio'] },
+    { id: 'c2', contexto: 'El cliente pide hora.', criterios: ['ofrece agendar'] },
+  ];
+  const cortado: ModelPortFactory = () => ({
+    async generate() {
+      return { text: '{"sugerencia": "¡Hola! Para darte el valor exa', tokensIn: 100, tokensOut: 1024, truncada: true };
+    },
+  });
+
+  it('si al candidato lo cortan, no se paga el juez ni se inventa un cero', async () => {
+    let juecesLlamados = 0;
+    const juezContador: ModelPortFactory = () => ({
+      async generate() {
+        juecesLlamados += 1;
+        return { text: '{"correctness": 1, "tono": 1, "tools": 1}', tokensIn: 10, tokensOut: 10 };
+      },
+    });
+    const config = { ...agent, provider: 'anthropic' as const, model: 'cortado-1' };
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        runEvaluation(c, { tenantId: tenant, agent: config, cases: CASOS }, cortado, juezContador),
+      ),
+    ).rejects.toThrow(/no hay medición/);
+    // Ni una llamada al juez: juzgar media frase cuesta plata y no mide nada.
+    expect(juecesLlamados).toBe(0);
+    // Y NADA quedó guardado: un run sin notas no es un score de 0.
+    expect(
+      await withTenant(admin, tenant, (c) =>
+        latestScoreFor(c, tenant, agent.id, { provider: 'anthropic', model: 'cortado-1' }),
+      ),
+    ).toBeNull();
+  });
+
+  it('el juez cortado tampoco cuenta como cero', async () => {
+    const juezCortado: ModelPortFactory = () => ({
+      async generate() {
+        return { text: '{"correctness": 0.8', tokensIn: 10, tokensOut: 1024, truncada: true };
+      },
+    });
+    const config = { ...agent, provider: 'anthropic' as const, model: 'cortado-2' };
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        runEvaluation(c, { tenantId: tenant, agent: config, cases: CASOS }, candidatoFake, juezCortado),
+      ),
+    ).rejects.toThrow(/no hay medición/);
+  });
+
+  it('con un caso medible y otro cortado, el promedio sale SOLO del medible', async () => {
+    let llamada = 0;
+    const unoSeCorta: ModelPortFactory = () => ({
+      async generate() {
+        llamada += 1;
+        return llamada === 1
+          ? { text: '{"sugerencia": "medio corta', tokensIn: 100, tokensOut: 1024, truncada: true }
+          : { text: JSON_SUGERENCIA, tokensIn: 100, tokensOut: 40 };
+      },
+    });
+    const config = { ...agent, provider: 'anthropic' as const, model: 'mixto' };
+    const run = await withTenant(admin, tenant, (c) =>
+      runEvaluation(c, { tenantId: tenant, agent: config, cases: CASOS }, unoSeCorta, juezFijo(0.8)),
+    );
+    // Antes: (0 + 0.8) / 2 = 0.4 — un score hundido por un problema de tokens.
+    expect(run.score).toBe(0.8);
+    expect(run.caseCount).toBe(2);
+    expect(run.casesMedidos).toBe(1);
+    expect(run.scores.filter((s) => !s.medible)).toHaveLength(1);
+  });
+
+  it('el gate deja de aprobar cualquier cosa por culpa de un run cortado', async () => {
+    // El escenario que rompía en silencio: el run de la config VIGENTE se
+    // corta, su score queda en 0, y entonces `candidata >= actual` se cumple
+    // solo. El gate aprobaba una versión peor sin decir nada.
+    const vigente = { ...agent, provider: 'anthropic' as const, model: 'vigente' };
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        runEvaluation(c, { tenantId: tenant, agent: vigente, cases: CASOS }, cortado, juezFijo(0.9)),
+      ),
+    ).rejects.toThrow();
+
+    // Sin score fabricado, el gate dice la verdad: no hay con qué comparar.
+    const g = await withTenant(admin, tenant, (c) =>
+      evalGate(c, tenant, vigente, { provider: 'glm', model: 'glm-4.6', promptVersion: vigente.promptVersion }),
+    );
+    expect(g.actual).toBeNull();
   });
 });
