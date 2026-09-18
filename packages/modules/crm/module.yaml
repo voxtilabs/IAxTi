@@ -18,6 +18,8 @@ permissions:
   - crm.deals.update
   - crm.deals.close
   - crm.pipelines.manage
+  - crm.companies.read
+  - crm.companies.manage
   - crm.tags.manage
   - crm.fields.manage
   - crm.activities.manage

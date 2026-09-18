@@ -59,7 +59,8 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 |---|---|---|---|---|---|
 | `tenants` | el negocio, su plan, su estado y sus ajustes | no | negocio | sí | no aplica |
 | `pipelines`, `stages`, `loss_reasons` | la forma del embudo | no | negocio | sí | no aplica |
-| `tags`, `custom_fields`, `companies`, `products` | catálogos del negocio | no | negocio | sí | no aplica |
+| `tags`, `custom_fields`, `products` | catálogos del negocio | no | negocio | sí | no aplica |
+| `companies` | las empresas cliente: nombre, RUT y sus campos declarados | indirecta² | negocio | sí | queda: la empresa no es la persona |
 | `quick_replies`, `saved_filters` | atajos del equipo | no | negocio | sí | no aplica |
 | `rules`, `rule_runs`, `sequences`, `sequence_enrollments` | automatizaciones y a quién se le aplicaron | indirecta | negocio | sí | quedan |
 | `segments` | los filtros de un segmento de la cartera, sin personas adentro | no | negocio | sí | no aplica |
