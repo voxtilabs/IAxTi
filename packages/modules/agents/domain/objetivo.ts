@@ -53,13 +53,21 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
     // Una sola definición para reunión, visita, hora o consulta: mismas
     // herramientas, mismo evento de éxito, misma regla de escalamiento. Lo
     // único que cambia es la palabra, y esa va en `objetivoDetalle`.
+    //
+    // La IA OFRECE, no toma la hora: `calendar.book` está cerrada por
+    // ADR-0017 y la spec lo dice con todas sus letras (§16, "la IA ofrece
+    // máximo tres horarios"). La primera versión de esta instrucción decía
+    // "cierra confirmando día y hora" — le estaba pidiendo al modelo
+    // exactamente lo que la arquitectura le prohíbe.
     instruccion:
-      'Tu objetivo es conseguir {detalle}. Ofrece horas CONCRETAS que hayas confirmado con la agenda, ' +
-      'nunca inventes disponibilidad, y cierra confirmando día y hora. Si no puedes ver la agenda, dilo y pasa la conversación a una persona.',
+      'Tu objetivo es dejar lista {detalle}. Ofrece COMO MÁXIMO tres horarios concretos que hayas ' +
+      'confirmado con la agenda, nunca inventes disponibilidad, y cuando la persona elija uno pasa la ' +
+      'conversación para que alguien lo confirme y lo tome. Tú no tomas la hora: la ofreces. ' +
+      'Si no puedes ver la agenda, dilo y pasa la conversación a una persona.',
     requiere: ['calendar'],
-    tools: ['calendar.disponibilidad', 'calendar.agendar'],
+    tools: ['calendar.get_slots', 'conversations.get_context'],
     eventoDeExito: ['appointment.created'],
-    datosMinimos: ['día y hora', 'nombre'],
+    datosMinimos: ['el horario que prefiere', 'nombre'],
     detallePorDefecto: 'una hora',
   },
   vender: {
@@ -70,7 +78,7 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
       'y lleva la conversación a una cotización concreta. Precio, stock y plazo SOLO los que confirmaste; ' +
       'si te falta uno, dilo y pasa la conversación a una persona.',
     requiere: ['crm'],
-    tools: ['crm.buscar_contacto', 'knowledge.buscar', 'crm.crear_oportunidad'],
+    tools: ['knowledge.search', 'knowledge.get_product', 'crm.create_deal', 'conversations.get_context'],
     eventoDeExito: ['deal.created', 'deal.stage_changed'],
     datosMinimos: ['qué quiere', 'cantidad o tamaño'],
     detallePorDefecto: 'una cotización',
@@ -82,7 +90,7 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
       'Tu objetivo es responder bien sobre {detalle}, con lo que está en el catálogo y nada más. ' +
       'Si la respuesta no está ahí, dilo derecho y pasa la conversación a una persona: inventar es peor que no saber.',
     requiere: ['knowledge'],
-    tools: ['knowledge.buscar'],
+    tools: ['knowledge.search', 'knowledge.get_product', 'conversations.get_context'],
     // No deja rastro propio: cumplió si respondió sin escalar.
     eventoDeExito: [],
     datosMinimos: [],
@@ -95,7 +103,7 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
       'Tu objetivo es averiguar si {detalle} y dejar la conversación lista para una persona. ' +
       'Pregunta de a una cosa, no interrogues, y cuando tengas lo necesario pasa la conversación con lo que averiguaste.',
     requiere: ['crm'],
-    tools: ['crm.buscar_contacto'],
+    tools: ['conversations.get_context', 'knowledge.search', 'crm.create_activity'],
     eventoDeExito: [],
     datosMinimos: ['qué necesita', 'para cuándo'],
     detallePorDefecto: 'esta persona necesita lo que vendemos',
@@ -103,11 +111,15 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
   cobrar: {
     id: 'cobrar',
     titulo: 'Cobrar',
+    // Igual que agendar: la IA NO manda el link. `payments.create_link`
+    // está cerrada por ADR-0017 — es plata saliendo hacia el cliente. El
+    // agente deja todo listo y una persona lo manda.
     instruccion:
-      'Tu objetivo es que quede pagado {detalle}. Manda el link de pago que generaste, nunca uno inventado, ' +
-      'y confirma solo cuando el pago esté confirmado de verdad. Montos: los que confirmaste, jamás de memoria.',
+      'Tu objetivo es dejar listo el cobro de {detalle}. Confirma QUÉ se está pagando y por cuánto, ' +
+      'usando solo montos que verificaste, jamás de memoria. Cuando esté claro, pasa la conversación para ' +
+      'que una persona mande el link. Tú no mandas links de pago ni confirmas pagos.',
     requiere: ['payments'],
-    tools: ['payments.crear_link'],
+    tools: ['knowledge.get_product', 'conversations.get_context'],
     eventoDeExito: ['payment.confirmed'],
     datosMinimos: ['monto', 'qué se está pagando'],
     detallePorDefecto: 'lo acordado',
