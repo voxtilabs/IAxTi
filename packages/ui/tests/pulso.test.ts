@@ -91,6 +91,26 @@ describe('sistema Pulso (documento voxtilabs/branding v1.1)', () => {
     const tokensSvg = readFileSync(join(UI, 'marca', 'voxti-tokens.svg'), 'utf8');
     expect(tokensSvg).toContain('var(--text)');
     expect(tokensSvg).toContain('var(--action)');
+
+    // Y la de IAxTi, que es la que ve el cliente (#296). VoxTi Labs es quien
+    // lo hace y se queda en SuperAdmin y en el pie.
+    for (const f of [
+      'iaxti-tokens.svg',
+      'iaxti-tinta.svg',
+      'iaxti-claro.svg',
+      'iaxti-mono.svg',
+      'iaxti-isotipo.svg',
+      'iaxti-isotipo-cuadrado.svg',
+    ]) {
+      expect(marca).toContain(f);
+    }
+    const iaxti = readFileSync(join(UI, 'marca', 'iaxti-tokens.svg'), 'utf8');
+    expect(iaxti).toContain('var(--text)');
+    expect(iaxti).toContain('var(--action)');
+    // Sin fallback hex: `marca-svg.ts` la inlinea y el test de arriba
+    // prohíbe hex en los .ts. Un `var(--action, #3D5AFE)` lo haría fallar
+    // en el PR siguiente, cuando turbo deje de cachear.
+    expect(iaxti).not.toMatch(/#[0-9A-Fa-f]{6}/);
   });
 
   it('el preset de Tailwind prohíbe dark: (selector por data-mode) y mapea los 8 nombres del documento', async () => {

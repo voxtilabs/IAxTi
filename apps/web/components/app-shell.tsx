@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { ModeToggle, RequireSession, SessionProvider, useSession, type PublicConfig } from '@iaxti/ui/react';
+import {
+  IAXTI_LOCKUP_SVG,
+  ModeToggle,
+  RequireSession,
+  SessionProvider,
+  useSession,
+  type PublicConfig,
+} from '@iaxti/ui/react';
 import { SoporteAviso } from './soporte-aviso';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
@@ -113,7 +120,7 @@ export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellPr
           <header className="border-b border-line bg-raised">
             <div className="mx-auto flex max-w-contenido flex-wrap items-center gap-4 px-4 py-3">
               <a href="/" className="marca" aria-label="IAxTi, inicio"
-                 dangerouslySetInnerHTML={{ __html: marcaSvg }} />
+                 dangerouslySetInnerHTML={{ __html: IAXTI_LOCKUP_SVG }} />
               <Navegacion nav={nav} />
               <div className="ml-auto flex flex-wrap items-center gap-3">
                 <TenantSwitcher />
@@ -124,6 +131,24 @@ export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellPr
             </div>
           </header>
           <main className={sinMargen ? '' : 'mx-auto max-w-contenido px-4 py-8'}>{children}</main>
+          {/* El lockup de VoxTi Labs va acá, discreto: IAxTi es lo que el
+              cliente usa; VoxTi Labs es quien lo hace. La regla de marca
+              pide el lockup en SuperAdmin y en el pie de la app, y el pie
+              no existía — al poner IAxTi arriba, VoxTi se habría quedado
+              sin ningún lugar. La bandeja va a pantalla completa y no lo
+              lleva. */}
+          {!sinMargen && (
+            <footer className="mx-auto max-w-contenido px-4 pb-8 pt-4">
+              <a
+                href="https://voxtilabs.cl"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="VoxTi Labs"
+                className="marca-pie inline-block text-muted opacity-70 transition-opacity hover:opacity-100"
+                dangerouslySetInnerHTML={{ __html: marcaSvg }}
+              />
+            </footer>
+          )}
         </div>
       </RequireSession>
     </SessionProvider>
