@@ -13,7 +13,10 @@ import type {
 // Su vocabulario no cruza este archivo: hacia adentro solo salen las formas
 // del puerto.
 
-export const ZAVU_API_BASE_DEFAULT = 'https://api.zavu.dev/v1';
+import { baseDeZavu } from './zavu-base';
+import { envioDePlantilla } from './zavu-plantillas';
+
+export { ZAVU_API_BASE_DEFAULT } from './zavu-base';
 
 /** Qué canal de Zavu corresponde a cada `kind` del puerto. */
 const CANAL: Partial<Record<ChannelKind, string>> = {
@@ -130,7 +133,7 @@ export function createZavuProvider(
 ): ChannelProvider {
   const canal = CANAL[kind];
   if (!canal) throw new Error(`Zavu no transporta el canal "${kind}".`);
-  const apiBase = config.apiBase ?? process.env.ZAVU_API_BASE ?? ZAVU_API_BASE_DEFAULT;
+  const apiBase = baseDeZavu(config.apiBase);
   const fetchImpl = config.fetchImpl ?? fetch;
   const now = config.now ?? Date.now;
 
@@ -156,7 +159,14 @@ export function createZavuProvider(
           to: message.to,
           channel: canal,
           ...(message.body !== undefined ? { text: message.body } : {}),
-          ...message.extra,
+          // Una plantilla no viaja como texto: Zavu la quiere como
+          // `messageType: 'template'` con el id del proveedor y las
+          // variables por posición. La traducción vive acá y no en el
+          // dominio, que no tiene por qué saber de `messageType`.
+          ...(message.extra?.plantilla
+            ? envioDePlantilla(message.extra.plantilla as Record<string, never>)
+            : {}),
+          ...(message.extra && !message.extra.plantilla ? message.extra : {}),
         }),
       });
       if (!res.ok) {

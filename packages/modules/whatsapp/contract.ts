@@ -65,3 +65,15 @@ export {
   puedeEnviarse,
 } from './domain/plantillas';
 export type { CategoriaPlantilla, EstadoPlantilla, PlantillaBorrador } from './domain/plantillas';
+export {
+  crearEnZavu,
+  listarEnZavu,
+  enviarARevisionEnZavu,
+  consultarEnZavu,
+  sincronizarConZavu,
+  envioDePlantilla,
+  categoriaParaZavu,
+  categoriaDeZavu,
+  estadoDeZavu,
+} from './application/zavu-plantillas';
+export type { ConfigZavu, PlantillaEnZavu } from './application/zavu-plantillas';

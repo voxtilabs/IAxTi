@@ -29,6 +29,7 @@ import {
   sweepConversationAlerts,
   sweepDueActivities,
 } from './sweeps';
+import { sincronizarPlantillas } from './plantillas-sync';
 import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
@@ -152,6 +153,13 @@ function start(): void {
             const pasos = await sweepSequences(pool, automationDeps);
             if (n + pasos > 0) console.log(`scheduled: ${n} reglas y ${pasos} pasos de secuencia`);
             return { ran: n, steps: pasos };
+          }
+          // Plantillas colgadas (#44): si se perdió el webhook de Meta, la
+          // plantilla se queda "en revisión" para siempre. Se pregunta.
+          case 'whatsapp.templates.sync': {
+            const r = await sincronizarPlantillas(pool);
+            if (r.cambiadas > 0) console.log(`plantillas: ${r.cambiadas} resueltas de ${r.revisadas} en revisión`);
+            return r;
           }
           // Muestras de primera respuesta (#66): mediana/p90 sin barrer en vivo.
           case 'analytics.response_samples': {
@@ -298,6 +306,13 @@ function start(): void {
         // `isActive('core')` es false — el barrido no habría corrido nunca.
         { moduleId: 'organizations' },
         { repeat: { pattern: '20 * * * *', tz: 'America/Santiago' } },
+      ),
+      scheduled.add(
+        'whatsapp.templates.sync',
+        { moduleId: 'whatsapp' },
+        // Meta tarda de minutos a 24 h en revisar. Cada 30 min alcanza de
+        // sobra y no castiga al proveedor con preguntas cada minuto.
+        { repeat: { every: 1_800_000 } },
       ),
       scheduled.add(
         'webhooks.deliver',
