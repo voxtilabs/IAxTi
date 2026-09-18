@@ -43,7 +43,7 @@ tools:
   - crm.create_deal
   - crm.move_deal
   - crm.add_note
-  - crm.create_task
+  - crm.create_activity
   - crm.get_history
 nav:
   - { label: Contactos, path: /contactos, permission: crm.contacts.read }

@@ -49,12 +49,14 @@ describe('el catálogo de objetivos', () => {
 
 describe('el objetivo contra la realidad del tenant', () => {
   it('solo ofrece las tools de módulos activos', () => {
-    const conTodo = resolverObjetivo('vender', null, ['crm', 'knowledge']);
-    expect(conTodo.tools).toContain('knowledge.buscar');
+    const conTodo = resolverObjetivo('vender', null, ['crm', 'knowledge', 'conversations']);
+    expect(conTodo.tools).toContain('knowledge.search');
+    expect(conTodo.tools).toContain('crm.create_deal');
     // Sin knowledge, la tool de catálogo no se ofrece: un agente que no
     // puede consultar precios no debe tener cómo decir que los consultó.
     const sinCatalogo = resolverObjetivo('vender', null, ['crm']);
-    expect(sinCatalogo.tools).not.toContain('knowledge.buscar');
+    expect(sinCatalogo.tools).not.toContain('knowledge.search');
+    expect(sinCatalogo.tools).toContain('crm.create_deal');
     expect(sinCatalogo.alcanzable).toBe(true); // crm sí está: el objetivo se puede
   });
 
@@ -80,10 +82,10 @@ describe('la composición del prompt', () => {
   it('el objetivo va PRIMERO y el prompt del dueño se conserva', () => {
     const r = resolverObjetivo('agendar', 'una hora', ['calendar']);
     const prompt = componerPrompt('Eres Sofía. Tutea y sé breve.', r)!;
-    expect(prompt.indexOf('conseguir una hora')).toBeLessThan(prompt.indexOf('Eres Sofía'));
+    expect(prompt.indexOf('dejar lista una hora')).toBeLessThan(prompt.indexOf('Eres Sofía'));
     // Lo que el dueño escribió no se pierde: el objetivo se SUMA.
     expect(prompt).toContain('Tutea y sé breve');
-    expect(prompt).toContain('Antes de cerrar necesitas: día y hora, nombre.');
+    expect(prompt).toContain('Antes de cerrar necesitas: el horario que prefiere, nombre.');
   });
 
   it('sin objetivo, el prompt queda exactamente como estaba', () => {
