@@ -43,15 +43,26 @@ export function createQueue(name: QueueName, connection: IORedis): Queue {
   // nunca, y alguien se olvida siempre. El job que se encola sin traza
   // activa —un barrido programado, por ejemplo— viaja sin ella y arranca la
   // suya, que es lo correcto: no tiene request del cual colgar.
-  const add = queue.add.bind(queue);
-  queue.add = ((nombre: string, data: unknown, opts?: unknown) => {
+  const conTraza = (data: unknown): unknown => {
     const traza = contextoDeTraza();
-    const conTraza =
-      Object.keys(traza).length && data && typeof data === 'object'
-        ? { ...(data as Record<string, unknown>), [LLAVE_TRAZA]: traza }
-        : data;
-    return add(nombre, conTraza as never, opts as never);
-  }) as typeof queue.add;
+    return Object.keys(traza).length && data && typeof data === 'object'
+      ? { ...(data as Record<string, unknown>), [LLAVE_TRAZA]: traza }
+      : data;
+  };
+
+  const add = queue.add.bind(queue);
+  queue.add = ((nombre: string, data: unknown, opts?: unknown) =>
+    add(nombre, conTraza(data) as never, opts as never)) as typeof queue.add;
+
+  // `addBulk` también, aunque hoy no lo use nadie. Si mañana alguien encola
+  // en lote y esto no estuviera, la traza se perdería en silencio — y un
+  // agujero silencioso en la observabilidad es justo lo que no se descubre
+  // hasta que hace falta.
+  const addBulk = queue.addBulk.bind(queue);
+  queue.addBulk = ((trabajos: Array<{ name: string; data: unknown; opts?: unknown }>) =>
+    addBulk(
+      trabajos.map((t) => ({ ...t, data: conTraza(t.data) })) as never,
+    )) as typeof queue.addBulk;
 
   return queue;
 }
