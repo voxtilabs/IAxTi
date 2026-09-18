@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { withTenant } from '@iaxti/db';
+import { idsDeTenants, withTenant } from '@iaxti/db';
 import { listChannelAccounts } from '@iaxti/module-channels';
 import {
   aplicarEstadoDelProveedor,
@@ -36,17 +36,22 @@ async function credencial(
 export async function sincronizarPlantillas(
   pool: Pool,
 ): Promise<{ tenants: number; revisadas: number; cambiadas: number }> {
-  // Los tenants con plantillas esperando respuesta del proveedor.
-  const esperando = await pool.query(
-    `SELECT DISTINCT tenant_id FROM whatsapp_templates WHERE status = 'pending'`,
-  );
+  // Los tenants se sacan de `tenants`, no de `whatsapp_templates` (#286):
+  // esa tabla tiene RLS y una consulta suelta devuelve cero filas con el rol
+  // de producción. Era mío, de este mismo día.
   let revisadas = 0;
   let cambiadas = 0;
+  let conPendientes = 0;
 
-  for (const fila of esperando.rows) {
-    const tenantId = fila.tenant_id as string;
+  for (const tenantId of await idsDeTenants(pool)) {
     try {
       const cambios = await withTenant(pool, tenantId, async (c) => {
+        const hay = await c.query(
+          `SELECT 1 FROM whatsapp_templates WHERE tenant_id = $1 AND status = 'pending' LIMIT 1`,
+          [tenantId],
+        );
+        if (hay.rowCount === 0) return 0; // sin nada esperando, no se molesta al proveedor
+        conPendientes += 1;
         const cred = await credencial(c, tenantId);
         // Sin número conectado no hay a quién preguntarle. No es un error:
         // el tenant desconectó WhatsApp y sus plantillas quedaron ahí.
@@ -89,5 +94,5 @@ export async function sincronizarPlantillas(
     }
   }
 
-  return { tenants: esperando.rowCount ?? 0, revisadas, cambiadas };
+  return { tenants: conPendientes, revisadas, cambiadas };
 }

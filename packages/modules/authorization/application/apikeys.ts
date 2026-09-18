@@ -131,17 +131,12 @@ export async function resolveApiKey(
   token: string,
 ): Promise<ResolvedApiKey | null> {
   if (!token.startsWith('iaxti_')) return null;
-  const r = await pool.query(
-    `SELECT id, tenant_id, scopes FROM api_keys
-      WHERE key_hash = $1 AND revoked_at IS NULL
-        AND (expires_at IS NULL OR expires_at > now())`,
-    [hashToken(token)],
-  );
+  // Por función y no por consulta directa (#286): `api_keys` tiene RLS y
+  // esto corre ANTES de saber el tenant —el tenant es lo que se está
+  // averiguando—, así que una consulta suelta devuelve cero filas con el rol
+  // de producción y ninguna API key autenticaría. El motivo y los límites de
+  // la función están en su migración; entra un hash y sale una fila.
+  const r = await pool.query(`SELECT * FROM resolver_api_key($1)`, [hashToken(token)]);
   if (r.rowCount === 0) return null;
-  await pool.query(
-    `UPDATE api_keys SET last_used_at = now()
-      WHERE id = $1 AND (last_used_at IS NULL OR last_used_at < now() - interval '1 minute')`,
-    [r.rows[0].id],
-  );
   return { id: r.rows[0].id, tenantId: r.rows[0].tenant_id, scopes: r.rows[0].scopes ?? [] };
 }

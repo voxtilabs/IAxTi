@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { diaEn, publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
-import { withTenant } from '@iaxti/db';
+import { idsDeTenants, withTenant } from '@iaxti/db';
 import {
   addInternalNote,
   assignConversation,
@@ -356,9 +356,9 @@ export function automationConsumers(deps: EngineDeps): Consumer[] {
  * cada pasada.
  */
 export async function sweepTimeRules(pool: Pool, deps: EngineDeps): Promise<number> {
-  const tenants = await pool.query(
-    `SELECT DISTINCT tenant_id FROM rules WHERE active AND trigger->>'kind' = 'time'`,
-  );
+  // De `tenants`, no de `rules` (#286): una consulta suelta a una tabla con
+  // RLS devuelve cero filas con el rol de producción.
+  const tenants = { rows: (await idsDeTenants(pool)).map((id) => ({ tenant_id: id })) };
   let corridas = 0;
   // El día del NEGOCIO: con el día en UTC, el dedupe cambiaba a las 21:00
   // en Chile y una regla "una vez al día" podía dispararle DOS veces al
