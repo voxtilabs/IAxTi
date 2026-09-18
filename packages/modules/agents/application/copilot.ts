@@ -150,8 +150,19 @@ export async function suggestForInbound(
     modelPortFactory,
   );
   if (res.status === 'failed' || !res.text) return null;
+  // La respuesta vino cortada por el tope de salida: no hay sugerencia que
+  // mostrar. Mejor que la bandeja no ofrezca nada a que ofrezca media frase
+  // —o JSON crudo— para mandarle a un cliente.
+  if (res.truncada) {
+    console.warn(
+      `[${input.requestId ?? 'sin-request'}] sugerencia descartada: el modelo ` +
+        'se quedó sin espacio de salida. Subir maxOutputTokens o acortar el contexto.',
+    );
+    return null;
+  }
 
   const payload = parseSuggestion(res.text);
+  if (!payload.sugerencia.trim()) return null;
   const fila = await client.query(
     `INSERT INTO suggestions
        (tenant_id, agent_id, conversation_id, message_id, execution_id, text,

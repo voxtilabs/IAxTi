@@ -13,6 +13,7 @@ import {
 } from '../application/copilot';
 import { createAgent } from '../application/agents';
 import type { ModelPortFactory } from '../application/models';
+import { parseSuggestion } from '../domain/parser';
 
 const ADMIN_URL =
   process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
@@ -214,5 +215,44 @@ describe('el copiloto (#48)', () => {
     );
     expect(res).toBeNull();
     await admin.query(`UPDATE agents SET default_mode = 'assist' WHERE tenant_id = $1`, [tenant]);
+  });
+});
+
+describe('una respuesta cortada no llega a la bandeja', () => {
+  it('el JSON a medias NO se ofrece como sugerencia', () => {
+    // Lo que devuelve un modelo que se quedó sin espacio. Antes el parser
+    // caía a un fallback que usaba el texto crudo COMO la sugerencia, así
+    // que esto aparecía en la bandeja listo para mandárselo a un cliente.
+    const cortada = '{"sugerencia": "¡Hola! Para darte el valor exacto y revisar qué horas';
+    const p = parseSuggestion(cortada);
+    expect(p.sugerencia).toBe('');
+    // Y la confianza no se inventa: 0.5 se veía igual que una confianza real.
+    expect(p.confianza).toBe(0);
+  });
+
+  it('un texto suelto sin JSON sí sirve: el modelo contestó en prosa', () => {
+    const prosa = 'Hola, te confirmo la hora del martes a las 10.';
+    expect(parseSuggestion(prosa).sugerencia).toBe(prosa);
+  });
+
+  it('el copiloto descarta la generación truncada en vez de guardarla', async () => {
+    const truncado: ModelPortFactory = () => ({
+      async generate(args) {
+        if (args.prompt.startsWith('Resume')) {
+          return { text: 'resumen', tokensIn: 5, tokensOut: 5 };
+        }
+        return {
+          text: '{"sugerencia": "media frase que se corta',
+          tokensIn: 100,
+          tokensOut: 1024,
+          truncada: true,
+        };
+      },
+    });
+    const s = await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conversacion }, truncado),
+    );
+    // Mejor no ofrecer nada que ofrecer media frase.
+    expect(s).toBeNull();
   });
 });

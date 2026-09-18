@@ -51,6 +51,8 @@ export interface RunResult {
   model: string;
   /** Qué herramientas pidió el modelo. Vacío si no pidió ninguna. */
   herramientasUsadas?: string[];
+  /** La respuesta vino cortada por el tope de salida: no se puede usar. */
+  truncada?: boolean;
 }
 
 /**
@@ -208,6 +210,7 @@ export async function runAgentTask(
     });
     return {
       status: 'ok',
+      ...(res.truncada ? { truncada: true } : {}),
       ...(res.herramientasUsadas?.length ? { herramientasUsadas: res.herramientasUsadas } : {}),
       degraded,
       executionId: fila.rows[0].id,

@@ -19,6 +19,17 @@ export function parseSuggestion(raw: string): SuggestionPayload {
   };
   const inicio = raw.indexOf('{');
   const fin = raw.lastIndexOf('}');
+  // Un JSON que EMPIEZA y no cierra es una respuesta cortada, no un texto
+  // suelto. Devolverla como `fallback` ponía esto en la bandeja, listo para
+  // mandarle al cliente:
+  //
+  //     {"sugerencia": "¡Hola! Para darte el valor exacto y revisar
+  //
+  // Con los modelos que razonan pasa: los tokens de pensar salen del mismo
+  // presupuesto, y una conversación larga se come el tope.
+  if (inicio !== -1 && fin <= inicio) {
+    return { ...fallback, sugerencia: '', confianza: 0 };
+  }
   if (inicio === -1 || fin <= inicio) return fallback;
   try {
     const obj = JSON.parse(raw.slice(inicio, fin + 1)) as Record<string, unknown>;
