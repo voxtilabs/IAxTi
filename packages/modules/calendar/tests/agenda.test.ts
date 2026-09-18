@@ -151,3 +151,52 @@ describe('agendar', () => {
     ).rejects.toThrow(/Transición de cita inválida/);
   });
 });
+
+describe('lo que la persona tiene ocupado FUERA de IAxTi (#57)', () => {
+  it('una reunión del calendario personal tapa el hueco', async () => {
+    const sinNada = await en((c) =>
+      huecosDelDia(c, { tenantId: tenant, ownerId: duena, dia: LUNES, ahora: ANTES }),
+    );
+    expect(sinNada[0].hora).toBe('09:00');
+
+    // 09:00 a 09:30 en minutos locales: lo que devolvería el free/busy de
+    // Google para una reunión que no creamos nosotros.
+    const conReunion = await en((c) =>
+      huecosDelDia(c, {
+        tenantId: tenant,
+        ownerId: duena,
+        dia: LUNES,
+        ahora: ANTES,
+        ocupadoExterno: [{ inicio: 540, fin: 570 }],
+      }),
+    );
+    // Ofrecer una hora que la persona ya tiene tomada es peor que no
+    // ofrecer nada: el cliente ya reservó y alguien queda mal.
+    expect(conReunion.map((h) => h.hora)).not.toContain('09:00');
+    expect(conReunion.length).toBe(sinNada.length - 1);
+  });
+
+  it('el respiro se cuenta también alrededor de lo de afuera', async () => {
+    // Una reunión que termina 09:35 deja el hueco de 09:45 pegado: con 15
+    // minutos de respiro, tampoco sirve.
+    const huecos = await en((c) =>
+      huecosDelDia(c, {
+        tenantId: tenant,
+        ownerId: duena,
+        dia: LUNES,
+        ahora: ANTES,
+        ocupadoExterno: [{ inicio: 540, fin: 575 }],
+      }),
+    );
+    expect(huecos.map((h) => h.hora)).not.toContain('09:00');
+    expect(huecos.map((h) => h.hora)).not.toContain('09:45');
+  });
+
+  it('sin ocupado externo se comporta igual que antes', async () => {
+    const a = await en((c) => huecosDelDia(c, { tenantId: tenant, ownerId: duena, dia: LUNES, ahora: ANTES }));
+    const b = await en((c) =>
+      huecosDelDia(c, { tenantId: tenant, ownerId: duena, dia: LUNES, ahora: ANTES, ocupadoExterno: [] }),
+    );
+    expect(b.map((h) => h.hora)).toEqual(a.map((h) => h.hora));
+  });
+});

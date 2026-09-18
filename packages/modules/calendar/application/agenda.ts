@@ -85,7 +85,29 @@ export interface HuecoOfrecido {
  */
 export async function huecosDelDia(
   client: PoolClient,
-  input: { tenantId: string; ownerId: string; dia: string; ahora?: Date },
+  input: {
+    tenantId: string;
+    ownerId: string;
+    dia: string;
+    ahora?: Date;
+    /**
+     * Lo que la persona tiene ocupado FUERA de IAxTi, en minutos locales
+     * del día (#57).
+     *
+     * Acá es donde enchufa el free/busy de Google: el criterio del issue
+     * es «huecos = free/busy real ∩ disponibilidad configurada», y esta es
+     * la mitad que faltaba. Sin esto, la agenda ofrece horas en las que la
+     * persona ya tiene una reunión en su calendario personal — que es peor
+     * que no ofrecer nada, porque el cliente ya reservó.
+     *
+     * Entran DATOS y no un cliente de Google a propósito: este módulo no
+     * conoce proveedores. Quien tenga el token los trae y los pasa, igual
+     * que el worker pasa `enviar` a los recordatorios.
+     *
+     * Sin esto, se comporta como antes: solo nuestras citas.
+     */
+    ocupadoExterno?: Ocupado[];
+  },
 ): Promise<HuecoOfrecido[]> {
   const zona = await zonaDelTenant(client, input.tenantId);
   const ahora = input.ahora ?? new Date();
@@ -119,7 +141,12 @@ export async function huecosDelDia(
         AND status IN ('proposed','confirmed','reminded')`,
     [input.tenantId, input.ownerId, input.dia, zona],
   );
-  const ocupados: Ocupado[] = citas.rows.map((c) => ({ inicio: c.inicio, fin: c.fin }));
+  const ocupados: Ocupado[] = [
+    ...citas.rows.map((c) => ({ inicio: c.inicio, fin: c.fin })),
+    // Lo de afuera pesa igual que lo nuestro: una reunión en el calendario
+    // personal ocupa la hora aunque no la hayamos creado nosotros.
+    ...(input.ocupadoExterno ?? []),
+  ];
 
   const salida: HuecoOfrecido[] = [];
   for (const d of disp.rows) {
