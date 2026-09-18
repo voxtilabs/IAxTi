@@ -1,6 +1,6 @@
 import IORedis from 'ioredis';
 import { Queue, Worker, type Processor } from 'bullmq';
-import { conTrazaDelJob, contextoDeTraza } from '@iaxti/telemetry';
+import { conContextoDeLog, conTrazaDelJob, contextoDeTraza } from '@iaxti/telemetry';
 import type { ModuleRegistry } from './registry';
 
 /**
@@ -104,7 +104,17 @@ export function createModuleWorker(
           'iaxti.tenant_id': job.data.tenantId as string | undefined,
           'iaxti.request_id': job.data.requestId as string | undefined,
         },
-        () => Promise.resolve(processor(job, token)),
+        // El mismo tenant que va en el span va en cada log que el job
+        // escriba: si están en sistemas distintos y no comparten la llave,
+        // cruzarlos a mano es lo que nadie hace a las 3 de la mañana.
+        () =>
+          conContextoDeLog(
+            {
+              tenantId: job.data.tenantId as string | undefined,
+              requestId: job.data.requestId as string | undefined,
+            },
+            () => Promise.resolve(processor(job, token)),
+          ),
       );
     },
     { connection },

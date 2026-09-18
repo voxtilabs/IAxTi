@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { conContextoDeLog } from '@iaxti/telemetry';
 
 export interface WithRequestId extends Request {
   requestId?: string;
@@ -17,5 +18,8 @@ export function requestIdMiddleware(req: WithRequestId, res: Response, next: Nex
       : `req_${randomBytes(12).toString('hex')}`;
   req.requestId = requestId;
   res.setHeader('X-Request-Id', requestId);
-  next();
+  // Todo lo que se loguee atendiendo este request lleva su id. El tenant se
+  // agrega después, cuando el guard resuelve quién es: acá todavía no se
+  // sabe, y poner uno adivinado sería peor que no poner ninguno.
+  conContextoDeLog({ requestId }, next);
 }

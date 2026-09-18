@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { ModuleRegistry } from '@iaxti/core';
+import { agregarAlContextoDeLog } from '@iaxti/telemetry';
 import { baseRoleHasPermission, isBaseRole } from '@iaxti/module-authorization';
 import type { JwtVerifier } from '../auth/jwt';
 import type { RoleResolver } from '../auth/role-resolver';
@@ -208,6 +209,9 @@ export class AuthzGuard implements CanActivate {
       const request = context.switchToHttp().getRequest<WithUser>();
       request.actor = actor;
       request.user = { userId: actor.userId };
+      // Recién acá se sabe de qué tenant es este request: desde este punto,
+      // todo lo que se loguee lo lleva.
+      agregarAlContextoDeLog({ tenantId: actor.tenantId });
 
       // El PLAN del tenant (SPEC §6, issue 209): el portón de arriba mira un
       // flag global del despliegue; este mira lo que este tenant paga. Un
