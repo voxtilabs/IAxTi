@@ -17,6 +17,8 @@ events:
     - invoice.paid
     - invoice.overdue
     - subscription.cancelled
+    # El final del ciclo (#218): el sistema avisa, una persona borra.
+    - tenant.deletion_warned
   consumes:
     - payment.received
 nav:
