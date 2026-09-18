@@ -7,7 +7,13 @@ import './globals.css';
 export const metadata = {
   title: 'IAxTi',
   description: 'El CRM de WhatsApp que se arma solo y trabaja para el dueño.',
-  icons: { icon: '/marca/voxti-isotipo-cuadrado.svg' },
+  // El favicon es de IAxTi, que es lo que el cliente abre. El de VoxTi
+  // Labs se queda en el panel de SuperAdmin, que es de nosotros.
+  //
+  // Va como ARCHIVO y no con las variables de Pulso: fuera del documento no
+  // hay CSS, así que el isotipo lleva su color. Por eso existen las dos
+  // versiones — la tokenizada para inline, esta para el favicon.
+  icons: { icon: '/marca/iaxti-isotipo-cuadrado.svg' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
