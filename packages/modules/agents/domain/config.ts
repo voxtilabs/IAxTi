@@ -18,14 +18,37 @@ export interface TaskModel {
  * del proveedor económico (#54) diga otra cosa. Son DEFAULTS de partida:
  * el override vive en tenants.settings.ia.tasks, no aquí.
  */
+/**
+ * El modelo por tarea, por ALIAS y no por versión fija.
+ *
+ * Estaba `gemini-2.5-flash` en las siete, y con la primera llave de verdad
+ * que se probó, Google contestó:
+ *
+ *     404 · This model models/gemini-2.5-flash is no longer available
+ *           to new users
+ *
+ * O sea: una versión fija se retira debajo tuyo, y el producto deja de
+ * funcionar para los clientes NUEVOS mientras sigue andando para los
+ * viejos. Es de las peores formas de romperse — no aparece en ningún test
+ * ni en ningún tenant existente.
+ *
+ * Los alias (`gemini-flash-latest`, `gemini-pro-latest`) siguen apuntando al
+ * modelo vigente de esa familia. El tenant que quiera fijar una versión
+ * puede hacerlo: estos son los valores por defecto, no una imposición.
+ *
+ * El precio es que el modelo cambia solo bajo los pies, y por eso el dataset
+ * de regresión (#53) importa más de lo que parecía: es lo que avisa si la
+ * versión nueva rinde peor.
+ */
 export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
-  clasificar: { provider: 'google', model: 'gemini-2.5-flash' },
-  sugerir: { provider: 'google', model: 'gemini-2.5-flash' },
-  responder: { provider: 'google', model: 'gemini-2.5-flash' },
-  configurar: { provider: 'google', model: 'gemini-2.5-pro' },
-  conocer: { provider: 'google', model: 'gemini-2.5-flash' },
-  resumir: { provider: 'google', model: 'gemini-2.5-flash' },
-  transcribir: { provider: 'google', model: 'gemini-2.5-flash' },
+  clasificar: { provider: 'google', model: 'gemini-flash-latest' },
+  sugerir: { provider: 'google', model: 'gemini-flash-latest' },
+  responder: { provider: 'google', model: 'gemini-flash-latest' },
+  // La tarea pesada: entiende el negocio y propone su configuración.
+  configurar: { provider: 'google', model: 'gemini-pro-latest' },
+  conocer: { provider: 'google', model: 'gemini-flash-latest' },
+  resumir: { provider: 'google', model: 'gemini-flash-latest' },
+  transcribir: { provider: 'google', model: 'gemini-flash-latest' },
 };
 
 export interface IaSettings {
@@ -77,6 +100,14 @@ export function redactPII(texto: string): string {
  * panel de consumo, la factura real la manda el proveedor.
  */
 const PRECIOS_BASE: Record<string, { in: number; out: number }> = {
+  // Los ALIAS, que son los que se usan por defecto. Sin su fila, el costo
+  // sale null y el dueño ve consumo sin precio — y "costos visibles, sin
+  // margen escondido" es una promesa del producto, no un detalle. Me pasó
+  // en la primera corrida real: tokens registrados, cost_usd en null.
+  'google:gemini-flash-latest': { in: 0.3, out: 2.5 },
+  'google:gemini-flash-lite-latest': { in: 0.1, out: 0.4 },
+  'google:gemini-pro-latest': { in: 1.25, out: 10 },
+  // Las versiones fijas, para el tenant que prefiera anclarse a una.
   'google:gemini-2.5-flash': { in: 0.3, out: 2.5 },
   'google:gemini-2.5-pro': { in: 1.25, out: 10 },
   'anthropic:claude-haiku-4-5-20251001': { in: 1, out: 5 },
