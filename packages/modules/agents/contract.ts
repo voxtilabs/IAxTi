@@ -12,6 +12,8 @@ export type { Provider, AgentTask, TaskModel, IaSettings } from './domain/config
 export { createAgent, updateAgent, listAgents, getAgent } from './application/agents';
 export type { Agent, AgentInput } from './application/agents';
 export { runAgentTask, listExecutions, allowedToolsFor } from './application/runtime';
+export { OBJETIVOS, DEFINICIONES, esObjetivo, resolverObjetivo, componerPrompt } from './domain/objetivo';
+export type { Objetivo, DefinicionObjetivo, ObjetivoResuelto } from './domain/objetivo';
 export type { RunInput, RunResult } from './application/runtime';
 export { aiSdkModelPort, providerAvailable } from './application/models';
 export type { ModelPort, ModelPortFactory, GenerateArgs, GenerateResult } from './application/models';

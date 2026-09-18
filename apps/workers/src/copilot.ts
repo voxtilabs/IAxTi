@@ -119,6 +119,15 @@ export async function processSuggest(
     // Una conversación sin dueño se queda sin herramientas, y está bien:
     // sin persona no hay permiso contra el cual verificar nada.
     const tools = await herramientasDeLaConversacion(client, data, colas.registry);
+    // Los módulos activos del tenant: contra ellos se resuelve el objetivo
+    // del agente (#315). Sin esto, un agente con objetivo asume que no hay
+    // nada activo y avisa que no puede cumplirlo — falla hacia no prometer,
+    // que es lo correcto, pero acá sí sabemos qué hay.
+    const activeModules =
+      colas.registry
+        ?.health()
+        .filter((m) => m.active)
+        .map((m) => m.id) ?? [];
 
     // El modo autónomo primero (#49): responde SOLO cuando el dueño lo
     // permitió; si no toca (assist), cae a la sugerencia de siempre.
@@ -126,6 +135,7 @@ export async function processSuggest(
       tenantId: data.tenantId,
       conversationId: data.conversationId,
       knowledge,
+      activeModules,
       requestId: data.requestId,
     });
     if (auto.action === 'escalated') {
@@ -180,6 +190,7 @@ export async function processSuggest(
       messageId: data.messageId,
       knowledge,
       tools,
+      activeModules,
       requestId: data.requestId,
     });
     return suggestion

@@ -6,6 +6,7 @@ import { getTenantSettings } from '@iaxti/module-organizations';
 import { incrementUsage } from '@iaxti/module-organizations';
 import { DEFAULT_TASK_OUTPUT_TOKENS, estimateCostUsd, iaSettings, redactPII } from '../domain/config';
 import type { AgentTask, Provider } from '../domain/config';
+import { componerPrompt, resolverObjetivo } from '../domain/objetivo';
 import { aiSdkModelPort, type HerramientaExpuesta, type ModelPortFactory } from './models';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
@@ -33,6 +34,14 @@ export interface RunInput {
   tools?: HerramientaExpuesta[];
   /** Tope de salida. Sin esto, el de la tarea (`DEFAULT_TASK_OUTPUT_TOKENS`). */
   maxOutputTokens?: number;
+  /**
+   * Los módulos activos del tenant. Sin esto el objetivo no se puede
+   * resolver: se asume que NO hay ninguno, o sea que el agente avisa que no
+   * puede cumplirlo en vez de prometer. Fallar hacia no prometer es lo
+   * correcto — la regla dice que la IA nunca compromete lo que una tool no
+   * confirmó.
+   */
+  activeModules?: readonly string[];
 }
 
 export interface RunResult {
@@ -75,11 +84,24 @@ export interface RunResult {
  */
 export function allowedToolsFor(agent: Agent, registry: ModuleRegistry): string[] {
   const activas = new Set<string>();
+  const modulos: string[] = [];
   for (const salud of registry.health()) {
     if (!salud.active) continue;
+    modulos.push(salud.id);
     for (const tool of registry.manifest(salud.id).tools ?? []) activas.add(tool);
   }
-  return agent.allowedTools.filter((t) => activas.has(t));
+  // Las del OBJETIVO se suman a las que el dueño configuró (#315).
+  //
+  // Antes `allowedTools` era una lista libre que había que curar a mano, y un
+  // agente que tenía que agendar sin la tool de agenda prometía horas que no
+  // podía tomar. El objetivo sabe qué necesita; el dueño ya no tiene que
+  // saberlo. Sigue mandando el registry: una tool de un módulo apagado no se
+  // ofrece, venga de donde venga.
+  const delObjetivo = agent.objetivo
+    ? resolverObjetivo(agent.objetivo, agent.objetivoDetalle, modulos).tools
+    : [];
+  const todas = new Set([...agent.allowedTools, ...delObjetivo]);
+  return [...todas].filter((t) => activas.has(t));
 }
 
 export async function runAgentTask(
@@ -139,12 +161,21 @@ export async function runAgentTask(
   }
 
   // Prompt versionado en Langfuse; sin Langfuse, el fallback CONFIGURADO.
-  const system =
+  const base =
     (input.agent.promptName
       ? await getVersionedPrompt(input.agent.promptName, input.agent.promptVersion ?? undefined)
       : null) ??
     input.agent.fallbackSystemPrompt ??
     `Eres ${input.agent.name}, el asistente de este negocio. Responde en ${input.agent.language}, breve y útil.${input.agent.personality ? ` Personalidad: ${input.agent.personality}` : ''}`;
+  // El OBJETIVO va adelante (#315): qué tiene que lograr manda sobre cómo lo
+  // dice. Y si el módulo que lo hace posible está apagado, la advertencia va
+  // antes que todo — es lo único que evita que prometa una hora que nadie
+  // puede dar. Sin objetivo, el prompt queda exactamente como antes.
+  const resuelto =
+    input.agent.objetivo !== null && input.agent.objetivo !== undefined
+      ? resolverObjetivo(input.agent.objetivo, input.agent.objetivoDetalle, input.activeModules ?? [])
+      : null;
+  const system = componerPrompt(base, resuelto) ?? base;
 
   const promptCompleto = input.context ? `${input.context}\n\n${input.prompt}` : input.prompt;
   const inicio = Date.now();

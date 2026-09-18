@@ -46,10 +46,13 @@ console.log(
   `\nProyecto: ${proyecto.project.name} · llave de ${proyecto.isTestMode ? 'PRUEBA' : 'PRODUCCIÓN'}` +
     ` · ambiente: ${process.env.IAXTI_ENV ?? 'sin declarar'}`,
 );
-if (!veredicto.ok) {
-  console.error(`\n${veredicto.motivo}`);
-  process.exit(1);
-}
+// El veredicto NO corta acá: mirar nunca fue el problema.
+//
+// Estaba puesto antes de listar, así que para ver qué senders hay había que
+// declarar IAXTI_ENV=production — o sea, desarmar la protección para hacer
+// una consulta de solo lectura. Eso entrena a saltársela, y una guarda que
+// se desarma por costumbre deja de ser una guarda. Se aplica más abajo,
+// justo antes de lo único que escribe.
 
 // La API pagina con `{items, nextCursor}`. Lo descubrí llamándola: el
 // script leía `data` y reportaba "0 senders" con el proyecto lleno.
@@ -71,6 +74,14 @@ if (!tenantId) {
 }
 if (!baseUrl) {
   console.error('\nFalta --base-url (o API_URL_PUBLIC): sin eso el webhook no tiene a dónde llegar.');
+  process.exit(1);
+}
+
+// Acá sí: de aquí para abajo se ESCRIBE (se crea la cuenta y se le cambia
+// el webhook al sender en Zavu). Una llave de producción en un ambiente que
+// no es producción manda mensajes reales a clientes reales.
+if (!veredicto.ok) {
+  console.error(`\n${veredicto.motivo}`);
   process.exit(1);
 }
 
