@@ -342,7 +342,7 @@ function start(): void {
           // Va como iniciado por el negocio, así que respeta el horario de
           // silencio igual que el resto.
           return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob, fetch, {
-            enqueueOutbound: automationDeps.enqueueOutbound,
+            enqueueOutbound: (j) => encolarSalida({ ...j, transaccional: true }),
           });
         }
         const data = job.data as unknown as InboundJob;
@@ -376,7 +376,12 @@ function start(): void {
     // La cola agents (#48/#49): sugerencias, transcripciones y el modo
     // autónomo del copiloto; sus salientes van por la MISMA cola outbound.
     const outboundQueue = createQueue('outbound', redisConnection());
-    automationDeps.enqueueOutbound = async (job) => {
+    const encolarSalida = async (job: {
+      tenantId: string;
+      messageId: string;
+      requestId?: string;
+      transaccional?: boolean;
+    }) => {
       await outboundQueue.add(
         'send',
         {
@@ -384,6 +389,9 @@ function start(): void {
           tenantId: job.tenantId,
           messageId: job.messageId,
           requestId: job.requestId,
+          // El comprobante de pago se salta el silencio y nada más
+          // (ADR-0016). Todo lo demás espera al horario válido.
+          ...(job.transaccional ? { transaccional: true } : {}),
           // Automatizaciones y secuencias las inicia el negocio: pasan por el
           // horario de silencio y por la pausa de calidad.
           initiatedByBusiness: true,
@@ -391,6 +399,10 @@ function start(): void {
         { jobId: `out-${job.messageId}` },
       );
     };
+    // El motor de reglas y las secuencias encolan por acá: nada de lo suyo
+    // es transaccional, así que todo respeta el silencio.
+    automationDeps.enqueueOutbound = encolarSalida;
+
     createModuleWorker(
       'agents',
       registry,

@@ -70,6 +70,8 @@ export async function processOutbound(
 
     if (data.initiatedByBusiness) {
       // Calidad en rojo (#45): lo del negocio se pausa; reactivar es del ADMIN.
+      // Esto NO lo exime lo transaccional: si Meta tiene el número castigado,
+      // mandar más es empeorarlo. Se pierde el comprobante, no el número.
       const pausa = await isBusinessPaused(client, data.tenantId, ctx.channelAccountId);
       if (pausa) {
         await updateDeliveryStatus(client, {
@@ -80,9 +82,15 @@ export async function processOutbound(
         }).catch(() => {});
         return { failed: pausa };
       }
-      const settings = bandejaSettings(await getTenantSettings(client, data.tenantId));
-      if (enSilencio(settings.silencio)) {
-        throw new DelayUntilError(msHastaFinDeSilencio(settings.silencio));
+      // El horario de silencio SÍ lo exime un mensaje transaccional
+      // (ADR-0016): lo dispara el cliente al actuar —pagar— y es la
+      // constancia de eso. Quien acaba de pagar está despierto, y un
+      // comprobante que llega doce horas después ya no tranquiliza a nadie.
+      if (!data.transaccional) {
+        const settings = bandejaSettings(await getTenantSettings(client, data.tenantId));
+        if (enSilencio(settings.silencio)) {
+          throw new DelayUntilError(msHastaFinDeSilencio(settings.silencio));
+        }
       }
     }
 
