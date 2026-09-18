@@ -67,18 +67,24 @@ describe('qué se le ofrece al modelo', () => {
     }
   });
 
-  it('una herramienta que escribe NO se ofrece, aunque esté configurada', async () => {
+  it('una herramienta que sale hacia el cliente NO se ofrece, aunque esté configurada', async () => {
+    const extra = ['conversations.send_reply', 'payments.create_link', 'calendar.book'];
     const hs = await en(async (c) =>
       herramientasExpuestas(
         c,
-        { ...base, habilitadas: [...TODAS, 'crm.create_deal', 'conversations.send_reply'] },
-        deps({ habilitadas: [...TODAS, 'crm.create_deal', 'conversations.send_reply'] }),
+        { ...base, habilitadas: [...TODAS, ...extra] },
+        deps({ habilitadas: [...TODAS, ...extra] }),
       ),
     );
     // El modelo no puede pedir lo que no se le ofrece: la puerta se cierra
     // antes, no en el momento de ejecutar.
-    expect(hs.map((h) => h.name)).not.toContain('crm.create_deal');
-    expect(hs.map((h) => h.name)).not.toContain('conversations.send_reply');
+    //
+    // (Este test miraba `crm.create_deal`, que desde la ADR-0017 SÍ se
+    // ofrece: queda adentro del negocio y se deshace. Las que siguen
+    // cerradas son las que el cliente ve o que pisan trabajo ajeno.)
+    for (const cerrada of extra) {
+      expect(hs.map((h) => h.name), `se está ofreciendo "${cerrada}"`).not.toContain(cerrada);
+    }
     expect(hs).toHaveLength(4);
   });
 

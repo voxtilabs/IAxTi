@@ -39,16 +39,29 @@ export const HERRAMIENTAS_DE_LECTURA = {
 
 export type HerramientaDeLectura = keyof typeof HERRAMIENTAS_DE_LECTURA;
 
-/** Las que escriben: declaradas, todavía sin ejecutar (issue 240). */
+/**
+ * Las que escriben y SÍ se ejecutan (ADR-0017).
+ *
+ * El criterio, en dos preguntas: ¿lo ve el cliente? y ¿se puede deshacer?
+ * Estas dos quedan adentro del negocio y tienen un estado que las anula —una
+ * actividad se cancela, una oportunidad se marca perdida—. Las otras siete
+ * salen hacia el cliente o pisan trabajo de una persona.
+ */
+export const HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS = {
+  'crm.create_activity': 'crm.activities.manage',
+  'crm.create_deal': 'crm.deals.create',
+} as const;
+
+export type HerramientaQueEscribe = keyof typeof HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS;
+
+/** Las que siguen cerradas, con su motivo en la ADR-0017. */
 export const HERRAMIENTAS_QUE_ESCRIBEN = [
   'calendar.book',
   'calendar.reschedule',
   'calendar.cancel',
   'conversations.send_reply',
   'conversations.set_state',
-  'crm.create_deal',
   'crm.update_deal',
-  'crm.create_activity',
   'payments.create_link',
 ] as const;
 
@@ -72,6 +85,20 @@ export interface DepsHerramientas {
    * una lista larga en un chat no se lee, se abandona.
    */
   horariosLibres?: (dia: string) => Promise<unknown[]>;
+  /**
+   * Las que ESCRIBEN (ADR-0017). Opcionales: sin ellas, pedirlas devuelve
+   * que no están disponibles, que es la verdad — no una excepción.
+   */
+  crearActividad?: (input: {
+    contactId: string;
+    type: string;
+    title: string;
+    body?: string;
+    dueAt?: string;
+  }) => Promise<unknown>;
+  crearOportunidad?: (input: { contactId: string; title: string; value?: number }) => Promise<unknown>;
+  /** El contacto de la conversación en curso: la IA no elige a quién. */
+  contactoDeLaConversacion?: () => Promise<string | null>;
 }
 
 export async function ejecutarHerramienta(
@@ -95,12 +122,14 @@ export async function ejecutarHerramienta(
 
   if ((HERRAMIENTAS_QUE_ESCRIBEN as readonly string[]).includes(input.tool)) {
     return fallo(
-      `La herramienta "${input.tool}" escribe, y todavía no está habilitada: hasta dónde actúa ` +
-        'la IA sola es una decisión pendiente (issue 240).',
+      `La herramienta "${input.tool}" no está habilitada: sale hacia el cliente o pisa ` +
+        'trabajo de una persona (ADR-0017). Propónselo a quien atiende.',
     );
   }
 
-  const permiso = HERRAMIENTAS_DE_LECTURA[input.tool as HerramientaDeLectura];
+  const permiso =
+    HERRAMIENTAS_DE_LECTURA[input.tool as HerramientaDeLectura] ??
+    HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS[input.tool as HerramientaQueEscribe];
   if (!permiso) return fallo(`No existe una herramienta llamada "${input.tool}".`);
 
   // Lo que el agente tiene habilitado Y el módulo ofrece. Una herramienta
@@ -144,6 +173,36 @@ export async function ejecutarHerramienta(
         datos = (await deps.horariosLibres(dia)).slice(0, 3);
         break;
       }
+      case 'crm.create_activity': {
+        if (!deps.crearActividad) throw new Error('El CRM no está disponible.');
+        const contactId = await contactoPara(input, deps);
+        const title = String(input.args.title ?? '').trim();
+        if (!title) throw new Error('Falta el título de la actividad.');
+        datos = await deps.crearActividad({
+          contactId,
+          // 'nota' por defecto: dejar constancia es lo más inocuo que puede
+          // hacer, y es lo que casi siempre corresponde.
+          type: String(input.args.type ?? 'nota'),
+          title,
+          body: input.args.body ? String(input.args.body) : undefined,
+          dueAt: input.args.dueAt ? String(input.args.dueAt) : undefined,
+        });
+        break;
+      }
+      case 'crm.create_deal': {
+        if (!deps.crearOportunidad) throw new Error('El CRM no está disponible.');
+        const contactId = await contactoPara(input, deps);
+        const title = String(input.args.title ?? '').trim();
+        if (!title) throw new Error('Falta el título de la oportunidad.');
+        const valor = input.args.value === undefined ? undefined : Number(input.args.value);
+        if (valor !== undefined && !Number.isFinite(valor)) {
+          throw new Error('El monto tiene que ser un número, o no venir.');
+        }
+        // La etapa NO se elige: nace en la primera abierta (ADR-0017). La IA
+        // no gana ni pierde negocios.
+        datos = await deps.crearOportunidad({ contactId, title, value: valor });
+        break;
+      }
       default:
         return fallo(`No existe una herramienta llamada "${input.tool}".`);
     }
@@ -152,6 +211,20 @@ export async function ejecutarHerramienta(
   } catch (err) {
     return fallo((err as Error).message);
   }
+}
+
+/**
+ * A quién se le cuelga lo que la IA crea: al contacto de ESTA conversación.
+ * El modelo no elige a quién — si pudiera, un nombre mal leído terminaría
+ * creándole una oportunidad a otra persona.
+ */
+async function contactoPara(
+  input: { args: Record<string, unknown> },
+  deps: DepsHerramientas,
+): Promise<string> {
+  const id = deps.contactoDeLaConversacion ? await deps.contactoDeLaConversacion() : null;
+  if (!id) throw new Error('No sé de qué contacto es esta conversación.');
+  return id;
 }
 
 /**

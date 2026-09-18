@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import type { HerramientaExpuesta } from './models';
 import {
   HERRAMIENTAS_DE_LECTURA,
+  HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS,
   ejecutarHerramienta,
   type DepsHerramientas,
 } from './herramientas';
@@ -68,6 +69,38 @@ const ESQUEMAS: Record<string, { description: string; parameters: Record<string,
       additionalProperties: false,
     },
   },
+  'crm.create_activity': {
+    description:
+      'Deja una nota o una tarea en la ficha del cliente de esta conversación. No la ve el cliente: es para el equipo. Úsala cuando quede algo pendiente que alguien tiene que hacer o recordar.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Qué pasó o qué hay que hacer, en una frase.' },
+        type: {
+          type: 'string',
+          enum: ['nota', 'tarea', 'llamada', 'reunion'],
+          description: 'Por defecto "nota".',
+        },
+        body: { type: 'string', description: 'Detalle, si hace falta.' },
+        dueAt: { type: 'string', description: 'Para cuándo, AAAA-MM-DD. Solo en tareas.' },
+      },
+      required: ['title'],
+      additionalProperties: false,
+    },
+  },
+  'crm.create_deal': {
+    description:
+      'Crea una oportunidad de venta para el cliente de esta conversación, en la primera etapa. No la ve el cliente. Úsala cuando muestre intención real de comprar, no por preguntar un precio.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Qué se está vendiendo, en pocas palabras.' },
+        value: { type: 'number', description: 'Monto en pesos, SOLO si el cliente lo dijo o está en el catálogo. Nunca lo estimes.' },
+      },
+      required: ['title'],
+      additionalProperties: false,
+    },
+  },
 };
 
 export function herramientasExpuestas(
@@ -92,14 +125,28 @@ export function herramientasExpuestas(
   if (!input.actorUserId) return [];
 
   const disponibles = input.habilitadas.filter(
-    (t) => t in HERRAMIENTAS_DE_LECTURA && t in ESQUEMAS,
+    (t) => (t in HERRAMIENTAS_DE_LECTURA || t in HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS) && t in ESQUEMAS,
   );
+
+  // Una escritura por generación (ADR-0017). El bucle tiene tope de cuatro
+  // pasos; sin esto, un modelo que se traba podría crear tres oportunidades
+  // del mismo cliente en una sola respuesta. La segunda vez recibe el
+  // motivo y sigue contestando.
+  let yaEscribio: string | null = null;
 
   return disponibles.map((nombre) => ({
     name: nombre,
     description: ESQUEMAS[nombre].description,
     parameters: ESQUEMAS[nombre].parameters,
     ejecutar: async (args: Record<string, unknown>) => {
+      const escribe = nombre in HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS;
+      if (escribe && yaEscribio) {
+        return {
+          error:
+            `Ya usaste "${yaEscribio}" en esta respuesta y solo se permite una escritura por vez. ` +
+            'Termina de responderle al cliente; si hace falta otra, la próxima vez.',
+        };
+      }
       const r = await ejecutarHerramienta(
         client,
         {
@@ -113,6 +160,9 @@ export function herramientasExpuestas(
         },
         deps,
       );
+      // Solo cuenta si de verdad escribió: una llamada rechazada por
+      // permiso no gasta el turno.
+      if (escribe && r.ok) yaEscribio = nombre;
       // El error se le devuelve AL MODELO, no se lanza: un permiso que
       // falta no es una falla del sistema, es un dato que el modelo tiene
       // que saber para responder sin inventar.

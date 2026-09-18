@@ -146,10 +146,13 @@ describe('lo que NO puede hacer', () => {
     expect(res.error).toContain('no está habilitada');
   });
 
-  it('no escribe: las que escriben esperan una decisión, y lo dice', async () => {
+  it('no escribe lo que el cliente ve, y explica por qué (ADR-0017)', async () => {
     // `calendar.book` entra acá a propósito: ofrecer horarios es leer,
     // tomarlos es escribir.
-    for (const tool of ['conversations.send_reply', 'crm.create_deal', 'calendar.book']) {
+    // `crm.create_deal` salió de esta lista con la ADR-0017: queda adentro
+    // del negocio y se marca perdida, así que la IA sí la puede crear. Las
+    // que siguen acá son las que el cliente ve.
+    for (const tool of ['conversations.send_reply', 'payments.create_link', 'calendar.book']) {
       const res = await en((c) =>
         ejecutarHerramienta(
           c,
@@ -158,7 +161,7 @@ describe('lo que NO puede hacer', () => {
         ),
       );
       expect(res.ok).toBe(false);
-      expect(res.error).toContain('decisión pendiente');
+      expect(res.error).toContain('ADR-0017');
     }
   });
 

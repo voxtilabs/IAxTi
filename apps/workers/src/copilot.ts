@@ -25,6 +25,7 @@ import {
   searchKnowledge,
 } from '@iaxti/module-knowledge';
 import { huecosDelDia } from '@iaxti/module-calendar';
+import { createActivity, createDeal, listPipelines } from '@iaxti/module-crm';
 import { roleOf } from '@iaxti/module-identity';
 import {
   baseRoleHasPermission,
@@ -230,6 +231,42 @@ async function herramientasDeLaConversacion(
       buscarProducto: (query) => getProduct(client, data.tenantId, query),
       horariosLibres: (dia) =>
         huecosDelDia(client, { tenantId: data.tenantId, ownerId: dueno, dia }),
+
+      // Las dos que ESCRIBEN (ADR-0017): quedan adentro del negocio y se
+      // deshacen. El contacto no lo elige el modelo — sale de la
+      // conversación, porque un nombre mal leído terminaría creándole una
+      // oportunidad a otra persona.
+      contactoDeLaConversacion: async () => conv.contactId ?? null,
+      crearActividad: (i) =>
+        createActivity(client, {
+          tenantId: data.tenantId,
+          contactId: i.contactId,
+          type: (['nota', 'tarea', 'llamada', 'reunion'].includes(i.type)
+            ? i.type
+            : 'nota') as 'nota',
+          title: i.title,
+          body: i.body,
+          // Sin dueño explícito queda a nombre de quien atiende: una tarea
+          // sin responsable es una tarea que no hace nadie.
+          ownerId: dueno,
+          dueAt: i.dueAt ? new Date(`${i.dueAt}T12:00:00Z`) : undefined,
+        }),
+      crearOportunidad: async (i) => {
+        const pipelines = await listPipelines(client, data.tenantId);
+        const pipeline = pipelines[0];
+        if (!pipeline) throw new Error('El negocio todavía no tiene un embudo configurado.');
+        return createDeal(client, {
+          tenantId: data.tenantId,
+          contactId: i.contactId,
+          pipelineId: pipeline.id,
+          // Sin stageId: nace en la primera etapa ABIERTA (ADR-0017). La IA
+          // no gana ni pierde negocios.
+          title: i.title,
+          value: i.value,
+          ownerId: dueno,
+          sourceConversationId: data.conversationId,
+        });
+      },
     },
   );
 }
