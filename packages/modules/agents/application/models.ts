@@ -40,6 +40,18 @@ export interface GenerateResult {
   tokensOut: number;
   /** Qué herramientas pidió el modelo, en orden. Vacío si no pidió ninguna. */
   herramientasUsadas?: string[];
+  /**
+   * El modelo se quedó sin espacio de salida: la respuesta viene CORTADA.
+   *
+   * Importa más de lo que parece con los modelos que razonan: los tokens de
+   * pensar se descuentan de la salida. Una sugerencia de tres líneas gastó
+   * 665 de los 1024 disponibles en la primera corrida real — o sea que una
+   * conversación larga corta.
+   *
+   * Y una respuesta cortada es JSON inválido, que sin esto terminaba en la
+   * bandeja como texto para mandarle al cliente.
+   */
+  truncada?: boolean;
 }
 
 export interface ModelPort {
@@ -122,6 +134,9 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
         tokensIn: res.usage.inputTokens ?? res.steps?.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0) ?? 0,
         tokensOut: res.usage.outputTokens ?? res.steps?.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0) ?? 0,
         ...(usadas.length ? { herramientasUsadas: usadas } : {}),
+        // `length` es la señal del proveedor de que llegó al tope. Es más
+        // confiable que adivinar mirando el texto.
+        ...(res.finishReason === 'length' ? { truncada: true } : {}),
       };
     },
   };
