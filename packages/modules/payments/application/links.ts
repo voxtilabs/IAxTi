@@ -341,21 +341,53 @@ export async function expireLinks(client: PoolClient, tenantId: string): Promise
   return r.rowCount ?? 0;
 }
 
+/**
+ * Los tenants a los que les toca vencer links de pago.
+ *
+ * De `tenants`, no de `payment_links` (#286): esa tabla tiene RLS y la
+ * consulta corre sin contexto, así que con el rol de producción ningún link
+ * habría vencido — y un link de pago que no vence es uno que se puede pagar
+ * meses después, por un monto que ya no corresponde.
+ */
 export async function tenantsWithExpirableLinks(client: Pick<PoolClient, 'query'>): Promise<string[]> {
   const r = await client.query(
-    `SELECT DISTINCT tenant_id FROM payment_links
-      WHERE status IN ('created','sent') AND expires_at IS NOT NULL AND expires_at < now()`,
+    `SELECT id FROM tenants WHERE COALESCE(state, 'active') <> 'deleted' ORDER BY created_at`,
   );
-  return r.rows.map((x) => x.tenant_id);
+  return r.rows.map((x) => x.id);
 }
 
-/** Para el webhook público: el proveedor por id SIN tenant (la ruta no lo
- *  trae; el pool del proceso no está bajo RLS, igual que en canales #41). */
+/**
+ * El proveedor por id, para el webhook público — que trae el id en la ruta y
+ * no el tenant.
+ *
+ * El comentario que estaba acá decía "el pool del proceso no está bajo RLS".
+ * Eso era cierto solo mientras el rol fuera superusuario: con el rol de
+ * producción, `payment_providers` tiene RLS FORCE y esta consulta devolvía
+ * cero filas — o sea que un pago confirmado por el proveedor no se
+ * registraba nunca (#286).
+ *
+ * Ahora el tenant se averigua primero con `tenantDeProveedor` y esto se
+ * llama SIEMPRE dentro de `withTenant`. El tipo pide `PoolClient` y no un
+ * pool disfrazado justamente para que eso no se pueda volver a hacer.
+ */
 export async function findProviderGlobal(
-  client: Pick<PoolClient, 'query'>,
+  client: PoolClient,
   providerId: string,
 ): Promise<(PaymentProvider & { tenantId: string }) | null> {
   const r = await client.query('SELECT * FROM payment_providers WHERE id = $1', [providerId]);
   if (r.rowCount === 0) return null;
   return { ...rowToProvider(r.rows[0]), tenantId: r.rows[0].tenant_id as string };
+}
+
+/**
+ * El tenant de un proveedor de pagos, para el webhook que llega sin él
+ * (#286). Mismo motivo y misma forma que `tenantDeCuenta`: devuelve solo el
+ * tenant, y el resto se lee dentro de `withTenant`.
+ */
+export async function tenantDeProveedor(
+  client: Pick<PoolClient, 'query'>,
+  providerId: string,
+): Promise<string | null> {
+  const r = await client.query('SELECT tenant_de_proveedor_de_pago($1) AS tenant', [providerId]);
+  return (r.rows[0]?.tenant as string | null) ?? null;
 }

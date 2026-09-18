@@ -20,6 +20,7 @@ export {
   createChannelAccount,
   getChannelAccount,
   findAccountById,
+  tenantDeCuenta,
   setChannelState,
   listChannelAccounts,
 } from './application/accounts';

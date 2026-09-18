@@ -57,7 +57,12 @@ export async function getChannelAccount(
   };
 }
 
-/** El webhook llega SIN tenant: la cuenta se ubica por su id global. */
+/**
+ * La cuenta por id. El webhook llega sin tenant, así que primero se averigua
+ * con `tenantDeCuenta` y esto se llama DENTRO de `withTenant` (#286): antes
+ * se leía con el pool pelado, y con el rol de producción eso devuelve cero
+ * filas — cada mensaje entrante habría respondido "Nada por aquí".
+ */
 export async function findAccountById(
   client: PoolClient,
   accountId: string,
@@ -110,4 +115,23 @@ export async function listChannelAccounts(
     [tenantId],
   );
   return r.rows.map(rowToAccount);
+}
+
+/**
+ * El tenant de una cuenta de canal, para el webhook que llega sin él (#286).
+ *
+ * `findAccountById` lee la fila completa y necesita contexto de tenant. Esto
+ * es el paso anterior: con el id opaco de la URL, averigua a quién
+ * pertenece. Por una función SECURITY DEFINER acotada —devuelve SOLO el
+ * tenant— porque `channel_accounts` tiene RLS y el tenant es justamente lo
+ * que falta para poder fijarlo.
+ *
+ * Con ese id, el llamador entra por `withTenant` y lee la cuenta bajo RLS.
+ */
+export async function tenantDeCuenta(
+  client: Pick<PoolClient, 'query'>,
+  accountId: string,
+): Promise<string | null> {
+  const r = await client.query('SELECT tenant_de_cuenta_de_canal($1) AS tenant', [accountId]);
+  return (r.rows[0]?.tenant as string | null) ?? null;
 }

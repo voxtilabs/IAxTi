@@ -20,6 +20,7 @@ import {
   cancelLink,
   createPaymentLink,
   findProviderGlobal,
+  tenantDeProveedor,
   listLinks,
   listProviders,
   markLinkSent,
@@ -280,13 +281,14 @@ export class PaymentWebhooksController {
         message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
       });
     }
-    const client = await p.connect();
-    let provider;
-    try {
-      provider = await findProviderGlobal(client, providerId);
-    } finally {
-      client.release();
-    }
+    // Igual que el webhook de canales (#286): el tenant se averigua primero
+    // con la función acotada y el proveedor se lee bajo su contexto. Con el
+    // pool pelado y el rol de producción, un pago confirmado por el proveedor
+    // no se habría registrado nunca.
+    const tenantId = await tenantDeProveedor(p, providerId);
+    const provider = tenantId
+      ? await withTenant(p, tenantId, (c) => findProviderGlobal(c, providerId))
+      : null;
     // Proveedor inexistente y firma mala responden IGUAL: nada que sondear.
     if (!provider || !provider.active) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });

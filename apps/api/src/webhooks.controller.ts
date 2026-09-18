@@ -10,7 +10,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import { createQueue, redisConnection } from '@iaxti/core';
-import { findAccountById, getProvider } from '@iaxti/module-channels';
+import { withTenant } from '@iaxti/db';
+import { findAccountById, getProvider, tenantDeCuenta } from '@iaxti/module-channels';
 import { normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
 import type { WithRequestId } from './request-id';
@@ -44,13 +45,14 @@ export class WebhooksController {
         message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
       });
     }
-    const client = await pool.connect();
-    let account;
-    try {
-      account = await findAccountById(client, accountId);
-    } finally {
-      client.release();
-    }
+    // El webhook llega SIN tenant: primero se averigua de quién es la cuenta
+    // (función acotada, #286) y recién después se lee bajo su contexto. Antes
+    // se leía con el pool pelado, y con el rol de producción eso devuelve
+    // cero filas: TODO mensaje entrante habría respondido "Nada por aquí".
+    const tenantId = await tenantDeCuenta(pool, accountId);
+    const account = tenantId
+      ? await withTenant(pool, tenantId, (c) => findAccountById(c, accountId))
+      : null;
     // Cuenta inexistente y firma mala responden IGUAL: nada que sondear.
     if (!account || account.state === 'disconnected') {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
