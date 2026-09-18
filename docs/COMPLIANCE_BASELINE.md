@@ -24,7 +24,8 @@ técnico (T) / organizacional (O) / legal (L) / contractual (C).
 | Gestión de secretos y rotación | A.8.24 | — | — | V6 | — | SECURITY_BASELINE | T/O | parcial — todo por referencia y fuera de git; la rotación del cierre de construcción está pendiente |
 | Backups y restore probado | A.8.13 | — | — | — | disponibilidad | #80 | T/O | **pendiente** — #80; el restore no se ha cronometrado nunca |
 | Minimización de PII en logs y trazas | A.8.11 | 6.11 | 8.2 | V8 | proporcionalidad | ADR-0006 | T | hecho — ADR-0006; nada de cuerpos de mensaje en OTel |
-| Redacción de PII hacia proveedores de IA | — | 6.11 | 8.2, 9.2 | — | transferencia | ADR-0011, #54 | T/C | hecho — `redactPII` en el runtime, encendido por defecto |
+| Redacción de PII hacia observabilidad y evaluación | — | 6.11 | 8.2, 9.2 | — | proporcionalidad | `redactPII` en `runtime.ts` (Langfuse) y en el dataset de evaluación | T | hecho — encendido por defecto, apagable por tenant |
+| Contenido del cliente hacia el proveedor LLM | — | 6.11 | 8.2, 9.2 | — | transferencia | inherente al producto; mitigación contractual | L/C | **parcial — dicho como es**: al modelo va el texto REAL de la conversación, sin redactar, porque redactar lo que se le pide interpretar rompe la sugerencia. La redacción protege Langfuse y el dataset, no al proveedor. La mitigación es contractual: tier pago con opt-out de entrenamiento y la fila de transferencia de cada proveedor |
 | Transferencia internacional (Supabase, Gemini, Zavu, GLM si se adopta) | A.5.19 | 7.5 | — | — | transferencia internacional | contratos + fila por proveedor | L/C | pendiente |
 | Consentimiento y opt-out registrado | — | 7.2 | — | — | base de licitud | #30 (evidencia opt-in) | T/L | hecho — opt-in con evidencia y opt-out por palabra clave |
 | Derecho de acceso y portabilidad | — | 7.3 | — | — | derechos del titular | del titular y del tenant | T | hecho — `GET /contacts/:id/titular` entrega todo lo de una persona (mensajes incluidos), y la exportación completa del negocio existe desde #222: sale con lo que dejó afuera y por qué, y jamás un secreto |
@@ -41,8 +42,16 @@ técnico (T) / organizacional (O) / legal (L) / contractual (C).
 | Análisis dinámico (DAST) | A.8.29 | — | — | V14 | — | OWASP ZAP baseline agendado contra staging (`.github/workflows/zap.yml`) | T | parcial — el workflow está; sin staging en pie no ha corrido (#133) |
 | Transferencia internacional · Supabase (datos y auth) | A.5.19 | 7.5 | — | — | transferencia internacional | contrato del proveedor + región declarada | L/C | pendiente |
 | Transferencia internacional · Google Gemini (IA) | A.5.19 | 7.5 | 8.2 | — | transferencia internacional | ADR-0011 + `redactPII` antes de salir | T/L/C | parcial — lo técnico está; el contrato no |
+| Transferencia internacional · Anthropic (IA) | A.5.19 | 7.5 | 8.2 | — | transferencia internacional | `PROVIDERS` incluye `anthropic`; el tenant lo puede elegir por tarea | L/C | pendiente — **no tenía fila y sí es elegible**: cualquier tenant puede ponerlo como proveedor de una tarea y el texto de las conversaciones sale hacia allá igual que con Gemini |
+| Transferencia internacional · GLM / Zhipu (IA) | A.5.19 | 7.5 | 8.2 | — | transferencia internacional | `PROVIDERS` incluye `glm`; ADR pendiente en #54 | L/C | pendiente — **el código lo acepta antes de que la decisión exista**: `glm` es elegible hoy aunque su ADR (#54) siga abierta. Y no es una transferencia igual a las otras: el destino es China, con un marco legal distinto al de Google o Anthropic. Hasta que #54 se resuelva, no debería usarse con datos de clientes reales |
 | Transferencia internacional · Zavu (canales) | A.5.19 | 7.5 | — | — | transferencia internacional | ADR-0014; el contenido de los mensajes pasa por el proveedor | L/C | pendiente |
 | Transferencia internacional · Cloudflare R2 (adjuntos) | A.5.19 | 7.5 | — | — | transferencia internacional | adjuntos por tenant, URLs firmadas de vida corta | L/C | pendiente |
+| Separación de ambientes para cobros reales | A.8.31 | — | — | — | — | ADR/SPEC §17, #275 | T | hecho — el modo `live` de un proveedor de pagos se verifica al darlo de alta **y al cobrar**. Se comprobaba solo al alta, y una fila heredada de un respaldo de producción cobraba desde staging (#275). Sin `IAXTI_ENV`, el ambiente es desconocido y desconocido no es producción |
+| Límite de la autonomía de escritura de la IA | — | — | 8.4, 9.4 | — | — | [ADR-0017](./adr/0017-que-puede-escribir-la-ia.md) | T | hecho — de nueve herramientas que escriben se habilitaron dos, las que quedan adentro del negocio y se deshacen. El criterio (¿lo ve el cliente? ¿se puede deshacer?) y el motivo de cada una de las siete cerradas están en la ADR. Una escritura por generación; el contacto sale de la conversación, no lo elige el modelo |
+| Excepción nombrada al horario de silencio | — | 7.2 | — | — | proporcionalidad | [ADR-0016](./adr/0016-mensajes-transaccionales-y-horario-de-silencio.md) | T | hecho — solo el comprobante de pago, porque lo dispara el cliente al pagar. Se salta el silencio y nada más: ni la pausa por calidad, ni el estado del tenant, ni la ventana de 24 h. Un test falla si la lista crece |
+| Aviso antes de eliminar los datos de un tenant | A.8.10 | 7.4 | — | — | limitación del plazo | #218 | T | hecho — a los 75 días suspendido se avisa al ADMIN con 15 días para exportar o volver; a los 90 el tenant queda en una cola que **borra una persona**, nunca el sistema. Un test recorre el código buscando quien lo automatice |
+| Trazabilidad de extremo a extremo con tenant | A.8.15, A.8.16 | — | — | V7 | evidencia | #17, #272 | T | hecho — la traza sigue del request al job de la cola y cada línea de log lleva su `tenant_id` con `LOG_FORMAT=json`. Sin `OTEL_EXPORTER_OTLP_ENDPOINT` todo queda apagado sin romper nada |
+| Vigilancia de disponibilidad y alertas | A.8.16 | — | — | — | disponibilidad | #17 | T/O | **pendiente** — Uptime Kuma y las cuatro alertas mínimas (error rate, p95, cola atascada, disco) necesitan el panel y Grafana Cloud configurados |
 | Inventario de datos personales por módulo | — | 6.1 | — | — | registro de actividades | [INVENTARIO-DATOS.md](./INVENTARIO-DATOS.md) | T/O | hecho — qué guarda cada tabla, de quién es, si se exporta y qué le pasa al suprimir. Un test falla si aparece una tabla sin inventariar, así que no puede quedar viejo en silencio |
 
 Las referencias a cláusulas ISO/ASVS son orientativas para ordenar el trabajo;
@@ -67,8 +76,26 @@ auditable, la certificación es un proceso aparte (SPEC §30).
 ## Lo que falta para responder a un cliente que pide contrato de tratamiento
 
 1. El borrador de contrato revisado por abogado (fila propia, arriba).
-2. Las cuatro filas de transferencia internacional con su contrato firmado.
+2. Las **seis** filas de transferencia internacional con su contrato firmado
+   — Supabase, Gemini, Anthropic, GLM, Zavu y R2. Las de Anthropic y GLM se
+   agregaron hoy: los dos son proveedores elegibles por cualquier tenant y no
+   tenían fila. La de GLM además señala algo que no es solo papeleo — su ADR
+   (#54) sigue abierta y el código ya lo acepta.
 3. El restore cronometrado (#80) y el ensayo de notificación de brechas.
 4. MFA para quien administra (#7).
+5. La vigilancia de disponibilidad (#17): sin alertas, "el servicio estuvo
+   arriba" es una afirmación sin evidencia.
 
-Las tres primeras no son código. La cuarta sí, y está identificada.
+La 1, la 2 y el ensayo de la 3 no son código. Las demás sí, y están
+identificadas con su issue.
+
+### Una cosa que este documento decía mal hasta hoy
+
+Decía que se redacta PII **hacia los proveedores de IA**. No es cierto y no
+puede serlo: al modelo hay que darle el texto real de la conversación, porque
+redactar justo lo que se le pide interpretar rompe la sugerencia. Lo que
+`redactPII` protege es Langfuse y el dataset de evaluación.
+
+Está corregido arriba, en dos filas separadas. Se anota acá porque esta es la
+página que se le muestra a un cliente que pide contrato de tratamiento, y una
+afirmación de más en este documento vale menos que una de menos.
