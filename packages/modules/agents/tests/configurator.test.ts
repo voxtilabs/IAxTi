@@ -196,3 +196,43 @@ describe('proponer → aplicar (#50)', () => {
     expect(snap.quickReplies).toEqual(expect.arrayContaining(['horas', 'precios']));
   });
 });
+
+describe('la propuesta cortada no pide "más detalle" (#310)', () => {
+  const cortada: ModelPortFactory = () => ({
+    async generate() {
+      return {
+        text: '{"pipeline": {"name": "Ventas", "stages": [{"name": "Nuevo", "type": "open"}',
+        tokensIn: 500,
+        tokensOut: 4000,
+        truncada: true,
+      };
+    },
+  });
+
+  it('dice que quedó a medias y pide una descripción MÁS CORTA', async () => {
+    const res = await withTenant(admin, tenant, (c) =>
+      proposeConfiguration(
+        c,
+        { tenantId: tenant, description: 'Tengo una barbería en Ñuñoa con dos sillas.', actorUserId: 'u-1' },
+        cortada,
+      ),
+    );
+    expect(res.status).toBe('failed');
+    expect(res.error).toContain('a medias');
+    // El consejo viejo —"intenta de nuevo con más detalle"— empeoraba el
+    // problema: más detalle alarga el contexto y lo corta antes. Y esto es
+    // lo primero que hace alguien que recién llega al producto.
+    expect(res.error).not.toContain('más detalle');
+    expect(res.error).toMatch(/más corta/);
+  });
+
+  it('no guarda una propuesta a medias', async () => {
+    const antes = await admin.query('SELECT count(*) FROM agent_proposals WHERE tenant_id = $1', [tenant]);
+    await withTenant(admin, tenant, (c) =>
+      proposeConfiguration(c, { tenantId: tenant, description: 'Una barbería.', actorUserId: 'u-1' }, cortada),
+    );
+    const despues = await admin.query('SELECT count(*) FROM agent_proposals WHERE tenant_id = $1', [tenant]);
+    expect(despues.rows[0].count).toBe(antes.rows[0].count);
+  });
+});
+

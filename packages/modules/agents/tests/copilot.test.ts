@@ -256,3 +256,45 @@ describe('una respuesta cortada no llega a la bandeja', () => {
     expect(s).toBeNull();
   });
 });
+
+describe('el resumen cortado no se guarda (#310)', () => {
+  it('conserva el anterior y deja los mensajes para resumir de nuevo', async () => {
+    // Conversación propia: 10 mensajes, ventana de 8 → hay viejos que resumir.
+    let conv = '';
+    for (let i = 0; i < 10; i++) {
+      const r = await withTenant(admin, tenant, (c) =>
+        receiveInbound(c, {
+          tenantId: tenant,
+          phone: '+56961119999',
+          channel: 'simulador',
+          body: `Mensaje ${i}: quiero saber por el color y el precio.`,
+        }),
+      );
+      conv = r.conversation.id;
+    }
+    const antes = await withTenant(admin, tenant, (c) => getContext(c, tenant, conv));
+    expect(antes.unsummarized).toBeGreaterThan(0);
+    expect(antes.summary).toBeNull();
+
+    // El resumen se corta; la sugerencia sale bien.
+    const resumenCortado: ModelPortFactory = () => ({
+      async generate(args) {
+        return args.prompt.startsWith('Resume')
+          ? { text: 'La clienta preguntó por el color y quedó de confirmar si', tokensIn: 200, tokensOut: 1024, truncada: true }
+          : { text: JSON_SUGERENCIA, tokensIn: 200, tokensOut: 60 };
+      },
+    });
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conv }, resumenCortado),
+    );
+
+    const despues = await withTenant(admin, tenant, (c) => getContext(c, tenant, conv));
+    // Lo que rompía en silencio: media frase guardada como resumen, la seq
+    // marcada como resumida —así que esos mensajes no se vuelven a leer— y
+    // ese texto a medias inyectado como contexto en cada llamada siguiente.
+    expect(despues.summary).toBeNull();
+    // Los mensajes siguen pendientes: el próximo intento los resume enteros.
+    expect(despues.unsummarized).toBe(antes.unsummarized);
+  });
+});
+

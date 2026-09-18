@@ -51,6 +51,34 @@ export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   transcribir: { provider: 'google', model: 'gemini-flash-latest' },
 };
 
+/**
+ * Cuánto espacio de SALIDA se le da a cada tarea.
+ *
+ * Existía un solo número, 1024, escondido como default en el puerto. Con
+ * los modelos que razonan eso no es un tope de respuesta: es un tope
+ * compartido entre pensar y escribir, y en la primera corrida real una
+ * sugerencia de tres líneas se comió 665 pensando.
+ *
+ * Las tareas no piden lo mismo ni de lejos: `resumir` son tres frases y
+ * `configurar` es un pipeline entero con cinco respuestas rápidas y tres
+ * plantillas de WhatsApp, con el modelo Pro, que razona más. Un número
+ * para todas garantiza que sobre en unas y falte en otras — y faltar acá
+ * no se ve como un error, se ve como que el producto no entendió.
+ */
+export const DEFAULT_TASK_OUTPUT_TOKENS: Record<AgentTask, number> = {
+  clasificar: 1024,
+  // 665 observados para una sugerencia corta. El doble largo deja aire
+  // para una conversación con más historia.
+  sugerir: 1500,
+  responder: 1500,
+  // La más grande del producto por lejos, y encima con el modelo que más
+  // razona. Cortarla acá es el onboarding fallando en el primer intento.
+  configurar: 4000,
+  conocer: 1500,
+  resumir: 1024,
+  transcribir: 2048,
+};
+
 export interface IaSettings {
   tasks: Record<AgentTask, TaskModel>;
   /** Redacción de PII antes de mandar trazas a Langfuse (SPEC §13). */

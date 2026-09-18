@@ -239,6 +239,12 @@ export async function autoRespondForInbound(
   );
   // Un fallo del modelo deja al cliente esperando: eso también escala.
   if (res.status === 'failed' || !res.text) return escalar('error_del_modelo');
+  // Cortado por el tope de salida: el parser ya escalaba (un JSON sin
+  // cerrar no parsea), pero lo reportaba como 'error_del_modelo'. El
+  // modelo no falló — no le alcanzó el espacio, y eso se arregla distinto.
+  // Con el motivo verdadero el dueño puede ver que le pasa siempre en las
+  // conversaciones largas, en vez de creer que el proveedor anda mal.
+  if (res.truncada) return escalar('respuesta_cortada');
 
   const payload = parseAutonomous(res.text);
   if (payload.escalar) return escalar(payload.motivoEscalar ?? 'otro');

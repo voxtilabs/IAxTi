@@ -83,7 +83,21 @@ export async function refreshedContext(
       },
       modelPortFactory,
     );
-    if (resumen.status === 'ok' && resumen.text) {
+    // Un resumen cortado NO se guarda, y es el caso más sigiloso de todos:
+    // `updateSummary` deja `summarySeq = minSeq - 1`, así que esos mensajes
+    // quedan marcados como resumidos y no se vuelven a leer NUNCA. El
+    // resumen a medias pasa a ser el único registro de esa parte de la
+    // conversación, y encima se inyecta como contexto en cada llamada
+    // siguiente. Se pierde información de verdad.
+    //
+    // Prefiero quedarme con el resumen viejo: los mensajes siguen ahí y el
+    // próximo intento los resume completos.
+    if (resumen.truncada) {
+      console.warn(
+        `[${input.requestId ?? 'sin-request'}] resumen cortado por el tope de salida en ` +
+          `conversación ${input.conversationId}: se conserva el anterior y se reintenta después.`,
+      );
+    } else if (resumen.status === 'ok' && resumen.text) {
       await updateSummary(client, {
         tenantId: input.tenantId,
         conversationId: input.conversationId,
