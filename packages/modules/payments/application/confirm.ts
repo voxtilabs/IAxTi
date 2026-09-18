@@ -143,8 +143,18 @@ export async function confirmPayment(
           requestId: input.requestId,
         });
       }
-    } catch {
-      /* una conversación archivada no frena la confirmación */
+    } catch (err) {
+      // Una conversación archivada no frena la confirmación: el pago ya
+      // está registrado y eso es lo que importa. Pero se DICE por qué.
+      //
+      // Este catch era mudo y me escondió un link sin conversación durante
+      // media hora: el pago se confirmaba, el aviso no salía, y no había
+      // nada en ningún lado. Tragarse un error sin dejar rastro convierte
+      // un problema de cinco minutos en uno de media hora.
+      console.warn(
+        `[${input.requestId ?? 'sin-request'}] pago ${link.id} confirmado, ` +
+          `pero el aviso al cliente no salió — ${(err as Error).message}`,
+      );
     }
   }
 
