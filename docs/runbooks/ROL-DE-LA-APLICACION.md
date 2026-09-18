@@ -41,15 +41,48 @@ GRANT USAGE ON SCHEMA public TO iaxti_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO iaxti_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_app;
 
--- Para las tablas que vengan con las próximas migraciones:
+-- El libro es append-only: el trigger ya rechaza UPDATE y DELETE, pero el
+-- permiso tampoco debería estar. Dos cerraduras cuestan lo mismo que una.
+REVOKE UPDATE, DELETE ON audit_log FROM iaxti_app;
+
+-- Las funciones. Hoy hay una sola —`resolver_api_key`, que resuelve una API
+-- key ANTES de saber de qué tenant es— y sin este permiso la aplicación
+-- arranca bien y rechaza TODA petición autenticada por API key, sin decir
+-- por qué.
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO iaxti_app;
+
+-- Para las tablas y funciones que vengan con las próximas migraciones:
 ALTER DEFAULT PRIVILEGES FOR ROLE iaxti IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO iaxti_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE iaxti IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO iaxti_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE iaxti IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO iaxti_app;
 ```
+
+> **El orden importa.** El rol se crea ANTES de correr las migraciones. Si se
+> hace al revés, el `GRANT EXECUTE` que la migración de `resolver_api_key`
+> intenta se salta en silencio —está dentro de un `IF EXISTS (… pg_roles …)`—
+> y las API keys dejan de funcionar sin que nada lo diga. El
+> `GRANT EXECUTE ON ALL FUNCTIONS` de arriba lo repara si ya pasó.
 
 `DATABASE_URL` de la aplicación apunta a `iaxti_app`. Las migraciones —que
 corren antes del despliegue, en su propio paso— siguen usando el dueño.
+
+### Lo que NO alcanza con tener permisos
+
+Los permisos son una cosa y el contexto de tenant es otra. Una consulta que
+la aplicación haga **fuera** de `withTenant` corre sin `app.tenant_id`, y con
+RLS forzado eso devuelve **cero filas** — no un error. Con el rol de
+desarrollo, que es superusuario, la misma consulta devuelve todo.
+
+Esa diferencia dejó muertos todos los barridos programados hasta #286:
+facturación, recordatorios, reglas de tiempo, secuencias, webhooks y
+analytics corrían cada 15 minutos informando que no había nada que hacer.
+
+Hay un test que lo cuida (`packages/db/tests/barridos-con-el-rol-real.test.ts`):
+corre con un rol sin privilegios y falla si alguien vuelve a consultar una
+tabla con RLS fuera de `withTenant`.
 
 Si en vez del `GRANT … ON ALL TABLES` se prefiere enumerar tabla por tabla,
 hay que acordarse de que el camino de entrada de un mensaje escribe en más
