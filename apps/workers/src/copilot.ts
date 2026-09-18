@@ -146,7 +146,18 @@ export async function processSuggest(
         // La MISMA cola outbound del humano: rate limit y reintentos (#43).
         await colas.outbound.add(
           'send',
-          { moduleId: 'whatsapp', tenantId: data.tenantId, messageId: message.id, requestId: data.requestId },
+          {
+            moduleId: 'whatsapp',
+            tenantId: data.tenantId,
+            messageId: message.id,
+            requestId: data.requestId,
+            // Explícito aunque el valor sea el que ya tomaba por omisión: el
+            // autónomo RESPONDE a quien acaba de escribir, así que no es un
+            // envío iniciado por el negocio. El tipo lo pide obligatorio y
+            // acá no se estaba pasando — el default silencioso acertaba, que
+            // es la peor forma de acertar.
+            initiatedByBusiness: false,
+          },
           { jobId: `out-${message.id}` },
         );
       } else {

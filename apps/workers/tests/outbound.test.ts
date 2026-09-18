@@ -166,6 +166,25 @@ describe('processOutbound (#43)', () => {
     expect(res.providerMessageId).toBeTruthy(); // la respuesta salió igual
     await admin.query(`UPDATE tenants SET settings = '{}'::jsonb WHERE id = $1`, [tenant]);
   });
+
+  it('el comprobante de pago NO espera: es transaccional (ADR-0016)', async () => {
+    await admin.query(
+      `UPDATE tenants SET settings = settings || '{"bandeja":{"silencio":{"desde":"00:00","hasta":"23:59","zona":"America/Santiago"}}}'::jsonb
+       WHERE id = $1`,
+      [tenant],
+    );
+    const comprobante = await nuevoSaliente();
+    // Lo dispara el cliente al pagar y es la constancia de eso. Quien acaba
+    // de pagar está despierto; un comprobante que llega doce horas después
+    // ya no tranquiliza a nadie.
+    const res = await processOutbound(
+      admin,
+      redis,
+      jobPara(comprobante, { initiatedByBusiness: true, transaccional: true }) as never,
+    );
+    expect(res.providerMessageId).toBeTruthy();
+    await admin.query(`UPDATE tenants SET settings = '{}'::jsonb WHERE id = $1`, [tenant]);
+  });
 });
 
 describe('pausa por calidad (#45)', () => {

@@ -84,6 +84,18 @@ export interface OutboundJobData {
    * así que una automatización de las 3am salía a las 3am.
    */
   initiatedByBusiness: boolean;
+  /**
+   * Mensaje transaccional (ADR-0016): lo dispara una acción del cliente y su
+   * contenido es la constancia de esa acción — hoy, el comprobante de pago.
+   * Se salta el horario de silencio y NADA más.
+   *
+   * Opcional a propósito, al revés que `initiatedByBusiness`. Ese era
+   * opcional y olvidarlo hacía salir una automatización a las 3am, así que
+   * se volvió obligatorio. Con este, olvidarlo significa "no es
+   * transaccional": el mensaje se difiere. El descuido cae del lado de la
+   * regla, no del lado de saltársela.
+   */
+  transaccional?: boolean;
   /** Datos propios del canal: hoy, la plantilla aprobada (#44). */
   extra?: Record<string, unknown>;
   requestId?: string;
