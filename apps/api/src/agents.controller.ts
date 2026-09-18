@@ -246,12 +246,28 @@ export class AgentsController {
           message: 'Aún no hay casos: el pulgar arriba/abajo de la bandeja los va creando.',
         });
       }
-      return runEvaluation(c, {
-        tenantId: actor.tenantId,
-        agent: agente,
-        cases,
-        requestId: request.requestId,
-      });
+      try {
+        return await runEvaluation(c, {
+          tenantId: actor.tenantId,
+          agent: agente,
+          cases,
+          requestId: request.requestId,
+        });
+      } catch (err) {
+        // Ningún caso se pudo medir: el modelo cortó todas las respuestas.
+        // No es un score de 0 y no se guarda como tal — decirlo así evita
+        // que el dueño lea "tu asistente sacó 0" cuando el problema es el
+        // tope de tokens.
+        if (/no hay medición/.test((err as Error).message)) {
+          throw new ServiceUnavailableException({
+            code: 'EVAL_NOT_MEASURABLE',
+            message:
+              'No pudimos evaluar: el modelo cortó todas las respuestas por falta de espacio. ' +
+              'Prueba con casos de contexto más corto, o con un modelo que razone menos.',
+          });
+        }
+        throw err;
+      }
     });
   }
 

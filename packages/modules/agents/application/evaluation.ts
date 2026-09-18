@@ -86,6 +86,20 @@ export async function listEvalCases(client: PoolClient, tenantId: string): Promi
   }));
 }
 
+/**
+ * Cuánto espacio de salida se le da a cada llamada de la evaluación.
+ *
+ * Estaba en 512 para las dos, y 512 NO alcanza: los modelos que razonan
+ * gastan tokens de salida pensando antes de escribir, y en la primera
+ * corrida real una sugerencia de tres líneas consumió 665. El juez con 256
+ * devolvía `{"correctness": 0.8` —cortado— y eso se contaba como un cero.
+ *
+ * El costo de quedarse corto acá no es una respuesta fea: es un número
+ * inventado guardado en `eval_runs` que después decide si una versión pasa.
+ */
+const TOPE_CANDIDATO = 1500;
+const TOPE_JUEZ = 1024;
+
 export interface EvalRun {
   id: string;
   agentId: string;
@@ -94,6 +108,8 @@ export interface EvalRun {
   model: string;
   promptVersion: string | null;
   caseCount: number;
+  /** De `caseCount`, cuántos dieron una nota legible. El promedio sale solo de estos. */
+  casesMedidos: number;
   scores: Array<JudgeScores & { caseId: string; respuesta: string }>;
   score: number;
   createdAt: Date;
@@ -108,6 +124,7 @@ function rowToRun(row: Record<string, unknown>): EvalRun {
     model: row.model as string,
     promptVersion: (row.prompt_version as string) ?? null,
     caseCount: Number(row.case_count),
+    casesMedidos: Number(row.cases_medidos ?? row.case_count),
     scores: row.scores as EvalRun['scores'],
     score: Number(row.score),
     createdAt: row.created_at as Date,
@@ -142,14 +159,39 @@ export async function runEvaluation(
     const gen = await candidato.generate({
       system: input.agent.fallbackSystemPrompt ?? undefined,
       prompt: `${caso.contexto}\n\n${FORMATO_SUGERENCIA}`,
-      maxOutputTokens: 512,
+      maxOutputTokens: TOPE_CANDIDATO,
     });
+    // Si al candidato lo cortaron, su respuesta está a medias por falta de
+    // espacio, no por ser mala. Juzgarla da un cero que no dice nada del
+    // modelo — y encima se paga el juez para conseguirlo.
+    if (gen.truncada) {
+      scores.push({
+        correctness: 0,
+        tono: 0,
+        tools: 0,
+        total: 0,
+        comentario: 'La respuesta se cortó por falta de espacio: no se pudo evaluar.',
+        medible: false,
+        caseId: caso.id,
+        respuesta: '',
+      });
+      continue;
+    }
     const respuesta = parseSuggestion(gen.text).sugerencia;
     const veredicto = await juez.generate({
       prompt: formatoJuez({ contexto: caso.contexto, criterios: caso.criterios, respuesta }),
-      maxOutputTokens: 512,
+      maxOutputTokens: TOPE_JUEZ,
     });
-    const notas = parseJudge(veredicto.text);
+    const notas = veredicto.truncada
+      ? {
+          correctness: 0,
+          tono: 0,
+          tools: 0,
+          total: 0,
+          comentario: 'El juez se cortó por falta de espacio: no se pudo evaluar.',
+          medible: false,
+        }
+      : parseJudge(veredicto.text);
     scores.push({ ...notas, caseId: caso.id, respuesta });
     // Resultados también en Langfuse (best-effort, env-gated).
     traceGeneration({
@@ -165,11 +207,27 @@ export async function runEvaluation(
       latencyMs: 0,
     });
   }
+  // El promedio sale SOLO de los casos con nota legible.
+  //
+  // Antes los no medibles entraban como 0 y hundían el score. Eso rompe el
+  // gate en los dos sentidos y ninguno avisa: si el run de la config VIGENTE
+  // se cortó, su score queda en el suelo y `candidata >= actual` se cumple
+  // solo — el gate aprueba cualquier cosa, incluida una versión peor. Y si
+  // el que se cortó es el del candidato, al dueño le sale en pantalla "esa
+  // versión rinde peor (0 vs 0.85)", que es falso.
+  const medidos = scores.filter((s) => s.medible);
+  if (medidos.length === 0) {
+    throw new Error(
+      'No se pudo evaluar ninguno de los casos: el modelo cortó todas las respuestas. ' +
+        'Un run sin notas legibles no es un score de 0 — es que no hay medición, y guardarlo ' +
+        'como 0 haría que el gate deje pasar cualquier versión.',
+    );
+  }
   const promedio =
-    Math.round((scores.reduce((a, s) => a + s.total, 0) / scores.length) * 1000) / 1000;
+    Math.round((medidos.reduce((a, s) => a + s.total, 0) / medidos.length) * 1000) / 1000;
   const r = await client.query(
-    `INSERT INTO eval_runs (tenant_id, agent_id, task, provider, model, prompt_version, case_count, scores, score)
-     VALUES ($1,$2,'sugerir',$3,$4,$5,$6,$7,$8) RETURNING *`,
+    `INSERT INTO eval_runs (tenant_id, agent_id, task, provider, model, prompt_version, case_count, cases_medidos, scores, score)
+     VALUES ($1,$2,'sugerir',$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
     [
       input.tenantId,
       input.agent.id,
@@ -177,6 +235,7 @@ export async function runEvaluation(
       input.agent.model,
       input.agent.promptVersion,
       input.cases.length,
+      medidos.length,
       JSON.stringify(scores),
       promedio,
     ],

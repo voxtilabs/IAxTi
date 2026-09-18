@@ -8,6 +8,15 @@ export interface JudgeScores {
   tools: number;
   total: number;
   comentario: string | null;
+  /**
+   * Si la nota se pudo LEER. Falso no es un cero: es que no hay dato.
+   *
+   * Un juez cortado a la mitad devuelve `{"correctness": 0.8` y eso no
+   * parsea. Contarlo como 0 mezcla "respondió pésimo" con "no se pudo
+   * medir", y las dos cosas se arreglan distinto. Peor: el promedio queda
+   * mentirosamente bajo, y de ese promedio depende el gate.
+   */
+  medible: boolean;
 }
 
 export function formatoJuez(input: {
@@ -35,12 +44,19 @@ Responde SOLO este JSON:
 {"correctness": <0-1>, "tono": <0-1>, "tools": <0-1>, "comentario": "<una frase con lo peor y lo mejor>"}`;
 }
 
-/** Parser defensivo del juez: basura → nota 0 (un juez ilegible reprueba). */
+/** Parser defensivo del juez: si no se puede leer, NO es un cero — es que no hay nota. */
 export function parseJudge(raw: string): JudgeScores {
-  const cero: JudgeScores = { correctness: 0, tono: 0, tools: 0, total: 0, comentario: 'El juez no respondió legible.' };
+  const sinNota: JudgeScores = {
+    correctness: 0,
+    tono: 0,
+    tools: 0,
+    total: 0,
+    comentario: 'El juez no respondió legible.',
+    medible: false,
+  };
   const inicio = raw.indexOf('{');
   const fin = raw.lastIndexOf('}');
-  if (inicio === -1 || fin <= inicio) return cero;
+  if (inicio === -1 || fin <= inicio) return sinNota;
   try {
     const obj = JSON.parse(raw.slice(inicio, fin + 1)) as Record<string, unknown>;
     const nota = (v: unknown) => {
@@ -57,9 +73,10 @@ export function parseJudge(raw: string): JudgeScores {
       // Correctness pesa doble: inventar un precio es peor que sonar tieso.
       total: Math.round(((correctness * 2 + tono + tools) / 4) * 1000) / 1000,
       comentario: typeof obj.comentario === 'string' ? obj.comentario.slice(0, 300) : null,
+      medible: true,
     };
   } catch {
-    return cero;
+    return sinNota;
   }
 }
 
