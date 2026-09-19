@@ -25,6 +25,16 @@ export function initObservability(serviceName: string): void {
   }
 
   if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    // Antes de arrancar nada: si la configuración está mal, decirlo. El SDK
+    // no se queja — manda contra un colector que rechaza y los tableros
+    // quedan vacíos, que se lee igual que "no pasó nada".
+    for (const p of revisarConfigOtel()) {
+      console.error(
+        `telemetría: ${p.variable} ${p.problema}\n` +
+          '            Las trazas NO se están exportando. El servicio sigue igual.',
+      );
+    }
+    hacerVisiblesLosFallosDeOtel();
     // Import diferido: el SDK de OTel es pesado y solo se paga si está activo.
     // El exportador OTLP y sus cabeceras salen de las variables estándar
     // OTEL_EXPORTER_OTLP_* que el SDK lee solo.
@@ -248,5 +258,109 @@ function safeJson(valor: unknown): string {
     // Un objeto con ciclos no puede tumbar un log. Perder el detalle es
     // molesto; perder la línea entera es quedarse sin saber qué pasó.
     return String(valor);
+  }
+}
+
+// ── La telemetría que no exporta y no lo dice (#17) ─────────────────────
+
+export interface ProblemaDeConfig {
+  variable: string;
+  problema: string;
+}
+
+/**
+ * Revisa la configuración de OTel ANTES de arrancar el exportador.
+ *
+ * El SDK lee `OTEL_EXPORTER_OTLP_*` solo, y si el valor está mal no falla:
+ * arranca igual, manda, el colector responde 401 y ese 401 no aparece en
+ * ningún lado. La telemetría queda apagada y los tableros vacíos se leen como
+ * "no pasó nada", que es la peor forma de estar ciego — parece que todo anda
+ * bien.
+ *
+ * El caso concreto que lo destapó: en staging la cabecera era
+ *
+ *     OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic
+ *
+ * «Basic» sin la credencial detrás. Sintaxis válida para el parser del SDK,
+ * credencial vacía para Grafana. Rechaza todo y nadie se entera.
+ *
+ * Esto NO tumba el servicio: quedarse sin trazas es malo, quedarse sin
+ * producto es peor. Avisa fuerte y sigue.
+ */
+export function revisarConfigOtel(env: NodeJS.ProcessEnv = process.env): ProblemaDeConfig[] {
+  const problemas: ProblemaDeConfig[] = [];
+  const endpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT;
+  if (!endpoint) return problemas; // apagado a propósito: no es un problema
+
+  if (!/^https?:\/\//.test(endpoint)) {
+    problemas.push({
+      variable: 'OTEL_EXPORTER_OTLP_ENDPOINT',
+      problema: `tiene que empezar con http:// o https:// y dice "${endpoint}".`,
+    });
+  }
+
+  const crudas = env.OTEL_EXPORTER_OTLP_HEADERS;
+  if (crudas !== undefined && crudas.trim() !== '') {
+    for (const par of crudas.split(',')) {
+      const i = par.indexOf('=');
+      if (i <= 0) {
+        problemas.push({
+          variable: 'OTEL_EXPORTER_OTLP_HEADERS',
+          problema: `"${par.trim()}" no tiene forma nombre=valor.`,
+        });
+        continue;
+      }
+      const nombre = par.slice(0, i).trim();
+      const valor = par.slice(i + 1).trim();
+      if (valor === '') {
+        problemas.push({
+          variable: 'OTEL_EXPORTER_OTLP_HEADERS',
+          problema: `la cabecera "${nombre}" va vacía.`,
+        });
+        continue;
+      }
+      // Una autorización que es solo el esquema es el caso real: pasa el
+      // parser y el colector la rechaza. Sin esta comprobación el error se
+      // ve idéntico a "todo bien pero no hay tráfico".
+      if (nombre.toLowerCase() === 'authorization' && /^(basic|bearer)$/i.test(valor)) {
+        problemas.push({
+          variable: 'OTEL_EXPORTER_OTLP_HEADERS',
+          problema:
+            `"Authorization=${valor}" trae el esquema sin la credencial. Va ` +
+            `"Authorization=${valor} <credencial>", y el colector rechaza TODO hasta que esté.`,
+        });
+      }
+    }
+  }
+  return problemas;
+}
+
+/**
+ * Hace visibles los fallos del exportador.
+ *
+ * Sin esto, un 401 o un endpoint caído no dejan rastro: el SDK los manda a su
+ * canal de diagnóstico, que por defecto no va a ninguna parte. Con esto, un
+ * rechazo del colector sale por el log como cualquier otro error — que es lo
+ * único que permite darse cuenta el día que la credencial rote.
+ */
+function hacerVisiblesLosFallosDeOtel(): void {
+  try {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const api = require('@opentelemetry/api') as typeof import('@opentelemetry/api');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    api.diag.setLogger(
+      {
+        error: (msg, ...args) => console.error(`otel: ${msg}`, ...args),
+        warn: (msg, ...args) => console.warn(`otel: ${msg}`, ...args),
+        // info/debug/verbose se quedan callados: el SDK es conversador y lo
+        // que hace falta saber es cuándo NO pudo mandar.
+        info: () => {},
+        debug: () => {},
+        verbose: () => {},
+      },
+      api.DiagLogLevel.WARN,
+    );
+  } catch {
+    /* sin el paquete de api no hay nada que enganchar */
   }
 }
