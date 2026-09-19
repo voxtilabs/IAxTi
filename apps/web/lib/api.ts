@@ -240,3 +240,19 @@ export interface HuecoDto {
   inicio: string;
   fin: string;
 }
+
+/** Una plantilla de WhatsApp y dónde va en la revisión de Meta (#44). */
+export interface PlantillaDto {
+  id: string;
+  name: string;
+  language: string;
+  category: 'marketing' | 'utility' | 'authentication';
+  header: string | null;
+  body: string;
+  footer: string | null;
+  buttons: string[];
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'paused' | 'disabled';
+  providerId: string | null;
+  rejectionReason: string | null;
+  variables: number;
+}
