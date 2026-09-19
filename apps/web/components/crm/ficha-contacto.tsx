@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, IconoCheck, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
-import { apiFetch, fmtClp, type CampoDto, type FichaContacto as Ficha } from '../../lib/api';
+import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
 
 // La ficha de contacto (#32, SPEC §10/§29): historia, oportunidades y
 // actividades. La usa la página /contactos/[id] Y el panel derecho de la
@@ -76,6 +76,7 @@ export function FichaContacto({
   const [tenant, setTenant] = useState<string | null>(null);
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [campos, setCampos] = useState<CampoDto[]>([]);
+  const [etiquetas, setEtiquetas] = useState<EtiquetaDto[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
   const [titulo, setTitulo] = useState('');
   const [tipo, setTipo] = useState<'llamada' | 'reunion' | 'tarea' | 'nota'>('tarea');
@@ -93,6 +94,15 @@ export function FichaContacto({
         setCampos(await apiFetch<CampoDto[]>(config, session, tenant, '/campos'));
       } catch {
         setCampos([]);
+      }
+      // Las etiquetas del contacto (#35). Si fallan, la ficha se dibuja
+      // igual: son contexto, no el dato principal.
+      try {
+        setEtiquetas(
+          await apiFetch<EtiquetaDto[]>(config, session, tenant, `/tags/contacto/${contactId}`),
+        );
+      } catch {
+        setEtiquetas([]);
       }
     } catch (err) {
       setAviso((err as Error).message);
@@ -156,6 +166,16 @@ export function FichaContacto({
         <dt className="text-muted">Cliente desde</dt>
         <dd><FechaDato iso={contact.created_at} /></dd>
       </dl>
+
+      {etiquetas.length > 0 && (
+        <p className="mt-4 flex flex-wrap gap-2">
+          {etiquetas.map((t) => (
+            <Badge key={t.id} role={t.role}>
+              {t.name}
+            </Badge>
+          ))}
+        </p>
+      )}
 
       <CamposPropios valores={contact.custom} definiciones={campos} />
 

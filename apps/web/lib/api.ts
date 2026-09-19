@@ -270,3 +270,11 @@ export interface CampoDto {
   visibleIa: boolean;
   options: string[];
 }
+
+/** Una etiqueta del negocio (#35). El rol es el de Pulso, no un color suelto. */
+export interface EtiquetaDto {
+  id: string;
+  name: string;
+  role: 'action' | 'good' | 'warn' | 'bad' | 'info' | 'neutral';
+  createdAt: string;
+}
