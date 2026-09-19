@@ -119,3 +119,61 @@ describe('cuando postgres no conecta, dice a qué puerto (#241)', () => {
     expect(pg.detalle ?? '').not.toContain('puerto');
   });
 });
+
+describe('cuando falla, dice si el contenedor sale a internet (#241)', () => {
+  const FETCH_REAL = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = FETCH_REAL;
+    delete process.env.SUPABASE_URL;
+  });
+
+  it('443 OK + Postgres no: sale a internet y le bloquean ESE puerto', async () => {
+    // Las dos causas se ven idénticas desde afuera —un timeout y nada más—
+    // y Redis no las distingue: vive en la red interna del compose, así que
+    // responder en 2 ms no dice nada de la salida.
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    globalThis.fetch = (async () => new Response('ok')) as unknown as typeof fetch;
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.detalle).toContain('puerto 6543');
+    expect(pg.detalle).toContain('sale a internet: sí');
+  });
+
+  it('443 tampoco: no tiene salida y el puerto no tiene nada que ver', async () => {
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    globalThis.fetch = (async () => {
+      throw new Error('connect ETIMEDOUT');
+    }) as unknown as typeof fetch;
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.detalle).toContain('sale a internet: NO');
+    // Y sigue siendo el fallo de postgres: la sonda EXPLICA, no reemplaza.
+    expect(pg.ok).toBe(false);
+  });
+
+  it('en VERDE no llama a nadie', async () => {
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    let llamadas = 0;
+    globalThis.fetch = (async () => {
+      llamadas += 1;
+      return new Response('ok');
+    }) as unknown as typeof fetch;
+    const pool = { query: async () => ({ rows: [] }) } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    expect(r.dependencias.find((d) => d.nombre === 'postgres')!.ok).toBe(true);
+    // Una sonda de diagnóstico que llama afuera en cada chequeo de salud es
+    // tráfico y latencia por nada. Solo corre cuando ya hay un problema.
+    expect(llamadas).toBe(0);
+  });
+
+  it('sin SUPABASE_URL no inventa una conclusión', async () => {
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:5432/postgres';
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.detalle).toContain('puerto 5432');
+    expect(pg.detalle).not.toContain('sale a internet');
+  });
+});
+
