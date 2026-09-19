@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { checkReadiness } from '../src/readiness';
 
@@ -26,6 +26,21 @@ function poolQueTarda(ms: number, error?: Error): Pool {
       ),
   } as unknown as Pool;
 }
+
+// El entorno NO decide el resultado de estos tests.
+//
+// `checkReadiness` mira `DATABASE_URL` para decir a qué puerto intentó, así
+// que si la variable está o no está cambia el texto del detalle. En mi
+// máquina no estaba y en CI sí: los mismos tests, verdes acá y rojos allá.
+// Un test que depende del ambiente no prueba lo que dice probar.
+const DSN_ORIGINAL = process.env.DATABASE_URL;
+beforeEach(() => {
+  delete process.env.DATABASE_URL;
+});
+afterEach(() => {
+  if (DSN_ORIGINAL === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = DSN_ORIGINAL;
+});
 
 describe('el detalle de /ready', () => {
   it('la primera sonda solo alcanza a decir que no llegó', async () => {
@@ -70,12 +85,6 @@ describe('el detalle de /ready', () => {
 });
 
 describe('cuando postgres no conecta, dice a qué puerto (#241)', () => {
-  const original = process.env.DATABASE_URL;
-  afterEach(() => {
-    if (original === undefined) delete process.env.DATABASE_URL;
-    else process.env.DATABASE_URL = original;
-  });
-
   it('el puerto sale en el detalle del fallo', async () => {
     process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
     const pool = {
