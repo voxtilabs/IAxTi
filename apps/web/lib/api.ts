@@ -216,3 +216,27 @@ export interface AnalisisDto {
   suggestDeal: boolean;
   acciones: Array<{ at: string; que: string; estado: string; feedback: string | null }>;
 }
+
+/** Una cita de la agenda (#58, SPEC §16). */
+export interface CitaDto {
+  id: string;
+  contactId: string;
+  ownerId: string;
+  startsAt: string;
+  endsAt: string;
+  status:
+    | 'proposed'
+    | 'confirmed'
+    | 'reminded'
+    | 'attended'
+    | 'no_show'
+    | 'cancelled'
+    | 'rescheduled';
+  title: string | null;
+}
+
+/** Un horario libre, en la hora del negocio. */
+export interface HuecoDto {
+  inicio: string;
+  fin: string;
+}
