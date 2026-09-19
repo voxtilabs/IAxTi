@@ -90,6 +90,19 @@ jobs:
       - name: Tests
         run: pnpm turbo test --concurrency=1
 
+      # El inventario de datos, FUERA de turbo y a propósito.
+      #
+      # `packages/db` no depende de ningún módulo, así que turbo no ve sus
+      # migraciones como entrada: cuando un PR agrega una tabla en otro
+      # paquete, el test de `db` se sirve desde caché y la guarda se salta
+      # justo en el único caso que existe para vigilar. Pasó de verdad —
+      # `agent_goal_attempts` entró a main sin inventariar y el rojo apareció
+      # recién en el PR siguiente.
+      #
+      # Acá corre siempre, contra la base que los tests de arriba ya migraron.
+      - name: Inventario de datos al día
+        run: pnpm --filter @iaxti/db exec vitest run tests/inventario.test.ts
+
 
       # Criterio de salida de Fase 2 (#37): el e2e de la bandeja en celular
       # contra la API y el web reales (JWKS local hace de Supabase Auth).

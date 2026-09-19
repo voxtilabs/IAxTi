@@ -31,6 +31,7 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 | `internal_notes` | lo que el equipo anota sobre la conversación | directa | ambos | sí | se borran |
 | `suggestions` | lo que la IA propuso responder | directa | cliente final | sí | se borran |
 | `agent_executions` | **lo que se le mandó al modelo y lo que respondió** | directa | cliente final | sí | se vacía el contenido; queda la medición (tokens, costo) |
+| `agent_goal_attempts` | si el agente logró su objetivo en esa conversación, y si lo cerró él o una persona | indirecta | cliente final | sí | se van con el contacto |
 | `response_samples` | muestras de tiempos de respuesta | indirecta | negocio | sí | se borran |
 | `assignments` | quién atendió qué | indirecta | equipo | sí | quedan |
 | `deals` | oportunidades: título, valor, etapa | indirecta | negocio | sí | quedan: registro comercial |

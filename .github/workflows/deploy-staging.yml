@@ -13,6 +13,26 @@ on:
     types: [completed]
   workflow_dispatch:
 
+# Un despliegue a la vez, y gana el ÚLTIMO commit.
+#
+# Cada merge a main dispara uno, y las esperas son largas a propósito (hasta
+# 15 min por Dokploy y 12 más por el /health, #254). Con varios PR seguidos se
+# apilan: llegué a ver dos corriendo a la vez contra el mismo stack, y el que
+# empezó primero termina haciéndole el smoke test al despliegue del otro —
+# reporta verde o rojo sobre algo que no es lo que él desplegó.
+#
+# `cancel-in-progress` y no una cola, porque encolar cuatro despliegues son
+# dos horas para terminar poniendo el mismo commit. Desplegar uno viejo es
+# peor que cancelar.
+#
+# Cancelar es seguro, comprobado antes de ponerlo: cada migración corre en su
+# propia transacción y se registra en `schema_migrations`, así que la que iba
+# a medias hace rollback y la próxima corrida sigue donde quedó. El
+# `pg_advisory_lock` se libera solo cuando muere la conexión del runner.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
