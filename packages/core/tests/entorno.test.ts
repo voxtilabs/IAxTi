@@ -16,7 +16,8 @@ describe('enteroDeEntorno', () => {
   it('la cadena VACÍA es el caso que muerde, y `??` no la atrapa', () => {
     // Number('') es 0, y `??` solo cubre null y undefined. Dejar una
     // variable en blanco en el panel es la forma normal de "desactivarla".
-    expect(Number('' ?? 3000)).toBe(0); // lo que pasaba antes
+    const enBlanco: string | undefined = '';
+    expect(Number(enBlanco ?? 3000)).toBe(0); // lo que pasaba antes
     const avisos = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(enteroDeEntorno('PORT', 3000, { env: { PORT: '' } })).toBe(3000);
     expect(enteroDeEntorno('PORT', 3000, { env: { PORT: '   ' } })).toBe(3000);
