@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { checkReadiness } from '../src/readiness';
 
@@ -67,4 +67,46 @@ describe('el detalle de /ready', () => {
     expect(r.dependencias[0].ok).toBe(true);
     expect(r.dependencias[0].detalle).toBeUndefined();
   }, 15_000);
+});
+
+describe('cuando postgres no conecta, dice a qué puerto (#241)', () => {
+  const original = process.env.DATABASE_URL;
+  afterEach(() => {
+    if (original === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = original;
+  });
+
+  it('el puerto sale en el detalle del fallo', async () => {
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    const pool = {
+      query: () => new Promise(() => {}), // nunca responde: el caso real
+    } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    const pg = r.dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.ok).toBe(false);
+    // Un timeout se ve idéntico venga del puerto que venga. Sin esto, desde
+    // afuera no hay forma de saber si el contenedor tomó el valor nuevo.
+    expect(pg.detalle).toContain('puerto 6543');
+  });
+
+  it('NO publica host, usuario ni contraseña', async () => {
+    process.env.DATABASE_URL = 'postgres://elusuario:lacontrasena@db.interna.cl:5432/postgres';
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    const detalle = JSON.stringify(r);
+    // Un diagnóstico no justifica publicar a dónde nos conectamos.
+    expect(detalle).not.toContain('lacontrasena');
+    expect(detalle).not.toContain('elusuario');
+    expect(detalle).not.toContain('db.interna.cl');
+    expect(detalle).toContain('puerto 5432');
+  });
+
+  it('en verde no agrega nada: el puerto ahí es ruido', async () => {
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    const pool = { query: async () => ({ rows: [] }) } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    const pg = r.dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.ok).toBe(true);
+    expect(pg.detalle ?? '').not.toContain('puerto');
+  });
 });

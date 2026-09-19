@@ -84,11 +84,40 @@ async function medir(nombre: string, fn: () => Promise<unknown>): Promise<Depend
 
 let redisSonda: ReturnType<typeof redisConnection> | null = null;
 
+/**
+ * A qué puerto está intentando conectarse, sin decir nada más.
+ *
+ * Un timeout de Postgres se ve idéntico venga del puerto que venga, y desde
+ * afuera no hay forma de saber si el contenedor tomó el valor nuevo de la
+ * configuración o sigue con el viejo. Eso convirtió un cambio de un carácter
+ * en media hora de adivinar: "¿ya está desplegado o todavía no?".
+ *
+ * Solo el PUERTO. Ni host, ni usuario, ni base, ni contraseña — un
+ * diagnóstico no justifica publicar a dónde nos conectamos. El puerto solo no
+ * identifica nada: en Supabase es 5432 o 6543 y ya está escrito en el SPEC.
+ */
+function puertoDeLaBase(): string | null {
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  try {
+    const p = new URL(url).port;
+    return p || '5432'; // sin puerto explícito, el de Postgres por defecto
+  } catch {
+    return null;
+  }
+}
+
 export async function checkReadiness(pool: Pool | null, service = 'api'): Promise<Readiness> {
   const dependencias: Dependencia[] = [];
 
   if (pool) {
-    dependencias.push(await medir('postgres', () => pool.query('SELECT 1')));
+    const sonda = await medir('postgres', () => pool.query('SELECT 1'));
+    // El puerto solo cuando FALLA: en verde es ruido, y en rojo es lo primero
+    // que uno quiere saber.
+    const puerto = sonda.ok ? null : puertoDeLaBase();
+    dependencias.push(
+      puerto ? { ...sonda, detalle: `${sonda.detalle ?? 'no conecta'} (puerto ${puerto})` } : sonda,
+    );
   } else {
     // Sin base configurada la API no sirve para nada: no está lista.
     dependencias.push({
