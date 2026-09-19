@@ -27,6 +27,7 @@ import {
   updateAgent,
 } from '@iaxti/module-agents';
 import { getTenantSettings } from '@iaxti/module-organizations';
+import { enteroDeEntorno } from '@iaxti/core';
 import {
   applyProposal,
   dismissProposal,
@@ -147,7 +148,7 @@ export class AgentsController {
       // El costo en PESOS es para quien supervisa el gasto (matriz §23).
       if (!actorCan(actor, 'agents.usage.read')) return base;
       const costUsd = await costThisCycle(c, actor.tenantId);
-      const usdClp = Number(process.env.USD_CLP_RATE ?? 950);
+      const usdClp = enteroDeEntorno('USD_CLP_RATE', 950);
       return {
         ...base,
         costUsdMonth: Number(costUsd.toFixed(4)),

@@ -144,7 +144,11 @@ Responde SOLO: {"correctness": <0-1>, "tono": <0-1>, "tools": <0-1>}`,
   // Un respiro entre casos: el tier gratis limita por minuto y el dataset
   // son seis casos con dos llamadas cada uno. Configurable para que en una
   // llave de pago no cueste tiempo de más.
-  const pausa = Number(process.env.EVAL_PAUSA_MS ?? 4000);
+  // Acá un 0 sí significa algo: "sin pausa". Pero basura no debe volverse
+  // NaN y saltarse la pausa en silencio, que es lo que pasaba.
+  const crudo = process.env.EVAL_PAUSA_MS;
+  const n = crudo === undefined || crudo.trim() === '' ? 4000 : Number(crudo);
+  const pausa = Number.isFinite(n) && n >= 0 ? n : 4000;
   if (pausa > 0) await new Promise((r) => setTimeout(r, pausa));
   } catch (err) {
     process.exit(explicaFalloDelProveedor(err));

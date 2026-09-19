@@ -1,9 +1,9 @@
 import './instrument';
 import { createServer } from 'node:http';
-import { redisConnection } from '@iaxti/core';
+import { redisConnection, enteroDeEntorno } from '@iaxti/core';
 
 const service = process.env.SERVICE ?? 'agents';
-const port = Number(process.env.PORT ?? 3000);
+const port = enteroDeEntorno('PORT', 3000);
 
 // Stub de fundación: el procesamiento real de colas llega con el issue #47.
 // Igual que en workers: `/health` es "el proceso vive" y `/ready` es

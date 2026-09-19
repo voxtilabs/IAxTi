@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import type { Consumer, EventEnvelope } from '@iaxti/core';
 import { DEFINICIONES, type Objetivo } from '../domain/objetivo';
+import { enteroDeEntorno } from '@iaxti/core';
 
 // ¿El agente logra su objetivo? (#319)
 //
@@ -19,7 +20,7 @@ import { DEFINICIONES, type Objetivo } from '../domain/objetivo';
  * Es una ventana, no una verdad. Por eso lo que entra por acá queda marcado
  * como `asistida` y nunca se suma con lo que el agente hizo él mismo.
  */
-export const VENTANA_ATRIBUCION_DIAS = Number(process.env.AGENT_GOAL_WINDOW_DAYS ?? 3);
+export const VENTANA_ATRIBUCION_DIAS = enteroDeEntorno('AGENT_GOAL_WINDOW_DAYS', 3);
 
 /** El evento de éxito → de qué campo del payload sale el id del resultado. */
 const REFERENCIA: Record<string, string> = {

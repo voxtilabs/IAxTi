@@ -5,7 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { redisConnection } from '@iaxti/core';
+import { redisConnection, enteroDeEntorno } from '@iaxti/core';
 import { createPool, exigeRolQueRespetaRls, type EstadoRls } from '@iaxti/db';
 import { AppModule, registry } from './app.module';
 import { supabaseJwtVerifier, type JwtVerifier } from './auth/jwt';
@@ -196,7 +196,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
 
 async function bootstrap() {
   const app = await createApp();
-  await app.listen(Number(process.env.PORT ?? 3000));
+  await app.listen(enteroDeEntorno('PORT', 3000));
 }
 
 if (require.main === module) {
