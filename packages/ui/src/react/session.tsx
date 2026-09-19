@@ -7,6 +7,14 @@ export interface PublicConfig {
   supabaseAnonKey: string;
   /** URL de la API alcanzable desde el navegador. */
   apiUrl: string;
+  /**
+   * En qué ambiente corre: local, staging o production.
+   *
+   * No es un secreto y sirve para no ofrecer lo que no existe: hay rutas
+   * —el simulador de mensajes— que solo se registran fuera de producción.
+   * Sin esto, la app tendría que adivinar probando y comiéndose un 404.
+   */
+  env: string;
 }
 
 interface SessionState {

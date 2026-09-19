@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -45,6 +45,95 @@ const CALIDAD: Record<string, { label: string; role: BadgeRole; ayuda: string }>
   yellow: { label: 'Calidad media', role: 'warn', ayuda: 'Algunos clientes reportaron o bloquearon mensajes. Cuida el contenido y la frecuencia.' },
   red: { label: 'Calidad baja', role: 'bad', ayuda: 'Meta puede restringir el número. Pausamos los envíos del negocio para protegerlo; responder conversaciones sigue funcionando.' },
 };
+
+
+/**
+ * Probar sin número real (#41).
+ *
+ * `POST /v1/dev/inbound` encola un entrante por el MISMO camino que el
+ * canal de verdad: la misma cola, el mismo worker, el mismo copiloto. Es la
+ * forma de ver el producto funcionando antes de conectar un número — y la
+ * única mientras el número no esté.
+ *
+ * Existía desde #41 y no había cómo usarlo sin armar un curl a mano.
+ *
+ * Solo fuera de producción, porque allá la ruta NI SIQUIERA se registra
+ * (ver app.module.ts): ofrecer el botón sería ofrecer un 404.
+ */
+function ProbarSinNumero() {
+  const { config, session } = useSession();
+  const tenant = selectedTenant();
+  const [telefono, setTelefono] = useState('+56961234567');
+  const [texto, setTexto] = useState('Hola! Tienen hora para mañana?');
+  const [estado, setEstado] = useState<'inicial' | 'enviando' | 'listo' | 'error'>('inicial');
+  const [detalle, setDetalle] = useState<string | null>(null);
+
+  if (config.env === 'production') return null;
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault();
+    if (!session || !tenant || estado === 'enviando') return;
+    setEstado('enviando');
+    try {
+      await apiFetch(config, session, tenant, '/dev/inbound', {
+        method: 'POST',
+        body: JSON.stringify({ phone: telefono, body: texto, channel: 'simulador' }),
+      });
+      setEstado('listo');
+      setDetalle(null);
+    } catch (err) {
+      setEstado('error');
+      setDetalle((err as Error).message);
+    }
+  }
+
+  return (
+    <section className="mt-8 rounded-tarjeta border border-line bg-raised p-6">
+      <h2 className="text-lg font-bold text-ink">Probar sin número real</h2>
+      <p className="mt-2 max-w-prose text-sm text-body">
+        Simula un mensaje entrante. Entra por el mismo camino que un WhatsApp de verdad —la misma
+        cola, el mismo copiloto— así que sirve para ver cómo responde el asistente antes de
+        conectar un número.
+      </p>
+
+      <form onSubmit={enviar} className="mt-4 flex flex-col gap-3">
+        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+          Desde qué teléfono
+          <Input
+            required
+            value={telefono}
+            onChange={(e) => setTelefono(e.target.value)}
+            className="dato"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+          Qué escribe
+          <Input required value={texto} onChange={(e) => setTexto(e.target.value)} />
+        </label>
+        <span>
+          <Button type="submit" variant="secundario" disabled={estado === 'enviando'}>
+            {estado === 'enviando' ? 'Enviando…' : 'Simular mensaje'}
+          </Button>
+        </span>
+      </form>
+
+      {estado === 'listo' && (
+        <p className="mt-4 rounded-campo border border-good-soft-br bg-good-soft px-4 py-3 text-sm text-good-text">
+          <span className="font-medium">Entró.</span>{' '}
+          <a href="/bandeja" className="underline">
+            Míralo en la bandeja
+          </a>
+          : la sugerencia del copiloto tarda unos segundos en aparecer.
+        </p>
+      )}
+      {estado === 'error' && (
+        <p role="alert" className="mt-4 rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
+          {detalle}
+        </p>
+      )}
+    </section>
+  );
+}
 
 export function Canales() {
   const { session, config } = useSession();
@@ -219,6 +308,8 @@ export function Canales() {
           ))}
         </ul>
       </section>
+
+      <ProbarSinNumero />
     </div>
   );
 }
