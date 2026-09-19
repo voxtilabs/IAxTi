@@ -6,7 +6,7 @@ import { SessionProvider, useSession, type PublicConfig } from './session';
 const CAMPO =
   'h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink placeholder:text-faint';
 
-function Formulario() {
+function Formulario({ conGoogle: ofreceGoogle }: { conGoogle: boolean }) {
   const { supabase } = useSession();
   const [email, setEmail] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -125,13 +125,15 @@ function Formulario() {
       >
         Enviarme el acceso
       </button>
-      <button
-        type="button"
-        onClick={() => void conGoogle()}
-        className="h-control rounded-boton border border-line-strong px-8 text-base text-ink"
-      >
-        Entrar con Google
-      </button>
+      {ofreceGoogle && (
+        <button
+          type="button"
+          onClick={() => void conGoogle()}
+          className="h-control rounded-boton border border-line-strong px-8 text-base text-ink"
+        >
+          Entrar con Google
+        </button>
+      )}
     </form>
   );
 }
@@ -141,9 +143,26 @@ export interface LoginCardProps {
   marcaSvg: string;
   titulo?: string;
   subtitulo?: string;
+  /**
+   * Si se ofrece "Entrar con Google". Por defecto sí, que es lo correcto en
+   * la app de clientes: vive en el `site_url`, así que el redirect vuelve a
+   * donde tiene que volver.
+   *
+   * En el panel de plataforma va APAGADO. GoTrue fuerza `redirect_to` al
+   * `site_url` aunque la URL pedida esté en la allowlist (#113), así que el
+   * operador que entra por Google desde admin aterriza en la app de
+   * CLIENTES. El código de 6 dígitos no pisa ese camino y funciona igual.
+   *
+   * Es una decisión bajo incertidumbre, dicha con todas sus letras: el
+   * comportamiento está reportado para el enlace mágico y no lo pude
+   * comprobar para OAuth con staging caído. Ofrecer un botón que quizás deja
+   * a alguien en la app equivocada es peor que no ofrecerlo, sobre todo
+   * cuando hay otro camino que sí sabemos que funciona.
+   */
+  conGoogle?: boolean;
 }
 
-export function LoginCard({ config, marcaSvg, titulo, subtitulo }: LoginCardProps) {
+export function LoginCard({ config, marcaSvg, titulo, subtitulo, conGoogle = true }: LoginCardProps) {
   return (
     <SessionProvider config={config}>
       <main className="flex min-h-screen items-center justify-center bg-bg px-4">
@@ -153,7 +172,7 @@ export function LoginCard({ config, marcaSvg, titulo, subtitulo }: LoginCardProp
           <p className="mb-6 mt-1 text-sm text-body">
             {subtitulo ?? 'Sin contraseña: te mandamos el acceso a tu correo.'}
           </p>
-          <Formulario />
+          <Formulario conGoogle={conGoogle} />
         </div>
       </main>
     </SessionProvider>
