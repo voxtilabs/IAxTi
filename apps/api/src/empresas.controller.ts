@@ -54,7 +54,12 @@ function seVeMal(err: unknown): never {
 }
 
 @ApiTags('empresas')
-@Controller('v1/empresas')
+// Sin el `v1/`: lo pone `setGlobalPrefix('v1')` en main.ts, como a todos
+// los demás. Con él, estas rutas vivían en /v1/v1/empresas — o sea que
+// /v1/empresas, que es la que documenta el OpenAPI y la que el SDK genera,
+// devolvía 404. El módulo entero estaba en una dirección que nadie iba a
+// escribir.
+@Controller('empresas')
 @RequireModule('crm')
 export class EmpresasController {
   @Get()
@@ -160,7 +165,10 @@ export class EmpresasController {
 }
 
 @ApiTags('empresas')
-@Controller('v1/contacts')
+// Ídem. Y acá además convivía con el controller de contactos de verdad
+// (`@Controller('contacts')`), que sí está bien: uno respondía en
+// /v1/contacts y este en /v1/v1/contacts, sin que nada avisara.
+@Controller('contacts')
 @RequireModule('crm')
 export class ContactoEmpresaController {
   @Put(':id/empresa')
