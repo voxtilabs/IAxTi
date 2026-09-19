@@ -26,7 +26,11 @@ events:
     - tenant.state_changed
     - tenant.deletion_warned
 tools: []
-nav: []
+# La página existe desde #55 y no se llegaba a ella por ningún lado: no
+# estaba en ningún `nav` ni enlazada desde otra pantalla. Trabajo terminado
+# que nadie podía usar.
+nav:
+  - { label: Avisos, path: /ajustes/notificaciones, permission: notifications.manage_own }
 widgets: []
 plan_min: base
 flag: module.notifications
