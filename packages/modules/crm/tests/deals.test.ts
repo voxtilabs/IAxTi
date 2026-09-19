@@ -301,3 +301,64 @@ describe('oportunidades (rol de aplicación, RLS activa)', () => {
     expect(deals.rowCount).toBe(0);
   });
 });
+
+describe('cerrar es otra cosa que mover (#73)', () => {
+  it('sin permiso de cerrar puede mover entre abiertas, pero no dar por ganado', async () => {
+    const cotizado = ventas.stages.find((s) => s.name === 'Cotizado')!;
+    const ganado = ventas.stages.find((s) => s.type === 'won')!;
+    const suyo = await withTenant(app, tenantA, (c) =>
+      ensureContactByPhone(c, { tenantId: tenantA, phone: '+56955550001', origin: 'manual' }),
+    );
+    const trato = await withTenant(app, tenantA, (c) =>
+      createDeal(c, {
+        tenantId: tenantA, contactId: suyo.contact.id, pipelineId: ventas.pipelineId,
+        title: 'Cierra o no', actor: 'test',
+      }),
+    );
+    const sinCerrar = () => false;
+
+    // Mover entre etapas ABIERTAS no pide el permiso de cerrar.
+    const movido = await withTenant(app, tenantA, (c) =>
+      moveDealStage(c, { tenantId: tenantA, dealId: trato.id, stageId: cotizado.id, puedeCerrar: sinCerrar }),
+    );
+    expect(movido.stageId).toBe(cotizado.id);
+
+    // Darlo por ganado sí. Antes esto pasaba igual: el catálogo declaraba
+    // `crm.deals.close` y no lo exigía nadie, así que quien podía mover una
+    // etapa movía el número que el negocio reporta.
+    await expect(
+      withTenant(app, tenantA, (c) =>
+        moveDealStage(c, { tenantId: tenantA, dealId: trato.id, stageId: ganado.id, puedeCerrar: sinCerrar }),
+      ),
+    ).rejects.toThrow(/PERMISO_CERRAR/);
+
+    // Con el permiso, cierra.
+    const cerrado = await withTenant(app, tenantA, (c) =>
+      moveDealStage(c, { tenantId: tenantA, dealId: trato.id, stageId: ganado.id, puedeCerrar: () => true }),
+    );
+    expect(cerrado.status).toBe('won');
+  });
+
+  it('los caminos automáticos no piden permiso: no hay persona a quien verificar', async () => {
+    // Una automatización mueve por regla del negocio, no a nombre de nadie.
+    // Sin `puedeCerrar` el comportamiento queda como estaba, a propósito.
+    const perdido = ventas.stages.find((s) => s.type === 'lost')!;
+    const suyo = await withTenant(app, tenantA, (c) =>
+      ensureContactByPhone(c, { tenantId: tenantA, phone: '+56955550002', origin: 'manual' }),
+    );
+    const trato = await withTenant(app, tenantA, (c) =>
+      createDeal(c, {
+        tenantId: tenantA, contactId: suyo.contact.id, pipelineId: ventas.pipelineId,
+        title: 'Por automatización', actor: 'test',
+      }),
+    );
+    const motivos = await withTenant(app, tenantA, (c) => listLossReasons(c, tenantA));
+    const cerrado = await withTenant(app, tenantA, (c) =>
+      moveDealStage(c, {
+        tenantId: tenantA, dealId: trato.id, stageId: perdido.id,
+        reason: 'sin respuesta', lostReasonId: motivos[0].id,
+      }),
+    );
+    expect(cerrado.status).toBe('lost');
+  });
+});
