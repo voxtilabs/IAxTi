@@ -7,10 +7,49 @@ import { createTransport, type Transporter } from 'nodemailer';
 
 let transporter: Transporter | null | undefined;
 
+/**
+ * El remitente configurado, o null si no sirve.
+ *
+ * Antes esto era `SMTP_FROM ?? SMTP_USER`, y el respaldo tenía sentido con
+ * un proveedor donde el usuario ES la casilla (Zoho, Google). Con Resend el
+ * usuario es literalmente "resend": cada correo habría salido con
+ * `From: resend`, que no es una dirección, y el servidor lo rechaza.
+ *
+ * El modo de fallar importaba: `sendEmail` devuelve un booleano y el
+ * consumidor lo trata como mejor-esfuerzo —"un rebote no puede tumbar el
+ * aviso de la campana"—, así que el rechazo se habría tragado en silencio.
+ * Los correos no llegan, la campana sí, y nadie se entera hasta que alguien
+ * dice "nunca me llegó la invitación".
+ *
+ * Así que se exige explícito, se avisa fuerte, y no se manda nada con un
+ * remitente inventado.
+ */
+function remitente(): string | null {
+  const { SMTP_FROM, SMTP_USER } = process.env;
+  const candidato = SMTP_FROM?.trim() || SMTP_USER?.trim() || '';
+  // Acepta "algo@dominio" y "Nombre <algo@dominio>".
+  if (/<[^@\s>]+@[^@\s>]+\.[^@\s>]+>\s*$/.test(candidato) || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(candidato)) {
+    return candidato;
+  }
+  console.error(
+    `avisos: SMTP_FROM no es una dirección de correo (${candidato ? `"${candidato}"` : 'vacía'}).\n` +
+      '       Los correos NO se están enviando. Con Resend, SMTP_USER es "resend" y no sirve\n' +
+      '       de remitente: hay que poner SMTP_FROM con un dominio verificado, por ejemplo\n' +
+      '       SMTP_FROM="IAxTi <avisos@iaxti.cl>".',
+  );
+  return null;
+}
+
 function smtp(): Transporter | null {
   if (transporter !== undefined) return transporter;
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    transporter = null;
+    return null;
+  }
+  // Sin remitente válido no se arma el transporte: mejor no mandar que
+  // mandar algo que el proveedor rechaza en silencio.
+  if (!remitente()) {
     transporter = null;
     return null;
   }
@@ -80,7 +119,7 @@ export async function sendNotificationEmail(
   if (!email) return false;
   const { subject, html } = renderEmail(input);
   await transport.sendMail({
-    from: process.env.SMTP_FROM ?? process.env.SMTP_USER,
+    from: remitente()!,
     to: email,
     subject,
     html,
