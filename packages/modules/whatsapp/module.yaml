@@ -19,7 +19,11 @@ events:
     - template.submitted
   consumes: []
 tools: []
-nav: []
+# La pantalla existe desde #44 en la API y recién ahora en la app: sin
+# plantillas aprobadas no se le puede escribir a nadie fuera de la ventana
+# de 24 h, que es la mitad de para qué sirve el producto.
+nav:
+  - { label: Plantillas, path: /ajustes/plantillas, permission: whatsapp.templates.manage }
 widgets: []
 plan_min: base
 flag: module.whatsapp
