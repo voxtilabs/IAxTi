@@ -12,6 +12,17 @@ export type { Provider, AgentTask, TaskModel, IaSettings } from './domain/config
 export { createAgent, updateAgent, listAgents, getAgent } from './application/agents';
 export type { Agent, AgentInput } from './application/agents';
 export { runAgentTask, listExecutions, allowedToolsFor } from './application/runtime';
+export {
+  abrirIntento,
+  marcarLogrado,
+  marcarLogradoPorElAgente,
+  marcarPerdido,
+  tasaDeObjetivo,
+  objetivoConsumers,
+  eventosDeExito,
+  VENTANA_ATRIBUCION_DIAS,
+} from './application/objetivo-medido';
+export type { TasaDeObjetivo } from './application/objetivo-medido';
 export { OBJETIVOS, DEFINICIONES, esObjetivo, resolverObjetivo, componerPrompt } from './domain/objetivo';
 export type { Objetivo, DefinicionObjetivo, ObjetivoResuelto } from './domain/objetivo';
 export type { RunInput, RunResult } from './application/runtime';

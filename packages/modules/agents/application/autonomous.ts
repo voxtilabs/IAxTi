@@ -14,6 +14,7 @@ import { aiSdkModelPort } from './models';
 import { isAutonomousPaused } from './quota';
 import { activeAgent, refreshedContext } from './copilot';
 import type { Agent } from './agents';
+import { abrirIntento } from './objetivo-medido';
 
 // El modo autónomo (#49, SPEC §13): la IA responde SOLA únicamente cuando
 // el dueño lo permitió — por horario del tenant o por marca manual en la
@@ -231,6 +232,17 @@ export async function autoRespondForInbound(
   ]
     .filter(Boolean)
     .join('\n');
+
+  if (agent.objetivo) {
+    await abrirIntento(client, {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      contactId: ctx.contact.id,
+      agentId: agent.id,
+      objetivo: agent.objetivo,
+      objetivoDetalle: agent.objetivoDetalle,
+    });
+  }
 
   const res = await runAgentTask(
     client,

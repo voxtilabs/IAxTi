@@ -37,6 +37,7 @@ import {
   harvestFeedbackCases,
   listEvalCases,
   listEvalRuns,
+  tasaDeObjetivo,
   runEvaluation,
 } from '@iaxti/module-agents';
 import { ConflictException } from '@nestjs/common';
@@ -274,6 +275,14 @@ export class AgentsController {
         throw err;
       }
     });
+  }
+
+  @Get(':id/objetivo')
+  @RequirePermission('agents.usage.read')
+  @ApiOperation({ summary: 'Si el asistente está logrando su objetivo, y cuánto de eso es mérito suyo' })
+  async objetivo(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) => tasaDeObjetivo(c, actor.tenantId, id));
   }
 
   @Get(':id/evals')
