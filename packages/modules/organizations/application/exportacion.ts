@@ -68,6 +68,9 @@ export const TABLAS_EXPORTADAS = [
   'response_samples',
   'suggestions',
   'agent_executions',
+  // Si el agente logró su objetivo en esa conversación (#319). Es sobre el
+  // contacto: se exporta con él, como todo lo que decimos que guardamos.
+  'agent_goal_attempts',
   'agents',
   'agent_conversation_modes',
   'deals',
