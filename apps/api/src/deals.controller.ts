@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Body,
   Controller,
   Delete,
@@ -175,10 +176,20 @@ export class DealsController {
           lostReasonId: body.lostReasonId,
           actor: actor.userId,
           requestId: request.requestId,
+          // Cerrar es otra cosa que mover (#73): el catálogo declara
+          // `crm.deals.close` aparte y hasta ahora no lo exigía nadie.
+          puedeCerrar: () => actorCan(actor, 'crm.deals.close'),
         }),
       );
     } catch (err) {
       const message = (err as Error).message;
+      if (message.startsWith('PERMISO_CERRAR: ')) {
+        throw new ForbiddenException({
+          code: 'PERMISSION_DENIED',
+          message:
+            'No tienes permiso para cerrar oportunidades. Puedes moverla entre etapas abiertas.',
+        });
+      }
       if (/No encontramos/.test(message)) {
         throw new NotFoundException({ code: 'DEAL_NOT_FOUND', message });
       }

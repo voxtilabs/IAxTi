@@ -231,6 +231,14 @@ export interface MoveDealInput {
   lostReasonId?: string;
   requestId?: string;
   actor?: string;
+  /**
+   * ¿Esta persona puede CERRAR? Se consulta SOLO al mover a won o lost.
+   *
+   * Va inyectado porque este módulo no conoce el catálogo de permisos: lo
+   * pasa quien sí sabe a nombre de quién se está actuando. Los caminos
+   * automáticos no lo pasan, y ahí no hay persona a quien verificar.
+   */
+  puedeCerrar?: () => boolean | Promise<boolean>;
 }
 
 export async function moveDealStage(client: PoolClient, input: MoveDealInput): Promise<Deal> {
@@ -249,6 +257,25 @@ export async function moveDealStage(client: PoolClient, input: MoveDealInput): P
   const destino = stages.find((s) => s.id === input.stageId);
   if (!actual || !destino) throw new Error('Esa etapa no pertenece al pipeline de la oportunidad.');
   if (destino.id === actual.id) return deal;
+
+  // Cerrar pide `crm.deals.close`, mover entre etapas abiertas pide
+  // `crm.deals.update`. El catálogo declaraba los dos permisos y el código
+  // usaba uno solo para todo: quien podía mover una etapa podía dar el
+  // negocio por ganado o perdido.
+  //
+  // No es un detalle de nombres. Un dueño que arma un rol "puede trabajar
+  // los tratos pero no cerrarlos" lo arma, ve el permiso en la lista, y no
+  // sirve para nada — el vendedor cierra igual. Y cerrar mueve el número
+  // que el negocio reporta.
+  //
+  // Sin `puedeCerrar` no cambia nada: los caminos que no vienen de una
+  // persona —una automatización moviendo por regla— actúan con la
+  // configuración del tenant, no con permisos de alguien.
+  if ((destino.type === 'won' || destino.type === 'lost') && input.puedeCerrar) {
+    if (!(await input.puedeCerrar())) {
+      throw new Error('PERMISO_CERRAR: no tienes permiso para cerrar oportunidades.');
+    }
+  }
 
   if (destino.position < actual.position && !input.reason?.trim()) {
     throw new Error('Para retroceder de etapa cuéntanos el motivo; queda en la historia.');
