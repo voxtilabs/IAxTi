@@ -278,3 +278,14 @@ export interface EtiquetaDto {
   role: 'action' | 'good' | 'warn' | 'bad' | 'info' | 'neutral';
   createdAt: string;
 }
+
+/** Una empresa del negocio (#36). Nada se borra: se archiva (SPEC §39). */
+export interface EmpresaDto {
+  id: string;
+  name: string;
+  rut: string | null;
+  custom: Record<string, unknown>;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
