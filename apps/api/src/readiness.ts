@@ -84,11 +84,88 @@ async function medir(nombre: string, fn: () => Promise<unknown>): Promise<Depend
 
 let redisSonda: ReturnType<typeof redisConnection> | null = null;
 
+/**
+ * Cuando Postgres no conecta: ¿es ESE puerto, o el contenedor no tiene salida?
+ *
+ * Es la pregunta que se quedó sin responder durante horas con staging caído.
+ * Redis no la contesta —vive en la misma red interna del compose, así que
+ * responder en 2 ms no dice nada de la salida a internet— y desde afuera las
+ * dos causas se ven idénticas: un timeout y nada más.
+ *
+ * Se prueba contra el MISMO Supabase, por 443. Eso parte el problema en dos
+ * de una sola mirada:
+ *
+ *   443 ok  + 6543 no  → sale a internet, le bloquean el puerto de Postgres
+ *   443 no  + 6543 no  → no tiene salida y el puerto no tiene nada que ver
+ *
+ * Solo corre cuando Postgres YA falló: en verde no se le hace ni una llamada
+ * a nadie. Y NO decide la salud — una sonda de diagnóstico que tumbe el
+ * servicio sería peor que el problema que viene a explicar.
+ */
+async function salidaAInternet(): Promise<string | null> {
+  const base = process.env.SUPABASE_URL;
+  if (!base) return null;
+  const inicio = Date.now();
+  try {
+    const control = new AbortController();
+    const corte = setTimeout(() => control.abort(), 2000);
+    try {
+      await fetch(`${base.replace(/\/$/, '')}/auth/v1/health`, {
+        method: 'GET',
+        signal: control.signal,
+      });
+      return `sale a internet: sí (Supabase por 443 en ${Date.now() - inicio} ms)`;
+    } finally {
+      clearTimeout(corte);
+    }
+  } catch (err) {
+    // Cualquier fallo sirve igual: lo que importa es que tampoco por 443.
+    return `sale a internet: NO (${(err as Error).name === 'AbortError' ? 'timeout' : (err as Error).message.slice(0, 60)})`;
+  }
+}
+
+/**
+ * A qué puerto está intentando conectarse, sin decir nada más.
+ *
+ * Un timeout de Postgres se ve idéntico venga del puerto que venga, y desde
+ * afuera no hay forma de saber si el contenedor tomó el valor nuevo de la
+ * configuración o sigue con el viejo. Eso convirtió un cambio de un carácter
+ * en media hora de adivinar: "¿ya está desplegado o todavía no?".
+ *
+ * Solo el PUERTO. Ni host, ni usuario, ni base, ni contraseña — un
+ * diagnóstico no justifica publicar a dónde nos conectamos. El puerto solo no
+ * identifica nada: en Supabase es 5432 o 6543 y ya está escrito en el SPEC.
+ */
+function puertoDeLaBase(): string | null {
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  try {
+    const p = new URL(url).port;
+    return p || '5432'; // sin puerto explícito, el de Postgres por defecto
+  } catch {
+    return null;
+  }
+}
+
 export async function checkReadiness(pool: Pool | null, service = 'api'): Promise<Readiness> {
   const dependencias: Dependencia[] = [];
 
   if (pool) {
-    dependencias.push(await medir('postgres', () => pool.query('SELECT 1')));
+    const sonda = await medir('postgres', () => pool.query('SELECT 1'));
+    if (sonda.ok) {
+      dependencias.push(sonda);
+    } else {
+      // En rojo, las dos cosas que hacen falta para saber a quién llamar: a
+      // qué puerto intentó, y si el contenedor sale a internet siquiera.
+      const puerto = puertoDeLaBase();
+      const salida = await salidaAInternet();
+      const partes = [
+        sonda.detalle ?? 'no conecta',
+        puerto ? `puerto ${puerto}` : null,
+        salida,
+      ].filter(Boolean);
+      dependencias.push({ ...sonda, detalle: partes.join(' · ') });
+    }
   } else {
     // Sin base configurada la API no sirve para nada: no está lista.
     dependencias.push({

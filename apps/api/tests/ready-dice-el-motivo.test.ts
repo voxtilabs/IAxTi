@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { checkReadiness } from '../src/readiness';
 
@@ -26,6 +26,21 @@ function poolQueTarda(ms: number, error?: Error): Pool {
       ),
   } as unknown as Pool;
 }
+
+// El entorno NO decide el resultado de estos tests.
+//
+// `checkReadiness` mira `DATABASE_URL` para decir a qué puerto intentó, así
+// que si la variable está o no está cambia el texto del detalle. En mi
+// máquina no estaba y en CI sí: los mismos tests, verdes acá y rojos allá.
+// Un test que depende del ambiente no prueba lo que dice probar.
+const DSN_ORIGINAL = process.env.DATABASE_URL;
+beforeEach(() => {
+  delete process.env.DATABASE_URL;
+});
+afterEach(() => {
+  if (DSN_ORIGINAL === undefined) delete process.env.DATABASE_URL;
+  else process.env.DATABASE_URL = DSN_ORIGINAL;
+});
 
 describe('el detalle de /ready', () => {
   it('la primera sonda solo alcanza a decir que no llegó', async () => {
@@ -68,3 +83,97 @@ describe('el detalle de /ready', () => {
     expect(r.dependencias[0].detalle).toBeUndefined();
   }, 15_000);
 });
+
+describe('cuando postgres no conecta, dice a qué puerto (#241)', () => {
+  it('el puerto sale en el detalle del fallo', async () => {
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    const pool = {
+      query: () => new Promise(() => {}), // nunca responde: el caso real
+    } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    const pg = r.dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.ok).toBe(false);
+    // Un timeout se ve idéntico venga del puerto que venga. Sin esto, desde
+    // afuera no hay forma de saber si el contenedor tomó el valor nuevo.
+    expect(pg.detalle).toContain('puerto 6543');
+  });
+
+  it('NO publica host, usuario ni contraseña', async () => {
+    process.env.DATABASE_URL = 'postgres://elusuario:lacontrasena@db.interna.cl:5432/postgres';
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    const detalle = JSON.stringify(r);
+    // Un diagnóstico no justifica publicar a dónde nos conectamos.
+    expect(detalle).not.toContain('lacontrasena');
+    expect(detalle).not.toContain('elusuario');
+    expect(detalle).not.toContain('db.interna.cl');
+    expect(detalle).toContain('puerto 5432');
+  });
+
+  it('en verde no agrega nada: el puerto ahí es ruido', async () => {
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    const pool = { query: async () => ({ rows: [] }) } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    const pg = r.dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.ok).toBe(true);
+    expect(pg.detalle ?? '').not.toContain('puerto');
+  });
+});
+
+describe('cuando falla, dice si el contenedor sale a internet (#241)', () => {
+  const FETCH_REAL = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = FETCH_REAL;
+    delete process.env.SUPABASE_URL;
+  });
+
+  it('443 OK + Postgres no: sale a internet y le bloquean ESE puerto', async () => {
+    // Las dos causas se ven idénticas desde afuera —un timeout y nada más—
+    // y Redis no las distingue: vive en la red interna del compose, así que
+    // responder en 2 ms no dice nada de la salida.
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    globalThis.fetch = (async () => new Response('ok')) as unknown as typeof fetch;
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.detalle).toContain('puerto 6543');
+    expect(pg.detalle).toContain('sale a internet: sí');
+  });
+
+  it('443 tampoco: no tiene salida y el puerto no tiene nada que ver', async () => {
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    globalThis.fetch = (async () => {
+      throw new Error('connect ETIMEDOUT');
+    }) as unknown as typeof fetch;
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.detalle).toContain('sale a internet: NO');
+    // Y sigue siendo el fallo de postgres: la sonda EXPLICA, no reemplaza.
+    expect(pg.ok).toBe(false);
+  });
+
+  it('en VERDE no llama a nadie', async () => {
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    let llamadas = 0;
+    globalThis.fetch = (async () => {
+      llamadas += 1;
+      return new Response('ok');
+    }) as unknown as typeof fetch;
+    const pool = { query: async () => ({ rows: [] }) } as unknown as Pool;
+    const r = await checkReadiness(pool);
+    expect(r.dependencias.find((d) => d.nombre === 'postgres')!.ok).toBe(true);
+    // Una sonda de diagnóstico que llama afuera en cada chequeo de salud es
+    // tráfico y latencia por nada. Solo corre cuando ya hay un problema.
+    expect(llamadas).toBe(0);
+  });
+
+  it('sin SUPABASE_URL no inventa una conclusión', async () => {
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:5432/postgres';
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.detalle).toContain('puerto 5432');
+    expect(pg.detalle).not.toContain('sale a internet');
+  });
+});
+
