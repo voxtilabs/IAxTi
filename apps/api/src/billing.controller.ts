@@ -2,7 +2,13 @@ import { Body, Controller, Get, Post, Req, ServiceUnavailableException } from '@
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { exportarTenant } from '@iaxti/module-organizations';
-import { cancelarSuscripcion, ensureSubscription, listInvoices } from '@iaxti/module-billing';
+import {
+  cancelarSuscripcion,
+  costosDelCicloEnCurso,
+  ensureSubscription,
+  listInvoices,
+} from '@iaxti/module-billing';
+import { costThisCycle } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -74,7 +80,31 @@ export class BillingController {
     return withTenant(pool(), actor.tenantId, async (c) => {
       const subscription = await ensureSubscription(c, actor.tenantId);
       const invoices = await listInvoices(c, actor.tenantId);
-      return { subscription, invoices };
+      // Lo que va a salir ESTE ciclo, mirado hoy (SPEC §40).
+      //
+      // «Costos visibles: Meta e IA por tenant en tiempo real, en pesos, sin
+      // margen escondido». Estaba escrito y no se podía cumplir: el costo de
+      // Meta solo se calculaba al emitir la factura, así que el dueño veía lo
+      // que gastó cuando ya se lo habían cobrado — justo cuando deja de poder
+      // hacer algo al respecto.
+      //
+      // Los dos costos viven en módulos distintos y se juntan ACÁ, que es el
+      // único lugar que conoce los dos contratos. `billing` no consulta las
+      // tablas de `agents` ni al revés.
+      const cicloEnCurso = await costosDelCicloEnCurso(c, actor.tenantId);
+      const iaUsd = await costThisCycle(c, actor.tenantId);
+      const rate = cicloEnCurso?.usdClpRate ?? 950;
+      return {
+        subscription,
+        invoices,
+        cicloEnCurso: cicloEnCurso && {
+          ...cicloEnCurso,
+          // La IA va aparte y NO suma al total del ciclo: lo que se factura
+          // es el plan y el exceso de Meta. Meterla en el mismo número haría
+          // creer que se le va a cobrar, y no es así.
+          ia: { usd: Number(iaUsd.toFixed(4)), clp: Math.round(iaUsd * rate) },
+        },
+      };
     });
   }
 }
