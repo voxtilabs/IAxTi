@@ -4,7 +4,7 @@ import { porCadaTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import { changePlan, changeTenantState, getTenant, getTenantSettings } from '@iaxti/module-organizations';
 import { createPaymentLink, listProviders } from '@iaxti/module-payments';
-import { buildInvoiceLines, invoiceTotal, type InvoiceLine } from '../domain/pricing';
+import { buildInvoiceLines, invoiceTotal, planPricing, usdClpRate, type InvoiceLine } from '../domain/pricing';
 
 // billing (#67, SPEC §20): el ciclo mensual — factura con líneas
 // separadas, cobro con el MISMO proveedor de pagos, y los estados del
@@ -116,6 +116,65 @@ async function metaSpentUsd(
     [tenantId, periodStart, periodEnd],
   );
   return Number(r.rows[0].total);
+}
+
+export interface CostosDelCiclo {
+  periodStart: string;
+  periodEnd: string;
+  plan: string;
+  /** Lo que Meta lleva cobrado en el ciclo, tal cual, sin margen encima. */
+  metaUsd: number;
+  /** Cuánto de eso va incluido en el plan. */
+  metaIncluidoUsd: number;
+  /** Las líneas que saldrían si el ciclo cerrara hoy. */
+  lines: InvoiceLine[];
+  totalClp: number;
+  usdClpRate: number;
+}
+
+/**
+ * Qué va a salir este ciclo, mirado HOY (SPEC §40, regla de negocio).
+ *
+ * «Costos visibles: Meta e IA por tenant en tiempo real, en pesos, sin
+ * margen escondido sobre los costos de Meta». Estaba escrito y no se podía
+ * cumplir: el costo de Meta solo se calculaba al EMITIR la factura, en una
+ * función privada. O sea que el dueño veía lo que gastó cuando ya se lo
+ * habían cobrado — que es exactamente cuando deja de poder hacer algo al
+ * respecto.
+ *
+ * Usa las MISMAS líneas que la factura de verdad (`buildInvoiceLines`), no
+ * un cálculo paralelo: si la estimación y la factura se calcularan distinto,
+ * la diferencia aparecería el día del cobro y el número dejaría de servir
+ * para decidir nada.
+ *
+ * El costo de IA NO viene de acá: vive en `agents` y este módulo no consulta
+ * tablas ajenas. Lo junta quien conoce los dos contratos.
+ */
+export async function costosDelCicloEnCurso(
+  client: PoolClient,
+  tenantId: string,
+): Promise<CostosDelCiclo | null> {
+  const sub = await getSubscription(client, tenantId);
+  if (!sub || sub.status === 'cancelled') return null;
+  const settings = (await getTenantSettings(client, tenantId)) as {
+    billing?: { iaAmpliacionClp?: number };
+  };
+  const metaUsd = await metaSpentUsd(client, tenantId, sub.cycleStart, sub.nextChargeAt);
+  const lines = buildInvoiceLines({
+    plan: sub.plan,
+    metaSpentUsd: metaUsd,
+    iaAmpliacionClp: settings.billing?.iaAmpliacionClp ?? null,
+  });
+  return {
+    periodStart: sub.cycleStart,
+    periodEnd: sub.nextChargeAt,
+    plan: sub.plan,
+    metaUsd: Number(metaUsd.toFixed(4)),
+    metaIncluidoUsd: planPricing(sub.plan).metaIncludedUsd,
+    lines,
+    totalClp: lines.reduce((a, l) => a + l.amountClp, 0),
+    usdClpRate: usdClpRate(),
+  };
 }
 
 /**

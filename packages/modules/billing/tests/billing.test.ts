@@ -5,6 +5,7 @@ import { addProvider } from '@iaxti/module-payments';
 import { buildInvoiceLines, invoiceTotal, planPricing } from '../domain/pricing';
 import {
   billingConsumers,
+  costosDelCicloEnCurso,
   ensureSubscription,
   issueInvoiceForCycle,
   listInvoices,
@@ -198,5 +199,73 @@ describe('el ciclo (#67)', () => {
     expect(audit.rows.map((r) => r.action)).toEqual(
       expect.arrayContaining(['billing.tenant.past_due', 'billing.tenant.read_only']),
     );
+  });
+});
+
+describe('lo que va a salir ESTE ciclo, antes de que te cobren (#67, SPEC §40)', () => {
+  it('sale con las MISMAS líneas que la factura, no con un cálculo paralelo', async () => {
+    const otro = await admin.query(
+      "INSERT INTO tenants (name, plan, state) VALUES ('ciclo-en-curso', 'crece', 'active') RETURNING id",
+    );
+    const id = otro.rows[0].id;
+    // Consumo de Meta DENTRO del ciclo en curso: 40 USD, con 25 incluidos.
+    await admin.query(
+      `INSERT INTO daily_metrics (tenant_id, day, metric, value)
+       VALUES ($1, now()::date, 'costo_meta_usd', 40)`,
+      [id],
+    );
+    await withTenant(admin, id, (c) => ensureSubscription(c, id));
+
+    const ciclo = (await withTenant(admin, id, (c) => costosDelCicloEnCurso(c, id)))!;
+    expect(ciclo).not.toBeNull();
+    expect(ciclo.metaUsd).toBe(40);
+    expect(ciclo.metaIncluidoUsd).toBe(25);
+    // El exceso sale de lo consumido sobre lo incluido: sin margen encima.
+    const exceso = ciclo.lines.find((l) => l.concepto === 'exceso_meta')!;
+    expect(exceso.amountClp).toBe(Math.round(15 * ciclo.usdClpRate));
+    expect(ciclo.totalClp).toBe(ciclo.lines.reduce((a, l) => a + l.amountClp, 0));
+
+    // Lo que importa de verdad: si la estimación y la factura se calcularan
+    // distinto, la diferencia aparecería el día del cobro y el número dejaría
+    // de servir para decidir nada. Son las mismas líneas.
+    const factura = await withTenant(admin, id, (c) =>
+      issueInvoiceForCycle(c, {
+        tenantId: id,
+        periodStart: ciclo.periodStart,
+        periodEnd: ciclo.periodEnd,
+      }),
+    );
+    expect(factura!.lines).toEqual(ciclo.lines);
+    expect(factura!.totalClp).toBe(ciclo.totalClp);
+
+    // El tenant NO se borra: audit_log lo referencia y es append-only, así
+    // que borrarlo es imposible por diseño. Misma razón que el resto del
+    // archivo.
+    for (const t of ['invoices', 'subscriptions', 'daily_metrics']) {
+      await admin.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [id]);
+    }
+  });
+
+  it('sin suscripción no inventa un número', async () => {
+    const otro = await admin.query(
+      "INSERT INTO tenants (name, plan, state) VALUES ('sin-suscripcion', 'base', 'trial') RETURNING id",
+    );
+    const id = otro.rows[0].id;
+    // Nadie eligió plan todavía: decir "vas a pagar X" sería inventarlo.
+    expect(await withTenant(admin, id, (c) => costosDelCicloEnCurso(c, id))).toBeNull();
+  });
+
+  it('sin consumo de Meta no aparece la línea de exceso', async () => {
+    const otro = await admin.query(
+      "INSERT INTO tenants (name, plan, state) VALUES ('sin-meta', 'crece', 'active') RETURNING id",
+    );
+    const id = otro.rows[0].id;
+    await withTenant(admin, id, (c) => ensureSubscription(c, id));
+    const ciclo = (await withTenant(admin, id, (c) => costosDelCicloEnCurso(c, id)))!;
+    expect(ciclo.metaUsd).toBe(0);
+    expect(ciclo.lines.some((l) => l.concepto === 'exceso_meta')).toBe(false);
+    // Queda el plan, que es lo que de verdad va a salir.
+    expect(ciclo.lines.map((l) => l.concepto)).toEqual(['plan']);
+    await admin.query('DELETE FROM subscriptions WHERE tenant_id = $1', [id]);
   });
 });

@@ -4,6 +4,7 @@ export {
   ensureSubscription,
   getSubscription,
   listInvoices,
+  costosDelCicloEnCurso,
   issueInvoiceForCycle,
   billingConsumers,
   sweepBilling,
@@ -19,3 +20,4 @@ export {
   DIAS_HASTA_BORRAR,
 } from './application/fin-de-ciclo';
 export type { TenantPorBorrar } from './application/fin-de-ciclo';
+export type { CostosDelCiclo } from './application/billing';
