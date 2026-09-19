@@ -57,6 +57,12 @@ componentes) y `tailwind-design-system` (el nivel de sistema). Las dos
 últimas son de terceros, con su origen y su hash en `skills-lock.json`; se
 restauran con `npx skills experimental_install`.
 
+Para correo (#55) están las de Resend, también de terceros y en el mismo
+lock: `resend` (la API), `email-best-practices` (SPF/DKIM/DMARC, rebotes,
+transaccional vs marketing) y `react-email` (plantillas). El remitente va
+SIEMPRE en `SMTP_FROM` con un dominio verificado — el usuario SMTP de
+Resend es literalmente `resend` y no es una dirección.
+
 ## Desarrollo
 
 ```
