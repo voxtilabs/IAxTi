@@ -186,3 +186,57 @@ describe('suscripciones y entregas (#76)', () => {
     expect(evento.rows[0].payload.endpointId).toBe(ep.id);
   });
 });
+
+describe('una cuenta suspendida no manda webhooks (#67, SPEC §6)', () => {
+  it('el barrido salta al suspendido y sigue con el activo', async () => {
+    const otro = await admin.query(
+      "INSERT INTO tenants (name, state) VALUES ('suspendido-wh', 'suspended') RETURNING id",
+    );
+    const suspendido = otro.rows[0].id;
+
+    // Mismo endpoint y mismo evento en los dos: lo único distinto es el
+    // estado de la cuenta.
+    const llamadas: string[] = [];
+    const espia = (async (url: string) => {
+      llamadas.push(String(url));
+      return new Response('ok', { status: 200 });
+    }) as unknown as typeof fetch;
+
+    for (const [id, marca] of [[suspendido, 'suspendido'], [tenant, 'activo']] as const) {
+      const ep = await withTenant(admin, id, (c) =>
+        createEndpoint(c, {
+          tenantId: id,
+          url: `https://ejemplo.cl/${marca}`,
+          events: ['deal.won'],
+          catalog: CATALOGO,
+          actor: 'test',
+        }),
+      );
+      await admin.query(
+        `INSERT INTO webhook_deliveries (tenant_id, endpoint_id, event_id, event_name, payload, next_retry_at)
+         VALUES ($1,$2,$3,'deal.won','{}'::jsonb, now() - interval '1 minute')`,
+        [id, ep.id, marca === 'suspendido' ? 9001 : 9002],
+      );
+    }
+
+    await deliverWebhooks(admin, espia);
+
+    // El activo recibe; el suspendido no. Los mensajes al cliente ya
+    // respetaban esto (la cola aplica `puedeEnviar`); los webhooks eran el
+    // único camino de salida que no lo miraba.
+    expect(llamadas.some((u) => u.includes('/activo'))).toBe(true);
+    expect(llamadas.some((u) => u.includes('/suspendido'))).toBe(false);
+
+    // Y la entrega del suspendido NO se marca como fallida: queda
+    // pendiente. Si la cuenta vuelve a activa, sale — no se pierde.
+    const q = await admin.query(
+      `SELECT status FROM webhook_deliveries WHERE tenant_id = $1`,
+      [suspendido],
+    );
+    expect(q.rows[0].status).toBe('pending');
+
+    for (const t of ['webhook_deliveries', 'webhook_endpoints']) {
+      await admin.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [suspendido]);
+    }
+  });
+});

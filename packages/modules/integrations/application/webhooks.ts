@@ -251,7 +251,9 @@ export async function deliverWebhooks(
   // producción. El tope de 100 pasa a ser por tenant, que además reparte
   // mejor: antes un tenant con mucha cola se comía el turno de los demás.
   const vencidas = { rows: [] as Array<{ id: string; tenant_id: string }> };
-  await porCadaTenant(pool, async (client, tenantId) => {
+  await porCadaTenant(
+    pool,
+    async (client, tenantId) => {
     // `tenant_id = $1` explícito y no solo RLS: la regla del proyecto es
     // que RLS es la SEGUNDA cerradura, no la primera. Sin el filtro, con el
     // rol de desarrollo —superusuario— esta consulta devolvía las entregas
@@ -262,8 +264,27 @@ export async function deliverWebhooks(
         ORDER BY next_retry_at LIMIT 100`,
       [tenantId],
     );
-    for (const x of r.rows) vencidas.rows.push({ id: x.id as string, tenant_id: tenantId });
-  });
+      for (const x of r.rows) vencidas.rows.push({ id: x.id as string, tenant_id: tenantId });
+    },
+    {
+      // Una cuenta suspendida no manda NADA hacia afuera, y los webhooks
+      // eran el único camino de salida que no lo respetaba.
+      //
+      // Los mensajes al cliente pasan por la cola, y ahí `puedeEnviar`
+      // bloquea `suspended` y `deleted` — "este es el único lugar por donde
+      // pasa TODO lo que sale", dice el worker. Los webhooks no pasan por
+      // ahí: un evento inserta la entrega y este barrido la manda, sin que
+      // nadie mire en qué estado está el negocio.
+      //
+      // `read_only` SÍ sigue recibiendo: §6 restringe los mensajes que
+      // INICIA el negocio, no que sus integraciones se mantengan al día.
+      // Cortarle el sincronizado de su CRM por un atraso en el pago sería
+      // castigar más de lo que la regla dice.
+      //
+      // `deleted` ya queda fuera: `idsDeTenants` lo excluye por defecto.
+      estados: ['trial', 'active', 'past_due', 'read_only'],
+    },
+  );
   for (const fila of vencidas.rows) {
     await withTenant(pool, fila.tenant_id, async (client) => {
       const d = await client.query(
