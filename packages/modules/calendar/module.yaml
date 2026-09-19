@@ -23,8 +23,16 @@ tools:
   - calendar.book
   - calendar.reschedule
   - calendar.cancel
-nav:
-  - { label: Agenda, path: /agenda, permission: calendar.read }
+# Sin `nav` hasta que exista la página.
+#
+# Declaraba `/agenda` y esa página no está construida: el módulo es
+# `plan_min: base` y viene activo, así que el ítem le aparecía en el menú a
+# cualquiera con `calendar.read` — y llevaba a un 404. La API de agenda sí
+# existe (5 endpoints); lo que falta es la pantalla, y va en #58.
+#
+# Prometer en el menú algo que no existe es peor que no ofrecerlo: el
+# cliente descubre que el producto está a medias haciendo clic.
+nav: []
 widgets: []
 plan_min: base
 flag: module.calendar
