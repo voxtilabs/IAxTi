@@ -9,6 +9,7 @@ export function publicConfig(): PublicConfig {
     supabaseUrl: process.env.SUPABASE_URL ?? '',
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
     apiUrl: process.env.API_URL_PUBLIC ?? 'http://localhost:3000',
+    env: process.env.IAXTI_ENV ?? 'local',
   };
 }
 
