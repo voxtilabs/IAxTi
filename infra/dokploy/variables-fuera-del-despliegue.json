@@ -1,0 +1,17 @@
+{
+  "_": [
+    "Variables que el código lee y que el compose de despliegue NO pasa, a",
+    "propósito. La guarda `packages/core/tests/variables-del-despliegue.test.ts`",
+    "exige que toda variable leída esté en los dos compose o acá con su motivo.",
+    "",
+    "Agregar una línea acá es una decisión, no un trámite: si la variable",
+    "cambia el comportamiento del producto según el ambiente, o lleva un",
+    "secreto, va al compose y no a esta lista."
+  ],
+  "NODE_ENV": "Lo pone el runtime. En la imagen vale siempre 'production'; el código solo lo consulta para saltarse una comprobación cuando vale 'test'.",
+  "NEXT_RUNTIME": "Lo pone Next dentro de instrumentation.ts para distinguir nodejs de edge. Fijarlo a mano desde fuera sería mentirle al framework.",
+  "MODULES_DIR": "Ruta de los manifiestos cuando se corre desde el monorepo (tests y dev). En la imagen la ruta es fija y el defecto del código es el correcto.",
+  "DB_CONNECT_TIMEOUT_MS": "Afinado puntual del pool para reproducir un timeout a mano. El defecto del código es el que queremos en todos los ambientes.",
+  "OTEL_SERVICE_NAME": "Se deriva de SERVICE ('iaxti-<servicio>'), que el compose sí fija por servicio. Pasarlo desde fuera daría el MISMO nombre a los cinco servicios y las trazas dejarían de distinguirse.",
+  "IAXTI_TZ": "La zona horaria real es del tenant y vive en su fila. Esta variable solo fija el defecto en dev y tests; en el producto se lee del tenant."
+}

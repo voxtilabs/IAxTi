@@ -111,6 +111,22 @@ jobs:
         run: pnpm --filter @iaxti/db exec vitest run
 
 
+      # Guardas de `packages/core`, FUERA de turbo y por el mismo motivo.
+      #
+      # `variables-del-despliegue.test.ts` escanea `apps/` y `packages/`
+      # enteros y compara contra los dos compose de `infra/`. Nada de eso es
+      # entrada de `@iaxti/core` para turbo: un PR que agregue
+      # `process.env.NUEVA` en el módulo de pagos se sirve desde caché y la
+      # guarda no corre justo en el PR que la necesitaba.
+      #
+      # Va todo el paquete y no el archivo suelto: elegir archivos a mano es
+      # volver a mantener una lista que se desincroniza (pasó con las
+      # guardas de esquema, ver arriba). Core corre en ~4 s y no necesita
+      # base.
+      - name: Guardas de despliegue (sin caché)
+        run: pnpm --filter @iaxti/core exec vitest run
+
+
       # Criterio de salida de Fase 2 (#37): el e2e de la bandeja en celular
       # contra la API y el web reales (JWKS local hace de Supabase Auth).
       - name: E2E bandeja (Playwright, celular)
