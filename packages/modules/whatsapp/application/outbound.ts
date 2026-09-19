@@ -1,6 +1,7 @@
 import type IORedis from 'ioredis';
 import { getProvider } from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
+import { enteroDeEntorno } from '@iaxti/core';
 
 // Salida de WhatsApp (#43): la cola `outbound` con rate limit POR NÚMERO y
 // causas de fallo legibles — un "failed" sin explicación mata la confianza.
@@ -49,7 +50,7 @@ export class RateLimitedError extends Error {
 export async function checkNumberRateLimit(
   redis: IORedis,
   phoneNumberId: string,
-  maxPorSegundo = Number(process.env.WHATSAPP_MSGS_PER_SECOND ?? 10),
+  maxPorSegundo = enteroDeEntorno('WHATSAPP_MSGS_PER_SECOND', 10),
   /**
    * El instante que define la ventana. Existe para los tests: la ventana
    * dura un segundo, y una prueba que hace cuatro llamadas confiando en que

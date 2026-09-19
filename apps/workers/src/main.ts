@@ -10,6 +10,7 @@ import {
   limpiarLlavesVencidas,
   redisConnection,
   storageFromEnv,
+  enteroDeEntorno,
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
 import { DelayUntilError, processOutbound } from './outbound';
@@ -42,7 +43,7 @@ import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
 
 const service = process.env.SERVICE ?? 'workers';
-const port = Number(process.env.PORT ?? 3000);
+const port = enteroDeEntorno('PORT', 3000);
 
 // Los consumidores reales se registran módulo a módulo en sus issues; el
 // despachador y las colas quedan operativos desde ya (issue #13).

@@ -7,6 +7,7 @@ import {
 import type IORedis from 'ioredis';
 import type { Response } from 'express';
 import type { WithRequestId } from './request-id';
+import { enteroDeEntorno } from '@iaxti/core';
 
 /**
  * Rate limiting por tenant y por API key en Redis (SPEC §28): ventana fija
@@ -22,7 +23,7 @@ import type { WithRequestId } from './request-id';
 export class RateLimitGuard implements CanActivate {
   constructor(
     private readonly redis: IORedis,
-    private readonly limitPerMinute = Number(process.env.RATE_LIMIT_PER_MINUTE ?? 120),
+    private readonly limitPerMinute = enteroDeEntorno('RATE_LIMIT_PER_MINUTE', 120),
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
