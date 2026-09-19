@@ -5,6 +5,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -25,6 +26,7 @@ import {
   mergeContacts,
   previewImport,
   suprimirTitular,
+  updateContact,
 } from '@iaxti/module-crm';
 import type { ActivityType, ImportField } from '@iaxti/module-crm';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -235,6 +237,57 @@ export class ContactsController {
         message: 'No encontramos ese contacto. Puede que se haya eliminado.',
       });
     });
+  }
+
+  /**
+   * Editar el contacto (#32, #34).
+   *
+   * Faltaba entero. `updateContact` existía en el contrato de `crm` y solo
+   * la llamaba el webchat, para poner nombre y correo de quien escribe. Así
+   * que los CAMPOS PROPIOS del negocio se podían declarar, validar y
+   * guardar en el esquema — y no había forma de ponerles un valor. Un campo
+   * que no se puede llenar no es un campo.
+   *
+   * `custom` se valida contra lo declarado dentro del caso de uso: tipo,
+   * obligatoriedad y opciones de lista. Lo que el negocio ya tenía guardado
+   * de antes sigue pasando, para que declarar un campo nuevo no rompa todas
+   * las fichas viejas de golpe.
+   */
+  @Patch(':id')
+  @RequirePermission('crm.contacts.update')
+  @ApiOperation({ summary: 'Corrige el contacto y sus campos propios' })
+  async actualizar(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      email?: string;
+      rut?: string;
+      ownerId?: string;
+      custom?: Record<string, unknown>;
+    },
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        updateContact(c, {
+          tenantId: actor.tenantId,
+          contactId: id,
+          ...body,
+          actor: actor.userId,
+          requestId: request.requestId,
+        }),
+      );
+    } catch (err) {
+      const message = (err as Error).message;
+      if (/No encontramos/.test(message)) {
+        throw new NotFoundException({ code: 'CONTACT_NOT_FOUND', message });
+      }
+      // Lo que no calza con lo declarado: tipo, opción fuera de la lista,
+      // obligatorio vacío. El mensaje del dominio ya explica cuál.
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message });
+    }
   }
 
   @Post(':id/activities')

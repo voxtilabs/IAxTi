@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, IconoCheck, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
-import { apiFetch, fmtClp, type FichaContacto as Ficha } from '../../lib/api';
+import { apiFetch, fmtClp, type CampoDto, type FichaContacto as Ficha } from '../../lib/api';
 
 // La ficha de contacto (#32, SPEC §10/§29): historia, oportunidades y
 // actividades. La usa la página /contactos/[id] Y el panel derecho de la
@@ -28,6 +28,42 @@ function FechaDato({ iso }: { iso: string | null }) {
   return <span className="dato">{new Date(iso).toLocaleDateString('es-CL')}</span>;
 }
 
+/**
+ * Los campos propios del negocio (#34).
+ *
+ * La API ya mandaba `contact.custom` en la ficha y esta pantalla lo tiraba:
+ * el dato llegaba al navegador y no se dibujaba en ninguna parte. Se
+ * declaran en Ajustes → Campos.
+ *
+ * Las etiquetas salen de la definición, no de la clave: la clave es interna
+ * (`tipo_de_corte`) y lo que el negocio escribió es "Tipo de corte".
+ */
+function CamposPropios({ valores, definiciones }: {
+  valores: Record<string, unknown> | null;
+  definiciones: CampoDto[];
+}) {
+  const conValor = definiciones
+    .filter((d) => d.entity === 'contact')
+    .map((d) => ({ d, v: valores?.[d.key] }))
+    .filter((x) => x.v !== undefined && x.v !== null && x.v !== '');
+  if (conValor.length === 0) return null;
+  return (
+    <section className="mt-6">
+      <h3 className="text-sm font-medium text-muted">De tu negocio</h3>
+      <dl className="mt-2 flex flex-col gap-1">
+        {conValor.map(({ d, v }) => (
+          <div key={d.id} className="flex flex-wrap gap-x-3 text-sm">
+            <dt className="text-muted">{d.label}</dt>
+            <dd className={d.type === 'numero' || d.type === 'moneda' || d.type === 'fecha' ? 'dato text-ink' : 'text-ink'}>
+              {d.type === 'si_no' ? (v ? 'Sí' : 'No') : String(v)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 export function FichaContacto({
   contactId,
   compacta = false,
@@ -39,6 +75,7 @@ export function FichaContacto({
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
   const [ficha, setFicha] = useState<Ficha | null>(null);
+  const [campos, setCampos] = useState<CampoDto[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
   const [titulo, setTitulo] = useState('');
   const [tipo, setTipo] = useState<'llamada' | 'reunion' | 'tarea' | 'nota'>('tarea');
@@ -50,6 +87,13 @@ export function FichaContacto({
     if (!session || !tenant || !contactId) return;
     try {
       setFicha(await apiFetch<Ficha>(config, session, tenant, `/contacts/${contactId}`));
+      // Las definiciones aparte: sin ellas los valores son claves sueltas
+      // sin nombre. Si fallan, la ficha se dibuja igual sin esa sección.
+      try {
+        setCampos(await apiFetch<CampoDto[]>(config, session, tenant, '/campos'));
+      } catch {
+        setCampos([]);
+      }
     } catch (err) {
       setAviso((err as Error).message);
     }
@@ -112,6 +156,8 @@ export function FichaContacto({
         <dt className="text-muted">Cliente desde</dt>
         <dd><FechaDato iso={contact.created_at} /></dd>
       </dl>
+
+      <CamposPropios valores={contact.custom} definiciones={campos} />
 
       {/* Oportunidades (montos en mono). */}
       <section className="mt-6">
