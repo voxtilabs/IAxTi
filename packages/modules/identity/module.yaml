@@ -17,7 +17,10 @@ events:
     - user.login_failed
   consumes: []
 tools: []
-nav: []
+# La API de equipo está desde #28 y no tenía pantalla — y "Invita a tu
+# equipo" es un paso del onboarding que nadie podía completar desde la app.
+nav:
+  - { label: Equipo, path: /ajustes/equipo, permission: users.read }
 widgets: []
 plan_min: base
 flag: module.identity

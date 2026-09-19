@@ -76,7 +76,7 @@ import { AutomationsController } from './automations.controller';
 import { AnalyticsController } from './analytics.controller';
 import { ApiUsageController } from './api-usage.controller';
 import { AuditController, PlatformAuditController } from './audit.controller';
-import { EquipoUsuariosController } from './equipo-usuarios.controller';
+import { EquipoUsuariosController, InvitacionesController } from './equipo-usuarios.controller';
 import { checkReadiness } from './readiness';
 import type { Response } from 'express';
 import { ApiKeysController } from './apikeys.controller';
@@ -687,6 +687,7 @@ function platformPool() {
 const controllers = [
   HealthController,
   EquipoUsuariosController,
+  InvitacionesController,
   AuditController,
   PlatformAuditController,
   MeController,
