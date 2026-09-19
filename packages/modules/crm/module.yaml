@@ -50,6 +50,7 @@ nav:
   # Los campos propios estaban en la API desde #34 sin pantalla, y la ficha
   # ya recibía sus valores sin dibujarlos.
   - { label: Campos, path: /ajustes/campos, permission: crm.fields.manage }
+  - { label: Etiquetas, path: /ajustes/etiquetas, permission: crm.tags.manage }
   - { label: Oportunidades, path: /oportunidades, permission: crm.deals.read }
 widgets:
   - { id: crm.resumen, permission: crm.deals.read }
