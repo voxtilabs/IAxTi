@@ -124,6 +124,8 @@ export interface FichaContacto {
     opted_out_at: string | null;
     last_activity_at: string;
     created_at: string;
+    /** Los campos propios del negocio (#34). La API ya los mandaba. */
+    custom: Record<string, unknown> | null;
   };
   deals: Array<{
     id: string;
@@ -255,4 +257,16 @@ export interface PlantillaDto {
   providerId: string | null;
   rejectionReason: string | null;
   variables: number;
+}
+
+/** Un campo propio del negocio (#34, SPEC §10). */
+export interface CampoDto {
+  id: string;
+  entity: 'contact' | 'company' | 'deal';
+  key: string;
+  label: string;
+  type: 'texto' | 'numero' | 'fecha' | 'lista' | 'si_no' | 'moneda';
+  required: boolean;
+  visibleIa: boolean;
+  options: string[];
 }
