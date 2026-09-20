@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -14,6 +15,7 @@ import {
   crearCampana,
   enviarCampana,
   guardarSegmento,
+  listarCampanas,
   listarSegmentos,
   obtenerCampana,
   previsualizarCampana,
@@ -127,6 +129,17 @@ export class CampanasController {
     } catch (err) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
     }
+  }
+
+  @Get()
+  @RequirePermission('automations.manage')
+  @ApiOperation({ summary: 'Las campañas del negocio, la más reciente primero' })
+  async listar(@Req() request: WithUser, @Query('limite') limite?: string) {
+    const actor = actorOf(request);
+    const n = Number(limite);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      listarCampanas(c, actor.tenantId, { limite: Number.isFinite(n) && n > 0 ? n : undefined }),
+    );
   }
 
   @Get(':id/vista-previa')

@@ -50,8 +50,10 @@ export {
   crearCampana,
   previsualizarCampana,
   obtenerCampana,
+  listarCampanas,
+  LIMITE_LISTADO,
   enviarCampana,
   resultadosDeCampana,
   resolverValores,
 } from './application/campanas';
-export type { Campana, ResultadoEnvio } from './application/campanas';
+export type { Campana, CampanaEnLista, ResultadoEnvio } from './application/campanas';

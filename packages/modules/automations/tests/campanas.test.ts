@@ -6,6 +6,7 @@ import { previsualizarSegmento, guardarSegmento, listarSegmentos } from '../appl
 import {
   crearCampana,
   enviarCampana,
+  listarCampanas,
   previsualizarCampana,
   resultadosDeCampana,
 } from '../application/campanas';
@@ -197,5 +198,53 @@ describe('la campaña', () => {
 
     const r = await en((c) => resultadosDeCampana(c, { tenantId: tenant, campaignId: abierta.id }));
     expect(r.motivos.some((m) => m.motivo === 'sin consentimiento')).toBe(true);
+  });
+});
+
+describe('el listado', () => {
+  it('trae las campañas del negocio, la más reciente primero', async () => {
+    const { campanas } = await en((c) => listarCampanas(c, tenant));
+    expect(campanas.length).toBeGreaterThanOrEqual(2);
+    const fechas = campanas.map((c) => c.createdAt);
+    expect([...fechas].sort().reverse()).toEqual(fechas);
+    expect(campanas[0].name).toBeTruthy();
+  });
+
+  it('el conteo por resultado viene en la misma consulta, sin abrir cada una', async () => {
+    // Es la razón de ser del listado: una lista que solo diga 'enviada'
+    // obliga a entrar una por una para saber si salió bien.
+    const { campanas } = await en((c) => listarCampanas(c, tenant));
+    const conEnvio = campanas.find((c) => c.destinatarios.encolados > 0);
+    expect(conEnvio, 'ninguna campaña con destinatarios encolados').toBeTruthy();
+    const r = await en((c) =>
+      resultadosDeCampana(c, { tenantId: tenant, campaignId: conEnvio!.id }),
+    );
+    expect(conEnvio!.destinatarios.encolados).toBe(r.porEstado.queued ?? 0);
+    expect(conEnvio!.destinatarios.saltados).toBe(r.porEstado.skipped ?? 0);
+  });
+
+  it('el tenant de al lado no ve ninguna', async () => {
+    const otro = (
+      await admin.query("INSERT INTO tenants (name) VALUES ('campanas-vecino') RETURNING id")
+    ).rows[0].id as string;
+    const { campanas } = await withTenant(admin, otro, (c) => listarCampanas(c, otro));
+    expect(campanas).toEqual([]);
+  });
+
+  it('avisa cuando corta: una lista truncada no se ve igual que una completa', async () => {
+    const corta = await en((c) => listarCampanas(c, tenant, { limite: 1 }));
+    expect(corta.campanas).toHaveLength(1);
+    expect(corta.truncado).toBe(true);
+
+    const entera = await en((c) => listarCampanas(c, tenant, { limite: 100 }));
+    expect(entera.truncado).toBe(false);
+  });
+
+  it('un límite absurdo no tumba la consulta', async () => {
+    for (const limite of [0, -5, 9999, Number.NaN]) {
+      const r = await en((c) => listarCampanas(c, tenant, { limite }));
+      expect(r.campanas.length).toBeGreaterThan(0);
+      expect(r.campanas.length).toBeLessThanOrEqual(100);
+    }
   });
 });
