@@ -1,41 +1,121 @@
 # iaxti-prod · igual que staging pero con imagen inmutable por tag.
 # IMAGE se fija en Dokploy en cada release: ghcr.io/voxtilabs/iaxti:vX.Y.Z
 # Redis con backup diario a R2 configurado desde Dokploy (SPEC §36).
+#
+# Este archivo decía "igual que staging" y no lo era: pasaba SOLO `SERVICE`.
+# Ni DATABASE_URL, ni Redis, ni Supabase. El día del primer deploy, prod
+# habría levantado sin base. Ahora comparte la misma forma que staging y la
+# guarda de `variables-del-despliegue.test.ts` compara los dos archivos.
+#
+# `${VAR:?}` en vez de `${VAR}` donde el valor por defecto del código es
+# EQUIVOCADO en producción: ahí preferimos que el deploy falle a que arranque
+# apuntando a otro ambiente.
+
+x-app: &app
+  image: ${IMAGE:?falta IMAGE con el tag de la release}
+  restart: unless-stopped
+
+x-env: &app-env
+  IAXTI_ENV: ${IAXTI_ENV:?}
+  SENTRY_DSN: ${SENTRY_DSN}
+  OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+  OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS}
+  DATABASE_URL: ${DATABASE_URL:?}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
+  SUPABASE_URL: ${SUPABASE_URL:?}
+  SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?}
+  SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:?}
+  SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+  API_URL_INTERNAL: http://api:3000
+  API_URL_PUBLIC: ${API_URL_PUBLIC:?}
+  APP_URL_PUBLIC: ${APP_URL_PUBLIC:?}
+  CORS_ORIGINS: ${CORS_ORIGINS:?}
+
+  # Canales vía Zavu (#42, ADR-0014). La cuenta guarda el NOMBRE de la
+  # variable (credential_ref), nunca el valor.
+  ZAVU_API_KEY: ${ZAVU_API_KEY}
+  ZAVU_API_BASE: ${ZAVU_API_BASE:-https://api.zavu.dev/v1}
+  ZAVU_WEBHOOK_SECRET: ${ZAVU_WEBHOOK_SECRET}
+
+  # Correo transaccional (#55). SMTP_FROM con dominio verificado; el usuario
+  # de Resend es literalmente `resend` y no es una dirección.
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_USER: ${SMTP_USER}
+  SMTP_PASS: ${SMTP_PASS}
+  SMTP_FROM: ${SMTP_FROM}
+
+  GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+  GLM_API_BASE: ${GLM_API_BASE:-https://open.bigmodel.cn/api/paas/v4}
+
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+  LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}
+
+  R2_ENDPOINT: ${R2_ENDPOINT}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+  R2_BUCKET_ADJUNTOS: ${R2_BUCKET_ADJUNTOS}
+
+  AUDIT_EXPORT_SECRET: ${AUDIT_EXPORT_SECRET}
+
+  # Las dos que NO pueden caer en su defecto acá: el del código manda a
+  # sandbox.flow.cl y a api-staging.iaxti.cl respectivamente.
+  FLOW_API_BASE: ${FLOW_API_BASE:?}
+  PUBLIC_API_URL: ${PUBLIC_API_URL:?}
+
+  AGENT_PRICES_JSON: ${AGENT_PRICES_JSON}
+  BILLING_PRICES_JSON: ${BILLING_PRICES_JSON}
+  BILLING_USD_CLP: ${BILLING_USD_CLP}
+  USD_CLP_RATE: ${USD_CLP_RATE}
+  LOG_FORMAT: ${LOG_FORMAT}
 
 services:
   web:
-    image: ${IMAGE}
-    environment: { SERVICE: web }
-    restart: unless-stopped
-    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 30s, timeout: 5s, retries: 3 }
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: web
+    healthcheck: &hc
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   admin:
-    image: ${IMAGE}
-    environment: { SERVICE: admin }
-    restart: unless-stopped
-    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 30s, timeout: 5s, retries: 3 }
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: admin
+    healthcheck: *hc
 
   api:
-    image: ${IMAGE}
-    environment: { SERVICE: api }
-    restart: unless-stopped
-    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: 15s, timeout: 5s, retries: 3 }
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: api
+    healthcheck:
+      <<: *hc
+      interval: 15s
 
   workers:
-    image: ${IMAGE}
-    environment: { SERVICE: workers }
-    restart: unless-stopped
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: workers
     depends_on: [redis]
 
   agents:
-    image: ${IMAGE}
-    environment: { SERVICE: agents }
-    restart: unless-stopped
+    <<: *app
+    environment:
+      <<: *app-env
+      SERVICE: agents
     depends_on: [redis]
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?}"]
     volumes:
       - redis-data:/data
     restart: unless-stopped

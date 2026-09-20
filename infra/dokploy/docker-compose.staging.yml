@@ -31,6 +31,62 @@ x-env: &app-env
   ZAVU_API_BASE: ${ZAVU_API_BASE:-https://api.zavu.dev/v1}
   ZAVU_WEBHOOK_SECRET: ${ZAVU_WEBHOOK_SECRET}
 
+  # Correo transaccional (#55). El usuario SMTP de Resend es literalmente
+  # `resend` y NO es una dirección: el remitente va en SMTP_FROM con un
+  # dominio verificado. Sin SMTP_HOST el correo queda apagado y solo suena
+  # la campana.
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_USER: ${SMTP_USER}
+  SMTP_PASS: ${SMTP_PASS}
+  SMTP_FROM: ${SMTP_FROM}
+  # El enlace de la invitación se arma con esto; sin la variable sale como
+  # `/invitacion/<token>`, sin dominio, y no lleva a ninguna parte.
+  APP_URL_PUBLIC: ${APP_URL_PUBLIC}
+
+  # Realtime de la bandeja en los workers. Sin esta llave el worker avisa
+  # "realtime de bandeja apagado" y sigue: la bandeja deja de actualizarse
+  # sola y nadie se entera.
+  SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+  # Embeddings del módulo de conocimiento. Sin la llave,
+  # `embeddingsAvailable()` es false e indexar lanza.
+  GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+  GLM_API_BASE: ${GLM_API_BASE:-https://open.bigmodel.cn/api/paas/v4}
+
+  # Trazas del agente (ADR-0006). Las dos llaves o ninguna: sin ellas el
+  # cliente queda en null y no se traza.
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+  LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}
+
+  # Adjuntos en R2. Las cuatro o ninguna: `storage.ts` devuelve null si
+  # falta una sola.
+  R2_ENDPOINT: ${R2_ENDPOINT}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+  R2_BUCKET_ADJUNTOS: ${R2_BUCKET_ADJUNTOS}
+
+  # Firma de la exportación de auditoría: sin secreto, `signature` sale null
+  # y el archivo exportado no se puede verificar.
+  AUDIT_EXPORT_SECRET: ${AUDIT_EXPORT_SECRET}
+
+  # Cobro. OJO con las dos de abajo, que tienen valor por defecto y el
+  # defecto NO sirve en producción:
+  #   FLOW_API_BASE cae en el sandbox de Flow.
+  #   PUBLIC_API_URL cae en api-staging, así que los links de pago de
+  #   producción apuntarían a staging.
+  FLOW_API_BASE: ${FLOW_API_BASE:-https://sandbox.flow.cl/api}
+  PUBLIC_API_URL: ${PUBLIC_API_URL}
+
+  # Precios y conversión: knobs con defecto razonable en el código, acá
+  # para poder ajustarlos por ambiente.
+  AGENT_PRICES_JSON: ${AGENT_PRICES_JSON}
+  BILLING_PRICES_JSON: ${BILLING_PRICES_JSON}
+  BILLING_USD_CLP: ${BILLING_USD_CLP}
+  USD_CLP_RATE: ${USD_CLP_RATE}
+  LOG_FORMAT: ${LOG_FORMAT}
+
 services:
   web:
     <<: *app
