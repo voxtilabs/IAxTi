@@ -10,12 +10,14 @@ import {
   Query,
   Req,
   ServiceUnavailableException,
+  ParseUUIDPipe,
   Res,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { withTenant } from '@iaxti/db';
 import {
+  ActivityReferenceError,
   completeActivity,
   confirmImport,
   createActivity,
@@ -295,7 +297,7 @@ export class ContactsController {
   @ApiOperation({ summary: 'Crea una actividad (llamada, reunión, tarea, nota)' })
   async crear(
     @Req() request: WithUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: { type?: string; title?: string; body?: string; dueAt?: string; dealId?: string },
   ) {
     const actor = actorOf(request);
@@ -313,6 +315,12 @@ export class ContactsController {
         details: [{ field: 'title' }],
       });
     }
+    if (body.dealId !== undefined) {
+      await new ParseUUIDPipe().transform(body.dealId, { type: 'body', data: 'dealId' });
+    }
+    if (body.dueAt !== undefined && !Number.isFinite(new Date(body.dueAt).getTime())) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Indica una fecha válida para la actividad.', details: [{ field: 'dueAt' }] });
+    }
     return withTenant(pool(), actor.tenantId, (c) =>
       createActivity(c, {
         tenantId: actor.tenantId,
@@ -321,11 +329,21 @@ export class ContactsController {
         type: body.type as ActivityType,
         title: body.title!,
         body: body.body,
-        // API keys are service identities (apikey:<id>), not UUID user owners.
+        // La API key tiene identidad de servicio; no es un responsable humano.
         ownerId: actor.kind === 'apikey' ? undefined : actor.userId,
+        actor: actor.userId,
+        actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+        requestId: request.requestId,
+        ip: request.ip,
+        userAgent: request.headers['user-agent'],
         dueAt: body.dueAt ? new Date(body.dueAt) : undefined,
       }),
-    );
+    ).catch((err: unknown) => {
+      if (err instanceof ActivityReferenceError) {
+        throw new NotFoundException({ code: err.code, message: err.message });
+      }
+      throw err;
+    });
   }
 
   @Post('activities/:activityId/done')
