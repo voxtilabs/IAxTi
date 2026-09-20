@@ -2,8 +2,8 @@
  * La cita y su vida (SPEC §16).
  *
  * `proposed` existe porque la IA ofrece horarios y la persona todavía no
- * dijo que sí: una cita propuesta no bloquea la agenda de nadie, pero sí se
- * puede ver. Confirmarla es lo que la vuelve real.
+ * dijo que sí. Mientras está propuesta ocupa su hueco, igual que una
+ * confirmada: no se promete la misma hora a dos personas.
  */
 export const ESTADOS_CITA = [
   'proposed',
