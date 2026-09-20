@@ -6,16 +6,20 @@ import {
   bandejaSettings,
   enSilencio,
   getOutboundContext,
+  isWithinWindow,
   msHastaFinDeSilencio,
   updateDeliveryStatus,
 } from '@iaxti/module-conversations';
 import { getTenant, getTenantSettings, puedeEnviar } from '@iaxti/module-organizations';
 import { findAccountById } from '@iaxti/module-channels';
+import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import {
   RateLimitedError,
   causaLegible,
   deliverOutbound,
   isBusinessPaused,
+  listTemplates,
+  renderizar,
   type OutboundJobData,
 } from '@iaxti/module-whatsapp';
 
@@ -42,14 +46,22 @@ export async function processOutbound(
   return withTenant(pool, data.tenantId, async (client) => {
     const ctx = await getOutboundContext(client, data.tenantId, data.messageId);
     if (!ctx) return { failed: 'mensaje inexistente' };
-    if (!ctx.channelAccountId) {
+    // El contrato bloquea la fila hasta el commit. Una redelivery o dos
+    // consumidores del mismo mensaje no vuelven a mandar lo ya confirmado.
+    if (ctx.deliveryStatus !== 'queued') {
+      return ctx.deliveryStatus === 'failed'
+        ? { failed: 'El envío ya había fallado.' }
+        : { providerMessageId: ctx.providerMessageId ?? undefined };
+    }
+    const rechazar = async (motivo: string) => {
       await updateDeliveryStatus(client, {
-        tenantId: data.tenantId,
-        messageId: data.messageId,
-        status: 'failed',
-        error: 'La conversación no tiene un canal conectado.',
-      }).catch(() => {});
-      return { failed: 'sin canal' };
+        tenantId: data.tenantId, messageId: data.messageId,
+        status: 'failed', error: motivo, requestId: data.requestId,
+      });
+      return { failed: motivo };
+    };
+    if (!ctx.channelAccountId) {
+      return rechazar('La conversación no tiene un canal conectado.');
     }
 
     // El estado del tenant manda (SPEC §6): en solo lectura por impago solo
@@ -59,13 +71,35 @@ export async function processOutbound(
     const tenant = await getTenant(client, data.tenantId);
     const permiso = puedeEnviar(tenant.state, data.initiatedByBusiness);
     if (!permiso.ok) {
-      await updateDeliveryStatus(client, {
-        tenantId: data.tenantId,
-        messageId: data.messageId,
-        status: 'failed',
-        error: permiso.motivo,
-      }).catch(() => {});
-      return { failed: permiso.motivo };
+      return rechazar(permiso.motivo);
+    }
+
+    if (ctx.optedOutAt || (data.initiatedByBusiness && !ctx.lastInboundAt &&
+        !(await canReceiveBusinessInitiated(client, data.tenantId, ctx.contactId)))) {
+      return rechazar('El contacto no tiene consentimiento vigente para recibir este mensaje.');
+    }
+
+    const account = await findAccountById(client, ctx.channelAccountId);
+    // Calidad roja degrada la cuenta pero todavía permite respuestas
+    // manuales; su pausa de negocio se evalúa más abajo.
+    if (!account || account.tenantId !== data.tenantId || account.kind !== ctx.channel ||
+        !['active', 'degraded'].includes(account.state)) {
+      return rechazar('El canal de esta conversación no está activo. Revisa su conexión.');
+    }
+
+    if (ctx.type === 'plantilla') {
+      const snapshot = ctx.extra?.plantilla as Record<string, unknown> | undefined;
+      const aprobadas = ctx.channel === 'whatsapp'
+        ? await listTemplates(client, data.tenantId, { status: 'approved' }) : [];
+      const plantilla = aprobadas.find(t => t.id === snapshot?.id && t.name === snapshot.name &&
+        t.language === snapshot.language && t.category === snapshot.category);
+      let vigente = false;
+      if (plantilla && Array.isArray(snapshot?.valores) && snapshot.valores.every(v => typeof v === 'string')) {
+        try { vigente = renderizar(plantilla.body, snapshot.valores) === ctx.body; } catch { /* variables inválidas */ }
+      }
+      if (!vigente) return rechazar('La plantilla ya no coincide con una versión aprobada. Revisa la plantilla antes de enviar.');
+    } else if (!isWithinWindow(ctx.channel, ctx.lastInboundAt)) {
+      return rechazar('Pasaron más de 24 horas desde su último mensaje: la ventana del canal está cerrada.');
     }
 
     if (data.initiatedByBusiness) {
@@ -74,13 +108,7 @@ export async function processOutbound(
       // mandar más es empeorarlo. Se pierde el comprobante, no el número.
       const pausa = await isBusinessPaused(client, data.tenantId, ctx.channelAccountId);
       if (pausa) {
-        await updateDeliveryStatus(client, {
-          tenantId: data.tenantId,
-          messageId: data.messageId,
-          status: 'failed',
-          error: pausa,
-        }).catch(() => {});
-        return { failed: pausa };
+        return rechazar(pausa);
       }
       // El horario de silencio SÍ lo exime un mensaje transaccional
       // (ADR-0016): lo dispara el cliente al actuar —pagar— y es la
@@ -94,11 +122,9 @@ export async function processOutbound(
       }
     }
 
-    const account = await findAccountById(client, ctx.channelAccountId);
-    if (!account) return { failed: 'cuenta de canal inexistente' };
-
+    let res: { providerMessageId: string };
     try {
-      const res = await deliverOutbound(
+      res = await deliverOutbound(
         account,
         {
           ...data,
@@ -107,32 +133,23 @@ export async function processOutbound(
           type: ctx.type,
           // La plantilla viaja con el MENSAJE, no con el job: así un
           // reintento de la cola manda exactamente la misma (#44).
-          ...(ctx.extra ? { extra: ctx.extra } : {}),
+          extra: ctx.extra ?? undefined,
         },
         redis,
       );
-      // sent + el wamid en el mensaje: el webhook de estados lo ubica por él.
-      await updateDeliveryStatus(client, {
-        tenantId: data.tenantId,
-        messageId: data.messageId,
-        status: 'sent',
-        providerMessageId: res.providerMessageId,
-        requestId: data.requestId,
-      });
-      return { providerMessageId: res.providerMessageId };
     } catch (err) {
       if (err instanceof RateLimitedError || !esUltimoIntento) {
         throw err; // BullMQ reintenta con backoff exponencial
       }
       const causa = causaLegible(undefined, (err as Error).message);
-      await updateDeliveryStatus(client, {
-        tenantId: data.tenantId,
-        messageId: data.messageId,
-        status: 'failed',
-        error: causa,
-        requestId: data.requestId,
-      }).catch(() => {});
-      return { failed: causa };
+      return rechazar(causa);
     }
+    // Un fallo al guardar no es un rechazo del proveedor. Se propaga para
+    // diagnóstico/reintento; no se oculta detrás de un failed inventado.
+    await updateDeliveryStatus(client, {
+      tenantId: data.tenantId, messageId: data.messageId, status: 'sent',
+      providerMessageId: res.providerMessageId, requestId: data.requestId,
+    });
+    return { providerMessageId: res.providerMessageId };
   });
 }

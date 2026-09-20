@@ -525,6 +525,11 @@ export async function getOutboundContext(
   messageId: string,
 ): Promise<{
   conversationId: string;
+  contactId: string;
+  lastInboundAt: Date | null;
+  optedOutAt: Date | null;
+  deliveryStatus: DeliveryStatus;
+  providerMessageId: string | null;
   channel: Channel;
   channelAccountId: string | null;
   phone: string;
@@ -540,20 +545,27 @@ export async function getOutboundContext(
   const r = await client.query(
     // Se responde por DONDE escribió: la identidad del canal manda y el
     // teléfono queda de respaldo para los contactos anteriores al #74.
-    `SELECT m.conversation_id, m.body, m.type, m.meta, c.channel, c.channel_account_id,
+    `SELECT m.conversation_id, m.body, m.type, m.meta, m.delivery_status, m.provider_message_id,
+            c.channel, c.channel_account_id, c.contact_id, c.last_inbound_at, k.opted_out_at,
             COALESCE(i.identity, k.phone) AS phone
        FROM messages m
-       JOIN conversations c ON c.id = m.conversation_id
-       JOIN contacts k ON k.id = c.contact_id
+       JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
+       JOIN contacts k ON k.id = c.contact_id AND k.tenant_id = m.tenant_id
        LEFT JOIN contact_identities i
          ON i.tenant_id = m.tenant_id AND i.contact_id = k.id AND i.channel = c.channel
-      WHERE m.tenant_id = $1 AND m.id = $2 AND m.direction = 'out'`,
+      WHERE m.tenant_id = $1 AND m.id = $2 AND m.direction = 'out'
+      FOR UPDATE OF m`,
     [tenantId, messageId],
   );
   if (r.rowCount === 0) return null;
   const row = r.rows[0];
   return {
     conversationId: row.conversation_id,
+    contactId: row.contact_id,
+    lastInboundAt: row.last_inbound_at ?? null,
+    optedOutAt: row.opted_out_at ?? null,
+    deliveryStatus: row.delivery_status,
+    providerMessageId: row.provider_message_id ?? null,
     channel: row.channel,
     channelAccountId: row.channel_account_id ?? null,
     phone: row.phone,

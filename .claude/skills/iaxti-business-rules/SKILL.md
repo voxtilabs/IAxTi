@@ -23,7 +23,10 @@ Todo mensaje que no es respuesta directa a un cliente pasa, en orden:
 5. **Calidad del número**: en `red`, pausado.
 6. **Cola outbound**: rate limit por número, reintentos, `failed` legible.
 
-Las respuestas manuales a un cliente que escribió saltan 3 y 4, no 1 y 2.
+Las respuestas manuales a un cliente que escribió saltan el horario de silencio,
+pero conservan el opt-out y la ventana del canal (SPEC §8 y §12). Una plantilla
+aprobada permite escribir fuera de ventana; una respuesta manual libre no.
+La excepción transaccional de ADR-0016 solo exime el silencio.
 
 ## Dinero y compromisos de la IA
 
