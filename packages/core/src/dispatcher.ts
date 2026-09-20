@@ -29,6 +29,7 @@ export const MAX_ATTEMPTS = 5;
  */
 export class OutboxDispatcher {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private polling = false;
 
   constructor(
     private readonly pool: Pool,
@@ -106,7 +107,13 @@ export class OutboxDispatcher {
   start(intervalMs = 500): void {
     if (this.timer) return;
     this.timer = setInterval(() => {
-      void this.tick().catch((error) => console.error('outbox tick falló:', error));
+      // Un consumidor lento no debe acumular transacciones ni esperas del
+      // pool en cada intervalo. Otros procesos siguen usando SKIP LOCKED.
+      if (this.polling) return;
+      this.polling = true;
+      void this.tick()
+        .catch((error) => console.error('outbox tick falló:', error))
+        .finally(() => { this.polling = false; });
     }, intervalMs);
   }
 
