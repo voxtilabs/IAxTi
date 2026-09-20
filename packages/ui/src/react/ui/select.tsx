@@ -42,7 +42,7 @@ export const SelectContent = forwardRef<
         ref={ref}
         position={position}
         className={cn(
-          'z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-tarjeta border border-line bg-raised p-1',
+          'z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-tarjeta border border-line bg-raised p-1 shadow-flotante',
           className,
         )}
         {...props}

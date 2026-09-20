@@ -112,10 +112,17 @@ module.exports = {
       maxWidth: {
         contenido: '1000px',
       },
-      // Sin sombras: Pulso las prohíbe salvo el anillo de foco (§10).
+      // Dos sombras y ninguna más. `boxShadow` ya existía acá: agregar un
+      // segundo bloque con el mismo nombre en `extend` no da error, la
+      // segunda clave gana y la primera desaparece en silencio.
       boxShadow: {
         none: 'none',
+        // El anillo de foco (Pulso §10).
         foco: '0 0 0 3px var(--action-soft)',
+        // La única elevación (ADR-0018, #294): lo que se superpone al
+        // contenido y se puede cerrar. Si aparece `shadow-lg` en un diff,
+        // viene del registro de shadcn y hay que sacarla.
+        flotante: 'var(--elevacion-flotante)',
       },
     },
   },

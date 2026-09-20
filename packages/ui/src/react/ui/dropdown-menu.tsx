@@ -16,7 +16,7 @@ export const DropdownMenuContent = forwardRef<
       <MenuPrimitive.Content
         ref={ref}
         sideOffset={sideOffset}
-        className={cn('z-50 min-w-44 rounded-tarjeta border border-line bg-bg p-2', className)}
+        className={cn('z-50 min-w-44 rounded-tarjeta border border-line bg-bg p-2 shadow-flotante', className)}
         {...props}
       />
     </MenuPrimitive.Portal>
