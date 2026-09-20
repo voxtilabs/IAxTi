@@ -6,6 +6,7 @@ import { createContact, listContacts } from '../application/contacts';
 import { createDeal, createPipeline } from '../application/deals';
 import { listDeals } from '../application/board';
 import { addTagToContacts, createTag } from '../application/tags';
+import { InvalidListQuery } from '../application/list-cursor';
 
 const url = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 let admin: Pool;
@@ -66,6 +67,11 @@ describe('tablas con cursor y PostgreSQL real', () => {
   }
   it('rechaza cursores de otro filtro/orden/tenant y argumentos inválidos', async () => {
     const page = await withTenant(app, tenant, (c) => listContacts(c, tenant, { limit: 1 }));
+    const decoded = JSON.parse(Buffer.from(page.nextCursor!, 'base64url').toString());
+    for (const v of ['2026-02-30T00:00:00Z', '2026-13-01T00:00:00Z', '1', 'texto\0invalido']) {
+      const cursor = Buffer.from(JSON.stringify({ ...decoded, v })).toString('base64url');
+      await expect(withTenant(app, tenant, (c) => listContacts(c, tenant, { cursor }))).rejects.toBeInstanceOf(InvalidListQuery);
+    }
     for (const filter of [{ q: 'Alfa', cursor: page.nextCursor! }, { sort: 'name', cursor: page.nextCursor! }, { cursor: 'invalido' }, { limit: 0 }, { sort: 'name; DELETE FROM contacts' }, { order: 'invalido' }]) {
       await expect(withTenant(app, tenant, (c) => listContacts(c, tenant, filter))).rejects.toThrow();
     }
