@@ -34,6 +34,8 @@ beforeAll(async () => {
     'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, pipelines, stages, deals, loss_reasons, deal_stage_history, activities TO iaxti_app',
   );
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
+  await admin.query('GRANT SELECT, INSERT ON audit_log TO iaxti_app');
+  await admin.query('GRANT USAGE ON SEQUENCE audit_log_id_seq TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('activities-test') RETURNING id");
   tenant = t.rows[0].id;
@@ -68,11 +70,27 @@ afterAll(async () => {
   for (const tabla of ['activities', 'deal_stage_history', 'deals', 'stages', 'pipelines', 'loss_reasons', 'contacts', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
-  await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
+  // El tenant se conserva: audit_log es append-only incluso en los tests.
   await admin.end();
 });
 
 describe('actividades (rol de aplicación, #32)', () => {
+  it('un rollback revierte actividad, última actividad y auditoría juntos (#346)', async () => {
+    const antes = await admin.query('SELECT last_activity_at FROM contacts WHERE id = $1', [contacto]);
+    let actividadId: string | undefined;
+    await expect(withTenant(app, tenant, async (c) => {
+      const actividad = await createActivity(c, {
+        tenantId: tenant, contactId: contacto, type: 'nota', title: 'Se revierte',
+        actor: 'apikey:test', actorKind: 'apikey',
+      });
+      actividadId = actividad.id;
+      throw new Error('rollback deliberado');
+    })).rejects.toThrow('rollback deliberado');
+    expect((await admin.query('SELECT 1 FROM activities WHERE id = $1', [actividadId])).rowCount).toBe(0);
+    expect((await admin.query('SELECT 1 FROM audit_log WHERE resource_id = $1', [actividadId])).rowCount).toBe(0);
+    expect((await admin.query('SELECT last_activity_at FROM contacts WHERE id = $1', [contacto])).rows).toEqual(antes.rows);
+  });
+
   it('crear toca last_activity_at del contacto y exige título', async () => {
     const antes = await admin.query('SELECT last_activity_at FROM contacts WHERE id = $1', [contacto]);
     await new Promise((r) => setTimeout(r, 10));

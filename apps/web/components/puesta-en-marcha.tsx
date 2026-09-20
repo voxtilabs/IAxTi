@@ -101,7 +101,7 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
   return (
     <section aria-label="Puesta en marcha de tu negocio" className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-extrabold text-ink">
+        <h1 className="font-display text-titulo text-ink">
           {estado.completo ? 'Tu negocio está en marcha' : 'Pon tu negocio en marcha'}
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-body">

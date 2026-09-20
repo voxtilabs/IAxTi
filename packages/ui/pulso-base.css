@@ -12,6 +12,18 @@ body {
   margin: 0;
 }
 
+/* Densidad de filas (#297). Los controles mantienen un mínimo de 46 px. */
+:root, [data-densidad="comoda"] {
+  --fila-x: 1rem;
+  --fila-y: 0.875rem;
+  --fila-gap: 0.75rem;
+}
+[data-densidad="densa"] {
+  --fila-x: 0.75rem;
+  --fila-y: 0.5rem;
+  --fila-gap: 0.5rem;
+}
+
 h1, h2, h3, h4 {
   font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   color: var(--text);

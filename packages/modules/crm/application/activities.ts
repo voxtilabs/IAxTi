@@ -1,10 +1,19 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 
 // Actividades del CRM (#32, SPEC §10): llamada, reunión, tarea o nota.
 // El aviso de vencida se publica una sola vez por el barrido programado.
 
 export type ActivityType = 'llamada' | 'reunion' | 'tarea' | 'nota';
+
+export class ActivityReferenceError extends Error {
+  constructor(public readonly code: 'CONTACT_NOT_FOUND' | 'DEAL_NOT_FOUND') {
+    super(code === 'CONTACT_NOT_FOUND'
+      ? 'No encontramos ese contacto en tu negocio. Revisa el contacto e intenta otra vez.'
+      : 'No encontramos esa oportunidad para este contacto. Revisa la oportunidad e intenta otra vez.');
+  }
+}
 
 export interface Activity {
   id: string;
@@ -45,9 +54,28 @@ export async function createActivity(
     body?: string;
     ownerId?: string;
     dueAt?: Date;
+    actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
+    ip?: string;
+    userAgent?: string;
   },
 ): Promise<Activity> {
   if (!input.title?.trim()) throw new Error('La actividad necesita un título.');
+  // Una FK al id no comprueba tenant ni que la oportunidad sea del contacto.
+  // Validar aquí protege también a las automatizaciones y tools que usan el contrato.
+  const contact = await client.query(
+    'SELECT id FROM contacts WHERE tenant_id = $1 AND id = $2 FOR KEY SHARE',
+    [input.tenantId, input.contactId],
+  );
+  if (!contact.rowCount) throw new ActivityReferenceError('CONTACT_NOT_FOUND');
+  if (input.dealId) {
+    const deal = await client.query(
+      'SELECT id FROM deals WHERE tenant_id = $1 AND contact_id = $2 AND id = $3 FOR SHARE',
+      [input.tenantId, input.contactId, input.dealId],
+    );
+    if (!deal.rowCount) throw new ActivityReferenceError('DEAL_NOT_FOUND');
+  }
   const r = await client.query(
     `INSERT INTO activities (tenant_id, contact_id, deal_id, type, title, body, owner_id, due_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
@@ -66,6 +94,19 @@ export async function createActivity(
     'UPDATE contacts SET last_activity_at = now(), updated_at = now() WHERE tenant_id = $1 AND id = $2',
     [input.tenantId, input.contactId],
   );
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? 'system',
+    action: 'activity.created',
+    resource: 'activity',
+    resourceId: r.rows[0].id,
+    result: 'ok',
+    requestId: input.requestId,
+    ip: input.ip,
+    userAgent: input.userAgent,
+    metadata: { contactId: input.contactId, dealId: input.dealId ?? null },
+  });
   return rowToActivity(r.rows[0]);
 }
 

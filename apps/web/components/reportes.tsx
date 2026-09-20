@@ -85,7 +85,7 @@ export function Reportes() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="rotulo">Reportes</p>
-          <h1 className="mt-1 font-display text-xl font-bold text-ink">Cómo va el negocio</h1>
+          <h1 className="mt-1 font-display text-titulo font-bold text-ink">Cómo va el negocio</h1>
         </div>
         <Tabs value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
           <TabsList>

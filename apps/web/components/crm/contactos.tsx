@@ -48,9 +48,9 @@ export function Contactos() {
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl" data-densidad="densa">
       <div className="flex flex-wrap items-center gap-4">
-        <h1 className="font-display text-xl font-bold text-ink">Contactos</h1>
+        <h1 className="font-display text-titulo font-bold text-ink">Contactos</h1>
         <a
           href="/contactos/importar"
           className="ml-auto inline-flex h-9 items-center rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest"
@@ -85,9 +85,9 @@ export function Contactos() {
             <li key={c.id}>
               <a
                 href={`/contactos/${c.id}`}
-                className="flex items-center gap-3 rounded-campo border border-line bg-raised px-4 py-3 transition-colors hover:bg-rest"
+                className="flex min-h-control items-center gap-fila-gap rounded-campo border border-line bg-raised px-fila-x py-fila-y text-dato transition-colors hover:bg-rest"
               >
-                <Avatar nombre={c.name} fallback={c.phone} />
+                <Avatar size="chico" nombre={c.name} fallback={c.phone} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium text-ink">{c.name ?? 'Sin nombre aún'}</span>
                   <span className="dato block text-muted">{c.phone}</span>

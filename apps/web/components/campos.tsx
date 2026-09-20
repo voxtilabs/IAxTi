@@ -109,7 +109,7 @@ export function Campos() {
   return (
     <section className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-extrabold text-ink">Campos propios de tu negocio</h1>
+        <h1 className="text-titulo font-extrabold text-ink">Campos propios de tu negocio</h1>
         <p className="mt-1 max-w-2xl text-sm text-body">
           Lo que a tu negocio le importa guardar y el CRM no trae de fábrica: el tipo de corte, el
           barrio que busca, la talla. Aparecen en la ficha de cada contacto.

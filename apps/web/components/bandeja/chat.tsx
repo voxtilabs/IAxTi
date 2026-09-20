@@ -200,7 +200,7 @@ export function Chat({
                 {m.authorKind === 'agent' && (
                   <p className="rotulo mb-1">Respondió el asistente</p>
                 )}
-                <p className="whitespace-pre-wrap text-[15px] text-ink">{m.body}</p>
+                <p className="whitespace-pre-wrap text-cuerpo text-ink">{m.body}</p>
                 <p className="mt-1 flex items-center justify-end gap-1">
                   <HoraDato iso={m.createdAt} />
                   {m.direction === 'out' && <Entrega estado={m.deliveryStatus} />}

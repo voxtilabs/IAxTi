@@ -151,7 +151,7 @@ export function Conocimiento() {
   return (
     <div className="max-w-2xl">
       <p className="rotulo">Conocimiento</p>
-      <h1 className="mt-1 font-display text-xl font-bold text-ink">Lo que tu negocio dice</h1>
+      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Lo que tu negocio dice</h1>
       <p className="mt-2 text-sm text-muted">
         La IA responde SOLO con lo que cargues aquí — y siempre cita la fuente. Los precios y el
         stock del catálogo son datos exactos, nunca inventados. Las fuentes con vigencia vencida

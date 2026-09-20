@@ -112,7 +112,7 @@ export function Automatizaciones() {
   return (
     <div className="max-w-2xl">
       <p className="rotulo">Automatizaciones</p>
-      <h1 className="mt-1 font-display text-xl font-bold text-ink">
+      <h1 className="mt-1 font-display text-titulo font-bold text-ink">
         El seguimiento que hoy no se hace
       </h1>
       <p className="mt-2 text-sm text-muted">

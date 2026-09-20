@@ -63,7 +63,7 @@ export function Campana() {
         <Button variant="fantasma" size="icono" aria-label={`Avisos${unread ? `, ${unread} sin leer` : ''}`} className="relative">
           <Bell className="size-5" aria-hidden />
           {unread > 0 && (
-            <span className="dato absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-boton bg-action px-1 text-[11px] font-bold text-white">
+            <span className="dato absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-boton bg-action px-1 text-rotulo font-bold text-white">
               {unread > 9 ? '9+' : unread}
             </span>
           )}

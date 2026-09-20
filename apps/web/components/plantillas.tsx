@@ -109,7 +109,7 @@ export function Plantillas() {
   return (
     <section className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-extrabold text-ink">Plantillas de WhatsApp</h1>
+        <h1 className="text-titulo font-extrabold text-ink">Plantillas de WhatsApp</h1>
         <p className="mt-1 max-w-2xl text-sm text-body">
           Fuera de las 24 horas desde el último mensaje del cliente, WhatsApp solo deja escribir con
           una plantilla que Meta aprobó. Acá las creas y las mandas a revisión.

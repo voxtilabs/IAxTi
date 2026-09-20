@@ -62,7 +62,7 @@ export function Facturacion() {
   return (
     <div className="max-w-xl">
       <p className="rotulo">Facturación</p>
-      <h1 className="mt-1 font-display text-xl font-bold text-ink">Tu plan y tus facturas</h1>
+      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Tu plan y tus facturas</h1>
 
       <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
         <div className="flex items-baseline justify-between gap-4">
