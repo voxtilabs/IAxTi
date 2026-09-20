@@ -1,4 +1,4 @@
-# Campañas · #348
+# Campañas · #356
 
 Capturas de una vista previa con dos contactos sintéticos, sobre la aplicación
 compilada y la API real local. Los tests no levantan workers ni contactan al
@@ -13,3 +13,5 @@ idempotency key, motivos de omisión, foco y ausencia de scroll horizontal.
 
 Reproducir con PostgreSQL y Redis locales: `pnpm build` seguido de
 `node apps/web/e2e/run-e2e.mjs`.
+
+La pantalla base se integró por #351. Estas pruebas cubren las correcciones de #356 sobre esa funcionalidad; #348 no se vuelve a contar.

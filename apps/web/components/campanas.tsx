@@ -23,7 +23,8 @@ export function Campanas() {
     const actualizar = () => setTenant(selectedTenant());
     actualizar();
     window.addEventListener('storage', actualizar);
-    return () => window.removeEventListener('storage', actualizar);
+    window.addEventListener('iaxti-tenant-changed', actualizar);
+    return () => { window.removeEventListener('storage', actualizar); window.removeEventListener('iaxti-tenant-changed', actualizar); };
   }, []);
   if (!tenant) return <p className="text-muted">Elige un negocio para ver sus campañas.</p>;
   return <CampanasDelNegocio key={tenant} tenant={tenant} />;
@@ -177,7 +178,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           <h3 className="font-bold text-ink">Muestra de destinatarios</h3><ul className="space-y-2">{previa.muestra.map((p) => <li key={p.id} className="flex flex-wrap gap-x-3 border-b border-line py-2"><span>{p.name ?? 'Contacto sin nombre'}</span><span className="font-mono text-sm text-muted">{p.phone}</span></li>)}</ul></> : <p role="status">Cargando el conteo y la muestra…</p>}
         <section aria-label="Calidad del número" className="rounded-tarjeta border border-line bg-raised p-4">
           <h3 className="font-bold text-ink">Calidad del número antes de enviar</h3>
-          {canales ? canales.filter((c) => c.kind === 'whatsapp').flatMap((c) => c.numbers).map((n) => <div key={n.id} className="mt-3 flex flex-wrap items-center gap-3"><span className="font-mono text-sm">{n.displayPhone ?? 'Número sin teléfono visible'}</span><Badge role={CALIDAD[n.quality ?? 'desconocida'].rol}>{CALIDAD[n.quality ?? 'desconocida'].nombre}</Badge></div>) : <p className="mt-2 text-sm text-muted">Calidad pendiente de comprobar.</p>}
+          {canales ? canales.filter((c) => c.kind === 'whatsapp').flatMap((c) => c.numbers).map((n) => <div key={n.id} className="mt-3 flex flex-wrap items-center gap-3"><span className={n.displayPhone ? "font-mono text-sm" : "text-sm"}>{n.displayPhone ?? 'Número sin teléfono visible'}</span><Badge role={CALIDAD[n.quality ?? 'desconocida'].rol}>{CALIDAD[n.quality ?? 'desconocida'].nombre}</Badge></div>) : <p className="mt-2 text-sm text-muted">Calidad pendiente de comprobar.</p>}
         </section>
         {impedimento && <p id="motivo-campana" className="text-sm text-warn-text">{impedimento}</p>}
         <p className="text-sm text-muted">Los envíos respetan el consentimiento y el horario de silencio. El sistema puede dejarlos en cola hasta el próximo horario permitido.</p>

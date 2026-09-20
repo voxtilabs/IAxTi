@@ -73,7 +73,7 @@ for (const modo of ['dia', 'noche']) {
     await enviar.focus();
     expect(await enviar.evaluate((el) => getComputedStyle(el).outlineWidth)).toBe('2px');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const carpeta = join(__dirname, '../../../docs/evidencias/348');
+    const carpeta = join(__dirname, '../../../docs/evidencias/356');
     mkdirSync(carpeta, { recursive: true });
     await page.screenshot({ path: join(carpeta, `previa-${modo}-360.png`), fullPage: true });
   });

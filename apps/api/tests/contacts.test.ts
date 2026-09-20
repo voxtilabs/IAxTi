@@ -6,6 +6,7 @@ import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } fro
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { changeConversationState, receiveInbound } from '@iaxti/module-conversations';
+import { createContact, createDeal, createPipeline } from '@iaxti/module-crm';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 
@@ -20,6 +21,11 @@ let base: string;
 let admin: Pool;
 let tenant: string;
 let contacto: string;
+let ajeno: string;
+let contactoAjeno: string;
+let trato: string;
+let tratoOtroContacto: string;
+let tratoAjeno: string;
 let firmar: (sub: string) => Promise<string>;
 const vendedor = randomUUID();
 
@@ -51,6 +57,23 @@ beforeAll(async () => {
     receiveInbound(c, { tenantId: tenant, phone: '+56980000009', channel: 'simulador', body: 'hola' }),
   );
   contacto = a.contact.id;
+  ajeno = (await admin.query("INSERT INTO tenants (name) VALUES ('test-ficha-ajeno') RETURNING id")).rows[0].id;
+  const otro = await withTenant(admin, tenant, (c) => createContact(c, { tenantId: tenant, name: 'Otro', phone: '+56980000010' }));
+  contactoAjeno = (await withTenant(admin, ajeno, (c) => createContact(c, { tenantId: ajeno, name: 'Ajeno', phone: '+56980000009' }))).id;
+  for (const [negocio, persona, guardar] of [
+    [tenant, contacto, (id: string) => { trato = id; }],
+    [tenant, otro.id, (id: string) => { tratoOtroContacto = id; }],
+    [ajeno, contactoAjeno, (id: string) => { tratoAjeno = id; }],
+  ] as const) {
+    const pipeline = await withTenant(admin, negocio, (c) => createPipeline(c, {
+      tenantId: negocio, name: `Ventas ${persona}`, stages: [
+        { name: 'Nuevo', type: 'open' }, { name: 'Ganado', type: 'won' }, { name: 'Perdido', type: 'lost' },
+      ],
+    }));
+    guardar((await withTenant(admin, negocio, (c) => createDeal(c, {
+      tenantId: negocio, contactId: persona, pipelineId: pipeline.pipeline.id, title: 'Cotización',
+    }))).id);
+  }
   await withTenant(admin, tenant, (c) =>
     changeConversationState(c, { tenantId: tenant, conversationId: a.conversation.id, state: 'resolved' }),
   );
@@ -74,6 +97,9 @@ beforeAll(async () => {
       return { userId: payload.sub as string };
     },
     resolveRole: dbRoleResolver(admin),
+    resolveApiKey: async (token) => ['test-voxia-service-key', 'test-read-only-key'].includes(token)
+      ? { id: 'service-key', tenantId: tenant, scopes: token === 'test-voxia-service-key' ? ['crm.activities.manage'] : ['crm.contacts.read'] }
+      : null,
   });
   await app.listen(0);
   base = await app.getUrl();
@@ -84,21 +110,37 @@ afterAll(async () => {
   await admin.query('DELETE FROM activities WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM messages WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM conversations WHERE tenant_id = $1', [tenant]);
+  await admin.query('DELETE FROM deal_stage_history WHERE tenant_id = $1', [tenant]);
+  await admin.query('DELETE FROM deals WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM contacts WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM user_roles WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM invitations WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
-  await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
+  // La auditoría es append-only: el tenant se conserva en esta base desechable.
   await admin.end();
 });
 
 describe('GET /v1/contacts/:id y actividades', () => {
+  it('la API key crea una actividad sin tratar su identidad como UUID de usuario', async () => {
+    const res = await fetch(`${base}/v1/contacts/${contacto}/activities`, {
+      method: 'POST',
+      headers: { 'X-Api-Key': 'test-voxia-service-key', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'llamada', title: 'VOXIA · seguimiento', body: 'Llamada finalizada.' }),
+    });
+    expect(res.status).toBe(201);
+    const actividad = await res.json();
+    expect(actividad.ownerId).toBeNull();
+    expect(actividad.contactId).toBe(contacto);
+    const stored = await admin.query('SELECT tenant_id, owner_id FROM activities WHERE id = $1', [actividad.id]);
+    expect(stored.rows[0]).toEqual({ tenant_id: tenant, owner_id: null });
+  });
+
   it('la ficha trae contacto, oportunidades y actividades; inexistente 404', async () => {
     const res = await pedir(`/contacts/${contacto}`);
     expect(res.status).toBe(200);
     const ficha = await res.json();
     expect(ficha.contact.phone).toBe('+56980000009');
-    expect(ficha.deals).toEqual([]);
+    expect(ficha.deals.map((d: { id: string }) => d.id)).toEqual([trato]);
     expect((await pedir(`/contacts/${randomUUID()}`)).status).toBe(404);
   });
 
@@ -129,5 +171,59 @@ describe('GET /v1/contacts/:id y actividades', () => {
     expect(items).toHaveLength(2);
     const estados = items.map((i: { state: string }) => i.state).sort();
     expect(estados).toEqual(['new', 'resolved']);
+  });
+});
+
+async function actividadApi(contactId: string, body: object, headers: Record<string, string> = {}) {
+  return fetch(`${base}/v1/contacts/${contactId}/activities`, {
+    method: 'POST',
+    headers: { 'X-Api-Key': 'test-voxia-service-key', 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ type: 'llamada', title: 'Seguimiento', ...body }),
+  });
+}
+
+describe('actividades con API key: aislamiento, atribución e idempotencia (#346)', () => {
+  it('rechaza contactos de otro tenant o inexistentes sin escribir', async () => {
+    for (const id of [contactoAjeno, randomUUID()]) {
+      const res = await actividadApi(id, {});
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({ code: 'CONTACT_NOT_FOUND', requestId: expect.any(String), details: [] });
+    }
+    expect((await admin.query('SELECT 1 FROM activities WHERE tenant_id = $1 AND contact_id = $2', [tenant, contactoAjeno])).rowCount).toBe(0);
+  });
+
+  it('la oportunidad debe pertenecer al contacto y al mismo tenant', async () => {
+    for (const dealId of [tratoOtroContacto, tratoAjeno, randomUUID()]) {
+      const res = await actividadApi(contacto, { dealId });
+      expect(res.status).toBe(404);
+      expect((await res.json()).code).toBe('DEAL_NOT_FOUND');
+    }
+  });
+
+  it('una llamada repetida devuelve la misma actividad y una sola auditoría de la API key', async () => {
+    const requestId = `req-${randomUUID()}`;
+    const headers = { 'Idempotency-Key': randomUUID(), 'X-Request-Id': requestId };
+    const primera = await actividadApi(contacto, { dealId: trato }, headers);
+    expect(primera.status).toBe(201);
+    const uno = await primera.json();
+    const segunda = await actividadApi(contacto, { dealId: trato }, headers);
+    expect(segunda.status).toBe(201);
+    expect(segunda.headers.get('Idempotent-Replay')).toBe('true');
+    expect(await segunda.json()).toEqual(uno);
+    expect(uno).toMatchObject({ ownerId: null, contactId: contacto, dealId: trato });
+    const audit = await admin.query('SELECT actor, actor_kind, action, request_id FROM audit_log WHERE tenant_id = $1 AND resource_id = $2', [tenant, uno.id]);
+    expect(audit.rows).toEqual([{ actor: 'apikey:service-key', actor_kind: 'apikey', action: 'activity.created', request_id: requestId }]);
+  });
+
+  it('sin el scope de actividades rechaza con 403', async () => {
+    const res = await actividadApi(contacto, {}, { 'X-Api-Key': 'test-read-only-key' });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ requestId: expect.any(String), details: [] });
+  });
+
+  it('ids y vencimientos inválidos devuelven 400, sin errores SQL', async () => {
+    expect((await actividadApi('sin-uuid', {})).status).toBe(400);
+    expect((await actividadApi(contacto, { dealId: 'sin-uuid' })).status).toBe(400);
+    expect((await actividadApi(contacto, { dueAt: 'mañana' })).status).toBe(400);
   });
 });

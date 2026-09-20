@@ -52,6 +52,7 @@ export function TenantSwitcher() {
         onChange={(e) => {
           setSelected(e.target.value);
           localStorage.setItem(STORAGE_KEY, e.target.value);
+          window.dispatchEvent(new Event('iaxti-tenant-changed'));
         }}
       >
         {memberships.map((m) => (

@@ -5,7 +5,7 @@ import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 const previa: CampaignPreview = { total: 1, muestra: [{ id: 'c', name: 'Ana', phone: '+56980000000' }] };
 const canal: CampaignChannel = { id: 'w', kind: 'whatsapp', state: 'active', numbers: [{ id: 'n', displayPhone: '+56980000000', quality: 'green' }] };
 
-describe('protecciones de la pantalla de campañas (#348)', () => {
+describe('protecciones de la pantalla de campañas (#356)', () => {
   it('sin vista previa o sin poder comprobar el número no habilita envío', () => {
     expect(impedimentoDeCampana([canal], null)).toMatch(/primero/);
     expect(impedimentoDeCampana(null, previa)).toMatch(/comprobar/);
