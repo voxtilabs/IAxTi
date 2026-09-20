@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { contactosDelSegmento, previsualizarSegmento, type FiltrosSegmento } from './segmentos';
 
 /**
@@ -78,6 +79,8 @@ export async function crearCampana(
     filtros: FiltrosSegmento;
     valores?: string[];
     actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
   },
   deps: {
     /** Cuántas variables pide la plantilla. Se comprueba ACÁ. */
@@ -112,6 +115,13 @@ export async function crearCampana(
       input.actor ?? null,
     ],
   );
+  await writeAudit(client, {
+    tenantId: input.tenantId, actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? (input.actor ? 'user' : 'system'),
+    action: 'campaign.created', resource: 'campaign', resourceId: r.rows[0].id,
+    result: 'ok', requestId: input.requestId,
+    metadata: { templateId: input.templateId },
+  });
   return aCampana(r.rows[0]);
 }
 
@@ -230,7 +240,7 @@ export interface ResultadoEnvio {
  */
 export async function enviarCampana(
   client: PoolClient,
-  input: { tenantId: string; campaignId: string; actor?: string; requestId?: string },
+  input: { tenantId: string; campaignId: string; actor?: string; actorKind?: ActorKind; requestId?: string },
   deps: {
     calidadDelNumero: () => Promise<'verde' | 'amarillo' | 'rojo'>;
     puedeIniciar: (contactId: string) => Promise<boolean>;
@@ -339,6 +349,12 @@ export async function enviarCampana(
     requestId: input.requestId,
   });
 
+  await writeAudit(client, {
+    tenantId: input.tenantId, actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? (input.actor ? 'user' : 'system'),
+    action: 'campaign.sent', resource: 'campaign', resourceId: input.campaignId,
+    result: 'ok', requestId: input.requestId, metadata: { encolados, saltados, calidad },
+  });
   return { encolados, saltados, motivos };
 }
 
