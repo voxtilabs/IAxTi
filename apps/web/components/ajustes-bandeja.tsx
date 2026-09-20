@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -91,17 +91,21 @@ export function AjustesBandeja() {
           <span className="mb-2 block text-sm font-medium text-ink">
             ¿Quién recibe las conversaciones nuevas?
           </span>
-          <select
-            className="h-control w-full rounded-campo border border-line-strong bg-field px-4 text-cuerpo text-ink"
+          <Select
             value={ajustes.assignmentMode}
-            onChange={(e) =>
-              setAjustes({ ...ajustes, assignmentMode: e.target.value as Ajustes['assignmentMode'] })
+            onValueChange={(valor) =>
+              setAjustes({ ...ajustes, assignmentMode: valor as Ajustes['assignmentMode'] })
             }
           >
-            {MODOS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+            <SelectTrigger className="h-control w-full bg-field text-cuerpo">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MODOS.map((m) => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span className="mt-2 block text-sm text-muted">{modo.ayuda}</span>
         </label>
 

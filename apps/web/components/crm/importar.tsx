@@ -3,7 +3,7 @@
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useState } from 'react';
-import { Badge, Button, Textarea, useSession } from '@iaxti/ui/react';
+import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import { apiFetch } from '../../lib/api';
 
@@ -26,6 +26,13 @@ interface Preview {
   rows: FilaPreview[];
   validas: number;
 }
+
+/**
+ * Radix reserva la cadena vacía para "sin selección", así que una opción
+ * elegible no puede valer ''. La columna que no se importa usa este
+ * centinela y se traduce de vuelta al salir.
+ */
+const SIN_CAMPO = '__sin_campo__';
 
 const CAMPOS = [
   { value: '', label: '(ignorar)' },
@@ -141,21 +148,24 @@ export function Importar() {
                   {preview.headers.map((h, i) => (
                     <th key={i} className="px-3 py-2 text-left">
                       <span className="block truncate text-xs text-muted">{h}</span>
-                      <select
-                        aria-label={`Campo para la columna ${h}`}
-                        className="mt-1 h-8 rounded-campo border border-line-strong bg-field px-2 text-xs text-ink"
-                        value={preview.mapping[i] ?? ''}
-                        onChange={(e) => {
+                      <Select
+                        value={preview.mapping[i] ?? SIN_CAMPO}
+                        onValueChange={(valor) => {
                           const mapping = { ...preview.mapping };
-                          if (e.target.value) mapping[i] = e.target.value;
+                          if (valor && valor !== SIN_CAMPO) mapping[i] = valor;
                           else delete mapping[i];
                           void verPrevia(mapping);
                         }}
                       >
-                        {CAMPOS.map((c) => (
-                          <option key={c.value} value={c.value}>{c.label}</option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="mt-1 h-8 bg-field text-xs" aria-label={`Campo para la columna ${h}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CAMPOS.map((c) => (
+                            <SelectItem key={c.value} value={c.value || SIN_CAMPO}>{c.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </th>
                   ))}
                   <th className="px-3 py-2 text-left">Estado</th>

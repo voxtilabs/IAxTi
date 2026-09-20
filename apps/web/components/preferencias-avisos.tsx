@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, Checkbox } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
@@ -209,13 +209,11 @@ export function PreferenciasAvisos() {
                         —
                       </span>
                     ) : (
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         aria-label={`${campo} para ${NOMBRES[p.type] ?? p.type}`}
-                        className="h-5 w-5 accent-[color:var(--action)]"
                         checked={p[campo]}
                         disabled={p.bloqueada && campo !== 'push' && campo !== 'whatsapp'}
-                        onChange={(e) => void guardar(p, campo, e.target.checked)}
+                        onCheckedChange={(marcado) => void guardar(p, campo, marcado === true)}
                       />
                     )}
                   </td>

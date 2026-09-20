@@ -1,9 +1,20 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
-
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
+import {
+  AvisoResultado,
+  Badge,
+  Button,
+  Checkbox,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  useSession,
+} from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, type CampoDto } from '../lib/api';
 
@@ -139,27 +150,35 @@ export function Campos() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
             Dónde va
-            <select
+            <Select
               value={form.entity}
-              onChange={(e) => setForm({ ...form, entity: e.target.value as CampoDto['entity'] })}
-              className="h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink"
+              onValueChange={(valor) => setForm({ ...form, entity: valor as CampoDto['entity'] })}
             >
-              {ENTIDADES.map((e) => (
-                <option key={e.v} value={e.v}>{e.texto}</option>
-              ))}
-            </select>
+              <SelectTrigger className="h-control bg-field text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ENTIDADES.map((e) => (
+                  <SelectItem key={e.v} value={e.v}>{e.texto}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
             Qué guarda
-            <select
+            <Select
               value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value as CampoDto['type'] })}
-              className="h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink"
+              onValueChange={(valor) => setForm({ ...form, type: valor as CampoDto['type'] })}
             >
-              {TIPOS.map((t) => (
-                <option key={t.v} value={t.v}>{t.texto}</option>
-              ))}
-            </select>
+              <SelectTrigger className="h-control bg-field text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS.map((t) => (
+                  <SelectItem key={t.v} value={t.v}>{t.texto}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         </div>
 
@@ -178,10 +197,9 @@ export function Campos() {
         )}
 
         <label className="flex items-start gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={form.visibleIa}
-            onChange={(e) => setForm({ ...form, visibleIa: e.target.checked })}
+            onCheckedChange={(marcado) => setForm({ ...form, visibleIa: marcado === true })}
             className="mt-1"
           />
           <span>

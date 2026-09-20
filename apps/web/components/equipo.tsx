@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -169,17 +169,18 @@ export function Equipo() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
             Con qué rol
-            <select
-              value={form.rol}
-              onChange={(e) => setForm({ ...form, rol: e.target.value })}
-              className="h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink"
-            >
-              {roles.map((r) => (
-                <option key={r.name} value={r.name}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+            <Select value={form.rol} onValueChange={(valor) => setForm({ ...form, rol: valor })}>
+              <SelectTrigger className="h-control bg-field text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((r) => (
+                  <SelectItem key={r.name} value={r.name}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <Button type="submit" disabled={enviando}>
             {enviando ? 'Enviando…' : 'Invitar'}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSession } from '@iaxti/ui/react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, useSession } from '@iaxti/ui/react';
 
 interface Membership {
   tenantId: string;
@@ -63,23 +63,27 @@ export function TenantSwitcher() {
   if (memberships.length === 0) return null;
 
   return (
-    <label className="flex items-center gap-2 text-sm text-muted">
+    <label className="flex flex-col gap-1 text-sm text-muted">
       Negocio
-      <select
-        className="h-control rounded-campo border border-line-strong bg-field px-4 text-ink"
+      <Select
         value={selected}
-        onChange={(e) => {
-          setSelected(e.target.value);
-          localStorage.setItem(STORAGE_KEY, e.target.value);
+        onValueChange={(valor) => {
+          setSelected(valor);
+          localStorage.setItem(STORAGE_KEY, valor);
           window.dispatchEvent(new Event('iaxti-tenant-changed'));
         }}
       >
-        {memberships.map((m) => (
-          <option key={m.tenantId} value={m.tenantId}>
-            {m.tenantName} · {m.roleName}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="h-control w-full bg-field" aria-label="Negocio">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {memberships.map((m) => (
+            <SelectItem key={m.tenantId} value={m.tenantId}>
+              {m.tenantName} · {m.roleName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </label>
   );
 }

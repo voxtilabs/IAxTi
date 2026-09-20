@@ -3,28 +3,7 @@
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import {
-  DataTable,
-  type ColumnDef,
-  type SortingState,
-  type RowSelectionState,
-  Badge,
-  EstadoVacio,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Input,
-  Skeleton,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  cn,
-  useSession,
-} from '@iaxti/ui/react';
+import { Badge, Button, DataTable, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EstadoVacio, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsList, TabsTrigger, type ColumnDef, type RowSelectionState, type SortingState, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
@@ -76,6 +55,12 @@ function TarjetaDeal({ deal, onDragStart }: { deal: DealCardDto; onDragStart: (e
     </article>
   );
 }
+
+// Radix no admite `value=""` en un item: la cadena vacía es su "sin
+// selección". Los filtros "todas" y "según mi visibilidad" son opciones
+// elegibles, así que van con centinela y se traducen al salir.
+const TODAS = '__todas__';
+const VISIBILIDAD = '__visibilidad__';
 
 export function Oportunidades() {
   const tenant = useSelectedTenant();
@@ -240,16 +225,17 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
       <div className="flex flex-wrap items-center gap-4">
         <h1 className="font-display text-titulo font-bold text-ink">Oportunidades</h1>
         {pipelines.length > 1 && (
-          <select
-            aria-label="Pipeline"
-            className="h-9 rounded-campo border border-line-strong bg-field px-3 text-sm text-ink"
+          <Select
             value={pipelineId}
-            onChange={(e) => { setPipelineId(e.target.value); primeraLista(); }}
+            onValueChange={(valor) => { setPipelineId(valor); primeraLista(); }}
           >
+            <SelectTrigger className="h-9 bg-field text-sm" aria-label="Pipeline"><SelectValue /></SelectTrigger>
+            <SelectContent>
             {pipelines.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
             ))}
-          </select>
+          </SelectContent>
+            </Select>
         )}
         <Tabs value={vista} onValueChange={(v) => setVista(v as typeof vista)} className="ml-auto">
           <TabsList>
@@ -314,27 +300,31 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm text-muted">
               Etapa
-              <select
-                className="mt-1 block h-9 rounded-campo border border-line-strong bg-field px-3 text-sm text-ink"
-                value={filtros.stageId ?? ''}
-                onChange={(e) => setFiltros({ ...filtros, stageId: e.target.value })}
+              <Select
+                value={filtros.stageId ?? TODAS}
+                onValueChange={(valor) => setFiltros({ ...filtros, stageId: valor === TODAS ? '' : valor })}
               >
-                <option value="">Todas</option>
+                <SelectTrigger className="mt-1 h-9 w-full bg-field text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                <SelectItem value={TODAS}>Todas</SelectItem>
                 {pipeline.stages.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
-              </select>
+              </SelectContent>
+            </Select>
             </label>
             <label className="text-sm text-muted">
               Dueño
-              <select
-                className="mt-1 block h-9 rounded-campo border border-line-strong bg-field px-3 text-sm text-ink"
-                value={filtros.owner ?? ''}
-                onChange={(e) => setFiltros({ ...filtros, owner: e.target.value })}
+              <Select
+                value={filtros.owner || VISIBILIDAD}
+                onValueChange={(valor) => setFiltros({ ...filtros, owner: valor === VISIBILIDAD ? '' : valor })}
               >
-                <option value="">Según mi visibilidad</option>
-                <option value="me">Solo las mías</option>
-              </select>
+                <SelectTrigger className="mt-1 h-9 w-full bg-field text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={VISIBILIDAD}>Según mi visibilidad</SelectItem>
+                  <SelectItem value="me">Solo las mías</SelectItem>
+                </SelectContent>
+              </Select>
             </label>
             <label className="text-sm text-muted">
               Valor desde (CLP)
@@ -440,16 +430,14 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
             </DialogDescription>
           </DialogHeader>
           {pendiente?.hasta.type === 'lost' ? (
-            <select
-              aria-label="Motivo de pérdida"
-              className={cn('h-control w-full rounded-campo border border-line-strong bg-field px-4 text-ink')}
-              value={motivoPerdidaId}
-              onChange={(e) => setMotivoPerdidaId(e.target.value)}
-            >
+            <Select value={motivoPerdidaId} onValueChange={setMotivoPerdidaId}>
+              <SelectTrigger className="h-control w-full bg-field" aria-label="Motivo de pérdida"><SelectValue /></SelectTrigger>
+              <SelectContent>
               {motivos.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
+                <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
               ))}
-            </select>
+            </SelectContent>
+            </Select>
           ) : (
             <Input
               aria-label="Motivo"
