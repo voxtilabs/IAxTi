@@ -24,6 +24,20 @@ module.exports = {
         accent: { DEFAULT: 'var(--accent)', foreground: 'var(--accent-foreground)' },
         input: 'var(--input)',
         ring: 'var(--ring)',
+        sidebar: {
+          DEFAULT: 'var(--sidebar-background)',
+          foreground: 'var(--sidebar-foreground)',
+          primary: {
+            DEFAULT: 'var(--sidebar-primary)',
+            foreground: 'var(--sidebar-primary-foreground)',
+          },
+          accent: {
+            DEFAULT: 'var(--sidebar-accent)',
+            foreground: 'var(--sidebar-accent-foreground)',
+          },
+          border: 'var(--sidebar-border)',
+          ring: 'var(--sidebar-ring)',
+        },
 
         // --- Los de Pulso, que son los que se escriben.
         bg: 'var(--bg)',

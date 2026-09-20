@@ -17,8 +17,8 @@ events:
   consumes: []
 tools: []
 nav:
-  - { label: API, path: /ajustes/api, permission: apikeys.manage }
-  - { label: Roles, path: /ajustes/roles, permission: roles.read }
+  - { label: API, path: /ajustes/api, permission: apikeys.manage, grupo: Configuración }
+  - { label: Roles, path: /ajustes/roles, permission: roles.read, grupo: Configuración }
 widgets: []
 plan_min: base
 flag: module.authorization
