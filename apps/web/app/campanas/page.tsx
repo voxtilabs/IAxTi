@@ -1,6 +1,6 @@
-import { AppShell, type NavItem } from '../components/app-shell';
-import { PuestaEnMarcha } from '../components/puesta-en-marcha';
-import { internalApiUrl, publicConfig } from '../lib/config';
+import { AppShell, type NavItem } from '../../components/app-shell';
+import { Campanas } from '../../components/campanas';
+import { internalApiUrl, publicConfig } from '../../lib/config';
 import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
 export const dynamic = 'force-dynamic';
@@ -12,15 +12,15 @@ async function navFromApi(): Promise<NavItem[]> {
     const modules = (await res.json()) as Array<{ nav: NavItem[] }>;
     return modules.flatMap((m) => m.nav);
   } catch {
-    return []; // la API puede no estar en build local: el shell degrada
+    return [];
   }
 }
 
-export default async function Home() {
+export default async function PaginaCampanas() {
   const nav = await navFromApi();
   return (
     <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
-      <PuestaEnMarcha />
+      <Campanas />
     </AppShell>
   );
 }

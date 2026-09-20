@@ -32,6 +32,7 @@ events:
 tools: []
 nav:
   - { label: Automatizaciones, path: /ajustes/automatizaciones, permission: automations.manage }
+  - { label: Campañas, path: /campanas, permission: automations.manage }
 widgets: []
 plan_min: base
 flag: module.automations
