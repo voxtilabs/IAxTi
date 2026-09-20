@@ -102,3 +102,6 @@ export {
   companyContacts,
 } from './application/empresas';
 export type { Empresa } from './application/empresas';
+
+export { InvalidListQuery } from './application/list-cursor';
+export { addTagToContacts } from './application/tags';

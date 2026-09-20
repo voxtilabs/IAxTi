@@ -1,7 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
+  DataTable,
+  type ColumnDef,
+  type SortingState,
+  type RowSelectionState,
   Badge,
   EstadoVacio,
   Button,
@@ -19,7 +23,7 @@ import {
   cn,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
+import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
   fmtClp,
@@ -29,6 +33,9 @@ import {
   type SavedFilterDto,
   type StageDto,
 } from '../../lib/api';
+
+import { crmClient } from '@iaxti/sdk';
+import { EtiquetarSeleccion } from './etiquetar-seleccion';
 
 // Oportunidades (#33, SPEC §10/§29): tablero Kanban por pipeline con
 // arrastre (motivo al retroceder, lista de motivos al perder) y lista con
@@ -69,8 +76,20 @@ function TarjetaDeal({ deal, onDragStart }: { deal: DealCardDto; onDragStart: (e
 }
 
 export function Oportunidades() {
+  const tenant = useSelectedTenant();
+  return tenant ? <OportunidadesDelNegocio key={tenant} tenant={tenant} /> : <p className="text-muted">Elige un negocio en el selector.</p>;
+}
+
+function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const client = useMemo(() => session ? crmClient({ apiUrl: config.apiUrl, token: session.access_token, tenantId: tenant }) : null, [config.apiUrl, session, tenant]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'created', desc: true }]);
+  const [selection, setSelection] = useState<RowSelectionState>({});
+  const [listaActual, setListaActual] = useState<string>();
+  const [historialLista, setHistorialLista] = useState<Array<string | undefined>>([]);
+  const [cargandoLista, setCargandoLista] = useState(false);
+  const serialLista = useRef(0);
+  function primeraLista() { setListaActual(undefined); setHistorialLista([]); setSelection({}); }
   const [pipelines, setPipelines] = useState<PipelineDto[] | null>(null);
   const [pipelineId, setPipelineId] = useState<string>('');
   const [vista, setVista] = useState<'tablero' | 'lista'>('tablero');
@@ -84,11 +103,11 @@ export function Oportunidades() {
   // Lista
   const [lista, setLista] = useState<DealCardDto[]>([]);
   const [listaCursor, setListaCursor] = useState<string | null>(null);
-  const [filtros, setFiltros] = useState<Record<string, string>>({});
+  const [filtros, guardarFiltros] = useState<Record<string, string>>({});
   const [guardados, setGuardados] = useState<SavedFilterDto[]>([]);
   const [nombreFiltro, setNombreFiltro] = useState('');
 
-  useEffect(() => setTenant(selectedTenant()), []);
+  function setFiltros(nuevos: Record<string, string>) { guardarFiltros(nuevos); primeraLista(); }
 
   const api = useCallback(
     <T,>(path: string, init?: RequestInit) => {
@@ -140,25 +159,35 @@ export function Oportunidades() {
     for (const stage of pipeline.stages) void cargarColumna(stage);
   }, [pipeline, cargarColumna]);
 
-  const cargarLista = useCallback(
-    async (cursor?: string) => {
-      const query = new URLSearchParams({ pipelineId, limit: '25' });
-      for (const [k, v] of Object.entries(filtros)) if (v) query.set(k, v);
-      if (cursor) query.set('cursor', cursor);
-      try {
-        const res = await api<{ items: DealCardDto[]; nextCursor: string | null }>(`/deals?${query}`);
-        setLista((prev) => (cursor ? [...prev, ...res.items] : res.items));
-        setListaCursor(res.nextCursor);
-      } catch (err) {
-        setAviso((err as Error).message);
-      }
-    },
-    [api, pipelineId, filtros],
-  );
+  const cargarLista = useCallback(async () => {
+    if (!client) return;
+    const request = ++serialLista.current;
+    setCargandoLista(true); setAviso(null);
+    const query = new URLSearchParams({ pipelineId, limit: '25', sort: sorting[0].id, order: sorting[0].desc ? 'desc' : 'asc' });
+    for (const [k, v] of Object.entries(filtros)) if (v) query.set(k, v);
+    if (listaActual) query.set('cursor', listaActual);
+    try {
+      const res = await client.deals<DealCardDto>(query);
+      if (request === serialLista.current) { setLista(res.items); setListaCursor(res.nextCursor); }
+    } catch (err) { if (request === serialLista.current) setAviso((err as Error).message); }
+    finally { if (request === serialLista.current) setCargandoLista(false); }
+  }, [client, pipelineId, filtros, sorting, listaActual]);
 
   useEffect(() => {
     if (vista === 'lista' && pipelineId && session && tenant) void cargarLista();
+    return () => { serialLista.current++; };
   }, [vista, pipelineId, cargarLista, session, tenant]);
+
+  const columnasLista: ColumnDef<DealCardDto, unknown>[] = [
+    { id: 'title', accessorKey: 'title', header: 'Oportunidad', enableHiding: false, cell: ({ row }) => <div>
+      <a href={`/contactos/${row.original.contactId}`} className="block min-h-control text-action-text"><span className="block font-medium text-ink">{row.original.title}</span><span>{row.original.contactName ?? row.original.contactPhone ?? 'Ver contacto'}</span></a>
+      {row.original.stalled && row.original.status === 'open' && <Badge role="warn">Estancada</Badge>}
+      <span className="block font-mono sm:hidden">{fmtClp(row.original.valueClp)}</span>
+    </div> },
+    { id: 'stage', accessorKey: 'stageName', header: 'Etapa' },
+    { id: 'value', accessorKey: 'valueClp', header: 'Monto CLP', cell: ({ row }) => <span className="font-mono">{fmtClp(row.original.valueClp)}{row.original.currency === 'UF' && row.original.value !== null && <span className="block text-muted">UF {row.original.value}</span>}</span> },
+    { id: 'created', header: 'Creada', accessorKey: 'createdAt', cell: ({ row }) => <time className="font-mono" dateTime={row.original.createdAt}>{new Date(row.original.createdAt).toLocaleDateString('es-CL')}</time> },
+  ];
 
   async function ejecutarMovimiento(deal: DealCardDto, hasta: StageDto, extra: Record<string, string> = {}) {
     setAviso(null);
@@ -213,7 +242,7 @@ export function Oportunidades() {
             aria-label="Pipeline"
             className="h-9 rounded-campo border border-line-strong bg-field px-3 text-sm text-ink"
             value={pipelineId}
-            onChange={(e) => setPipelineId(e.target.value)}
+            onChange={(e) => { setPipelineId(e.target.value); primeraLista(); }}
           >
             {pipelines.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
@@ -306,7 +335,7 @@ export function Oportunidades() {
               </select>
             </label>
             <label className="text-sm text-muted">
-              Valor desde
+              Valor desde (CLP)
               <Input
                 type="number"
                 className="dato mt-1 h-9 w-32 text-sm"
@@ -380,32 +409,18 @@ export function Oportunidades() {
             </Button>
           </div>
 
-          <ul className="mt-4 flex flex-col gap-2">
-            {lista.map((d) => (
-              <li key={d.id} data-densidad="densa" className="flex min-h-control flex-wrap items-center gap-fila-gap rounded-campo border border-line bg-raised px-fila-x py-fila-y text-dato">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-ink">{d.title}</span>
-                  <a href={`/contactos/${d.contactId}`} className="text-xs text-action-text">
-                    {d.contactName ?? d.contactPhone}
-                  </a>
-                </span>
-                <Badge role="neutral">{d.stageName}</Badge>
-                {d.stalled && d.status === 'open' && <Badge role="warn">Estancada</Badge>}
-                <span className="dato text-ink">
-                  {d.currency === 'UF' && d.value !== null ? `UF ${d.value}` : fmtClp(d.valueClp)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <DataTable label="Oportunidades" columns={columnasLista} rows={lista} sorting={sorting}
+            onSort={(sort) => { setSorting(sort); primeraLista(); }} selection={selection} onSelection={setSelection}
+            nextCursor={listaCursor} loading={cargandoLista} mobileColumns={['title']} canPrevious={historialLista.length > 0}
+            onNext={() => { if (listaCursor) { setHistorialLista((h) => [...h, listaActual]); setListaActual(listaCursor); setSelection({}); } }}
+            onPrevious={() => { setListaActual(historialLista.at(-1)); setHistorialLista((h) => h.slice(0, -1)); setSelection({}); }}>
+            <EtiquetarSeleccion tenant={tenant} contactIds={lista.filter((d) => selection[d.id]).map((d) => d.contactId)} onDone={() => setSelection({})} />
+          </DataTable>
           {lista.length === 0 && <EstadoVacio className="mt-4"
             titulo={Object.values(filtros).some(Boolean) ? 'Ninguna oportunidad coincide' : 'Sin oportunidades abiertas'}
             descripcion={Object.values(filtros).some(Boolean) ? 'Quita los filtros para volver a ver las oportunidades del embudo.' : 'Crea una oportunidad desde una conversación para seguir la venta por sus etapas.'}
-            accion={Object.values(filtros).some(Boolean) ? { etiqueta: 'Limpiar filtros', onClick: () => setFiltros({}) } : { etiqueta: 'Ir a una conversación', href: '/bandeja' }} />}
-          {listaCursor && (
-            <Button variant="secundario" size="chico" className="mt-4" onClick={() => void cargarLista(listaCursor)}>
-              Cargar más
-            </Button>
-          )}
+            accion={Object.values(filtros).some(Boolean) ? { etiqueta: 'Limpiar filtros', onClick: () => { setFiltros({}); primeraLista(); } } : { etiqueta: 'Ir a una conversación', href: '/bandeja' }} />}
+
         </div>
       )}
 
