@@ -19,6 +19,22 @@ export function selectedTenant(): string | null {
   }
 }
 
+/** Reactualiza las pantallas que dependen del negocio, también en esta pestaña. */
+export function useSelectedTenant(): string | null {
+  const [tenant, setTenant] = useState<string | null>(null);
+  useEffect(() => {
+    const actualizar = () => setTenant(selectedTenant());
+    actualizar();
+    window.addEventListener('storage', actualizar);
+    window.addEventListener('iaxti-tenant-changed', actualizar);
+    return () => {
+      window.removeEventListener('storage', actualizar);
+      window.removeEventListener('iaxti-tenant-changed', actualizar);
+    };
+  }, []);
+  return tenant;
+}
+
 /** Selector de negocio: GET /v1/me con el Bearer de la sesión (SPEC §9). */
 export function TenantSwitcher() {
   const { session, config } = useSession();
@@ -37,7 +53,10 @@ export function TenantSwitcher() {
         const inicial =
           me.tenants.find((t) => t.tenantId === guardado)?.tenantId ?? me.tenants[0]?.tenantId ?? '';
         setSelected(inicial);
-        if (inicial) localStorage.setItem(STORAGE_KEY, inicial);
+        if (inicial) {
+          localStorage.setItem(STORAGE_KEY, inicial);
+          window.dispatchEvent(new Event('iaxti-tenant-changed'));
+        }
       });
   }, [session, config.apiUrl]);
 
