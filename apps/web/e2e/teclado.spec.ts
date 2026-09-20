@@ -87,7 +87,7 @@ test('ayuda visible, foco Pulso y los avisos de error usan sonner', async ({ pag
 });
 
 for (const modo of ['dia', 'noche']) {
-  test(`paleta a 360 px en ${modo}, sin sombras y con movimiento reducido`, async ({ page }) => {
+  test(`paleta a 360 px en ${modo}, con la sombra del sistema y movimiento reducido`, async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript((modo) => localStorage.setItem('pulso-mode', modo), modo);
@@ -101,7 +101,24 @@ for (const modo of ['dia', 'noche']) {
     expect(await input.evaluate((el) => getComputedStyle(el).outlineWidth)).toBe('2px');
     expect(await input.evaluate((el) => el.getBoundingClientRect().left - el.closest('[cmdk-root]')!.getBoundingClientRect().left)).toBeGreaterThanOrEqual(4);
     expect(await dialog.evaluate((el) => parseFloat(getComputedStyle(el).animationDuration))).toBeLessThanOrEqual(0.001);
-    expect(await dialog.evaluate((el) => getComputedStyle(el).boxShadow)).toBe('none');
+    // Antes exigía `none`, y era correcto: Pulso prohibía toda sombra. La
+    // ADR-0018 agregó UNA, y la paleta es justo uno de los seis que flotan.
+    // La comprobación no se afloja, cambia de objeto: ya no "ninguna" sino
+    // "exactamente la del sistema y ninguna otra". Se resuelve el token en
+    // el mismo motor para no comparar texto contra texto.
+    const sombraDelSistema = await page.evaluate(() => {
+      const valor = getComputedStyle(document.documentElement)
+        .getPropertyValue('--elevacion-flotante')
+        .trim();
+      const sonda = document.createElement('div');
+      sonda.style.boxShadow = valor;
+      document.body.appendChild(sonda);
+      const resuelta = getComputedStyle(sonda).boxShadow;
+      sonda.remove();
+      return resuelta;
+    });
+    expect(sombraDelSistema).not.toBe('none');
+    expect(await dialog.evaluate((el) => getComputedStyle(el).boxShadow)).toBe(sombraDelSistema);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const folder = join(__dirname, '../../../docs/evidencias/300');
     mkdirSync(folder, { recursive: true });
