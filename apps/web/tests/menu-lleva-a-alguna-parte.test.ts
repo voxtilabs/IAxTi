@@ -94,3 +94,34 @@ describe('el menú no promete páginas que no existen', () => {
     ).toEqual([]);
   });
 });
+
+/**
+ * Lo mismo, para los pasos de la puesta en marcha.
+ *
+ * Cada paso declara dónde se resuelve (`ruta`) junto a su definición, por
+ * el mismo motivo por el que el `nav` vive en el manifiesto: el módulo sabe
+ * dónde está su cosa. Y por el mismo motivo hace falta esta guarda — al
+ * escribirlo puse `/ajustes/negocio`, que no existe: el paso "Cuéntanos de
+ * tu negocio" se resuelve en `/ajustes/ia`, donde está el configurador.
+ */
+describe('los pasos de la puesta en marcha llevan a alguna parte', () => {
+  const fuente = readFileSync(
+    join(RAIZ, 'packages', 'modules', 'organizations', 'domain', 'onboarding-pasos.ts'),
+    'utf8',
+  );
+  const rutas = [...fuente.matchAll(/ruta:\s*'([^']+)'/g)].map((m) => m[1]);
+  const todas = paginas();
+
+  it('hay pasos con ruta que mirar', () => {
+    expect(rutas.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('cada ruta declarada existe', () => {
+    const rotas = rutas.filter((r) => !existeRuta(r, todas));
+    expect(
+      rotas,
+      'Estos pasos mandan al negocio a un 404 en su primer día:\n' +
+        rotas.map((r) => `  ${r}`).join('\n'),
+    ).toEqual([]);
+  });
+});
