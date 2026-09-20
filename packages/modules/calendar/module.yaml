@@ -24,7 +24,7 @@ tools:
   - calendar.reschedule
   - calendar.cancel
 nav:
-  - { label: Agenda, path: /agenda, permission: calendar.read }
+  - { label: Agenda, path: /agenda, permission: calendar.read, grupo: Trabajo }
 widgets: []
 plan_min: base
 flag: module.calendar

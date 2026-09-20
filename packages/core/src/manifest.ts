@@ -8,7 +8,13 @@ export interface ModuleManifest {
   permissions?: string[];
   events?: { publishes?: string[]; consumes?: string[] };
   tools?: string[];
-  nav?: Array<{ label: string; path: string; permission: string }>;
+  /**
+   * `grupo` reparte la navegación en la barra lateral (#295). Lo declara el
+   * módulo y no una tabla en el frontend, igual que el resto del `nav`: con
+   * 23 destinos, una lista paralela allá se desincroniza y el destino nuevo
+   * aparece suelto abajo sin que nadie lo note.
+   */
+  nav?: Array<{ label: string; path: string; permission: string; grupo?: string }>;
   widgets?: Array<{ id: string; permission: string }>;
   plan_min?: string;
   flag?: string;

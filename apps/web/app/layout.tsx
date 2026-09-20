@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 import { MODE_INIT_SCRIPT } from '@iaxti/ui';
 import '@iaxti/ui/pulso-tokens.css';
+// El puente entre shadcn y Pulso (#291). Existía desde entonces y no lo
+// importaba nadie: las variables que usan los componentes del registro
+// —`--background`, `--popover`, `--accent`— quedaban SIN DEFINIR, así que
+// cada uno pintaba con lo que heredara. Se notó al traer la barra lateral
+// (#295), cuyo estado activo simplemente no se veía.
+import '@iaxti/ui/shadcn-puente.css';
 import '@iaxti/ui/pulso-base.css';
 import './globals.css';
 

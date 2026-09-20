@@ -8,5 +8,7 @@ dist/
 !.env.example
 coverage/
 apps/web/e2e/.auth.json
+# Las capturas del shell (#295) se generan a mano para el PR, no se versionan.
+apps/web/e2e/capturas/
 apps/web/test-results/
 apps/web/playwright-report/

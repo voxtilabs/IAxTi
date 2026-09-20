@@ -54,3 +54,29 @@ export type { CanalId } from './canal';
 export { AuditExplorer } from './audit-explorer';
 export type { AuditFetcher, AuditRow, ChainCheckDto, SignedExportDto } from './audit-explorer';
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+
+// La barra lateral (#295). Viene del registro de shadcn con dos retoques
+// para Pulso, anotados en el propio archivo: fuera las sombras, y el borde
+// del `outline` es un borde y no una sombra de 1 px con `hsl(var(…))`, que
+// con tokens de color completo daba un color inválido.
+export {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
+} from './ui/sidebar';
+export { Separator } from './ui/separator';
+
