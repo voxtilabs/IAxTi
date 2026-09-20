@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Badge, Button, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { useSelectedTenant } from './tenant-switcher';
+import { getOnboarding, type OnboardingProgress } from '@iaxti/sdk';
 
 // La puesta en marcha (#56, SPEC §7).
 //
@@ -18,25 +18,7 @@ import { apiFetch } from '../lib/api';
 // servidor ya detecta cuándo eso pasa; sin pantalla, el negocio cree que
 // tiene WhatsApp conectado porque alguna vez lo estuvo.
 
-interface PasoDto {
-  id: string;
-  titulo: string;
-  ayuda: string;
-  opcional: boolean;
-  hecho: boolean;
-  detalle: string | null;
-  bloqueado: boolean;
-  fuente: 'verificado' | 'historial';
-  ruta: string | null;
-}
-
-interface OnboardingDto {
-  estadoRegistrado: string;
-  pasos: PasoDto[];
-  siguiente: string | null;
-  completo: boolean;
-  desfase: string[];
-}
+type PasoDto = OnboardingProgress['pasos'][number];
 
 function etiquetaDe(p: PasoDto): { texto: string; rol: BadgeRole } {
   if (p.bloqueado) return { texto: 'No aplica', rol: 'neutral' };
@@ -71,28 +53,40 @@ function Bienvenida() {
 }
 
 export function PuestaEnMarcha() {
-  const { config, session } = useSession();
-  const tenant = selectedTenant();
-  const [estado, setEstado] = useState<OnboardingDto | null>(null);
-  const [sinPermiso, setSinPermiso] = useState(false);
+  const tenant = useSelectedTenant();
+  return tenant ? <AvanceDelNegocio key={tenant} tenant={tenant} /> : <Bienvenida />;
+}
 
-  const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
+function AvanceDelNegocio({ tenant }: { tenant: string }) {
+  const { config, session } = useSession();
+  const [estado, setEstado] = useState<OnboardingProgress | null | undefined>();
+  const [error, setError] = useState<string | null>(null);
+  const ultima = useRef(0);
+  const cargar = useCallback(async (signal?: AbortSignal) => {
+    if (!session) return;
+    const peticion = ++ultima.current;
     try {
-      setEstado(await apiFetch<OnboardingDto>(config, session, tenant, '/onboarding'));
-    } catch {
-      // Cualquier fallo acá cae a la bienvenida. La portada tiene que abrir
-      // siempre: es lo primero que ve alguien que recién entra.
-      setSinPermiso(true);
+      const avance = await getOnboarding({ apiUrl: config.apiUrl, token: session.access_token, tenantId: tenant }, signal);
+      if (peticion === ultima.current) { setEstado(avance); setError(null); }
+    } catch (e) {
+      if (!signal?.aborted && peticion === ultima.current) setError((e as Error).message);
     }
-  }, [config, session, tenant]);
+  }, [config.apiUrl, session, tenant]);
 
   useEffect(() => {
-    void cargar();
+    const controller = new AbortController();
+    void cargar(controller.signal);
+    const actualizar = () => void cargar(controller.signal);
+    window.addEventListener('focus', actualizar);
+    return () => { controller.abort(); ultima.current++; window.removeEventListener('focus', actualizar); };
   }, [cargar]);
 
-  if (sinPermiso) return <Bienvenida />;
-  if (estado === null) {
+  if (estado === null) return <Bienvenida />;
+  if (error) return <section aria-label="Actualizar puesta en marcha" className="rounded-tarjeta border border-line bg-raised p-6">
+    <p role="status" className="text-body">{error}</p>
+    <Button variant="secundario" className="mt-4" onClick={() => void cargar()}>Actualizar avance</Button>
+  </section>;
+  if (!estado) {
     return (
       <div className="flex flex-col gap-3">
         <Skeleton className="h-8 w-64" />
@@ -105,7 +99,7 @@ export function PuestaEnMarcha() {
   const faltan = estado.pasos.filter((p) => !p.hecho && !p.bloqueado && !p.opcional).length;
 
   return (
-    <section className="flex flex-col gap-6">
+    <section aria-label="Puesta en marcha de tu negocio" className="flex flex-col gap-6">
       <header>
         <h1 className="text-xl font-extrabold text-ink">
           {estado.completo ? 'Tu negocio está en marcha' : 'Pon tu negocio en marcha'}
@@ -132,6 +126,10 @@ export function PuestaEnMarcha() {
           </ul>
         </div>
       )}
+
+      {!estado.completo && <progress aria-label="Pasos obligatorios completados" className="h-2 w-full appearance-none overflow-hidden rounded-boton border-0 bg-rest [&::-webkit-progress-bar]:bg-rest [&::-webkit-progress-value]:bg-action [&::-moz-progress-bar]:bg-action"
+        max={Math.max(1, estado.pasos.filter((p) => !p.opcional && !p.bloqueado).length)}
+        value={estado.pasos.filter((p) => !p.opcional && !p.bloqueado && p.hecho).length} />}
 
       <ol className="flex flex-col gap-2">
         {estado.pasos.map((p) => {

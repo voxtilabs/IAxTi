@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Avatar,
+  EstadoVacio,
   Badge,
   IconoReloj,
   Input,
@@ -205,7 +206,9 @@ export function Bandeja() {
           <div className="border-b border-line">
             <p className="rotulo px-4 pt-3">Resultados</p>
             {hits.length === 0 && (
-              <p className="px-4 py-3 text-sm text-muted">Nada con “{busqueda}”.</p>
+              <EstadoVacio compacto className="m-3" titulo={`Nada con “${busqueda}”`}
+                descripcion="Prueba con otras palabras del mensaje o de la nota."
+                accion={{ etiqueta: 'Limpiar búsqueda', onClick: () => { setBusqueda(''); setHits(null); } }} />
             )}
             <ul>
               {hits.map((h, i) => (
@@ -244,9 +247,10 @@ export function Bandeja() {
             <Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" />
           </div>
         ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-muted">
-            Nada por aquí. Cuando llegue un mensaje, la conversación aparece sola.
-          </p>
+          <EstadoVacio compacto className="m-3"
+            titulo={vista === 'todas' ? 'Todavía no te escribe nadie' : 'Esta cola está al día'}
+            descripcion={vista === 'todas' ? 'Cuando conectes WhatsApp, los mensajes de tus clientes llegan aquí con su historia.' : 'Las conversaciones que necesiten tu atención aparecerán aquí. Puedes revisar las demás colas.'}
+            accion={vista === 'todas' ? { etiqueta: 'Conectar WhatsApp', href: '/ajustes/canales' } : { etiqueta: 'Ver todas las conversaciones', onClick: () => setVista('todas') }} />
         ) : (
           <ul className="flex flex-col">
             {items.map((c) => (

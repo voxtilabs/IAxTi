@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Badge,
+  EstadoVacio,
   Button,
   Select,
   SelectContent,
@@ -144,7 +145,9 @@ export function Automatizaciones() {
         {reglas === null ? (
           <Skeleton className="mt-3 h-24" />
         ) : reglas.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">Sin reglas todavía. Parte por las del rubro.</p>
+          <EstadoVacio compacto className="mt-3" titulo="Prepara tus primeros seguimientos"
+            descripcion="Aquí verás las reglas que ayudan a tu equipo a responder y dar seguimiento. Elige tu rubro arriba para partir con tres reglas que podrás revisar antes de activar."
+            accion={{ etiqueta: 'Elegir rubro', onClick: () => document.querySelector<HTMLButtonElement>('[aria-label="Rubro"]')?.focus() }} />
         ) : (
           <ul className="mt-2 flex flex-col">
             {reglas.map((r) => (
