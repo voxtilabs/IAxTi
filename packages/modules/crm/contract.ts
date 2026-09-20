@@ -38,6 +38,7 @@ export type {
 } from './application/deals';
 export type { StageInput, StageType } from './domain/pipeline';
 export {
+  ActivityReferenceError,
   createActivity,
   completeActivity,
   listActivitiesByContact,
