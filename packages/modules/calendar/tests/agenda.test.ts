@@ -110,7 +110,7 @@ describe('agendar', () => {
     expect(despues.map((h) => h.hora)).not.toContain('09:00');
   });
 
-  it('dos citas no ocupan el mismo lugar, aunque se pidan a la vez', async () => {
+  it('una reserva posterior rechaza una hora que ya fue tomada', async () => {
     const huecos = await en((c) => huecosDelDia(c, { tenantId: tenant, ownerId: duena, dia: LUNES, ahora: ANTES }));
     const libre = huecos[0];
     await en((cl) =>

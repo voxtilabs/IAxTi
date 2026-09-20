@@ -163,6 +163,7 @@ export class AgendaController {
           conversationId: body?.conversationId,
           confirmada: body?.confirmada,
           actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
           requestId: (request as { requestId?: string }).requestId,
         }),
       );
@@ -193,6 +194,7 @@ export class AgendaController {
           to: (body?.estado ?? '') as EstadoCita,
           motivo: body?.motivo,
           actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
           requestId: (request as { requestId?: string }).requestId,
         }),
       );

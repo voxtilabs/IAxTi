@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
+import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { assertTransicionCita, ocupaAgenda, type EstadoCita } from '../domain/estado';
 import { huecosLibres, comoHora, type Ocupado } from '../domain/horarios';
 
@@ -224,12 +225,24 @@ export async function agendar(
     dealId?: string;
     confirmada?: boolean;
     actor?: string;
+    actorKind?: ActorKind;
     requestId?: string;
   },
 ): Promise<Cita> {
+  if (!Number.isFinite(input.inicio.getTime()) || !Number.isFinite(input.fin.getTime())) {
+    throw new Error('Las fechas de la cita no se entienden. Revisa el inicio y el fin.');
+  }
   if (input.fin.getTime() <= input.inicio.getTime()) {
     throw new Error('La cita tiene que terminar después de empezar.');
   }
+  // Dos SELECT sin bloqueo pueden ver libre la misma hora. El lock vive
+  // hasta el commit/rollback de withTenant y solo compite por esta agenda.
+  // Hash de 64 bits con namespace; no necesita extensión ni migración.
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended(
+       'calendar:agenda:' || $1::uuid::text || ':' || $2::uuid::text, 0))`,
+    [input.tenantId, input.ownerId],
+  );
   const choca = await client.query(
     `SELECT id FROM appointments
       WHERE tenant_id = $1 AND owner_id = $2
@@ -259,6 +272,14 @@ export async function agendar(
     ],
   );
   const cita = aCita(r.rows[0]);
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? (input.actor && input.actor !== 'system' ? 'user' : 'system'),
+    action: 'calendar.appointment.created', resource: 'appointment', resourceId: cita.id,
+    result: 'success', requestId: input.requestId,
+    metadata: { ownerId: input.ownerId, startsAt: cita.startsAt, endsAt: cita.endsAt, status: cita.status },
+  });
   await publishEvent(client, {
     name: 'appointment.created',
     tenantId: input.tenantId,
@@ -283,11 +304,12 @@ export async function cambiarEstadoCita(
     to: EstadoCita;
     motivo?: string;
     actor?: string;
+    actorKind?: ActorKind;
     requestId?: string;
   },
 ): Promise<Cita> {
   const actual = await client.query(
-    'SELECT * FROM appointments WHERE tenant_id = $1 AND id = $2',
+    'SELECT * FROM appointments WHERE tenant_id = $1 AND id = $2 FOR UPDATE',
     [input.tenantId, input.appointmentId],
   );
   if (actual.rowCount === 0) throw new Error('Esa cita no existe en este negocio.');
@@ -299,6 +321,15 @@ export async function cambiarEstadoCita(
       WHERE tenant_id = $1 AND id = $2 RETURNING *`,
     [input.tenantId, input.appointmentId, input.to, input.motivo ?? null],
   );
+
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? (input.actor && input.actor !== 'system' ? 'user' : 'system'),
+    action: 'calendar.appointment.state_changed', resource: 'appointment', resourceId: input.appointmentId,
+    result: 'success', requestId: input.requestId,
+    metadata: { from: antes.status, to: input.to },
+  });
 
   const evento: Partial<Record<EstadoCita, string>> = {
     attended: 'appointment.attended',
