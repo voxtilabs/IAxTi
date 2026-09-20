@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -115,9 +117,9 @@ export function Empresas() {
       </header>
 
       {error && (
-        <p role="alert" className="rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
+        <AvisoResultado tono="error">
           {error}
-        </p>
+        </AvisoResultado>
       )}
 
       <form onSubmit={crear} className="flex flex-wrap items-end gap-3 rounded-tarjeta border border-line bg-raised p-5">

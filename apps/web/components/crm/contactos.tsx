@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Avatar, Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
@@ -67,9 +69,9 @@ export function Contactos() {
         onChange={(e) => setQ(e.target.value)}
       />
       {aviso && (
-        <p role="alert" className="mt-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
       {items === null ? (
         <div className="mt-4 flex flex-col gap-2"><Skeleton className="h-16" /><Skeleton className="h-16" /></div>

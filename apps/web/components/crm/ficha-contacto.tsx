@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, IconoCheck, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
@@ -135,9 +137,9 @@ export function FichaContacto({
 
   if (aviso) {
     return (
-      <p role="alert" className="rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">
+      <AvisoResultado persistente>
         {aviso}
-      </p>
+      </AvisoResultado>
     );
   }
   if (!ficha) {

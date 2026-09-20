@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useEffect, useState } from 'react';
 import {
   AuditExplorer,
@@ -92,9 +94,9 @@ function TablaTenants() {
   return (
     <div>
       {aviso && (
-        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
     <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
       <table className="w-full text-sm">
@@ -317,7 +319,7 @@ function TablaPlanes() {
       <h2 className="mb-2 text-xl font-bold text-ink">Planes</h2>
       <p className="mb-4 text-sm text-muted">Configuración, no código: los cambios rigen sin desplegar.</p>
       {aviso && (
-        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">{aviso}</p>
+        <AvisoResultado>{aviso}</AvisoResultado>
       )}
       <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
         <table className="w-full text-sm">
@@ -410,7 +412,7 @@ function TablaModulos() {
     <div className="mt-10">
       <h2 className="mb-2 text-xl font-bold text-ink">Módulos</h2>
       {aviso && (
-        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">{aviso}</p>
+        <AvisoResultado>{aviso}</AvisoResultado>
       )}
       <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
         <table className="w-full text-sm">
@@ -582,9 +584,9 @@ function SeguridadYSalud() {
         Lo que no tiene fuente conectada lo dice, en vez de mostrar un cero tranquilizador.
       </p>
       {aviso && (
-        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
       {salud && (
         <>
@@ -706,9 +708,9 @@ function CentroIA() {
         cuelga una de cada veinte veces se ve normal en la media y pésimo en la práctica.
       </p>
       {aviso && (
-        <p role="alert" className="mb-3 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
       <div className="mb-3 flex flex-wrap gap-2">
         {AGRUPACIONES.map((g) => (

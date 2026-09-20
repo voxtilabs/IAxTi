@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -117,9 +119,9 @@ export function Plantillas() {
       </header>
 
       {error && (
-        <p role="alert" className="rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
+        <AvisoResultado tono="error">
           {error}
-        </p>
+        </AvisoResultado>
       )}
 
       <form onSubmit={crear} className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
@@ -176,9 +178,9 @@ export function Plantillas() {
         </label>
 
         {varsMalNumeradas && (
-          <p role="alert" className="rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">
+          <div role="alert" className="rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-dato text-warn-text">
             Las variables van desde {'{{1}}'} y sin saltos. Meta rechaza {'{{1}} {{3}}'} sin decir por qué.
-          </p>
+          </div>
         )}
 
         <span>
