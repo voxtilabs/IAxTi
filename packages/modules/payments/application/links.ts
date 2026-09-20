@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
+import { flowConfig } from '../domain/flow-config';
 import {
   paymentProviderFor,
   type PaymentProviderPort,
@@ -222,6 +223,9 @@ export async function createPaymentLink(
     throw new Error(`Falta la variable ${provider.credentialRef} en este ambiente (credenciales por referencia).`);
   }
 
+  // Validar antes del INSERT y del acceso a red; un placeholder nunca cobra.
+  if (provider.kind === 'flow') flowConfig(credentials, provider.mode);
+
   const r = await client.query(
     `INSERT INTO payment_links
        (tenant_id, provider_id, contact_id, conversation_id, deal_id, amount_clp, concept, expires_at, created_by)
@@ -241,6 +245,7 @@ export async function createPaymentLink(
   const base = input.publicBaseUrl ?? process.env.PUBLIC_API_URL ?? 'https://api-staging.iaxti.cl';
   const creado = await portFor(provider.kind).createLink(
     {
+      mode: provider.mode,
       amountClp: amount,
       concept: input.concept.trim(),
       linkId: r.rows[0].id,

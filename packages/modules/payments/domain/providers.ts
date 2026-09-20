@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { flowConfig } from './flow-config';
 
 // El puerto de proveedores (#60, SPEC §17): crear el link y verificar el
 // webhook — cada pasarela chilena habla su dialecto detrás de esta puerta.
@@ -8,6 +9,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 export type ProviderKind = 'flow' | 'webpay' | 'mercadopago' | 'simulado';
 
 export interface CreateLinkInput {
+  /** Modo del registro del proveedor; omitido conserva test por seguridad. */
+  mode?: 'test' | 'live';
   amountClp: number;
   concept: string;
   /** Nuestro id del link: viaja como commerceOrder para conciliar. */
@@ -63,16 +66,14 @@ function safeEq(a: string, b: string): boolean {
 
 /**
  * Flow (flow.cl): credenciales "apiKey:secretKey" en la env var. En modo
- * test apunta a sandbox.flow.cl (FLOW_API_BASE lo decide). La confirmación
+ * test solo admite sandbox.flow.cl; live solo el destino oficial en producción. La confirmación
  * llega con el token; el estado real se consulta a getStatus (#61).
  */
 export function createFlowProvider(fetcher: typeof fetch = fetch): PaymentProviderPort {
-  const base = () => process.env.FLOW_API_BASE ?? 'https://sandbox.flow.cl/api';
   return {
     kind: 'flow',
     async createLink(input, credentials) {
-      const [apiKey, secretKey] = credentials.split(':');
-      if (!apiKey || !secretKey) throw new Error('Las credenciales de Flow son "apiKey:secretKey".');
+      const { base, apiKey, secretKey } = flowConfig(credentials, input.mode);
       const params: Record<string, string> = {
         apiKey,
         commerceOrder: input.linkId,
@@ -84,8 +85,9 @@ export function createFlowProvider(fetcher: typeof fetch = fetch): PaymentProvid
         urlReturn: input.returnUrl,
       };
       const s = flowSign(params, secretKey);
-      const res = await fetcher(`${base()}/payment/create`, {
+      const res = await fetcher(`${base}/payment/create`, {
         method: 'POST',
+        redirect: 'error',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ ...params, s }).toString(),
       });

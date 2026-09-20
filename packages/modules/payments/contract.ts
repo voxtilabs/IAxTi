@@ -30,3 +30,5 @@ export type {
   WebhookPayment,
   CreatedLink,
 } from './domain/providers';
+
+export { flowConfig } from './domain/flow-config';

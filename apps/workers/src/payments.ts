@@ -4,6 +4,7 @@ import { getTenantSettings } from '@iaxti/module-organizations';
 import {
   confirmPayment,
   flowSign,
+  flowConfig,
   type DepsConfirmacion,
   type WebhookPayment,
 } from '@iaxti/module-payments';
@@ -25,14 +26,13 @@ export interface PaymentWebhookJob {
 async function resolveFlowStatus(
   token: string,
   credentials: string,
+  mode: 'test' | 'live',
   fetcher: typeof fetch = fetch,
 ): Promise<WebhookPayment | null> {
-  const [apiKey, secretKey] = credentials.split(':');
-  if (!apiKey || !secretKey) return null;
+  const { base, apiKey, secretKey } = flowConfig(credentials, mode);
   const params = { apiKey, token };
   const s = flowSign(params, secretKey);
-  const base = process.env.FLOW_API_BASE ?? 'https://sandbox.flow.cl/api';
-  const res = await fetcher(`${base}/payment/getStatus?${new URLSearchParams({ ...params, s })}`);
+  const res = await fetcher(`${base}/payment/getStatus?${new URLSearchParams({ ...params, s })}`, { redirect: 'error' });
   if (!res.ok) return null;
   const data = (await res.json()) as {
     commerceOrder?: string;
@@ -61,12 +61,12 @@ export async function processPaymentWebhook(
     let pago = data.pago;
     if (data.providerKind === 'flow' && pago.providerPaymentId) {
       const provider = await client.query(
-        'SELECT credential_ref FROM payment_providers WHERE tenant_id = $1 AND id = $2',
+        'SELECT credential_ref, mode FROM payment_providers WHERE tenant_id = $1 AND id = $2',
         [data.tenantId, data.providerId],
       );
       const credentials = process.env[provider.rows[0]?.credential_ref ?? ''];
       const resuelto = credentials
-        ? await resolveFlowStatus(pago.providerPaymentId, credentials, fetcher)
+        ? await resolveFlowStatus(pago.providerPaymentId, credentials, provider.rows[0].mode, fetcher)
         : null;
       if (!resuelto) return { outcome: 'flow_sin_estado' };
       pago = resuelto;
