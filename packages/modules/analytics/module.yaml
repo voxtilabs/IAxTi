@@ -23,7 +23,7 @@ events:
     - message.sent
 tools: []
 nav:
-  - { label: Reportes, path: /reportes, permission: analytics.read }
+  - { label: Reportes, path: /reportes, permission: analytics.read, grupo: Trabajo }
 widgets: []
 plan_min: base
 flag: module.analytics

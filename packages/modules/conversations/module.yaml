@@ -39,7 +39,7 @@ tools:
   - conversations.set_state
   - conversations.request_handoff
 nav:
-  - { label: Bandeja, path: /bandeja, permission: conversations.read }
+  - { label: Bandeja, path: /bandeja, permission: conversations.read, grupo: Trabajo }
 widgets:
   - { id: conversations.sin_responder, permission: conversations.read }
 plan_min: base
