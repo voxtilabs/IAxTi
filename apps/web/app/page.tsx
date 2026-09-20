@@ -19,10 +19,11 @@ export default async function Home() {
   const nav = await navFromApi();
   return (
     <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
+      <h1 className="mb-6 font-display text-titulo text-ink">Tu negocio</h1>
       {/* Estado vacío según Pulso: qué va a aparecer y la acción que lo provoca */}
       <div className="rounded-tarjeta border border-line bg-raised p-8">
         <p className="rotulo">Bandeja</p>
-        <h2 className="mt-2 text-xl font-bold text-ink">
+        <h2 className="mt-2 text-seccion font-bold text-ink">
           Aquí van a llegar las conversaciones de tu negocio
         </h2>
         <p className="mt-2 max-w-prose text-body">

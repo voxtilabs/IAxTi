@@ -45,7 +45,7 @@ function Canje({ token }: { token: string }) {
   if (estado === 'listo') {
     return (
       <>
-        <h1 className="mt-6 text-2xl font-extrabold text-ink">Ya estás dentro</h1>
+        <h1 className="mt-6 text-titulo font-extrabold text-ink">Ya estás dentro</h1>
         <p className="mb-6 mt-1 text-sm text-body">
           Tu cuenta quedó con acceso al negocio que te invitó.
         </p>
@@ -59,7 +59,7 @@ function Canje({ token }: { token: string }) {
   if (estado === 'sin-sesion') {
     return (
       <>
-        <h1 className="mt-6 text-2xl font-extrabold text-ink">Te invitaron a un negocio</h1>
+        <h1 className="mt-6 text-titulo font-extrabold text-ink">Te invitaron a un negocio</h1>
         <p className="mb-6 mt-1 text-sm text-body">
           Entra con tu correo y te damos el acceso. Usa el mismo correo al que llegó la invitación.
         </p>
@@ -84,7 +84,7 @@ function Canje({ token }: { token: string }) {
   if (estado === 'error') {
     return (
       <>
-        <h1 className="mt-6 text-2xl font-extrabold text-ink">Esta invitación no sirve</h1>
+        <h1 className="mt-6 text-titulo font-extrabold text-ink">Esta invitación no sirve</h1>
         <p role="alert" className="mb-6 mt-3 rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
           {detalle}
         </p>

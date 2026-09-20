@@ -79,6 +79,16 @@ module.exports = {
       // Escala de espaciado (§4): 8 · 16 · 24 · 32 · 48 · 64 · 96.
       spacing: {
         control: '46px', // alto mínimo de control
+        'fila-x': 'var(--fila-x)',
+        'fila-y': 'var(--fila-y)',
+        'fila-gap': 'var(--fila-gap)',
+      },
+      fontSize: {
+        titulo: ['clamp(1.5rem, 2.5vw, 2rem)', { lineHeight: '1.2', fontWeight: '800' }],
+        seccion: ['1.125rem', { lineHeight: '1.4', fontWeight: '700' }],
+        cuerpo: ['1rem', { lineHeight: '1.6' }],
+        dato: ['0.875rem', { lineHeight: '1.4' }],
+        rotulo: ['0.75rem', { lineHeight: '1.4' }],
       },
       fontFamily: {
         display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
