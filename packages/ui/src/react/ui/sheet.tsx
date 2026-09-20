@@ -30,12 +30,11 @@ const SheetOverlay = React.forwardRef<
 ))
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
-// Sin `shadow-lg`: Pulso no lleva sombras. Lo que separa la hoja del
-// contenido es el borde que ya trae cada lado, más el velo de
-// `SheetOverlay`. Si #294 aprueba una sombra para lo que flota, esta hoja
-// es exactamente el caso — y entonces se agrega ahí, no acá suelta.
+// La hoja flota: lleva la única sombra del sistema (ADR-0018). Cuando
+// escribí esto en #295 la regla no la permitía y la dejé anotada como el
+// caso exacto que #294 tendría que resolver; lo resolvió.
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-background p-6 transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  "fixed z-50 gap-4 bg-background p-6 shadow-flotante transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
     variants: {
       side: {
