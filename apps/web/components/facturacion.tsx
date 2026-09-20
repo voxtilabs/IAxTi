@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -51,9 +53,9 @@ export function Facturacion() {
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
   if (aviso) {
     return (
-      <p role="alert" className="max-w-xl rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">
+      <AvisoResultado persistente>
         {aviso}
-      </p>
+      </AvisoResultado>
     );
   }
   if (!datos) return <div className="max-w-xl"><Skeleton className="h-48" /></div>;

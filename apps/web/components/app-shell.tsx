@@ -51,6 +51,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { SoporteAviso } from './soporte-aviso';
+import { PaletaComandos } from './paleta-comandos';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { selectedTenant } from './tenant-switcher';
@@ -336,6 +337,7 @@ export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellPr
             <header className="flex items-center gap-2 border-b border-line bg-raised px-4 py-3">
               <SidebarTrigger />
               <div className="ml-auto flex items-center gap-3">
+                <PaletaComandos nav={nav} />
                 <Campana />
                 <ModeToggle />
               </div>

@@ -5,7 +5,7 @@ import {
   campaignClient, type Campaign, type CampaignChannel, type CampaignFilters,
   type CampaignListItem, type CampaignPreview, type CampaignResults, type CampaignTemplate,
 } from '@iaxti/sdk';
-import { Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
@@ -132,7 +132,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           <Button variant="secundario" disabled={ocupado} onClick={() => { setVista('lista'); setError(null); void ejecutar(cargar); }}>Volver al listado</Button>}
       </header>
       {puedeEscribir === false && <p className="text-sm text-muted">Tu plan permite consultar campañas, pero no crear ni enviar. <a href="/ajustes/facturacion">Revisar mi plan</a>.</p>}
-      {error && <div role="alert" className="rounded-campo border border-warn-soft-br bg-warn-soft p-4 text-warn-text">{error}</div>}
+      {error && <AvisoResultado tono="error">{error}</AvisoResultado>}
 
       {vista === 'lista' && <>
         {lista === null ? <Skeleton className="h-32" /> : lista.length === 0 ?

@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { Bot, ThumbsDown, ThumbsUp } from 'lucide-react';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -187,7 +189,7 @@ export function Chat({
           {cronologicos.map((m) => (
             <li
               key={m.id}
-              className={cn('flex', m.direction === 'out' ? 'justify-end' : 'justify-start')}
+              className={cn('pulso-entrada flex', m.direction === 'out' ? 'justify-end' : 'justify-start')}
             >
               <div
                 className={cn(
@@ -213,9 +215,9 @@ export function Chat({
       </div>
 
       {aviso && (
-        <p role="alert" className="mx-4 mb-2 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
 
 
