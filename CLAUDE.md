@@ -76,9 +76,11 @@ pnpm seed               # tenant demo con ADMIN y USER (idempotente)
 
 ## Flujo de trabajo
 
-Issue → rama `feat|fix|chore/<n>-<slug>` → PR con "Closes #n" y el checklist
-de `.claude/rules/git.md` → checks verdes → squash a main → staging automático
-→ verificación → tag `vX.Y.Z` → prod (aprobación manual). Conventional
+Issue → rama `feat|fix|chore/<n>-<slug>` desde `staging` → PR con
+"Closes #n" contra `staging` y el checklist de `.claude/rules/git.md` →
+checks verdes → squash a `staging` → staging automático → verificación →
+promoción a `main` con `--ff-only` → tag `vX.Y.Z` → prod (aprobación
+manual). Por qué `staging` y no main: ADR-0019. Conventional
 commits; el changelog sale de los títulos de PR.
 
 Antes de terminar un PR pasa `/module-check`, `/security-review` si tocaste

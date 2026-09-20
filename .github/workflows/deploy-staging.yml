@@ -37,7 +37,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: staging
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Staging se despliega desde la rama `staging`, no desde main (ADR-0019).
+    # Sin esta condición, cada promoción a main redesplegaría staging con lo
+    # mismo que ya tiene, y peor: pisaría lo que se esté probando ahí.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.head_branch == 'staging') }}
     steps:
       - uses: actions/checkout@v4
 
