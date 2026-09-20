@@ -123,7 +123,9 @@ jobs:
       # volver a mantener una lista que se desincroniza (pasó con las
       # guardas de esquema, ver arriba). Core corre en ~4 s y no necesita
       # base.
-      - name: Guardas de despliegue (sin caché)
+      # También rutas-frontend.test.ts (#360): cruza web/admin y controllers.
+      # Se ejecuta aquí incluso cuando turbo recupera core desde caché.
+      - name: Guardas de despliegue y rutas (sin caché)
         run: pnpm --filter @iaxti/core exec vitest run
 
 
