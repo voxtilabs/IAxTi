@@ -133,7 +133,7 @@ export function Agenda() {
   return (
     <section className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-extrabold text-ink">Agenda</h1>
+        <h1 className="text-titulo font-extrabold text-ink">Agenda</h1>
         <p className="mt-1 text-sm text-body">Las próximas dos semanas.</p>
       </header>
 

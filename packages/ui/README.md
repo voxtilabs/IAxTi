@@ -2,6 +2,29 @@
 
 Los tokens del sistema Pulso y los componentes que los usan.
 
+## Tipografía y densidad (#297)
+
+La escala vive en el preset; los componentes usan sus nombres y no tamaños
+arbitrarios. Un `h1` con `text-titulo` por vista; subtítulos con `text-seccion`.
+
+| Clase | Uso | Tamaño / interlineado |
+|---|---|---|
+| `text-titulo` | Título de la pantalla, Outfit | 24–32 px / 1.2 |
+| `text-seccion` | Encabezado de sección, Outfit | 18 px / 1.4 |
+| `text-cuerpo` | Prosa y formularios, Inter | 16 px / 1.6 |
+| `text-dato` | Celdas y listas densas, Inter | 14 px / 1.4 |
+| `text-rotulo` | Etiquetas y metadatos, Inter | 12 px / 1.4 |
+
+El tamaño no cambia la familia: montos, RUT, fechas, teléfonos e identificadores
+agregan `font-mono`; nombres, estados y explicaciones conservan Inter. La clase
+histórica `dato` ya selecciona mono, mientras `text-dato` solo define el tamaño.
+
+`data-densidad="comoda"` es el valor predeterminado para formularios y ajustes;
+`data-densidad="densa"` se aplica a bandeja y listas del CRM. Las filas usan
+`px-fila-x py-fila-y gap-fila-gap`; cómodo = 16/14/12 px y denso = 12/8/8 px.
+Los botones y enlaces de fila conservan `min-h-control` (46 px) para poder
+operarlos en celular. La densidad no reduce los controles de los formularios.
+
 ## Pulso son tokens; shadcn son componentes
 
 No compiten: **shadcn lee variables CSS y Pulso es un archivo de variables

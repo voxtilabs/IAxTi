@@ -171,7 +171,7 @@ export function PreferenciasAvisos() {
   return (
     <div className="max-w-xl">
       <p className="rotulo">Notificaciones</p>
-      <h1 className="mt-1 font-display text-xl font-bold text-ink">Qué avisos recibes</h1>
+      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Qué avisos recibes</h1>
       <p className="mt-1 text-sm text-body">Elige por tipo y por canal. El correo llega cuando el negocio tenga su remitente configurado.</p>
 
       {aviso && (

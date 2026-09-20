@@ -31,7 +31,7 @@ export function Auditoria() {
   return (
     <div>
       <p className="rotulo">Auditoría</p>
-      <h1 className="mt-1 font-display text-xl font-bold text-ink">El libro de tu cuenta</h1>
+      <h1 className="mt-1 font-display text-titulo font-bold text-ink">El libro de tu cuenta</h1>
       <p className="mb-4 mt-2 max-w-2xl text-sm text-muted">
         Cada acción queda encadenada por hash con la anterior: si alguien tocara una entrada, la
         verificación lo diría. Puedes revisarlo cuando quieras y llevarte el libro firmado.

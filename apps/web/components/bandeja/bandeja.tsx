@@ -172,13 +172,14 @@ export function Bandeja() {
       {/* Panel 1 · Lista (--bg-raised) */}
       <section
         aria-label="Conversaciones"
+        data-densidad="densa"
         className={cn(
           'w-full shrink-0 flex-col overflow-y-auto border-r border-line bg-raised md:flex md:w-80',
           pane === 'lista' ? 'flex' : 'hidden',
         )}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-raised p-4">
-          <h1 className="font-display text-lg font-bold text-ink">Bandeja</h1>
+          <h1 className="font-display text-titulo font-bold text-ink">Bandeja</h1>
           <Tabs value={vista} onValueChange={(v) => setVista(v as Vista)} className="mt-3">
             <TabsList className="w-full">
               <TabsTrigger value="todas" className="flex-1">Todas</TabsTrigger>
@@ -255,13 +256,13 @@ export function Bandeja() {
                   type="button"
                   onClick={() => { setSeleccion(c.id); setPane('chat'); }}
                   className={cn(
-                    'flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left transition-colors hover:bg-rest',
+                    'flex w-full items-center min-h-control gap-fila-gap border-b border-line px-fila-x py-fila-y text-dato text-left transition-colors hover:bg-rest',
                     seleccion === c.id && 'bg-rest',
                   )}
                 >
-                  <Avatar nombre={c.contactName} fallback={c.contactPhone ?? nombreCanal(c.channel)} />
+                  <Avatar size="chico" nombre={c.contactName} fallback={c.contactPhone ?? nombreCanal(c.channel)} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-ink">
+                    <span className="block truncate text-dato font-medium text-ink">
                       {nombreVisible({
                         name: c.contactName,
                         phone: c.contactPhone,
@@ -269,7 +270,7 @@ export function Bandeja() {
                         identity: c.contactIdentity,
                       })}
                     </span>
-                    <span className="dato flex items-center gap-1 text-muted">
+                    <span className="flex items-center gap-1 font-mono text-rotulo text-muted">
                       {/* De dónde viene el mensaje: con tres canales, saberlo
                           antes de abrir cambia cómo se responde. */}
                       <CanalChip canal={c.channel} soloIcono />
@@ -279,7 +280,7 @@ export function Bandeja() {
                   <span className="flex flex-col items-end gap-1">
                     <Badge role={ESTADOS[c.state].role}>{ESTADOS[c.state].label}</Badge>
                     {c.unansweredSeconds !== null && (
-                      <span className="dato flex items-center gap-1 text-warn-text">
+                      <span className="flex items-center gap-1 font-mono text-rotulo text-warn-text">
                         <IconoReloj className="h-3 w-3" />
                         {fmtEspera(c.unansweredSeconds)}
                       </span>

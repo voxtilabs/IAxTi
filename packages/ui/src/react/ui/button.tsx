@@ -15,7 +15,7 @@ const VARIANTES: Record<ButtonVariant, string> = {
 };
 
 const TAMANOS: Record<ButtonSize, string> = {
-  normal: 'h-control px-6 text-[15px]',
+  normal: 'h-control px-6 text-cuerpo',
   chico: 'h-9 px-4 text-sm',
   icono: 'h-9 w-9 p-0',
 };

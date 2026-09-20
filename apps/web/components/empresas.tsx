@@ -107,7 +107,7 @@ export function Empresas() {
   return (
     <section className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-extrabold text-ink">Empresas</h1>
+        <h1 className="text-titulo font-extrabold text-ink">Empresas</h1>
         <p className="mt-1 max-w-2xl text-sm text-body">
           Para cuando quien te compra no es una persona sino una oficina, y hablas con varias
           personas de la misma. Cada contacto puede colgar de una empresa desde su ficha.

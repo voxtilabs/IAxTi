@@ -171,7 +171,7 @@ export function Canales() {
   return (
     <div className="max-w-2xl">
       <p className="rotulo">Canales</p>
-      <h1 className="mt-1 font-display text-xl font-bold text-ink">Tus canales conectados</h1>
+      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Tus canales conectados</h1>
 
       {aviso && (
         <p role="alert" className="mt-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">

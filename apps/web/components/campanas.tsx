@@ -208,7 +208,7 @@ export function Campanas() {
   return (
     <section className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-extrabold text-ink">Campañas</h1>
+        <h1 className="font-display text-titulo text-ink">Campañas</h1>
         <p className="mt-1 max-w-2xl text-sm text-body">
           Una plantilla aprobada a un grupo de tu cartera. Antes de mandar nada ves exactamente a
           cuántas personas le llega y quiénes son.
