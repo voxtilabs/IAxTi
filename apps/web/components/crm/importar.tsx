@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useState } from 'react';
 import { Badge, Button, Textarea, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
@@ -114,15 +116,15 @@ export function Importar() {
       </div>
 
       {aviso && (
-        <p role="alert" className="mt-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
 
       {resultado && (
-        <p role="status" className="mt-4 rounded-campo border border-good-soft-br bg-good-soft px-4 py-3 text-sm text-good-text">
+        <AvisoResultado tono="success">
           Listo: {resultado.created} contactos creados, {resultado.skipped} filas saltadas.
-        </p>
+        </AvisoResultado>
       )}
 
       {preview && (

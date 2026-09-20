@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
+import { createContact, createDeal, createPipeline, createTag } from '@iaxti/module-crm';
 import { receiveInbound } from '@iaxti/module-conversations';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
@@ -87,6 +88,24 @@ async function main() {
       body: 'Hola, ¿me pueden ayudar con una cotización?',
     }),
   );
+  const keyTenant = (await pool.query("INSERT INTO tenants(name) VALUES ('E2E Teclado') RETURNING id")).rows[0].id;
+  const keyInvitation = await withTenant(pool, keyTenant, (c) => createInvitation(c, { tenantId: keyTenant, email: `teclado-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }));
+  await withTenant(pool, keyTenant, (c) => acceptInvitation(c, { token: keyInvitation.token, userId: supervisora }));
+  const keyConversations = [];
+  for (const [i, name] of ['Ana Teclado', 'Beto Teclado'].entries()) {
+    const received = await withTenant(pool, keyTenant, (c) => receiveInbound(c, { tenantId: keyTenant, phone: `+5697300000${i}`, channel: 'simulador', body: `Cotización de ${name}` }));
+    await pool.query('UPDATE contacts SET name = $2 WHERE id = $1', [received.contact.id, name]);
+    keyConversations.push({ conversationId: received.conversation.id, contactId: received.contact.id, name });
+  }
+  const tableTenant = (await pool.query("INSERT INTO tenants(name) VALUES ('E2E Tablas') RETURNING id")).rows[0].id;
+  const tableInvitation = await withTenant(pool, tableTenant, (c) => createInvitation(c, { tenantId: tableTenant, email: `tablas-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'ADMIN' }));
+  await withTenant(pool, tableTenant, (c) => acceptInvitation(c, { token: tableInvitation.token, userId: supervisora }));
+  const pipe = await withTenant(pool, tableTenant, (c) => createPipeline(c, { tenantId: tableTenant, name: 'Ventas de prueba', stages: [{ name: 'Nuevo', type: 'open' }, { name: 'Ganado', type: 'won' }, { name: 'Perdido', type: 'lost' }] }));
+  const tableTag = await withTenant(pool, tableTenant, (c) => createTag(c, { tenantId: tableTenant, name: 'Seguimiento' }));
+  for (let i = 1; i <= 30; i++) {
+    const persona = await withTenant(pool, tableTenant, (c) => createContact(c, { tenantId: tableTenant, phone: `+56972${String(i).padStart(6, '0')}`, name: `Persona ${String(i).padStart(2, '0')}` }));
+    await withTenant(pool, tableTenant, (c) => createDeal(c, { tenantId: tableTenant, contactId: persona.id, pipelineId: pipe.pipeline.id, title: `Venta ${String(i).padStart(2, '0')}`, value: i * 1000 }));
+  }
   // Campañas (#348): negocio y datos sintéticos separados de la bandeja.
   // No se levanta workers: ningún mensaje de este ensayo sale a un proveedor.
   const campaignTenantId = (await pool.query("INSERT INTO tenants (name, plan) VALUES ('E2E Campañas', 'crece') RETURNING id")).rows[0].id;
@@ -115,6 +134,10 @@ async function main() {
       accessToken,
       userId: supervisora,
       tenantId: tenant,
+      keyTenantId: keyTenant,
+      keyConversations,
+      tableTenantId: tableTenant,
+      tableTagId: tableTag.id,
       campaignTenantId,
       conversationId: conversation.id,
       webUrl: `http://127.0.0.1:${WEB_PORT}`,
@@ -161,7 +184,7 @@ async function main() {
     // "procesados" para no contaminar los tests del despachador de outbox.
     const cierre = createPool(DATABASE_URL);
     cierre
-      .query('UPDATE outbox SET processed_at = now() WHERE tenant_id = ANY($1::uuid[]) AND processed_at IS NULL', [[tenant, campaignTenantId]])
+      .query('UPDATE outbox SET processed_at = now() WHERE tenant_id = ANY($1::uuid[]) AND processed_at IS NULL', [[tenant, keyTenant, tableTenant, campaignTenantId]])
       .catch(() => {})
       .finally(() => {
         void cierre.end().finally(() => limpiar(code ?? 1));

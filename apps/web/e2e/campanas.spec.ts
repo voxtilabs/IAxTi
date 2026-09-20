@@ -58,7 +58,7 @@ test('si la calidad cae mientras se revisa, vuelve a comprobarla y frena el env�
   await page.route('**/v1/channels', (route) => route.fulfill({ json: [{ id: 'w', kind: 'whatsapp', state: 'active', numbers: [{ id: 'n', displayPhone: '+56980001111', quality: 'red' }] }] }));
   await page.getByRole('button', { name: 'Enviar campaña', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Enviar campaña', exact: true })).toBeDisabled();
-  await expect(page.getByRole('main').getByRole('alert')).toContainText('rojo');
+  await expect(page.locator('[data-sonner-toast]')).toContainText('rojo');
   expect(envios).toBe(0);
 });
 

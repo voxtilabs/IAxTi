@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Avisos } from '@iaxti/ui/react';
 import { MODE_INIT_SCRIPT } from '@iaxti/ui';
 import '@iaxti/ui/pulso-tokens.css';
 // El puente entre shadcn y Pulso (#291). Existía desde entonces y no lo
@@ -36,7 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>{children}<Avisos /></body>
     </html>
   );
 }

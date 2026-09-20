@@ -105,6 +105,31 @@ beforeAll(async () => {
   base = await app.getUrl();
 });
 
+it('listas: un cursor inválido responde 400 y el orden viaja a la API', async () => {
+  for (const path of ['/contacts?cursor=invalido', '/deals?cursor=invalido', '/contacts?sort=desconocido', '/deals?order=desconocido']) {
+    const response = await pedir(path);
+    expect(response.status).toBe(400);
+    expect((await response.json()).code).toBe('INVALID_LIST_QUERY');
+  }
+  const response = await pedir('/contacts?sort=name&order=asc&limit=1');
+  expect(response.status).toBe(200);
+  expect((await response.json()).nextCursor).toBeTruthy();
+});
+
+it('etiquetar en lote exige permiso y conserva el tenant y la idempotencia', async () => {
+  const tag = (await admin.query("INSERT INTO tags(tenant_id,name) VALUES ($1,'Revisión de tabla') RETURNING id", [tenant])).rows[0].id;
+  const body = JSON.stringify({ contactIds: [contacto], tagId: tag });
+  const denied = await fetch(`${base}/v1/tags/contactos/agregar`, { method: 'POST', headers: { 'X-Api-Key': 'test-read-only-key', 'Content-Type': 'application/json' }, body });
+  expect(denied.status).toBe(403);
+  const first = await pedir('/tags/contactos/agregar', { method: 'POST', body });
+  expect(first.status).toBe(201);
+  expect((await first.json()).changed).toBe(1);
+  const again = await pedir('/tags/contactos/agregar', { method: 'POST', body });
+  expect((await again.json()).changed).toBe(0);
+  const foreign = await pedir('/tags/contactos/agregar', { method: 'POST', body: JSON.stringify({ contactIds: [contactoAjeno], tagId: tag }) });
+  expect(foreign.status).toBe(400);
+});
+
 afterAll(async () => {
   await app.close();
   await admin.query('DELETE FROM activities WHERE tenant_id = $1', [tenant]);
@@ -112,6 +137,8 @@ afterAll(async () => {
   await admin.query('DELETE FROM conversations WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM deal_stage_history WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM deals WHERE tenant_id = $1', [tenant]);
+  await admin.query('DELETE FROM contact_tags WHERE tenant_id = $1', [tenant]);
+  await admin.query('DELETE FROM tags WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM contacts WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM user_roles WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM invitations WHERE tenant_id = $1', [tenant]);
