@@ -173,6 +173,7 @@ export interface PipelineDto {
 
 export interface DealCardDto {
   id: string;
+  createdAt: string;
   title: string;
   status: 'open' | 'won' | 'lost';
   stageId: string;
