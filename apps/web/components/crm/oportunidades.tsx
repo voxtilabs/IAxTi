@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
   DataTable,
@@ -258,9 +260,9 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
       </div>
 
       {aviso && (
-        <p role="alert" className="mt-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
 
       {vista === 'tablero' && pipeline.stages.every((s) => columnas[s.id] && !columnas[s.id].cargando && columnas[s.id].items.length === 0) ? (

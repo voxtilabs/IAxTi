@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button, IconoEnviar, Input, Textarea, cn } from '@iaxti/ui/react';
 
@@ -186,9 +188,9 @@ export function WebchatChat({
           </div>
         )}
         {aviso && (
-          <p role="alert" className="mt-3 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-xs text-warn-text">
+          <AvisoResultado>
             {aviso}
-          </p>
+          </AvisoResultado>
         )}
         <div ref={finRef} />
       </div>

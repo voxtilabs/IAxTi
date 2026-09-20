@@ -1,7 +1,10 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Button, Dialog, DialogContent, DialogTitle, DialogDescription, toast,
   Avatar,
   EstadoVacio,
   Badge,
@@ -17,7 +20,8 @@ import {
   nombreCanal,
   nombreVisible,
 } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
+import { estaEscribiendo } from '../../lib/teclado';
+import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
   type BusquedaHit,
@@ -42,8 +46,18 @@ type Vista = 'todas' | 'mi_cola' | 'sin_responder';
 type Pane = 'lista' | 'chat' | 'ficha';
 
 export function Bandeja() {
+  const tenant = useSelectedTenant();
+  const negocioDeEntrada = useRef<string | null>(null);
+  if (tenant && !negocioDeEntrada.current) negocioDeEntrada.current = tenant;
+  return tenant ? <BandejaDelNegocio key={tenant} tenant={tenant} abrirDesdeUrl={tenant === negocioDeEntrada.current} />
+    : <p className="p-8 text-muted">Elige un negocio en el selector para ver su bandeja.</p>;
+}
+
+function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDesdeUrl: boolean }) {
   const { supabase, session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const ayudaTrigger = useRef<HTMLButtonElement>(null);
+  const [ayuda, setAyuda] = useState(false);
+  const atajoEnCurso = useRef(false);
   const [vista, setVista] = useState<Vista>('todas');
   const [items, setItems] = useState<ConversacionItem[] | null>(null);
   const [seleccion, setSeleccion] = useState<string | null>(null);
@@ -60,13 +74,11 @@ export function Bandeja() {
   const seleccionRef = useRef<string | null>(null);
   seleccionRef.current = seleccion;
 
-  // El tenant del selector del shell (localStorage) — mismo mecanismo.
   useEffect(() => {
-    setTenant(selectedTenant());
-    const onStorage = () => setTenant(selectedTenant());
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+    if (!abrirDesdeUrl) return;
+    const id = new URLSearchParams(window.location.search).get('conversationId');
+    if (id && /^[0-9a-f-]{36}$/i.test(id)) { setSeleccion(id); setPane('chat'); }
+  }, [abrirDesdeUrl]);
 
   const cargarLista = useCallback(async () => {
     if (!session || !tenant) return;
@@ -93,6 +105,7 @@ export function Bandeja() {
           apiFetch<SugerenciaDto | null>(config, session, tenant, `/conversations/${id}/suggestion`).catch(() => null),
           apiFetch<AnalisisDto>(config, session, tenant, `/conversations/${id}/analisis`).catch(() => null),
         ]);
+        if (seleccionRef.current !== id) return;
         setDetalle(d);
         setMensajes(m);
         setNotas(n);
@@ -114,7 +127,7 @@ export function Bandeja() {
       .catch(() => setAtajos([]));
   }, [config, session, tenant]);
   useEffect(() => {
-    if (seleccion) void cargarConversacion(seleccion);
+    if (seleccion) { setDetalle(null); setMensajes(null); void cargarConversacion(seleccion); }
   }, [seleccion, cargarConversacion]);
 
   // Realtime por broadcast (SPEC §40): canal privado del tenant; cualquier
@@ -144,6 +157,7 @@ export function Bandeja() {
         body: JSON.stringify(body),
       });
       await Promise.all([cargarConversacion(seleccion), cargarLista()]);
+      toast.success(path === '/state' && (body as { state?: string }).state === 'resolved' ? 'Conversación resuelta' : 'Conversación actualizada');
     } catch (err) {
       setAviso((err as Error).message);
     }
@@ -162,6 +176,24 @@ export function Bandeja() {
     }
   }
 
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey || estaEscribiendo(event.target) || document.querySelector('[role="dialog"][data-state="open"], [role="menu"][data-state="open"]')) return;
+      if (event.key === '?') { event.preventDefault(); setAyuda(true); return; }
+      if ((event.key === 'j' || event.key === 'k') && items?.length) {
+        event.preventDefault();
+        const current = items.findIndex((c) => c.id === seleccion);
+        const next = current < 0 ? (event.key === 'j' ? 0 : items.length - 1) : Math.max(0, Math.min(items.length - 1, current + (event.key === 'j' ? 1 : -1)));
+        setSeleccion(items[next].id); setPane('chat');
+      } else if (event.key === 'e' && seleccion && detalle?.id === seleccion && detalle.state !== 'resolved' && !atajoEnCurso.current) {
+        event.preventDefault(); atajoEnCurso.current = true;
+        void accion('/state', { state: 'resolved' }).finally(() => { atajoEnCurso.current = false; });
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
+
   if (!tenant) {
     return <p className="p-8 text-muted">Elige un negocio en el selector para ver su bandeja.</p>;
   }
@@ -170,6 +202,16 @@ export function Bandeja() {
 
   return (
     <div className="flex h-[calc(100vh-73px)] overflow-hidden">
+      <Dialog open={ayuda} onOpenChange={setAyuda}><DialogContent onCloseAutoFocus={(e) => { e.preventDefault(); ayudaTrigger.current?.focus(); }}>
+        <DialogTitle>Atajos de la bandeja</DialogTitle>
+        <DialogDescription>Funcionan cuando no estás escribiendo en un campo.</DialogDescription>
+        <dl className="mt-4 grid grid-cols-2 gap-3 text-dato">
+          <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Siguiente / anterior conversación</dd>
+          <dt><kbd>e</kbd></dt><dd>Resolver la conversación abierta</dd>
+          <dt><kbd>?</kbd></dt><dd>Mostrar esta ayuda</dd>
+          <dt><kbd>Ctrl+K</kbd> / <kbd>⌘K</kbd></dt><dd>Buscar o ir a una pantalla</dd>
+        </dl>
+      </DialogContent></Dialog>
       {/* Panel 1 · Lista (--bg-raised) */}
       <section
         aria-label="Conversaciones"
@@ -180,7 +222,7 @@ export function Bandeja() {
         )}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-raised p-4">
-          <h1 className="font-display text-titulo font-bold text-ink">Bandeja</h1>
+          <div className="flex items-center justify-between gap-3"><h1 className="font-display text-titulo font-bold text-ink">Bandeja</h1><Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button></div>
           <Tabs value={vista} onValueChange={(v) => setVista(v as Vista)} className="mt-3">
             <TabsList className="w-full">
               <TabsTrigger value="todas" className="flex-1">Todas</TabsTrigger>
@@ -239,9 +281,9 @@ export function Bandeja() {
           </div>
         )}
         {aviso && !detalle && (
-          <p role="alert" className="m-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-2 text-sm text-warn-text">
+          <AvisoResultado>
             {aviso}
-          </p>
+          </AvisoResultado>
         )}
         {items === null ? (
           <div className="flex flex-col gap-3 p-4">

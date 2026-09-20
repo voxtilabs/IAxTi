@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from './ui/avisos';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -182,12 +184,9 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
         )}
 
         {aviso && (
-          <p
-            role="alert"
-            className="mt-3 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text"
-          >
+          <AvisoResultado>
             {aviso}
-          </p>
+          </AvisoResultado>
         )}
       </div>
 

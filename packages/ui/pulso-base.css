@@ -54,12 +54,25 @@ a { color: var(--action-text); }
   outline-offset: 2px;
 }
 
+/* #300: entradas/salidas breves; animaciones sin mover el centro de los diálogos. */
+@keyframes pulso-aparece { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
+@keyframes pulso-desaparece { from { opacity: 1; } to { opacity: 0; } }
+.pulso-entrada, [role="dialog"][data-state="open"], [role="menu"][data-state="open"] {
+  animation: pulso-aparece 150ms ease-out;
+}
+[role="dialog"][data-state="closed"], [role="menu"][data-state="closed"] { animation: pulso-desaparece 150ms ease-in; }
+[data-sonner-toast] { transition-duration: 150ms !important; box-shadow: none !important; }
+[data-sonner-toaster] { font-family: inherit; }
+[data-sonner-toast] [data-close-button] { position: static; transform: none; flex-shrink: 0; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
+  [data-sonner-toast] { transition: none !important; }
 }
 
 /* Marca (§11): el lockup inline lee los tokens y cambia de modo solo. */

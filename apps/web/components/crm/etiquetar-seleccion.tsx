@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Button, useSession } from '@iaxti/ui/react';
 import { crmClient } from '@iaxti/sdk';
 
 export function EtiquetarSeleccion({ tenant, contactIds, onDone }: { tenant: string; contactIds: string[]; onDone: () => void }) {
@@ -12,15 +12,17 @@ export function EtiquetarSeleccion({ tenant, contactIds, onDone }: { tenant: str
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [tono, setTono] = useState<'success' | 'error'>('error');
   useEffect(() => { if (client) void client.tags().then(setTags).catch((e: Error) => setNotice(e.message)); }, [client]);
   async function agregar() {
     if (!client || !tag || !contactIds.length || lock.current) return;
     lock.current = true; setBusy(true); setNotice(null);
     try {
       const result = await client.tag([...new Set(contactIds)], tag);
+      setTono('success');
       setNotice(`Etiqueta agregada a ${result.changed} contactos; ${result.requested - result.changed} ya la tenían.`);
       onDone();
-    } catch (e) { setNotice((e as Error).message); }
+    } catch (e) { setTono('error'); setNotice((e as Error).message); }
     finally { lock.current = false; setBusy(false); }
   }
   return <div className="space-y-2">
@@ -33,6 +35,6 @@ export function EtiquetarSeleccion({ tenant, contactIds, onDone }: { tenant: str
       <Button variant="secundario" disabled={!tag || busy} onClick={() => void agregar()}>{busy ? 'Agregando…' : 'Agregar etiqueta'}</Button>
       <p className="text-dato text-muted">Se conservan las etiquetas actuales de cada contacto.</p>
     </div>}
-    {notice && <p role="status" className="text-dato text-body">{notice}</p>}
+    {notice && <AvisoResultado tono={tono}>{notice}</AvisoResultado>}
   </div>;
 }
