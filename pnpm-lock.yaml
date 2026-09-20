@@ -367,6 +367,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@iaxti/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@iaxti/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry

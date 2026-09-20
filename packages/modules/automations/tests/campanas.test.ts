@@ -91,6 +91,23 @@ const deps = (calidad: 'verde' | 'amarillo' | 'rojo' = 'verde') => ({
 });
 
 describe('el segmento', () => {
+  it('el borrador y el envío se auditan en sus transacciones (#348)', async () => {
+    const campana = await en((c) => crearCampana(c, {
+      tenantId: tenant, name: 'Auditoría transaccional', templateId: plantilla,
+      filtros: { origen: 'sin-destinatarios-en-este-ensayo' },
+    }));
+    const audit = () => admin.query('SELECT action FROM audit_log WHERE tenant_id = $1 AND resource_id = $2 ORDER BY id', [tenant, campana.id]);
+    expect((await audit()).rows).toEqual([{ action: 'campaign.created' }]);
+    await expect(en(async (c) => {
+      await enviarCampana(c, { tenantId: tenant, campaignId: campana.id }, deps());
+      throw new Error('rollback deliberado');
+    })).rejects.toThrow('rollback deliberado');
+    expect((await audit()).rows).toEqual([{ action: 'campaign.created' }]);
+    expect((await admin.query('SELECT status FROM campaigns WHERE id = $1', [campana.id])).rows[0].status).toBe('draft');
+    await en((c) => enviarCampana(c, { tenantId: tenant, campaignId: campana.id }, deps()));
+    expect((await audit()).rows).toEqual([{ action: 'campaign.created' }, { action: 'campaign.sent' }]);
+  });
+
   it('cuenta y muestra a quién le llegaría, con la MISMA consulta del envío', async () => {
     const vista = await en((c) =>
       previsualizarSegmento(c, {
