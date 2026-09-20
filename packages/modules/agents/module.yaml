@@ -24,7 +24,7 @@ events:
   consumes: []
 tools: []
 nav:
-  - { label: IA, path: /ajustes/ia, permission: agents.use }
+  - { label: IA, path: /ajustes/ia, permission: agents.use, grupo: Configuración }
 widgets: []
 plan_min: base
 flag: module.agents
