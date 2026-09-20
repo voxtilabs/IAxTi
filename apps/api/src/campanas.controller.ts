@@ -119,6 +119,8 @@ export class CampanasController {
             filtros: body?.filtros ?? {},
             valores: body?.valores,
             actor: actor.userId,
+            actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+            requestId: request.requestId,
           },
           {
             variablesDePlantilla: async (templateId) =>
@@ -163,7 +165,7 @@ export class CampanasController {
       const res = await withTenant(pool(), actor.tenantId, async (c) =>
         enviarCampana(
           c,
-          { tenantId: actor.tenantId, campaignId: id, actor: actor.userId, requestId },
+          { tenantId: actor.tenantId, campaignId: id, actor: actor.userId, actorKind: actor.kind === 'apikey' ? 'apikey' : 'user', requestId },
           {
             calidadDelNumero: async () =>
               (await numeroEnRojo(c, actor.tenantId)) ? 'rojo' : 'verde',
