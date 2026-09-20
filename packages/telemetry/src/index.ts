@@ -19,8 +19,11 @@ export function initObservability(serviceName: string): void {
       dsn: process.env.SENTRY_DSN,
       environment: process.env.IAXTI_ENV ?? 'local',
       serverName: serviceName,
-      // Trazas van por OTel; Sentry queda solo para errores (ADR-0006).
-      tracesSampleRate: 0,
+      // Un solo dueño de los globales. Sin tracesSampleRate, Sentry no
+      // activa sus integraciones de rendimiento (0 también las activaba).
+      // En conjunto, NodeSDK registra el contexto y exporta solo a OTLP.
+      skipOpenTelemetrySetup: Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT),
+      integrations: [Sentry.httpIntegration({ spans: false })],
     });
   }
 
@@ -45,7 +48,19 @@ export function initObservability(serviceName: string): void {
       require('@opentelemetry/auto-instrumentations-node') as typeof import('@opentelemetry/auto-instrumentations-node');
     /* eslint-enable @typescript-eslint/no-require-imports */
 
+    // Sentry conserva aislamiento y propagación; no se agrega su
+    // SpanProcessor, porque las trazas van a Grafana (ADR-0006).
+    const conSentry = Boolean(process.env.SENTRY_DSN);
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const sentryOtel = conSentry ? require('@sentry/opentelemetry') as typeof import('@sentry/opentelemetry') : null;
+    const sampler = conSentry ? (require('./sampler-sentry') as typeof import('./sampler-sentry')).samplerConSentry() : undefined;
+    /* eslint-enable @typescript-eslint/no-require-imports */
     const sdk = new NodeSDK({
+      ...(sentryOtel ? {
+        contextManager: new Sentry.SentryContextManager(),
+        textMapPropagator: new sentryOtel.SentryPropagator(),
+        sampler,
+      } : {}),
       instrumentations: [
         getNodeAutoInstrumentations({
           // El fs genera ruido enorme y ningún diagnóstico útil aquí.
