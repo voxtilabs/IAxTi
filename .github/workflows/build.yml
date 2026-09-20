@@ -4,7 +4,11 @@ name: build
 
 on:
   push:
-    branches: [main]
+    # `staging` es de donde sale lo que corre en staging. `main` sigue
+    # construyendo porque release.yml promueve la imagen del commit EXACTO
+    # que se taguea: si la promoción dejara un merge commit sin imagen, la
+    # release fallaría el día que importa.
+    branches: [main, staging]
   workflow_dispatch:
 
 jobs:
