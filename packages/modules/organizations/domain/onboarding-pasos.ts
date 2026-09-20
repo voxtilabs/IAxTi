@@ -12,6 +12,17 @@ export interface DefinicionDePaso {
   /** El módulo que resuelve el paso. Si está apagado, el paso no aplica. */
   modulo: string | null;
   /**
+   * Dónde se resuelve, en el producto.
+   *
+   * Va acá y no en una tabla del frontend por el mismo motivo por el que el
+   * `nav` vive en `module.yaml`: el módulo sabe dónde está su cosa, y una
+   * lista paralela en la pantalla se desincroniza sin que nada se queje. La
+   * guarda de `apps/web/tests/` comprueba que la página exista.
+   *
+   * `null` en el paso que no se resuelve en ninguna pantalla.
+   */
+  ruta: string | null;
+  /**
    * Un paso opcional no impide terminar. El negocio que no tiene equipo ni
    * catálogo igual puede vender: obligarlo a inventarse un paso para sacarse
    * el cartel de "te falta algo" es hacerle perder el tiempo.
@@ -25,6 +36,7 @@ export const PASOS: readonly DefinicionDePaso[] = [
     titulo: 'Crea tu cuenta',
     ayuda: 'Listo: ya tienes cuenta.',
     modulo: null,
+    ruta: null,
     opcional: false,
   },
   {
@@ -32,6 +44,7 @@ export const PASOS: readonly DefinicionDePaso[] = [
     titulo: 'Cuéntanos de tu negocio',
     ayuda: 'Describe a qué te dedicas y te armamos el embudo, las respuestas rápidas y las plantillas.',
     modulo: 'crm',
+    ruta: '/ajustes/ia',
     opcional: false,
   },
   {
@@ -39,6 +52,7 @@ export const PASOS: readonly DefinicionDePaso[] = [
     titulo: 'Conecta tu WhatsApp',
     ayuda: 'Conecta el número con el que ya te escriben tus clientes.',
     modulo: 'whatsapp',
+    ruta: '/ajustes/canales',
     opcional: false,
   },
   {
@@ -46,6 +60,7 @@ export const PASOS: readonly DefinicionDePaso[] = [
     titulo: 'Sube lo que vendes',
     ayuda: 'Tu catálogo o tus precios, para que el asistente no invente nada.',
     modulo: 'knowledge',
+    ruta: '/ajustes/conocimiento',
     opcional: true,
   },
   {
@@ -53,6 +68,7 @@ export const PASOS: readonly DefinicionDePaso[] = [
     titulo: 'Invita a tu equipo',
     ayuda: 'Si atienden entre varios, invítalos y repártanse las conversaciones.',
     modulo: 'identity',
+    ruta: '/ajustes/equipo',
     opcional: true,
   },
   {
@@ -60,6 +76,7 @@ export const PASOS: readonly DefinicionDePaso[] = [
     titulo: 'Recibe tu primer mensaje',
     ayuda: 'Escríbete desde otro teléfono para ver cómo se ve la bandeja.',
     modulo: 'conversations',
+    ruta: '/bandeja',
     opcional: false,
   },
 ];

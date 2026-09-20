@@ -1,4 +1,5 @@
 import { AppShell, type NavItem } from '../components/app-shell';
+import { PuestaEnMarcha } from '../components/puesta-en-marcha';
 import { internalApiUrl, publicConfig } from '../lib/config';
 import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
@@ -19,23 +20,7 @@ export default async function Home() {
   const nav = await navFromApi();
   return (
     <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
-      {/* Estado vacío según Pulso: qué va a aparecer y la acción que lo provoca */}
-      <div className="rounded-tarjeta border border-line bg-raised p-8">
-        <p className="rotulo">Bandeja</p>
-        <h2 className="mt-2 text-xl font-bold text-ink">
-          Aquí van a llegar las conversaciones de tu negocio
-        </h2>
-        <p className="mt-2 max-w-prose text-body">
-          Cuando conectes WhatsApp o actives el chat de tu sitio, cada mensaje aparecerá en la
-          bandeja con su contacto y su historia.
-        </p>
-        <a
-          href="/bandeja"
-          className="mt-6 inline-flex h-control items-center rounded-boton bg-action px-6 font-medium text-white"
-        >
-          Abrir la bandeja
-        </a>
-      </div>
+      <PuestaEnMarcha />
     </AppShell>
   );
 }

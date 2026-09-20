@@ -92,6 +92,12 @@ export interface EstadoDePaso {
   bloqueado: boolean;
   /** De dónde salió `hecho`: lo que hay hoy, o el registro histórico. */
   fuente: 'verificado' | 'historial';
+  /**
+   * Dónde se resuelve, en el producto. Viene del catálogo de pasos: el
+   * módulo declara dónde está su cosa, igual que el `nav` de su manifiesto,
+   * en vez de una tabla paralela en la pantalla que se desincroniza sola.
+   */
+  ruta: string | null;
 }
 
 export interface EstadoOnboarding {
@@ -179,6 +185,7 @@ export async function onboardingStatus(
       detalle,
       bloqueado,
       fuente,
+      ruta: def.ruta,
     });
   }
 
