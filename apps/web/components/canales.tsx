@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
@@ -118,18 +120,18 @@ function ProbarSinNumero() {
       </form>
 
       {estado === 'listo' && (
-        <p className="mt-4 rounded-campo border border-good-soft-br bg-good-soft px-4 py-3 text-sm text-good-text">
+        <AvisoResultado tono="success">
           <span className="font-medium">Entró.</span>{' '}
           <a href="/bandeja" className="underline">
             Míralo en la bandeja
           </a>
           : la sugerencia del copiloto tarda unos segundos en aparecer.
-        </p>
+        </AvisoResultado>
       )}
       {estado === 'error' && (
-        <p role="alert" className="mt-4 rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
+        <AvisoResultado tono="error">
           {detalle}
-        </p>
+        </AvisoResultado>
       )}
     </section>
   );
@@ -174,9 +176,9 @@ export function Canales() {
       <h1 className="mt-1 font-display text-titulo font-bold text-ink">Tus canales conectados</h1>
 
       {aviso && (
-        <p role="alert" className="mt-4 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
 
       {canales === null ? (

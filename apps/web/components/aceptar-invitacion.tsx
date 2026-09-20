@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useEffect, useState } from 'react';
 import { Button, SessionProvider, useSession, type PublicConfig } from '@iaxti/ui/react';
 import { apiFetch } from '../lib/api';
@@ -85,9 +87,9 @@ function Canje({ token }: { token: string }) {
     return (
       <>
         <h1 className="mt-6 text-titulo font-extrabold text-ink">Esta invitación no sirve</h1>
-        <p role="alert" className="mb-6 mt-3 rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
+        <AvisoResultado tono="error">
           {detalle}
-        </p>
+        </AvisoResultado>
         <p className="text-sm text-body">
           Pídele a quien te invitó que te mande una nueva.
         </p>

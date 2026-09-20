@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { Bot } from 'lucide-react';
 
 import { useCallback, useEffect, useState } from 'react';
@@ -173,11 +175,11 @@ export function ModoAutonomo() {
         </label>
       </div>
 
-      {guardado && <p className="mt-3 text-sm text-good-text">Listo, quedó guardado.</p>}
+      {guardado && <AvisoResultado tono="success">Listo, quedó guardado.</AvisoResultado>}
       {aviso && (
-        <p role="alert" className="mt-3 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
     </div>
   );

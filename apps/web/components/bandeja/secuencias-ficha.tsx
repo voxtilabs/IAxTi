@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   Badge,
@@ -152,9 +154,9 @@ export function SecuenciasFicha({
         </div>
       )}
       {aviso && (
-        <p role="alert" className="mt-2 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text">
+        <AvisoResultado>
           {aviso}
-        </p>
+        </AvisoResultado>
       )}
     </div>
   );

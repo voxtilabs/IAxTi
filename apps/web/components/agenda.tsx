@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -138,9 +140,9 @@ export function Agenda() {
       </header>
 
       {error && (
-        <p role="alert" className="rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
+        <AvisoResultado tono="error">
           {error}
-        </p>
+        </AvisoResultado>
       )}
 
       {porDia.size === 0 ? (

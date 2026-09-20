@@ -1,5 +1,7 @@
 'use client';
 
+import { AvisoResultado } from '@iaxti/ui/react';
+
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
@@ -67,9 +69,9 @@ export function AjustesBandeja() {
     return (
       <div className="max-w-xl">
         {aviso ? (
-          <p role="alert" className="rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">
+          <AvisoResultado persistente>
             {aviso.texto}
-          </p>
+          </AvisoResultado>
         ) : (
           <div className="flex flex-col gap-4"><Skeleton className="h-12" /><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
         )}
@@ -205,16 +207,9 @@ export function AjustesBandeja() {
       </div>
 
       {aviso && (
-        <p
-          role="status"
-          className={
-            aviso.tono === 'ok'
-              ? 'mt-6 rounded-campo border border-good-soft-br bg-good-soft px-4 py-3 text-sm text-good-text'
-              : 'mt-6 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text'
-          }
-        >
+        <AvisoResultado tono={aviso.tono === 'ok' ? 'success' : 'warning'}>
           {aviso.texto}
-        </p>
+        </AvisoResultado>
       )}
 
       <div className="mt-8">
