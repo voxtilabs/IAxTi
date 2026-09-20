@@ -97,6 +97,18 @@ async function main() {
     const persona = await withTenant(pool, tableTenant, (c) => createContact(c, { tenantId: tableTenant, phone: `+56972${String(i).padStart(6, '0')}`, name: `Persona ${String(i).padStart(2, '0')}` }));
     await withTenant(pool, tableTenant, (c) => createDeal(c, { tenantId: tableTenant, contactId: persona.id, pipelineId: pipe.pipeline.id, title: `Venta ${String(i).padStart(2, '0')}`, value: i * 1000 }));
   }
+  // Campañas (#348): negocio y datos sintéticos separados de la bandeja.
+  // No se levanta workers: ningún mensaje de este ensayo sale a un proveedor.
+  const campaignTenantId = (await pool.query("INSERT INTO tenants (name, plan) VALUES ('E2E Campañas', 'crece') RETURNING id")).rows[0].id;
+  const adminInv = await withTenant(pool, campaignTenantId, (c) => createInvitation(c, {
+    tenantId: campaignTenantId, email: `admin-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'ADMIN',
+  }));
+  await withTenant(pool, campaignTenantId, (c) => acceptInvitation(c, { token: adminInv.token, userId: supervisora }));
+  const cuenta = (await pool.query("INSERT INTO channel_accounts (tenant_id, kind, name, state) VALUES ($1, 'whatsapp', 'Número sintético', 'active') RETURNING id", [campaignTenantId])).rows[0].id;
+  await pool.query("INSERT INTO whatsapp_numbers (tenant_id, channel_account_id, phone_number_id, display_phone, quality) VALUES ($1, $2, $3, '+56980001111', 'green')", [campaignTenantId, cuenta, `e2e-${randomUUID()}`]);
+  await pool.query("INSERT INTO whatsapp_templates (tenant_id, name, language, category, body, status) VALUES ($1, 'novedades_aprobada', 'es_CL', 'marketing', 'Hola {{1}}, tenemos novedades.', 'approved'), ($1, 'aun_sin_aprobar', 'es_CL', 'marketing', 'Borrador', 'draft')", [campaignTenantId]);
+  const personas = (await pool.query("INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, 'Ana de prueba', '+56980002222', 'whatsapp'), ($1, 'Bruno de prueba', '+56980003333', 'whatsapp'), ($1, 'Sin consentimiento', '+56980004444', 'manual') RETURNING id, name", [campaignTenantId])).rows;
+  await pool.query("INSERT INTO conversations (tenant_id, contact_id, channel, last_inbound_at) VALUES ($1, $2, 'whatsapp', now())", [campaignTenantId, personas.find((p) => p.name === 'Ana de prueba').id]);
   await pool.end();
 
   // 3 · Token de sesión firmado con nuestra llave (mismo camino que Supabase).
