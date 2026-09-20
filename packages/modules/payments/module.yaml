@@ -24,7 +24,7 @@ events:
 tools:
   - payments.create_link
 nav:
-  - { label: Pagos, path: /ajustes/pagos, permission: payments.manage_providers }
+  - { label: Pagos, path: /ajustes/pagos, permission: payments.manage_providers, grupo: Configuración }
 widgets: []
 plan_min: base
 flag: module.payments

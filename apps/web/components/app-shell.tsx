@@ -1,15 +1,55 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   IAXTI_LOCKUP_SVG,
   ModeToggle,
   RequireSession,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
   SessionProvider,
   useSession,
   type PublicConfig,
 } from '@iaxti/ui/react';
-import { Lock } from 'lucide-react';
+import {
+  Bot,
+  Building2,
+  CalendarDays,
+  ChartNoAxesColumn,
+  CreditCard,
+  FileText,
+  Inbox,
+  KeyRound,
+  Lock,
+  LogOut,
+  Megaphone,
+  MessageSquare,
+  Plug,
+  ScrollText,
+  Settings,
+  SlidersHorizontal,
+  Sparkles,
+  Tag,
+  Target,
+  Users,
+  Webhook,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react';
 import { SoporteAviso } from './soporte-aviso';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
@@ -21,6 +61,7 @@ export interface NavItem {
   label: string;
   path: string;
   permission: string;
+  grupo?: string;
 }
 
 interface ShellProps {
@@ -31,6 +72,55 @@ interface ShellProps {
   sinMargen?: boolean;
   children: ReactNode;
 }
+
+/**
+ * El orden de los grupos.
+ *
+ * El `grupo` lo declara cada `module.yaml` —con 23 destinos, una tabla
+ * paralela acá se desincroniza y el destino nuevo aparece suelto abajo sin
+ * que nadie lo note— pero el ORDEN sí es decisión de la interfaz: primero
+ * lo que se hace todos los días, después los datos, y la configuración al
+ * final y plegada.
+ *
+ * Un grupo que llegue sin estar en esta lista se dibuja igual, al final:
+ * quedarse fuera del menú por no haber tocado este archivo sería
+ * exactamente el problema que el `grupo` en el manifiesto viene a evitar.
+ */
+const ORDEN = ['Trabajo', 'Clientes', 'Configuración'];
+const PLEGADOS = new Set(['Configuración']);
+
+/**
+ * Un icono por destino.
+ *
+ * Esto sí es una tabla en el frontend, y a propósito: un icono que falta
+ * no rompe nada —cae en el genérico— mientras que una ruta que falta manda
+ * a un 404. No merece la misma ceremonia.
+ */
+const ICONOS: Record<string, LucideIcon> = {
+  '/bandeja': Inbox,
+  '/agenda': CalendarDays,
+  '/campanas': Megaphone,
+  '/reportes': ChartNoAxesColumn,
+  '/contactos': Users,
+  '/empresas': Building2,
+  '/oportunidades': Target,
+  '/ajustes/bandeja': SlidersHorizontal,
+  '/ajustes/canales': Plug,
+  '/ajustes/plantillas': FileText,
+  '/ajustes/automatizaciones': Workflow,
+  '/ajustes/ia': Bot,
+  '/ajustes/conocimiento': Sparkles,
+  '/ajustes/equipo': Users,
+  '/ajustes/roles': KeyRound,
+  '/ajustes/api': KeyRound,
+  '/ajustes/webhooks': Webhook,
+  '/ajustes/campos': SlidersHorizontal,
+  '/ajustes/etiquetas': Tag,
+  '/ajustes/notificaciones': MessageSquare,
+  '/ajustes/facturacion': CreditCard,
+  '/ajustes/pagos': CreditCard,
+  '/ajustes/auditoria': ScrollText,
+};
 
 /**
  * El menú dice la verdad sobre el plan (issue 215).
@@ -68,90 +158,193 @@ function useModulosConCandado(): Set<string> {
   return candados;
 }
 
-function Navegacion({ nav }: { nav: NavItem[] }) {
-  const candados = useModulosConCandado();
+function Grupo({
+  titulo,
+  items,
+  candados,
+  activa,
+}: {
+  titulo: string;
+  items: NavItem[];
+  candados: Set<string>;
+  activa: string | null;
+}) {
+  // Un grupo plegado que contiene la página actual se abre solo: si no, el
+  // menú no sabría decir dónde estás.
+  const contieneActiva = items.some((i) => i.path === activa);
+  const [abierto, setAbierto] = useState(!PLEGADOS.has(titulo) || contieneActiva);
+  useEffect(() => {
+    if (contieneActiva) setAbierto(true);
+  }, [contieneActiva]);
+
+  const plegable = PLEGADOS.has(titulo);
   return (
-    <nav aria-label="Principal" className="flex flex-wrap items-center gap-4">
-      {nav.map((item) => {
-        const conCandado = candados.has(item.path);
-        return (
-          <a
-            key={item.path}
-            href={item.path}
-            className={conCandado ? 'text-sm text-muted' : 'text-sm text-body'}
-            title={conCandado ? 'Tu plan no incluye esta función: puedes mirar, no cambiar.' : undefined}
+    <SidebarGroup>
+      {plegable ? (
+        <SidebarGroupLabel asChild>
+          <button
+            type="button"
+            aria-expanded={abierto}
+            onClick={() => setAbierto((v) => !v)}
+            className="w-full text-left"
           >
-            {item.label}
-            {conCandado && (
-              <Lock
-                className="ml-1 inline-block size-3.5 align-[-0.15em]"
-                aria-label="incluido en un plan superior"
-              />
-            )}
-          </a>
-        );
-      })}
-    </nav>
+            {titulo} ({items.length})
+          </button>
+        </SidebarGroupLabel>
+      ) : (
+        <SidebarGroupLabel>{titulo}</SidebarGroupLabel>
+      )}
+      {abierto && (
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {items.map((item) => {
+              const conCandado = candados.has(item.path);
+              const Icono = ICONOS[item.path] ?? Settings;
+              return (
+                <SidebarMenuItem key={item.path}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={item.path === activa}
+                    tooltip={
+                      conCandado
+                        ? `${item.label} · tu plan no lo incluye: puedes mirar, no cambiar`
+                        : item.label
+                    }
+                  >
+                    <a href={item.path}>
+                      <Icono />
+                      <span>{item.label}</span>
+                      {conCandado && (
+                        // El candado NO esconde: bajar de plan nunca borra
+                        // (SPEC §6). Va a la derecha del item, con su
+                        // explicación en el tooltip.
+                        <Lock
+                          className="ml-auto size-3.5 shrink-0 text-muted"
+                          aria-label="incluido en un plan superior"
+                        />
+                      )}
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      )}
+    </SidebarGroup>
   );
 }
 
 function CerrarSesion() {
   const { supabase } = useSession();
   return (
-    <button
-      type="button"
-      className="text-sm text-muted"
+    <SidebarMenuButton
       onClick={() => void supabase.auth.signOut().then(() => (window.location.href = '/login'))}
     >
-      Cerrar sesión
-    </button>
+      <LogOut />
+      <span>Cerrar sesión</span>
+    </SidebarMenuButton>
+  );
+}
+
+function Barra({ nav, marcaSvg }: { nav: NavItem[]; marcaSvg: string }) {
+  const candados = useModulosConCandado();
+  const activa = usePathname();
+
+  const grupos = useMemo(() => {
+    const por = new Map<string, NavItem[]>();
+    for (const item of nav) {
+      const g = item.grupo ?? 'Configuración';
+      por.set(g, [...(por.get(g) ?? []), item]);
+    }
+    const conocidos = ORDEN.filter((g) => por.has(g));
+    const resto = [...por.keys()].filter((g) => !ORDEN.includes(g)).sort();
+    return [...conocidos, ...resto].map((g) => [g, por.get(g)!] as const);
+  }, [nav]);
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        {/* Plegada, la barra son 3 rem de iconos: el lockup y el selector
+            no caben y se ocultan en vez de desbordarse. El destino sigue
+            alcanzable desde cada icono. */}
+        <a href="/" className="marca block px-2 py-1 group-data-[collapsible=icon]:hidden"
+           aria-label="IAxTi, inicio"
+           dangerouslySetInnerHTML={{ __html: IAXTI_LOCKUP_SVG }} />
+        {/* Para quien maneja varios negocios esto es lo más importante del
+            menú, y en el encabezado viejo estaba perdido entre otros tres
+            controles. Acá es lo primero. */}
+        <div className="group-data-[collapsible=icon]:hidden">
+          <TenantSwitcher />
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent>
+        {grupos.map(([titulo, items]) => (
+          <Grupo key={titulo} titulo={titulo} items={items} candados={candados} activa={activa} />
+        ))}
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarSeparator />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <CerrarSesion />
+          </SidebarMenuItem>
+        </SidebarMenu>
+        {/* El lockup de VoxTi Labs, discreto: IAxTi es lo que el cliente
+            usa; VoxTi Labs es quien lo hace. Antes vivía en un pie que la
+            bandeja no llevaba —o sea que en la pantalla donde más se está,
+            no aparecía. Acá está siempre. */}
+        <a
+          href="https://voxtilabs.cl"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="VoxTi Labs"
+          className="marca-pie block px-2 py-1 text-muted opacity-70 transition-opacity hover:opacity-100 group-data-[collapsible=icon]:hidden"
+          dangerouslySetInnerHTML={{ __html: marcaSvg }}
+        />
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   );
 }
 
 /**
- * Shell de la app (SPEC §29): encabezado con el lockup inline, navegación
- * armada desde GET /me/modules (un módulo apagado desaparece sin desplegar),
- * selector de negocio y modo día/noche. Funciona a 360 px.
+ * Shell de la app (SPEC §29, #295).
+ *
+ * Antes era una fila de enlaces de texto que a 1280 px ya se doblaba en dos
+ * líneas: la marca, siete destinos, el selector de negocio, la campana, el
+ * modo y "Cerrar sesión", todo al mismo peso. Ahora es una barra lateral
+ * con grupos, estado activo e iconos, y los controles de sesión abajo.
+ *
+ * Lo que NO cambió, porque es la regla: la navegación sale de
+ * `GET /me/modules` y un módulo apagado desaparece sin desplegar (SPEC §26).
+ * El `grupo` de cada destino también viene de ahí.
  */
 export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellProps) {
   return (
     <SessionProvider config={config}>
       <RequireSession>
-        <div className="min-h-screen bg-bg">
-          <SoporteAviso />
-          <header className="border-b border-line bg-raised">
-            <div className="mx-auto flex max-w-contenido flex-wrap items-center gap-4 px-4 py-3">
-              <a href="/" className="marca" aria-label="IAxTi, inicio"
-                 dangerouslySetInnerHTML={{ __html: IAXTI_LOCKUP_SVG }} />
-              <Navegacion nav={nav} />
-              <div className="ml-auto flex flex-wrap items-center gap-3">
-                <TenantSwitcher />
+        {/* La bandeja es a ancho completo y la barra arranca plegada: es la
+            pantalla de tres paneles, y ahí cada píxel de ancho es una
+            columna que se ve. */}
+        <SidebarProvider defaultOpen={!sinMargen}>
+          <Barra nav={nav} marcaSvg={marcaSvg} />
+          <SidebarInset>
+            <SoporteAviso />
+            <header className="flex items-center gap-2 border-b border-line bg-raised px-4 py-3">
+              <SidebarTrigger />
+              <div className="ml-auto flex items-center gap-3">
                 <Campana />
                 <ModeToggle />
-                <CerrarSesion />
               </div>
-            </div>
-          </header>
-          <main className={sinMargen ? '' : 'mx-auto max-w-contenido px-4 py-8'}>{children}</main>
-          {/* El lockup de VoxTi Labs va acá, discreto: IAxTi es lo que el
-              cliente usa; VoxTi Labs es quien lo hace. La regla de marca
-              pide el lockup en SuperAdmin y en el pie de la app, y el pie
-              no existía — al poner IAxTi arriba, VoxTi se habría quedado
-              sin ningún lugar. La bandeja va a pantalla completa y no lo
-              lleva. */}
-          {!sinMargen && (
-            <footer className="mx-auto max-w-contenido px-4 pb-8 pt-4">
-              <a
-                href="https://voxtilabs.cl"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="VoxTi Labs"
-                className="marca-pie inline-block text-muted opacity-70 transition-opacity hover:opacity-100"
-                dangerouslySetInnerHTML={{ __html: marcaSvg }}
-              />
-            </footer>
-          )}
-        </div>
+            </header>
+            <main className={sinMargen ? '' : 'mx-auto w-full max-w-contenido px-4 py-8'}>
+              {children}
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
       </RequireSession>
     </SessionProvider>
   );

@@ -23,7 +23,7 @@ tools: []
 # plantillas aprobadas no se le puede escribir a nadie fuera de la ventana
 # de 24 h, que es la mitad de para qué sirve el producto.
 nav:
-  - { label: Plantillas, path: /ajustes/plantillas, permission: whatsapp.templates.manage }
+  - { label: Plantillas, path: /ajustes/plantillas, permission: whatsapp.templates.manage, grupo: Configuración }
 widgets: []
 plan_min: base
 flag: module.whatsapp

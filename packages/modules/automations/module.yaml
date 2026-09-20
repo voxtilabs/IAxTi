@@ -31,8 +31,8 @@ events:
     - message.received
 tools: []
 nav:
-  - { label: Automatizaciones, path: /ajustes/automatizaciones, permission: automations.manage }
-  - { label: Campañas, path: /campanas, permission: automations.manage }
+  - { label: Automatizaciones, path: /ajustes/automatizaciones, permission: automations.manage, grupo: Configuración }
+  - { label: Campañas, path: /campanas, permission: automations.manage, grupo: Trabajo }
 widgets: []
 plan_min: base
 flag: module.automations

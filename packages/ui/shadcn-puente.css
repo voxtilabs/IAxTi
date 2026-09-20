@@ -76,3 +76,26 @@
      `rounded-boton` explícito, que en Pulso es una píldora. */
   --radius: 14px;
 }
+/* La barra lateral (#295). `npx shadcn add sidebar` dejó acá ocho variables
+   con valores HSL de la paleta slate y un bloque `.dark`. Las dos cosas van
+   contra Pulso: los valores crudos son justo lo que el test de hex prohíbe,
+   y el modo en Pulso se resuelve por `data-mode`, no por una clase. Como
+   todo lo demás de este archivo, quedan como referencias a tokens y el modo
+   lo resuelve el token. */
+:root {
+  /* La barra es superficie elevada: lo que la separa del contenido es el
+     borde, igual que la tarjeta. */
+  --sidebar-background: var(--bg-raised);
+  --sidebar-foreground: var(--text-body);
+
+  /* El destino activo. El azul pleno se reserva para el botón primario de
+     la vista: si el item activo también fuera pleno, competirían y ninguno
+     de los dos sería "lo que hay que hacer ahora". */
+  --sidebar-primary: var(--action);
+  --sidebar-primary-foreground: white;
+  --sidebar-accent: var(--action-soft);
+  --sidebar-accent-foreground: var(--action-text);
+
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--action);
+}

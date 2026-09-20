@@ -21,7 +21,7 @@ tools:
   - knowledge.search
   - knowledge.get_product
 nav:
-  - { label: Conocimiento, path: /ajustes/conocimiento, permission: knowledge.manage }
+  - { label: Conocimiento, path: /ajustes/conocimiento, permission: knowledge.manage, grupo: Configuración }
 widgets: []
 plan_min: base
 flag: module.knowledge
