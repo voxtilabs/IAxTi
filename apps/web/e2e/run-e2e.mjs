@@ -115,6 +115,7 @@ async function main() {
       tenantId: tenant,
       tableTenantId: tableTenant,
       tableTagId: tableTag.id,
+      campaignTenantId,
       conversationId: conversation.id,
       webUrl: `http://127.0.0.1:${WEB_PORT}`,
     }),
@@ -160,7 +161,7 @@ async function main() {
     // "procesados" para no contaminar los tests del despachador de outbox.
     const cierre = createPool(DATABASE_URL);
     cierre
-      .query('UPDATE outbox SET processed_at = now() WHERE tenant_id = ANY($1::uuid[]) AND processed_at IS NULL', [[tenant, tableTenant]])
+      .query('UPDATE outbox SET processed_at = now() WHERE tenant_id = ANY($1::uuid[]) AND processed_at IS NULL', [[tenant, tableTenant, campaignTenantId]])
       .catch(() => {})
       .finally(() => {
         void cierre.end().finally(() => limpiar(code ?? 1));
