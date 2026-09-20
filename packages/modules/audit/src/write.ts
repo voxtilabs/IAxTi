@@ -43,13 +43,19 @@ function chainHash(prevHash: string | null, entry: AuditEntry, occurredAt: strin
 export async function writeAudit(client: PoolClient, entry: AuditEntry): Promise<void> {
   await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`audit:${entry.tenantId}`]);
 
-  const prev = await client.query<{ hash: string }>(
-    'SELECT hash FROM audit_log WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1',
-    [entry.tenantId],
+  // jsonb reordena claves (también anidadas). Hashear el objeto original
+  // hacía que verifyChain denunciara cambios tras una escritura legítima.
+  // Normalizamos con el mismo motor/tipo que almacena, en la consulta que
+  // ya buscaba el hash anterior: sin cambiar el formato ni sumar un viaje.
+  const prev = await client.query<{ hash: string | null; metadata: Record<string, unknown> }>(
+    `SELECT (SELECT hash FROM audit_log WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1) AS hash,
+            $2::jsonb AS metadata`,
+    [entry.tenantId, JSON.stringify(entry.metadata ?? {})],
   );
-  const prevHash = prev.rows[0]?.hash ?? null;
+  const prevHash = prev.rows[0].hash;
+  const metadata = prev.rows[0].metadata;
   const occurredAt = new Date().toISOString();
-  const hash = chainHash(prevHash, entry, occurredAt);
+  const hash = chainHash(prevHash, { ...entry, metadata }, occurredAt);
 
   await client.query(
     `INSERT INTO audit_log
@@ -68,7 +74,7 @@ export async function writeAudit(client: PoolClient, entry: AuditEntry): Promise
       entry.userAgent ?? null,
       entry.result,
       entry.requestId ?? null,
-      JSON.stringify(entry.metadata ?? {}),
+      JSON.stringify(metadata),
       prevHash,
       hash,
     ],
