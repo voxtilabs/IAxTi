@@ -1,4 +1,5 @@
 export { SessionProvider, RequireSession, useSession } from './session';
+export { EstadoVacio } from './estado-vacio';
 export type { PublicConfig } from './session';
 export { LoginCard } from './login-card';
 export type { LoginCardProps } from './login-card';

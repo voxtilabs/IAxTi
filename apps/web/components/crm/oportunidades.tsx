@@ -7,6 +7,7 @@ import {
   type SortingState,
   type RowSelectionState,
   Badge,
+  EstadoVacio,
   Button,
   Dialog,
   DialogContent,
@@ -226,13 +227,9 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   }
   if (!pipeline) {
     return (
-      <div className="rounded-tarjeta border border-line bg-raised p-8">
-        <p className="rotulo">Oportunidades</p>
-        <h2 className="mt-2 text-xl font-bold text-ink">Todavía no hay un pipeline</h2>
-        <p className="mt-2 max-w-prose text-body">
-          El pipeline con sus etapas se crea al configurar el negocio; ahí este tablero cobra vida.
-        </p>
-      </div>
+      <EstadoVacio titulo="Prepara las etapas de tus ventas"
+        descripcion="Aquí verás tus oportunidades, ordenadas por etapa. Configura el negocio para crear el primer embudo."
+        accion={{ etiqueta: 'Configurar mi negocio', href: '/ajustes/ia' }} />
     );
   }
 
@@ -266,7 +263,11 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
         </p>
       )}
 
-      {vista === 'tablero' ? (
+      {vista === 'tablero' && pipeline.stages.every((s) => columnas[s.id] && !columnas[s.id].cargando && columnas[s.id].items.length === 0) ? (
+        <EstadoVacio className="mt-6" titulo="Sin oportunidades abiertas"
+          descripcion="Aquí verás cada venta en su etapa. Desde una conversación puedes crear la primera oportunidad y seguirla en este embudo."
+          accion={{ etiqueta: 'Ir a una conversación', href: '/bandeja' }} />
+      ) : vista === 'tablero' ? (
         /* Columnas deslizables: al Kanban se entra desde 360 px (§29). */
         <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
           {pipeline.stages.map((stage) => {
@@ -415,7 +416,10 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
             onPrevious={() => { setListaActual(historialLista.at(-1)); setHistorialLista((h) => h.slice(0, -1)); setSelection({}); }}>
             <EtiquetarSeleccion tenant={tenant} contactIds={lista.filter((d) => selection[d.id]).map((d) => d.contactId)} onDone={() => setSelection({})} />
           </DataTable>
-          {lista.length === 0 && <p className="mt-4 text-sm text-muted">Nada con esos filtros.</p>}
+          {lista.length === 0 && <EstadoVacio className="mt-4"
+            titulo={Object.values(filtros).some(Boolean) ? 'Ninguna oportunidad coincide' : 'Sin oportunidades abiertas'}
+            descripcion={Object.values(filtros).some(Boolean) ? 'Quita los filtros para volver a ver las oportunidades del embudo.' : 'Crea una oportunidad desde una conversación para seguir la venta por sus etapas.'}
+            accion={Object.values(filtros).some(Boolean) ? { etiqueta: 'Limpiar filtros', onClick: () => { setFiltros({}); primeraLista(); } } : { etiqueta: 'Ir a una conversación', href: '/bandeja' }} />}
 
         </div>
       )}

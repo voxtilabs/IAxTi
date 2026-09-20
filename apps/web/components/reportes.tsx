@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Skeleton, Tabs, TabsList, TabsTrigger, useSession } from '@iaxti/ui/react';
+import { Badge, EstadoVacio, Skeleton, Tabs, TabsList, TabsTrigger, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
 
@@ -124,7 +124,9 @@ export function Reportes() {
           <Badge role="neutral">últimos {dias} días</Badge>
         </div>
         {datos.porDia.length === 0 ? (
-          <p className="mt-3 text-sm text-muted">Todavía no hay movimiento en este rango.</p>
+          <EstadoVacio compacto className="mt-3" titulo="Todavía no hay movimiento en este período"
+            descripcion="Aquí verás cómo evolucionan las conversaciones y oportunidades cuando tu equipo empiece a atender. También puedes elegir un período más amplio arriba."
+            accion={{ etiqueta: 'Abrir la bandeja', href: '/bandeja' }} />
         ) : (
           <div className="mt-3 flex h-32 items-end gap-[2px]" role="img" aria-label="Conversaciones nuevas por día">
             {datos.porDia.map((x) => (

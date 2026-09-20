@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, DataTable, Input, Skeleton, useSession, type ColumnDef, type SortingState, type RowSelectionState } from '@iaxti/ui/react';
+import { Badge, DataTable, EstadoVacio, Input, Skeleton, useSession, type ColumnDef, type SortingState, type RowSelectionState } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
 import { crmClient } from '@iaxti/sdk';
 import { EtiquetarSeleccion } from './etiquetar-seleccion';
@@ -90,13 +90,11 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       {items === null ? (
         <div className="mt-4 flex flex-col gap-2"><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
       ) : items.length === 0 ? (
-        <div className="mt-6 rounded-tarjeta border border-line bg-raised p-8">
-          <h2 className="text-seccion font-bold text-ink">Todavía no hay contactos</h2>
-          <p className="mt-2 text-body">
-            Cada persona que escriba al negocio aparece aquí sola. ¿Ya tienes una planilla?
-            Impórtala y parte con tu cartera al día.
-          </p>
-        </div>
+        <EstadoVacio className="mt-6"
+          titulo={q.trim() ? `Nada con “${q.trim()}”` : 'Aquí empieza tu cartera de contactos'}
+          descripcion={q.trim() ? 'Prueba con el teléfono o con parte del nombre.' : 'Cada persona que escriba aparece aquí con su historia. Si ya tienes una planilla, impórtala para empezar.'}
+          accion={q.trim() ? { etiqueta: 'Limpiar búsqueda', onClick: () => { setQ(''); firstPage(); } } : { etiqueta: 'Importar contactos', href: '/contactos/importar' }}
+        />
       ) : (
         <DataTable label="Contactos" columns={columns} rows={items} sorting={sorting}
           onSort={(sort) => { setSorting(sort); firstPage(); }} selection={selection} onSelection={setSelection}
