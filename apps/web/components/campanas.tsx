@@ -126,7 +126,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   return (
     <div className="min-w-0 space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="font-display text-2xl font-extrabold text-ink">Campañas</h1>
+        <div><h1 className="font-display text-titulo text-ink">Campañas</h1>
           <p className="mt-2 text-body">Una plantilla aprobada para un grupo de tus contactos.</p></div>
         {vista === 'lista' ? <Button onClick={() => void nueva()} disabled={ocupado || !puedeEscribir}>Crear campaña</Button> :
           <Button variant="secundario" disabled={ocupado} onClick={() => { setVista('lista'); setError(null); void ejecutar(cargar); }}>Volver al listado</Button>}

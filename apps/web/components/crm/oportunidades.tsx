@@ -210,7 +210,7 @@ export function Oportunidades() {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4">
-        <h1 className="font-display text-xl font-bold text-ink">Oportunidades</h1>
+        <h1 className="font-display text-titulo font-bold text-ink">Oportunidades</h1>
         {pipelines.length > 1 && (
           <select
             aria-label="Pipeline"
@@ -381,7 +381,7 @@ export function Oportunidades() {
 
           <ul className="mt-4 flex flex-col gap-2">
             {lista.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised px-4 py-3">
+              <li key={d.id} data-densidad="densa" className="flex min-h-control flex-wrap items-center gap-fila-gap rounded-campo border border-line bg-raised px-fila-x py-fila-y text-dato">
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-ink">{d.title}</span>
                   <a href={`/contactos/${d.contactId}`} className="text-xs text-action-text">

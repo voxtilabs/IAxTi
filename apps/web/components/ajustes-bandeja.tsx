@@ -90,7 +90,7 @@ export function AjustesBandeja() {
             ¿Quién recibe las conversaciones nuevas?
           </span>
           <select
-            className="h-control w-full rounded-campo border border-line-strong bg-field px-4 text-[15px] text-ink"
+            className="h-control w-full rounded-campo border border-line-strong bg-field px-4 text-cuerpo text-ink"
             value={ajustes.assignmentMode}
             onChange={(e) =>
               setAjustes({ ...ajustes, assignmentMode: e.target.value as Ajustes['assignmentMode'] })

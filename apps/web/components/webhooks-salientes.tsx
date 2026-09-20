@@ -74,7 +74,7 @@ export function WebhooksSalientes() {
   return (
     <div className="max-w-2xl">
       <p className="rotulo">Webhooks</p>
-      <h1 className="mt-1 font-display text-xl font-bold text-ink">Avísale a tus sistemas</h1>
+      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Avísale a tus sistemas</h1>
       <p className="mt-2 text-sm text-muted">
         Cada evento que elijas llega firmado a tu URL (header{' '}
         <span className="dato">X-Iaxti-Signature</span>, HMAC-SHA256 con el secreto del webhook).
