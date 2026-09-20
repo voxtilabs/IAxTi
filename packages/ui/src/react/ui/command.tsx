@@ -6,7 +6,7 @@ import { cn } from './cn';
 
 // Patrón command de shadcn: cmdk aporta teclado/ARIA, Pulso aporta los tokens.
 export const Command = React.forwardRef<React.ElementRef<typeof Primitive>, React.ComponentPropsWithoutRef<typeof Primitive>>(({ className, ...props }, ref) =>
-  <Primitive ref={ref} className={cn('flex min-w-0 flex-col overflow-hidden bg-raised text-ink', className)} {...props} />);
+  <Primitive ref={ref} className={cn('flex min-w-0 flex-col overflow-hidden bg-raised p-1 text-ink', className)} {...props} />);
 Command.displayName = 'Command';
 export const CommandInput = React.forwardRef<React.ElementRef<typeof Primitive.Input>, React.ComponentPropsWithoutRef<typeof Primitive.Input>>(({ className, ...props }, ref) =>
   <Primitive.Input ref={ref} className={cn('h-control w-full rounded-campo border border-line-strong bg-field px-4 text-cuerpo text-ink placeholder:text-faint', className)} {...props} />);

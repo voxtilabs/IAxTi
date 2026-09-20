@@ -77,14 +77,16 @@ for (const modo of ['dia', 'noche']) {
   test(`paleta a 360 px en ${modo}, sin sombras y con movimiento reducido`, async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 900 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript((modo) => localStorage.setItem('pulso-mode', modo), modo);
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Buscar o ir a…' })).toBeVisible();
-  await page.keyboard.press('Control+k');
+    await page.keyboard.press('Control+k');
     const dialog = page.getByRole('dialog');
     const input = page.getByRole('combobox', { name: 'Buscar pantallas, contactos o conversaciones' });
     await expect(input).toBeFocused();
     await page.evaluate((modo) => document.documentElement.setAttribute('data-mode', modo), modo);
     expect(await input.evaluate((el) => getComputedStyle(el).outlineWidth)).toBe('2px');
+    expect(await input.evaluate((el) => el.getBoundingClientRect().left - el.closest('[cmdk-root]')!.getBoundingClientRect().left)).toBeGreaterThanOrEqual(4);
     expect(await dialog.evaluate((el) => parseFloat(getComputedStyle(el).animationDuration))).toBeLessThanOrEqual(0.001);
     expect(await dialog.evaluate((el) => getComputedStyle(el).boxShadow)).toBe('none');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

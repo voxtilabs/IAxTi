@@ -55,7 +55,7 @@ export function PaletaComandos({ nav }: { nav: Array<{ path: string; label: stri
   const go = (path: string) => { setOpen(false); window.location.assign(path); };
   const normal = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return <Dialog open={open} onOpenChange={setOpen}>
-    <DialogTrigger asChild><Button variant="fantasma" aria-keyshortcuts="Control+k Meta+k">Buscar o ir a…</Button></DialogTrigger>
+    <DialogTrigger asChild><Button variant="fantasma" aria-label="Buscar o ir a…" aria-keyshortcuts="Control+k Meta+k"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar o ir a…</span></Button></DialogTrigger>
     <DialogContent className="pulso-entrada">
       <DialogTitle>Buscar o ir a una pantalla</DialogTitle>
       <DialogDescription>Ctrl+K o ⌘K abre la paleta. Usa las flechas para elegir y Enter para abrir.</DialogDescription>
