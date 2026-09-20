@@ -118,7 +118,16 @@ for (const modo of ['dia', 'noche']) {
       return resuelta;
     });
     expect(sombraDelSistema).not.toBe('none');
-    expect(await dialog.evaluate((el) => getComputedStyle(el).boxShadow)).toBe(sombraDelSistema);
+    // Tailwind compone `box-shadow` con tres capas —anillo de offset,
+    // anillo y sombra— y las dos primeras van transparentes cuando no hay
+    // anillo. Comparar la cadena entera contra el token falla por la forma,
+    // no por el color. Lo que se quiere afirmar es: una sola capa visible, y
+    // que sea la del sistema.
+    const capas = (await dialog.evaluate((el) => getComputedStyle(el).boxShadow))
+      .split(/,(?![^(]*\))/)
+      .map((c) => c.trim());
+    const visibles = capas.filter((c) => !c.startsWith('rgba(0, 0, 0, 0)'));
+    expect(visibles).toEqual([sombraDelSistema]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const folder = join(__dirname, '../../../docs/evidencias/300');
     mkdirSync(folder, { recursive: true });
