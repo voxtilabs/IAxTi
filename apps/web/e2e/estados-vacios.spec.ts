@@ -116,7 +116,9 @@ test('cambiar de negocio descarta el progreso del anterior', async ({ page }) =>
   await page.route('**/v1/onboarding', (r) => r.fulfill({ json: r.request().headers()['x-tenant-id'] === segundo ? { ...progreso, siguiente: 'whatsapp_connected', pasos: progreso.pasos.map((p) => ({ ...p, hecho: p.id === 'configured' })) } : progreso }));
   await page.goto('/');
   await expect(page.getByText('Lo siguiente: cuéntanos de tu negocio.')).toBeVisible();
+  await page.getByRole('button', { name: 'Mostrar u ocultar el menú' }).click();
   await page.getByRole('combobox', { name: 'Negocio' }).selectOption(segundo);
+  await page.keyboard.press('Escape');
   await expect(page.getByText('Lo siguiente: conecta tu whatsapp.')).toBeVisible();
   await expect(page.getByText('Lo siguiente: cuéntanos de tu negocio.')).toHaveCount(0);
 });
