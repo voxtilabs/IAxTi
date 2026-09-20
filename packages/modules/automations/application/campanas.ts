@@ -124,6 +124,83 @@ export async function previsualizarCampana(
   return previsualizarSegmento(client, { tenantId: input.tenantId, filtros: c.filters });
 }
 
+/**
+ * Una campaña en el listado: lo suficiente para no tener que abrirla.
+ *
+ * Lleva el conteo por resultado incluido a propósito. Un listado que solo
+ * diga "enviada" obliga a entrar una por una para saber si salió bien, y
+ * entonces el listado no sirve de nada.
+ */
+export interface CampanaEnLista extends Campana {
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  destinatarios: { encolados: number; saltados: number; fallados: number };
+}
+
+/** Cuántas trae como máximo si nadie pide otra cosa. */
+export const LIMITE_LISTADO = 50;
+
+/**
+ * Las campañas del negocio, la más reciente primero.
+ *
+ * Una sola consulta con un agregado lateral: la versión obvia —listar y
+ * después pedir los resultados de cada una— son N+1 consultas contra
+ * `campaign_recipients`, que es la tabla más grande de las dos y la que
+ * crece con cada envío.
+ *
+ * `truncado` dice si quedaron campañas fuera del límite. Sin ese dato, una
+ * lista cortada se ve exactamente igual que una lista completa, y eso es
+ * mentir en silencio.
+ */
+export async function listarCampanas(
+  client: PoolClient,
+  tenantId: string,
+  opciones: { limite?: number } = {},
+): Promise<{ campanas: CampanaEnLista[]; truncado: boolean }> {
+  // `Math.max(NaN, 1)` es NaN, y NaN llega a Postgres como el texto 'NaN'
+  // y revienta la consulta. Un límite que viene de un `?limite=` del
+  // cliente es exactamente así de confiable, y sanearlo es trabajo de acá:
+  // el módulo no puede depender de que quien lo llame lo haya hecho.
+  const pedido = Number(opciones.limite);
+  const limite = Number.isFinite(pedido)
+    ? Math.min(Math.max(Math.trunc(pedido), 1), 100)
+    : LIMITE_LISTADO;
+  const r = await client.query(
+    `SELECT c.*,
+            COALESCE(d.encolados, 0)::int AS encolados,
+            COALESCE(d.saltados, 0)::int  AS saltados,
+            COALESCE(d.fallados, 0)::int  AS fallados
+       FROM campaigns c
+       LEFT JOIN LATERAL (
+         SELECT count(*) FILTER (WHERE r.status = 'queued')  AS encolados,
+                count(*) FILTER (WHERE r.status = 'skipped') AS saltados,
+                count(*) FILTER (WHERE r.status = 'failed')  AS fallados
+           FROM campaign_recipients r
+          WHERE r.tenant_id = c.tenant_id AND r.campaign_id = c.id
+       ) d ON true
+      WHERE c.tenant_id = $1
+      ORDER BY c.created_at DESC
+      LIMIT $2`,
+    [tenantId, limite + 1],
+  );
+  const filas = r.rows.slice(0, limite);
+  return {
+    campanas: filas.map((row) => ({
+      ...aCampana(row),
+      createdAt: (row.created_at as Date).toISOString(),
+      startedAt: row.started_at ? (row.started_at as Date).toISOString() : null,
+      finishedAt: row.finished_at ? (row.finished_at as Date).toISOString() : null,
+      destinatarios: {
+        encolados: row.encolados as number,
+        saltados: row.saltados as number,
+        fallados: row.fallados as number,
+      },
+    })),
+    truncado: r.rows.length > limite,
+  };
+}
+
 export async function obtenerCampana(
   client: PoolClient,
   tenantId: string,

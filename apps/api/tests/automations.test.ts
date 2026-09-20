@@ -174,4 +174,63 @@ describe('/v1/automations (#62)', () => {
 
     expect((await pedir(supervisora, '/automations/runs')).status).toBe(200);
   });
+
+  it('las campañas se pueden LISTAR, que es por donde se entra (#347)', async () => {
+    // Antes de esto se podía crear una campaña y mandarla, pero no volver a
+    // encontrarla: todos los endpoints pedían un :id que solo tenía quien
+    // acababa de crearla.
+    const campana = await admin.query(
+      `INSERT INTO campaigns (tenant_id, name, template_id, filters, status, started_at)
+       VALUES ($1, 'Promo de invierno', $2, '{}'::jsonb, 'done', now()) RETURNING id`,
+      [tenant, randomUUID()],
+    );
+    const campaignId = campana.rows[0].id as string;
+    const contacto = await admin.query(
+      `INSERT INTO contacts (tenant_id, name, phone, origin)
+       VALUES ($1, 'Quien recibió', '+56911112222', 'whatsapp') RETURNING id`,
+      [tenant],
+    );
+    const otro = await admin.query(
+      `INSERT INTO contacts (tenant_id, name, phone, origin)
+       VALUES ($1, 'Quien no recibió', '+56933334444', 'whatsapp') RETURNING id`,
+      [tenant],
+    );
+    await admin.query(
+      `INSERT INTO campaign_recipients (tenant_id, campaign_id, contact_id, status, reason)
+       VALUES ($1, $2, $3, 'queued', NULL), ($1, $2, $4, 'skipped', 'sin consentimiento')`,
+      [tenant, campaignId, contacto.rows[0].id, otro.rows[0].id],
+    );
+
+    const res = await pedir(duena, '/campanas');
+    expect(res.status).toBe(200);
+    const { campanas, truncado } = await res.json();
+    const mia = campanas.find((c: { id: string }) => c.id === campaignId);
+    expect(mia).toBeTruthy();
+    expect(mia.name).toBe('Promo de invierno');
+    expect(mia.status).toBe('done');
+    // El conteo viene en el listado: no hay que abrir cada una para saber
+    // si salió bien.
+    expect(mia.destinatarios).toEqual({ encolados: 1, saltados: 1, fallados: 0 });
+    expect(truncado).toBe(false);
+  });
+
+  it('sin el permiso no se listan, y el 403 trae el formato único', async () => {
+    const res = await pedir(vendedor, '/campanas');
+    expect(res.status).toBe(403);
+    const error = await res.json();
+    expect(error.code).toBeTruthy();
+    expect(error.message).toBeTruthy();
+    expect(error.requestId).toMatch(/^req_/);
+    expect(error.details).toEqual([]);
+  });
+
+  it('un ?limite basura no tumba la consulta', async () => {
+    // Llega tal cual del cliente. Number('hola') es NaN, y NaN viaja a
+    // Postgres como el texto 'NaN'.
+    for (const limite of ['hola', '-3', '0', '99999', '']) {
+      const res = await pedir(duena, `/campanas?limite=${limite}`);
+      expect(res.status, `limite=${limite}`).toBe(200);
+      expect(Array.isArray((await res.json()).campanas)).toBe(true);
+    }
+  });
 });
