@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button, Dialog, DialogContent, DialogTitle, DialogDescription, toast,
   Avatar,
+  EstadoVacio,
   Badge,
   IconoReloj,
   Input,
@@ -20,7 +21,7 @@ import {
   nombreVisible,
 } from '@iaxti/ui/react';
 import { estaEscribiendo } from '../../lib/teclado';
-import { selectedTenant } from '../tenant-switcher';
+import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
   type BusquedaHit,
@@ -45,8 +46,15 @@ type Vista = 'todas' | 'mi_cola' | 'sin_responder';
 type Pane = 'lista' | 'chat' | 'ficha';
 
 export function Bandeja() {
+  const tenant = useSelectedTenant();
+  const negocioDeEntrada = useRef<string | null>(null);
+  if (tenant && !negocioDeEntrada.current) negocioDeEntrada.current = tenant;
+  return tenant ? <BandejaDelNegocio key={tenant} tenant={tenant} abrirDesdeUrl={tenant === negocioDeEntrada.current} />
+    : <p className="p-8 text-muted">Elige un negocio en el selector para ver su bandeja.</p>;
+}
+
+function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDesdeUrl: boolean }) {
   const { supabase, session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
   const ayudaTrigger = useRef<HTMLButtonElement>(null);
   const [ayuda, setAyuda] = useState(false);
   const atajoEnCurso = useRef(false);
@@ -66,18 +74,11 @@ export function Bandeja() {
   const seleccionRef = useRef<string | null>(null);
   seleccionRef.current = seleccion;
 
-  // El tenant del selector del shell (localStorage) — mismo mecanismo.
   useEffect(() => {
-    setTenant(selectedTenant());
-    const onStorage = () => setTenant(selectedTenant());
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
-  useEffect(() => {
+    if (!abrirDesdeUrl) return;
     const id = new URLSearchParams(window.location.search).get('conversationId');
     if (id && /^[0-9a-f-]{36}$/i.test(id)) { setSeleccion(id); setPane('chat'); }
-  }, []);
+  }, [abrirDesdeUrl]);
 
   const cargarLista = useCallback(async () => {
     if (!session || !tenant) return;
@@ -248,7 +249,9 @@ export function Bandeja() {
           <div className="border-b border-line">
             <p className="rotulo px-4 pt-3">Resultados</p>
             {hits.length === 0 && (
-              <p className="px-4 py-3 text-sm text-muted">Nada con “{busqueda}”.</p>
+              <EstadoVacio compacto className="m-3" titulo={`Nada con “${busqueda}”`}
+                descripcion="Prueba con otras palabras del mensaje o de la nota."
+                accion={{ etiqueta: 'Limpiar búsqueda', onClick: () => { setBusqueda(''); setHits(null); } }} />
             )}
             <ul>
               {hits.map((h, i) => (
@@ -287,9 +290,10 @@ export function Bandeja() {
             <Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" />
           </div>
         ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-muted">
-            Nada por aquí. Cuando llegue un mensaje, la conversación aparece sola.
-          </p>
+          <EstadoVacio compacto className="m-3"
+            titulo={vista === 'todas' ? 'Todavía no te escribe nadie' : 'Esta cola está al día'}
+            descripcion={vista === 'todas' ? 'Cuando conectes WhatsApp, los mensajes de tus clientes llegan aquí con su historia.' : 'Las conversaciones que necesiten tu atención aparecerán aquí. Puedes revisar las demás colas.'}
+            accion={vista === 'todas' ? { etiqueta: 'Conectar WhatsApp', href: '/ajustes/canales' } : { etiqueta: 'Ver todas las conversaciones', onClick: () => setVista('todas') }} />
         ) : (
           <ul className="flex flex-col">
             {items.map((c) => (

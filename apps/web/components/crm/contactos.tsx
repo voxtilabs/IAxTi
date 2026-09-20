@@ -2,14 +2,17 @@
 
 import { AvisoResultado } from '@iaxti/ui/react';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Avatar, Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
-import { apiFetch } from '../../lib/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Badge, DataTable, EstadoVacio, Input, Skeleton, useSession, type ColumnDef, type SortingState, type RowSelectionState } from '@iaxti/ui/react';
+import { useSelectedTenant } from '../tenant-switcher';
+import { crmClient } from '@iaxti/sdk';
+import { EtiquetarSeleccion } from './etiquetar-seleccion';
 
 interface ContactoItem {
   id: string;
-  phone: string;
+  phone: string | null;
+  rut: string | null;
+  lastActivityAt: string;
   name: string | null;
   email: string | null;
   origin: string;
@@ -18,44 +21,57 @@ interface ContactoItem {
 
 /** /contactos (#34): búsqueda, cursor y la puerta a la importación. */
 export function Contactos() {
+  const tenant = useSelectedTenant();
+  return tenant ? <ContactosDelNegocio key={tenant} tenant={tenant} /> : <p className="text-muted">Elige un negocio en el selector.</p>;
+}
+
+function ContactosDelNegocio({ tenant }: { tenant: string }) {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const client = useMemo(() => session ? crmClient({ apiUrl: config.apiUrl, token: session.access_token, tenantId: tenant }) : null, [config.apiUrl, session, tenant]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'activity', desc: true }]);
+  const [selection, setSelection] = useState<RowSelectionState>({});
+  const [currentCursor, setCurrentCursor] = useState<string>();
+  const [history, setHistory] = useState<Array<string | undefined>>([]);
+  const [loading, setLoading] = useState(false);
+  const serial = useRef(0);
+  function firstPage() { setCurrentCursor(undefined); setHistory([]); setSelection({}); }
   const [q, setQ] = useState('');
   const [items, setItems] = useState<ContactoItem[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
+  const cargar = useCallback(async () => {
+    if (!client) return;
+    const request = ++serial.current;
+    setLoading(true); setAviso(null);
+    try {
+      const query = new URLSearchParams({ limit: '25', sort: sorting[0].id, order: sorting[0].desc ? 'desc' : 'asc' });
+      if (q.trim()) query.set('q', q.trim());
+      if (currentCursor) query.set('cursor', currentCursor);
+      const res = await client.contacts<ContactoItem>(query);
+      if (request === serial.current) { setItems(res.items); setCursor(res.nextCursor); }
+    } catch (err) { if (request === serial.current) setAviso((err as Error).message); }
+    finally { if (request === serial.current) setLoading(false); }
+  }, [client, q, currentCursor, sorting]);
+  useEffect(() => { void cargar(); return () => { serial.current++; }; }, [cargar]);
 
-  const cargar = useCallback(
-    async (siguiente?: string) => {
-      if (!session || !tenant) return;
-      try {
-        const query = new URLSearchParams({ limit: '25' });
-        if (q.trim()) query.set('q', q.trim());
-        if (siguiente) query.set('cursor', siguiente);
-        const res = await apiFetch<{ items: ContactoItem[]; nextCursor: string | null }>(
-          config, session, tenant, `/contacts?${query}`,
-        );
-        setItems((prev) => (siguiente ? [...(prev ?? []), ...res.items] : res.items));
-        setCursor(res.nextCursor);
-      } catch (err) {
-        setAviso((err as Error).message);
-      }
-    },
-    [config, session, tenant, q],
-  );
-  useEffect(() => void cargar(), [cargar]);
-
-  if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
-
+  const columns: ColumnDef<ContactoItem, unknown>[] = [
+    { id: 'name', accessorKey: 'name', header: 'Contacto', enableHiding: false, cell: ({ row }) => <div>
+      <a className="block min-h-control break-words text-action-text" href={`/contactos/${row.original.id}`}><span className="block font-medium">{row.original.name ?? 'Sin nombre aún'}</span>
+      <span className="block break-all font-mono text-muted">{row.original.phone}</span></a>
+      {row.original.optedOutAt && <Badge role="bad">No contactar</Badge>}
+    </div> },
+    { id: 'origin', accessorKey: 'origin', header: 'Origen' },
+    { id: 'rut', accessorKey: 'rut', header: 'RUT', enableSorting: false, cell: ({ row }) => <span className="font-mono">{row.original.rut ?? '—'}</span> },
+    { id: 'activity', accessorKey: 'lastActivityAt', header: 'Actividad', cell: ({ row }) => <time dateTime={row.original.lastActivityAt} className="font-mono">{new Date(row.original.lastActivityAt).toLocaleDateString('es-CL')}</time> },
+  ];
   return (
-    <div className="max-w-2xl" data-densidad="densa">
+    <div className="max-w-5xl" data-densidad="densa">
       <div className="flex flex-wrap items-center gap-4">
         <h1 className="font-display text-titulo font-bold text-ink">Contactos</h1>
         <a
           href="/contactos/importar"
-          className="ml-auto inline-flex h-9 items-center rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest"
+          className="ml-auto inline-flex min-h-control items-center rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest"
         >
           Importar CSV
         </a>
@@ -66,7 +82,7 @@ export function Contactos() {
         placeholder="Buscar por nombre o teléfono…"
         className="mt-4"
         value={q}
-        onChange={(e) => setQ(e.target.value)}
+        onChange={(e) => { setQ(e.target.value); firstPage(); }}
       />
       {aviso && (
         <AvisoResultado>
@@ -76,37 +92,19 @@ export function Contactos() {
       {items === null ? (
         <div className="mt-4 flex flex-col gap-2"><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
       ) : items.length === 0 ? (
-        <div className="mt-6 rounded-tarjeta border border-line bg-raised p-8">
-          <h2 className="text-seccion font-bold text-ink">Todavía no hay contactos</h2>
-          <p className="mt-2 text-body">
-            Cada persona que escriba al negocio aparece aquí sola. ¿Ya tienes una planilla?
-            Impórtala y parte con tu cartera al día.
-          </p>
-        </div>
+        <EstadoVacio className="mt-6"
+          titulo={q.trim() ? `Nada con “${q.trim()}”` : 'Aquí empieza tu cartera de contactos'}
+          descripcion={q.trim() ? 'Prueba con el teléfono o con parte del nombre.' : 'Cada persona que escriba aparece aquí con su historia. Si ya tienes una planilla, impórtala para empezar.'}
+          accion={q.trim() ? { etiqueta: 'Limpiar búsqueda', onClick: () => { setQ(''); firstPage(); } } : { etiqueta: 'Importar contactos', href: '/contactos/importar' }}
+        />
       ) : (
-        <ul className="mt-4 flex flex-col gap-2">
-          {items.map((c) => (
-            <li key={c.id}>
-              <a
-                href={`/contactos/${c.id}`}
-                className="flex min-h-control items-center gap-fila-gap rounded-campo border border-line bg-raised px-fila-x py-fila-y text-dato transition-colors hover:bg-rest"
-              >
-                <Avatar size="chico" nombre={c.name} fallback={c.phone} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-ink">{c.name ?? 'Sin nombre aún'}</span>
-                  <span className="dato block text-muted">{c.phone}</span>
-                </span>
-                {c.optedOutAt && <Badge role="bad">No contactar</Badge>}
-                <Badge role="neutral">{c.origin}</Badge>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-      {cursor && (
-        <Button variant="secundario" size="chico" className="mt-4" onClick={() => void cargar(cursor)}>
-          Cargar más
-        </Button>
+        <DataTable label="Contactos" columns={columns} rows={items} sorting={sorting}
+          onSort={(sort) => { setSorting(sort); firstPage(); }} selection={selection} onSelection={setSelection}
+          nextCursor={cursor} loading={loading} mobileColumns={['name']} canPrevious={history.length > 0}
+          onNext={() => { if (cursor) { setHistory((h) => [...h, currentCursor]); setCurrentCursor(cursor); setSelection({}); } }}
+          onPrevious={() => { setCurrentCursor(history.at(-1)); setHistory((h) => h.slice(0, -1)); setSelection({}); }}>
+          <EtiquetarSeleccion tenant={tenant} contactIds={items.filter((c) => selection[c.id]).map((c) => c.id)} onDone={() => setSelection({})} />
+        </DataTable>
       )}
     </div>
   );

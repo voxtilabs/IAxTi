@@ -13,7 +13,7 @@ import {
   ParseUUIDPipe,
   Res,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { withTenant } from '@iaxti/db';
 import {
@@ -24,6 +24,7 @@ import {
   exportarContactos,
   exportarTitular,
   getContactFicha,
+  InvalidListQuery,
   listContacts,
   mergeContacts,
   previewImport,
@@ -58,16 +59,28 @@ export class ContactsController {
   @Get()
   @RequirePermission('crm.contacts.read')
   @ApiOperation({ summary: 'Contactos con búsqueda y cursor' })
+  @ApiQuery({ name: 'sort', required: false, enum: ['activity', 'name', 'phone', 'origin'] })
+  @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'] })
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 25 } })
+  @ApiQuery({ name: 'q', required: false, type: String })
   async list(
     @Req() request: WithUser,
     @Query('q') q?: string,
+    @Query('sort') sort?: string,
+    @Query('order') order?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, (c) =>
-      listContacts(c, actor.tenantId, { q, cursor, limit: limit ? Number(limit) : undefined }),
-    );
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        listContacts(c, actor.tenantId, { q, sort, order, cursor, limit: limit ? Number(limit) : undefined }),
+      );
+    } catch (e) {
+      if (e instanceof InvalidListQuery) throw new BadRequestException({ code: 'INVALID_LIST_QUERY', message: e.message });
+      throw e;
+    }
   }
 
   /**

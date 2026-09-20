@@ -1,4 +1,5 @@
 export { SessionProvider, RequireSession, useSession } from './session';
+export { EstadoVacio } from './estado-vacio';
 export type { PublicConfig } from './session';
 export { LoginCard } from './login-card';
 export type { LoginCardProps } from './login-card';
@@ -53,6 +54,8 @@ export type { CanalId } from './canal';
 export { AuditExplorer } from './audit-explorer';
 export type { AuditFetcher, AuditRow, ChainCheckDto, SignedExportDto } from './audit-explorer';
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+export * from './ui/table';
+export * from './ui/data-table';
 
 // La barra lateral (#295). Viene del registro de shadcn con dos retoques
 // para Pulso, anotados en el propio archivo: fuera las sombras, y el borde

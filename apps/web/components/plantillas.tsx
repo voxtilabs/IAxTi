@@ -3,7 +3,7 @@
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
+import { Badge, Button, EstadoVacio, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, type PlantillaDto } from '../lib/api';
 
@@ -124,7 +124,7 @@ export function Plantillas() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={crear} className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+      <form id="nueva-plantilla" onSubmit={crear} className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Nueva plantilla</h2>
 
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
@@ -133,7 +133,7 @@ export function Plantillas() {
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="recordatorio_hora"
+            id="nombre-plantilla" placeholder="recordatorio_hora"
           />
           <span className="text-xs text-muted">
             Solo minúsculas, números y guion bajo. Es el nombre interno, el cliente no lo ve.
@@ -191,13 +191,9 @@ export function Plantillas() {
       </form>
 
       {items.length === 0 ? (
-        <div className="rounded-tarjeta border border-line bg-raised p-8 text-center">
-          <h2 className="text-lg font-bold text-ink">Todavía no hay plantillas</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-body">
-            Van a aparecer acá apenas crees la primera. Mientras no tengas ninguna aprobada, solo
-            puedes responder dentro de las 24 horas.
-          </p>
-        </div>
+        <EstadoVacio titulo="Prepara tu primera plantilla"
+          descripcion="Aquí verás tus plantillas y su revisión por Meta. Necesitas una aprobada para escribir fuera de la ventana de 24 horas."
+          accion={{ etiqueta: 'Escribir una plantilla', onClick: () => document.getElementById('nombre-plantilla')?.focus() }} />
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((p) => (

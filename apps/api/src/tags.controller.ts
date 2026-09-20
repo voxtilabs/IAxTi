@@ -9,9 +9,10 @@ import {
   Put,
   Req,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
+  addTagToContacts,
   contactTags,
   createTag,
   deleteTag,
@@ -52,6 +53,23 @@ function seVeMal(err: unknown): never {
 @Controller('tags')
 @RequireModule('crm')
 export class TagsController {
+  @Post('contactos/agregar')
+  @RequirePermission('crm.contacts.create')
+  @ApiOperation({ summary: 'Agrega una etiqueta a hasta 100 contactos sin quitar sus etiquetas actuales' })
+  @ApiBody({ schema: { type: 'object', required: ['contactIds', 'tagId'], properties: {
+    contactIds: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'string', format: 'uuid' } },
+    tagId: { type: 'string', format: 'uuid' },
+  } } })
+  async agregarEnLote(@Req() request: WithUser, @Body() body: { contactIds?: string[]; tagId?: string }) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) => addTagToContacts(c, {
+        tenantId: actor.tenantId, contactIds: Array.isArray(body?.contactIds) ? body.contactIds : [],
+        tagId: body?.tagId ?? '', actor: actor.userId, actorKind: actor.kind === 'apikey' ? 'apikey' : 'user', requestId: request.requestId,
+      }));
+    } catch (err) { seVeMal(err); }
+  }
+
   @Get()
   @RequirePermission('crm.contacts.read')
   @ApiOperation({ summary: 'Etiquetas del negocio' })

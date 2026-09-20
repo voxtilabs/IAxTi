@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { listCursor } from './list-cursor';
 import { publishEvent } from '@iaxti/core';
 import { listCustomFields, validarCustom } from './campos';
 import { isOptOutMessage, normalizePhone, normalizeRut } from '../domain/validation';
@@ -376,34 +377,34 @@ export async function canReceiveBusinessInitiated(
 export async function listContacts(
   client: PoolClient,
   tenantId: string,
-  filters: { q?: string; cursor?: string; limit?: number } = {},
-): Promise<{ items: Contact[]; nextCursor: string | null }> {
-  const limit = Math.min(filters.limit ?? 25, 100);
+  filters: { q?: string; cursor?: string; limit?: number; sort?: string; order?: string } = {},
+): Promise<{ items: Array<Contact & { lastActivityAt: Date }>; nextCursor: string | null }> {
   const params: unknown[] = [tenantId];
   const where = ['tenant_id = $1', 'merged_into IS NULL'];
   if (filters.q?.trim()) {
     params.push(`%${filters.q.trim()}%`);
     where.push(`(name ILIKE $${params.length} OR phone LIKE $${params.length})`);
   }
-  if (filters.cursor) {
-    const [ts, id] = Buffer.from(filters.cursor, 'base64url').toString().split('|');
-    if (!ts || !id) throw new Error('Ese cursor no es válido. Vuelve a la primera página.');
-    params.push(ts, id);
-    where.push(`(last_activity_at, id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
-  }
+  const pagination = listCursor({
+    columns: { activity: { sql: 'last_activity_at', type: 'timestamptz' }, name: { sql: 'name', type: 'text' }, phone: { sql: 'phone', type: 'text' }, origin: { sql: 'origin', type: 'text' } },
+    defaultSort: 'activity', sort: filters.sort, order: filters.order, cursor: filters.cursor, limit: filters.limit,
+    scope: [tenantId, filters.q?.trim() ?? ''], idColumn: 'id', params,
+  });
+  const { limit } = pagination;
+  if (pagination.where) where.push(pagination.where);
   params.push(limit + 1);
   const r = await client.query(
-    `SELECT * FROM contacts WHERE ${where.join(' AND ')}
-      ORDER BY last_activity_at DESC, id DESC LIMIT $${params.length}`,
+    `SELECT *, ${pagination.selectValue} FROM contacts WHERE ${where.join(' AND ')}
+      ORDER BY ${pagination.orderBy} LIMIT $${params.length}`,
     params,
   );
   const hasMore = r.rows.length > limit;
   const rows = hasMore ? r.rows.slice(0, limit) : r.rows;
   const last = rows.at(-1);
   return {
-    items: rows.map(rowToContact),
+    items: rows.map((row) => ({ ...rowToContact(row), lastActivityAt: row.last_activity_at as Date })),
     nextCursor: hasMore && last
-      ? Buffer.from(`${(last.last_activity_at as Date).toISOString()}|${last.id}`).toString('base64url')
+      ? pagination.encode(last)
       : null,
   };
 }

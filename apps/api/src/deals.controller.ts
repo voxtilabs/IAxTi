@@ -13,13 +13,14 @@ import {
   ServiceUnavailableException,
   Put,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
   addStage,
   createDeal,
   deleteSavedFilter,
   deleteStage,
+  InvalidListQuery,
   listDeals,
   listLossReasons,
   listPipelines,
@@ -73,6 +74,19 @@ export class DealsController {
   @Get('deals')
   @RequirePermission('crm.deals.read')
   @ApiOperation({ summary: 'Oportunidades con filtros y cursor' })
+  @ApiQuery({ name: 'sort', required: false, enum: ['created', 'title', 'value', 'stage'] })
+  @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'] })
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 25 } })
+  @ApiQuery({ name: 'pipelineId', required: false, type: String })
+  @ApiQuery({ name: 'stageId', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiQuery({ name: 'owner', required: false, type: String })
+  @ApiQuery({ name: 'tag', required: false, type: String })
+  @ApiQuery({ name: 'valueClpMin', required: false, type: String })
+  @ApiQuery({ name: 'valueClpMax', required: false, type: String })
+  @ApiQuery({ name: 'customKey', required: false, type: String })
+  @ApiQuery({ name: 'customValue', required: false, type: String })
   async list(
     @Req() request: WithUser,
     @Query('pipelineId') pipelineId?: string,
@@ -84,6 +98,8 @@ export class DealsController {
     @Query('valueClpMax') valueClpMax?: string,
     @Query('customKey') customKey?: string,
     @Query('customValue') customValue?: string,
+    @Query('sort') sort?: string,
+    @Query('order') order?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
@@ -96,14 +112,19 @@ export class DealsController {
       valueClpMin: valueClpMin ? Number(valueClpMin) : undefined,
       valueClpMax: valueClpMax ? Number(valueClpMax) : undefined,
       custom: customKey && customValue !== undefined ? { key: customKey, value: customValue } : undefined,
-      cursor,
+      sort, order, cursor,
       limit: limit ? Number(limit) : undefined,
     };
     // §10/§23: USER ve lo suyo (y lo sin dueño) salvo "ver todo el CRM".
     if (owner === 'me') filters.ownerId = actor.userId;
     else if (!actorCan(actor, 'crm.read_all')) filters.ownerIdOrUnassigned = actor.userId;
 
-    return withTenant(pool(), actor.tenantId, (c) => listDeals(c, actor.tenantId, filters));
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) => listDeals(c, actor.tenantId, filters));
+    } catch (e) {
+      if (e instanceof InvalidListQuery) throw new BadRequestException({ code: 'INVALID_LIST_QUERY', message: e.message });
+      throw e;
+    }
   }
 
   @Post('deals')

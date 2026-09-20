@@ -61,6 +61,19 @@ test('j/k recorren, escribir no dispara e y resolver por teclado pasa por la API
   expect((await result.json()).state).toBe('resolved');
 });
 
+test('cambiar de negocio descarta la conversación sobre la que actúan los atajos', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/bandeja');
+  await expect(page.getByRole('button', { name: /Ana Teclado/ })).toBeVisible();
+  await page.keyboard.press('j');
+  await expect(page.getByRole('textbox', { name: 'Mensaje', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Mostrar u ocultar el menú' }).click();
+  await page.getByRole('combobox', { name: 'Negocio', exact: true }).selectOption(auth.tableTenantId);
+  await expect(page.getByRole('textbox', { name: 'Mensaje', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Ana Teclado/ })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Todavía no te escribe nadie' })).toBeVisible();
+});
+
 test('ayuda visible, foco Pulso y los avisos de error usan sonner', async ({ page }) => {
   await page.goto('/bandeja');
   await page.getByRole('button', { name: 'Ayuda de atajos (?)' }).click();
