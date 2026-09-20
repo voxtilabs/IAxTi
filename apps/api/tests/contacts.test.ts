@@ -74,6 +74,9 @@ beforeAll(async () => {
       return { userId: payload.sub as string };
     },
     resolveRole: dbRoleResolver(admin),
+    resolveApiKey: async (token) => token === 'test-voxia-service-key'
+      ? { id: 'service-key', tenantId: tenant, scopes: ['crm.activities.manage'] }
+      : null,
   });
   await app.listen(0);
   base = await app.getUrl();
@@ -93,6 +96,20 @@ afterAll(async () => {
 });
 
 describe('GET /v1/contacts/:id y actividades', () => {
+  it('la API key crea una actividad sin tratar su identidad como UUID de usuario', async () => {
+    const res = await fetch(`${base}/v1/contacts/${contacto}/activities`, {
+      method: 'POST',
+      headers: { 'X-Api-Key': 'test-voxia-service-key', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'llamada', title: 'VOXIA · seguimiento', body: 'Llamada finalizada.' }),
+    });
+    expect(res.status).toBe(201);
+    const actividad = await res.json();
+    expect(actividad.ownerId).toBeNull();
+    expect(actividad.contactId).toBe(contacto);
+    const stored = await admin.query('SELECT tenant_id, owner_id FROM activities WHERE id = $1', [actividad.id]);
+    expect(stored.rows[0]).toEqual({ tenant_id: tenant, owner_id: null });
+  });
+
   it('la ficha trae contacto, oportunidades y actividades; inexistente 404', async () => {
     const res = await pedir(`/contacts/${contacto}`);
     expect(res.status).toBe(200);

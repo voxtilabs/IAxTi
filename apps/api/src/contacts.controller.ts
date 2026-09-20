@@ -321,7 +321,8 @@ export class ContactsController {
         type: body.type as ActivityType,
         title: body.title!,
         body: body.body,
-        ownerId: actor.userId,
+        // API keys are service identities (apikey:<id>), not UUID user owners.
+        ownerId: actor.kind === 'apikey' ? undefined : actor.userId,
         dueAt: body.dueAt ? new Date(body.dueAt) : undefined,
       }),
     );
