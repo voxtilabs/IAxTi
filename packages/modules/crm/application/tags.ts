@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { writeAudit } from '@iaxti/module-audit';
 
 /**
  * Etiquetas del negocio (SPEC §10 y §23, issue 248).
@@ -129,6 +130,36 @@ export async function contactTags(
     [tenantId, contactId],
   );
   return r.rows.map(aEtiqueta);
+}
+
+/** Agrega una etiqueta sin reemplazar las existentes; todo el lote se confirma junto. */
+export async function addTagToContacts(client: PoolClient, input: {
+  tenantId: string; contactIds: string[]; tagId: string; actor: string;
+  actorKind?: 'user' | 'apikey'; requestId?: string;
+}): Promise<{ requested: number; changed: number }> {
+  const ids = [...new Set(input.contactIds)];
+  const validId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!ids.length || ids.length > 100 || ![...ids, input.tagId].every((id) => validId.test(id))) {
+    throw new Error('Selecciona entre 1 y 100 contactos y una etiqueta válida.');
+  }
+  const tag = await client.query('SELECT id FROM tags WHERE tenant_id = $1 AND id = $2 FOR KEY SHARE', [input.tenantId, input.tagId]);
+  const contacts = await client.query('SELECT id FROM contacts WHERE tenant_id = $1 AND id = ANY($2::uuid[]) AND merged_into IS NULL FOR KEY SHARE', [input.tenantId, ids]);
+  if (!tag.rowCount || contacts.rowCount !== ids.length) throw new Error('Algún contacto o la etiqueta no está disponible en este negocio. Actualiza la lista.');
+  const added = await client.query(
+    `INSERT INTO contact_tags (tenant_id, contact_id, tag_id)
+     SELECT $1, unnest($2::uuid[]), $3 ON CONFLICT DO NOTHING RETURNING contact_id`,
+    [input.tenantId, ids, input.tagId],
+  );
+  for (const row of added.rows) await publishEvent(client, {
+    name: 'contact.updated', tenantId: input.tenantId, payload: { contactId: row.contact_id },
+    actor: input.actor, requestId: input.requestId,
+  });
+  if (added.rowCount) await writeAudit(client, {
+    tenantId: input.tenantId, actor: input.actor, actorKind: input.actorKind ?? 'user', requestId: input.requestId,
+    action: 'contacts.tag_added', resource: 'tag', resourceId: input.tagId, result: 'ok',
+    metadata: { contactIds: added.rows.map((r) => r.contact_id), count: added.rowCount },
+  });
+  return { requested: ids.length, changed: added.rowCount ?? 0 };
 }
 
 /**

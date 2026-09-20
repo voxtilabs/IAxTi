@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { listCursor } from './list-cursor';
 import type { Deal, Pipeline, Stage } from './deals';
 
 // El tablero y la lista (#33, SPEC §10): las dos vistas de trabajo diario
@@ -6,6 +7,7 @@ import type { Deal, Pipeline, Stage } from './deals';
 // cargar todo.
 
 export interface DealCard extends Deal {
+  createdAt: Date;
   contactName: string | null;
   contactPhone: string;
   stageName: string;
@@ -25,6 +27,8 @@ export interface DealFilters {
   valueClpMax?: number;
   /** Campo custom de la oportunidad: igualdad exacta. */
   custom?: { key: string; value: string };
+  sort?: string;
+  order?: string;
   cursor?: string;
   limit?: number;
 }
@@ -32,6 +36,7 @@ export interface DealFilters {
 function rowToCard(row: Record<string, unknown>): DealCard {
   return {
     id: row.id as string,
+    createdAt: row.created_at as Date,
     tenantId: row.tenant_id as string,
     contactId: row.contact_id as string,
     pipelineId: row.pipeline_id as string,
@@ -53,22 +58,11 @@ function rowToCard(row: Record<string, unknown>): DealCard {
   };
 }
 
-function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(`${createdAt.toISOString()}|${id}`).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { createdAt: string; id: string } {
-  const [createdAt, id] = Buffer.from(cursor, 'base64url').toString().split('|');
-  if (!createdAt || !id) throw new Error('Ese cursor no es válido. Vuelve a la primera página.');
-  return { createdAt, id };
-}
-
 export async function listDeals(
   client: PoolClient,
   tenantId: string,
   filters: DealFilters = {},
 ): Promise<{ items: DealCard[]; nextCursor: string | null }> {
-  const limit = Math.min(filters.limit ?? 25, 100);
   const params: unknown[] = [tenantId];
   const where: string[] = ['d.tenant_id = $1'];
 
@@ -97,20 +91,25 @@ export async function listDeals(
   if (filters.custom?.key) {
     push((n) => `d.custom ->> '${filters.custom!.key.replace(/[^a-zA-Z0-9_]/g, '')}' = $${n}`, filters.custom.value);
   }
-  if (filters.cursor) {
-    const { createdAt, id } = decodeCursor(filters.cursor);
-    params.push(createdAt, id);
-    where.push(`(d.created_at, d.id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
-  }
+  const pagination = listCursor({
+    columns: { created: { sql: 'd.created_at', type: 'timestamptz' }, title: { sql: 'd.title', type: 'text' }, value: { sql: 'd.value_clp', type: 'numeric' }, stage: { sql: 's.name', type: 'text' } },
+    defaultSort: 'created', sort: filters.sort, order: filters.order, cursor: filters.cursor, limit: filters.limit,
+    scope: [tenantId, filters.pipelineId ?? null, filters.stageId ?? null, filters.status ?? null,
+      filters.ownerId ?? null, filters.ownerIdOrUnassigned ?? null, filters.tag ?? null,
+      filters.valueClpMin ?? null, filters.valueClpMax ?? null, filters.custom?.key ?? null, filters.custom?.value ?? null],
+    idColumn: 'd.id', params,
+  });
+  const { limit } = pagination;
+  if (pagination.where) where.push(pagination.where);
 
   params.push(limit + 1);
   const r = await client.query(
-    `SELECT d.*, k.name AS contact_name, k.phone AS contact_phone, s.name AS stage_name
+    `SELECT d.*, ${pagination.selectValue}, k.name AS contact_name, k.phone AS contact_phone, s.name AS stage_name
        FROM deals d
        JOIN contacts k ON k.id = d.contact_id
        JOIN stages s ON s.id = d.stage_id
       WHERE ${where.join(' AND ')}
-      ORDER BY d.created_at DESC, d.id DESC
+      ORDER BY ${pagination.orderBy}
       LIMIT $${params.length}`,
     params,
   );
@@ -119,7 +118,7 @@ export async function listDeals(
   const last = rows.at(-1);
   return {
     items: rows.map(rowToCard),
-    nextCursor: hasMore && last ? encodeCursor(last.created_at as Date, last.id as string) : null,
+    nextCursor: hasMore && last ? pagination.encode(last) : null,
   };
 }
 
