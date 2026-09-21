@@ -106,6 +106,13 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      # Sin esto, Docker cuenta los fallos DESDE EL SEGUNDO CERO: un proceso
+      # que tarda en levantar se marca `unhealthy` antes de haber tenido la
+      # oportunidad de arrancar, y el proxy no le manda tráfico a un
+      # contenedor unhealthy. Durante `start_period` un fallo no cuenta como
+      # reintento gastado — y si responde antes, se da por sano al tiro
+      # (#254).
+      start_period: 45s
 
   admin:
     <<: *app

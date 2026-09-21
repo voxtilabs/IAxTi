@@ -61,4 +61,33 @@ describe('smoke espera dependencias reales (#17, #254)', () => {
     expect(result.checks).toBeGreaterThanOrEqual(72);
     expect(result.stdout).toContain('--- /ready -> 503');
   });
+
+  it('mide la ventana sin atender y la deja escrita (#254)', () => {
+    // La espera larga estaba muda: si mañana la app tarda el doble por un
+    // bug, el paso la aguanta igual y nadie se entera. El número tiene que
+    // salir en cada despliegue, aunque todo haya ido bien.
+    const result = run('recover');
+    expect(result.stdout).toMatch(/Ventana sin atender: \d+s/);
+  });
+
+  it('pasarse del presupuesto avisa, pero no tumba un despliegue sano', () => {
+    // Fallarlo dejaría staging desplegado con el CI en rojo, que es la peor
+    // combinación para leer: parece que no se desplegó y sí se desplegó.
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', smoke], {
+      env: {
+        ...process.env,
+        BASE: 'http://prueba.invalid',
+        PATH: `${directory}:${process.env.PATH}`,
+        COUNTER: join(directory, 'presupuesto'),
+        MODE: 'recover',
+        // -1 y no 0: el `sleep` está anulado en este test, así que la
+        // espera medida es 0 segundos y no superaría un presupuesto de 0.
+        PRESUPUESTO_SEG: '-1',
+      },
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('::warning::');
+  });
 });

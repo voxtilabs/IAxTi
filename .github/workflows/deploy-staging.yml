@@ -141,14 +141,35 @@ jobs:
           # también. Medido el 15/09 contra staging: entre el "done" y el
           # primer /health en 200 pasaron unos DIEZ minutos — el tiempo se lo
           # lleva la ruta del proxy, no el arranque de la aplicación.
+          # La espera se MIDE, no solo se aguanta (#254). Una espera larga y
+          # muda esconde el problema: si mañana la app tarda el doble por un
+          # bug, este paso la aguanta igual y nadie se entera. Acá el número
+          # queda escrito en cada despliegue y se compara contra un
+          # presupuesto declarado.
+          PRESUPUESTO_SEG=${PRESUPUESTO_SEG:-300}
           echo "Esperando a que la API y sus dependencias estén listas..."
+          inicio=$(date +%s)
+          listo=no
           for i in $(seq 1 72); do
             # /health puede responder mientras la base todavía conecta (#17,
             # #254). Esperar readiness; una caída persistente sigue fallando.
             codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/ready" || true)
-            [ "$codigo" = "200" ] && break
+            if [ "$codigo" = "200" ]; then listo=si; break; fi
             sleep 10
           done
+          espera=$(( $(date +%s) - inicio ))
+          echo "Ventana sin atender: ${espera}s (presupuesto ${PRESUPUESTO_SEG}s)"
+          # Fuera de Actions no hay GITHUB_OUTPUT, y este mismo paso se
+          # ejecuta de verdad en un test (`smoke-readiness`): redirigir a una
+          # ruta vacía aborta el script con `set -e`.
+          [ -n "${GITHUB_OUTPUT:-}" ] && echo "ventana_sin_atender_seg=${espera}" >> "$GITHUB_OUTPUT" || true
+          if [ "$listo" = "si" ] && [ "$espera" -gt "$PRESUPUESTO_SEG" ]; then
+            # Aviso y no error: el despliegue SÍ quedó sano, y fallarlo
+            # dejaría staging desplegado con el CI en rojo, que es la peor
+            # combinación para leer. Lo que importa es que el número deje de
+            # ser invisible.
+            echo "::warning::El despliegue tardó ${espera}s en atender, por encima de los ${PRESUPUESTO_SEG}s de presupuesto (#254)."
+          fi
           # `curl -f` que falla solo dice el código. Cuando la API no arranca,
           # el proxy contesta un 404 pelado y ese 404 no explica nada: el
           # 15/09 costó una hora de apuestas a ciegas. Acá se imprime SIEMPRE

@@ -93,3 +93,42 @@ describe('healthchecks de Dokploy raw (#396)', () => {
     expect(result.stderr).toContain('la configuración no se modificó');
   });
 });
+
+/**
+ * La ventana sin atender de cada despliegue (#254).
+ *
+ * Entre que Dokploy dice `done` y el primer 200 pasan minutos, y durante
+ * ese rato el proxy contesta 404 porque no tiene a quién mandarle. Parte
+ * de eso es que el contenedor se marca `unhealthy` antes de haber tenido
+ * la oportunidad de arrancar: sin `start_period`, Docker cuenta los
+ * fallos desde el segundo cero, y el proxy no le manda tráfico a un
+ * contenedor unhealthy.
+ */
+describe('los healthchecks le dan tiempo a arrancar (#254)', () => {
+  const composes = ['staging', 'prod'].map(nombre => [
+    nombre,
+    decode(readFileSync(fileURLToPath(new URL(`../../../infra/dokploy/docker-compose.${nombre}.yml`, import.meta.url)), 'utf8')),
+  ]);
+
+  it('todos los servicios de la aplicación declaran start_period', () => {
+    for (const [nombre, compose] of composes) {
+      for (const [servicio, definicion] of Object.entries(compose.services)) {
+        if (!definicion.healthcheck) continue;
+        expect(definicion.healthcheck.start_period, `${nombre}/${servicio}`).toBeTruthy();
+      }
+    }
+  });
+
+  it('el margen cubre de sobra el arranque más lento que se ha visto', () => {
+    // `retries × interval` es lo que el contenedor aguanta DESPUÉS del
+    // margen. Si el margen fuera más corto que un arranque normal, esto no
+    // serviría de nada.
+    for (const [nombre, compose] of composes) {
+      for (const [servicio, definicion] of Object.entries(compose.services)) {
+        const margen = definicion.healthcheck?.start_period;
+        if (!margen) continue;
+        expect(Number(String(margen).replace('s', '')), `${nombre}/${servicio}`).toBeGreaterThanOrEqual(30);
+      }
+    }
+  });
+});
