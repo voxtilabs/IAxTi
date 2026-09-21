@@ -71,6 +71,7 @@ import { ChannelsController, WebchatAdminController } from './channels.controlle
 import { WebchatController } from './webchat.controller';
 import { NotificationsController } from './notifications.controller';
 import { AgentsController } from './agents.controller';
+import { McpController } from './mcp.controller';
 import { KnowledgeController } from './knowledge.controller';
 import { AutomationsController } from './automations.controller';
 import { AnalyticsController } from './analytics.controller';
@@ -714,6 +715,7 @@ const controllers = [
   WebchatController,
   NotificationsController,
   AgentsController,
+  McpController,
   KnowledgeController,
   AutomationsController,
   AnalyticsController,
