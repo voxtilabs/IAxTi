@@ -121,12 +121,12 @@ jobs:
           # también. Medido el 15/09 contra staging: entre el "done" y el
           # primer /health en 200 pasaron unos DIEZ minutos — el tiempo se lo
           # lleva la ruta del proxy, no el arranque de la aplicación.
-          echo "Esperando a que la API atienda..."
+          echo "Esperando a que la API y sus dependencias estén listas..."
           for i in $(seq 1 72); do
-            if curl -sS -o /dev/null -m 10 -w '' "${BASE}/health" 2>/dev/null; then
-              codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/health" || echo 000)
-              [ "$codigo" = "200" ] && break
-            fi
+            # /health puede responder mientras la base todavía conecta (#17,
+            # #254). Esperar readiness; una caída persistente sigue fallando.
+            codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/ready" || true)
+            [ "$codigo" = "200" ] && break
             sleep 10
           done
           # `curl -f` que falla solo dice el código. Cuando la API no arranca,
