@@ -99,3 +99,6 @@ export {
 export type { ResultadoHerramienta, DepsHerramientas } from './application/herramientas';
 export { herramientasExpuestas } from './application/herramientas-expuestas';
 export type { HerramientaExpuesta } from './application/models';
+// Por qué NO contestó el proveedor, con nombre y con qué hacer (#402).
+export { motivoDelProveedor } from './application/motivo-del-proveedor';
+export type { MotivoDelProveedor, DiagnosticoDelProveedor } from './application/motivo-del-proveedor';
