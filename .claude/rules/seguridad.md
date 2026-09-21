@@ -21,6 +21,11 @@
 - Tools de IA: pasan por el mismo guard con la identidad del usuario que
   conversa; ninguna tool borra; ninguna tool cruza tenants.
 - PII: minimizar en logs; redactar antes de Langfuse o cualquier proveedor
-  LLM; proveedores solo en tier pago con opt-out de entrenamiento.
+  LLM; proveedores en **tier pago allí donde pasan datos de clientes** —
+  producción siempre. En staging se admite el tier gratis mientras ahí solo
+  haya datos de prueba (ADR-0011, enmienda). OJO: hoy staging está conectado
+  al número real de VoxTi porque Zavu no ofrece sandbox, así que ese "solo
+  datos de prueba" es una condición aceptada a sabiendas y se revisa con el
+  primer cliente real.
 - Si el PR toca auth, datos personales, tools o webhooks: `/security-review`
   antes de pedir merge, y actualizar la fila en COMPLIANCE_BASELINE.md.
