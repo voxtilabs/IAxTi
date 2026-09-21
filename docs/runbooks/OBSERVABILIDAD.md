@@ -12,6 +12,16 @@ agents. Una caída temporal de una dependencia no debe provocar una cadena de
 reinicios de procesos sanos. Un healthcheck fallido marca el contenedor como
 unhealthy; la política de reinicio de Docker no reinicia por sí sola ese estado.
 
+En staging, Dokploy usa una definición `raw`: actualizar Git no cambia ese
+documento. El workflow incorpora únicamente los healthchecks ausentes de
+workers/agents desde el Compose del SHA desplegado (#396), mediante
+`scripts/sincronizar-healthchecks.mjs`. Conserva checks existentes, redes,
+dominios, variables y volúmenes. El parche es idempotente; ante configuración
+inválida o un check deshabilitado por el operador, falla sin aplicar cambios ni
+imprimir el documento. Las fuentes Git conservan su gestión del archivo. El API
+permite actualizar `composeFile` junto con `env`
+([referencia de Dokploy](https://docs.dokploy.com/docs/api/compose)).
+
 `/ready` debe distinguir las dependencias disponibles de las degradadas. En web
 y admin este cambio responde 200 con `status: ok` o 503 si falla alguna de las
 siguientes consultas, ejecutadas en paralelo:
