@@ -3,7 +3,7 @@
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, IconoCheck, Input, Skeleton, useSession } from '@iaxti/ui/react';
+import { Badge, Button, IconoCheck, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
@@ -225,16 +225,16 @@ export function FichaContacto({
           ))}
         </ul>
         <form onSubmit={agregarActividad} className="mt-3 flex flex-wrap items-center gap-2">
-          <select
-            aria-label="Tipo de actividad"
-            className="h-9 rounded-campo border border-line-strong bg-field px-3 text-sm text-ink"
-            value={tipo}
-            onChange={(e) => setTipo(e.target.value as typeof tipo)}
-          >
-            {Object.entries(TIPO_ACTIVIDAD).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
+          <Select value={tipo} onValueChange={(valor) => setTipo(valor as typeof tipo)}>
+            <SelectTrigger className="h-9 bg-field text-sm" aria-label="Tipo de actividad">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TIPO_ACTIVIDAD).map(([v, l]) => (
+                <SelectItem key={v} value={v}>{l}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             aria-label="Título de la actividad"
             placeholder="Nueva actividad…"

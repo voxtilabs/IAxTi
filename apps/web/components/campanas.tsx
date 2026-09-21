@@ -5,7 +5,7 @@ import {
   campaignClient, type Campaign, type CampaignChannel, type CampaignFilters,
   type CampaignListItem, type CampaignPreview, type CampaignResults, type CampaignTemplate,
 } from '@iaxti/sdk';
-import { AvisoResultado, Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Checkbox, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
@@ -14,9 +14,16 @@ const CALIDAD: Record<string, { nombre: string; rol: BadgeRole }> = {
   green: { nombre: 'Buena', rol: 'good' }, yellow: { nombre: 'Media', rol: 'warn' },
   red: { nombre: 'Roja', rol: 'bad' }, desconocida: { nombre: 'Sin confirmar', rol: 'neutral' },
 };
-const campo = 'h-control w-full min-w-0 rounded-campo border border-line-strong bg-field px-3 text-body';
 
 /** Cambiar de negocio descarta inmediatamente la selección y la vista previa anteriores. */
+/**
+ * Radix no admite `value=""` en un item: la cadena vacía es lo que usa para
+ * decir "sin selección". El filtro "cualquier origen" necesita ser una
+ * opción elegible, así que va con un centinela y se traduce a `undefined`
+ * al salir.
+ */
+const TODOS = 'todos';
+
 export function Campanas() {
   const [tenant, setTenant] = useState<string | null>(null);
   useEffect(() => {
@@ -155,18 +162,30 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
 
       {vista === 'nueva' && <form onSubmit={(e) => void crear(e)} className="max-w-2xl space-y-5">
         <label className="block text-sm font-medium">Nombre de la campaña<Input required maxLength={150} className="mt-1" value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
-        <label className="block text-sm font-medium">Plantilla aprobada<select required className={`${campo} mt-1`} value={plantillaId} onChange={(e) => {
-          setPlantillaId(e.target.value); setValores(Array.from({ length: plantillas.find((p) => p.id === e.target.value)?.variables ?? 0 }, () => ''));
-        }}><option value="">Elige una plantilla</option>{plantillas.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+        <label className="block text-sm font-medium">Plantilla aprobada<Select value={plantillaId} onValueChange={(valor) => {
+          setPlantillaId(valor); setValores(Array.from({ length: plantillas.find((p) => p.id === valor)?.variables ?? 0 }, () => ''));
+        }}>
+          <SelectTrigger className="mt-1 w-full" aria-label="Plantilla aprobada"><SelectValue placeholder="Elige una plantilla" /></SelectTrigger>
+          <SelectContent>{plantillas.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+        </Select></label>
         {!plantillas.length && <p className="text-sm text-muted">Necesitas una plantilla aprobada por Meta. <a href="/ajustes/plantillas">Revisar plantillas</a>.</p>}
         {plantilla && <blockquote className="whitespace-pre-wrap break-words rounded-campo border border-line bg-raised p-4 text-body">{plantilla.body}</blockquote>}
         {valores.map((v, i) => <label key={i} className="block text-sm font-medium">Valor de la variable <span className="font-mono">{i + 1}</span><Input required className="mt-1" value={v} onChange={(e) => setValores((vs) => vs.map((anterior, n) => n === i ? e.target.value : anterior))} /></label>)}
         {!!valores.length && <p className="text-sm text-muted">Puedes usar {'{contacto.nombre}'} o {'{contacto.telefono}'} para personalizar cada mensaje.</p>}
         <fieldset className="space-y-4 rounded-tarjeta border border-line p-4"><legend className="px-2 font-bold text-ink">Destinatarios</legend>
-          {!!segmentos.length && <label className="block text-sm">Partir de un segmento guardado<select className={`${campo} mt-1`} defaultValue="" onChange={(e) => setFiltros(segmentos.find((s) => s.id === e.target.value)?.filters ?? {})}><option value="">Todos los contactos con consentimiento</option>{segmentos.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
-          <label className="block text-sm">Origen<select className={`${campo} mt-1`} value={filtros.origen ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, origen: e.target.value || undefined }))}><option value="">Cualquier origen</option>{['whatsapp', 'webchat', 'instagram', 'messenger', 'manual', 'importado'].map((origen) => <option key={origen} value={origen}>{origen}</option>)}</select></label>
+          {!!segmentos.length && <label className="block text-sm">Partir de un segmento guardado<Select onValueChange={(valor) => setFiltros(segmentos.find((s) => s.id === valor)?.filters ?? {})}>
+            <SelectTrigger className="mt-1 w-full" aria-label="Partir de un segmento guardado"><SelectValue placeholder="Todos los contactos con consentimiento" /></SelectTrigger>
+            <SelectContent>{segmentos.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+          </Select></label>}
+          <label className="block text-sm">Origen<Select value={filtros.origen ?? TODOS} onValueChange={(valor) => setFiltros((f) => ({ ...f, origen: valor === TODOS ? undefined : valor }))}>
+            <SelectTrigger className="mt-1 w-full" aria-label="Origen"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Cualquier origen</SelectItem>
+              {['whatsapp', 'webchat', 'instagram', 'messenger', 'manual', 'importado'].map((origen) => <SelectItem key={origen} value={origen}>{origen}</SelectItem>)}
+            </SelectContent>
+          </Select></label>
           <label className="block text-sm">Sin actividad hace al menos (días)<Input type="number" min="0" step="1" className="mt-1 font-mono" value={filtros.sinActividadDias ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, sinActividadDias: e.target.value === '' ? undefined : Number(e.target.value) }))} /></label>
-          {!!etiquetas.length && <fieldset><legend className="text-sm">Con todas estas etiquetas</legend><div className="mt-2 flex flex-wrap gap-3">{etiquetas.map((tag) => <label key={tag.id} className="inline-flex min-h-control items-center gap-2 text-sm"><input type="checkbox" checked={filtros.tagIds?.includes(tag.id) ?? false} onChange={(e) => setFiltros((f) => ({ ...f, tagIds: e.target.checked ? [...(f.tagIds ?? []), tag.id] : (f.tagIds ?? []).filter((id) => id !== tag.id) }))} />{tag.name}</label>)}</div></fieldset>}
+          {!!etiquetas.length && <fieldset><legend className="text-sm">Con todas estas etiquetas</legend><div className="mt-2 flex flex-wrap gap-3">{etiquetas.map((tag) => <label key={tag.id} className="inline-flex min-h-control items-center gap-2 text-sm"><Checkbox checked={filtros.tagIds?.includes(tag.id) ?? false} onCheckedChange={(marcado) => setFiltros((f) => ({ ...f, tagIds: marcado === true ? [...(f.tagIds ?? []), tag.id] : (f.tagIds ?? []).filter((id) => id !== tag.id) }))} />{tag.name}</label>)}</div></fieldset>}
           <p className="text-sm text-muted">Solo se incluyen contactos con teléfono y consentimiento. Los filtros guardados de etapa y campos propios también se conservan.</p>
         </fieldset>
         <Button type="submit" disabled={ocupado || !plantilla || !nombre.trim()}>{ocupado ? 'Preparando…' : 'Crear borrador y ver destinatarios'}</Button>

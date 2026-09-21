@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { elegirPorValor } from './select';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -68,7 +69,7 @@ test('cambiar de negocio descarta la conversación sobre la que actúan los ataj
   await page.keyboard.press('j');
   await expect(page.getByRole('textbox', { name: 'Mensaje', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Mostrar u ocultar el menú' }).click();
-  await page.getByRole('combobox', { name: 'Negocio', exact: true }).selectOption(auth.tableTenantId);
+  await elegirPorValor(page, { nombre: 'Negocio', exacto: true }, auth.tableTenantId);
   await expect(page.getByRole('textbox', { name: 'Mensaje', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Ana Teclado/ })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Todavía no te escribe nadie' })).toBeVisible();

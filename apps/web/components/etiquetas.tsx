@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
@@ -129,15 +129,19 @@ export function Etiquetas() {
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
             Qué tipo es
-            <select
+            <Select
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as EtiquetaDto['role'] })}
-              className="h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink"
+              onValueChange={(valor) => setForm({ ...form, role: valor as EtiquetaDto['role'] })}
             >
-              {ROLES.map((r) => (
-                <option key={r.v} value={r.v}>{r.texto}</option>
-              ))}
-            </select>
+              <SelectTrigger className="h-control bg-field text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLES.map((r) => (
+                  <SelectItem key={r.v} value={r.v}>{r.texto}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
           <Button type="submit" disabled={guardando}>
             {guardando ? 'Creando…' : 'Crear'}
@@ -165,17 +169,20 @@ export function Etiquetas() {
               className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta border border-line bg-raised px-4 py-3"
             >
               <Badge role={t.role as BadgeRole}>{t.name}</Badge>
-              <select
+              <Select
                 value={t.role}
                 disabled={ocupado === t.id}
-                onChange={(e) => void cambiarRol(t, e.target.value as EtiquetaDto['role'])}
-                aria-label={`Tipo de ${t.name}`}
-                className="h-9 rounded-campo border border-line bg-field px-3 text-sm text-ink"
+                onValueChange={(valor) => void cambiarRol(t, valor as EtiquetaDto['role'])}
               >
-                {ROLES.map((r) => (
-                  <option key={r.v} value={r.v}>{r.texto}</option>
-                ))}
-              </select>
+                <SelectTrigger className="h-9 bg-field text-sm" aria-label={`Tipo de ${t.name}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r.v} value={r.v}>{r.texto}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <span className="flex-1" />
               <Button variant="fantasma" size="chico" disabled={ocupado === t.id} onClick={() => void borrar(t)}>
                 Borrar

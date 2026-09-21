@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, Checkbox } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -155,10 +155,9 @@ export function Empresas() {
           aria-label="Buscar empresa"
         />
         <label className="flex items-center gap-2 text-sm text-body">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={verArchivadas}
-            onChange={(e) => setVerArchivadas(e.target.checked)}
+            onCheckedChange={(marcado) => setVerArchivadas(marcado === true)}
           />
           Ver también las archivadas
         </label>

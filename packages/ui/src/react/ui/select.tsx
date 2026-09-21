@@ -60,6 +60,12 @@ export const SelectItem = forwardRef<
   return (
     <SelectPrimitive.Item
       ref={ref}
+      // El valor, visible desde fuera. Radix lo guarda por dentro y el DOM
+      // no lo muestra en ningún lado, así que no hay forma de apuntar a una
+      // opción por su valor — ni desde un test ni depurando a mano. Con el
+      // `<select>` nativo eso venía gratis (`<option value>`); al cambiarlo
+      // se perdió, y los e2e se quedaron sin cómo elegir por id.
+      data-value={props.value}
       className={cn(
         'relative flex cursor-pointer select-none items-center rounded-boton py-1.5 pl-8 pr-2 text-sm text-body',
         'outline-none focus:bg-action-soft focus:text-action-text data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
