@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "migrate": "node dist/cli.js"
+    "migrate": "node dist/cli.js",
+    "permisos": "node dist/cli-permisos.js"
   },
   "dependencies": {
     "pg": "^8.13.0",

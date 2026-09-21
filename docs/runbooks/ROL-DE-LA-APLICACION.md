@@ -33,32 +33,53 @@ Dos roles, con trabajos distintos:
 | dueño (`iaxti`) | crear la base y correr migraciones | DDL, dueño de las tablas |
 | aplicación (`iaxti_app`) | todo lo que corre en vivo: API, workers, agentes | DML, **sin** superusuario ni BYPASSRLS |
 
-```sql
-CREATE ROLE iaxti_app LOGIN PASSWORD '<la de verdad, del gestor de secretos>'
-  NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+El SQL vive en el repo, no en este documento: `infra/sql/rol-de-la-aplicacion.sql`.
+Estaba escrito acá y en ninguna otra parte, así que cada ambiente lo aplicaba
+a mano y ninguno quedaba igual que el anterior.
 
-GRANT USAGE ON SCHEMA public TO iaxti_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO iaxti_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_app;
-
--- El libro es append-only: el trigger ya rechaza UPDATE y DELETE, pero el
--- permiso tampoco debería estar. Dos cerraduras cuestan lo mismo que una.
-REVOKE UPDATE, DELETE ON audit_log FROM iaxti_app;
-
--- Las funciones. Hoy hay una sola —`resolver_api_key`, que resuelve una API
--- key ANTES de saber de qué tenant es— y sin este permiso la aplicación
--- arranca bien y rechaza TODA petición autenticada por API key, sin decir
--- por qué.
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO iaxti_app;
-
--- Para las tablas y funciones que vengan con las próximas migraciones:
-ALTER DEFAULT PRIVILEGES FOR ROLE iaxti IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO iaxti_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE iaxti IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO iaxti_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE iaxti IN SCHEMA public
-  GRANT EXECUTE ON FUNCTIONS TO iaxti_app;
+```bash
+psql "$DATABASE_URL_DUENO" \
+  -v rol=iaxti_app -v clave="$CLAVE_DEL_GESTOR_DE_SECRETOS" \
+  -f infra/sql/rol-de-la-aplicacion.sql
 ```
+
+Es idempotente y se puede volver a correr después de cada migración. Si el rol
+ya existía, además le QUITA lo que no debería tener: un `iaxti_app` creado a
+la rápida con `SUPERUSER` es justamente el caso que esto viene a arreglar.
+
+Concede las cuatro operaciones en todas las tablas, `USAGE, SELECT` en las
+secuencias y `EXECUTE` en las funciones, y después revoca lo que no va:
+`UPDATE`/`DELETE` en los dos libros de auditoría —son append-only, y el
+trigger que ya los rechaza es la otra cerradura— y toda escritura en
+`schema_migrations`, que es del dueño.
+
+## Antes de apuntar la aplicación al rol nuevo
+
+```bash
+DATABASE_URL="postgres://iaxti_app:...@host/base" pnpm --filter @iaxti/db run permisos
+```
+
+Se conecta CON EL ROL NUEVO, no escribe nada, y responde una de dos cosas:
+
+```
+rol "iaxti_app"
+  respeta RLS.
+  no le falta ningún permiso.
+  LISTO para ser el rol de la aplicación.
+```
+
+o la lista de lo que falta, con el nombre del objeto y qué se rompe sin él:
+
+```
+  FALTA  INSERT en tabla contact_identities — La aplicación falla con
+         "permission denied for table contact_identities".
+```
+
+Sale con código 1 cuando falta algo, y el despliegue de staging lo corre
+después de migrar (paso «Permisos del rol de la aplicación»), porque el
+momento en que esto se rompe es justo después de una migración que trajo una
+tabla nueva. La lista de tablas no está escrita a mano en ningún lado: se le
+pregunta al catálogo, así que una migración futura queda cubierta sola.
 
 > **El orden importa.** El rol se crea ANTES de correr las migraciones. Si se
 > hace al revés, el `GRANT EXECUTE` que la migración de `resolver_api_key`
