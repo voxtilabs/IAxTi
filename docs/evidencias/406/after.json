@@ -1,0 +1,5842 @@
+[
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 553.671875,
+        "bottom": 599.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 615.671875,
+        "bottom": 661.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 677.671875,
+        "bottom": 723.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 478.671875,
+        "bottom": 524.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 610.671875,
+        "bottom": 656.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 668.671875,
+        "bottom": 714.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 595.671875,
+        "bottom": 641.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 653.671875,
+        "bottom": 699.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 711.671875,
+        "bottom": 731.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 558.671875,
+        "bottom": 604.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 690.671875,
+        "bottom": 736.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 748.671875,
+        "bottom": 768.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 440.671875,
+        "bottom": 486.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 502.671875,
+        "bottom": 548.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 564.671875,
+        "bottom": 610.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 374.671875,
+        "bottom": 420.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 514.671875,
+        "bottom": 560.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 576.671875,
+        "bottom": 622.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 475.671875,
+        "bottom": 521.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 533.671875,
+        "bottom": 579.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 591.671875,
+        "bottom": 611.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 438.671875,
+        "bottom": 484.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 570.671875,
+        "bottom": 616.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 628.671875,
+        "bottom": 648.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 374.671875,
+        "bottom": 420.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 436.671875,
+        "bottom": 482.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 498.671875,
+        "bottom": 544.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 308.671875,
+        "bottom": 354.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 448.671875,
+        "bottom": 494.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 510.671875,
+        "bottom": 556.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 409.671875,
+        "bottom": 455.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 467.671875,
+        "bottom": 513.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 525.671875,
+        "bottom": 545.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 372.671875,
+        "bottom": 418.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 504.671875,
+        "bottom": 550.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 562.671875,
+        "bottom": 582.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 329.375,
+        "bottom": 375.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 385.375,
+        "bottom": 431.375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 441.375,
+        "bottom": 487.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 294.4375,
+        "bottom": 340.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 418.4375,
+        "bottom": 464.4375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 472.4375,
+        "bottom": 518.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 387.4375,
+        "bottom": 433.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 441.4375,
+        "bottom": 487.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 495.4375,
+        "bottom": 515.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 352.4375,
+        "bottom": 398.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 476.4375,
+        "bottom": 522.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 530.4375,
+        "bottom": 550.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 279.375,
+        "bottom": 325.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 335.375,
+        "bottom": 381.375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 391.375,
+        "bottom": 437.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 231.4375,
+        "bottom": 277.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 359.4375,
+        "bottom": 405.4375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 415.4375,
+        "bottom": 461.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 337.4375,
+        "bottom": 383.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 391.4375,
+        "bottom": 437.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 445.4375,
+        "bottom": 465.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 302.4375,
+        "bottom": 348.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 426.4375,
+        "bottom": 472.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 480.4375,
+        "bottom": 500.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 279.375,
+        "bottom": 325.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 335.375,
+        "bottom": 381.375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 391.375,
+        "bottom": 437.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 224.4375,
+        "bottom": 270.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 368.4375,
+        "bottom": 414.4375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 422.4375,
+        "bottom": 468.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 347.4375,
+        "bottom": 393.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 401.4375,
+        "bottom": 447.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 455.4375,
+        "bottom": 475.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 312.4375,
+        "bottom": 358.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 436.4375,
+        "bottom": 482.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 490.4375,
+        "bottom": 510.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 353.53125,
+        "bottom": 399.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 407.53125,
+        "bottom": 453.53125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 461.53125,
+        "bottom": 507.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 275.03125,
+        "bottom": 321.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 415.03125,
+        "bottom": 461.03125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 469.03125,
+        "bottom": 515.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 394.03125,
+        "bottom": 440.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 448.03125,
+        "bottom": 494.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 502.03125,
+        "bottom": 522.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 361.078125,
+        "bottom": 407.078125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 481.078125,
+        "bottom": 527.078125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 535.078125,
+        "bottom": 555.078125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 403.53125,
+        "bottom": 449.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 457.53125,
+        "bottom": 503.53125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 511.53125,
+        "bottom": 557.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 325.03125,
+        "bottom": 371.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 465.03125,
+        "bottom": 511.03125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 519.03125,
+        "bottom": 565.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 444.03125,
+        "bottom": 490.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 498.03125,
+        "bottom": 544.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 552.03125,
+        "bottom": 572.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 411.03125,
+        "bottom": 457.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 531.03125,
+        "bottom": 577.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 585.03125,
+        "bottom": 605.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 481.65625,
+        "bottom": 527.65625
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 539.65625,
+        "bottom": 585.65625
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 597.65625,
+        "bottom": 643.65625
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 386.53125,
+        "bottom": 432.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 534.53125,
+        "bottom": 580.53125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 592.53125,
+        "bottom": 638.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 509.53125,
+        "bottom": 555.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 567.53125,
+        "bottom": 613.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 625.53125,
+        "bottom": 645.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 474.53125,
+        "bottom": 520.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 602.53125,
+        "bottom": 648.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 660.53125,
+        "bottom": 680.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 390,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 381,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 163.296875,
+        "bottom": 209.296875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 217.296875,
+        "bottom": 263.296875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 271.296875,
+        "bottom": 317.296875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 469,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 460,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 159.59375,
+        "bottom": 205.59375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 303.59375,
+        "bottom": 349.59375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 357.59375,
+        "bottom": 403.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 483,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 474,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 343.59375,
+        "bottom": 389.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 397.59375,
+        "bottom": 417.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 553,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 544,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 413.59375,
+        "bottom": 459.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 467.59375,
+        "bottom": 487.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 553.671875,
+        "bottom": 599.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 615.671875,
+        "bottom": 661.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 677.671875,
+        "bottom": 723.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 478.671875,
+        "bottom": 524.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 618.671875,
+        "bottom": 664.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 680.671875,
+        "bottom": 726.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 595.671875,
+        "bottom": 641.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 653.671875,
+        "bottom": 699.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 711.671875,
+        "bottom": 731.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 558.671875,
+        "bottom": 604.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 690.671875,
+        "bottom": 736.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 748.671875,
+        "bottom": 768.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 440.671875,
+        "bottom": 486.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 502.671875,
+        "bottom": 548.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 564.671875,
+        "bottom": 610.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 378.671875,
+        "bottom": 424.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 510.671875,
+        "bottom": 556.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 568.671875,
+        "bottom": 614.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 475.671875,
+        "bottom": 521.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 533.671875,
+        "bottom": 579.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 591.671875,
+        "bottom": 611.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 438.671875,
+        "bottom": 484.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 570.671875,
+        "bottom": 616.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 628.671875,
+        "bottom": 648.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 374.671875,
+        "bottom": 420.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 436.671875,
+        "bottom": 482.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 498.671875,
+        "bottom": 544.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 312.671875,
+        "bottom": 358.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 444.671875,
+        "bottom": 490.671875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 502.671875,
+        "bottom": 548.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 409.671875,
+        "bottom": 455.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 467.671875,
+        "bottom": 513.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 525.671875,
+        "bottom": 545.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 372.671875,
+        "bottom": 418.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 504.671875,
+        "bottom": 550.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 562.671875,
+        "bottom": 582.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 329.375,
+        "bottom": 375.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 385.375,
+        "bottom": 431.375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 441.375,
+        "bottom": 487.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 291.4375,
+        "bottom": 337.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 419.4375,
+        "bottom": 465.4375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 475.4375,
+        "bottom": 521.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 387.4375,
+        "bottom": 433.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 441.4375,
+        "bottom": 487.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 495.4375,
+        "bottom": 515.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 352.4375,
+        "bottom": 398.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 476.4375,
+        "bottom": 522.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 530.4375,
+        "bottom": 550.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 279.375,
+        "bottom": 325.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 335.375,
+        "bottom": 381.375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 391.375,
+        "bottom": 437.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 231.4375,
+        "bottom": 277.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 359.4375,
+        "bottom": 405.4375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 415.4375,
+        "bottom": 461.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 337.4375,
+        "bottom": 383.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 391.4375,
+        "bottom": 437.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 445.4375,
+        "bottom": 465.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 302.4375,
+        "bottom": 348.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 426.4375,
+        "bottom": 472.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 480.4375,
+        "bottom": 500.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 279.375,
+        "bottom": 325.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 335.375,
+        "bottom": 381.375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 391.375,
+        "bottom": 437.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 221.4375,
+        "bottom": 267.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 369.4375,
+        "bottom": 415.4375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 425.4375,
+        "bottom": 471.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 347.4375,
+        "bottom": 393.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 401.4375,
+        "bottom": 447.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 455.4375,
+        "bottom": 475.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 312.4375,
+        "bottom": 358.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 436.4375,
+        "bottom": 482.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 490.4375,
+        "bottom": 510.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 353.53125,
+        "bottom": 399.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 407.53125,
+        "bottom": 453.53125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 461.53125,
+        "bottom": 507.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 275.03125,
+        "bottom": 321.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 415.03125,
+        "bottom": 461.03125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 469.03125,
+        "bottom": 515.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 394.03125,
+        "bottom": 440.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 448.03125,
+        "bottom": 494.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 502.03125,
+        "bottom": 522.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 361.078125,
+        "bottom": 407.078125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 481.078125,
+        "bottom": 527.078125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 535.078125,
+        "bottom": 555.078125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 403.53125,
+        "bottom": 449.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 457.53125,
+        "bottom": 503.53125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 511.53125,
+        "bottom": 557.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 325.03125,
+        "bottom": 371.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 465.03125,
+        "bottom": 511.03125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 519.03125,
+        "bottom": 565.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 444.03125,
+        "bottom": 490.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 498.03125,
+        "bottom": 544.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 552.03125,
+        "bottom": 572.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 411.03125,
+        "bottom": 457.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 531.03125,
+        "bottom": 577.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 585.03125,
+        "bottom": 605.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 481.65625,
+        "bottom": 527.65625
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 539.65625,
+        "bottom": 585.65625
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 597.65625,
+        "bottom": 643.65625
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 386.53125,
+        "bottom": 432.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 534.53125,
+        "bottom": 580.53125
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 592.53125,
+        "bottom": 638.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 509.53125,
+        "bottom": 555.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 567.53125,
+        "bottom": 613.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 625.53125,
+        "bottom": 645.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 474.53125,
+        "bottom": 520.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 602.53125,
+        "bottom": 648.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 660.53125,
+        "bottom": 680.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 390,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 381,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 163.296875,
+        "bottom": 209.296875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 217.296875,
+        "bottom": 263.296875
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 271.296875,
+        "bottom": 317.296875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 465,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 456,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 155.59375,
+        "bottom": 201.59375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 299.59375,
+        "bottom": 345.59375
+      },
+      {
+        "name": "Entrar con Google",
+        "height": 46,
+        "top": 353.59375,
+        "bottom": 399.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 483,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 474,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 343.59375,
+        "bottom": 389.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 397.59375,
+        "bottom": 417.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "app",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 553,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 544,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 413.59375,
+        "bottom": 459.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 467.59375,
+        "bottom": 487.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 574.671875,
+        "bottom": 620.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 636.671875,
+        "bottom": 682.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 499.671875,
+        "bottom": 545.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 639.671875,
+        "bottom": 685.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 585.671875,
+        "bottom": 631.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 643.671875,
+        "bottom": 689.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 701.671875,
+        "bottom": 721.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 548.671875,
+        "bottom": 594.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 680.671875,
+        "bottom": 726.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 738.671875,
+        "bottom": 758.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 471.671875,
+        "bottom": 517.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 533.671875,
+        "bottom": 579.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 407.671875,
+        "bottom": 453.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 539.671875,
+        "bottom": 585.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 475.671875,
+        "bottom": 521.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 533.671875,
+        "bottom": 579.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 591.671875,
+        "bottom": 611.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 438.671875,
+        "bottom": 484.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 570.671875,
+        "bottom": 616.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 628.671875,
+        "bottom": 648.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 405.671875,
+        "bottom": 451.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 467.671875,
+        "bottom": 513.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 341.671875,
+        "bottom": 387.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 473.671875,
+        "bottom": 519.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 409.671875,
+        "bottom": 455.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 467.671875,
+        "bottom": 513.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 525.671875,
+        "bottom": 545.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 372.671875,
+        "bottom": 418.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 504.671875,
+        "bottom": 550.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 562.671875,
+        "bottom": 582.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 357.375,
+        "bottom": 403.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 413.375,
+        "bottom": 459.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 321.4375,
+        "bottom": 367.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 445.4375,
+        "bottom": 491.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 387.4375,
+        "bottom": 433.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 441.4375,
+        "bottom": 487.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 495.4375,
+        "bottom": 515.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 352.4375,
+        "bottom": 398.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 476.4375,
+        "bottom": 522.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 530.4375,
+        "bottom": 550.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 297.375,
+        "bottom": 343.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 353.375,
+        "bottom": 399.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 259.4375,
+        "bottom": 305.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 387.4375,
+        "bottom": 433.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 337.4375,
+        "bottom": 383.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 391.4375,
+        "bottom": 437.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 445.4375,
+        "bottom": 465.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 302.4375,
+        "bottom": 348.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 426.4375,
+        "bottom": 472.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 480.4375,
+        "bottom": 500.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 297.375,
+        "bottom": 343.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 353.375,
+        "bottom": 399.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 249.4375,
+        "bottom": 295.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 397.4375,
+        "bottom": 443.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 347.4375,
+        "bottom": 393.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 401.4375,
+        "bottom": 447.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 455.4375,
+        "bottom": 475.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 312.4375,
+        "bottom": 358.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 436.4375,
+        "bottom": 482.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 490.4375,
+        "bottom": 510.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 370.53125,
+        "bottom": 416.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 424.53125,
+        "bottom": 470.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 302.03125,
+        "bottom": 348.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 442.03125,
+        "bottom": 488.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 394.03125,
+        "bottom": 440.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 448.03125,
+        "bottom": 494.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 502.03125,
+        "bottom": 522.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 361.078125,
+        "bottom": 407.078125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 481.078125,
+        "bottom": 527.078125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 535.078125,
+        "bottom": 555.078125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 420.53125,
+        "bottom": 466.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 474.53125,
+        "bottom": 520.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 352.03125,
+        "bottom": 398.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 492.03125,
+        "bottom": 538.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 444.03125,
+        "bottom": 490.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 498.03125,
+        "bottom": 544.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 552.03125,
+        "bottom": 572.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 411.03125,
+        "bottom": 457.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 531.03125,
+        "bottom": 577.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 585.03125,
+        "bottom": 605.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 500.65625,
+        "bottom": 546.65625
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 558.65625,
+        "bottom": 604.65625
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 415.53125,
+        "bottom": 461.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 563.53125,
+        "bottom": 609.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 509.53125,
+        "bottom": 555.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 567.53125,
+        "bottom": 613.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 625.53125,
+        "bottom": 645.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 474.53125,
+        "bottom": 520.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 602.53125,
+        "bottom": 648.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 660.53125,
+        "bottom": 680.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "inicial",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 390,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 381,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 190.296875,
+        "bottom": 236.296875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 244.296875,
+        "bottom": 290.296875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "error-envio",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 411,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 402,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 155.59375,
+        "bottom": 201.59375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 299.59375,
+        "bottom": 345.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "enviado",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 483,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 474,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 343.59375,
+        "bottom": 389.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 397.59375,
+        "bottom": 417.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "dia",
+    "state": "codigo-malo",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 553,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 544,
+    "controls": [
+      {
+        "name": "Modo noche",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 413.59375,
+        "bottom": 459.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 467.59375,
+        "bottom": 487.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 574.671875,
+        "bottom": 620.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 636.671875,
+        "bottom": 682.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 497.671875,
+        "bottom": 543.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 629.671875,
+        "bottom": 675.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 585.671875,
+        "bottom": 631.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 643.671875,
+        "bottom": 689.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 701.671875,
+        "bottom": 721.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1920,
+    "height": 1080,
+    "scrollHeight": 1080,
+    "scrollWidth": 1920,
+    "scrollY": 0,
+    "footerBottom": 1059,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 51,
+        "bottom": 97
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 548.671875,
+        "bottom": 594.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 680.671875,
+        "bottom": 726.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 738.671875,
+        "bottom": 758.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 471.671875,
+        "bottom": 517.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 533.671875,
+        "bottom": 579.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 405.671875,
+        "bottom": 451.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 545.671875,
+        "bottom": 591.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 475.671875,
+        "bottom": 521.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 533.671875,
+        "bottom": 579.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 591.671875,
+        "bottom": 611.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1440,
+    "height": 900,
+    "scrollHeight": 900,
+    "scrollWidth": 1440,
+    "scrollY": 0,
+    "footerBottom": 887,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 438.671875,
+        "bottom": 484.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 570.671875,
+        "bottom": 616.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 628.671875,
+        "bottom": 648.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 405.671875,
+        "bottom": 451.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 467.671875,
+        "bottom": 513.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 339.671875,
+        "bottom": 385.671875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 479.671875,
+        "bottom": 525.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 409.671875,
+        "bottom": 455.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 467.671875,
+        "bottom": 513.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 525.671875,
+        "bottom": 545.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1366,
+    "height": 768,
+    "scrollHeight": 768,
+    "scrollWidth": 1366,
+    "scrollY": 0,
+    "footerBottom": 755,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 27,
+        "bottom": 73
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 372.671875,
+        "bottom": 418.671875
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 504.671875,
+        "bottom": 550.671875
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 562.671875,
+        "bottom": 582.671875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 357.375,
+        "bottom": 403.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 413.375,
+        "bottom": 459.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 319.4375,
+        "bottom": 365.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 447.4375,
+        "bottom": 493.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 387.4375,
+        "bottom": 433.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 441.4375,
+        "bottom": 487.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 495.4375,
+        "bottom": 515.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1280,
+    "height": 720,
+    "scrollHeight": 720,
+    "scrollWidth": 1280,
+    "scrollY": 0,
+    "footerBottom": 707,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 352.4375,
+        "bottom": 398.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 476.4375,
+        "bottom": 522.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 530.4375,
+        "bottom": 550.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 297.375,
+        "bottom": 343.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 353.375,
+        "bottom": 399.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 261.4375,
+        "bottom": 307.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 385.4375,
+        "bottom": 431.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 337.4375,
+        "bottom": 383.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 391.4375,
+        "bottom": 437.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 445.4375,
+        "bottom": 465.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 1024,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 1024,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 302.4375,
+        "bottom": 348.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 426.4375,
+        "bottom": 472.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 480.4375,
+        "bottom": 500.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 297.375,
+        "bottom": 343.375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 353.375,
+        "bottom": 399.375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 249.4375,
+        "bottom": 295.4375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 397.4375,
+        "bottom": 443.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 347.4375,
+        "bottom": 393.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 401.4375,
+        "bottom": 447.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 455.4375,
+        "bottom": 475.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 768,
+    "height": 600,
+    "scrollHeight": 600,
+    "scrollWidth": 768,
+    "scrollY": 0,
+    "footerBottom": 587,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 312.4375,
+        "bottom": 358.4375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 436.4375,
+        "bottom": 482.4375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 490.4375,
+        "bottom": 510.4375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 370.53125,
+        "bottom": 416.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 424.53125,
+        "bottom": 470.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 302.03125,
+        "bottom": 348.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 442.03125,
+        "bottom": 488.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 394.03125,
+        "bottom": 440.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 448.03125,
+        "bottom": 494.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 502.03125,
+        "bottom": 522.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 640,
+    "scrollHeight": 640,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 631,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 361.078125,
+        "bottom": 407.078125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 481.078125,
+        "bottom": 527.078125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 535.078125,
+        "bottom": 555.078125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 420.53125,
+        "bottom": 466.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 474.53125,
+        "bottom": 520.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 352.03125,
+        "bottom": 398.03125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 492.03125,
+        "bottom": 538.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 444.03125,
+        "bottom": 490.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 498.03125,
+        "bottom": 544.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 552.03125,
+        "bottom": 572.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 360,
+    "height": 740,
+    "scrollHeight": 740,
+    "scrollWidth": 360,
+    "scrollY": 0,
+    "footerBottom": 731,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 19,
+        "bottom": 65
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 411.03125,
+        "bottom": 457.03125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 531.03125,
+        "bottom": 577.03125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 585.03125,
+        "bottom": 605.03125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 500.65625,
+        "bottom": 546.65625
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 558.65625,
+        "bottom": 604.65625
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 415.53125,
+        "bottom": 461.53125
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 563.53125,
+        "bottom": 609.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 509.53125,
+        "bottom": 555.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 567.53125,
+        "bottom": 613.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 625.53125,
+        "bottom": 645.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 390,
+    "height": 844,
+    "scrollHeight": 844,
+    "scrollWidth": 390,
+    "scrollY": 0,
+    "footerBottom": 833,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 21,
+        "bottom": 67
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 474.53125,
+        "bottom": 520.53125
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 602.53125,
+        "bottom": 648.53125
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 660.53125,
+        "bottom": 680.53125
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "inicial",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 390,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 381,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 190.296875,
+        "bottom": 236.296875
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 244.296875,
+        "bottom": 290.296875
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "error-envio",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 411,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 402,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "email",
+        "height": 46,
+        "top": 155.59375,
+        "bottom": 201.59375
+      },
+      {
+        "name": "Enviarme el acceso",
+        "height": 46,
+        "top": 299.59375,
+        "bottom": 345.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "enviado",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 483,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 474,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 343.59375,
+        "bottom": 389.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 397.59375,
+        "bottom": 417.59375
+      }
+    ],
+    "errors": []
+  },
+  {
+    "app": "admin",
+    "mode": "noche",
+    "state": "codigo-malo",
+    "width": 844,
+    "height": 390,
+    "scrollHeight": 553,
+    "scrollWidth": 844,
+    "scrollY": 0,
+    "footerBottom": 544,
+    "controls": [
+      {
+        "name": "Modo día",
+        "height": 46,
+        "top": 17,
+        "bottom": 63
+      },
+      {
+        "name": "text",
+        "height": 46,
+        "top": 289.59375,
+        "bottom": 335.59375
+      },
+      {
+        "name": "Entrar",
+        "height": 46,
+        "top": 413.59375,
+        "bottom": 459.59375
+      },
+      {
+        "name": "Pedir otro código",
+        "height": 20,
+        "top": 467.59375,
+        "bottom": 487.59375
+      }
+    ],
+    "errors": []
+  }
+]
