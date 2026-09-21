@@ -316,6 +316,33 @@ export class AuthzGuard implements CanActivate {
       };
     }
 
+    // Los clientes MCP mandan la credencial como `Authorization: Bearer`
+    // y no tienen dónde poner un header propio (#419). Una API key nuestra
+    // se reconoce por el prefijo `iaxti_`, así que no hay ambigüedad con un
+    // JWT de sesión: se resuelve por la misma puerta y con los mismos
+    // códigos de error.
+    if (
+      typeof authorization === 'string' &&
+      authorization.startsWith('Bearer iaxti_') &&
+      this.options.resolveApiKey
+    ) {
+      const resolved = await this.options.resolveApiKey(authorization.slice(7));
+      if (!resolved) {
+        throw new UnauthorizedException({
+          code: 'API_KEY_INVALID',
+          message: 'Esa API key no es válida, venció o fue revocada.',
+        });
+      }
+      return {
+        userId: `apikey:${resolved.id}`,
+        tenantId: resolved.tenantId,
+        role: 'APIKEY',
+        kind: 'apikey',
+        scopes: resolved.scopes,
+      };
+    }
+
+
     if (typeof authorization === 'string' && authorization.startsWith('Bearer ') && this.options.jwtVerify) {
       let userId: string;
       try {

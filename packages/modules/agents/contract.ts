@@ -96,9 +96,10 @@ export {
   ejecutarHerramienta,
   HERRAMIENTAS_DE_LECTURA,
   HERRAMIENTAS_QUE_ESCRIBEN,
+  HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS,
 } from './application/herramientas';
 export type { ResultadoHerramienta, DepsHerramientas } from './application/herramientas';
-export { herramientasExpuestas } from './application/herramientas-expuestas';
+export { herramientasExpuestas, ESQUEMAS } from './application/herramientas-expuestas';
 export type { HerramientaExpuesta } from './application/models';
 // Por qué NO contestó el proveedor, con nombre y con qué hacer (#402).
 export { motivoDelProveedor } from './application/motivo-del-proveedor';

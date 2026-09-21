@@ -24,7 +24,7 @@ import {
  */
 
 /** Qué argumentos toma cada herramienta, en JSON Schema. */
-const ESQUEMAS: Record<string, { description: string; parameters: Record<string, unknown> }> = {
+export const ESQUEMAS: Record<string, { description: string; parameters: Record<string, unknown> }> = {
   'conversations.get_context': {
     description:
       'Trae el historial y el resumen de esta conversación. Úsala cuando necesites saber qué se habló antes.',
