@@ -106,6 +106,43 @@ export interface IaSettings {
   economico: TaskModel | null;
 }
 
+/**
+ * Los proveedores cuyos términos de datos NO garantizan qué hacen con lo
+ * que reciben (ADR-0023).
+ *
+ * No es una lista de "malos": es una lista de "todavía no tenemos el papel".
+ * Sale de acá el día que ese papel exista para nuestra cuenta.
+ */
+const SIN_GARANTIA_DE_DATOS = new Set<string>(['glm']);
+
+/**
+ * La única tarea que sobrevive a la redacción.
+ *
+ * `sugerir` y `responder` tienen que recibir el texto REAL: redactar lo que
+ * se le pide interpretar rompe la respuesta. `clasificar` no interpreta,
+ * etiqueta — saber si un mensaje es una consulta de precio o un reclamo no
+ * necesita el teléfono ni el nombre de quien escribe.
+ */
+const SOBREVIVE_A_LA_REDACCION = new Set<AgentTask>(['clasificar']);
+
+/** ¿Este prompt sale redactado HACIA EL PROVEEDOR? (distinto de la traza) */
+export function vaRedactadoAlProveedor(provider: string, task: AgentTask): boolean {
+  return SIN_GARANTIA_DE_DATOS.has(provider) && SOBREVIVE_A_LA_REDACCION.has(task);
+}
+
+/**
+ * ¿Se le puede dar esta tarea a este proveedor?
+ *
+ * Un tenant puede configurar lo que quiera; esto es lo que el producto
+ * acepta. La configuración que no se acepta no falla: cae al por defecto de
+ * la tarea, porque un mensaje de un cliente esperando respuesta no es el
+ * lugar para enseñar una política.
+ */
+export function proveedorPermitidoParaTarea(provider: string, task: AgentTask): boolean {
+  if (!SIN_GARANTIA_DE_DATOS.has(provider)) return true;
+  return SOBREVIVE_A_LA_REDACCION.has(task);
+}
+
 export function iaSettings(settings: Record<string, unknown> | null | undefined): IaSettings {
   const raw = (settings?.ia ?? {}) as Partial<{
     tasks: Partial<Record<AgentTask, Partial<TaskModel>>>;
@@ -116,14 +153,30 @@ export function iaSettings(settings: Record<string, unknown> | null | undefined)
   for (const task of TASKS) {
     const t = raw.tasks?.[task];
     tasks[task] = {
-      provider: PROVIDERS.includes(t?.provider as Provider)
-        ? (t!.provider as Provider)
-        : DEFAULT_TASK_MODELS[task].provider,
-      model: t?.model?.trim() || DEFAULT_TASK_MODELS[task].model,
+      provider:
+        PROVIDERS.includes(t?.provider as Provider) &&
+        proveedorPermitidoParaTarea(t!.provider as Provider, task)
+          ? (t!.provider as Provider)
+          : DEFAULT_TASK_MODELS[task].provider,
+      // El modelo acompaña al proveedor: si el proveedor cayó al por
+      // defecto, quedarse con `glm-4.6` apuntando a Google sería un 404 en
+      // cada mensaje entrante.
+      model:
+        PROVIDERS.includes(t?.provider as Provider) &&
+        !proveedorPermitidoParaTarea(t!.provider as Provider, task)
+          ? DEFAULT_TASK_MODELS[task].model
+          : t?.model?.trim() || DEFAULT_TASK_MODELS[task].model,
     };
   }
+  // El económico (#52) sirve para CUALQUIER tarea cuando la cuota llega al
+  // 100 %, así que un proveedor sin garantías no puede estar ahí: sería la
+  // puerta de atrás para que `sugerir` termine en él justo el día de más
+  // volumen.
   const economico =
-    raw.economico && PROVIDERS.includes(raw.economico.provider as Provider) && raw.economico.model?.trim()
+    raw.economico &&
+    PROVIDERS.includes(raw.economico.provider as Provider) &&
+    !SIN_GARANTIA_DE_DATOS.has(raw.economico.provider as string) &&
+    raw.economico.model?.trim()
       ? { provider: raw.economico.provider as Provider, model: raw.economico.model.trim() }
       : null;
   return { tasks, redactPII: raw.redactPII !== false, economico };

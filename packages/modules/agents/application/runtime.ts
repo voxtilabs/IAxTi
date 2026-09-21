@@ -4,7 +4,13 @@ import type { ModuleRegistry } from '@iaxti/core';
 import { publishEvent } from '@iaxti/core';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { incrementUsage } from '@iaxti/module-organizations';
-import { DEFAULT_TASK_OUTPUT_TOKENS, estimateCostUsd, iaSettings, redactPII } from '../domain/config';
+import {
+  DEFAULT_TASK_OUTPUT_TOKENS,
+  estimateCostUsd,
+  iaSettings,
+  redactPII,
+  vaRedactadoAlProveedor,
+} from '../domain/config';
 import type { AgentTask, Provider } from '../domain/config';
 import { componerPrompt, resolverObjetivo } from '../domain/objetivo';
 import { aiSdkModelPort, type HerramientaExpuesta, type ModelPortFactory } from './models';
@@ -178,11 +184,29 @@ export async function runAgentTask(
   const system = componerPrompt(base, resuelto) ?? base;
 
   const promptCompleto = input.context ? `${input.context}\n\n${input.prompt}` : input.prompt;
+  /**
+   * Lo que sale HACIA EL PROVEEDOR, que no es lo mismo que lo que se
+   * guarda (ADR-0023).
+   *
+   * `redactPII` existía y protegía a Langfuse y al dataset de evaluación:
+   * el texto que viaja al modelo iba entero, y tiene que ir entero —
+   * redactar lo que se le pide interpretar rompe la sugerencia.
+   *
+   * Con una excepción, y por eso esto existe: `clasificar` no interpreta,
+   * etiqueta. Saber si un mensaje es una consulta de precio o un reclamo no
+   * necesita el teléfono ni el nombre de quien escribe. Es la única tarea
+   * de alto volumen que sobrevive a la redacción, y por eso es la única
+   * donde se puede probar un proveedor cuyos términos de datos no dicen
+   * qué hacen con lo que reciben.
+   */
+  const haciaElProveedor = vaRedactadoAlProveedor(provider, input.task)
+    ? redactPII(promptCompleto)
+    : promptCompleto;
   const inicio = Date.now();
   try {
     const res = await modelPortFactory(provider, model).generate({
       system,
-      prompt: promptCompleto,
+      prompt: haciaElProveedor,
       // El tope lo manda la TAREA, no un default único del puerto: lo que
       // necesita `configurar` y lo que necesita `resumir` no se parecen.
       maxOutputTokens: input.maxOutputTokens ?? DEFAULT_TASK_OUTPUT_TOKENS[input.task],
