@@ -303,6 +303,38 @@ describe('/v1/agents (#47)', () => {
     expect((await res.json()).code).toBe('PROVIDER_UNAVAILABLE');
   });
 
+  it('el de configuración PROPONE: por la puerta de preguntar se le dice dónde ir', async () => {
+    // También es del dueño, pero su salida no es una respuesta: es un diff
+    // que se aplica o se descarta (#415). Una respuesta suelta por acá
+    // sonaría a que algo quedó configurado.
+    const creado = await pedir(duena, '/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Armador', objetivo: 'configuracion' }),
+    });
+    expect(creado.status).toBe(201);
+    const armador = await creado.json();
+
+    const res = await pedir(duena, `/agents/${armador.id}/preguntar`, {
+      method: 'POST',
+      body: JSON.stringify({ pregunta: '¿cómo configuro esto?' }),
+    });
+    expect(res.status).toBe(400);
+    const cuerpo = await res.json();
+    expect(cuerpo.code).toBe('AGENT_PROPONE_NO_RESPONDE');
+    expect(cuerpo.message).toContain('Ajustes');
+  });
+
+  it('el configurador dice QUIÉN arma la propuesta', async () => {
+    const r = await pedir(duena, '/agents/configurador/quien');
+    expect(r.status).toBe(200);
+    const q = await r.json();
+    // Se acaba de crear el de configuración: tiene que ser ese, y decir
+    // que es uno hecho para esto.
+    expect(q.agente?.name).toBe('Armador');
+    expect(q.propio).toBe(true);
+    expect(q.agente.model).toBeTruthy();
+  });
+
   it('preguntar es de quien usa el asistente, no solo del ADMIN', async () => {
     // El vendedor pregunta y VE LO SUYO: el permiso lo resuelve la misma
     // función que el tablero (ADR-0008), no una regla nueva escrita acá.

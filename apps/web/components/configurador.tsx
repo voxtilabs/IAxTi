@@ -13,6 +13,11 @@ import { apiFetch } from '../lib/api';
 // la propuesta llega como diff ANTES/DESPUÉS (dispositivo Pulso) y el
 // usuario la aplica. La IA jamás toca nada sin ese toque.
 
+interface QuienDto {
+  agente: { id: string; name: string; model: string } | null;
+  propio: boolean;
+}
+
 interface PropuestaDto {
   id: string;
   vertical: string;
@@ -45,6 +50,7 @@ export function Configurador() {
   const [descripcion, setDescripcion] = useState('');
   const [vertical, setVertical] = useState('otro');
   const [propuesta, setPropuesta] = useState<PropuestaDto | null>(null);
+  const [quien, setQuien] = useState<QuienDto | null>(null);
   const [pensando, setPensando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [aplicado, setAplicado] = useState<string | null>(null);
@@ -53,7 +59,12 @@ export function Configurador() {
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      setPropuesta(await apiFetch<PropuestaDto | null>(config, session, tenant, '/agents/configurador'));
+      const [p, q] = await Promise.all([
+        apiFetch<PropuestaDto | null>(config, session, tenant, '/agents/configurador'),
+        apiFetch<QuienDto>(config, session, tenant, '/agents/configurador/quien'),
+      ]);
+      setPropuesta(p);
+      setQuien(q);
     } catch {
       /* sin permiso agents.configure: la sección simplemente no opera */
     }
@@ -109,6 +120,21 @@ export function Configurador() {
         rápidas y las plantillas de WhatsApp. Tú revisas el antes/después y decides — nada se
         aplica solo.
       </p>
+
+      {/* Quién la arma (#415). La propuesta sale con el modelo de ESE
+          asistente, y hasta ahora no había forma de saber cuál era. */}
+      {quien?.agente && (
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-body">
+          <Bot className="size-3.5 shrink-0" aria-hidden />
+          La arma <span className="font-medium text-ink">{quien.agente.name}</span>
+          <Badge role="neutral">{quien.agente.model}</Badge>
+          {!quien.propio && (
+            <span className="text-muted">
+              — es el que atiende a tus clientes. Puedes crear uno dedicado a esto en Tu asistente.
+            </span>
+          )}
+        </p>
+      )}
 
       {!propuesta && (
         <>

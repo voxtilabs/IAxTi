@@ -26,7 +26,9 @@ describe('el destinatario del asistente', () => {
       if (d.destinatario === 'cliente') {
         expect(deNumeros, `${id} no debería ver los números`).toEqual([]);
       } else {
-        expect(deNumeros.length, `${id} debería tener herramientas de números`).toBeGreaterThan(0);
+        // Ninguno del dueño puede escribirle a nadie. No se exige que TENGA
+        // herramientas: el de configuración no tiene ninguna a propósito,
+        // porque propone y no aplica (#415).
         const escriben = d.tools.filter((t) => /send_reply|create_|book|link/.test(t));
         expect(escriben, `${id} no debería poder escribirle a nadie`).toEqual([]);
       }
@@ -42,6 +44,13 @@ describe('el destinatario del asistente', () => {
 
     const cliente = resolverObjetivo('agendar', null, []);
     expect(componerPrompt(null, cliente)!).toMatch(/te ayuda una persona/);
+  });
+
+  it('el de números sí tiene con qué mirar los números', () => {
+    // La otra mitad de la regla de arriba, para el único que debe tenerlas:
+    // sin herramientas, un asistente de estadísticas no responde — inventa.
+    const deNumeros = DEFINICIONES.estadisticas.tools.filter((t) => t.startsWith('analytics.'));
+    expect(deNumeros.length).toBeGreaterThan(0);
   });
 
   it('el de números tiene prohibido estimar, explícitamente', () => {

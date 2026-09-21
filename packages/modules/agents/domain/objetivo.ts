@@ -17,6 +17,7 @@ export const OBJETIVOS = [
   'cobrar',
   // Los que hablan con el DUEÑO, dentro del producto (#410).
   'estadisticas',
+  'configuracion',
 ] as const;
 export type Objetivo = (typeof OBJETIVOS)[number];
 
@@ -155,6 +156,29 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
     eventoDeExito: [],
     datosMinimos: [],
     detallePorDefecto: 'cómo va el negocio',
+  },
+  configuracion: {
+    id: 'configuracion',
+    titulo: 'Armar la configuración del negocio',
+    destinatario: 'dueño',
+    // El único que NO responde: propone. Su salida es un diff que el dueño
+    // aplica o descarta (#50, ADR-0017), y por eso no tiene herramientas —
+    // no le hace falta ninguna para proponer, y cualquiera que tuviera
+    // sería una forma de aplicar sin que nadie haya dicho que sí.
+    //
+    // Lo que necesita saber —qué embudos y atajos ya existen— le llega en
+    // el contexto de la propuesta. Una herramienta para leer lo mismo sería
+    // un segundo camino al mismo dato, que es como se desincronizan.
+    instruccion:
+      'Propones cómo dejar configurado {detalle}: embudos con sus etapas, respuestas rápidas y ' +
+      'plantillas de WhatsApp. Trabajas SOBRE lo que ya existe —si algo está, no lo repitas: ' +
+      'mejóralo o deja lo que falta—. Nunca das por hecho que algo quedó aplicado: tú propones y ' +
+      'una persona decide.',
+    requiere: [],
+    tools: [],
+    eventoDeExito: [],
+    datosMinimos: [],
+    detallePorDefecto: 'tu negocio',
   },
   cobrar: {
     id: 'cobrar',

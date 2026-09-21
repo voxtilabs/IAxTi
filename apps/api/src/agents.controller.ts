@@ -35,6 +35,7 @@ import { getTenantSettings } from '@iaxti/module-organizations';
 import { catalogoDeMetricas, metricaEnRango } from '@iaxti/module-analytics';
 import { enteroDeEntorno } from '@iaxti/core';
 import {
+  agenteQueConfigura,
   applyProposal,
   dismissProposal,
   pendingProposal,
@@ -349,6 +350,22 @@ export class AgentsController {
             'Crea uno de "Responder sobre los números" para preguntarle acá.',
         });
       }
+      // El de configuración también es del dueño, pero su salida NO es una
+      // respuesta: es una propuesta que se aplica o se descarta (#415). Una
+      // respuesta suelta por acá sonaría a que algo quedó configurado.
+      //
+      // Va ANTES de mirar el proveedor a propósito: que este asistente no
+      // conteste por esta puerta es lo que ES, no depende de si hay llave.
+      // Un 503 acá mandaría a buscar una llave para una puerta que igual no
+      // era la correcta.
+      if (definicion.tools.length === 0) {
+        throw new BadRequestException({
+          code: 'AGENT_PROPONE_NO_RESPONDE',
+          message:
+            'Este asistente no responde preguntas: propone cómo configurar tu negocio, y tú ' +
+            'decides si lo aplicas. Cuéntale de qué se trata en Ajustes → IA.',
+        });
+      }
       if (!agent.active) {
         throw new BadRequestException({ code: 'AGENT_OFF', message: 'Este asistente está apagado.' });
       }
@@ -507,6 +524,31 @@ export class AgentsController {
   async configuradorPendiente(@Req() request: WithUser) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, (c) => pendingProposal(c, actor.tenantId));
+  }
+
+  /**
+   * Quién va a armar la propuesta (#415).
+   *
+   * La pantalla lo muestra antes de que el dueño escriba nada. Antes de
+   * esto, el configurador usaba "el asistente activo" sin decirlo: si el
+   * negocio tenía uno de ventas con un modelo barato, la propuesta salía
+   * con ese y no había forma de saberlo desde afuera.
+   */
+  @Get('configurador/quien')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'Qué asistente arma la propuesta de configuración' })
+  async configuradorQuien(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const agente = await agenteQueConfigura(c, actor.tenantId);
+      if (!agente) return { agente: null, propio: false };
+      return {
+        agente: { id: agente.id, name: agente.name, model: agente.model },
+        // true si es uno hecho PARA esto, false si está prestado del que
+        // atiende clientes.
+        propio: agente.objetivo === 'configuracion',
+      };
+    });
   }
 
   @Post('configurador')

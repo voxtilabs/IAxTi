@@ -66,6 +66,7 @@ export type { EscalationReason, AutonomousPayload } from './domain/escalation';
 export {
   snapshotConfig,
   proposeConfiguration,
+  agenteQueConfigura,
   getProposal,
   pendingProposal,
   applyProposal,
