@@ -10,5 +10,8 @@ const catalog = new Set(registry.permissionsCatalog().keys());
  * único de ADR-0008: aquí tampoco se condiciona por rol.
  */
 export function actorCan(actor: Actor, permission: string): boolean {
+  if (actor.kind === 'apikey') {
+    return catalog.has(permission) && (actor.scopes ?? []).includes(permission);
+  }
   return isBaseRole(actor.role) ? baseRoleHasPermission(actor.role, permission, catalog) : false;
 }
