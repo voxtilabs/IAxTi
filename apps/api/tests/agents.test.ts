@@ -195,4 +195,64 @@ describe('/v1/agents (#47)', () => {
     expect((await pedir(vendedor, `/agents/${agente.id}/evals`)).status).toBe(403);
     expect((await pedir(supervisora, `/agents/${agente.id}/evals`)).status).toBe(200);
   });
+
+  it('el catálogo de objetivos dice cuáles puede usar este negocio (#385)', async () => {
+    // La pantalla que crea el asistente se dibuja con esto. Si los
+    // objetivos vinieran de una constante del frontend, se
+    // desincronizarían con `DEFINICIONES` y nadie se enteraría hasta que
+    // alguien eligiera uno que el servidor ya no acepta.
+    const res = await pedir(duena, '/agents/objetivos');
+    expect(res.status).toBe(200);
+    const objetivos = (await res.json()) as Array<{
+      id: string;
+      titulo: string;
+      requiere: string[];
+      faltan: string[];
+      disponible: boolean;
+      datosMinimos: string[];
+      detallePorDefecto: string;
+    }>;
+
+    expect(objetivos.length).toBeGreaterThanOrEqual(5);
+    const agendar = objetivos.find((o) => o.id === 'agendar')!;
+    expect(agendar.titulo).toBeTruthy();
+    expect(agendar.requiere).toContain('calendar');
+    expect(agendar.datosMinimos.length).toBeGreaterThan(0);
+    expect(agendar.detallePorDefecto).toBeTruthy();
+
+    // `disponible` es consecuencia de `faltan`, no un campo suelto: si se
+    // calcularan por separado podrían contradecirse.
+    for (const o of objetivos) {
+      expect(o.disponible).toBe(o.faltan.length === 0);
+      for (const m of o.faltan) expect(o.requiere).toContain(m);
+    }
+
+    // La instrucción es el prompt del sistema y NO se expone: mostrarla
+    // invita a editarla desde la pantalla, y ahí deja de ser una decisión
+    // del producto.
+    expect(JSON.stringify(objetivos)).not.toContain('Tu objetivo es');
+  });
+
+  it('crear el asistente con objetivo es del ADMIN, y nace sugiriendo', async () => {
+    expect((await pedir(vendedor, '/agents/objetivos')).status).toBe(403);
+
+    const creado = await pedir(duena, '/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Asistente de prueba', objetivo: 'informar', objetivoDetalle: 'una respuesta' }),
+    });
+    expect(creado.status).toBe(201);
+    const agente = (await creado.json()) as { objetivo: string; objetivoDetalle: string; defaultMode: string };
+    expect(agente.objetivo).toBe('informar');
+    expect(agente.objetivoDetalle).toBe('una respuesta');
+    // ADR-0010: el copiloto sugiere y el humano envía. Sin pedirlo, el
+    // asistente nace en 'assist'.
+    expect(agente.defaultMode).toBe('assist');
+
+    const inventado = await pedir(duena, '/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Otro', objetivo: 'conquistar-el-mundo' }),
+    });
+    expect(inventado.status).toBe(400);
+  });
 });
+
