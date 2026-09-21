@@ -7,6 +7,7 @@ import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './mo
 import { aiSdkModelPort, aiSdkTranscriber } from './models';
 import { listAgents, type Agent } from './agents';
 import { abrirIntento } from './objetivo-medido';
+import { DEFINICIONES } from '../domain/objetivo';
 
 // El copiloto en assist (#48): sugiere, resume, clasifica y califica —
 // el humano manda con un toque. NUNCA crea nada solo en assist.
@@ -44,9 +45,32 @@ function rowToSuggestion(row: Record<string, unknown>): Suggestion {
 }
 
 /** El agente activo del tenant en modo assist o autónomo (no off). */
+/**
+ * El asistente que ATIENDE, o sea el que le habla al cliente del negocio.
+ *
+ * Desde #410 un tenant puede tener asistentes que NO atienden a nadie: el
+ * que le responde al dueño sobre sus números vive adentro del producto.
+ * Este busca "el primero activo", y los ordena `created_at`, así que si el
+ * dueño creaba primero el de estadísticas —o apagaba el de ventas— el
+ * copiloto tomaba ESE para contestarle a un cliente por WhatsApp: con la
+ * instrucción de reportar cifras y con las herramientas de analytics
+ * colgadas. Los números del negocio, a un cliente, sin que nadie lo pida.
+ *
+ * El filtro es por DESTINATARIO y no por una lista de objetivos: el
+ * próximo asistente del dueño queda cubierto sin que nadie se acuerde de
+ * agregarlo acá.
+ */
 export async function activeAgent(client: PoolClient, tenantId: string): Promise<Agent | null> {
   const agentes = await listAgents(client, tenantId);
-  return agentes.find((a) => a.active && a.defaultMode !== 'off') ?? null;
+  return agentes.find((a) => a.active && a.defaultMode !== 'off' && atiendeClientes(a)) ?? null;
+}
+
+/** ¿Este asistente le habla al cliente del negocio? Sin objetivo, sí: es
+ *  como funcionaban todos antes de que el eje existiera. */
+export function atiendeClientes(agent: Pick<Agent, 'objetivo'>): boolean {
+  if (!agent.objetivo) return true;
+  const d = DEFINICIONES[agent.objetivo];
+  return d ? d.destinatario === 'cliente' : true;
 }
 
 /**

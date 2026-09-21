@@ -44,6 +44,7 @@ export {
   feedbackSuggestion,
   conversationAnalysis,
   activeAgent,
+  atiendeClientes,
   transcribeInboundAudio,
 } from './application/copilot';
 export type { Suggestion } from './application/copilot';
