@@ -68,7 +68,8 @@ for (const [width, height] of [[360, 640], [360, 741], [360, 900], [390, 844], [
       await accesoCompleto(page);
       const correo = page.getByRole('textbox', { name: 'Tu correo' });
       await correo.focus();
-      expect(await correo.evaluate((e) => getComputedStyle(e).outlineWidth)).toBe('2px');
+      await expect(correo).toBeFocused();
+      await expect(correo).toHaveCSS('outline-width', '2px');
       await correo.fill('persona@example.invalid');
       await correo.press('Tab');
       await expect(page.getByRole('button', { name: 'Enviarme el acceso' })).toBeFocused();
