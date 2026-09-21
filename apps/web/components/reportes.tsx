@@ -5,6 +5,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, EstadoVacio, Skeleton, Tabs, TabsList, TabsTrigger, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
+import { PreguntaALosNumeros } from './pregunta-a-los-numeros';
 import { apiFetch, fmtClp } from '../lib/api';
 
 // Reportes (#66, SPEC §19): cómo va el negocio sin configurar nada.
@@ -150,6 +151,12 @@ export function Reportes() {
         <Cifra rotulo="Costo Meta" valor={m.costo_meta_usd > 0 ? `USD ${m.costo_meta_usd.toFixed(2)}` : '—'} definicion={d.costo_meta_usd} />
         <Cifra rotulo="Citas" valor={m.citas_agendadas > 0 ? String(m.citas_agendadas) : '—'} definicion={d.citas_agendadas} />
         <Cifra rotulo="Pagos" valor={m.pagos_recibidos_clp > 0 ? fmtClp(m.pagos_recibidos_clp) : '—'} definicion={d.pagos_recibidos_clp} />
+      </div>
+
+      {/* Va al final, DESPUÉS de los números: la pregunta nace mirándolos
+          (#410), y así la respuesta queda al lado de lo que explica. */}
+      <div className="mt-6">
+        <PreguntaALosNumeros />
       </div>
     </div>
   );

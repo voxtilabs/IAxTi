@@ -21,14 +21,17 @@ import {
   createAgent,
   getAgent,
   getQuota,
+  herramientasExpuestas,
   iaSettings,
   listAgents,
   listExecutions,
   providerAvailable,
+  resolverObjetivo,
   runAgentTask,
   updateAgent,
 } from '@iaxti/module-agents';
 import { getTenantSettings } from '@iaxti/module-organizations';
+import { catalogoDeMetricas, metricaEnRango } from '@iaxti/module-analytics';
 import { enteroDeEntorno } from '@iaxti/core';
 import {
   applyProposal,
@@ -155,6 +158,10 @@ export class AgentsController {
       return {
         id: d.id,
         titulo: d.titulo,
+        // Con quién habla (#410). La pantalla agrupa por esto: "Vender" y
+        // "Responder sobre los números" no son comparables y ofrecerlos en
+        // la misma lista haría elegir mal.
+        destinatario: d.destinatario,
         requiere: d.requiere,
         faltan,
         disponible: faltan.length === 0,
@@ -262,6 +269,133 @@ export class AgentsController {
         });
       }
       return res;
+    });
+  }
+
+  /**
+   * El dueño le pregunta por sus números (#410).
+   *
+   * Es OTRA puerta que `:id/run`, no un parámetro más, por tres razones que
+   * no se pueden cumplir en la de allá:
+   *
+   *  1. Acá las herramientas SE EJECUTAN. `run` corre una sola pasada sin
+   *     tools; el asistente de números sin tools no responde nada — inventa.
+   *  2. La identidad que ejecuta es la de QUIEN PREGUNTA, no la del dueño de
+   *     una conversación. Un vendedor que pregunta "cómo vamos" ve lo suyo,
+   *     igual que en el tablero, porque el permiso lo resuelve la misma
+   *     función (ADR-0008).
+   *  3. Solo se ofrecen las herramientas del OBJETIVO, ni una más. Aunque el
+   *     agente tuviera `crm.create_deal` habilitado de antes, por esta
+   *     puerta no aparece: es un asistente que lee, y nada de lo que se
+   *     escriba acá tendría a quién avisarle.
+   */
+  @Post(':id/preguntar')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Le pregunta al asistente del dueño (ejecuta herramientas de lectura)' })
+  async preguntar(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { pregunta?: string },
+  ) {
+    const actor = actorOf(request);
+    const pregunta = body?.pregunta?.trim();
+    if (!pregunta) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Falta la pregunta.',
+        details: [{ field: 'pregunta' }],
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const agent = await getAgent(c, actor.tenantId, id).catch(() => {
+        throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message: 'No encontramos ese asistente.' });
+      });
+      const definicion = agent.objetivo ? DEFINICIONES[agent.objetivo] : undefined;
+      if (definicion?.destinatario !== 'dueño') {
+        throw new BadRequestException({
+          code: 'AGENT_NO_ES_DEL_DUENO',
+          message:
+            'Este asistente está hecho para contestarle a tus clientes, no a ti. ' +
+            'Crea uno de "Responder sobre los números" para preguntarle acá.',
+        });
+      }
+      if (!agent.active) {
+        throw new BadRequestException({ code: 'AGENT_OFF', message: 'Este asistente está apagado.' });
+      }
+      if (!providerAvailable(agent.provider as Provider)) {
+        throw new ServiceUnavailableException({
+          code: 'PROVIDER_UNAVAILABLE',
+          message:
+            'El proveedor de IA de este asistente aún no tiene llave configurada en este ambiente.',
+        });
+      }
+
+      const activos = registry
+        .health()
+        .filter((m) => m.active)
+        .map((m) => m.id);
+      const objetivo = resolverObjetivo(agent.objetivo!, agent.objetivoDetalle, activos);
+      if (!objetivo.alcanzable) {
+        throw new BadRequestException({
+          code: 'OBJETIVO_INALCANZABLE',
+          message: `Para responder sobre los números falta ${objetivo.faltan.join(', ')} en este negocio.`,
+        });
+      }
+
+      const tools = herramientasExpuestas(
+        c,
+        {
+          tenantId: actor.tenantId,
+          // Solo las del objetivo (ver el punto 3 de arriba).
+          habilitadas: objetivo.tools,
+          actorUserId: actor.userId ?? null,
+          agentId: agent.id,
+          requestId: request.requestId,
+        },
+        {
+          // El MISMO traductor de permisos que el guard: lo que esta persona
+          // no puede ver en el tablero, tampoco se lo cuenta la IA.
+          actorPuede: (permiso) => actorCan(actor, permiso),
+          habilitadas: objetivo.tools,
+          // Las del cliente no se usan por esta puerta: no hay conversación,
+          // no hay a quién responderle. Si alguna se pidiera igual, esto es
+          // lo que el modelo recibe — un motivo, no una excepción.
+          getContext: async () => {
+            throw new Error('Acá no hay una conversación abierta.');
+          },
+          buscarConocimiento: async () => {
+            throw new Error('Esta herramienta es para atender clientes.');
+          },
+          buscarProducto: async () => {
+            throw new Error('Esta herramienta es para atender clientes.');
+          },
+          catalogoDeMetricas: async () => catalogoDeMetricas(),
+          metricaDelNegocio: (i) => metricaEnRango(c, { tenantId: actor.tenantId, ...i }),
+        },
+      );
+
+      const res = await runAgentTask(c, {
+        tenantId: actor.tenantId,
+        agent,
+        task: 'analizar',
+        prompt: pregunta,
+        tools,
+        requestId: request.requestId,
+        actorUserId: actor.userId,
+        activeModules: activos,
+      });
+      if (res.status === 'failed') {
+        throw new BadRequestException({
+          code: 'AGENT_RUN_FAILED',
+          message: res.error ?? 'El asistente no pudo responder.',
+        });
+      }
+      return {
+        texto: res.text,
+        herramientasUsadas: res.herramientasUsadas ?? [],
+        truncada: res.truncada === true,
+        executionId: res.executionId,
+      };
     });
   }
 

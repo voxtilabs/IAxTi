@@ -8,13 +8,34 @@
 // necesita, qué le decimos que tiene que lograr, y qué significa que lo
 // logró. Puro: no toca base ni proveedores.
 
-export const OBJETIVOS = ['agendar', 'vender', 'informar', 'calificar', 'cobrar'] as const;
+export const OBJETIVOS = [
+  // Los que hablan con el CLIENTE del negocio, por WhatsApp.
+  'agendar',
+  'vender',
+  'informar',
+  'calificar',
+  'cobrar',
+  // Los que hablan con el DUEÑO, dentro del producto (#410).
+  'estadisticas',
+] as const;
 export type Objetivo = (typeof OBJETIVOS)[number];
 
 export interface DefinicionObjetivo {
   id: Objetivo;
   /** Cómo se lee en la pantalla de configuración. */
   titulo: string;
+  /**
+   * Con QUIÉN habla este asistente (#410).
+   *
+   * No es un objetivo más: es otro interlocutor. Los cinco primeros hablan
+   * con el cliente del negocio por WhatsApp; los del dueño hablan con quien
+   * lo administra, dentro del producto.
+   *
+   * Mezclarlos haría que el selector ofrezca "Vender" y "Estadísticas" como
+   * si fueran comparables, y no lo son: cambian las herramientas, el tono,
+   * lo que está permitido y hasta si hay una ventana de 24 horas.
+   */
+  destinatario: 'cliente' | 'dueño';
   /**
    * La instrucción que se le suma al prompt del agente. Se SUMA, no lo
    * reemplaza: el dueño que escribió el suyo no lo pierde.
@@ -50,6 +71,7 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
   agendar: {
     id: 'agendar',
     titulo: 'Agendar',
+    destinatario: 'cliente',
     // Una sola definición para reunión, visita, hora o consulta: mismas
     // herramientas, mismo evento de éxito, misma regla de escalamiento. Lo
     // único que cambia es la palabra, y esa va en `objetivoDetalle`.
@@ -73,6 +95,7 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
   vender: {
     id: 'vender',
     titulo: 'Vender',
+    destinatario: 'cliente',
     instruccion:
       'Tu objetivo es llegar a {detalle}. Entiende qué necesita, dile solo lo que esté en el catálogo ' +
       'y lleva la conversación a una cotización concreta. Precio, stock y plazo SOLO los que confirmaste; ' +
@@ -86,6 +109,7 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
   informar: {
     id: 'informar',
     titulo: 'Entregar información',
+    destinatario: 'cliente',
     instruccion:
       'Tu objetivo es responder bien sobre {detalle}, con lo que está en el catálogo y nada más. ' +
       'Si la respuesta no está ahí, dilo derecho y pasa la conversación a una persona: inventar es peor que no saber.',
@@ -99,6 +123,7 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
   calificar: {
     id: 'calificar',
     titulo: 'Calificar el interesado',
+    destinatario: 'cliente',
     instruccion:
       'Tu objetivo es averiguar si {detalle} y dejar la conversación lista para una persona. ' +
       'Pregunta de a una cosa, no interrogues, y cuando tengas lo necesario pasa la conversación con lo que averiguaste.',
@@ -108,9 +133,33 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
     datosMinimos: ['qué necesita', 'para cuándo'],
     detallePorDefecto: 'esta persona necesita lo que vendemos',
   },
+  estadisticas: {
+    id: 'estadisticas',
+    titulo: 'Responder sobre los números',
+    destinatario: 'dueño',
+    // Nada de "cierra" ni "consigue": este no persigue nada, responde. Y la
+    // instrucción más importante es la que le prohíbe rellenar — un modelo
+    // al que le falta un dato lo estima, y un número estimado en un reporte
+    // es peor que no tener reporte.
+    instruccion:
+      'Respondes preguntas sobre los números del negocio de quien te escribe, sobre todo {detalle}. ' +
+      'Usa SIEMPRE las ' +
+      'herramientas: nunca calcules de memoria ni estimes un valor que no te devolvieron. Si una ' +
+      'métrica viene en cero, di que es cero; si viene sin datos, di que no hay datos en ese rango — ' +
+      'no son lo mismo y confundirlos hace tomar malas decisiones. Di el rango de fechas que usaste ' +
+      'en cada respuesta, y los montos en pesos. Si te preguntan algo que las herramientas no miden, ' +
+      'dilo en vez de aproximarlo.',
+    requiere: ['analytics'],
+    tools: ['analytics.catalogo', 'analytics.metrica', 'analytics.comparar'],
+    // No deja rastro propio: el éxito es haber respondido con datos reales.
+    eventoDeExito: [],
+    datosMinimos: [],
+    detallePorDefecto: 'cómo va el negocio',
+  },
   cobrar: {
     id: 'cobrar',
     titulo: 'Cobrar',
+    destinatario: 'cliente',
     // Igual que agendar: la IA NO manda el link. `payments.create_link`
     // está cerrada por ADR-0017 — es plata saliendo hacia el cliente. El
     // agente deja todo listo y una persona lo manda.
@@ -186,10 +235,16 @@ export function componerPrompt(
 ): string | null {
   if (!resuelto) return base;
   const partes = [resuelto.instruccion];
+  const alDueno = resuelto.definicion.destinatario === 'dueño';
   if (!resuelto.alcanzable) {
+    // Al dueño no se le dice "en un momento te ayuda una persona": la
+    // persona ES él. Se le dice qué le falta, que es lo accionable (#410).
     partes.push(
-      `IMPORTANTE: ahora mismo NO tienes cómo cumplir esto (falta: ${resuelto.faltan.join(', ')}). ` +
-        'No prometas ni des por hecho nada de eso. Explica que en un momento te ayuda una persona y pasa la conversación.',
+      alDueno
+        ? `IMPORTANTE: ahora mismo NO tienes cómo responder esto: falta ${resuelto.faltan.join(', ')} ` +
+          'en este negocio. Dilo con esas palabras en vez de aproximar una respuesta.'
+        : `IMPORTANTE: ahora mismo NO tienes cómo cumplir esto (falta: ${resuelto.faltan.join(', ')}). ` +
+          'No prometas ni des por hecho nada de eso. Explica que en un momento te ayuda una persona y pasa la conversación.',
     );
   }
   if (resuelto.definicion.datosMinimos.length > 0 && resuelto.alcanzable) {

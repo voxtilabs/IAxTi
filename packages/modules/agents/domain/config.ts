@@ -4,7 +4,20 @@
 export const PROVIDERS = ['google', 'anthropic', 'glm'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
-export const TASKS = ['clasificar', 'sugerir', 'responder', 'configurar', 'conocer', 'resumir', 'transcribir'] as const;
+export const TASKS = [
+  'clasificar',
+  'sugerir',
+  'responder',
+  'configurar',
+  'conocer',
+  'resumir',
+  'transcribir',
+  // Responderle al DUEÑO sobre sus números (#410). Es tarea propia y no
+  // `resumir` porque el que paga la cuenta tiene derecho a elegir con qué
+  // modelo se le contesta a él, aparte de con cuál se le contesta a sus
+  // clientes — y porque su costo se lee separado en el consumo.
+  'analizar',
+] as const;
 export type AgentTask = (typeof TASKS)[number];
 
 export interface TaskModel {
@@ -49,6 +62,7 @@ export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   conocer: { provider: 'google', model: 'gemini-flash-latest' },
   resumir: { provider: 'google', model: 'gemini-flash-latest' },
   transcribir: { provider: 'google', model: 'gemini-flash-latest' },
+  analizar: { provider: 'google', model: 'gemini-flash-latest' },
 };
 
 /**
@@ -77,6 +91,10 @@ export const DEFAULT_TASK_OUTPUT_TOKENS: Record<AgentTask, number> = {
   conocer: 1500,
   resumir: 1024,
   transcribir: 2048,
+  // La respuesta es corta, pero antes hay un ida y vuelta de herramientas:
+  // pedir el catálogo, pedir la métrica, a veces compararla. El tope se
+  // reparte entre esos pasos y la respuesta final.
+  analizar: 2000,
 };
 
 export interface IaSettings {

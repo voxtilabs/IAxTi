@@ -65,4 +65,19 @@ describe('la pantalla del asistente no inventa objetivos', () => {
     expect(crear).not.toContain('provider');
     expect(PANTALLA).toContain('solo sugiriendo');
   });
+
+  it('separa a quién le habla cada asistente (#410)', () => {
+    // "Vender" y "Responder sobre los números" en la misma lista harían
+    // elegir mal: no son alternativas, son asistentes distintos.
+    expect(PANTALLA).toMatch(/destinatario === 'cliente'/);
+    expect(PANTALLA).toMatch(/destinatario === 'dueño'/);
+    expect(PANTALLA).toContain('Para contestarle a tus clientes');
+    expect(PANTALLA).toContain('Para ayudarte a ti');
+  });
+
+  it('el grupo vacío no se dibuja', () => {
+    // Si un negocio no tiene analytics, "Para ayudarte a ti" quedaría como
+    // un encabezado sin nada debajo.
+    expect(PANTALLA).toMatch(/\.filter\(\(g\) => g\.items\.length > 0\)/);
+  });
 });
