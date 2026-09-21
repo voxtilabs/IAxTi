@@ -39,6 +39,51 @@ const ESQUEMAS: Record<string, { description: string; parameters: Record<string,
       additionalProperties: false,
     },
   },
+  // Los números del negocio (#410). El catálogo va PRIMERO en la
+  // descripción de las otras dos a propósito: un modelo que no sabe qué
+  // métricas existen se inventa nombres, y la herramienta falla con un
+  // "no existe" que gasta un turno.
+  'analytics.catalogo': {
+    description:
+      'Qué se puede preguntar sobre los números del negocio: la lista de métricas con su definición. ' +
+      'Úsala ANTES de pedir una métrica si no estás seguro de cómo se llama.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  'analytics.metrica': {
+    description:
+      'Un número del negocio en un rango de fechas, con su definición. Devuelve lo que hay: si es cero, ' +
+      'es cero — nunca estimes ni proyectes un valor que esta herramienta no te dio.',
+    parameters: {
+      type: 'object',
+      properties: {
+        metrica: {
+          type: 'string',
+          description: 'El nombre exacto, como lo devuelve analytics.catalogo.',
+        },
+        desde: { type: 'string', description: 'Primer día del rango, AAAA-MM-DD.' },
+        hasta: { type: 'string', description: 'Último día del rango, AAAA-MM-DD.' },
+      },
+      required: ['metrica', 'desde', 'hasta'],
+      additionalProperties: false,
+    },
+  },
+  'analytics.comparar': {
+    description:
+      'La misma métrica en dos rangos, con la variación ya calculada. Úsala para "¿voy mejor que el mes ' +
+      'pasado?" en vez de pedir dos veces y restar tú.',
+    parameters: {
+      type: 'object',
+      properties: {
+        metrica: { type: 'string', description: 'El nombre exacto, como lo devuelve analytics.catalogo.' },
+        desdeA: { type: 'string', description: 'Primer día del periodo A, AAAA-MM-DD.' },
+        hastaA: { type: 'string', description: 'Último día del periodo A, AAAA-MM-DD.' },
+        desdeB: { type: 'string', description: 'Primer día del periodo B, AAAA-MM-DD.' },
+        hastaB: { type: 'string', description: 'Último día del periodo B, AAAA-MM-DD.' },
+      },
+      required: ['metrica', 'desdeA', 'hastaA', 'desdeB', 'hastaB'],
+      additionalProperties: false,
+    },
+  },
   'knowledge.search': {
     description:
       'Busca en el material del negocio (políticas, preguntas frecuentes, documentos). Úsala antes de afirmar cualquier cosa que no esté en la conversación.',

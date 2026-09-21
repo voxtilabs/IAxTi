@@ -21,7 +21,12 @@ events:
     - deal.lost
     - agent.executed
     - message.sent
-tools: []
+tools:
+  # Para el asistente que responde sobre los números (#410). Las tres LEEN.
+  # `catalogo` existe para que el modelo no invente nombres de métricas.
+  - analytics.metrica
+  - analytics.comparar
+  - analytics.catalogo
 nav:
   - { label: Reportes, path: /reportes, permission: analytics.read, grupo: Trabajo }
 widgets: []
