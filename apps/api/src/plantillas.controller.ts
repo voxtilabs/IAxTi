@@ -29,7 +29,6 @@ import { sendMessage } from '@iaxti/module-conversations';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
-import { createQueue, redisConnection } from '@iaxti/core';
 
 /**
  * Plantillas de WhatsApp (#44).
@@ -39,12 +38,6 @@ import { createQueue, redisConnection } from '@iaxti/core';
  * en la bandeja — la plantilla no da permisos nuevos, solo hace posible
  * escribir cuando la conversación se enfrió.
  */
-/** La misma cola que usa la bandeja: una plantilla no tiene atajo propio. */
-let colaOutbound: ReturnType<typeof createQueue> | null = null;
-function outboundQueue(): ReturnType<typeof createQueue> {
-  colaOutbound ??= createQueue('outbound', redisConnection());
-  return colaOutbound;
-}
 
 function pool() {
   const p = apiPool();
@@ -238,23 +231,11 @@ export class PlantillasController {
                 authorId: m.authorId,
                 body: m.body,
                 requestId: m.requestId,
+                delivery: 'business',
+                actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
               }),
           },
         ),
-      );
-      // La cola aplica el silencio, la pausa por calidad y el estado del
-      // tenant. Va marcada como iniciada por el negocio porque lo es: la
-      // conversación estaba fría y la estamos reabriendo nosotros.
-      await outboundQueue().add(
-        'send',
-        {
-          moduleId: 'whatsapp',
-          tenantId: actor.tenantId,
-          messageId: res.messageId,
-          requestId: (request as { requestId?: string }).requestId,
-          initiatedByBusiness: true,
-        },
-        { jobId: `out-${res.messageId}` },
       );
       return { messageId: res.messageId, texto: res.texto, plantilla: res.plantilla.name };
     } catch (err) {

@@ -5,7 +5,6 @@ import {
   confirmPayment,
   flowSign,
   flowConfig,
-  type DepsConfirmacion,
   type WebhookPayment,
 } from '@iaxti/module-payments';
 
@@ -55,7 +54,6 @@ export async function processPaymentWebhook(
   pool: Pool,
   data: PaymentWebhookJob,
   fetcher: typeof fetch = fetch,
-  deps: DepsConfirmacion = {},
 ): Promise<{ outcome: string }> {
   return withTenant(pool, data.tenantId, async (client) => {
     let pago = data.pago;
@@ -89,9 +87,6 @@ export async function processPaymentWebhook(
         paidStageName: settings.pagos?.paidStageName ?? null,
         requestId: data.requestId,
       },
-      // La cola de salida: sin esto el aviso de "pago recibido" se escribía
-      // en la bandeja y nunca salía al cliente.
-      deps,
     );
     return { outcome: res.outcome };
   });

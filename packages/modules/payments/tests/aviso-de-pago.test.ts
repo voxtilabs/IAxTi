@@ -19,7 +19,7 @@ const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:
 
 let admin: Pool;
 let tenant: string;
-const encolados: string[] = [];
+const pedidos = async () => (await admin.query("SELECT payload FROM outbox WHERE tenant_id=$1 AND name='message.delivery_requested'", [tenant])).rows.map(r => r.payload);
 
 async function armarCobro(canal: 'whatsapp' | 'webchat'): Promise<string> {
   const c = await admin.query(
@@ -51,7 +51,6 @@ const confirmar = (linkId: string) =>
     confirmPayment(
       c,
       { tenantId: tenant, linkId, status: 'paid', amountClp: 15000 },
-      { enqueueOutbound: async (job) => void encolados.push(job.messageId) },
     ),
   );
 
@@ -74,6 +73,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await admin.query('DELETE FROM processed_events WHERE event_id IN (SELECT id FROM outbox WHERE tenant_id=$1)', [tenant]);
+  await admin.query('DELETE FROM outbox WHERE tenant_id=$1', [tenant]);
   await admin.end();
 });
 
@@ -84,32 +85,32 @@ describe('el aviso de pago recibido', () => {
 
     const aviso = await avisoDe(link);
     expect(aviso, 'no se escribió el aviso').toBeDefined();
-    expect(encolados).toContain(aviso!.id);
+    expect(await pedidos()).toContainEqual({ messageId: aviso!.id, policy: 'transactional' });
     // Queda 'queued' hasta que el proveedor confirme: el estado real lo
     // pone el webhook de entrega, no nosotros.
     expect(aviso!.delivery_status).toBe('queued');
   });
 
   it('en webchat NO se encola: ese canal entrega en vivo', async () => {
-    const antes = encolados.length;
+    const antes = (await pedidos()).length;
     const link = await armarCobro('webchat');
     await confirmar(link);
 
     const aviso = await avisoDe(link);
     expect(aviso!.delivery_status).toBe('sent');
-    expect(encolados.length).toBe(antes);
+    expect((await pedidos()).length).toBe(antes);
   });
 
-  it('sin quien encole, el aviso se escribe igual y no se dice enviado', async () => {
+  it('sin conexión directa a Redis conserva el pedido durable y no dice enviado', async () => {
     const link = await armarCobro('whatsapp');
-    // Así queda si alguien llama a confirmPayment sin conectar la cola: el
-    // pago se registra —eso es lo importante— y el aviso queda pendiente,
-    // que es la verdad.
+    // No necesita una función externa para encolar: el mismo commit deja
+    // el pedido que retomará el dispatcher cuando Redis esté disponible.
     await withTenant(admin, tenant, (c: PoolClient) =>
       confirmPayment(c, { tenantId: tenant, linkId: link, status: 'paid', amountClp: 15000 }),
     );
     const aviso = await avisoDe(link);
     expect(aviso!.delivery_status).toBe('queued');
+    expect(await pedidos()).toContainEqual({ messageId: aviso!.id, policy: 'transactional' });
   });
 
   it('el pago queda registrado aunque el aviso no salga', async () => {
@@ -117,5 +118,38 @@ describe('el aviso de pago recibido', () => {
     await confirmar(link);
     const r = await admin.query('SELECT status FROM payment_links WHERE id = $1', [link]);
     expect(r.rows[0].status).toBe('paid');
+  });
+
+  it('repetir el webhook no duplica el comprobante ni su pedido', async () => {
+    const link = await armarCobro('whatsapp');
+    const antes = (await pedidos()).length;
+    await confirmar(link);
+    expect((await confirmar(link)).outcome).toBe('already');
+    expect((await pedidos()).length).toBe(antes + 1);
+  });
+
+  it('si no se puede guardar el pedido durable, revierte el pago para reintentar el webhook', async () => {
+    const link = await armarCobro('whatsapp');
+    const antes = (await pedidos()).length;
+    await admin.query(`CREATE OR REPLACE FUNCTION test_payment_outbox_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.tenant_id='${tenant}'::uuid AND NEW.name='message.delivery_requested' THEN
+          RAISE EXCEPTION 'fallo simulado al persistir pedido';
+        END IF;
+        RETURN NEW;
+      END $$`);
+    await admin.query('CREATE TRIGGER test_payment_outbox_failure BEFORE INSERT ON outbox FOR EACH ROW EXECUTE FUNCTION test_payment_outbox_failure()');
+    try {
+      await expect(confirmar(link)).rejects.toThrow('fallo simulado');
+      expect((await admin.query('SELECT status FROM payment_links WHERE id=$1', [link])).rows[0].status).toBe('sent');
+      expect((await admin.query('SELECT id FROM payments WHERE link_id=$1', [link])).rowCount).toBe(0);
+      expect(await avisoDe(link)).toBeUndefined();
+      expect((await pedidos()).length).toBe(antes);
+    } finally {
+      await admin.query('DROP TRIGGER test_payment_outbox_failure ON outbox');
+      await admin.query('DROP FUNCTION test_payment_outbox_failure()');
+    }
+    expect((await confirmar(link)).outcome).toBe('paid');
+    expect((await pedidos()).length).toBe(antes + 1);
   });
 });

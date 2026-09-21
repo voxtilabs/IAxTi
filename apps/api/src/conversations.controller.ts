@@ -3,10 +3,12 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  ConflictException,
   UnprocessableEntityException,
   Get,
   NotFoundException,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -14,7 +16,6 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
-import { createQueue, redisConnection } from '@iaxti/core';
 import {
   assignConversation,
   changeConversationState,
@@ -24,7 +25,8 @@ import {
   listInbox,
   listMessages,
   retentionCutoff,
-  salePorProveedor,
+  retryOutboundDelivery,
+  OutboundRetryError,
   sendMessage,
   updateDeliveryStatus,
 } from '@iaxti/module-conversations';
@@ -60,11 +62,6 @@ function pool() {
   return p;
 }
 
-let colaOutbound: ReturnType<typeof createQueue> | null = null;
-function outboundQueue(): ReturnType<typeof createQueue> {
-  colaOutbound ??= createQueue('outbound', redisConnection());
-  return colaOutbound;
-}
 
 function actorOf(request: WithUser): Actor {
   // El guard de @RequirePermission siempre lo adjunta.
@@ -105,6 +102,8 @@ async function entregarRespuesta(
     type: input.type,
     body: input.texto,
     requestId: input.requestId,
+    delivery: 'reply',
+    actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
   });
   // Simulador y webchat entregan al instante (el widget sondea, #46).
   // WhatsApp va por la cola outbound con rate limit y reintentos (#43).
@@ -115,26 +114,6 @@ async function entregarRespuesta(
       status: 'sent',
       requestId: input.requestId,
     });
-  }
-  // Todo lo que sale por un PROVEEDOR va por la cola: whatsapp, instagram y
-  // messenger (#74). Con `=== 'whatsapp'` los otros dos no caían en ninguna
-  // rama y el mensaje quedaba en `queued` para siempre — escrito en la
-  // bandeja, sin salir nunca y sin que nadie se enterara. Es el mismo error
-  // que tenía el motor de automatizaciones (#201).
-  if (salePorProveedor(conversation.channel)) {
-    await outboundQueue().add(
-      'send',
-      {
-        moduleId: 'whatsapp',
-        tenantId: actor.tenantId,
-        messageId: message.id,
-        requestId: input.requestId,
-        // Una persona contestándole a un cliente que escribió: el horario de
-        // silencio protege al cliente de NOSOTROS, no de una respuesta suya.
-        initiatedByBusiness: false,
-      },
-      { jobId: `out-${message.id}` },
-    );
   }
   return message;
 }
@@ -281,6 +260,35 @@ export class ConversationsController {
         type: (body.type as MessageType) ?? 'texto',
         requestId: request.requestId,
       });
+    });
+  }
+
+  @Post(':id/messages/:mid/retry-delivery')
+  @RequirePermission('conversations.reply')
+  @ApiOperation({ summary: 'Recupera el despacho agotado de un mensaje pendiente; no crea otro mensaje' })
+  async retryDelivery(
+    @Req() request: WithUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('mid', new ParseUUIDPipe()) messageId: string,
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async c => {
+      const conversation = await getConversation(c, actor.tenantId, id, true).catch(notFound);
+      if (conversation.ownerId !== null && conversation.ownerId !== actor.userId
+          && !actorCan(actor, 'conversations.read_all')) {
+        throw new ForbiddenException({ code: 'PERMISSION_DENIED', message: 'Esta conversación la atiende otra persona del equipo.' });
+      }
+      try {
+        return await retryOutboundDelivery(c, {
+          tenantId: actor.tenantId, conversationId: id, messageId, actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user', requestId: request.requestId,
+        });
+      } catch (error) {
+        if (error instanceof OutboundRetryError) {
+          throw new ConflictException({ code: 'DELIVERY_NOT_RETRYABLE', message: error.message });
+        }
+        throw error;
+      }
     });
   }
 

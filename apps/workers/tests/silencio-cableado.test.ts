@@ -21,18 +21,9 @@ function fuente(...partes: string[]): string {
 }
 
 describe('quién respeta el horario de silencio', () => {
-  it('todo lo que encola la salida va marcado como del negocio', () => {
-    const main = fuente('src', 'main.ts');
-    // Antes esto miraba `automationDeps.enqueueOutbound =`, que era el único
-    // cableado. Ahora los dos —automatizaciones y comprobantes de pago—
-    // pasan por `encolarSalida`, así que la intención se cuida en un lugar.
-    const i = main.indexOf('const encolarSalida =');
-    expect(i, 'no encontré encolarSalida').toBeGreaterThan(0);
-    expect(main.slice(i, i + 900)).toContain('initiatedByBusiness: true');
-
-    // Y el motor de reglas sigue conectado a ese mismo sitio: si alguien lo
-    // reemplaza por un `add` suelto, esto se cae.
-    expect(main).toContain('automationDeps.enqueueOutbound = encolarSalida');
+  it('las automatizaciones solicitan salida iniciada por el negocio', () => {
+    const engine = fuente('../../packages/modules/automations/application/engine.ts');
+    expect(engine).toContain("delivery: 'business'");
   });
 
   it('lo transaccional se salta el silencio y NADA más (ADR-0016)', () => {
@@ -51,14 +42,10 @@ describe('quién respeta el horario de silencio', () => {
   });
 
   it('solo el comprobante de pago es transaccional', () => {
-    const main = fuente('src', 'main.ts');
-    // La lista es cerrada y corta a propósito (ADR-0016). Si crece más allá
-    // de dos o tres, la exención se volvió un permiso y hay que revisar la
-    // decisión, no el test.
-    const marcas = main.match(/transaccional: true/g) ?? [];
-    expect(marcas.length).toBeLessThanOrEqual(2);
-    const i = main.indexOf('transaccional: true');
-    expect(main.slice(Math.max(0, i - 400), i)).toMatch(/payment|pago/i);
+    const comprobante = fuente('../../packages/modules/payments/application/confirm.ts');
+    expect(comprobante).toContain("delivery: 'transactional'");
+    const engine = fuente('../../packages/modules/automations/application/engine.ts');
+    expect(engine).not.toContain("delivery: 'transactional'");
   });
 
   it('la respuesta de una persona en la bandeja NO lo está', () => {
@@ -67,7 +54,7 @@ describe('quién respeta el horario de silencio', () => {
       join(__dirname, '../../../apps/api/src/conversations.controller.ts'),
       'utf8',
     );
-    expect(controller).toContain('initiatedByBusiness: false');
+    expect(controller).toContain("delivery: 'reply'");
   });
 
   it('el worker solo aplica silencio y pausa de calidad a lo del negocio', () => {

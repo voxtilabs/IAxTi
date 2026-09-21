@@ -27,8 +27,6 @@ const MAX_FAILURES_PER_OBJECT = 3;
 export interface EngineDeps {
   /** Módulos activos (capabilities): decide qué acciones existen. */
   activeModules: string[];
-  /** Encola el saliente de WhatsApp (la cola outbound respeta silencio, #43). */
-  enqueueOutbound?: (job: { tenantId: string; messageId: string; requestId?: string }) => Promise<void>;
 }
 
 export interface RunResult {
@@ -88,7 +86,7 @@ export async function executeAction(
     objeto: Record<string, unknown>;
     requestId?: string;
   },
-  deps: EngineDeps,
+  _deps: EngineDeps,
 ): Promise<string> {
   const { action, objeto, tenantId } = input;
   const conversationId = input.objectKind === 'conversation' ? (objeto.id as string) : null;
@@ -169,13 +167,10 @@ export async function executeAction(
         authorKind: 'system',
         type: 'texto',
         body: String(action.params.body ?? ''),
+        delivery: 'business',
         requestId: input.requestId,
       });
       if (salePorProveedor(objeto.channel as string)) {
-        if (!deps.enqueueOutbound) throw new Error('La cola de salida no está disponible.');
-        // La cola outbound aplica el silencio del tenant (#43): un envío
-        // iniciado por el negocio en horario de silencio SE DIFIERE allá.
-        await deps.enqueueOutbound({ tenantId, messageId: message.id, requestId: input.requestId });
         return 'mensaje en cola (respeta silencio y consentimiento)';
       }
       // Solo el webchat y el simulador llegan acá: se entregan en la app.

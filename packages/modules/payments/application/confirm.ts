@@ -27,23 +27,9 @@ export interface ConfirmResult {
   link?: PaymentLink;
 }
 
-/**
- * Lo que este caso de uso necesita del mundo de afuera. `enqueueOutbound` lo
- * pasa el worker: el módulo no conoce BullMQ (ADR-0003), igual que en el
- * motor de reglas.
- */
-export interface DepsConfirmacion {
-  enqueueOutbound?: (job: {
-    tenantId: string;
-    messageId: string;
-    requestId?: string;
-  }) => Promise<void>;
-}
-
 export async function confirmPayment(
   client: PoolClient,
   input: ConfirmInput,
-  deps?: DepsConfirmacion,
 ): Promise<ConfirmResult> {
   const r = await client.query(
     `SELECT * FROM payment_links WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
@@ -99,62 +85,29 @@ export async function confirmPayment(
     requestId: input.requestId,
   });
 
-  // El aviso en la conversación, con el comprobante si vino.
-  //
-  // Se escribía y se marcaba 'sent' sin pasar por la cola. En webchat eso
-  // está bien —el canal entrega en vivo—, pero en WhatsApp un saliente solo
-  // llega si el proveedor lo manda. El cliente pagaba, no recibía nada, y la
-  // bandeja mostraba el aviso en verde: si después preguntaba, el vendedor
-  // miraba, veía "enviado" y respondía que ya le había avisado.
+  // Pago y pedido durable confirman juntos. Si PostgreSQL falla, el webhook
+  // debe reintentarse; Redis no participa en esta transacción.
   if (link.conversationId) {
-    try {
-      const monto = (input.amountClp ?? link.amountClp).toLocaleString('es-CL');
-      const canal = await client.query(
-        'SELECT channel FROM conversations WHERE tenant_id = $1 AND id = $2',
-        [input.tenantId, link.conversationId],
-      );
-      const porProveedor = salePorProveedor(String(canal.rows[0]?.channel ?? 'whatsapp'));
-
-      const message = await sendMessage(client, {
-        tenantId: input.tenantId,
-        conversationId: link.conversationId,
-        authorKind: 'system',
-        type: 'texto',
-        body: `✓ Pago recibido: $${monto} por "${link.concept}".${
-          input.receiptUrl ? `\nComprobante: ${input.receiptUrl}` : ''
-        }`,
-        requestId: input.requestId,
+    const monto = (input.amountClp ?? link.amountClp).toLocaleString('es-CL');
+    const canal = await client.query(
+      'SELECT channel FROM conversations WHERE tenant_id = $1 AND id = $2',
+      [input.tenantId, link.conversationId],
+    );
+    const message = await sendMessage(client, {
+      tenantId: input.tenantId,
+      conversationId: link.conversationId,
+      authorKind: 'system',
+      type: 'texto',
+      delivery: 'transactional',
+      body: `✓ Pago recibido: $${monto} por "${link.concept}".${
+        input.receiptUrl ? `\nComprobante: ${input.receiptUrl}` : ''
+      }`,
+      requestId: input.requestId,
+    });
+    if (!salePorProveedor(String(canal.rows[0]?.channel ?? 'whatsapp'))) {
+      await updateDeliveryStatus(client, {
+        tenantId: input.tenantId, messageId: message.id, status: 'sent', requestId: input.requestId,
       });
-
-      if (porProveedor) {
-        // Queda 'queued' hasta que el proveedor confirme: el estado real lo
-        // pone el webhook de entrega. Sin cola conectada se queda 'queued',
-        // que es la verdad — un aviso pendiente, no uno entregado.
-        await deps?.enqueueOutbound?.({
-          tenantId: input.tenantId,
-          messageId: message.id,
-          requestId: input.requestId,
-        });
-      } else {
-        await updateDeliveryStatus(client, {
-          tenantId: input.tenantId,
-          messageId: message.id,
-          status: 'sent',
-          requestId: input.requestId,
-        });
-      }
-    } catch (err) {
-      // Una conversación archivada no frena la confirmación: el pago ya
-      // está registrado y eso es lo que importa. Pero se DICE por qué.
-      //
-      // Este catch era mudo y me escondió un link sin conversación durante
-      // media hora: el pago se confirmaba, el aviso no salía, y no había
-      // nada en ningún lado. Tragarse un error sin dejar rastro convierte
-      // un problema de cinco minutos en uno de media hora.
-      console.warn(
-        `[${input.requestId ?? 'sin-request'}] pago ${link.id} confirmado, ` +
-          `pero el aviso al cliente no salió — ${(err as Error).message}`,
-      );
     }
   }
 
