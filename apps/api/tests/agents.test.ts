@@ -254,5 +254,66 @@ describe('/v1/agents (#47)', () => {
     });
     expect(inventado.status).toBe(400);
   });
+
+  // --- Preguntarle a los números (#410) ---
+
+  it('el asistente del CLIENTE no contesta por la puerta del dueño', async () => {
+    // Es la mitad del punto del eje `destinatario`: si cualquier asistente
+    // contestara acá, uno hecho para vender le improvisaría cifras al dueño
+    // sin haber consultado un solo reporte.
+    const creado = await pedir(duena, '/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Vendedora', objetivo: 'vender' }),
+    });
+    const cliente = await creado.json();
+
+    const res = await pedir(duena, `/agents/${cliente.id}/preguntar`, {
+      method: 'POST',
+      body: JSON.stringify({ pregunta: '¿cómo vamos?' }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('AGENT_NO_ES_DEL_DUENO');
+  });
+
+  it('sin pregunta, 400; con pregunta llega hasta el proveedor', async () => {
+    const creado = await pedir(duena, '/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Números', objetivo: 'estadisticas' }),
+    });
+    expect(creado.status).toBe(201);
+    const dueno = await creado.json();
+    expect(dueno.objetivo).toBe('estadisticas');
+
+    const vacia = await pedir(duena, `/agents/${dueno.id}/preguntar`, {
+      method: 'POST',
+      body: JSON.stringify({ pregunta: '   ' }),
+    });
+    expect(vacia.status).toBe(400);
+    expect((await vacia.json()).code).toBe('VALIDATION_ERROR');
+
+    // Sin llave del proveedor en este ambiente, el 503 es la PRUEBA de que
+    // pasó todo lo de antes: el objetivo es del dueño, es alcanzable y las
+    // herramientas se armaron. Es hasta donde se puede llegar sin llamar a
+    // Google de verdad.
+    const res = await pedir(duena, `/agents/${dueno.id}/preguntar`, {
+      method: 'POST',
+      body: JSON.stringify({ pregunta: '¿cuántas conversaciones tuvimos?' }),
+    });
+    expect(res.status).toBe(503);
+    expect((await res.json()).code).toBe('PROVIDER_UNAVAILABLE');
+  });
+
+  it('preguntar es de quien usa el asistente, no solo del ADMIN', async () => {
+    // El vendedor pregunta y VE LO SUYO: el permiso lo resuelve la misma
+    // función que el tablero (ADR-0008), no una regla nueva escrita acá.
+    const [numeros] = (await (await pedir(duena, '/agents')).json()).filter(
+      (a: { objetivo: string | null }) => a.objetivo === 'estadisticas',
+    );
+    const res = await pedir(vendedor, `/agents/${numeros.id}/preguntar`, {
+      method: 'POST',
+      body: JSON.stringify({ pregunta: '¿cómo vamos?' }),
+    });
+    expect(res.status).not.toBe(403);
+  });
 });
 

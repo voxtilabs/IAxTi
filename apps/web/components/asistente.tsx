@@ -20,6 +20,7 @@ import { apiFetch } from '../lib/api';
 interface ObjetivoDto {
   id: string;
   titulo: string;
+  destinatario: 'cliente' | 'dueño';
   requiere: string[];
   faltan: string[];
   disponible: boolean;
@@ -73,6 +74,28 @@ export function Asistente() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  /**
+   * Los objetivos van separados por con QUIÉN habla el asistente (#410).
+   *
+   * "Vender" y "Responder sobre los números" en la misma lista harían
+   * elegir mal: no son alternativas, son asistentes distintos. Uno contesta
+   * WhatsApp a tus clientes; el otro te contesta a ti, acá adentro.
+   */
+  const porDestinatario = [
+    {
+      clave: 'cliente' as const,
+      titulo: 'Para contestarle a tus clientes',
+      ayuda: 'Responde por WhatsApp, con lo que tú le diste.',
+      items: objetivos.filter((o) => o.destinatario === 'cliente'),
+    },
+    {
+      clave: 'dueño' as const,
+      titulo: 'Para ayudarte a ti',
+      ayuda: 'Te responde acá dentro del producto. No habla con nadie de afuera.',
+      items: objetivos.filter((o) => o.destinatario === 'dueño'),
+    },
+  ].filter((g) => g.items.length > 0);
 
   function elegir(o: ObjetivoDto) {
     if (!o.disponible) return;
@@ -169,8 +192,13 @@ export function Asistente() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            {objetivos.map((o) => {
+          {porDestinatario.map((grupo) => (
+            <div key={grupo.clave} className="flex flex-col gap-2">
+              <div>
+                <h4 className="text-sm font-bold text-ink">{grupo.titulo}</h4>
+                <p className="text-xs text-muted">{grupo.ayuda}</p>
+              </div>
+            {grupo.items.map((o) => {
               const puesto = elegido?.id === o.id;
               return (
                 <button
@@ -205,7 +233,8 @@ export function Asistente() {
                 </button>
               );
             })}
-          </div>
+            </div>
+          ))}
 
           {elegido && (
             <>
