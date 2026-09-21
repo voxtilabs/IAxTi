@@ -24,6 +24,7 @@ import {
   iaSettings,
   listAgents,
   listExecutions,
+  motivoDelProveedor,
   providerAvailable,
   runAgentTask,
   updateAgent,
@@ -65,6 +66,24 @@ function pool() {
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
 
 /** El runtime de agentes (#47): configuración, corridas y consumo. */
+/**
+ * El fallo del proveedor, dicho como corresponde (#402).
+ *
+ * Antes todo lo que no fuera "falta la llave" caía en el genérico "algo
+ * falló de nuestro lado" — que además miente sobre de qué lado está el
+ * problema cuando lo que pasa es que el cliente se quedó sin saldo.
+ *
+ * `503` cuando reintentar tiene sentido y `409` cuando no: un 503 le dice
+ * al cliente HTTP "vuelve a intentar", y con saldo cero eso es hacerle
+ * perder el tiempo.
+ */
+function comoExcepcionDelProveedor(error: unknown): never {
+  const d = motivoDelProveedor(error);
+  const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
+  if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
+  throw new ConflictException(cuerpo);
+}
+
 @ApiTags('agents')
 @Controller('agents')
 @RequireModule('agents')
@@ -256,6 +275,17 @@ export class AgentsController {
           .map((m) => m.id),
       });
       if (res.status === 'failed') {
+        // `runAgentTask` no lanza: devuelve el texto crudo de quien falló.
+        // Si ese texto es del proveedor, se traduce (#402) — llega en inglés
+        // y con una URL de su panel, que no es un mensaje para el dueño de
+        // una pyme. Si NO lo reconocemos como del proveedor, se respeta el
+        // original: puede venir de una tool y perderlo sería peor.
+        const d = motivoDelProveedor(res.error);
+        if (d.motivo !== 'desconocido') {
+          const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
+          if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
+          throw new ConflictException(cuerpo);
+        }
         throw new BadRequestException({
           code: 'AGENT_RUN_FAILED',
           message: res.error ?? 'El asistente no pudo completar la tarea.',
@@ -311,6 +341,9 @@ export class AgentsController {
               'Prueba con casos de contexto más corto, o con un modelo que razone menos.',
           });
         }
+        // Sin saldo, cuota agotada o llave vencida: se dice con nombre
+        // (#402) en vez de caer en el genérico.
+        if (motivoDelProveedor(err).motivo !== 'desconocido') comoExcepcionDelProveedor(err);
         throw err;
       }
     });
@@ -379,6 +412,9 @@ export class AgentsController {
         requestId: request.requestId,
       });
       if (res.status === 'failed') {
+        // Mismo criterio que la corrida (#402): si el fallo es del
+        // proveedor se dice con nombre; si no, se respeta el original.
+        if (motivoDelProveedor(res.error).motivo !== 'desconocido') comoExcepcionDelProveedor(res.error);
         throw new BadRequestException({ code: 'CONFIGURATOR_FAILED', message: res.error });
       }
       return res.proposal;

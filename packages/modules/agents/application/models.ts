@@ -73,7 +73,8 @@ function languageModel(provider: Provider, model: string): LanguageModel {
   if (!apiKey) {
     throw new Error(
       `El proveedor ${provider} no tiene llave configurada (${ENV_KEYS[provider]}). ` +
-        'Recuerda: siempre tier pago — el gratis entrena con datos de clientes.',
+        'Recuerda: tier pago donde pasan datos de clientes — producción siempre ' +
+        '(ADR-0011, enmienda del 21-09).',
     );
   }
   switch (provider) {
