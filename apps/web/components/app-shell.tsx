@@ -54,16 +54,16 @@ import { SoporteAviso } from './soporte-aviso';
 import { PaletaComandos } from './paleta-comandos';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
+import { PestanasAjustes } from './pestanas-ajustes';
+import type { NavItem } from '../lib/nav';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 import { rutasConCandado } from '../lib/candados';
 
-export interface NavItem {
-  label: string;
-  path: string;
-  permission: string;
-  grupo?: string;
-}
+// El tipo vive en `lib/nav` para no cerrar un ciclo con las pestañas de
+// ajustes, que el propio shell renderiza. Se re-exporta porque las páginas
+// ya lo importan desde acá.
+export type { NavItem } from '../lib/nav';
 
 interface ShellProps {
   config: PublicConfig;
@@ -89,6 +89,38 @@ interface ShellProps {
  */
 const ORDEN = ['Trabajo', 'Clientes', 'Configuración'];
 const PLEGADOS = new Set(['Configuración']);
+
+/**
+ * Las secciones de ajustes, en orden (#387).
+ *
+ * Dieciséis destinos sueltos en el menú eran dieciséis decisiones para
+ * alguien que solo quería cambiar una cosa. Se agrupan en cinco, y cada
+ * pantalla lleva arriba las pestañas de su sección.
+ *
+ * El orden es de acá; la pertenencia la declara cada `module.yaml`. Una
+ * sección que llegue sin estar en esta lista se dibuja igual, al final.
+ */
+const ORDEN_SECCIONES = ['Inteligencia', 'Canales', 'Tu negocio', 'Integraciones', 'Cuenta'];
+
+const ICONO_SECCION: Record<string, LucideIcon> = {
+  Inteligencia: Bot,
+  Canales: Plug,
+  'Tu negocio': SlidersHorizontal,
+  Integraciones: Webhook,
+  Cuenta: CreditCard,
+};
+
+/** Las entradas agrupadas por sección, en el orden de arriba. */
+function porSeccion(items: NavItem[]): Array<[string, NavItem[]]> {
+  const por = new Map<string, NavItem[]>();
+  for (const item of items) {
+    const s = item.seccion ?? 'Cuenta';
+    por.set(s, [...(por.get(s) ?? []), item]);
+  }
+  const conocidas = ORDEN_SECCIONES.filter((s) => por.has(s));
+  const resto = [...por.keys()].filter((s) => !ORDEN_SECCIONES.includes(s)).sort();
+  return [...conocidas, ...resto].map((s) => [s, por.get(s)!] as const);
+}
 
 /**
  * Un icono por destino.
@@ -189,7 +221,7 @@ function Grupo({
             onClick={() => setAbierto((v) => !v)}
             className="w-full text-left"
           >
-            {titulo} ({items.length})
+            {titulo} ({titulo === 'Configuración' ? porSeccion(items).length : items.length})
           </button>
         </SidebarGroupLabel>
       ) : (
@@ -198,7 +230,35 @@ function Grupo({
       {abierto && (
         <SidebarGroupContent>
           <SidebarMenu>
-            {items.map((item) => {
+            {/* Configuración se muestra por SECCIÓN y no por pantalla: eran
+                dieciséis entradas para alguien que solo quería cambiar una
+                cosa. Cada sección lleva a su primera pantalla, y ahí arriba
+                están las pestañas del resto (#387). */}
+            {titulo === 'Configuración'
+              ? porSeccion(items).map(([seccion, dentro]) => {
+                  const Icono = ICONO_SECCION[seccion] ?? Settings;
+                  const aqui = dentro.some((i) => i.path === activa);
+                  // Con candado solo si TODAS las de la sección lo tienen:
+                  // una sección con algo usable no se marca como cerrada.
+                  const cerrada = dentro.every((i) => candados.has(i.path));
+                  return (
+                    <SidebarMenuItem key={seccion}>
+                      <SidebarMenuButton asChild isActive={aqui} tooltip={seccion}>
+                        <a href={dentro[0].path}>
+                          <Icono />
+                          <span>{seccion}</span>
+                          {cerrada && (
+                            <Lock
+                              className="ml-auto size-3.5 shrink-0 text-muted"
+                              aria-label="incluido en un plan superior"
+                            />
+                          )}
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })
+              : items.map((item) => {
               const conCandado = candados.has(item.path);
               const Icono = ICONOS[item.path] ?? Settings;
               return (
@@ -352,6 +412,13 @@ export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellPr
               </div>
             </header>
             <main className={sinMargen ? 'min-w-0' : 'pulso-content mx-auto w-full max-w-contenido'}>
+              {/* Las pestañas de la sección van DENTRO del main y las pone
+                  el shell, no cada página (#387). Como layout de
+                  `app/ajustes/` quedarían por fuera: el layout envuelve a
+                  la página, y la página es la que renderiza este shell.
+                  Puestas acá, una pantalla de ajustes nueva las tiene sin
+                  que nadie se acuerde. */}
+              <PestanasAjustes />
               {children}
             </main>
           </SidebarInset>

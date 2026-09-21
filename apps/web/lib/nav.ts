@@ -1,6 +1,11 @@
 /**
  * Un destino del menú, tal como lo declara el `module.yaml` de su módulo y
  * lo entrega `GET /me/modules`.
+ *
+ * Vive acá y no en `app-shell.tsx` porque las pestañas de ajustes también
+ * lo necesitan, y el shell las renderiza: importarlo de allá cerraba un
+ * ciclo `app-shell → pestanas-ajustes → app-shell`. Lo cazó
+ * dependency-cruiser, no yo.
  */
 export interface NavItem {
   label: string;
@@ -8,6 +13,8 @@ export interface NavItem {
   permission: string;
   /** En qué lista de la barra lateral va (#295). */
   grupo?: string;
+  /** Con qué pantallas de ajustes comparte pestañas (#387). */
+  seccion?: string;
 }
 
 /**

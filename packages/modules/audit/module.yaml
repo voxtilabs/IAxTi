@@ -13,7 +13,7 @@ events:
   consumes: []
 tools: []
 nav:
-  - { label: Auditoría, path: /ajustes/auditoria, permission: audit.read, grupo: Configuración }
+  - { label: Auditoría, path: /ajustes/auditoria, permission: audit.read, grupo: Configuración, seccion: Cuenta }
 widgets: []
 plan_min: base
 flag: module.audit

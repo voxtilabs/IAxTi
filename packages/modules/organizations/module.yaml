@@ -27,7 +27,7 @@ events:
     - message.sent
 tools: []
 nav:
-  - { label: Ajustes, path: /ajustes/bandeja, permission: tenant.settings, grupo: Configuración }
+  - { label: Ajustes, path: /ajustes/bandeja, permission: tenant.settings, grupo: Configuración, seccion: Tu negocio }
 widgets: []
 plan_min: base
 flag: module.organizations
