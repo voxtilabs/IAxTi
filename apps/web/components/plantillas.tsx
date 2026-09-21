@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, EstadoVacio, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
@@ -110,13 +110,11 @@ export function Plantillas() {
 
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-titulo font-extrabold text-ink">Plantillas de WhatsApp</h1>
-        <p className="mt-1 max-w-2xl text-sm text-body">
-          Fuera de las 24 horas desde el último mensaje del cliente, WhatsApp solo deja escribir con
-          una plantilla que Meta aprobó. Acá las creas y las mandas a revisión.
-        </p>
-      </header>
+      <EncabezadoDePagina
+        rotulo="CANALES"
+        titulo="Plantillas de WhatsApp"
+        apoyo="Fuera de las 24 horas desde el último mensaje del cliente, WhatsApp solo deja escribir con una plantilla que Meta aprobó. Acá las creas y las mandas a revisión."
+      />
 
       {error && (
         <AvisoResultado tono="error">

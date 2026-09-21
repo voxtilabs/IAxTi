@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Badge, Button, DataTable, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EstadoVacio, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsList, TabsTrigger, type ColumnDef, type RowSelectionState, type SortingState, useSession } from '@iaxti/ui/react';
@@ -223,7 +223,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-4">
-        <h1 className="font-display text-titulo font-bold text-ink">Oportunidades</h1>
+        <EncabezadoDePagina titulo="Oportunidades" />
         {pipelines.length > 1 && (
           <Select
             value={pipelineId}

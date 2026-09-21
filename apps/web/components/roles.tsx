@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -101,8 +101,10 @@ export function Roles() {
 
   return (
     <div className="max-w-2xl">
-      <p className="rotulo">Roles</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Quién puede qué</h1>
+      <EncabezadoDePagina
+        rotulo="ROLES"
+        titulo="Quién puede qué"
+      />
       <p className="mt-2 text-sm text-muted">
         Los cuatro roles base no se tocan. Para el caso especial — la recepcionista, el contador,
         el socio — clona un base y marca exactamente lo que necesita.

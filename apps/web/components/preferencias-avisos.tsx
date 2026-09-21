@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, Checkbox } from '@iaxti/ui/react';
+import { AvisoResultado, Checkbox, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
@@ -172,8 +172,10 @@ export function PreferenciasAvisos() {
 
   return (
     <div className="max-w-xl">
-      <p className="rotulo">Notificaciones</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Qué avisos recibes</h1>
+      <EncabezadoDePagina
+        rotulo="NOTIFICACIONES"
+        titulo="Qué avisos recibes"
+      />
       <p className="mt-1 text-sm text-body">Elige por tipo y por canal. El correo llega cuando el negocio tenga su remitente configurado.</p>
 
       {aviso && (

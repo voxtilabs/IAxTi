@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -172,8 +172,10 @@ export function Canales() {
 
   return (
     <div className="max-w-2xl">
-      <p className="rotulo">Canales</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Tus canales conectados</h1>
+      <EncabezadoDePagina
+        rotulo="CANALES"
+        titulo="Tus canales conectados"
+      />
 
       {aviso && (
         <AvisoResultado>

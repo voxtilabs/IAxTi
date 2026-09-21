@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
@@ -53,8 +53,10 @@ export function ConsumoIA() {
 
   return (
     <div className="max-w-xl">
-      <p className="rotulo">IA</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Consumo del asistente</h1>
+      <EncabezadoDePagina
+        rotulo="IA"
+        titulo="Consumo del asistente"
+      />
 
       <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <div className="flex items-baseline justify-between gap-4">

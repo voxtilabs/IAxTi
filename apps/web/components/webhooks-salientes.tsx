@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Input, Skeleton, Switch, useSession } from '@iaxti/ui/react';
@@ -75,8 +75,10 @@ export function WebhooksSalientes() {
 
   return (
     <div className="max-w-2xl">
-      <p className="rotulo">Webhooks</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Avísale a tus sistemas</h1>
+      <EncabezadoDePagina
+        rotulo="WEBHOOKS"
+        titulo="Avísale a tus sistemas"
+      />
       <p className="mt-2 text-sm text-muted">
         Cada evento que elijas llega firmado a tu URL (header{' '}
         <span className="dato">X-Iaxti-Signature</span>, HMAC-SHA256 con el secreto del webhook).

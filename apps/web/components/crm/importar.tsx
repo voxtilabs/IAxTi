@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useState } from 'react';
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
@@ -86,8 +86,10 @@ export function Importar() {
 
   return (
     <div className="max-w-3xl">
-      <p className="rotulo">Contactos</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Importar desde una planilla</h1>
+      <EncabezadoDePagina
+        rotulo="CONTACTOS"
+        titulo="Importar desde una planilla"
+      />
       <p className="mt-2 max-w-prose text-body">
         Exporta tu Excel como CSV y pégalo aquí (o súbelo). Antes de guardar nada te mostramos
         fila por fila qué entra y qué necesita arreglo. Los importados nacen <strong>sin
