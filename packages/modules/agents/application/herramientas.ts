@@ -35,6 +35,12 @@ export const HERRAMIENTAS_DE_LECTURA = {
   // `calendar.book` sigue en la lista de las que escriben (SPEC §16: "la IA
   // ofrece máximo tres horarios" — ofrecer, no tomar).
   'calendar.get_slots': 'calendar.read',
+  // Los números del negocio, para el asistente del DUEÑO (#410). Piden
+  // `analytics.read`: un vendedor ve lo suyo, no lo del equipo — la misma
+  // regla que ya aplica la pantalla de reportes.
+  'analytics.metrica': 'analytics.read',
+  'analytics.comparar': 'analytics.read',
+  'analytics.catalogo': 'analytics.read',
 } as const;
 
 export type HerramientaDeLectura = keyof typeof HERRAMIENTAS_DE_LECTURA;
@@ -99,6 +105,55 @@ export interface DepsHerramientas {
   crearOportunidad?: (input: { contactId: string; title: string; value?: number }) => Promise<unknown>;
   /** El contacto de la conversación en curso: la IA no elige a quién. */
   contactoDeLaConversacion?: () => Promise<string | null>;
+  /**
+   * Los números del negocio (#410). Opcional: sin analytics activo, pedirlos
+   * devuelve que no están disponibles, que es la verdad.
+   *
+   * Devuelve el valor CON su definición, no solo el número. Un asistente que
+   * recibe `ganadas: 7` y tiene que explicar qué es "ganadas" lo va a
+   * inventar; recibiéndola no.
+   */
+  metricaDelNegocio?: (input: {
+    metrica: string;
+    desde: string;
+    hasta: string;
+  }) => Promise<unknown>;
+  catalogoDeMetricas?: () => Promise<unknown>;
+}
+
+/**
+ * Las fechas que pide una métrica, validadas.
+ *
+ * Un modelo escribe "2026-13-45" sin pestañear, y Postgres lo rechaza con un
+ * error que no le dice nada a nadie. Acá falla con un motivo que el propio
+ * modelo puede corregir en el siguiente intento.
+ */
+function rangoDeFechas(args: Record<string, unknown>, sufijo = ''): { desde: string; hasta: string } {
+  const leer = (campo: string) => String(args[`${campo}${sufijo}`] ?? '').trim();
+  const desde = leer('desde');
+  const hasta = leer('hasta');
+  const valida = (v: string, campo: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      throw new Error(`"${campo}${sufijo}" tiene que ser una fecha AAAA-MM-DD; llegó "${v || '(vacío)'}".`);
+    }
+    if (Number.isNaN(Date.parse(`${v}T00:00:00Z`))) {
+      throw new Error(`"${v}" no es una fecha que exista.`);
+    }
+  };
+  valida(desde, 'desde');
+  valida(hasta, 'hasta');
+  if (desde > hasta) throw new Error(`El rango está al revés: "${desde}" es posterior a "${hasta}".`);
+  return { desde, hasta };
+}
+
+/** La variación entre dos periodos, sin dejarle la aritmética al modelo. */
+function variacionEntre(a: unknown, b: unknown): { absoluta: number; porcentual: number | null } {
+  const valor = (x: unknown) => Number((x as { valor?: unknown })?.valor ?? 0);
+  const va = valor(a);
+  const vb = valor(b);
+  const absoluta = vb - va;
+  // Sin base no hay porcentaje: "subió infinito" no le sirve a nadie.
+  return { absoluta, porcentual: va === 0 ? null : Number(((absoluta / va) * 100).toFixed(1)) };
 }
 
 export async function ejecutarHerramienta(
@@ -151,6 +206,34 @@ export async function ejecutarHerramienta(
         const conversationId = (input.args.conversationId as string) ?? input.conversationId;
         if (!conversationId) throw new Error('Falta de qué conversación.');
         datos = await deps.getContext(conversationId);
+        break;
+      }
+      case 'analytics.catalogo': {
+        if (!deps.catalogoDeMetricas) throw new Error('Los reportes no están disponibles en este negocio.');
+        datos = await deps.catalogoDeMetricas();
+        break;
+      }
+      case 'analytics.metrica': {
+        if (!deps.metricaDelNegocio) throw new Error('Los reportes no están disponibles en este negocio.');
+        const metrica = String(input.args.metrica ?? '').trim();
+        if (!metrica) throw new Error('Falta qué métrica.');
+        const { desde, hasta } = rangoDeFechas(input.args);
+        datos = await deps.metricaDelNegocio({ metrica, desde, hasta });
+        break;
+      }
+      case 'analytics.comparar': {
+        if (!deps.metricaDelNegocio) throw new Error('Los reportes no están disponibles en este negocio.');
+        const metrica = String(input.args.metrica ?? '').trim();
+        if (!metrica) throw new Error('Falta qué métrica.');
+        const a = rangoDeFechas(input.args, 'A');
+        const b = rangoDeFechas(input.args, 'B');
+        const [uno, dos] = await Promise.all([
+          deps.metricaDelNegocio({ metrica, desde: a.desde, hasta: a.hasta }),
+          deps.metricaDelNegocio({ metrica, desde: b.desde, hasta: b.hasta }),
+        ]);
+        // La variación se calcula acá y no la deja al modelo: un LLM
+        // haciendo aritmética sobre plata es justo lo que no queremos.
+        datos = { periodoA: uno, periodoB: dos, variacion: variacionEntre(uno, dos) };
         break;
       }
       case 'knowledge.search': {
