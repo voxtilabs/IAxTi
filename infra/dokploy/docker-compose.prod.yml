@@ -112,6 +112,7 @@ services:
     environment:
       <<: *app-env
       SERVICE: workers
+    healthcheck: *hc
     depends_on: [redis]
 
   agents:
@@ -119,6 +120,7 @@ services:
     environment:
       <<: *app-env
       SERVICE: agents
+    healthcheck: *hc
     depends_on: [redis]
 
   redis:
