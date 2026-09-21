@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { elegirPorValor } from './select';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -117,7 +118,7 @@ test('cambiar de negocio descarta el progreso del anterior', async ({ page }) =>
   await page.goto('/');
   await expect(page.getByText('Lo siguiente: cuéntanos de tu negocio.')).toBeVisible();
   await page.getByRole('button', { name: 'Mostrar u ocultar el menú' }).click();
-  await page.getByRole('combobox', { name: 'Negocio' }).selectOption(segundo);
+  await elegirPorValor(page, { nombre: 'Negocio' }, segundo);
   await page.keyboard.press('Escape');
   await expect(page.getByText('Lo siguiente: conecta tu whatsapp.')).toBeVisible();
   await expect(page.getByText('Lo siguiente: cuéntanos de tu negocio.')).toHaveCount(0);

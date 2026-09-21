@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { elegirPorValor } from './select';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -41,7 +42,7 @@ test('la selección permite agregar una etiqueta por la API, sin borrar ni reemp
   const methods: string[] = [];
   page.on('request', (r) => methods.push(r.method()));
   await page.getByRole('checkbox', { name: 'Seleccionar fila 1', exact: true }).check();
-  await page.getByRole('combobox', { name: 'Agregar etiqueta' }).selectOption(auth.tableTagId);
+  await elegirPorValor(page, { nombre: 'Agregar etiqueta' }, auth.tableTagId);
   await page.getByRole('button', { name: 'Agregar etiqueta', exact: true }).click();
   await expect(page.locator('[data-sonner-toast]')).toContainText('Etiqueta agregada a');
   const tags = await request.get(`http://127.0.0.1:4010/v1/tags/contacto/${id}`, { headers: { Authorization: `Bearer ${auth.accessToken}`, 'X-Tenant-Id': auth.tableTenantId } });

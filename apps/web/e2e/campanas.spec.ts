@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { elegir } from './select';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -18,7 +19,7 @@ async function preparar(page: import('@playwright/test').Page) {
   await page.goto('/campanas');
   await page.getByRole('button', { name: 'Crear campaña', exact: true }).click();
   await page.getByLabel('Nombre de la campaña').fill(`Novedades de prueba ${Date.now()}`);
-  await page.getByLabel('Plantilla aprobada').selectOption({ label: 'novedades_aprobada' });
+  await elegir(page, { nombre: 'Plantilla aprobada' }, 'novedades_aprobada');
   await expect(page.getByRole('option', { name: 'aun_sin_aprobar' })).toHaveCount(0);
   await page.getByLabel('Valor de la variable').fill('{contacto.nombre}');
   await expect(page.getByRole('button', { name: 'Enviar campaña', exact: true })).toHaveCount(0);

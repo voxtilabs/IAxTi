@@ -29,7 +29,7 @@ export function EtiquetarSeleccion({ tenant, contactIds, onDone }: { tenant: str
     {!!contactIds.length && <div className="flex flex-wrap items-center gap-3 rounded-campo border border-line p-3">
       <label className="min-w-0 text-dato">Agregar etiqueta a los contactos seleccionados
         <Select value={tag} onValueChange={setTag} disabled={busy}>
-          <SelectTrigger className="mt-1 h-control w-full bg-field"><SelectValue placeholder="Elige una etiqueta" /></SelectTrigger>
+          <SelectTrigger className="mt-1 h-control w-full bg-field" aria-label="Agregar etiqueta"><SelectValue placeholder="Elige una etiqueta" /></SelectTrigger>
           <SelectContent>{tags.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
         </Select>
       </label>
