@@ -62,9 +62,12 @@ describe('configuración (dominio, #47)', () => {
   it('proveedor y modelo POR TAREA: el override del tenant manda, sin deploy', () => {
     expect(iaSettings({}).tasks).toEqual(DEFAULT_TASK_MODELS);
     const conOverride = iaSettings({
-      ia: { tasks: { sugerir: { provider: 'glm', model: 'glm-4.6' } }, redactPII: false },
+      // Con `anthropic` y no con `glm`: desde la ADR-0023, `glm` solo
+      // acepta `clasificar` y cualquier otra tarea cae al por defecto — lo
+      // que este test comprueba es que el override MANDA, no la política.
+      ia: { tasks: { sugerir: { provider: 'anthropic', model: 'claude-x' } }, redactPII: false },
     });
-    expect(conOverride.tasks.sugerir).toEqual({ provider: 'glm', model: 'glm-4.6' });
+    expect(conOverride.tasks.sugerir).toEqual({ provider: 'anthropic', model: 'claude-x' });
     expect(conOverride.tasks.configurar).toEqual(DEFAULT_TASK_MODELS.configurar);
     expect(conOverride.redactPII).toBe(false);
     expect(iaSettings({ ia: { tasks: { sugerir: { provider: 'pirata' } } } }).tasks.sugerir.provider)

@@ -118,7 +118,7 @@ describe('cuota de IA (#52)', () => {
   it('agotada CON económico configurado: assist sigue con el modelo barato', async () => {
     await admin.query(
       `UPDATE tenants SET settings = settings ||
-        '{"ia":{"economico":{"provider":"glm","model":"glm-4.6"}}}'::jsonb
+        '{"ia":{"economico":{"provider":"anthropic","model":"claude-haiku-4-5-20251001"}}}'::jsonb
        WHERE id = $1`,
       [tenant],
     );
@@ -131,8 +131,8 @@ describe('cuota de IA (#52)', () => {
     );
     expect(res.status).toBe('ok');
     expect(res.degraded).toBe(true);
-    expect(res.provider).toBe('glm');
-    expect(res.model).toBe('glm-4.6');
+    expect(res.provider).toBe('anthropic');
+    expect(res.model).toBe('claude-haiku-4-5-20251001');
     const fila = await admin.query(
       'SELECT explanation FROM agent_executions WHERE id = $1',
       [res.executionId],

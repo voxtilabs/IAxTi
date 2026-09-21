@@ -24,6 +24,8 @@ export {
 } from './application/objetivo-medido';
 export type { TasaDeObjetivo } from './application/objetivo-medido';
 export { OBJETIVOS, DEFINICIONES, esObjetivo, resolverObjetivo, componerPrompt } from './domain/objetivo';
+// Qué le podemos mandar a un proveedor sin garantías de datos (ADR-0023).
+export { vaRedactadoAlProveedor, proveedorPermitidoParaTarea } from './domain/config';
 export type { Objetivo, DefinicionObjetivo, ObjetivoResuelto } from './domain/objetivo';
 export type { RunInput, RunResult } from './application/runtime';
 export { aiSdkModelPort, providerAvailable } from './application/models';
