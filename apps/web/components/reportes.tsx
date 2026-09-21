@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, EstadoVacio, Skeleton, Tabs, TabsList, TabsTrigger, useSession } from '@iaxti/ui/react';
@@ -86,8 +86,10 @@ export function Reportes() {
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="rotulo">Reportes</p>
-          <h1 className="mt-1 font-display text-titulo font-bold text-ink">Cómo va el negocio</h1>
+          <EncabezadoDePagina
+            rotulo="REPORTES"
+            titulo="Cómo va el negocio"
+          />
         </div>
         <Tabs value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
           <TabsList>

@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -113,10 +113,10 @@ export function Automatizaciones() {
 
   return (
     <div className="max-w-2xl">
-      <p className="rotulo">Automatizaciones</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">
-        El seguimiento que hoy no se hace
-      </h1>
+      <EncabezadoDePagina
+        rotulo="AUTOMATIZACIONES"
+        titulo="El seguimiento que hoy no se hace"
+      />
       <p className="mt-2 text-sm text-muted">
         Reglas que trabajan cuando nadie está mirando — con las mismas leyes de siempre: nada sale
         sin consentimiento ni en horario de silencio. Mira la vista previa antes de encender.

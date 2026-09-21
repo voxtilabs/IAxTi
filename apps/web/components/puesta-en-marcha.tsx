@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Button, MarcaJelly, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
+import { Badge, Button, MarcaJelly, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { getOnboarding, type OnboardingProgress } from '@iaxti/sdk';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -91,8 +91,10 @@ export function ApiKeys() {
 
   return (
     <div className="max-w-2xl">
-      <p className="rotulo">API</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Tus llaves de integración</h1>
+      <EncabezadoDePagina
+        rotulo="API"
+        titulo="Tus llaves de integración"
+      />
       <p className="mt-2 text-sm text-muted">
         Conecta tus sistemas a la API de IAxTi con llaves propias. Cada llave puede SOLO lo que le
         des — nunca más que los permisos de tu cuenta. Va en el header{' '}

@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -135,13 +135,10 @@ export function Equipo() {
 
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-titulo font-extrabold text-ink">Tu equipo</h1>
-        <p className="mt-1 max-w-2xl text-sm text-body">
-          Quién entra al negocio y qué puede hacer. Cada persona atiende con su propia cuenta: así
-          se sabe quién respondió qué.
-        </p>
-      </header>
+      <EncabezadoDePagina
+        titulo="Tu equipo"
+        apoyo="Quién entra al negocio y qué puede hacer. Cada persona atiende con su propia cuenta: así se sabe quién respondió qué."
+      />
 
       {error && (
         <AvisoResultado tono="error">

@@ -5,7 +5,7 @@ import {
   campaignClient, type Campaign, type CampaignChannel, type CampaignFilters,
   type CampaignListItem, type CampaignPreview, type CampaignResults, type CampaignTemplate,
 } from '@iaxti/sdk';
-import { AvisoResultado, Badge, Button, Checkbox, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
@@ -132,12 +132,24 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   const impedimento = puedeEscribir ? impedimentoDeCampana(canales, previa) : 'Tu plan permite consultar campañas, pero no crear ni enviar.';
   return (
     <div className="min-w-0 space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="font-display text-titulo text-ink">Campañas</h1>
-          <p className="mt-2 text-body">Una plantilla aprobada para un grupo de tus contactos.</p></div>
-        {vista === 'lista' ? <Button onClick={() => void nueva()} disabled={ocupado || !puedeEscribir}>Crear campaña</Button> :
-          <Button variant="secundario" disabled={ocupado} onClick={() => { setVista('lista'); setError(null); void ejecutar(cargar); }}>Volver al listado</Button>}
-      </header>
+      <EncabezadoDePagina
+        rotulo="CAMPAÑAS"
+        titulo="Campañas"
+        apoyo="Una plantilla aprobada para un grupo de tus contactos."
+        accion={
+          vista === 'lista' ? (
+            <Button onClick={() => void nueva()} disabled={ocupado || !puedeEscribir}>Crear campaña</Button>
+          ) : (
+            <Button
+              variant="secundario"
+              disabled={ocupado}
+              onClick={() => { setVista('lista'); setError(null); void ejecutar(cargar); }}
+            >
+              Volver al listado
+            </Button>
+          )
+        }
+      />
       {puedeEscribir === false && <p className="text-sm text-muted">Tu plan permite consultar campañas, pero no crear ni enviar. <a href="/ajustes/facturacion">Revisar mi plan</a>.</p>}
       {error && <AvisoResultado tono="error">{error}</AvisoResultado>}
 

@@ -13,6 +13,8 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './ui/button';
 export { Input, Textarea } from './ui/input';
 export { Badge } from './ui/badge';
 export { Checkbox } from './ui/checkbox';
+export { EncabezadoDePagina } from './ui/encabezado';
+export type { EncabezadoDePaginaProps } from './ui/encabezado';
 export type { BadgeProps, BadgeRole } from './ui/badge';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 export {

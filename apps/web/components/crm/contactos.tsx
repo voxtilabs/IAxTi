@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, DataTable, EstadoVacio, Input, Skeleton, useSession, type ColumnDef, type SortingState, type RowSelectionState } from '@iaxti/ui/react';
@@ -68,7 +68,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
   return (
     <div className="max-w-5xl" data-densidad="densa">
       <div className="flex flex-wrap items-center gap-4">
-        <h1 className="font-display text-titulo font-bold text-ink">Contactos</h1>
+        <EncabezadoDePagina titulo="Contactos" />
         <a
           href="/contactos/importar"
           className="ml-auto inline-flex min-h-control items-center rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest"

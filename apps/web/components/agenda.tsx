@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
@@ -134,10 +134,10 @@ export function Agenda() {
 
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-titulo font-extrabold text-ink">Agenda</h1>
-        <p className="mt-1 text-sm text-body">Las próximas dos semanas.</p>
-      </header>
+      <EncabezadoDePagina
+        titulo="Agenda"
+        apoyo="Las próximas dos semanas."
+      />
 
       {error && (
         <AvisoResultado tono="error">

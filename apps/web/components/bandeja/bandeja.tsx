@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -222,7 +222,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         )}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-raised p-4">
-          <div className="flex items-center justify-between gap-3"><h1 className="font-display text-titulo font-bold text-ink">Bandeja</h1><Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button></div>
+          <EncabezadoDePagina titulo="Bandeja" className="mb-0" accion={<Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button>} />
           <Tabs value={vista} onValueChange={(v) => setVista(v as Vista)} className="mt-3">
             <TabsList className="w-full">
               <TabsTrigger value="todas" className="flex-1">Todas</TabsTrigger>

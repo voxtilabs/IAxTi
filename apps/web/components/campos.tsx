@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Checkbox,
+  EncabezadoDePagina,
   Input,
   Select,
   SelectContent,
@@ -121,13 +122,11 @@ export function Campos() {
 
   return (
     <section className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-titulo font-extrabold text-ink">Campos propios de tu negocio</h1>
-        <p className="mt-1 max-w-2xl text-sm text-body">
-          Lo que a tu negocio le importa guardar y el CRM no trae de fábrica: el tipo de corte, el
-          barrio que busca, la talla. Aparecen en la ficha de cada contacto.
-        </p>
-      </header>
+      <EncabezadoDePagina
+        rotulo="TU NEGOCIO"
+        titulo="Campos propios de tu negocio"
+        apoyo="Lo que a tu negocio le importa guardar y el CRM no trae de fábrica: el tipo de corte, el barrio que busca, la talla. Aparecen en la ficha de cada contacto."
+      />
 
       {error && (
         <AvisoResultado tono="error">

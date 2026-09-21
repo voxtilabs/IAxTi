@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AuditExplorer, useSession, type AuditFetcher } from '@iaxti/ui/react';
+import { AuditExplorer, EncabezadoDePagina, type AuditFetcher, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
@@ -30,8 +30,10 @@ export function Auditoria() {
   if (!fetcher) return null;
   return (
     <div>
-      <p className="rotulo">Auditoría</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">El libro de tu cuenta</h1>
+      <EncabezadoDePagina
+        rotulo="AUDITORÍA"
+        titulo="El libro de tu cuenta"
+      />
       <p className="mb-4 mt-2 max-w-2xl text-sm text-muted">
         Cada acción queda encadenada por hash con la anterior: si alguien tocara una entrada, la
         verificación lo diría. Puedes revisarlo cuando quieras y llevarte el libro firmado.

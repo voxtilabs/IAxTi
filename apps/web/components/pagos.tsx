@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -107,8 +107,10 @@ export function Pagos() {
 
   return (
     <div className="max-w-2xl">
-      <p className="rotulo">Pagos</p>
-      <h1 className="mt-1 font-display text-titulo font-bold text-ink">Cobra con links desde el chat</h1>
+      <EncabezadoDePagina
+        rotulo="PAGOS"
+        titulo="Cobra con links desde el chat"
+      />
       <p className="mt-2 text-sm text-muted">
         Conecta tu pasarela y el equipo cobra sin salir de la conversación. Las credenciales viven
         en el servidor: aquí solo va el <span className="dato">NOMBRE</span> de la variable de
