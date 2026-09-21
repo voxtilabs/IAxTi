@@ -2,7 +2,8 @@
 # API de Dokploy a través de Cloudflare Access. La imagen se fija por SHA del
 # commit: `docker compose up` solo recrea cuando la referencia cambia, así
 # cada deploy es exactamente este commit (SPEC §37).
-# Secrets (environment "staging"): DATABASE_URL_STAGING, DOKPLOY_URL,
+# Secrets (environment "staging"): DATABASE_URL_STAGING (dueño, migra),
+#   DATABASE_URL_APP_STAGING (rol de la aplicación, #370), DOKPLOY_URL,
 # DOKPLOY_API_KEY, CF_ACCESS_CLIENT_ID/SECRET, DOKPLOY_COMPOSE_ID_STAGING,
 # STAGING_BASE_URL.
 name: deploy-staging
@@ -67,6 +68,25 @@ jobs:
         run: |
           if [ -z "${DATABASE_URL}" ]; then echo "Sin DATABASE_URL_STAGING aún; se salta"; exit 0; fi
           pnpm run migrate:deploy
+
+      # Después de migrar y ANTES de desplegar (#370): una migración nueva
+      # trae tablas que el rol de la aplicación todavía no puede tocar, y
+      # eso no se ve hasta que un mensaje de verdad falla con "permission
+      # denied". Acá se ve en el paso, con el nombre de la tabla.
+      #
+      # Sin DATABASE_URL_APP_STAGING el paso avisa y sigue: mientras la
+      # aplicación use el rol dueño no hay nada que comprobar — lo que falta
+      # ahí es el cambio de rol, no este paso.
+      - name: Permisos del rol de la aplicación
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_APP_STAGING }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::warning::Sin DATABASE_URL_APP_STAGING: la aplicación sigue conectando con el rol dueño (#370)."
+            exit 0
+          fi
+          pnpm --filter @iaxti/db run build
+          pnpm --filter @iaxti/db run permisos
 
       - name: Deploy en Dokploy (imagen fijada al SHA del commit)
         env:
