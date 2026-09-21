@@ -11,6 +11,27 @@ import * as Sentry from '@sentry/node';
  * Langfuse (trazas de IA) llega con la Fase 3 y NO pasa por aquí: plataforma
  * en OTel, IA en Langfuse, mismo trace_id (SPEC §14).
  */
+/**
+ * El release, sacado de la referencia de la imagen que está corriendo.
+ *
+ * Llega como `ghcr.io/voxtilabs/iaxti:<sha>` o `:vX.Y.Z`, y lo que Sentry
+ * necesita es la etiqueta. Se saca del ÚLTIMO `:` para no romperse con un
+ * registro que traiga puerto (`registro:5000/imagen:tag`).
+ *
+ * Sin la variable devuelve undefined y Sentry sigue funcionando: un error
+ * sin release es malo, arrancar roto por eso sería peor.
+ */
+export function releaseDeLaImagen(imagen = process.env.IAXTI_IMAGE): string | undefined {
+  const ref = imagen?.trim();
+  if (!ref) return undefined;
+  const i = ref.lastIndexOf(':');
+  // Sin `:` no hay etiqueta, y si el `:` está antes del último `/` es el
+  // puerto del registro, no una etiqueta.
+  if (i < 0 || i < ref.lastIndexOf('/')) return undefined;
+  const tag = ref.slice(i + 1);
+  return tag && tag !== 'latest' ? tag : undefined;
+}
+
 export function initObservability(serviceName: string): void {
   activarLogsEstructurados(serviceName);
 
@@ -19,6 +40,16 @@ export function initObservability(serviceName: string): void {
       dsn: process.env.SENTRY_DSN,
       environment: process.env.IAXTI_ENV ?? 'local',
       serverName: serviceName,
+      // De qué versión viene el error (#392). Sin esto, en Sentry todos se
+      // ven iguales vengan del deploy de hace cinco minutos o del de la
+      // semana pasada, y además nunca marca una regresión: para eso compara
+      // releases.
+      //
+      // El identificador ya existía y es exacto —la imagen se fija por SHA
+      // del commit y `release.yml` promueve la del commit que se taguea—,
+      // solo no llegaba al proceso. `undefined` y no una cadena inventada:
+      // un release falso agrupa mal, que es peor que no agrupar.
+      release: releaseDeLaImagen(),
       // Un solo dueño de los globales. Sin tracesSampleRate, Sentry no
       // activa sus integraciones de rendimiento (0 también las activaba).
       // En conjunto, NodeSDK registra el contexto y exporta solo a OTLP.
