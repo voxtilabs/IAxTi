@@ -7,7 +7,7 @@ import { useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 import { rutasConCandado } from '../lib/candados';
-import type { NavItem } from './app-shell';
+import type { NavItem } from '../lib/nav';
 
 /**
  * Las pestañas de la sección de ajustes en la que estás (#387).

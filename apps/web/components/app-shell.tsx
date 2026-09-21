@@ -55,17 +55,15 @@ import { PaletaComandos } from './paleta-comandos';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
+import type { NavItem } from '../lib/nav';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 import { rutasConCandado } from '../lib/candados';
 
-export interface NavItem {
-  label: string;
-  path: string;
-  permission: string;
-  grupo?: string;
-  seccion?: string;
-}
+// El tipo vive en `lib/nav` para no cerrar un ciclo con las pestañas de
+// ajustes, que el propio shell renderiza. Se re-exporta porque las páginas
+// ya lo importan desde acá.
+export type { NavItem } from '../lib/nav';
 
 interface ShellProps {
   config: PublicConfig;
