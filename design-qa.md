@@ -1,4 +1,72 @@
-# Pulso Vivo · revisión visual #404
+# Acceso completo según ancho y altura · revisión #406
+
+**final result: passed** — el login inicial cabe en los tamaños revisados;
+formularios y mensajes conservan acceso mediante scroll en alturas extremas.
+
+La revisión #404 comprobó ancho, pero sus capturas de 1.000 px de alto no
+detectaron el desborde vertical reportado por el usuario. Su informe histórico
+se conserva más abajo; «cero desbordes» allí se refiere al eje horizontal.
+
+## Fuente, comparación y alcance
+
+- Fuente: login de staging en `a40ab4d`, antes de esta corrección. Capturas
+  `docs/evidencias/406/before-app-1366x768.png` y `before-app-360x640.png`.
+- Implementación: build standalone real de web y admin. Capturas
+  `after-app-1366x768-dia-inicial.png`, `after-app-360x640-dia-inicial.png` y
+  sus versiones nocturnas en el mismo directorio.
+- Comparaciones conjuntas abiertas y revisadas: `comparacion-1366.png` y
+  `comparacion-360.png`. Mismo viewport CSS, sesión cerrada, estado inicial,
+  día, densidad 1. Las capturas son de 1366×768 y 360×640 píxeles. La tabla
+  de notebook usa escala 0,5 en ambos lados; la de móvil conserva 1:1 y
+  permite leer los campos, tipografía, foco y marca sin otro recorte.
+- Se conserva la dirección Pulso Vivo aprobada. La diferencia intencional es
+  adaptar proporciones y ceder texto decorativo cuando falta altura.
+
+## Hallazgos e iteraciones
+
+1. **P1 · contenido bajo el borde del navegador.** Antes: 900 px de contenido
+   en 1366×768; 920 px en 360×640. Cabecera/pie y arte tenían espacios pensados
+   solo para pantallas altas. Corrección: reglas de altura, márgenes menores,
+   SVG adaptable y distribución móvil con grid en lugar del float.
+2. **P2 · marca y modo en administración.** El botón podía partirse en dos
+   líneas. Corrección: marca flexible y botón sin quiebre, con alto mínimo de
+   46 px. Evidencia: `after-admin-360x640-noche-inicial.png`.
+3. **P1 · primer ajuste insuficiente al mostrar avisos.** El estado inicial
+   cabía, pero código vencido seguía desbordando en notebooks. Corrección:
+   dar espacio al aviso reduciendo separaciones y contenido introductorio
+   redundante, sin ocultar instrucciones ni acciones del formulario.
+   Evidencia: `after-app-360x640-noche-codigo-malo.png` y E2E del código vencido.
+4. **P2 · saltos entre reglas.** Se probaron también alturas 741, 900 y 961;
+   se amplió el rango compacto y se mantuvo la composición de avisos fuera
+   de ese rango. Los E2E de esas fronteras ahora pasan.
+
+La comparación posterior muestra ambos botones, campos y pie dentro de la
+ventana. Se revisaron los cinco aspectos: Outfit/Inter/mono y lectura se
+conservan; espacios y tamaños responden a altura; colores y tokens no cambian;
+el SVG oficial mantiene nitidez; texto y funciones de autenticación no cambian.
+El copy decorativo se reduce en móvil corto y ante avisos de autenticación.
+
+## Verificación y límites
+
+- Build: 30 tareas; tipos: 54 tareas; lint y fronteras de módulos aprobados.
+- UI: 39 tests, incluidas las 16 comprobaciones de contraste existentes.
+- E2E: 56 aprobados, tres capturas opcionales omitidas; 23 casos del acceso.
+  Incluyen los dos modos, 11 tamaños, error de envío, código enviado/vencido,
+  reintento, persistencia de modo, teclado y viewport horizontal/reducido.
+- Las guardas comprueban scroll vertical y horizontal, posición del pie y
+  controles, ausencia de desplazamiento y 46 px en campos/acciones principales.
+- Los avisos largos en una pantalla horizontal de 390 px de alto, el zoom y
+  el teclado virtual pueden necesitar scroll: se conserva deliberadamente
+  para permitir leer y operar. No se usa altura fija, zoom CSS ni recorte del
+  formulario. La prueba de 360×320 comprueba controles y pie alcanzables.
+- OTP se simula en las pruebas; no se enviaron correos ni se cambió el proveedor.
+  La suite del resto del producto usa API, PostgreSQL y Redis locales reales.
+
+La salud e imagen exacta de staging se documentan en el PR tras el merge.
+
+---
+
+# Pulso Vivo · revisión visual histórica #404
 
 **final result: passed** — sin hallazgos P0/P1/P2 pendientes en el alcance revisado.
 
