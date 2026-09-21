@@ -12,6 +12,10 @@ x-app: &app
 
 x-env: &app-env
   IAXTI_ENV: ${IAXTI_ENV}
+  # La referencia de la imagen, para que Sentry sepa de qué versión viene
+  # cada error (#392). Es la MISMA variable que fija la imagen: no hay nada
+  # que mantener a mano ni que se pueda desincronizar.
+  IAXTI_IMAGE: ${IMAGE}
   SENTRY_DSN: ${SENTRY_DSN}
   OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
