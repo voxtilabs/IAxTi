@@ -84,7 +84,7 @@ export function WebhooksSalientes() {
         apagamos y te avisamos.
       </p>
 
-      <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Nuevo webhook</span>
         <Input
           aria-label="URL del webhook"
@@ -135,7 +135,7 @@ export function WebhooksSalientes() {
         </Button>
       </div>
 
-      <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Webhooks</span>
         {webhooks === null ? (
           <Skeleton className="mt-3 h-16" />
@@ -179,7 +179,7 @@ export function WebhooksSalientes() {
       </div>
 
       {entregas.length > 0 && (
-        <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <span className="rotulo">Últimas entregas</span>
           <ul className="mt-2 flex flex-col gap-1.5">
             {entregas.slice(0, 12).map((e) => (

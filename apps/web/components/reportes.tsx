@@ -37,7 +37,7 @@ function Cifra({
 }: { rotulo: string; valor: string; definicion: string; alerta?: boolean }) {
   return (
     <div
-      className="rounded-tarjeta border border-line bg-raised p-4"
+      className="pulso-panel rounded-tarjeta border border-line bg-raised p-4"
       title={definicion}
     >
       <p className="rotulo">{rotulo}</p>
@@ -120,7 +120,7 @@ export function Reportes() {
         <Cifra rotulo="Uso de IA" valor={String(m.ia_ejecuciones)} definicion={`${d.ia_ejecuciones} Costo estimado: USD ${m.ia_costo_usd.toFixed(3)}.`} />
       </div>
 
-      <div className="mt-4 rounded-tarjeta border border-line bg-raised p-5">
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <div className="flex items-baseline justify-between">
           <span className="rotulo" title={d.conversaciones_nuevas}>Conversaciones por día</span>
           <Badge role="neutral">últimos {dias} días</Badge>

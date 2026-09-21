@@ -1,0 +1,1458 @@
+[
+  {
+    "path": "/contactos/00000000-0000-4000-8000-000000000400",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/invitacion/visual",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Ya estás dentro"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/webchat/visual",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Pon tu negocio en marcha"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/login",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/bandeja",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Bandeja"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Contactos"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos/importar",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Importar desde una planilla"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/oportunidades",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/empresas",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Empresas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/campanas",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Campañas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/agenda",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Agenda"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/reportes",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Cómo va el negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/ia",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Consumo del asistente"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/notificaciones",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Qué avisos recibes"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/bandeja",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/campos",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Campos propios de tu negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/etiquetas",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Etiquetas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/conocimiento",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Lo que tu negocio dice"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/auditoria",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "El libro de tu cuenta"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/api",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tus llaves de integración"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/equipo",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tu equipo"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/webhooks",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Avísale a tus sistemas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/pagos",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Cobra con links desde el chat"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/canales",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tus canales conectados"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/automatizaciones",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "El seguimiento que hoy no se hace"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/roles",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Quién puede qué"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/facturacion",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tu plan y tus facturas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/plantillas",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Plantillas de WhatsApp"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tu plataforma, en perspectiva."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN_LOGIN",
+    "mode": "dia",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos/00000000-0000-4000-8000-000000000400",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/invitacion/visual",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Ya estás dentro"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/webchat/visual",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Pon tu negocio en marcha"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/login",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/bandeja",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Bandeja"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Contactos"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos/importar",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Importar desde una planilla"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/oportunidades",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/empresas",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Empresas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/campanas",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Campañas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/agenda",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Agenda"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/reportes",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Cómo va el negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/ia",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Consumo del asistente"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/notificaciones",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Qué avisos recibes"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/bandeja",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/campos",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Campos propios de tu negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/etiquetas",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Etiquetas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/conocimiento",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Lo que tu negocio dice"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/auditoria",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "El libro de tu cuenta"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/api",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tus llaves de integración"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/equipo",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tu equipo"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/webhooks",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Avísale a tus sistemas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/pagos",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Cobra con links desde el chat"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/canales",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tus canales conectados"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/automatizaciones",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "El seguimiento que hoy no se hace"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/roles",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Quién puede qué"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/facturacion",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tu plan y tus facturas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/plantillas",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Plantillas de WhatsApp"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Tu plataforma, en perspectiva."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN_LOGIN",
+    "mode": "noche",
+    "width": 1440,
+    "overflow": false,
+    "scroll": 1440,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos/00000000-0000-4000-8000-000000000400",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/invitacion/visual",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Ya estás dentro"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/webchat/visual",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Pon tu negocio en marcha"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/login",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/bandeja",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Bandeja"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Contactos"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos/importar",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Importar desde una planilla"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/oportunidades",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/empresas",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Empresas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/campanas",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Campañas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/agenda",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Agenda"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/reportes",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Cómo va el negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/ia",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Consumo del asistente"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/notificaciones",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Qué avisos recibes"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/bandeja",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/campos",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Campos propios de tu negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/etiquetas",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Etiquetas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/conocimiento",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Lo que tu negocio dice"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/auditoria",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "El libro de tu cuenta"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/api",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tus llaves de integración"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/equipo",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tu equipo"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/webhooks",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Avísale a tus sistemas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/pagos",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Cobra con links desde el chat"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/canales",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tus canales conectados"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/automatizaciones",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "El seguimiento que hoy no se hace"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/roles",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Quién puede qué"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/facturacion",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tu plan y tus facturas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/plantillas",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Plantillas de WhatsApp"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tu plataforma, en perspectiva."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN_LOGIN",
+    "mode": "dia",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos/00000000-0000-4000-8000-000000000400",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/invitacion/visual",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Ya estás dentro"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/webchat/visual",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Pon tu negocio en marcha"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/login",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/bandeja",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Bandeja"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Contactos"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/contactos/importar",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Importar desde una planilla"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/oportunidades",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/empresas",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Empresas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/campanas",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Campañas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/agenda",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Agenda"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/reportes",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Cómo va el negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/ia",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Consumo del asistente"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/notificaciones",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Qué avisos recibes"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/bandeja",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/campos",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Campos propios de tu negocio"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/etiquetas",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Etiquetas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/conocimiento",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Lo que tu negocio dice"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/auditoria",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "El libro de tu cuenta"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/api",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tus llaves de integración"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/equipo",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tu equipo"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/webhooks",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Avísale a tus sistemas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/pagos",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Cobra con links desde el chat"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/canales",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tus canales conectados"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/automatizaciones",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "El seguimiento que hoy no se hace"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/roles",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Quién puede qué"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/facturacion",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tu plan y tus facturas"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "/ajustes/plantillas",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Plantillas de WhatsApp"
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Tu plataforma, en perspectiva."
+    ],
+    "pageErrors": []
+  },
+  {
+    "path": "ADMIN_LOGIN",
+    "mode": "noche",
+    "width": 360,
+    "overflow": false,
+    "scroll": 360,
+    "errors": [],
+    "h1": [
+      "Todo empiezacon un hola."
+    ],
+    "pageErrors": []
+  }
+]

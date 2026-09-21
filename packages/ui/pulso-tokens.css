@@ -1,6 +1,6 @@
 /*
- * Tokens del sistema Pulso de VoxTi Labs — copiados TAL CUAL del documento
- * (voxtilabs/branding, v1.1 sep 2026, sección 2). Este es el ÚNICO archivo
+ * Tokens del sistema Pulso de VoxTi Labs (v1.1) y su evolución Pulso Vivo
+ * para IAxTi (ADR-0021, #404). Este es el ÚNICO archivo
  * del repo donde puede existir un hex; un test lo hace cumplir.
  * Ningún componente sabe en qué modo está: pide tokens, el modo decide.
  */
@@ -11,11 +11,11 @@
   --bg-raised:#F7F8FD;     /* tarjetas, tablas, superficies elevadas */
   --bg-rest:#E6E9F2;       /* zona de descanso, cifras, estado "antes" */
   --border:#E6E9F2;        /* filete estándar */
-  --border-strong:#CBD0DE; /* borde de campo y de botón secundario */
+  --border-strong:#8692AA; /* borde legible de campo y botón secundario */
 
   --text:#12141C;          /* titulares y datos */
   --text-body:#414759;     /* texto corrido */
-  --text-muted:#6E7488;    /* secundario, metadatos, rótulos */
+  --text-muted:#606D83;    /* secundario, metadatos, rótulos */
   --text-faint:#A3A9BC;    /* deshabilitado, placeholder */
 
   --action:#3D5AFE;        /* relleno de botón primario */
@@ -33,12 +33,37 @@
   --good-soft:#E7FAF3;
   --good-soft-br:#C6F0DF;
 
-  --bad:#E23D5C;           /* relleno de botón destructivo */
+  --bad:#D9304F;           /* relleno destructivo con texto blanco AA */
   --bad-text:#A6203C;
   --bad-soft:#FFEEF1;
   --bad-soft-br:#FCD6DE;
 
   --field-bg:#FFFFFF;
+
+  /* Pulso Vivo: material, profundidad y ambiente; nunca colores locales. */
+  --canvas:#F2F5FB;
+  --panel:#FFFFFF;
+  --chrome:#FAFBFE;
+  --hero-surface:#F8FAFF;
+  --on-action:#FFFFFF;
+  --brand-warm:#ECAA65;
+  --jelly-ice:#B6F3FF;
+  --jelly-sky:#36BDF5;
+  --jelly-deep:#2345D6;
+  --jelly-shadow:#172B83;
+  --jelly-glint:#F4FDFF;
+  --surface-glint:rgb(255 255 255 / .9);
+  --ambient-cool:rgb(91 150 255 / .12);
+  --ambient-warm:rgb(244 187 114 / .10);
+  --ambient-cool-strong:rgb(105 168 255 / .22);
+  --ambient-warm-strong:rgb(244 187 114 / .18);
+  --elevacion-panel:0 3px 5px -3px rgb(25 49 98 / .04), 0 14px 38px -24px rgb(25 49 98 / .18);
+  --elevacion-acceso:0 2px 2px rgb(25 49 98 / .02), 0 24px 70px -30px rgb(25 49 98 / .25), inset 0 1px 0 var(--surface-glint);
+  --relieve-suave:0 2px 4px rgb(25 49 98 / .05), inset 0 1px 0 var(--surface-glint);
+  --relieve-marca:5px 5px 14px rgb(25 49 98 / .13), -5px -5px 14px var(--surface-glint);
+  --campo-interior:inset 0 2px 3px rgb(25 49 98 / .025);
+  --elevacion-accion:0 5px 12px -5px rgb(61 90 254 / .38), inset 0 1px 0 rgb(255 255 255 / .18);
+  --elevacion-accion-hover:0 7px 18px -5px rgb(61 90 254 / .46), inset 0 1px 0 rgb(255 255 255 / .18);
 }
 
 /* Modo noche */
@@ -47,11 +72,11 @@
   --bg-raised:#141826;
   --bg-rest:#1D2233;
   --border:#262C40;
-  --border-strong:#333A52;
+  --border-strong:#65748A;
 
   --text:#EDEFF7;          /* nunca blanco puro: produce halo */
   --text-body:#B9C0D4;
-  --text-muted:#8189A0;
+  --text-muted:#9AA9C1;
   --text-faint:#5A6178;
 
   --action:#3D5AFE;        /* idéntico al día */
@@ -75,4 +100,28 @@
   --bad-soft-br:#4D2130;
 
   --field-bg:#0F1220;      /* más oscuro que la tarjeta, no igual */
+
+  --canvas:#0B101D;
+  --panel:#151C2D;
+  --chrome:#111827;
+  --hero-surface:#141F35;
+  --on-action:#FFFFFF;
+  --brand-warm:#ECAA65;
+  --jelly-ice:#B6F3FF;
+  --jelly-sky:#36BDF5;
+  --jelly-deep:#2345D6;
+  --jelly-shadow:#172B83;
+  --jelly-glint:#F4FDFF;
+  --surface-glint:rgb(160 192 255 / .09);
+  --ambient-cool:rgb(63 108 224 / .10);
+  --ambient-warm:rgb(198 121 58 / .055);
+  --ambient-cool-strong:rgb(54 111 226 / .19);
+  --ambient-warm-strong:rgb(198 121 58 / .09);
+  --elevacion-panel:0 3px 5px -3px rgb(0 4 15 / .18), 0 16px 40px -24px rgb(0 4 15 / .48);
+  --elevacion-acceso:0 2px 2px rgb(0 4 15 / .15), 0 24px 70px -30px rgb(0 4 15 / .7), inset 0 1px 0 var(--surface-glint);
+  --relieve-suave:0 2px 4px rgb(0 4 15 / .22), inset 0 1px 0 var(--surface-glint);
+  --relieve-marca:5px 5px 14px rgb(0 4 15 / .5), -5px -5px 14px rgb(160 192 255 / .035);
+  --campo-interior:inset 0 2px 3px rgb(0 4 15 / .15);
+  --elevacion-accion:0 5px 14px -5px rgb(40 83 235 / .36), inset 0 1px 0 rgb(255 255 255 / .18);
+  --elevacion-accion-hover:0 7px 20px -5px rgb(40 83 235 / .46), inset 0 1px 0 rgb(255 255 255 / .18);
 }

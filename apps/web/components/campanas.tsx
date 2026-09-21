@@ -143,7 +143,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
 
       {vista === 'lista' && <>
         {lista === null ? <Skeleton className="h-32" /> : lista.length === 0 ?
-          <section className="rounded-tarjeta border border-line bg-raised p-6">
+          <section className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
             <h2 className="text-lg font-bold text-ink">Todavía no has creado una campaña</h2>
             <p className="mt-2 text-body">Aquí verás tus borradores y los resultados de cada envío. Usa Crear campaña para elegir una plantilla y revisar a quién llegará.</p>
           </section> : <ul className="space-y-3">{lista.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised p-4">
@@ -195,7 +195,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
         <h2 className="break-words text-xl font-bold text-ink">{campana.name}</h2>
         {previa ? <><p><strong className="font-mono text-xl text-ink">{previa.total}</strong> destinatarios en este momento</p>
           <h3 className="font-bold text-ink">Muestra de destinatarios</h3><ul className="space-y-2">{previa.muestra.map((p) => <li key={p.id} className="flex flex-wrap gap-x-3 border-b border-line py-2"><span>{p.name ?? 'Contacto sin nombre'}</span><span className="font-mono text-sm text-muted">{p.phone}</span></li>)}</ul></> : <p role="status">Cargando el conteo y la muestra…</p>}
-        <section aria-label="Calidad del número" className="rounded-tarjeta border border-line bg-raised p-4">
+        <section aria-label="Calidad del número" className="pulso-panel rounded-tarjeta border border-line bg-raised p-4">
           <h3 className="font-bold text-ink">Calidad del número antes de enviar</h3>
           {canales ? canales.filter((c) => c.kind === 'whatsapp').flatMap((c) => c.numbers).map((n) => <div key={n.id} className="mt-3 flex flex-wrap items-center gap-3"><span className={n.displayPhone ? "font-mono text-sm" : "text-sm"}>{n.displayPhone ?? 'Número sin teléfono visible'}</span><Badge role={CALIDAD[n.quality ?? 'desconocida'].rol}>{CALIDAD[n.quality ?? 'desconocida'].nombre}</Badge></div>) : <p className="mt-2 text-sm text-muted">Calidad pendiente de comprobar.</p>}
         </section>

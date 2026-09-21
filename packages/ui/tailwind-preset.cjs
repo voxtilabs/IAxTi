@@ -61,6 +61,7 @@ module.exports = {
         action: {
           DEFAULT: 'var(--action)',
           hover: 'var(--action-hover)',
+          contrast: 'var(--on-action)',
           text: 'var(--action-text)',
           soft: 'var(--action-soft)',
           'soft-br': 'var(--action-soft-br)',
@@ -98,7 +99,7 @@ module.exports = {
         'fila-gap': 'var(--fila-gap)',
       },
       fontSize: {
-        titulo: ['clamp(1.5rem, 2.5vw, 2rem)', { lineHeight: '1.2', fontWeight: '800' }],
+        titulo: ['clamp(1.75rem, 2.6vw, 2.4rem)', { lineHeight: '1.2', fontWeight: '800' }],
         seccion: ['1.125rem', { lineHeight: '1.4', fontWeight: '700' }],
         cuerpo: ['1rem', { lineHeight: '1.6' }],
         dato: ['0.875rem', { lineHeight: '1.4' }],
@@ -110,7 +111,7 @@ module.exports = {
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       maxWidth: {
-        contenido: '1000px',
+        contenido: '1120px',
       },
       // Dos sombras y ninguna más. `boxShadow` ya existía acá: agregar un
       // segundo bloque con el mismo nombre en `extend` no da error, la

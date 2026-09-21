@@ -115,7 +115,7 @@ export function Etiquetas() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={crear} className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+      <form onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Nueva etiqueta</h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
@@ -154,7 +154,7 @@ export function Etiquetas() {
       </form>
 
       {items.length === 0 ? (
-        <div className="rounded-tarjeta border border-line bg-raised p-8 text-center">
+        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
           <h2 className="text-lg font-bold text-ink">Todavía no hay etiquetas</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-body">
             Sirven para marcar contactos por algo que a tu negocio le importa y después filtrarlos.
@@ -166,7 +166,7 @@ export function Etiquetas() {
           {items.map((t) => (
             <li
               key={t.id}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta border border-line bg-raised px-4 py-3"
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 pulso-panel rounded-tarjeta border border-line bg-raised px-4 py-3"
             >
               <Badge role={t.role as BadgeRole}>{t.name}</Badge>
               <Select

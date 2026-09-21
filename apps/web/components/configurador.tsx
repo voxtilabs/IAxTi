@@ -102,7 +102,7 @@ export function Configurador() {
   };
 
   return (
-    <div className="mt-4 max-w-xl rounded-tarjeta border border-line bg-raised p-6">
+    <div className="mt-4 max-w-xl pulso-panel rounded-tarjeta border border-line bg-raised p-6">
       <span className="rotulo">Arma tu CRM</span>
       <p className="mt-2 text-sm text-muted">
         Cuéntanos de qué se trata tu negocio y el asistente propone el pipeline, las respuestas

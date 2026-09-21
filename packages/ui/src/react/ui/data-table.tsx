@@ -44,7 +44,7 @@ export function DataTable<T extends { id: string }>({ label, columns, rows, sort
       <span className="text-dato text-muted"><span className="font-mono">{ids.filter((id) => selection[id]).length}</span> seleccionados en esta página</span>
     </div>
     {children}
-    <div className="rounded-campo border border-line bg-raised">
+    <div className="pulso-panel overflow-hidden rounded-tarjeta border border-line bg-raised">
       <Table aria-label={label}>
         <TableHeader><TableRow>
           <TableHead className="w-14 px-1"><label className="flex min-h-control items-center justify-center"><input type="checkbox" aria-label="Seleccionar esta página" checked={all} disabled={loading || !rows.length} onChange={(e) => onSelection(e.target.checked ? Object.fromEntries(ids.map((id) => [id, true])) : {})} /></label></TableHead>

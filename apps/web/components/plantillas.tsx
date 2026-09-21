@@ -124,7 +124,7 @@ export function Plantillas() {
         </AvisoResultado>
       )}
 
-      <form id="nueva-plantilla" onSubmit={crear} className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+      <form id="nueva-plantilla" onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Nueva plantilla</h2>
 
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
@@ -197,7 +197,7 @@ export function Plantillas() {
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((p) => (
-            <li key={p.id} className="rounded-tarjeta border border-line bg-raised p-4">
+            <li key={p.id} className="pulso-panel rounded-tarjeta border border-line bg-raised p-4">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <span className="dato text-sm text-ink">{p.name}</span>
                 <span className="text-xs text-muted">{p.language}</span>

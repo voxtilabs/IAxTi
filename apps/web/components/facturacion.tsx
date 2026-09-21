@@ -66,7 +66,7 @@ export function Facturacion() {
       <p className="rotulo">Facturación</p>
       <h1 className="mt-1 font-display text-titulo font-bold text-ink">Tu plan y tus facturas</h1>
 
-      <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <div className="flex items-baseline justify-between gap-4">
           <span className="rotulo">Plan {sub.plan}</span>
           <Badge role={ESTADO[sub.status]?.role ?? 'neutral'}>{ESTADO[sub.status]?.label ?? sub.status}</Badge>
@@ -79,7 +79,7 @@ export function Facturacion() {
       </div>
 
       {datos.invoices.length > 0 && (
-        <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <span className="rotulo">Facturas</span>
           <ul className="mt-2 flex flex-col gap-3">
             {datos.invoices.map((f) => (

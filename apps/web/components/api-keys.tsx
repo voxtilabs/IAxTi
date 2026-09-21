@@ -118,7 +118,7 @@ export function ApiKeys() {
         </div>
       )}
 
-      <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Nueva llave</span>
         <div className="mt-3 flex flex-wrap gap-3">
           <Input
@@ -167,7 +167,7 @@ export function ApiKeys() {
         </Button>
       </div>
 
-      <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Llaves</span>
         {keys === null ? (
           <Skeleton className="mt-3 h-16" />
@@ -204,7 +204,7 @@ export function ApiKeys() {
       </div>
 
       {consumo && (
-        <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <div className="flex items-baseline justify-between gap-4">
             <span className="rotulo">Consumo del mes</span>
             {consumo.pct !== null && consumo.pct >= 80 && (

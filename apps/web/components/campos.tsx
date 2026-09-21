@@ -135,7 +135,7 @@ export function Campos() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={crear} className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+      <form onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Agregar un campo</h2>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -219,7 +219,7 @@ export function Campos() {
       </form>
 
       {campos.length === 0 ? (
-        <div className="rounded-tarjeta border border-line bg-raised p-8 text-center">
+        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
           <h2 className="text-lg font-bold text-ink">Todavía no hay campos propios</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-body">
             El CRM ya guarda nombre, teléfono, correo y RUT. Acá agregas lo que le falta para tu
@@ -236,7 +236,7 @@ export function Campos() {
                 {e.items.map((c) => (
                   <li
                     key={c.id}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta border border-line bg-raised px-4 py-3"
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 pulso-panel rounded-tarjeta border border-line bg-raised px-4 py-3"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-ink">{c.label}</span>

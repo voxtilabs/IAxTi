@@ -9,7 +9,7 @@ arbitrarios. Un `h1` con `text-titulo` por vista; subtítulos con `text-seccion`
 
 | Clase | Uso | Tamaño / interlineado |
 |---|---|---|
-| `text-titulo` | Título de la pantalla, Outfit | 24–32 px / 1.2 |
+| `text-titulo` | Título de la pantalla, Outfit | 28–38 px / 1.2 |
 | `text-seccion` | Encabezado de sección, Outfit | 18 px / 1.4 |
 | `text-cuerpo` | Prosa y formularios, Inter | 16 px / 1.6 |
 | `text-dato` | Celdas y listas densas, Inter | 14 px / 1.4 |
@@ -33,7 +33,8 @@ no es una disyuntiva.
 
 | Archivo | Qué es |
 |---|---|
-| `pulso-tokens.css` | Los tokens, copiados **tal cual** del documento de marca. Un test lo comprueba. No se toca acá |
+| `pulso-tokens.css` | Tokens de Pulso y Pulso Vivo (ADR-0021): color, material y profundidad, día/noche |
+| `pulso-vivo.css` | Capa visual compartida: superficies, controles, acceso, marca jelly y ambiente |
 | `pulso-base.css` | Tipografía, foco y marca (documento §3, §9, §11) |
 | `shadcn-puente.css` | La traducción: los nombres que shadcn espera (`--primary`, `--muted-foreground`) atados a los de Pulso |
 | `tailwind-preset.cjs` | Las clases. Los nombres de Pulso son los que se escriben; los de shadcn están para lo que venga del registro |
@@ -82,3 +83,12 @@ compararlos uno por uno.
 Lo mismo con `ui/icons.tsx`: diez iconos de trazo hechos a mano, estilo
 lucide. Para lo nuevo se usa `lucide-react`, que es visualmente igual y es lo
 que importan los bloques del registro.
+
+## Pulso Vivo (#404)
+
+`MarcaJelly` usa la geometría del isotipo propio y los tokens `--jelly-*`.
+Es decorativa, con IDs únicos por instancia y sin recursos externos.
+`pulso-panel` eleva una superficie; `pulso-hero` añade ambiente en encabezados.
+No usar una sombra flotante en una tarjeta ni añadir gradientes por pantalla.
+La capa se importa en web y admin después de las utilidades. No contiene lógica
+de producto: los componentes conservan contratos, acciones, datos y permisos.

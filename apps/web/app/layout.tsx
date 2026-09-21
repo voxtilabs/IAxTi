@@ -10,6 +10,7 @@ import '@iaxti/ui/pulso-tokens.css';
 import '@iaxti/ui/shadcn-puente.css';
 import '@iaxti/ui/pulso-base.css';
 import './globals.css';
+import '@iaxti/ui/pulso-vivo.css';
 
 export const metadata = {
   title: 'IAxTi',

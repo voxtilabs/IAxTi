@@ -1,6 +1,6 @@
 # ADR 0018 · Una sombra, y solo para lo que flota
 
-**Estado:** aceptada · 2026-09-20 · desvío documentado del documento de
+**Estado:** superseded parcialmente por ADR-0021 · decisión original aceptada · 2026-09-20 · desvío documentado del documento de
 marca Pulso v1.1 · resuelve [#294](https://github.com/voxtilabs/IAxTi/issues/294),
 parte de la épica #290
 

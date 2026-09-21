@@ -85,3 +85,5 @@ export { Separator } from './ui/separator';
 
 export { Avisos, AvisoResultado, toast } from './ui/avisos';
 export { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from './ui/command';
+
+export { MarcaJelly } from './marca-jelly';

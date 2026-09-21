@@ -112,7 +112,7 @@ export function AceptarInvitacion({
   return (
     <SessionProvider config={config}>
       <main className="flex min-h-screen items-center justify-center bg-bg px-4">
-        <div className="w-full max-w-md rounded-tarjeta border border-line bg-raised p-8">
+        <div className="w-full max-w-md pulso-panel rounded-tarjeta border border-line bg-raised p-8">
           <span className="marca" aria-hidden dangerouslySetInnerHTML={{ __html: marcaSvg }} />
           <Canje token={token} />
         </div>

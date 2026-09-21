@@ -1,7 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { KeyRound } from 'lucide-react';
 import { SessionProvider, useSession, type PublicConfig } from './session';
+import { MarcaJelly } from './marca-jelly';
+import { ModeToggle } from './mode-toggle';
+import { MARCA_LOCKUP_SVG } from './marca-svg';
 
 const CAMPO =
   'h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink placeholder:text-faint';
@@ -165,16 +169,45 @@ export interface LoginCardProps {
 export function LoginCard({ config, marcaSvg, titulo, subtitulo, conGoogle = true }: LoginCardProps) {
   return (
     <SessionProvider config={config}>
-      <main className="flex min-h-screen items-center justify-center bg-bg px-4">
-        <div className="w-full max-w-md rounded-tarjeta border border-line bg-raised p-8">
-          <span className="marca" aria-hidden dangerouslySetInnerHTML={{ __html: marcaSvg }} />
-          <h1 className="mt-6 text-2xl font-extrabold text-ink">{titulo ?? 'Entra a IAxTi'}</h1>
-          <p className="mb-6 mt-1 text-sm text-body">
-            {subtitulo ?? 'Sin contraseña: te mandamos el acceso a tu correo.'}
-          </p>
-          <Formulario conGoogle={conGoogle} />
+      <div className="pulso-access">
+        <div className="pulso-access-stage">
+          <header className="pulso-access-header">
+            <span className="marca" aria-label={titulo ? 'VoxTi Labs' : 'IAxTi'} dangerouslySetInnerHTML={{ __html: marcaSvg }} />
+            <ModeToggle />
+          </header>
+          <main className="pulso-access-main">
+            <section className="pulso-access-story" aria-labelledby="acceso-historia">
+              <div className="pulso-access-object" aria-hidden="true">
+                <MarcaJelly />
+                <p>Conecta lo que importa</p>
+              </div>
+              <span className="pulso-eyebrow">Tu negocio, en conversación</span>
+              <h1 id="acceso-historia">Todo empieza<br />con un <span>hola.</span></h1>
+              <p>Conversaciones, clientes y equipo. Dale continuidad a cada relación desde un mismo lugar.</p>
+              <div className="pulso-access-sequence" aria-label="Conversar, conocer y acompañar">
+                <span><b>01</b> Conversar</span>
+                <span><b>02</b> Conocer</span>
+                <span><b>03</b> Acompañar</span>
+              </div>
+            </section>
+            <section aria-labelledby="acceso-titulo">
+              <div className="pulso-access-card">
+                <span className="pulso-access-key" aria-hidden="true"><KeyRound size={22} /></span>
+                <h2 id="acceso-titulo">{titulo ?? 'Entra a IAxTi'}</h2>
+                <p className="mt-3 text-sm text-body">
+                  {subtitulo ?? 'Sin contraseña: te mandamos el acceso a tu correo.'}
+                </p>
+                <Formulario conGoogle={conGoogle} />
+              </div>
+              <p className="pulso-access-note">Tu equipo. Tu contexto. Tu forma de atender.</p>
+            </section>
+          </main>
+          <footer className="pulso-access-footer">
+            <span className="marca" aria-label="VoxTi Labs" dangerouslySetInnerHTML={{ __html: MARCA_LOCKUP_SVG }} />
+            <p>Hecho para los negocios que hacen de cada conversación una relación.</p>
+          </footer>
         </div>
-      </main>
+      </div>
     </SessionProvider>
   );
 }

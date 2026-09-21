@@ -154,7 +154,7 @@ export function Equipo() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={invitar} className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+      <form onSubmit={invitar} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Invitar a alguien</h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
@@ -194,7 +194,7 @@ export function Equipo() {
           {datos.miembros.map((m) => (
             <li
               key={m.userId}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta border border-line bg-raised px-4 py-3"
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 pulso-panel rounded-tarjeta border border-line bg-raised px-4 py-3"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-ink">
@@ -224,7 +224,7 @@ export function Equipo() {
             {datos.invitaciones.map((i) => (
               <li
                 key={i.id}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta border border-line bg-raised px-4 py-3"
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 pulso-panel rounded-tarjeta border border-line bg-raised px-4 py-3"
               >
                 <span className="min-w-0 flex-1 truncate text-sm text-ink">{i.email ?? i.phone}</span>
                 <Badge role="neutral">{i.rol}</Badge>

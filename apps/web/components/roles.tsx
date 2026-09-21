@@ -108,7 +108,7 @@ export function Roles() {
         el socio — clona un base y marca exactamente lo que necesita.
       </p>
 
-      <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Roles del negocio</span>
         {roles === null ? (
           <Skeleton className="mt-3 h-20" />

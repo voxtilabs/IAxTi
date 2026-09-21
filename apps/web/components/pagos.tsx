@@ -115,7 +115,7 @@ export function Pagos() {
         entorno que las guarda — nunca la credencial. En este ambiente todo corre en modo test.
       </p>
 
-      <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Conectar proveedor</span>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select value={kind} onValueChange={setKind}>
@@ -135,7 +135,7 @@ export function Pagos() {
         </Button>
       </div>
 
-      <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Proveedores</span>
         {proveedores === null ? (
           <Skeleton className="mt-3 h-16" />
@@ -157,7 +157,7 @@ export function Pagos() {
       </div>
 
       {links.length > 0 && (
-        <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <span className="rotulo">Links recientes</span>
           <ul className="mt-2 flex flex-col">
             {links.slice(0, 12).map((l) => (

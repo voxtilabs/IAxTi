@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Button, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
+import { Badge, Button, MarcaJelly, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { getOnboarding, type OnboardingProgress } from '@iaxti/sdk';
 
@@ -36,7 +36,8 @@ function etiquetaDe(p: PasoDto): { texto: string; rol: BadgeRole } {
  */
 function Bienvenida() {
   return (
-    <div className="rounded-tarjeta border border-line bg-raised p-8">
+    <div className="pulso-hero">
+      <div>
       <p className="rotulo">Bandeja</p>
       <h2 className="mt-2 text-xl font-bold text-ink">
         Aquí van a llegar las conversaciones de tu negocio
@@ -48,6 +49,8 @@ function Bienvenida() {
       <Link href="/bandeja" className="mt-6 inline-block">
         <Button variant="primario">Ir a la bandeja</Button>
       </Link>
+      </div>
+      <MarcaJelly />
     </div>
   );
 }
@@ -82,7 +85,7 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
   }, [cargar]);
 
   if (estado === null) return <Bienvenida />;
-  if (error) return <section aria-label="Actualizar puesta en marcha" className="rounded-tarjeta border border-line bg-raised p-6">
+  if (error) return <section aria-label="Actualizar puesta en marcha" className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
     <p role="status" className="text-body">{error}</p>
     <Button variant="secundario" className="mt-4" onClick={() => void cargar()}>Actualizar avance</Button>
   </section>;
@@ -100,7 +103,9 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
 
   return (
     <section aria-label="Puesta en marcha de tu negocio" className="flex flex-col gap-6">
-      <header>
+      <header className="pulso-hero">
+        <div>
+        <span className="pulso-eyebrow">A tu ritmo, con todo conectado</span>
         <h1 className="font-display text-titulo text-ink">
           {estado.completo ? 'Tu negocio está en marcha' : 'Pon tu negocio en marcha'}
         </h1>
@@ -111,6 +116,8 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
               ? 'Te falta un paso para empezar a atender.'
               : `Te faltan ${faltan} pasos para empezar a atender.`}
         </p>
+        </div>
+        <MarcaJelly />
       </header>
 
       {estado.desfase.length > 0 && (
@@ -131,15 +138,18 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
         max={Math.max(1, estado.pasos.filter((p) => !p.opcional && !p.bloqueado).length)}
         value={estado.pasos.filter((p) => !p.opcional && !p.bloqueado && p.hecho).length} />}
 
-      <ol className="flex flex-col gap-2">
-        {estado.pasos.map((p) => {
+      <ol className="pulso-step-list">
+        {estado.pasos.map((p, indice) => {
           const etiqueta = etiquetaDe(p);
           const esSiguiente = p.id === estado.siguiente;
           return (
             <li
               key={p.id}
-              className="flex flex-wrap items-start justify-between gap-3 rounded-tarjeta border border-line bg-raised p-4"
+              data-next={esSiguiente}
+              className="pulso-step flex flex-wrap items-start justify-between gap-4 pulso-panel rounded-tarjeta border border-line bg-raised"
             >
+              <div className="pulso-step-heading">
+              <span className="pulso-step-number" aria-hidden="true">{String(indice + 1).padStart(2, '0')}</span>
               <div className="flex flex-col gap-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{p.titulo}</span>
@@ -156,6 +166,7 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
                   <span className="text-xs text-muted">Quedó anotado; no lo comprobamos ahora.</span>
                 )}
               </div>
+              </div>
               {p.ruta && !p.hecho && !p.bloqueado && (
                 <Link href={p.ruta}>
                   <Button variant={esSiguiente ? 'primario' : 'fantasma'} size="chico">
@@ -169,7 +180,7 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
       </ol>
 
       {estado.completo && (
-        <div className="rounded-tarjeta border border-line bg-raised p-5">
+        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-5">
           <p className="text-sm text-body">
             Lo que sigue ya no es puesta en marcha: es atender. Los mensajes de tus clientes llegan a
             la bandeja.

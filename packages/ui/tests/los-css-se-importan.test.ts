@@ -32,6 +32,16 @@ const pkg = JSON.parse(readFileSync(join(UI, 'package.json'), 'utf8')) as {
 const hojas = Object.keys(pkg.exports).filter((k) => k.endsWith('.css'));
 
 describe('las hojas de estilo llegan a las apps', () => {
+  it('ningún alias se refiere a sí mismo e invalida el token en el navegador', () => {
+    const ciclos: string[] = [];
+    for (const hoja of hojas) {
+      const css = readFileSync(join(UI, hoja.slice(2)), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const m of css.matchAll(/(--[\w-]+)\s*:\s*var\(\s*(--[\w-]+)\s*\)\s*;/g)) {
+        if (m[1] === m[2]) ciclos.push(`${hoja}: ${m[1]}`);
+      }
+    }
+    expect(ciclos).toEqual([]);
+  });
   it('hay hojas exportadas que mirar', () => {
     expect(hojas.length).toBeGreaterThanOrEqual(2);
   });

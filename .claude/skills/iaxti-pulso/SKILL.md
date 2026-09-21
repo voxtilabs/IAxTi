@@ -16,7 +16,10 @@ Regla completa en `.claude/rules/ui-pulso.md` y ADR-0009. Esta skill es el
   el toggle persiste por usuario. Tailwind: colores → variables;
   `darkMode: ['selector', '[data-mode="noche"]']`.
 - shadcn se tematiza en `packages/ui`, no en cada app: botón radio 999, campo
-  14, tarjeta 22, control 46 px, sin sombras, Outfit/Inter/JetBrains Mono.
+  14, tarjeta 22, control 46 px, Outfit/Inter/JetBrains Mono.
+
+- Pulso Vivo (ADR-0021): `pulso-vivo.css` aplica material jelly, relieves y
+  ambiente desde tokens compartidos. No agregar efectos locales.
 
 ## Cómo escribir un componente
 

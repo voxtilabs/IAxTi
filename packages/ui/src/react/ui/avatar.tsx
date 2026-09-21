@@ -20,7 +20,7 @@ export function Avatar({ nombre, fallback = '?', size = 'normal', className, ...
     <div
       aria-hidden
       className={cn(
-        'flex shrink-0 select-none items-center justify-center rounded-boton',
+        'pulso-avatar flex shrink-0 select-none items-center justify-center rounded-boton',
         'border border-action-soft-br bg-action-soft font-display font-bold text-action-text',
         size === 'chico' ? 'h-8 w-8 text-xs' : 'h-10 w-10 text-sm',
         className,

@@ -71,7 +71,7 @@ export function ModoAutonomo() {
   };
 
   return (
-    <div className="mt-4 max-w-xl rounded-tarjeta border border-line bg-raised p-6">
+    <div className="mt-4 max-w-xl pulso-panel rounded-tarjeta border border-line bg-raised p-6">
       <div className="flex items-baseline justify-between gap-4">
         <span className="rotulo">Modo autónomo</span>
         {agente.defaultMode === 'autonomous' ? (
