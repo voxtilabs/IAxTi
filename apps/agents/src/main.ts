@@ -1,6 +1,6 @@
 import './instrument';
 import { createServer } from 'node:http';
-import { redisConnection, enteroDeEntorno } from '@iaxti/core';
+import { consumerReadiness, enteroDeEntorno } from '@iaxti/core';
 
 const service = process.env.SERVICE ?? 'agents';
 const port = enteroDeEntorno('PORT', 3000);
@@ -15,24 +15,10 @@ const server = createServer((req, res) => {
     return;
   }
   if (req.url === '/ready') {
-    void (async () => {
-      if (!process.env.REDIS_URL) {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service, redis: 'sin configurar' }));
-        return;
-      }
-      const sonda = redisConnection();
-      try {
-        await sonda.ping();
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service, redis: 'ok' }));
-      } catch (err) {
-        res.writeHead(503, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ status: 'degraded', service, redis: (err as Error).message }));
-      } finally {
-        void sonda.quit().catch(() => {});
-      }
-    })();
+    void consumerReadiness('agents').then(result => {
+      res.writeHead(result.statusCode, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(result.body));
+    });
     return;
   }
   res.writeHead(404, { 'content-type': 'application/json' });

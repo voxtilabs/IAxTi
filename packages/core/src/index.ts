@@ -22,3 +22,4 @@ export type { Reserva } from './idempotencia';
 export { crearZip, crc32 } from './zip';
 export type { ArchivoZip } from './zip';
 export { enteroDeEntorno } from './entorno';
+export { consumerReadiness } from './consumer-readiness';

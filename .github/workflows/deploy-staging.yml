@@ -46,6 +46,8 @@ jobs:
            github.event.workflow_run.head_branch == 'staging') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: pnpm/action-setup@v4
         with:
@@ -56,12 +58,14 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Instalar herramientas del despliegue
+        run: pnpm install --frozen-lockfile
+
       - name: Migraciones (antes del deploy, nunca en el contenedor)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
         run: |
           if [ -z "${DATABASE_URL}" ]; then echo "Sin DATABASE_URL_STAGING aún; se salta"; exit 0; fi
-          pnpm install --frozen-lockfile
           pnpm run migrate:deploy
 
       - name: Deploy en Dokploy (imagen fijada al SHA del commit)
@@ -76,9 +80,19 @@ jobs:
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
           auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
 
-          env_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.env')
+          compose_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}")
+          env_actual=$(printf '%s\n' "$compose_actual" | jq -r '.env')
           env_nuevo=$(printf '%s\n' "$env_actual" | sed "s|^IMAGE=.*|IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}|")
-          jq -n --arg id "$COMPOSE_ID" --arg env "$env_nuevo" '{composeId:$id, env:$env}' \
+          # Raw no toma los cambios del YAML versionado (#396). Completar solo
+          # los checks ausentes, preservando la configuración del operador.
+          # El documento puede contener secretos: archivo privado, nunca logs.
+          umask 077
+          parche_health=$(mktemp)
+          trap 'rm -f "$parche_health"' EXIT
+          printf '%s\n' "$compose_actual" | node scripts/sincronizar-healthchecks.mjs \
+            infra/dokploy/docker-compose.staging.yml > "$parche_health"
+          jq -n --arg id "$COMPOSE_ID" --arg env "$env_nuevo" --slurpfile health "$parche_health" \
+            '{composeId:$id, env:$env} + $health[0]' \
             | curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" -d @- \
               "${DOKPLOY_URL}/api/compose.update" >/dev/null
           echo "IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}"
@@ -107,12 +121,12 @@ jobs:
           # también. Medido el 15/09 contra staging: entre el "done" y el
           # primer /health en 200 pasaron unos DIEZ minutos — el tiempo se lo
           # lleva la ruta del proxy, no el arranque de la aplicación.
-          echo "Esperando a que la API atienda..."
+          echo "Esperando a que la API y sus dependencias estén listas..."
           for i in $(seq 1 72); do
-            if curl -sS -o /dev/null -m 10 -w '' "${BASE}/health" 2>/dev/null; then
-              codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/health" || echo 000)
-              [ "$codigo" = "200" ] && break
-            fi
+            # /health puede responder mientras la base todavía conecta (#17,
+            # #254). Esperar readiness; una caída persistente sigue fallando.
+            codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/ready" || true)
+            [ "$codigo" = "200" ] && break
             sleep 10
           done
           # `curl -f` que falla solo dice el código. Cuando la API no arranca,

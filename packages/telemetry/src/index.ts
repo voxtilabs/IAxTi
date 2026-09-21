@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as Sentry from '@sentry/node';
+export { frontendReadiness } from './frontend-readiness';
 
 /**
  * Observabilidad base (SPEC §14, ADR-0006): Sentry para errores y
