@@ -18,6 +18,7 @@ import { runAgentTask } from './runtime';
 import type { ModelPortFactory } from './models';
 import { aiSdkModelPort } from './models';
 import { activeAgent } from './copilot';
+import { listAgents, type Agent } from './agents';
 
 // El configurador (#50): "el CRM se arma solo en 15 minutos" — el agente
 // PROPONE un diff antes/después y el usuario lo aplica. Nunca actúa solo.
@@ -64,6 +65,27 @@ export async function snapshotConfig(
 }
 
 /**
+ * Quién arma la propuesta (#415).
+ *
+ * Si el negocio creó un asistente con el objetivo `configuracion`, es ESE:
+ * tiene su propio modelo y su propia instrucción, y el dueño lo eligió para
+ * esto. Si no, el que atiende, como fue siempre — el configurador funciona
+ * desde #50 sin que exista ningún objetivo y no va a dejar de funcionar
+ * ahora.
+ *
+ * `activeAgent` ya no sirve solo para esto: desde #416 excluye a los
+ * asistentes del dueño, y el de configuración es justamente uno.
+ */
+export async function agenteQueConfigura(
+  client: PoolClient,
+  tenantId: string,
+): Promise<Agent | null> {
+  const agentes = await listAgents(client, tenantId);
+  const propio = agentes.find((a) => a.active && a.objetivo === 'configuracion');
+  return propio ?? (await activeAgent(client, tenantId));
+}
+
+/**
  * Propone la configuración con el modelo de GAMA ALTA (task `configurar`,
  * Pro por defecto — la única tarea que lo amerita, §40). La propuesta queda
  * `pending` hasta que el usuario decida.
@@ -84,7 +106,7 @@ export async function proposeConfiguration(
   if (!input.description?.trim()) {
     return { status: 'failed', error: 'Cuéntanos primero de qué se trata el negocio.' };
   }
-  const agent = await activeAgent(client, input.tenantId);
+  const agent = await agenteQueConfigura(client, input.tenantId);
   if (!agent) return { status: 'failed', error: 'Primero crea tu asistente en Ajustes → IA.' };
   const vertical: Vertical = (VERTICALS as readonly string[]).includes(input.vertical ?? '')
     ? (input.vertical as Vertical)

@@ -46,7 +46,9 @@ describe('la pantalla del asistente no inventa objetivos', () => {
   it('un objetivo bloqueado se muestra, no se esconde', () => {
     // Bajar de plan nunca esconde (SPEC §6), y acá además es lo que le dice
     // al negocio qué le falta.
-    expect(PANTALLA).toMatch(/disabled=\{!o\.disponible\}/);
+    // El `disabled` ahora también cubre el objetivo repetido (#415), así
+    // que se comprueba que el bloqueo por plan siga ahí, no la línea exacta.
+    expect(PANTALLA).toMatch(/disabled=\{!o\.disponible(\s*\|\|\s*repetido)?\}/);
     expect(PANTALLA).toContain('que tu plan');
     expect(PANTALLA).not.toMatch(/objetivos\s*\.filter\(\s*\(o\)\s*=>\s*o\.disponible/);
   });
@@ -79,5 +81,25 @@ describe('la pantalla del asistente no inventa objetivos', () => {
     // Si un negocio no tiene analytics, "Para ayudarte a ti" quedaría como
     // un encabezado sin nada debajo.
     expect(PANTALLA).toMatch(/\.filter\(\(g\) => g\.items\.length > 0\)/);
+  });
+
+  it('con un asistente creado se puede crear otro (#415)', () => {
+    // El formulario desaparecía con el primero, y era la única puerta: un
+    // negocio con su asistente de ventas no podía crear el de números
+    // aunque el producto ya lo ofreciera.
+    expect(PANTALLA).toMatch(/Crear otro asistente/);
+    expect(PANTALLA).toMatch(/mostrarFormulario/);
+  });
+
+  it('el título del objetivo se busca por fila, no el del primero', () => {
+    // Estaba calculado con `agentes[0]` y usado en todas: con dos
+    // asistentes, los dos mostraban el objetivo del primero.
+    expect(PANTALLA).toMatch(/tituloDe\(a\.objetivo\)/);
+    expect(PANTALLA).not.toMatch(/agentes\[0\]\?\.objetivo/);
+  });
+
+  it('un objetivo que ya tiene no se ofrece de nuevo', () => {
+    expect(PANTALLA).toMatch(/yaCreados/);
+    expect(PANTALLA).toContain('Ya lo tienes');
   });
 });

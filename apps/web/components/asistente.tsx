@@ -53,6 +53,11 @@ export function Asistente() {
   const [nombre, setNombre] = useState('');
   const [detalle, setDetalle] = useState('');
   const [creando, setCreando] = useState(false);
+  // Con un asistente creado el formulario desaparecía, y con él la única
+  // puerta para crear otro (#415). Desde que hay asistentes del dueño eso
+  // dejó de ser "un asistente por negocio": son varios, con oficios
+  // distintos.
+  const [abriendoOtro, setAbriendoOtro] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -140,7 +145,12 @@ export function Asistente() {
     );
   }
 
-  const titulo = objetivos.find((o) => o.id === agentes[0]?.objetivo)?.titulo;
+  // El título se busca POR FILA. Estaba calculado con `agentes[0]` y usado
+  // en todas: con dos asistentes, los dos mostraban el objetivo del primero.
+  const tituloDe = (objetivo: string | null) =>
+    objetivos.find((o) => o.id === objetivo)?.titulo ?? objetivo ?? null;
+  const yaCreados = new Set(agentes.map((a) => a.objetivo).filter(Boolean) as string[]);
+  const mostrarFormulario = agentes.length === 0 || abriendoOtro;
 
   return (
     <section className="mt-4 flex flex-col gap-4">
@@ -159,7 +169,7 @@ export function Asistente() {
         </p>
       )}
 
-      {agentes.length > 0 ? (
+      {agentes.length > 0 && (
         <ul className="flex flex-col gap-2">
           {agentes.map((a) => (
             <li
@@ -170,7 +180,7 @@ export function Asistente() {
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{a.name}</span>
                   {a.objetivo ? (
-                    <Badge role="info">{titulo ?? a.objetivo}</Badge>
+                    <Badge role="info">{tituloDe(a.objetivo)}</Badge>
                   ) : (
                     <Badge role="warn">Sin objetivo</Badge>
                   )}
@@ -182,7 +192,17 @@ export function Asistente() {
             </li>
           ))}
         </ul>
-      ) : (
+      )}
+
+      {agentes.length > 0 && !abriendoOtro && (
+        <div>
+          <Button variant="secundario" onClick={() => setAbriendoOtro(true)}>
+            Crear otro asistente
+          </Button>
+        </div>
+      )}
+
+      {mostrarFormulario && (
         <form onSubmit={crear} className="flex flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
           <div>
             <h3 className="text-sm font-bold text-ink">¿Qué tiene que lograr?</h3>
@@ -200,27 +220,41 @@ export function Asistente() {
               </div>
             {grupo.items.map((o) => {
               const puesto = elegido?.id === o.id;
+              // Dos asistentes con el mismo objetivo no se contradicen, pero
+              // tampoco suman: el segundo no se usaría nunca, porque el
+              // producto toma el primero activo.
+              const repetido = yaCreados.has(o.id);
               return (
                 <button
                   key={o.id}
                   type="button"
                   aria-pressed={puesto}
-                  disabled={!o.disponible}
+                  disabled={!o.disponible || repetido}
                   onClick={() => elegir(o)}
                   className={[
                     'flex flex-col items-start gap-1 rounded-campo border p-4 text-left transition-colors',
                     puesto ? 'border-action bg-action-soft' : 'border-line bg-bg',
-                    o.disponible ? 'hover:border-line-strong' : 'cursor-not-allowed opacity-60',
+                    o.disponible && !repetido
+                      ? 'hover:border-line-strong'
+                      : 'cursor-not-allowed opacity-60',
                   ].join(' ')}
                 >
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-ink">{o.titulo}</span>
                     {!o.disponible && <Badge role="neutral">No disponible</Badge>}
+                    {o.disponible && repetido && <Badge role="neutral">Ya lo tienes</Badge>}
                     {o.disponible && !o.mide && <Badge role="neutral">Sin medición propia</Badge>}
                   </span>
                   {o.disponible ? (
                     <span className="text-sm text-body">
-                      Va a preguntar: {o.datosMinimos.join(' · ')}
+                      {/* Los del dueño no le preguntan nada a nadie: no hay
+                          datos mínimos que juntar, así que esa línea salía
+                          vacía («Va a preguntar:» y nada). */}
+                      {o.datosMinimos.length > 0
+                        ? `Va a preguntar: ${o.datosMinimos.join(' · ')}`
+                        : grupo.clave === 'dueño'
+                          ? 'Trabaja con lo que ya está en tu cuenta. No le escribe a nadie.'
+                          : 'No necesita juntar datos para cumplirlo.'}
                     </span>
                   ) : (
                     // No se esconde: bajar de plan nunca esconde (SPEC §6),
@@ -239,7 +273,7 @@ export function Asistente() {
           {elegido && (
             <>
               <label className="flex flex-col gap-1 text-sm font-medium text-ink">
-                Cómo lo llamas en tu negocio
+                {elegido.destinatario === 'dueño' ? 'De qué se trata' : 'Cómo lo llamas en tu negocio'}
                 <Input
                   required
                   value={detalle}
@@ -247,8 +281,9 @@ export function Asistente() {
                   placeholder={elegido.detallePorDefecto}
                 />
                 <span className="text-xs text-muted">
-                  Lo va a usar hablando con tus clientes. «una hora», «una visita a terreno», «una
-                  cotización».
+                  {elegido.destinatario === 'dueño'
+                    ? 'En qué se concentra cuando te responda. «cómo van las ventas», «mi negocio».'
+                    : 'Lo va a usar hablando con tus clientes. «una hora», «una visita a terreno», «una cotización».'}
                 </span>
               </label>
 
@@ -258,17 +293,39 @@ export function Asistente() {
                 <span className="text-xs text-muted">Es para ti: el cliente no lo ve.</span>
               </label>
 
-              <p className="text-sm text-body">
-                Arranca <strong>solo sugiriendo</strong>: escribe la respuesta y tú decides si sale.
-                Cuando le tengas confianza, le das horario para responder sola.
-              </p>
+              {elegido.destinatario === 'cliente' ? (
+                <p className="text-sm text-body">
+                  Arranca <strong>solo sugiriendo</strong>: escribe la respuesta y tú decides si
+                  sale. Cuando le tengas confianza, le das horario para responder sola.
+                </p>
+              ) : (
+                // El modo no aplica: este no le manda nada a nadie. Decirle
+                // "arranca solo sugiriendo" sería hablarle de un riesgo que
+                // no corre.
+                <p className="text-sm text-body">
+                  Solo habla contigo, acá dentro. No le escribe a tus clientes ni cambia nada por
+                  su cuenta.
+                </p>
+              )}
             </>
           )}
 
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button type="submit" variant="primario" disabled={!elegido || creando}>
               {creando ? 'Creando…' : 'Crear asistente'}
             </Button>
+            {agentes.length > 0 && (
+              <Button
+                type="button"
+                variant="secundario"
+                onClick={() => {
+                  setAbriendoOtro(false);
+                  setElegido(null);
+                }}
+              >
+                Cancelar
+              </Button>
+            )}
           </div>
         </form>
       )}
