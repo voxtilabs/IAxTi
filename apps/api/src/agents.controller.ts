@@ -13,6 +13,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
+  DEFINICIONES,
+  OBJETIVOS,
   TASKS,
   costPerDay,
   costThisCycle,
@@ -128,6 +130,42 @@ export class AgentsController {
       if (/No encontramos/.test(message)) throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message });
       throw new BadRequestException({ code: 'AGENT_INVALID', message });
     }
+  }
+
+  /**
+   * El catálogo de objetivos, para la pantalla que crea el asistente (#385).
+   *
+   * Va por el servidor y no como constante del frontend por el motivo de
+   * siempre en este repo: una copia allá se desincroniza y nadie se entera
+   * hasta que alguien elige un objetivo que ya no existe.
+   *
+   * `disponible` sale de los módulos ACTIVOS para este tenant. Un objetivo
+   * que necesita agenda y el tenant no la tiene no se esconde: se muestra
+   * bloqueado con el motivo, porque es lo que le dice al negocio qué le
+   * falta. Bajar de plan nunca esconde (SPEC §6).
+   */
+  @Get('objetivos')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'Los objetivos que puede tener un asistente, y cuáles puede usar este negocio' })
+  objetivos() {
+    const activos = new Set(registry.health().filter((m) => m.active).map((m) => m.id));
+    return OBJETIVOS.map((id) => {
+      const d = DEFINICIONES[id];
+      const faltan = d.requiere.filter((m) => !activos.has(m));
+      return {
+        id: d.id,
+        titulo: d.titulo,
+        requiere: d.requiere,
+        faltan,
+        disponible: faltan.length === 0,
+        datosMinimos: d.datosMinimos,
+        detallePorDefecto: d.detallePorDefecto,
+        // La instrucción NO se expone: es el prompt del sistema. Mostrarla
+        // invita a editarla en la pantalla, y entonces deja de ser una
+        // decisión del producto para volverse texto suelto por tenant.
+        mide: d.eventoDeExito.length > 0,
+      };
+    });
   }
 
   @Get('usage')
