@@ -21,6 +21,7 @@ events:
     - message.received
     - message.sent
     - message.failed
+    - message.delivery_requested
     - sla.first_response_breached
     - conversation.unattended
     - conversation.handoff_requested
@@ -30,6 +31,7 @@ events:
     - conversations.retention.purged
     - conversations.retention.scheduled
   consumes:
+    - message.delivery_requested
     - contact.merged
     - tenant.plan_changed
 tools:

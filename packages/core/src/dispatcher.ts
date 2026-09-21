@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import type { ModuleRegistry } from './registry';
 import type { EventEnvelope } from './events';
+import { MAX_ATTEMPTS } from './outbox-policy';
 
 export type EventHandler = (event: EventEnvelope, client: PoolClient) => Promise<void>;
 
@@ -11,6 +12,8 @@ export interface Consumer {
   moduleId: string;
   /** Nombre del evento del catálogo (SPEC §24). */
   event: string;
+  /** Un pedido de entrega debe quedar recuperable si su receptor está apagado. */
+  disabled?: 'skip' | 'retry';
   handler: EventHandler;
 }
 
@@ -19,7 +22,7 @@ export interface Consumer {
  * los abandonados (el tablero de salud, #71) tiene que usar EL MISMO
  * número: dos definiciones y el panel miente.
  */
-export const MAX_ATTEMPTS = 5;
+export { MAX_ATTEMPTS } from './outbox-policy';
 
 /**
  * Despachador del outbox: corre en workers, procesa por lotes con
@@ -70,7 +73,12 @@ export class OutboxDispatcher {
         try {
           for (const consumer of this.consumers) {
             if (consumer.event !== event.name) continue;
-            if (!this.registry.isActive(consumer.moduleId)) continue; // módulo apagado: se salta
+            if (!this.registry.isActive(consumer.moduleId)) {
+              if (consumer.disabled === 'retry') {
+                throw new Error(`El módulo ${consumer.moduleId} está apagado; el pedido sigue pendiente.`);
+              }
+              continue;
+            }
 
             const claim = await client.query(
               `INSERT INTO processed_events (consumer, event_id) VALUES ($1, $2)

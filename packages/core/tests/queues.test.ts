@@ -11,6 +11,9 @@ import {
 } from '@opentelemetry/sdk-trace-node';
 import { createModuleWorker, createQueue, redisConnection } from '../src/queues';
 import { ModuleRegistry } from '../src/registry';
+import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { conTrazaDelJob } from '@iaxti/telemetry';
+import { publishEvent } from '../src/events';
 
 /**
  * UN solo proveedor para todo el archivo. OpenTelemetry registra uno global
@@ -44,6 +47,28 @@ afterAll(async () => {
 });
 
 describe('colas BullMQ', () => {
+  it('una entrega durable espera al módulo apagado sin completar ni consumir intentos', async () => {
+    const registry = fixtureRegistry();
+    registry.disable('calendar');
+    const connection = redisConnection();
+    const queue = createQueue('agents', connection);
+    const events = new QueueEvents('agents', { connection: redisConnection() });
+    await events.waitUntilReady();
+    let calls = 0;
+    const worker = createModuleWorker('agents', registry, async () => { calls++; return { ok: true }; }, redisConnection(), { disabled: 'delay' });
+    abiertos.push(worker, events, queue, { close: async () => void connection.quit() });
+    const delayed = new Promise<void>(resolve => events.once('delayed', () => resolve()));
+    const job = await queue.add('espera-modulo', { moduleId: 'calendar' });
+    await delayed;
+    expect(await job.getState()).toBe('delayed');
+    expect((await queue.getJob(job.id!))?.attemptsMade).toBe(0);
+    expect(calls).toBe(0);
+    registry.enable('calendar');
+    await job.promote();
+    expect(await job.waitUntilFinished(events, 15_000)).toEqual({ ok: true });
+    expect(calls).toBe(1);
+  }, 30_000);
+
   it('un job se procesa y otro de un módulo apagado se salta', async () => {
     const registry = fixtureRegistry();
     registry.disable('calendar');
@@ -78,6 +103,40 @@ describe('colas BullMQ', () => {
 });
 
 describe('la traza cruzando la cola (#17)', () => {
+  it('la traza sobrevive al commit del outbox y al nuevo contexto del publicador', async () => {
+    const pool = createPool();
+    await runMigrations(pool);
+    const tenantId = (await pool.query("INSERT INTO tenants (name) VALUES ('outbox-trace') RETURNING id")).rows[0].id;
+    const connection = redisConnection();
+    const queue = createQueue('outbound', connection);
+    abiertos.push(queue, { close: async () => void connection.quit() });
+    let rootTrace = '';
+    let jobId: string | undefined;
+    try {
+      await api.trace.getTracer('test').startActiveSpan('request-outbox', async span => {
+        rootTrace = span.spanContext().traceId;
+        await withTenant(pool, tenantId, async c => {
+          await publishEvent(c, { name: 'trace.test', tenantId, payload: { messageId: 'fixture' }, propagateTrace: true });
+          // Otro archivo prueba el dispatcher global en paralelo; esta prueba
+          // solo transporta el contexto y no debe agregarle trabajo pendiente.
+          await c.query('UPDATE outbox SET processed_at=now() WHERE tenant_id=$1', [tenantId]);
+        });
+        span.end();
+      });
+      const payload = (await pool.query('SELECT payload FROM outbox WHERE tenant_id=$1', [tenantId])).rows[0].payload;
+      expect(Object.keys(payload.__traza)).toEqual(['traceparent']);
+      const job = await conTrazaDelJob(payload.__traza, 'publicar-outbox', {}, () => queue.add('trace-test', { moduleId: 'audit' }));
+      jobId = job.id;
+      expect(job.data.__traza.traceparent.split('-')[1]).toBe(rootTrace);
+    } finally {
+      if (jobId) await (await queue.getJob(jobId))?.remove();
+      await pool.query('DELETE FROM processed_events WHERE event_id IN (SELECT id FROM outbox WHERE tenant_id=$1)', [tenantId]);
+      await pool.query('DELETE FROM outbox WHERE tenant_id=$1', [tenantId]);
+      await pool.query('DELETE FROM tenants WHERE id=$1', [tenantId]);
+      await pool.end();
+    }
+  });
+
   it('el job corre dentro de la traza de quien lo encoló', async () => {
     memoria.reset();
 

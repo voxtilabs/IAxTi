@@ -2,7 +2,7 @@ export { ModuleRegistry, CORE_MODULES } from './registry';
 export type { ModuleHealth } from './registry';
 export { findModulesDir, loadManifest, loadAllManifests } from './manifest';
 export type { ModuleManifest } from './manifest';
-export { publishEvent } from './events';
+export { publishEvent, retryExhaustedEvent } from './events';
 export type { EventEnvelope, PublishInput } from './events';
 export { OutboxDispatcher, MAX_ATTEMPTS } from './dispatcher';
 export type { Consumer, EventHandler } from './dispatcher';

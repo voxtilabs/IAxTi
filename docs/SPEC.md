@@ -823,7 +823,7 @@ authorization   role.created · role.assigned · permission.denied
 crm             contact.created · contact.updated · contact.merged · contact.opted_out
                 deal.created · deal.stage_changed · deal.won · deal.lost · deal.stalled · activity.due
 conversations   conversation.created · conversation.assigned · conversation.state_changed
-                message.received · message.sent · message.failed
+                message.received · message.sent · message.failed · message.delivery_requested
                 sla.first_response_breached · conversation.handoff_requested
 channels        channel.connected · channel.degraded · channel.disconnected
                 template.approved · template.rejected · number.quality_changed

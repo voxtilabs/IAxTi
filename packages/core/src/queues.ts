@@ -1,5 +1,5 @@
 import IORedis from 'ioredis';
-import { Queue, Worker, type Processor } from 'bullmq';
+import { DelayedError, Queue, Worker, type Processor } from 'bullmq';
 import { conContextoDeLog, conTrazaDelJob, contextoDeTraza } from '@iaxti/telemetry';
 import type { ModuleRegistry } from './registry';
 
@@ -74,20 +74,25 @@ export interface ModuleJobData {
 }
 
 /**
- * Worker que respeta el interruptor de módulos: un job cuyo módulo está
- * apagado se marca saltado y no ejecuta el procesador.
+ * Worker que respeta el interruptor de módulos. Por omisión salta el job;
+ * las entregas durables optan por aplazarlo hasta que el módulo se reactive.
  */
 export function createModuleWorker(
   name: QueueName,
   registry: ModuleRegistry,
   processor: Processor<ModuleJobData>,
   connection: IORedis,
+  options: { disabled?: 'skip' | 'delay' } = {},
 ): Worker<ModuleJobData> {
   return new Worker<ModuleJobData>(
     name,
     async (job, token) => {
       const moduleId = job.data.moduleId;
       if (moduleId && !registry.isActive(moduleId)) {
+        if (options.disabled === 'delay') {
+          await job.moveToDelayed(Date.now() + 60_000, token);
+          throw new DelayedError();
+        }
         return { skipped: true, reason: `módulo ${moduleId} apagado` };
       }
       // El job sigue la traza del request que lo encoló. El tenant va como

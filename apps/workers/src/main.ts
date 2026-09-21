@@ -14,6 +14,7 @@ import {
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
 import { DelayUntilError, processOutbound } from './outbound';
+import { createOutboundPublisher, outboundRequestConsumers } from './outbound-dispatch';
 import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
 import { processSuggest, type SuggestJob } from './copilot';
@@ -67,7 +68,9 @@ function start(): void {
   const automationDeps: EngineDeps = {
     activeModules: ['conversations', 'crm'].filter((m) => registry.isActive(m)),
   };
+  const outboundPublisher = createOutboundPublisher(process.env.REDIS_URL);
   const dispatcher = new OutboxDispatcher(pool, registry, [
+    ...outboundRequestConsumers(job => outboundPublisher.enqueue(job), registry),
     ...automationConsumers(automationDeps),
     // El corte de secuencias (#63): responde el cliente o se mueve el deal.
     ...sequenceConsumers(),
@@ -449,6 +452,7 @@ function start(): void {
         }
       },
       redisConnection(),
+      { disabled: 'delay' },
     );
     console.log('workers: worker de cola outbound activo');
   } else {
