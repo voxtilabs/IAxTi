@@ -22,7 +22,7 @@ events:
   consumes:
     - payment.received
 nav:
-  - { label: Facturación, path: /ajustes/facturacion, permission: billing.read, grupo: Configuración }
+  - { label: Facturación, path: /ajustes/facturacion, permission: billing.read, grupo: Configuración, seccion: Cuenta }
 tools: []
 widgets: []
 plan_min: base

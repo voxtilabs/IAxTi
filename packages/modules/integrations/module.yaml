@@ -17,7 +17,7 @@ events:
   consumes: []
 tools: []
 nav:
-  - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Configuración }
+  - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Configuración, seccion: Integraciones }
 widgets: []
 plan_min: base
 flag: module.integrations

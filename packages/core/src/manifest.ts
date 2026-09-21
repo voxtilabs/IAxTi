@@ -14,7 +14,20 @@ export interface ModuleManifest {
    * 23 destinos, una lista paralela allá se desincroniza y el destino nuevo
    * aparece suelto abajo sin que nadie lo note.
    */
-  nav?: Array<{ label: string; path: string; permission: string; grupo?: string }>;
+  /**
+   * `seccion` junta las pantallas de ajustes (#387). El `grupo` decide en
+   * qué lista de la barra lateral va; la `seccion` decide con cuáles
+   * comparte pestañas. Las dos las declara el módulo por el mismo motivo:
+   * una tabla paralela en el frontend se desincroniza al primer módulo
+   * nuevo, y el síntoma es una pantalla suelta al final que nadie nota.
+   */
+  nav?: Array<{
+    label: string;
+    path: string;
+    permission: string;
+    grupo?: string;
+    seccion?: string;
+  }>;
   widgets?: Array<{ id: string; permission: string }>;
   plan_min?: string;
   flag?: string;

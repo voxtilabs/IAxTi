@@ -32,6 +32,7 @@ interface Destino {
   modulo: string;
   label: string;
   grupo: string | null;
+  seccion: string | null;
 }
 
 function destinos(): Destino[] {
@@ -46,7 +47,8 @@ function destinos(): Destino[] {
       if (!linea.includes('label:')) continue;
       const label = /label:\s*([^,}]+)/.exec(linea)?.[1].trim() ?? '?';
       const grupo = /grupo:\s*([^,}]+)/.exec(linea)?.[1].trim() ?? null;
-      salida.push({ modulo, label, grupo });
+      const seccion = /seccion:\s*([^,}]+)/.exec(linea)?.[1].trim() ?? null;
+      salida.push({ modulo, label, grupo, seccion });
     }
   }
   return salida;
@@ -85,5 +87,59 @@ describe('el menú tiene grupos', () => {
     const usados = new Set(todos.map((d) => d.grupo));
     const vacios = conocidos.filter((g) => !usados.has(g));
     expect(vacios, `grupos anunciados y sin un solo destino: ${vacios.join(', ')}`).toEqual([]);
+  });
+});
+
+/**
+ * Y lo mismo para las secciones de ajustes (#387).
+ *
+ * Dieciséis destinos sueltos en el menú eran dieciséis decisiones para
+ * alguien que solo quería cambiar una cosa. Ahora van en cinco secciones, y
+ * la pertenencia la declara cada `module.yaml` por el mismo motivo que el
+ * `grupo`: una tabla paralela en el frontend se desincroniza al primer
+ * módulo nuevo, y el síntoma es una pantalla suelta al final que nadie
+ * nota.
+ */
+describe('los ajustes declaran su sección', () => {
+  const ajustes = destinos().filter((d) => d.grupo === 'Configuración');
+  const conocidas = (() => {
+    const m = /const ORDEN_SECCIONES = \[([^\]]+)\]/.exec(readFileSync(SHELL, 'utf8'));
+    if (!m) throw new Error('no encontré ORDEN_SECCIONES en app-shell.tsx');
+    return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  })();
+
+  it('hay ajustes que mirar', () => {
+    expect(ajustes.length).toBeGreaterThanOrEqual(10);
+    expect(conocidas.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('cada pantalla de ajustes dice a qué sección va', () => {
+    const sin = ajustes.filter((d) => !d.seccion);
+    expect(
+      sin,
+      'Estas pantallas de ajustes no declaran sección y caerían en Cuenta:\n' +
+        sin.map((d) => `  ${d.label} (${d.modulo})`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('las secciones usadas son de las que el shell ordena', () => {
+    const raras = [...new Set(ajustes.map((d) => d.seccion!))].filter((s) => !conocidas.includes(s));
+    expect(
+      raras,
+      `Secciones que el shell no sabe dónde poner: ${raras.join(', ')}.\n` +
+        `Agrégalas a ORDEN_SECCIONES, o usa una de: ${conocidas.join(', ')}.`,
+    ).toEqual([]);
+  });
+
+  it('ninguna sección se anuncia vacía, y ninguna queda con una sola', () => {
+    const usadas = new Map<string, number>();
+    for (const d of ajustes) usadas.set(d.seccion!, (usadas.get(d.seccion!) ?? 0) + 1);
+    const vacias = conocidas.filter((s) => !usadas.has(s));
+    expect(vacias, `secciones anunciadas y sin una sola pantalla: ${vacias.join(', ')}`).toEqual([]);
+    // Una sección de una pantalla es una pestaña sola: ruido con forma de
+    // navegación. La pantalla lo evita no dibujándolas, pero si pasa es que
+    // la agrupación quedó mal.
+    const solitarias = [...usadas].filter(([, n]) => n < 2).map(([s]) => s);
+    expect(solitarias, `secciones con una sola pantalla: ${solitarias.join(', ')}`).toEqual([]);
   });
 });

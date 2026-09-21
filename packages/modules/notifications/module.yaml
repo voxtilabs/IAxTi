@@ -30,7 +30,7 @@ tools: []
 # estaba en ningún `nav` ni enlazada desde otra pantalla. Trabajo terminado
 # que nadie podía usar.
 nav:
-  - { label: Avisos, path: /ajustes/notificaciones, permission: notifications.manage_own, grupo: Configuración }
+  - { label: Avisos, path: /ajustes/notificaciones, permission: notifications.manage_own, grupo: Configuración, seccion: Canales }
 widgets: []
 plan_min: base
 flag: module.notifications

@@ -49,9 +49,9 @@ nav:
   - { label: Contactos, path: /contactos, permission: crm.contacts.read, grupo: Clientes }
   # Los campos propios estaban en la API desde #34 sin pantalla, y la ficha
   # ya recibía sus valores sin dibujarlos.
-  - { label: Campos, path: /ajustes/campos, permission: crm.fields.manage, grupo: Configuración }
+  - { label: Campos, path: /ajustes/campos, permission: crm.fields.manage, grupo: Configuración, seccion: Tu negocio }
   - { label: Empresas, path: /empresas, permission: crm.companies.read, grupo: Clientes }
-  - { label: Etiquetas, path: /ajustes/etiquetas, permission: crm.tags.manage, grupo: Configuración }
+  - { label: Etiquetas, path: /ajustes/etiquetas, permission: crm.tags.manage, grupo: Configuración, seccion: Tu negocio }
   - { label: Oportunidades, path: /oportunidades, permission: crm.deals.read, grupo: Clientes }
 widgets:
   - { id: crm.resumen, permission: crm.deals.read }

@@ -65,3 +65,13 @@ test('a 360 px la barra se abre como hoja', async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(DESTINO, 'shell-celular-abierto.png') });
 });
+
+for (const modo of ['dia', 'noche'] as const) {
+  test(`ajustes agrupados en secciones, modo ${modo}`, async ({ page }) => {
+    await page.addInitScript((m) => localStorage.setItem('pulso-mode', m), modo);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/ajustes/canales');
+    await page.waitForLoadState('networkidle');
+    await page.screenshot({ path: join(DESTINO, `ajustes-${modo}.png`) });
+  });
+}
