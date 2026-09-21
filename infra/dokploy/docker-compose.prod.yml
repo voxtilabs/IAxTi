@@ -90,6 +90,11 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      # Mismo motivo que en staging (#254): sin `start_period`, Docker
+      # cuenta los fallos desde el segundo cero y marca `unhealthy` un
+      # proceso que todavía está levantando. El proxy no manda tráfico a un
+      # contenedor unhealthy, y en producción esa ventana se paga cara.
+      start_period: 45s
 
   admin:
     <<: *app
