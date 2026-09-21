@@ -26,6 +26,10 @@ x-env: &app-env
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
   OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS}
   DATABASE_URL: ${DATABASE_URL:?}
+  # Cuántas conexiones abre CADA proceso (#395). Depende del ambiente: la
+  # instancia de staging tiene max_connections 60 y Supabase ya se lleva unas
+  # quince con PostgREST, realtime y el propio Supavisor. Vacía usa 6.
+  DB_POOL_MAX: ${DB_POOL_MAX}
   REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
   SUPABASE_URL: ${SUPABASE_URL:?}
   SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?}
