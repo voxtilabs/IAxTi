@@ -1,0 +1,624 @@
+[
+  {
+    "mode": "dia",
+    "pairs": [
+      {
+        "foreground": "text",
+        "background": "bg",
+        "ratio": 14.180974876756428,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "bg-raised",
+        "ratio": 13.38636477241567,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "bg-rest",
+        "ratio": 12.487408918787384,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "canvas",
+        "ratio": 13.140372960685863,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "panel",
+        "ratio": 14.180974876756428,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "chrome",
+        "ratio": 13.748423506787788,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "hero-surface",
+        "ratio": 13.51806237282575,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "field-bg",
+        "ratio": 14.180974876756428,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "bg",
+        "ratio": 8.567874808303205,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "bg-raised",
+        "ratio": 8.087786524206226,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "bg-rest",
+        "ratio": 7.544654526652037,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "canvas",
+        "ratio": 7.939162958824751,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "panel",
+        "ratio": 8.567874808303205,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "chrome",
+        "ratio": 8.306535512644075,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "hero-surface",
+        "ratio": 8.1673557049342,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "field-bg",
+        "ratio": 8.567874808303205,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "bg",
+        "ratio": 5.903972925155908,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "bg-raised",
+        "ratio": 5.573152471494954,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "bg-rest",
+        "ratio": 5.198889695708571,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "canvas",
+        "ratio": 5.470738567734128,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "panel",
+        "ratio": 5.903972925155908,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "chrome",
+        "ratio": 5.723888579810952,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "hero-surface",
+        "ratio": 5.627982204562428,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "field-bg",
+        "ratio": 5.903972925155908,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "bg",
+        "ratio": 6.706246380990504,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "bg-raised",
+        "ratio": 6.330471712263882,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "bg-rest",
+        "ratio": 5.905351472473723,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "canvas",
+        "ratio": 6.214141085385031,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "panel",
+        "ratio": 6.706246380990504,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "chrome",
+        "ratio": 6.501690905456923,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "hero-surface",
+        "ratio": 6.392752095933614,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "field-bg",
+        "ratio": 6.706246380990504,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "on-action",
+        "background": "action",
+        "ratio": 5.13191824910398,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "on-action",
+        "background": "action-hover",
+        "ratio": 6.96653011697273,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "on-action",
+        "background": "bad",
+        "ratio": 4.681203023433717,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-faint",
+        "background": "field-bg",
+        "ratio": 4.867367414601064,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "action-soft",
+        "ratio": 6.030115744141155,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "warn-text",
+        "background": "warn-soft",
+        "ratio": 5.677392481719216,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "good-text",
+        "background": "good-soft",
+        "ratio": 5.30511044233488,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "bad-text",
+        "background": "bad-soft",
+        "ratio": 6.045226012272773,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "focus",
+        "background": "bg",
+        "ratio": 6.706246380990504,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "bg-raised",
+        "ratio": 6.330471712263882,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "bg-rest",
+        "ratio": 5.905351472473723,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "canvas",
+        "ratio": 6.214141085385031,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "panel",
+        "ratio": 6.706246380990504,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "chrome",
+        "ratio": 6.501690905456923,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "hero-surface",
+        "ratio": 6.392752095933614,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "field-bg",
+        "ratio": 6.706246380990504,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "action-soft",
+        "ratio": 6.030115744141155,
+        "minimum": 3
+      },
+      {
+        "foreground": "border-strong",
+        "background": "field-bg",
+        "ratio": 3.335281640727911,
+        "minimum": 3
+      },
+      {
+        "foreground": "border-strong",
+        "background": "panel",
+        "ratio": 3.335281640727911,
+        "minimum": 3
+      }
+    ]
+  },
+  {
+    "mode": "noche",
+    "pairs": [
+      {
+        "foreground": "text",
+        "background": "bg",
+        "ratio": 15.092669039923821,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "bg-raised",
+        "ratio": 12.023288606858337,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "bg-rest",
+        "ratio": 9.525051341902287,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "canvas",
+        "ratio": 15.959555352123441,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "panel",
+        "ratio": 12.49383368755859,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "chrome",
+        "ratio": 13.56666544783242,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "hero-surface",
+        "ratio": 11.611465702103157,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text",
+        "background": "field-bg",
+        "ratio": 14.609782012312365,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "bg",
+        "ratio": 12.54095955221424,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "bg-raised",
+        "ratio": 9.990517628416091,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "bg-rest",
+        "ratio": 7.914656002565035,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "canvas",
+        "ratio": 13.261281858951742,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "panel",
+        "ratio": 10.38150790382367,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "chrome",
+        "ratio": 11.272956571805116,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "hero-surface",
+        "ratio": 9.648321402052925,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-body",
+        "background": "field-bg",
+        "ratio": 12.139713976263096,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "bg",
+        "ratio": 9.410712750935774,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "bg-raised",
+        "ratio": 7.496865869213659,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "bg-rest",
+        "ratio": 5.9391431614543775,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "canvas",
+        "ratio": 9.951241271785777,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "panel",
+        "ratio": 7.790264245546061,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "chrome",
+        "ratio": 8.459205669976102,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "hero-surface",
+        "ratio": 7.240082456640627,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-muted",
+        "background": "field-bg",
+        "ratio": 9.109618816126511,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "bg",
+        "ratio": 9.085764591227376,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "bg-raised",
+        "ratio": 7.238002079375907,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "bg-rest",
+        "ratio": 5.734066915729268,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "canvas",
+        "ratio": 9.607628877734166,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "panel",
+        "ratio": 7.521269526736838,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "chrome",
+        "ratio": 8.167112670454863,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "hero-surface",
+        "ratio": 6.9900852956722925,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "field-bg",
+        "ratio": 8.795067309955954,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "on-action",
+        "background": "action",
+        "ratio": 5.13191824910398,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "on-action",
+        "background": "action-hover",
+        "ratio": 4.711564908161169,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "on-action",
+        "background": "bad",
+        "ratio": 4.681203023433717,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "text-faint",
+        "background": "field-bg",
+        "ratio": 6.469364539032967,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "action-text",
+        "background": "action-soft",
+        "ratio": 6.332085478233209,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "warn-text",
+        "background": "warn-soft",
+        "ratio": 9.256106628065657,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "good-text",
+        "background": "good-soft",
+        "ratio": 7.773152039628568,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "bad-text",
+        "background": "bad-soft",
+        "ratio": 6.915391457372858,
+        "minimum": 4.5
+      },
+      {
+        "foreground": "focus",
+        "background": "bg",
+        "ratio": 10.140429003821154,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "bg-raised",
+        "ratio": 8.078180485359274,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "bg-rest",
+        "ratio": 6.399670372073505,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "canvas",
+        "ratio": 10.722870656784675,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "panel",
+        "ratio": 8.394329270661354,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "chrome",
+        "ratio": 9.115141094555701,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "hero-surface",
+        "ratio": 7.801485825404127,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "field-bg",
+        "ratio": 9.815987938598875,
+        "minimum": 3
+      },
+      {
+        "foreground": "focus",
+        "background": "action-soft",
+        "ratio": 7.067106196009949,
+        "minimum": 3
+      },
+      {
+        "foreground": "border-strong",
+        "background": "field-bg",
+        "ratio": 5.324277218468202,
+        "minimum": 3
+      },
+      {
+        "foreground": "border-strong",
+        "background": "panel",
+        "ratio": 4.5531571941277855,
+        "minimum": 3
+      }
+    ]
+  }
+]

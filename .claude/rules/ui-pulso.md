@@ -14,7 +14,9 @@
   `--{rol}-text`; el color nunca es el único portador de significado.
 - Avisos: qué pasó y qué hacer, en una frase. Estados vacíos: qué va a
   aparecer y la acción que lo provoca. Español de Chile, tuteo, sin jerga.
-- Foco visible: `outline: 2px solid var(--action); outline-offset: 2px`.
+- Foco visible: `outline: 2px solid var(--focus); outline-offset: 2px`.
+  ADR-0022 separa el foco del relleno de acción para mantener contraste al
+  iluminar las superficies nocturnas. Rings shadcn apuntan al mismo token.
   Funciona a 360 px sin scroll horizontal. Respeta `prefers-reduced-motion`.
 - Producto: bandeja de tres paneles (lista raised · chat bg · ficha raised;
   apiladas en celular). Sugerencia del copiloto en aviso `action-soft` sobre

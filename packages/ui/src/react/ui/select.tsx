@@ -18,7 +18,7 @@ export const SelectTrigger = forwardRef<
       ref={ref}
       className={cn(
         'flex h-9 items-center justify-between gap-2 rounded-campo border border-line bg-bg px-3 text-sm text-ink',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-action disabled:cursor-not-allowed disabled:opacity-50',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50',
         '[&>span]:truncate',
         className,
       )}

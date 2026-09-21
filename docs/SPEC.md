@@ -968,6 +968,9 @@ GitHub        Issue → feat/<issue>-<slug> → PR "Closes #n" → checks → re
 
 IAxTi usa Pulso con la evolución Pulso Vivo (ADR-0021, #404), solicitada
 por el usuario: identidad propia inspirada en VOXIA 2 sin cambiar funciones.
+La colorimetría se define en ADR-0022 (#408) y `docs/diseno/paleta.md`:
+azul de marca conservado, cian luminoso, mandarina y superficies azuladas.
+`--focus` distingue el foco de teclado del relleno de acción en ambos modos.
 Lo que el código debe cumplir:
 
 - Tokens de día y noche en `packages/ui/pulso-tokens.css`; modo con

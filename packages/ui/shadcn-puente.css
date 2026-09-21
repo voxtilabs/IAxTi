@@ -68,7 +68,7 @@
   /* El borde de campo es el fuerte: un input con el filete estándar
      desaparece dentro de una tarjeta. */
   --input: var(--border-strong);
-  --ring: var(--action);
+  --ring: var(--focus);
 
   /* shadcn calcula sus radios desde uno solo. Se ancla al de campo (14 px),
      que es el de la mayoría de sus componentes; los botones piden
@@ -96,5 +96,5 @@
   --sidebar-accent-foreground: var(--action-text);
 
   --sidebar-border: var(--border);
-  --sidebar-ring: var(--action);
+  --sidebar-ring: var(--focus);
 }

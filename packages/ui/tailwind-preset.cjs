@@ -24,6 +24,7 @@ module.exports = {
         accent: { DEFAULT: 'var(--accent)', foreground: 'var(--accent-foreground)' },
         input: 'var(--input)',
         ring: 'var(--ring)',
+        focus: 'var(--focus)',
         sidebar: {
           DEFAULT: 'var(--sidebar-background)',
           foreground: 'var(--sidebar-foreground)',
