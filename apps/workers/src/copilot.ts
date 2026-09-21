@@ -17,6 +17,7 @@ import {
   getContext,
   getConversation,
   sendMessage,
+  salePorProveedor,
   updateDeliveryStatus,
 } from '@iaxti/module-conversations';
 import {
@@ -33,7 +34,6 @@ import {
   customRolePermissions,
   isBaseRole,
 } from '@iaxti/module-authorization';
-import type { Queue } from 'bullmq';
 import { presignUrl, storageFromEnv } from '@iaxti/core';
 
 // El copiloto (#48) corre en la cola `agents`, DESPUÉS del camino de
@@ -55,7 +55,7 @@ export interface SuggestJob {
 export async function processSuggest(
   pool: Pool,
   data: SuggestJob,
-  colas: { outbound?: Queue; registry?: ModuleRegistry } = {},
+  colas: { registry?: ModuleRegistry } = {},
 ): Promise<{
   suggestionId?: string;
   autoReplied?: string;
@@ -151,28 +151,11 @@ export async function processSuggest(
         authorKind: 'agent',
         type: 'texto',
         body: firmado,
+        delivery: 'reply',
         requestId: data.requestId,
       });
       const conv = await getConversation(client, data.tenantId, data.conversationId);
-      if (conv.channel === 'whatsapp' && colas.outbound) {
-        // La MISMA cola outbound del humano: rate limit y reintentos (#43).
-        await colas.outbound.add(
-          'send',
-          {
-            moduleId: 'whatsapp',
-            tenantId: data.tenantId,
-            messageId: message.id,
-            requestId: data.requestId,
-            // Explícito aunque el valor sea el que ya tomaba por omisión: el
-            // autónomo RESPONDE a quien acaba de escribir, así que no es un
-            // envío iniciado por el negocio. El tipo lo pide obligatorio y
-            // acá no se estaba pasando — el default silencioso acertaba, que
-            // es la peor forma de acertar.
-            initiatedByBusiness: false,
-          },
-          { jobId: `out-${message.id}` },
-        );
-      } else {
+      if (!salePorProveedor(conv.channel)) {
         await updateDeliveryStatus(client, {
           tenantId: data.tenantId,
           messageId: message.id,

@@ -9,7 +9,6 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { createQueue, redisConnection } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import {
   crearCampana,
@@ -37,11 +36,6 @@ import { apiPool } from './db';
  * salga, dos cosas obligatorias: la vista previa con el conteo exacto y la
  * muestra, y la calidad del número en verde o amarillo.
  */
-let colaOutbound: ReturnType<typeof createQueue> | null = null;
-function outboundQueue(): ReturnType<typeof createQueue> {
-  colaOutbound ??= createQueue('outbound', redisConnection());
-  return colaOutbound;
-}
 
 function pool() {
   const p = apiPool();
@@ -161,7 +155,6 @@ export class CampanasController {
     const actor = actorOf(request);
     const requestId = (request as { requestId?: string }).requestId;
     try {
-      const encolados: string[] = [];
       const res = await withTenant(pool(), actor.tenantId, async (c) =>
         enviarCampana(
           c,
@@ -208,31 +201,17 @@ export class CampanasController {
                       authorId: m.authorId,
                       body: m.body,
                       requestId: m.requestId,
+                      delivery: 'business',
+                      actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
                     }),
                 },
               );
-              encolados.push(env.messageId);
               return { messageId: env.messageId };
             },
           },
         ),
       );
 
-      // A la cola DESPUÉS de cerrar la transacción: si algo falla al
-      // encolar, no queda un mensaje escrito que nadie va a mandar.
-      for (const messageId of encolados) {
-        await outboundQueue().add(
-          'send',
-          {
-            moduleId: 'whatsapp',
-            tenantId: actor.tenantId,
-            messageId,
-            requestId,
-            initiatedByBusiness: true,
-          },
-          { jobId: `out-${messageId}` },
-        );
-      }
       return res;
     } catch (err) {
       throw new BadRequestException({ code: 'CAMPANA_RECHAZADA', message: (err as Error).message });

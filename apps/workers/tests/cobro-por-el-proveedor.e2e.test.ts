@@ -38,7 +38,6 @@ let tenant: string;
 let contacto: string;
 let conversacion: string;
 let proveedor: string;
-const encolados: string[] = [];
 
 const CRED = 'CRED_SIMULADO_E2E';
 const SECRETO = 'SECRETO_WEBHOOK_E2E';
@@ -155,7 +154,6 @@ describe('cobrar de punta a punta con un proveedor', () => {
         requestId: randomUUID(),
       },
       fetch,
-      { enqueueOutbound: async (j) => void encolados.push(j.messageId) },
     );
     expect(res.outcome).toBe('paid');
 
@@ -175,7 +173,7 @@ describe('cobrar de punta a punta con un proveedor', () => {
     // webchat entrega en vivo, así que este NO va por la cola: se marca
     // enviado y punto. En WhatsApp sí se encolaría (#277).
     expect(m.rows[0].delivery_status).toBe('sent');
-    expect(encolados).toHaveLength(0);
+    expect((await admin.query("SELECT id FROM outbox WHERE tenant_id=$1 AND name='message.delivery_requested'", [tenant])).rowCount).toBe(0);
   });
 
   it('el mismo webhook dos veces no cobra dos veces', async () => {

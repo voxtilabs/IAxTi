@@ -27,7 +27,7 @@ import {
   paymentProviderFor,
   type ProviderKind,
 } from '@iaxti/module-payments';
-import { getConversation, sendMessage, updateDeliveryStatus } from '@iaxti/module-conversations';
+import { getConversation, salePorProveedor, sendMessage, updateDeliveryStatus } from '@iaxti/module-conversations';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { actorCan } from './authz/can';
@@ -58,11 +58,6 @@ let colaInbound: ReturnType<typeof createQueue> | null = null;
 function inboundQueue(): ReturnType<typeof createQueue> {
   colaInbound ??= createQueue('inbound', redisConnection());
   return colaInbound;
-}
-let colaOutbound: ReturnType<typeof createQueue> | null = null;
-function outboundQueue(): ReturnType<typeof createQueue> {
-  colaOutbound ??= createQueue('outbound', redisConnection());
-  return colaOutbound;
 }
 
 const KINDS: ProviderKind[] = ['flow', 'webpay', 'mercadopago', 'simulado'];
@@ -218,22 +213,10 @@ export class PaymentsController {
           type: 'texto',
           body: `Te dejo el link de pago por "${link.concept}" — $${link.amountClp.toLocaleString('es-CL')}:\n${link.url}`,
           requestId: request.requestId,
+          delivery: 'reply',
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
         });
-        if (conversation.channel === 'whatsapp') {
-          await outboundQueue().add(
-            'send',
-            {
-              moduleId: 'whatsapp',
-              tenantId: actor.tenantId,
-              messageId: message.id,
-              requestId: request.requestId,
-              // El link de pago lo manda una persona dentro de una
-              // conversación viva, igual que una respuesta.
-              initiatedByBusiness: false,
-            },
-            { jobId: `out-${message.id}` },
-          );
-        } else {
+        if (!salePorProveedor(conversation.channel)) {
           await updateDeliveryStatus(c, {
             tenantId: actor.tenantId,
             messageId: message.id,

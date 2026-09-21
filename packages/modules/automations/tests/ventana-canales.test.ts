@@ -21,14 +21,8 @@ let admin: Pool;
 let tenant: string;
 let conversacion: string;
 let regla: Rule;
-let encolados: string[] = [];
-
-const deps = {
-  activeModules: TODOS,
-  enqueueOutbound: async (job: { messageId: string }) => {
-    encolados.push(job.messageId);
-  },
-};
+const deps = { activeModules: TODOS };
+const pedidos = async () => (await admin.query("SELECT payload FROM outbox WHERE tenant_id=$1 AND name='message.delivery_requested'", [tenant])).rows.map(r => r.payload);
 
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
@@ -70,7 +64,6 @@ afterAll(async () => {
 
 describe('automatizaciones fuera de WhatsApp', () => {
   it('Instagram dentro de la ventana: el mensaje va a la COLA, no se da por enviado', async () => {
-    encolados = [];
     const res = await withTenant(admin, tenant, (c) =>
       runRule(
         c,
@@ -85,18 +78,17 @@ describe('automatizaciones fuera de WhatsApp', () => {
         WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'out' ORDER BY seq DESC LIMIT 1`,
       [tenant, conversacion],
     );
-    // Antes del arreglo esto era 'sent' y `encolados` quedaba vacío: el
-    // cliente veía un mensaje entregado que nunca existió.
+    // El pedido es durable; solo el proveedor podrá declararlo enviado.
     expect(msg.rows[0].delivery_status).toBe('queued');
-    expect(encolados).toEqual([msg.rows[0].id]);
+    expect(await pedidos()).toEqual([{ messageId: msg.rows[0].id, policy: 'business' }]);
   });
 
   it('Instagram fuera de la ventana: se salta con su motivo y NO escribe mensaje', async () => {
-    encolados = [];
     await admin.query(
       `UPDATE conversations SET last_inbound_at = now() - interval '30 hours' WHERE id = $1`,
       [conversacion],
     );
+    const pedidosAntes = await pedidos();
     const antes = await admin.query(
       `SELECT count(*)::int AS n FROM messages WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'out'`,
       [tenant, conversacion],
@@ -110,7 +102,7 @@ describe('automatizaciones fuera de WhatsApp', () => {
     );
     expect(res?.status).toBe('skipped');
     expect(res?.detail).toContain('ventana');
-    expect(encolados).toEqual([]);
+    expect(await pedidos()).toEqual(pedidosAntes);
     const despues = await admin.query(
       `SELECT count(*)::int AS n FROM messages WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'out'`,
       [tenant, conversacion],

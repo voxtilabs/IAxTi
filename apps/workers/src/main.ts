@@ -64,7 +64,6 @@ function start(): void {
   });
 
   // El motor de reglas (#62): consumidores de eventos + barrido de tiempo.
-  // enqueueOutbound se conecta más abajo, cuando la cola outbound exista.
   const automationDeps: EngineDeps = {
     activeModules: ['conversations', 'crm'].filter((m) => registry.isActive(m)),
   };
@@ -359,13 +358,7 @@ function start(): void {
         }
         // La confirmación de pagos (#61): verificada y fuera de línea.
         if (job.name === 'payment-webhook') {
-          // Con la cola de salida: el aviso de "pago recibido" se escribía
-          // en la bandeja marcado como enviado y nunca salía al cliente.
-          // Va como iniciado por el negocio, así que respeta el horario de
-          // silencio igual que el resto.
-          return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob, fetch, {
-            enqueueOutbound: (j) => encolarSalida({ ...j, transaccional: true }),
-          });
+          return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob);
         }
         const data = job.data as unknown as InboundJob;
         const res = await processInbound(pool, data);
@@ -397,38 +390,10 @@ function start(): void {
 
     // La cola agents (#48/#49): sugerencias, transcripciones y el modo
     // autónomo del copiloto; sus salientes van por la MISMA cola outbound.
-    const outboundQueue = createQueue('outbound', redisConnection());
-    const encolarSalida = async (job: {
-      tenantId: string;
-      messageId: string;
-      requestId?: string;
-      transaccional?: boolean;
-    }) => {
-      await outboundQueue.add(
-        'send',
-        {
-          moduleId: 'whatsapp',
-          tenantId: job.tenantId,
-          messageId: job.messageId,
-          requestId: job.requestId,
-          // El comprobante de pago se salta el silencio y nada más
-          // (ADR-0016). Todo lo demás espera al horario válido.
-          ...(job.transaccional ? { transaccional: true } : {}),
-          // Automatizaciones y secuencias las inicia el negocio: pasan por el
-          // horario de silencio y por la pausa de calidad.
-          initiatedByBusiness: true,
-        },
-        { jobId: `out-${job.messageId}` },
-      );
-    };
-    // El motor de reglas y las secuencias encolan por acá: nada de lo suyo
-    // es transaccional, así que todo respeta el silencio.
-    automationDeps.enqueueOutbound = encolarSalida;
-
     createModuleWorker(
       'agents',
       registry,
-      async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { outbound: outboundQueue, registry }),
+      async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
       redisConnection(),
     );
     console.log('workers: worker de cola agents activo');

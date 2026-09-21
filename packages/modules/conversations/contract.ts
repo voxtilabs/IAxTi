@@ -1,6 +1,6 @@
 // Única puerta pública del módulo conversations (SPEC §26).
 export const MODULE_ID = 'conversations' as const;
-export { retryOutboundDelivery } from './application/delivery';
+export { OutboundRetryError, retryOutboundDelivery } from './application/delivery';
 export {
   receiveInbound,
   receiveInboundForContact,
