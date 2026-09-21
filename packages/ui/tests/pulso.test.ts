@@ -21,7 +21,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe('sistema Pulso (documento voxtilabs/branding v1.1)', () => {
+describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', () => {
   const [dia, noche] = tokensCss.split('[data-mode="noche"]');
 
   it('día y noche definen exactamente el mismo set de tokens', () => {
@@ -31,16 +31,16 @@ describe('sistema Pulso (documento voxtilabs/branding v1.1)', () => {
     expect(vDia.size).toBeGreaterThanOrEqual(25);
   });
 
-  it('los valores clave son los del documento', () => {
+  it('conserva el azul de marca y aplica la paleta de IAxTi (ADR-0022)', () => {
     // El azul de acción es idéntico en los dos modos (§1).
     expect([...tokensCss.matchAll(/--action:#3D5AFE/g)]).toHaveLength(2);
     // action-text se recalibra por modo (§1).
-    expect(dia).toContain('--action-text:#2739D6');
-    expect(noche).toContain('--action-text:#93A2FF');
+    expect(dia).toContain('--action-text:#2553C6');
+    expect(noche).toContain('--action-text:#83C9FF');
     // Ni blanco puro de texto nocturno ni negro puro de fondo (§10).
     expect(noche).not.toMatch(/--text:#FFFFFF/i);
     expect(noche).not.toMatch(/--bg:#000000/i);
-    expect(noche).toContain('--bg:#0B0D14');
+    expect(noche).toContain('--bg:#102137');
   });
 
   it('NINGÚN hex suelto fuera de pulso-tokens.css (apps y packages)', () => {

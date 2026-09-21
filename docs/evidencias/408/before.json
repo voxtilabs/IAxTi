@@ -1,0 +1,326 @@
+[
+  {
+    "name": "login",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "inicio",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 820,
+    "errors": []
+  },
+  {
+    "name": "bandeja",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "contactos",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 808,
+    "errors": []
+  },
+  {
+    "name": "canales",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 1019,
+    "errors": []
+  },
+  {
+    "name": "formulario",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 1258,
+    "errors": []
+  },
+  {
+    "name": "admin",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 1949,
+    "errors": []
+  },
+  {
+    "name": "admin-login",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "webchat",
+    "mode": "dia",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "login",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  },
+  {
+    "name": "inicio",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 1146,
+    "errors": []
+  },
+  {
+    "name": "bandeja",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  },
+  {
+    "name": "contactos",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 780,
+    "errors": []
+  },
+  {
+    "name": "canales",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 1160,
+    "errors": []
+  },
+  {
+    "name": "formulario",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 1382,
+    "errors": []
+  },
+  {
+    "name": "admin",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 2526,
+    "errors": []
+  },
+  {
+    "name": "admin-login",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  },
+  {
+    "name": "webchat",
+    "mode": "dia",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  },
+  {
+    "name": "login",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "inicio",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 820,
+    "errors": []
+  },
+  {
+    "name": "bandeja",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "contactos",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 808,
+    "errors": []
+  },
+  {
+    "name": "canales",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 1019,
+    "errors": []
+  },
+  {
+    "name": "formulario",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 1258,
+    "errors": []
+  },
+  {
+    "name": "admin",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 1949,
+    "errors": []
+  },
+  {
+    "name": "admin-login",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "webchat",
+    "mode": "noche",
+    "width": 1366,
+    "height": 768,
+    "scrollWidth": 1366,
+    "scrollHeight": 768,
+    "errors": []
+  },
+  {
+    "name": "login",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  },
+  {
+    "name": "inicio",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 1146,
+    "errors": []
+  },
+  {
+    "name": "bandeja",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  },
+  {
+    "name": "contactos",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 780,
+    "errors": []
+  },
+  {
+    "name": "canales",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 1160,
+    "errors": []
+  },
+  {
+    "name": "formulario",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 1382,
+    "errors": []
+  },
+  {
+    "name": "admin",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 2526,
+    "errors": []
+  },
+  {
+    "name": "admin-login",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  },
+  {
+    "name": "webchat",
+    "mode": "noche",
+    "width": 360,
+    "height": 640,
+    "scrollWidth": 360,
+    "scrollHeight": 640,
+    "errors": []
+  }
+]

@@ -1,4 +1,73 @@
-# Acceso completo según ancho y altura · revisión #406
+# Colorimetría fresca de IAxTi · revisión #408
+
+**final result: passed** — no quedan hallazgos visuales P0/P1/P2 en el alcance
+revisado. Se conserva la composición y se renueva la paleta compartida.
+
+## Fuente y evidencia
+
+Solicitud del usuario: una paleta fresca, menos opaca, conservando el diseño.
+Dirección definida en `docs/diseno/paleta.md` y ADR-0022. El azul de marca se
+conserva; cian luminoso, mandarina y superficies azules reemplazan el matiz gris.
+
+Fuente visual: build de staging `4860dbd`, con fixtures locales sintéticos.
+Capturas `docs/evidencias/408/before-*.png`; implementación final en
+`after-*.png`, con la misma ruta, datos, modo y viewport. El muestrario
+`paleta.png` extrae colores directamente de los tokens.
+
+Comparaciones conjuntas abiertas y revisadas:
+
+- `comparacion-after-inicio-noche-1366.png`: inicio nocturno.
+- `comparacion-after-login-dia-1366.png`: login diurno.
+- `comparacion-after-login-noche-360.png`: login móvil nocturno a escala 1:1.
+
+Capturas fuente/implementación: 1366×768 y 360×640 píxeles, CSS al mismo tamaño,
+densidad 1 y movimiento reducido. Los tableros de escritorio muestran ambos
+lados a 0,5; el móvil permite inspeccionar tipografía, campos, bordes y SVG
+sin otro recorte. Capturas individuales de escritorio conservan tamaño completo.
+
+## Hallazgos y decisiones
+
+1. **P2 · superficies apagadas.** La fuente usa casi negro y grises fríos.
+   Se cambian a blanco azulado en día y azul profundo con paneles distinguibles
+   en noche. Se reduce el peso de las sombras nocturnas conservando geometría.
+2. **P1 · foco al iluminar fondos.** Usar el relleno de marca como anillo no
+   permite elevar la luminosidad de los paneles y conservar contraste de foco.
+   Se introduce `--focus`, común a outline, borde y rings. La nueva guarda
+   exige 3:1 sobre nueve superficies; el E2E comprueba el color renderizado.
+3. **P2 · hover y placeholder.** Se recalibran y se agregan a las guardas.
+   El texto blanco sobre hover nocturno alcanza 4,71:1; sobre acción, 5,13:1.
+
+Primera comparación: las diferencias cromáticas anteriores son el objetivo
+de la corrección. La propuesta con tokens en el navegador mantiene la
+composición; la revisión posterior sobre build real confirma el mismo resultado.
+No hubo ajustes de geometría para aceptar la nueva paleta.
+
+Los cinco aspectos revisados: Outfit/Inter/mono y sus tamaños se conservan;
+espacios, radios y posiciones no cambian; los colores son los roles definidos;
+el SVG original mantiene nitidez con reflejos cian; copy, estados y acciones
+siguen siendo los del producto. Las diferencias cromáticas son intencionales.
+
+## Validación y límites
+
+- 36 vistas del build real: nueve superficies en dos modos y dos tamaños.
+  Login, inicio, bandeja, contactos, canales, formulario de IA, admin,
+  login de admin y webchat. Sin excepciones JavaScript ni overflow horizontal;
+  dimensiones del documento idénticas antes/después. Los logins caben completos.
+- 47 tests UI, incluidas 24 pruebas de contraste. `contraste.json` recoge 102
+  pares de texto, estados, hover, placeholder, límites de campo y foco.
+- 56 E2E aprobados, tres capturas opcionales omitidas. Incluyen el login a
+  distintas alturas, teclado, tablas, campañas, onboarding y bandeja real.
+- Build de 30 tareas, tipos de 54 tareas, lint y fronteras de módulos aprobados.
+- La revisión visual usa fixtures; OTP se simula en E2E. La suite de negocio
+  usa API/PostgreSQL/Redis locales. No se acredita entrega a proveedores.
+
+La verificación de la imagen exacta, salud y paleta en staging se registra en
+el PR después del merge. Los contrastes comprobados no son una certificación
+de accesibilidad de todo el producto.
+
+---
+
+# Acceso completo según ancho y altura · revisión histórica #406
 
 **final result: passed** — el login inicial cabe en los tamaños revisados;
 formularios y mensajes conservan acceso mediante scroll en alturas extremas.

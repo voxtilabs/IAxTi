@@ -1,6 +1,6 @@
 /*
  * Tokens del sistema Pulso de VoxTi Labs (v1.1) y su evolución Pulso Vivo
- * para IAxTi (ADR-0021, #404). Este es el ÚNICO archivo
+ * para IAxTi (ADR-0021/0022, #404/#408). Este es el ÚNICO archivo
  * del repo donde puede existir un hex; un test lo hace cumplir.
  * Ningún componente sabe en qué modo está: pide tokens, el modo decide.
  */
@@ -8,55 +8,56 @@
 /* Modo día */
 :root, [data-mode="dia"] {
   --bg:#FFFFFF;            /* fondo de página */
-  --bg-raised:#F7F8FD;     /* tarjetas, tablas, superficies elevadas */
-  --bg-rest:#E6E9F2;       /* zona de descanso, cifras, estado "antes" */
-  --border:#E6E9F2;        /* filete estándar */
-  --border-strong:#8692AA; /* borde legible de campo y botón secundario */
+  --bg-raised:#F0FAFF;     /* tarjetas, tablas, superficies elevadas */
+  --bg-rest:#E3F3FC;       /* zona de descanso, cifras, estado "antes" */
+  --border:#CEE5F2;        /* filete estándar */
+  --border-strong:#7590A6; /* borde legible de campo y botón secundario */
 
-  --text:#12141C;          /* titulares y datos */
-  --text-body:#414759;     /* texto corrido */
-  --text-muted:#606D83;    /* secundario, metadatos, rótulos */
-  --text-faint:#A3A9BC;    /* deshabilitado, placeholder */
+  --text:#102D44;          /* titulares y datos */
+  --text-body:#334F66;     /* texto corrido */
+  --text-muted:#4D677E;    /* secundario, metadatos, rótulos */
+  --text-faint:#5C7489;    /* deshabilitado, placeholder */
 
+  --focus:#2553C6;        /* foco: contraste independiente del relleno */
   --action:#3D5AFE;        /* relleno de botón primario */
-  --action-hover:#2739D6;
-  --action-text:#2739D6;   /* enlaces y texto azul */
-  --action-soft:#EEF1FF;   /* fondo de aviso y etiqueta */
-  --action-soft-br:#DDE2FF;
+  --action-hover:#2847DB;
+  --action-text:#2553C6;   /* enlaces y texto azul */
+  --action-soft:#EAF4FF;   /* fondo de aviso y etiqueta */
+  --action-soft-br:#C9E2FF;
 
-  --warn:#FFA51F;          /* ámbar de energía y atención */
-  --warn-text:#96560A;
-  --warn-soft:#FFF6E6;
-  --warn-soft-br:#FFDFA8;
+  --warn:#FFAD47;          /* ámbar de energía y atención */
+  --warn-text:#935009;
+  --warn-soft:#FFF4DF;
+  --warn-soft-br:#FFD8A0;
 
-  --good-text:#0F7A52;
-  --good-soft:#E7FAF3;
-  --good-soft-br:#C6F0DF;
+  --good-text:#087451;
+  --good-soft:#E4FAF1;
+  --good-soft-br:#ACEACF;
 
   --bad:#D9304F;           /* relleno destructivo con texto blanco AA */
-  --bad-text:#A6203C;
-  --bad-soft:#FFEEF1;
-  --bad-soft-br:#FCD6DE;
+  --bad-text:#AF2344;
+  --bad-soft:#FFF0F4;
+  --bad-soft-br:#F9CCD8;
 
   --field-bg:#FFFFFF;
 
   /* Pulso Vivo: material, profundidad y ambiente; nunca colores locales. */
-  --canvas:#F2F5FB;
+  --canvas:#EDF8FE;
   --panel:#FFFFFF;
-  --chrome:#FAFBFE;
-  --hero-surface:#F8FAFF;
+  --chrome:#F8FCFF;
+  --hero-surface:#F2FBFF;
   --on-action:#FFFFFF;
-  --brand-warm:#ECAA65;
-  --jelly-ice:#B6F3FF;
-  --jelly-sky:#36BDF5;
-  --jelly-deep:#2345D6;
-  --jelly-shadow:#172B83;
-  --jelly-glint:#F4FDFF;
-  --surface-glint:rgb(255 255 255 / .9);
-  --ambient-cool:rgb(91 150 255 / .12);
-  --ambient-warm:rgb(244 187 114 / .10);
-  --ambient-cool-strong:rgb(105 168 255 / .22);
-  --ambient-warm-strong:rgb(244 187 114 / .18);
+  --brand-warm:#FFAB5E;
+  --jelly-ice:#C4FAFF;
+  --jelly-sky:#24D0E7;
+  --jelly-deep:#1C60E8;
+  --jelly-shadow:#1549A3;
+  --jelly-glint:#F2FEFF;
+  --surface-glint:rgb(255 255 255 / .95);
+  --ambient-cool:rgb(36 208 231 / .12);
+  --ambient-warm:rgb(255 171 94 / .09);
+  --ambient-cool-strong:rgb(36 208 231 / .20);
+  --ambient-warm-strong:rgb(255 171 94 / .16);
   --elevacion-panel:0 3px 5px -3px rgb(25 49 98 / .04), 0 14px 38px -24px rgb(25 49 98 / .18);
   --elevacion-acceso:0 2px 2px rgb(25 49 98 / .02), 0 24px 70px -30px rgb(25 49 98 / .25), inset 0 1px 0 var(--surface-glint);
   --relieve-suave:0 2px 4px rgb(25 49 98 / .05), inset 0 1px 0 var(--surface-glint);
@@ -68,60 +69,61 @@
 
 /* Modo noche */
 [data-mode="noche"] {
-  --bg:#0B0D14;
-  --bg-raised:#141826;
-  --bg-rest:#1D2233;
-  --border:#262C40;
-  --border-strong:#65748A;
+  --bg:#102137;
+  --bg-raised:#18334F;
+  --bg-rest:#214364;
+  --border:#315675;
+  --border-strong:#789AB9;
 
-  --text:#EDEFF7;          /* nunca blanco puro: produce halo */
-  --text-body:#B9C0D4;
-  --text-muted:#9AA9C1;
-  --text-faint:#5A6178;
+  --text:#EFF8FF;          /* nunca blanco puro: produce halo */
+  --text-body:#D1E5F5;
+  --text-muted:#ABC9E2;
+  --text-faint:#8CAAC3;
 
+  --focus:#83D7FF;        /* foco: contraste independiente del relleno */
   --action:#3D5AFE;        /* idéntico al día */
-  --action-hover:#5570FF;
-  --action-text:#93A2FF;   /* recalibrado para leerse sobre oscuro */
-  --action-soft:#171E3D;
-  --action-soft-br:#2A3566;
+  --action-hover:#4A64F7;
+  --action-text:#83C9FF;   /* recalibrado para leerse sobre oscuro */
+  --action-soft:#183C61;
+  --action-soft-br:#2B5E8A;
 
-  --warn:#FFB84D;          /* subido para contraste */
-  --warn-text:#FFB84D;
-  --warn-soft:#2A2012;
-  --warn-soft-br:#4A3A1C;
+  --warn:#FFBD66;          /* subido para contraste */
+  --warn-text:#FFCB85;
+  --warn-soft:#382B18;
+  --warn-soft-br:#755021;
 
-  --good-text:#4FD9A0;
-  --good-soft:#10281F;
-  --good-soft-br:#1E4536;
+  --good-text:#64E6B4;
+  --good-soft:#123D32;
+  --good-soft-br:#266952;
 
   --bad:#D9304F;           /* bajado para que el blanco encima pase AA */
-  --bad-text:#FF8098;
-  --bad-soft:#2A141B;
-  --bad-soft-br:#4D2130;
+  --bad-text:#FF9AB3;
+  --bad-soft:#452135;
+  --bad-soft-br:#79334F;
 
-  --field-bg:#0F1220;      /* más oscuro que la tarjeta, no igual */
+  --field-bg:#10243B;      /* más oscuro que la tarjeta, no igual */
 
-  --canvas:#0B101D;
-  --panel:#151C2D;
-  --chrome:#111827;
-  --hero-surface:#141F35;
+  --canvas:#0C1C30;
+  --panel:#16304D;
+  --chrome:#122A44;
+  --hero-surface:#173651;
   --on-action:#FFFFFF;
-  --brand-warm:#ECAA65;
-  --jelly-ice:#B6F3FF;
-  --jelly-sky:#36BDF5;
-  --jelly-deep:#2345D6;
-  --jelly-shadow:#172B83;
-  --jelly-glint:#F4FDFF;
-  --surface-glint:rgb(160 192 255 / .09);
-  --ambient-cool:rgb(63 108 224 / .10);
-  --ambient-warm:rgb(198 121 58 / .055);
-  --ambient-cool-strong:rgb(54 111 226 / .19);
-  --ambient-warm-strong:rgb(198 121 58 / .09);
-  --elevacion-panel:0 3px 5px -3px rgb(0 4 15 / .18), 0 16px 40px -24px rgb(0 4 15 / .48);
-  --elevacion-acceso:0 2px 2px rgb(0 4 15 / .15), 0 24px 70px -30px rgb(0 4 15 / .7), inset 0 1px 0 var(--surface-glint);
-  --relieve-suave:0 2px 4px rgb(0 4 15 / .22), inset 0 1px 0 var(--surface-glint);
-  --relieve-marca:5px 5px 14px rgb(0 4 15 / .5), -5px -5px 14px rgb(160 192 255 / .035);
-  --campo-interior:inset 0 2px 3px rgb(0 4 15 / .15);
+  --brand-warm:#FFB66F;
+  --jelly-ice:#C4FAFF;
+  --jelly-sky:#24D0E7;
+  --jelly-deep:#1C60E8;
+  --jelly-shadow:#1549A3;
+  --jelly-glint:#F2FEFF;
+  --surface-glint:rgb(140 222 255 / .13);
+  --ambient-cool:rgb(36 208 231 / .10);
+  --ambient-warm:rgb(255 171 94 / .05);
+  --ambient-cool-strong:rgb(36 208 231 / .16);
+  --ambient-warm-strong:rgb(255 171 94 / .09);
+  --elevacion-panel:0 3px 5px -3px rgb(0 12 28 / .12), 0 16px 40px -24px rgb(0 12 28 / .34);
+  --elevacion-acceso:0 2px 2px rgb(0 12 28 / .10), 0 24px 70px -30px rgb(0 12 28 / .48), inset 0 1px 0 var(--surface-glint);
+  --relieve-suave:0 2px 4px rgb(0 12 28 / .15), inset 0 1px 0 var(--surface-glint);
+  --relieve-marca:5px 5px 14px rgb(0 12 28 / .32), -5px -5px 14px rgb(140 222 255 / .06);
+  --campo-interior:inset 0 2px 3px rgb(0 12 28 / .10);
   --elevacion-accion:0 5px 14px -5px rgb(40 83 235 / .36), inset 0 1px 0 rgb(255 255 255 / .18);
   --elevacion-accion-hover:0 7px 20px -5px rgb(40 83 235 / .46), inset 0 1px 0 rgb(255 255 255 / .18);
 }

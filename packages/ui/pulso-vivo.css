@@ -58,7 +58,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-access :is(input, textarea)::placeholder,
 .pulso-admin :is(input, textarea)::placeholder,
 .pulso-webchat :is(input, textarea)::placeholder { color: var(--text-muted); opacity: 1; }
-:where(input, textarea, [role="combobox"]):focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+:where(input, textarea, [role="combobox"]):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 [role="tablist"] { border: 1px solid var(--border); background: var(--bg-rest); padding: 4px; }
 [role="tab"][data-state="active"] { background: var(--panel); box-shadow: var(--relieve-suave); color: var(--action-text); }
 .pulso-avatar { box-shadow: inset 0 1px 0 var(--surface-glint); }

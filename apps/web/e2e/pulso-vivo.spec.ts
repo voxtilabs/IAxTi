@@ -70,6 +70,15 @@ for (const [width, height] of [[360, 640], [360, 741], [360, 900], [390, 844], [
       await correo.focus();
       await expect(correo).toBeFocused();
       await expect(correo).toHaveCSS('outline-width', '2px');
+      const colorFoco = await page.evaluate(() => {
+        const muestra = document.createElement('span');
+        muestra.style.color = 'var(--focus)';
+        document.body.append(muestra);
+        const color = getComputedStyle(muestra).color;
+        muestra.remove();
+        return color;
+      });
+      await expect(correo).toHaveCSS('outline-color', colorFoco);
       await correo.fill('persona@example.invalid');
       await correo.press('Tab');
       await expect(page.getByRole('button', { name: 'Enviarme el acceso' })).toBeFocused();

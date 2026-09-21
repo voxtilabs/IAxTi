@@ -18,7 +18,7 @@ for (const [modo, bloque] of [['día', dia], ['noche', noche]]) {
     return (luces[0] + .05) / (luces[1] + .05);
   };
   describe(`legibilidad de Pulso Vivo en ${modo}`, () => {
-    for (const fondo of ['--bg', '--bg-raised', '--canvas', '--panel', '--chrome', '--hero-surface']) {
+    for (const fondo of ['--bg', '--bg-raised', '--bg-rest', '--canvas', '--panel', '--chrome', '--hero-surface', '--field-bg']) {
       it(`texto normal, secundario y enlaces pasan AA sobre ${fondo}`, () => {
         for (const texto of ['--text', '--text-body', '--text-muted', '--action-text']) {
           expect(contraste(texto, fondo), `${texto} sobre ${fondo}`).toBeGreaterThanOrEqual(4.5);
@@ -29,13 +29,20 @@ for (const [modo, bloque] of [['día', dia], ['noche', noche]]) {
       for (const rol of ['action', 'warn', 'good', 'bad']) {
         expect(contraste(`--${rol}-text`, `--${rol}-soft`), rol).toBeGreaterThanOrEqual(4.5);
       }
-      for (const fondo of ['--action', '--bad']) expect(contraste('--on-action', fondo), fondo).toBeGreaterThanOrEqual(4.5);
+      for (const fondo of ['--action', '--action-hover', '--bad']) expect(contraste('--on-action', fondo), fondo).toBeGreaterThanOrEqual(4.5);
     });
-    it('los límites de campo y el foco se distinguen del fondo', () => {
+    it('los límites de campo se distinguen del fondo', () => {
       for (const fondo of ['--field-bg', '--panel']) {
         expect(contraste('--border-strong', fondo)).toBeGreaterThanOrEqual(3);
-        expect(contraste('--action', fondo)).toBeGreaterThanOrEqual(3);
       }
+    });
+    it('el foco se distingue en todas las superficies de interacción', () => {
+      for (const fondo of ['--bg', '--bg-raised', '--bg-rest', '--canvas', '--panel', '--chrome', '--hero-surface', '--field-bg', '--action-soft']) {
+        expect(contraste('--focus', fondo), `foco sobre ${fondo}`).toBeGreaterThanOrEqual(3);
+      }
+    });
+    it('el placeholder del campo conserva legibilidad', () => {
+      expect(contraste('--text-faint', '--field-bg')).toBeGreaterThanOrEqual(4.5);
     });
   });
 }
