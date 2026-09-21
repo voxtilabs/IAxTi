@@ -1,6 +1,6 @@
 # ADR 0009 · Pulso como sistema de diseño
 
-**Estado:** aceptada · 2026-09-13
+**Estado:** superseded parcialmente por ADR-0021 · decisión original aceptada · 2026-09-13
 
 ## Contexto
 La interfaz la produce mayormente Claude Code; sin un sistema cerrado, cada

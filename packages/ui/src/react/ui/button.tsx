@@ -33,8 +33,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={ref}
       type={type}
+      data-variant={variant}
+      data-size={size}
       className={cn(
-        'inline-flex select-none items-center justify-center gap-2 rounded-boton font-medium',
+        'pulso-button inline-flex select-none items-center justify-center gap-2 rounded-boton font-medium',
         'transition-colors disabled:pointer-events-none disabled:opacity-50',
         VARIANTES[variant],
         TAMANOS[size],

@@ -3,7 +3,7 @@
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Button, IconoEnviar, Input, Textarea, cn } from '@iaxti/ui/react';
+import { Button, IconoEnviar, Input, MarcaJelly, Textarea, cn } from '@iaxti/ui/react';
 
 // El chat del visitante (#46): vive en el iframe del widget, con Pulso.
 // El primero puede ser anónimo; antes del segundo, nombre + teléfono o
@@ -146,10 +146,13 @@ export function WebchatChat({
   }
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden rounded-bloque border border-line bg-bg">
-      <header className="border-b border-line bg-raised px-4 py-3">
+    <main className="pulso-webchat flex h-screen flex-col overflow-hidden rounded-bloque border border-line bg-bg">
+      <header className="flex items-center gap-3 border-b border-line bg-raised px-4 py-3">
+        <MarcaJelly className="!w-10" />
+        <div>
         <p className="font-display font-bold text-ink">Conversemos</p>
         <p className="text-xs text-muted">Te respondemos por aquí</p>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">

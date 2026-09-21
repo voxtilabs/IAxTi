@@ -141,7 +141,7 @@ export function Asistente() {
           {agentes.map((a) => (
             <li
               key={a.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-tarjeta border border-line bg-raised p-4"
+              className="flex flex-wrap items-center justify-between gap-3 pulso-panel rounded-tarjeta border border-line bg-raised p-4"
             >
               <div className="flex flex-col gap-1">
                 <span className="flex flex-wrap items-center gap-2">
@@ -160,7 +160,7 @@ export function Asistente() {
           ))}
         </ul>
       ) : (
-        <form onSubmit={crear} className="flex flex-col gap-5 rounded-tarjeta border border-line bg-raised p-5">
+        <form onSubmit={crear} className="flex flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
           <div>
             <h3 className="text-sm font-bold text-ink">¿Qué tiene que lograr?</h3>
             <p className="mt-1 text-sm text-muted">

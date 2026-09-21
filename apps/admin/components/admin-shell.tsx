@@ -5,6 +5,7 @@ import { AvisoResultado } from '@iaxti/ui/react';
 import { useEffect, useState } from 'react';
 import {
   AuditExplorer,
+  MarcaJelly,
   ModeToggle,
   RequireSession,
   SessionProvider,
@@ -98,7 +99,7 @@ function TablaTenants() {
           {aviso}
         </AvisoResultado>
       )}
-    <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+    <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-rest text-left">
@@ -224,7 +225,7 @@ function TablaConsumoApi() {
   return (
     <div className="mt-10">
       <h2 className="mb-4 text-xl font-bold text-ink">Consumo de API (mes en curso)</h2>
-      <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+      <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-rest text-left">
@@ -321,7 +322,7 @@ function TablaPlanes() {
       {aviso && (
         <AvisoResultado>{aviso}</AvisoResultado>
       )}
-      <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+      <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-rest text-left">
@@ -414,7 +415,7 @@ function TablaModulos() {
       {aviso && (
         <AvisoResultado>{aviso}</AvisoResultado>
       )}
-      <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+      <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-rest text-left">
@@ -601,7 +602,7 @@ function SeguridadYSalud() {
           </p>
           <Chequeos chequeos={seguridad.chequeos} />
           {seguridad.permisosDenegados.length > 0 && (
-            <div className="mt-4 overflow-x-auto rounded-tarjeta border border-line bg-raised">
+            <div className="mt-4 overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line bg-rest text-left">
@@ -728,7 +729,7 @@ function CentroIA() {
       </div>
 
       {datos && (
-        <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+        <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-rest text-left">
@@ -786,7 +787,7 @@ function CentroIA() {
       {ejecuciones.length > 0 && (
         <>
           <p className="rotulo mb-2 mt-6">Últimas ejecuciones</p>
-          <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+          <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-rest text-left">
@@ -837,7 +838,7 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
   return (
     <SessionProvider config={config}>
       <RequireSession>
-        <div className="min-h-screen bg-bg">
+        <div className="pulso-admin min-h-screen">
           <header className="border-b border-line bg-raised">
             <div className="mx-auto flex max-w-contenido flex-wrap items-center gap-4 px-4 py-3">
               <a href="/" className="marca" aria-label="VoxTi Labs, panel de IAxTi"
@@ -849,7 +850,15 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
               </div>
             </div>
           </header>
-          <main className="mx-auto max-w-contenido px-4 py-8">
+          <main className="pulso-content mx-auto max-w-contenido">
+            <header className="pulso-hero mb-8">
+              <div>
+                <span className="pulso-eyebrow">IAxTi · Administración</span>
+                <h1>Tu plataforma, en perspectiva.</h1>
+                <p className="mt-3 max-w-prose text-sm text-body">Negocios, planes y consumo. El contexto para acompañar a cada equipo.</p>
+              </div>
+              <MarcaJelly />
+            </header>
             <h2 className="mb-4 text-xl font-bold text-ink">Tenants</h2>
             <TablaTenants />
             <TablaPlanes />

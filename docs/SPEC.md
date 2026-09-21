@@ -966,14 +966,16 @@ GitHub        Issue → feat/<issue>-<slug> → PR "Closes #n" → checks → re
 
 ## 29. Interfaz: sistema Pulso
 
-IAxTi usa Pulso tal cual está en su documento. Lo que el código debe cumplir:
+IAxTi usa Pulso con la evolución Pulso Vivo (ADR-0021, #404), solicitada
+por el usuario: identidad propia inspirada en VOXIA 2 sin cambiar funciones.
+Lo que el código debe cumplir:
 
 - Tokens de día y noche en `packages/ui/pulso-tokens.css`; modo con
   `<html data-mode="dia|noche">`, inicial por `prefers-color-scheme`, persistido
   por usuario. Tailwind apunta a variables; nunca `dark:`. shadcn tematizado:
-  botón 999, campo 14, tarjeta 22, control 46 px, sin sombras, Outfit / Inter /
+  botón 999, campo 14, tarjeta 22, control 46 px, Outfit / Inter /
   JetBrains Mono.
-- Ningún componente sabe en qué modo está. Ningún hex suelto. Tres superficies.
+- Ningún componente sabe en qué modo está. Ningún hex suelto. Superficies y efectos definidos en tokens compartidos.
   Un botón primario por vista. Mono en montos, UF, RUT, fechas, plazos, ids.
   Etiquetas con `--{rol}-soft` y `--{rol}-text`; el color nunca es el único
   significado. Avisos: qué pasó y qué hacer. Estados vacíos: qué va a aparecer y
@@ -986,9 +988,13 @@ IAxTi usa Pulso tal cual está en su documento. Lo que el código debe cumplir:
   mono, siempre visibles. Ventana de 24 h como etiqueta `warn` cuando quedan menos
   de 2 h y `bad` cuando cerró.
 - Marca: lockup de VoxTi Labs inline (`voxti-tokens.svg`) en el SuperAdmin y en el
-  pie de la app cliente. IAxTi sin marca propia por ahora: nombre como texto en
-  Outfit 800, no como logo.
-- Antipatrones sin excepción: gradientes, sombras, morado y violeta, verde
+  pie de la app cliente. IAxTi usa su isotipo propio, con material jelly SVG
+  decorativo; no sustituye el texto accesible. IDs únicos por instancia.
+- Material y profundidad: gradientes ambientales estáticos, relieves de marca y
+  elevación de superficies únicamente desde `pulso-vivo.css` y tokens de
+  `pulso-tokens.css`. Overlays conservan su elevación específica. Sin WebGL,
+  bucles de animación ni efectos que reduzcan contraste o oculten datos.
+- Antipatrones: efectos arbitrarios por pantalla, morado y violeta, verde
   principal, blanco puro nocturno, negro puro, glassmorphism, emoji en interfaz,
   iconos de cohete o rayo o cerebro, contadores animados, copy de relleno,
   métricas inventadas.
@@ -1126,7 +1132,7 @@ No escribas código de producto.
 7. ¿Toda tool nueva pasa por el guard con la identidad del usuario y no borra?
 8. ¿Respeta ventana de 24 h, horario de silencio y consentimiento?
 9. ¿La IA puede inventar precio, stock, plazo o compromiso con este cambio?
-10. ¿Algún hex suelto, sombra, gradiente o emoji en la interfaz?
+10. ¿Algún hex suelto, efecto fuera de Pulso Vivo (ADR-0021) o emoji en la interfaz?
 11. ¿Se ve bien en día y noche, a 360 px, con el foco visible, montos en mono?
 12. ¿Algún secret, token o URL interna en el diff?
 13. ¿El ADR existe si la decisión es importante? ¿La matriz de compliance está al día?

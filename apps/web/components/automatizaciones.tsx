@@ -142,7 +142,7 @@ export function Automatizaciones() {
         </Button>
       </div>
 
-      <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Reglas</span>
         {reglas === null ? (
           <Skeleton className="mt-3 h-24" />
@@ -204,7 +204,7 @@ export function Automatizaciones() {
       </div>
 
       {runs.length > 0 && (
-        <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <span className="rotulo">Últimas corridas</span>
           <ul className="mt-2 flex flex-col gap-1">
             {runs.slice(0, 10).map((run) => (

@@ -13,16 +13,10 @@ body {
 }
 
 /*
- * Elevación (ADR-0018, #294). UNA sombra, y solo para lo que se superpone
- * al contenido y se puede cerrar: diálogo, desplegable, select, tooltip,
- * hoja lateral y paleta de comandos. Nunca tarjetas, botones, tablas ni
- * filas — esas se distinguen por superficie y filete.
- *
- * La sombra significa "esto está por encima", no "esto es importante".
- *
- * Va acá y no en `pulso-tokens.css` a propósito: ese archivo es copia
- * literal del documento de marca y un test lo comprueba. Esto es un desvío
- * documentado, no una edición silenciosa de la marca.
+ * Elevación de overlays (ADR-0018, #294): diálogo, desplegable, select,
+ * tooltip, hoja lateral y paleta de comandos. Conserva su token original.
+ * Pulso Vivo (ADR-0021) añade relieves de superficies y marca mediante
+ * pulso-tokens.css y pulso-vivo.css; las pantallas no definen sombras propias.
  */
 :root, [data-mode="dia"] {
   --elevacion-flotante: 0 8px 24px -8px rgb(18 20 28 / 0.18);

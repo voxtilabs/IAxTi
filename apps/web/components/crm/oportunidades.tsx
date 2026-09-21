@@ -266,7 +266,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
                 aria-label={`Etapa ${stage.name}`}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => soltar(e, stage)}
-                className="flex w-72 shrink-0 snap-start flex-col rounded-tarjeta border border-line bg-raised"
+                className="flex w-72 shrink-0 snap-start flex-col pulso-panel rounded-tarjeta border border-line bg-raised"
               >
                 <header className="flex items-center justify-between border-b border-line px-4 py-3">
                   <h2 className="text-sm font-bold text-ink">{stage.name}</h2>

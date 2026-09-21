@@ -3,9 +3,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Una sombra, y solo para lo que flota (ADR-0018, #294).
+ * Elevación de overlays (ADR-0018); material y superficies en Pulso Vivo (ADR-0021).
  *
- * Pulso prohibía las sombras sin excepción. Esta es la única, tokenizada, y
+ * Pulso prohibía las sombras sin excepción. La de overlays está tokenizada, y
  * significa algo concreto: *esto está por encima del contenido y se puede
  * cerrar*. Una sombra que está en todas partes no dice nada, y es
  * exactamente cómo se llega a la interfaz de plantilla que #290 quiere
@@ -41,7 +41,7 @@ function fuentes(dir: string, acc: string[] = []): string[] {
 /** `shadow-none` no cuenta: quita una sombra, no la pone. */
 const SOMBRA = /\bshadow-(?!none\b)[a-z0-9[\]()_-]+/g;
 
-describe('una sombra, y solo para lo que flota', () => {
+describe('elevación de overlays sin efectos arbitrarios en componentes', () => {
   const archivos = fuentes(COMPONENTES);
 
   it('hay componentes que mirar', () => {
@@ -59,11 +59,11 @@ describe('una sombra, y solo para lo que flota', () => {
     const marca = readFileSync(join(UI, 'pulso-tokens.css'), 'utf8');
     expect(
       marca.includes('--elevacion-flotante'),
-      'pulso-tokens.css es copia literal del documento de marca: el desvío va en pulso-base.css',
+      'el token histórico de overlays vive solo en pulso-base.css; los de material están en pulso-tokens.css',
     ).toBe(false);
   });
 
-  it('solo los que flotan llevan sombra', () => {
+  it('solo los overlays solicitan clases shadow; las superficies usan la capa compartida', () => {
     const intrusos: string[] = [];
     for (const archivo of archivos) {
       const nombre = archivo.split('/').pop()!;

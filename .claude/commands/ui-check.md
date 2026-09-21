@@ -19,5 +19,9 @@ Sobre los archivos de UI del diff actual (o `$ARGUMENTS`):
    ¿prefers-reduced-motion respetado?
 7. ¿El componente conoce el modo? (mal: debe salir todo de los tokens)
 
+Sombras/gradientes son válidos únicamente en la capa compartida Pulso Vivo
+(ADR-0021), con tokens. El SVG `MarcaJelly` conserva la geometría oficial;
+comprobar IDs únicos y uso decorativo. Mantener la prohibición de efectos locales.
+
 Reporta por archivo con la corrección concreta. Recuerda al autor las capturas
 en día y noche para el PR.

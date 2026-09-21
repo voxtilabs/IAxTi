@@ -56,7 +56,7 @@ export function ConsumoIA() {
       <p className="rotulo">IA</p>
       <h1 className="mt-1 font-display text-titulo font-bold text-ink">Consumo del asistente</h1>
 
-      <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <div className="flex items-baseline justify-between gap-4">
           <span className="rotulo">Asistencias este mes</span>
           {uso.exhausted ? (
@@ -87,7 +87,7 @@ export function ConsumoIA() {
       </div>
 
       {uso.costClpMonth !== undefined && (
-        <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <span className="rotulo">Costo estimado del mes</span>
           <p className="dato mt-2 text-3xl font-bold text-ink">{fmtClp(uso.costClpMonth)}</p>
           <p className="dato mt-1 text-sm text-muted">

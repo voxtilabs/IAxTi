@@ -106,7 +106,7 @@ function PermisoPush() {
 
   if (estado === 'cargando' || estado === 'no_disponible') return null;
   return (
-    <div className="mt-4 rounded-tarjeta border border-line bg-raised p-4">
+    <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-4">
       <p className="text-sm text-body">
         {estado === 'activo'
           ? 'Este navegador ya recibe avisos aunque tengas IAxTi cerrado.'

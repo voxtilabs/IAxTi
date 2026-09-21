@@ -1,0 +1,34 @@
+[
+  {
+    "modo": "dia",
+    "width": 360,
+    "altoFila": 58.796875,
+    "filasEnPanel": 9,
+    "visiblesEnPantalla": 9,
+    "overflow": false
+  },
+  {
+    "modo": "dia",
+    "width": 1280,
+    "altoFila": 58.796875,
+    "filasEnPanel": 9,
+    "visiblesEnPantalla": 9,
+    "overflow": false
+  },
+  {
+    "modo": "noche",
+    "width": 360,
+    "altoFila": 58.796875,
+    "filasEnPanel": 9,
+    "visiblesEnPantalla": 9,
+    "overflow": false
+  },
+  {
+    "modo": "noche",
+    "width": 1280,
+    "altoFila": 58.796875,
+    "filasEnPanel": 9,
+    "visiblesEnPantalla": 9,
+    "overflow": false
+  }
+]

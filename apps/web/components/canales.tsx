@@ -90,7 +90,7 @@ function ProbarSinNumero() {
   }
 
   return (
-    <section className="mt-8 rounded-tarjeta border border-line bg-raised p-6">
+    <section className="mt-8 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
       <h2 className="text-lg font-bold text-ink">Probar sin número real</h2>
       <p className="mt-2 max-w-prose text-sm text-body">
         Simula un mensaje entrante. Entra por el mismo camino que un WhatsApp de verdad —la misma
@@ -184,7 +184,7 @@ export function Canales() {
       {canales === null ? (
         <div className="mt-6 flex flex-col gap-3"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>
       ) : canales.length === 0 ? (
-        <div className="mt-6 rounded-tarjeta border border-line bg-raised p-8">
+        <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-8">
           <h2 className="text-lg font-bold text-ink">Todavía no hay canales</h2>
           <p className="mt-2 max-w-prose text-body">
             Al conectar tu número de WhatsApp aparecerá aquí con su estado y la calidad que Meta le
@@ -196,7 +196,7 @@ export function Canales() {
           {canales.map((canal) => {
             const estado = ESTADO_CANAL[canal.state];
             return (
-              <li key={canal.id} className="rounded-tarjeta border border-line bg-raised p-6">
+              <li key={canal.id} className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
                 <div className="flex items-center gap-3">
                   <span className="min-w-0 flex-1">
                     <span className="block font-display font-bold text-ink">{canal.name}</span>

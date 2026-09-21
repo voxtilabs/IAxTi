@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import {
-  IAXTI_LOCKUP_SVG,
+  MarcaJelly,
   ModeToggle,
   RequireSession,
   Sidebar,
@@ -264,14 +264,17 @@ function Barra({ nav, marcaSvg }: { nav: NavItem[]; marcaSvg: string }) {
   }, [nav]);
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
-        {/* Plegada, la barra son 3 rem de iconos: el lockup y el selector
-            no caben y se ocultan en vez de desbordarse. El destino sigue
-            alcanzable desde cada icono. */}
-        <a href="/" className="marca block px-2 py-1 group-data-[collapsible=icon]:hidden"
-           aria-label="IAxTi, inicio"
-           dangerouslySetInnerHTML={{ __html: IAXTI_LOCKUP_SVG }} />
+        {/* Plegada, conserva el isotipo como acceso al inicio y oculta
+            el nombre y el selector para no desbordar los iconos. */}
+        <a href="/" className="pulso-brand" aria-label="IAxTi, inicio">
+          <MarcaJelly />
+          <span className="group-data-[collapsible=icon]:hidden">
+            <span className="pulso-brand-name">IAxTi</span>
+            <span className="pulso-brand-caption">Tu negocio, conectado</span>
+          </span>
+        </a>
         {/* Para quien maneja varios negocios esto es lo más importante del
             menú, y en el encabezado viejo estaba perdido entre otros tres
             controles. Acá es lo primero. */}
@@ -324,25 +327,31 @@ function Barra({ nav, marcaSvg }: { nav: NavItem[]; marcaSvg: string }) {
  * El `grupo` de cada destino también viene de ahí.
  */
 export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellProps) {
+  const ruta = usePathname();
+  const pagina = nav.find((item) => item.path === ruta || ruta?.startsWith(`${item.path}/`));
   return (
     <SessionProvider config={config}>
       <RequireSession>
         {/* La bandeja es a ancho completo y la barra arranca plegada: es la
             pantalla de tres paneles, y ahí cada píxel de ancho es una
             columna que se ve. */}
-        <SidebarProvider defaultOpen={!sinMargen}>
+        <SidebarProvider defaultOpen={!sinMargen} className="pulso-workspace">
           <Barra nav={nav} marcaSvg={marcaSvg} />
           <SidebarInset>
             <SoporteAviso />
-            <header className="flex items-center gap-2 border-b border-line bg-raised px-4 py-3">
+            <header className="pulso-topbar flex items-center gap-3 border-b border-line px-6 py-3">
               <SidebarTrigger />
+              <div className="pulso-context">
+                <span>{pagina?.grupo ?? 'Tu espacio de trabajo'}</span>
+                <strong>{pagina?.label ?? (ruta === '/' ? 'Puesta en marcha' : 'IAxTi')}</strong>
+              </div>
               <div className="ml-auto flex items-center gap-3">
                 <PaletaComandos nav={nav} />
                 <Campana />
                 <ModeToggle />
               </div>
             </header>
-            <main className={sinMargen ? '' : 'mx-auto w-full max-w-contenido px-4 py-8'}>
+            <main className={sinMargen ? 'min-w-0' : 'pulso-content mx-auto w-full max-w-contenido'}>
               {children}
             </main>
           </SidebarInset>

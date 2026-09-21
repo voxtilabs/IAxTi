@@ -122,7 +122,7 @@ export function Empresas() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={crear} className="flex flex-wrap items-end gap-3 rounded-tarjeta border border-line bg-raised p-5">
+      <form onSubmit={crear} className="flex flex-wrap items-end gap-3 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
           Nombre de la empresa
           <Input
@@ -164,7 +164,7 @@ export function Empresas() {
       </div>
 
       {items.length === 0 ? (
-        <div className="rounded-tarjeta border border-line bg-raised p-8 text-center">
+        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
           <h2 className="text-lg font-bold text-ink">
             {buscar ? 'Ninguna empresa con eso' : 'Todavía no hay empresas'}
           </h2>
@@ -177,7 +177,7 @@ export function Empresas() {
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((e) => (
-            <li key={e.id} className="rounded-tarjeta border border-line bg-raised">
+            <li key={e.id} className="pulso-panel rounded-tarjeta border border-line bg-raised">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                 <button
                   type="button"

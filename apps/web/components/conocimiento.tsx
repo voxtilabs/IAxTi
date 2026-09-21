@@ -160,7 +160,7 @@ export function Conocimiento() {
         dejan de usarse solas.
       </p>
 
-      <div className="mt-6 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Agregar fuente</span>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Select value={kind} onValueChange={(v) => setKind(v as typeof kind)}>
@@ -224,7 +224,7 @@ export function Conocimiento() {
         </p>
       </div>
 
-      <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Fuentes</span>
         {fuentes === null ? (
           <Skeleton className="mt-3 h-20" />
@@ -253,7 +253,7 @@ export function Conocimiento() {
         )}
       </div>
 
-      <div className="mt-4 rounded-tarjeta border border-line bg-raised p-6">
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Prueba qué encontraría la IA</span>
         <div className="mt-3 flex gap-2">
           <Input

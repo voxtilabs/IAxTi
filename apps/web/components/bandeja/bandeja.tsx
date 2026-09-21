@@ -201,7 +201,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const miId = session?.user?.id ?? '';
 
   return (
-    <div className="flex h-[calc(100vh-73px)] overflow-hidden">
+    <div className="pulso-inbox flex h-[calc(100vh-73px)] overflow-hidden">
       <Dialog open={ayuda} onOpenChange={setAyuda}><DialogContent onCloseAutoFocus={(e) => { e.preventDefault(); ayudaTrigger.current?.focus(); }}>
         <DialogTitle>Atajos de la bandeja</DialogTitle>
         <DialogDescription>Funcionan cuando no estás escribiendo en un campo.</DialogDescription>
@@ -217,7 +217,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         aria-label="Conversaciones"
         data-densidad="densa"
         className={cn(
-          'w-full shrink-0 flex-col overflow-y-auto border-r border-line bg-raised md:flex md:w-80',
+          'pulso-inbox-list w-full shrink-0 flex-col overflow-y-auto border-r border-line bg-raised md:flex md:w-80',
           pane === 'lista' ? 'flex' : 'hidden',
         )}
       >
@@ -300,9 +300,10 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               <li key={c.id}>
                 <button
                   type="button"
+                  aria-current={seleccion === c.id ? 'true' : undefined}
                   onClick={() => { setSeleccion(c.id); setPane('chat'); }}
                   className={cn(
-                    'flex w-full items-center min-h-control gap-fila-gap border-b border-line px-fila-x py-fila-y text-dato text-left transition-colors hover:bg-rest',
+                    'pulso-conversation flex w-full items-center min-h-control gap-fila-gap border-b border-line px-fila-x py-fila-y text-dato text-left transition-colors hover:bg-rest',
                     seleccion === c.id && 'bg-rest',
                   )}
                 >
@@ -343,7 +344,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       <section
         aria-label="Conversación"
         className={cn(
-          'min-w-0 flex-1 flex-col bg-bg md:flex',
+          'pulso-chat min-w-0 flex-1 flex-col bg-bg md:flex',
           pane === 'chat' ? 'flex' : 'hidden',
         )}
       >
@@ -421,7 +422,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       <section
         aria-label="Ficha del contacto"
         className={cn(
-          'w-full shrink-0 flex-col overflow-y-auto border-l border-line bg-raised md:flex md:w-72',
+          'pulso-inbox-detail w-full shrink-0 flex-col overflow-y-auto border-l border-line bg-raised md:flex md:w-72',
           pane === 'ficha' ? 'flex' : 'hidden',
         )}
       >

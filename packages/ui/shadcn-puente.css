@@ -11,10 +11,8 @@
  *
  * Tres cosas que importan de cómo está hecho:
  *
- *   1. `pulso-tokens.css` NO se toca. Ese archivo está copiado tal cual del
- *      documento de marca y un test lo comprueba. El puente vive aparte
- *      justamente para que se vea que es una capa de traducción y no una
- *      modificación de la marca.
+ *   1. `pulso-tokens.css` concentra la paleta de marca y su evolución
+ *      documentada en ADR-0021. El puente solo traduce sus nombres.
  *   2. Cada línea es una decisión de DISEÑO, no un alias mecánico: qué
  *      superficie usa un popover, qué color lleva un botón destructivo.
  *      Están comentadas donde no son obvias.
@@ -65,7 +63,8 @@
   --destructive: var(--bad);
   --destructive-foreground: white;
 
-  --border: var(--border);
+  /* --border ya lo define Pulso. Reasignarlo a sí mismo crea un ciclo y
+     hace que todos los bordes vuelvan a currentColor (#404). */
   /* El borde de campo es el fuerte: un input con el filete estándar
      desaparece dentro de una tarjeta. */
   --input: var(--border-strong);

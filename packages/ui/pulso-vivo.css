@@ -1,0 +1,181 @@
+/* Pulso Vivo · #404 / ADR-0021. Una capa compartida, sin lógica de producto. */
+
+:root, [data-mode="dia"] { color-scheme: light; }
+[data-mode="noche"] { color-scheme: dark; }
+body { background: var(--canvas); font-size: 15px; }
+
+.pulso-workspace, .pulso-admin { isolation: isolate; background: var(--canvas); }
+.pulso-workspace > main { background: transparent; }
+.pulso-content { padding: 36px 32px 56px; min-width: 0; }
+.pulso-content > * { min-width: 0; }
+.pulso-content h1 { line-height: 1.12; letter-spacing: -.045em; }
+.pulso-content > :is(div, section) > :is(header, div):has(> h1) { margin-bottom: 24px; }
+
+/* El ambiente es estático y no interfiere con clics, lectura ni composición. */
+.pulso-workspace > main::before, .pulso-admin::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse at 95% 0%, var(--ambient-cool), transparent 42%),
+    radial-gradient(ellipse at 35% 100%, var(--ambient-warm), transparent 48%);
+}
+.pulso-topbar { height: 73px; background: var(--chrome); border-color: var(--border); }
+.pulso-context { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pulso-context span { color: var(--text-muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.pulso-context strong { color: var(--text); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Barra existente de shadcn: mismos estados, accesos y comportamiento móvil. */
+[data-sidebar="sidebar"] { background: var(--chrome); border-color: var(--border); }
+.pulso-workspace [data-variant="floating"] [data-sidebar="sidebar"] { border-radius: 24px; box-shadow: var(--elevacion-panel); }
+[data-sidebar="header"] { padding: 20px 14px 16px; gap: 22px; }
+[data-sidebar="content"] { padding-inline: 8px; gap: 16px; }
+[data-sidebar="group-label"] { height: 30px; padding-inline: 12px; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+[data-sidebar="menu"] { gap: 5px; }
+[data-sidebar="menu-button"] { min-height: 42px; border-radius: 13px; padding-inline: 12px; color: var(--text-body); font-size: 13px; transition: background-color 160ms, color 160ms; }
+[data-sidebar="menu-button"] > svg { width: 18px; height: 18px; stroke-width: 1.7; }
+[data-sidebar="menu-button"][data-active="true"] { color: var(--action-text); background: var(--action-soft); box-shadow: inset 3px 0 0 var(--action), var(--relieve-suave); font-weight: 600; }
+[data-sidebar="menu-button"]:hover { background: var(--action-soft); color: var(--action-text); }
+[data-sidebar="footer"] { padding: 14px; gap: 14px; }
+.pulso-brand { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; }
+.pulso-brand .pulso-jelly { width: 43px; }
+.pulso-brand-name { font: 800 31px/1 'Outfit', sans-serif; letter-spacing: -.055em; }
+.pulso-brand-caption { display: block; margin-top: 4px; color: var(--text-muted); font-size: 9px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; }
+.marca-pie svg { height: 21px; width: auto; max-width: 100%; }
+.group[data-collapsible="icon"] [data-sidebar="header"] { padding: 16px 8px; }
+.group[data-collapsible="icon"] [data-sidebar="content"] { padding-inline: 0; }
+.group[data-collapsible="icon"] [data-sidebar="footer"] { padding-inline: 8px; }
+.group[data-collapsible="icon"] [data-sidebar="menu-button"] { min-height: 32px; }
+.group[data-collapsible="icon"] [data-sidebar="menu-button"] > svg { width: 16px; height: 16px; }
+.group[data-collapsible="icon"] .pulso-brand .pulso-jelly { width: 32px; }
+
+/* Superficies, formularios y tablas: toda la app consume las mismas piezas. */
+.pulso-panel { background: var(--panel); border-color: var(--border); box-shadow: var(--elevacion-panel); }
+.pulso-panel .pulso-panel { box-shadow: none; }
+.pulso-button { transition: background-color 160ms, border-color 160ms, box-shadow 160ms, transform 160ms; }
+.pulso-button[data-variant="primario"], button.bg-action, a.bg-action { box-shadow: var(--elevacion-accion); }
+.pulso-button[data-variant="secundario"] { background: var(--panel); box-shadow: var(--relieve-suave); }
+.pulso-button[data-size="icono"] { border: 1px solid var(--border); }
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, [role="combobox"]) { box-shadow: var(--campo-interior); }
+.pulso-workspace :is(input, textarea)::placeholder,
+.pulso-access :is(input, textarea)::placeholder,
+.pulso-admin :is(input, textarea)::placeholder,
+.pulso-webchat :is(input, textarea)::placeholder { color: var(--text-muted); opacity: 1; }
+:where(input, textarea, [role="combobox"]):focus-visible { outline: 2px solid var(--action); outline-offset: 3px; }
+[role="tablist"] { border: 1px solid var(--border); background: var(--bg-rest); padding: 4px; }
+[role="tab"][data-state="active"] { background: var(--panel); box-shadow: var(--relieve-suave); color: var(--action-text); }
+.pulso-avatar { box-shadow: inset 0 1px 0 var(--surface-glint); }
+.pulso-content :where(th) { background: var(--bg-raised); color: var(--text-muted); font-weight: 500; }
+.pulso-content :where(tbody tr) { transition: background-color 140ms; }
+.pulso-content :where(tbody tr:hover) { background: var(--action-soft); }
+.pulso-content :where(td) { border-color: var(--border); }
+.pulso-content :where(table) { background: var(--panel); }
+.pulso-content :where(details) { border-color: var(--border); }
+.pulso-content :where(progress) { accent-color: var(--action); }
+.pulso-content :where(a[href]):not([class*="bg-"]):hover { text-decoration-color: var(--action); }
+
+/* Las piezas de marca son decorativas: nunca estados ni controles ficticios. */
+.pulso-jelly { display: block; width: 128px; height: auto; flex-shrink: 0; overflow: visible; }
+.pulso-hero { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; overflow: hidden; padding: 32px 36px; border: 1px solid var(--border); border-radius: 28px; background: var(--hero-surface); box-shadow: var(--elevacion-panel); }
+.pulso-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 100% 10%, var(--ambient-cool), transparent 60%), radial-gradient(ellipse at 0% 100%, var(--ambient-warm), transparent 60%); }
+.pulso-hero > * { position: relative; }
+.pulso-hero h1 { max-width: 18ch; font-size: clamp(28px, 3.2vw, 46px); }
+.pulso-hero .pulso-jelly { width: clamp(100px, 15vw, 190px); transform: rotate(-9deg); }
+.pulso-eyebrow { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--action-text); font-size: 10px; line-height: 1.5; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; }
+.pulso-eyebrow::before { content: ''; width: 18px; height: 2px; border-radius: 2px; background: var(--brand-warm); }
+.pulso-step-list { display: grid; gap: 12px; }
+.pulso-step { position: relative; padding: 22px; }
+.pulso-step .pulso-button { min-height: 46px; }
+.pulso-step[data-next="true"] { border-color: var(--action-soft-br); background: var(--hero-surface); }
+.pulso-step-heading { display: flex; gap: 14px; align-items: flex-start; min-width: 0; }
+.pulso-step-number { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-raised); color: var(--action-text); font: 12px 'JetBrains Mono', monospace; box-shadow: var(--relieve-suave); }
+.pulso-empty { position: relative; overflow: hidden; }
+.pulso-empty:not([data-compact="true"]) { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 22px; padding: 32px; }
+.pulso-empty .pulso-jelly { width: 82px; transform: rotate(-8deg); }
+.pulso-empty[data-compact="true"] .pulso-jelly { width: 45px; margin-bottom: 12px; }
+
+/* Acceso: identidad IAxTi y el formulario OTP existente, sin cambiar auth. */
+.pulso-access { min-height: 100svh; padding: 20px; background: var(--canvas); }
+.pulso-access-stage { min-height: calc(100svh - 40px); position: relative; isolation: isolate; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 32px; background: var(--hero-surface); }
+.pulso-access-stage::before { content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 15% 48%, var(--ambient-cool-strong), transparent 48%), radial-gradient(ellipse at 100% 90%, var(--ambient-warm-strong), transparent 52%); }
+.pulso-access-header, .pulso-access-footer { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 30px 42px; }
+.pulso-access-header .marca svg { height: 32px; }
+.pulso-access-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); align-items: center; gap: clamp(40px, 6vw, 100px); width: min(1120px, 100%); margin: auto; padding: 40px; }
+.pulso-access-story { position: relative; min-width: 0; padding-block: 10px; }
+.pulso-access-object { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
+.pulso-access-object .pulso-jelly { width: clamp(140px, 15vw, 205px); transform: rotate(-10deg); }
+.pulso-access-object p { max-width: 13ch; color: var(--text-muted); font-size: 11px; line-height: 1.6; letter-spacing: .13em; text-transform: uppercase; }
+.pulso-access-story h1 { margin: 0; color: var(--text); font-size: clamp(42px, 5.1vw, 72px); line-height: 1.02; letter-spacing: -.055em; font-weight: 700; }
+.pulso-access-story h1 span { color: var(--action-text); }
+.pulso-access-story > p { max-width: 39ch; margin-top: 22px; color: var(--text-body); line-height: 1.8; }
+.pulso-access-sequence { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-body); }
+.pulso-access-sequence b { margin-right: 7px; font: 10px 'JetBrains Mono', monospace; color: var(--action-text); }
+.pulso-access-card { padding: clamp(24px, 3.4vw, 44px); border: 1px solid var(--border); border-radius: 28px; background: var(--panel); box-shadow: var(--elevacion-acceso); }
+.pulso-access-card h2 { font-size: 30px; line-height: 1.15; letter-spacing: -.035em; }
+.pulso-access-key { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 26px; border-radius: 16px; color: var(--action-text); background: var(--bg-raised); box-shadow: var(--relieve-marca); }
+.pulso-access-card form { margin-top: 28px; }
+.pulso-access-card input { width: 100%; min-width: 0; }
+.pulso-access-note { margin-top: 18px; text-align: center; color: var(--text-muted); font-size: 11px; }
+.pulso-access-footer { color: var(--text-muted); font-size: 11px; }
+.pulso-access-footer .marca svg { height: 23px; }
+.pulso-access-footer > p { text-align: right; }
+
+/* Bandeja: tres paneles reales; el centro queda tranquilo para leer mensajes. */
+.pulso-inbox { background: var(--canvas); }
+.pulso-inbox-list, .pulso-inbox-detail { background: var(--panel); }
+.pulso-inbox-list > .sticky { background: var(--panel); }
+.pulso-inbox-list h1 { font-size: 27px; }
+.pulso-inbox-list [role="tab"] { padding-inline: 10px; }
+.pulso-inbox-list ul { gap: 4px; padding: 6px; }
+.pulso-conversation { border-radius: 15px; border: 1px solid transparent; padding-block: calc(var(--fila-y) - 1px); }
+.pulso-conversation[aria-current="true"] { background: var(--action-soft); border-color: var(--action-soft-br); box-shadow: inset 3px 0 0 var(--action); }
+.pulso-chat { background: var(--bg); }
+.pulso-chat header { background: var(--panel); }
+.pulso-webchat { background: var(--canvas); }
+.pulso-webchat > header { background: var(--hero-surface); }
+
+@media (hover: hover) {
+  .pulso-button:not(:disabled):active { transform: translateY(1px); }
+  .pulso-button[data-variant="primario"]:hover { box-shadow: var(--elevacion-accion-hover); }
+}
+@media (min-width: 1100px) {
+  .pulso-step-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pulso-step { min-height: 150px; }
+}
+@media (max-width: 767px) {
+  [data-sidebar="menu-button"] { min-height: 46px; }
+  .pulso-content { padding: 24px 16px 40px; }
+  .pulso-context span { display: none; }
+  .pulso-context strong { font-size: 12px; max-width: 16ch; }
+  .pulso-topbar { gap: 6px; padding-inline: 12px; }
+  .pulso-topbar > .ml-auto { gap: 6px; }
+  .pulso-hero { gap: 12px; padding: 24px 20px; border-radius: 22px; }
+  .pulso-hero .pulso-jelly { width: 76px; align-self: flex-start; }
+  .pulso-hero h1 { font-size: 28px; }
+  .pulso-empty:not([data-compact="true"]) { grid-template-columns: 1fr; gap: 16px; padding: 24px; }
+  .pulso-empty .pulso-jelly { width: 62px; }
+  .pulso-access { padding: 10px; }
+  .pulso-access-stage { min-height: calc(100svh - 20px); border-radius: 24px; }
+  .pulso-access-header { padding: 22px; gap: 12px; }
+  .pulso-access-header .marca svg { height: 27px; }
+  .pulso-access-main { display: flex; flex-direction: column; align-items: stretch; gap: 28px; padding: 12px 20px 30px; }
+  .pulso-access-story { padding: 0; }
+  .pulso-access-object { float: right; margin: 0 0 8px 8px; }
+  .pulso-access-object .pulso-jelly { width: 76px; }
+  .pulso-access-object p, .pulso-access-sequence { display: none; }
+  .pulso-access-story h1 { font-size: clamp(30px, 7.5vw, 44px); }
+  .pulso-access-story > p { font-size: 13px; line-height: 1.6; margin-top: 14px; clear: both; }
+  .pulso-access-card { padding: 24px; border-radius: 22px; }
+  .pulso-access-card h2 { font-size: 26px; }
+  .pulso-access-key { display: none; }
+  .pulso-access-card form { margin-top: 22px; }
+  .pulso-access-footer { padding: 20px; flex-wrap: wrap; gap: 10px; }
+  .pulso-access-footer > p { text-align: left; }
+}
+@media (max-width: 420px) { .pulso-context { display: none; } .pulso-hero .pulso-jelly { width: 54px; } }
+@media (prefers-reduced-motion: reduce) {
+  .pulso-button { transition: none; }
+  .pulso-button:not(:disabled):active { transform: none; }
+}
+@media (forced-colors: active) {
+  .pulso-jelly { display: none; }
+  .pulso-panel, .pulso-hero, .pulso-access-card { border: 1px solid CanvasText; box-shadow: none; }
+  [data-sidebar="menu-button"][data-active="true"] { outline: 2px solid Highlight; }
+}

@@ -111,7 +111,7 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
 
   return (
     <div>
-      <div className="rounded-tarjeta border border-line bg-raised p-4">
+      <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-4">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {campos.map((c) => (
             <Input
@@ -190,7 +190,7 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
         )}
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-tarjeta border border-line bg-raised">
+      <div className="mt-4 overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
         <table className="w-full min-w-[46rem] text-sm">
           <thead>
             <tr className="border-b border-line bg-rest text-left">
