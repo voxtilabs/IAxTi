@@ -9,6 +9,7 @@ import {
   createQueue,
   limpiarLlavesVencidas,
   redisConnection,
+  consumerReadiness,
   storageFromEnv,
   enteroDeEntorno,
 } from '@iaxti/core';
@@ -45,6 +46,7 @@ import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = enteroDeEntorno('PORT', 3000);
+let consumersStarted = false;
 
 // Los consumidores reales se registran módulo a módulo en sus issues; el
 // despachador y las colas quedan operativos desde ya (issue #13).
@@ -423,13 +425,10 @@ function start(): void {
   } else {
     console.log('workers: sin REDIS_URL; colas BullMQ esperan configuración');
   }
+  consumersStarted = true;
 }
 
-// `/health` es "el proceso vive" —si falla, REINICIAN— y por eso no mira
-// dependencias. `/ready` es "puede trabajar ahora": para un consumidor de
-// colas eso significa Redis, que es de lo que vive. Decir que sí sin
-// mirarlo deja al orquestador creyendo que la instancia trabaja cuando no
-// está consumiendo nada (#17).
+// /health comprueba el proceso. /ready exige arranque, Redis y la base del outbox.
 const server = createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
@@ -437,24 +436,10 @@ const server = createServer((req, res) => {
     return;
   }
   if (req.url === '/ready') {
-    void (async () => {
-      if (!process.env.REDIS_URL) {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service, redis: 'sin configurar' }));
-        return;
-      }
-      const sonda = redisConnection();
-      try {
-        await sonda.ping();
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service, redis: 'ok' }));
-      } catch (err) {
-        res.writeHead(503, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ status: 'degraded', service, redis: (err as Error).message }));
-      } finally {
-        void sonda.quit().catch(() => {});
-      }
-    })();
+    void consumerReadiness('workers', process.env, 2_000, consumersStarted).then(result => {
+      res.writeHead(result.statusCode, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(result.body));
+    });
     return;
   }
   res.writeHead(404, { 'content-type': 'application/json' });

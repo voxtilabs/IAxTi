@@ -38,6 +38,13 @@ públicas contienen nombre lógico, resultado y duración; nunca URLs, credencia
 cuerpos del proveedor ni mensajes de excepción. La sonda se ejecuta por petición
 y responde `Cache-Control: no-store`.
 
+Workers exige que termine su arranque y comprueba Redis y PostgreSQL; agents
+comprueba Redis. Una variable ausente produce 503. Las sondas abren conexiones
+de diagnóstico independientes, con plazo total de dos segundos, sin reintentos
+automáticos ni cola offline; consultan `PING` y `SELECT 1` y luego cierran las
+conexiones. Los errores se reducen a categorías públicas, sin host ni credencial.
+Un fallo de estas dependencias mantiene `/health` disponible y degrada `/ready`.
+
 No necesita variables nuevas ni valores de ejemplo. Comprobar con GET `/health`
 y `/ready` de cada servicio después de desplegar y registrar SHA de imagen,
 fecha, estado HTTP y dependencias. Para workers y agents hacerlo dentro de la red
@@ -46,18 +53,16 @@ posterior al deploy; `/health` por sí solo no comprueba que el usuario pueda op
 
 ## Evidencia pendiente para cerrar #17
 
-1. Completar la sonda existente de los consumidores: actualmente workers/agents
-   consultan Redis, pero sin `REDIS_URL` devuelven 200; workers tampoco acredita
-   la base que necesita para el outbox. Corregir esos falsos positivos, limitar
-   la espera y redactar errores antes de considerar completa la disponibilidad.
-2. Un error controlado identificable de cada uno de los cinco servicios recibido
+1. Un error controlado identificable de cada uno de los cinco servicios recibido
    en Sentry, sin datos personales ni contenido de conversaciones.
-3. Una traza request → job con el mismo `trace_id`, recibida en Grafana; métricas
+   Comprobar también que la definición raw entregue `IAXTI_IMAGE` (#392): su
+   declaración en Git no acredita que el proceso reciba la versión.
+2. Una traza request → job con el mismo `trace_id`, recibida en Grafana; métricas
    y logs de plataforma recibidos en sus destinos, con `tenant_id` cuando aplica.
    Los tests con receptores locales no sustituyen esta comprobación externa.
-4. Monitores activos de Uptime Kuma sobre API, agents y web. Registrar una caída
+3. Monitores activos de Uptime Kuma sobre API, agents y web. Registrar una caída
    controlada del monitor y su recuperación sin detener servicios compartidos.
-5. Cuatro alertas configuradas y con prueba de entrega: error rate de API,
+4. Cuatro alertas configuradas y con prueba de entrega: error rate de API,
    latencia p95, cola atascada y disco sobre 80 %. Registrar umbral, ventana,
    destino y evidencia de recepción, sin publicar credenciales del destino.
 
