@@ -4,6 +4,7 @@ import {
   Param,
   Post,
   Req,
+  Res,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -14,7 +15,9 @@ import { withTenant } from '@iaxti/db';
 import { findAccountById, getProvider, tenantDeCuenta } from '@iaxti/module-channels';
 import { normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
+import { conReintentoDeConexion, esFalloDeConexion } from './lib/arranque-en-frio';
 import type { WithRequestId } from './request-id';
+import type { Response } from 'express';
 
 // El webhook base (#41, SPEC §12): verifica FIRMA sobre el cuerpo crudo,
 // encola en `inbound` y responde en menos de un segundo. La idempotencia
@@ -37,6 +40,7 @@ export class WebhooksController {
   async recibir(
     @Req() request: RawBodyRequest<WithRequestId>,
     @Param('accountId') accountId: string,
+    @Res({ passthrough: true }) response: Response,
   ) {
     const pool = apiPool();
     if (!pool) {
@@ -49,10 +53,39 @@ export class WebhooksController {
     // (función acotada, #286) y recién después se lee bajo su contexto. Antes
     // se leía con el pool pelado, y con el rol de producción eso devuelve
     // cero filas: TODO mensaje entrante habría respondido "Nada por aquí".
-    const tenantId = await tenantDeCuenta(pool, accountId);
-    const account = tenantId
-      ? await withTenant(pool, tenantId, (c) => findAccountById(c, accountId))
-      : null;
+    //
+    // Y se hace CON REINTENTO (#361): la primera conexión al pooler después
+    // de un despliegue a veces pasa el timeout, y eso respondía 500. Un 500
+    // le dice al proveedor "me rompí"; algunos reintentan y otros no, y un
+    // mensaje de cliente desaparece porque el contenedor llevaba cuarenta
+    // segundos vivo.
+    const cuenta = await conReintentoDeConexion(
+      async () => {
+        const tenantId = await tenantDeCuenta(pool, accountId);
+        return tenantId
+          ? await withTenant(pool, tenantId, (c) => findAccountById(c, accountId))
+          : null;
+      },
+      {
+        avisar: (error) =>
+          console.warn(
+            'webhook: la base no respondió a la primera y se reintentó. ' +
+              'Si esto sale en cada despliegue, el pooler está tardando en despertar. ' +
+              `Detalle: ${(error as Error).message}`,
+          ),
+      },
+    ).catch((error: unknown) => {
+      if (!esFalloDeConexion(error)) throw error;
+      // 503 + Retry-After: lo que un proveedor sí sabe reintentar. Decirle
+      // "vuelve en cinco segundos" conserva el mensaje; decirle 500 lo
+      // deja a su criterio.
+      response.setHeader('Retry-After', '5');
+      throw new ServiceUnavailableException({
+        code: 'BASE_NO_RESPONDE',
+        message: 'No pudimos atender este webhook ahora. Reintenta en unos segundos.',
+      });
+    });
+    const account = cuenta;
     // Cuenta inexistente y firma mala responden IGUAL: nada que sondear.
     if (!account || account.state === 'disconnected') {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
@@ -74,6 +107,29 @@ export class WebhooksController {
       (request as unknown as { body: unknown }).body,
     );
     const queue = inboundQueue();
+    /**
+     * Encolar tampoco puede terminar en 500 (#361).
+     *
+     * Si Redis no está, el mensaje NO quedó aceptado y hay que decirlo
+     * como algo que se reintenta. Responder 500 acá es la misma pérdida
+     * silenciosa por otra puerta.
+     *
+     * Y se puede reintentar entero sin miedo: el `jobId` es el id del
+     * mensaje del proveedor, así que lo que alcanzó a entrar la primera
+     * vez se ignora en la segunda. Un reintento parcial no duplica nada.
+     */
+    const encolar = async (fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch (error) {
+        response.setHeader('Retry-After', '5');
+        throw new ServiceUnavailableException({
+          code: 'COLA_NO_DISPONIBLE',
+          message: 'No pudimos guardar este mensaje ahora. Reintenta en unos segundos.',
+          details: [{ motivo: (error as Error).message }],
+        });
+      }
+    };
     // Estados de entrega (#43): sent/delivered/read/failed del proveedor. Los
     // tres canales de Zavu comparten envelope, así que comparten estados.
     const CANALES_ZAVU = ['whatsapp', 'instagram', 'messenger'];
@@ -82,7 +138,7 @@ export class WebhooksController {
       : [];
     if (statuses.length > 0) {
       const primer = statuses[0];
-      await queue.add(
+      await encolar(() => queue.add(
         'delivery-status',
         {
           moduleId: 'conversations',
@@ -91,14 +147,14 @@ export class WebhooksController {
           requestId: request.requestId,
         },
         { jobId: `st-${account.id}-${primer.providerMessageId}-${primer.status}-${statuses.length}` },
-      );
+      ));
     }
     // Calidad del número (#45): rating y límite de Meta.
     const quality = account.kind === 'whatsapp'
       ? normalizeQualityUpdates((request as unknown as { body: unknown }).body)
       : [];
     if (quality.length > 0) {
-      await queue.add(
+      await encolar(() => queue.add(
         'quality-update',
         {
           moduleId: 'whatsapp',
@@ -107,12 +163,12 @@ export class WebhooksController {
           requestId: request.requestId,
         },
         { jobId: `q-${account.id}-${quality[0].phoneNumberId}-${quality[0].quality ?? quality[0].messagingLimit}` },
-      );
+      ));
     }
     let queued = 0;
     for (const m of mensajes) {
       // jobId = idempotencia: BullMQ ignora un add con id repetido.
-      await queue.add(
+      await encolar(() => queue.add(
         'webhook',
         {
           moduleId: 'conversations',
@@ -127,7 +183,7 @@ export class WebhooksController {
           requestId: request.requestId,
         },
         { jobId: `in-${account.id}-${m.providerMessageId}` },
-      );
+      ));
       queued++;
     }
     return { received: queued, statuses: statuses.length };
