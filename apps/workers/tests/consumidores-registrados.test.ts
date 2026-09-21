@@ -33,6 +33,15 @@ function consumidoresExportados(): Array<{ modulo: string; nombre: string }> {
       if (!salida.some((x) => x.nombre === m[1])) salida.push({ modulo, nombre: m[1] });
     }
   }
+  // Los adaptadores de infraestructura viven en workers: verificarlos también
+  // evita una excepción manual por cada receptor (realtime, outbound, ...).
+  const workerDir = join(__dirname, '..', 'src');
+  for (const file of readdirSync(workerDir).filter(f => f.endsWith('.ts'))) {
+    const texto = readFileSync(join(workerDir, file), 'utf8');
+    for (const m of texto.matchAll(/export function ([a-zA-Z]+Consumers)\(/g)) {
+      salida.push({ modulo: 'workers', nombre: m[1] });
+    }
+  }
   return salida;
 }
 
@@ -59,8 +68,7 @@ describe('todo consumidor exportado está registrado en el despachador', () => {
     const registrados = [...main.matchAll(/\.\.\.([a-zA-Z]+Consumers)\(/g)].map((m) => m[1]);
     expect(registrados.length).toBeGreaterThanOrEqual(8);
     const nombres = new Set(consumidoresExportados().map((c) => c.nombre));
-    // `realtimeConsumers` vive en el propio worker, no en un módulo.
-    const huerfanos = registrados.filter((r) => !nombres.has(r) && r !== 'realtimeConsumers');
+    const huerfanos = registrados.filter((r) => !nombres.has(r));
     expect(huerfanos).toEqual([]);
   });
 });

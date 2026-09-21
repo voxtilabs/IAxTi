@@ -1,10 +1,11 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { incrementUsage, periodStart } from '@iaxti/module-organizations';
 import { ensureContactByIdentity } from '@iaxti/module-crm';
 import type { ContactOrigin } from '@iaxti/module-crm';
 import type { Contact } from '@iaxti/module-crm';
-import { assertConversationTransition, assertDeliveryAdvance } from '../domain/state';
+import { assertConversationTransition, assertDeliveryAdvance, salePorProveedor } from '../domain/state';
 import type { ConversationState, DeliveryStatus } from '../domain/state';
 
 export type Channel = 'whatsapp' | 'webchat' | 'simulador' | 'instagram' | 'messenger';
@@ -268,6 +269,8 @@ export async function receiveInboundForContact(
   return ingestInbound(client, input);
 }
 
+export type OutboundPolicy = 'reply' | 'business' | 'transactional';
+
 export interface SendMessageInput {
   tenantId: string;
   conversationId: string;
@@ -277,6 +280,9 @@ export interface SendMessageInput {
   body?: string;
   attachments?: unknown[];
   requestId?: string;
+  /** Pedido durable a outbound; opcional durante la migración de emisores (#380). */
+  delivery?: OutboundPolicy;
+  actorKind?: ActorKind;
 }
 
 /**
@@ -285,6 +291,9 @@ export interface SendMessageInput {
  * `first_response_at` para el SLA (#38).
  */
 export async function sendMessage(client: PoolClient, input: SendMessageInput): Promise<Message> {
+  if (input.delivery !== undefined && !['reply', 'business', 'transactional'].includes(input.delivery)) {
+    throw new Error('La política de salida no se reconoce.');
+  }
   const conversation = await getConversation(client, input.tenantId, input.conversationId, true);
   const m = await client.query(
     `INSERT INTO messages (tenant_id, conversation_id, direction, type, body,
@@ -307,7 +316,22 @@ export async function sendMessage(client: PoolClient, input: SendMessageInput): 
       [input.tenantId, conversation.id],
     );
   }
-  return rowToMessage(m.rows[0]);
+  const message = rowToMessage(m.rows[0]);
+  if (input.delivery && salePorProveedor(conversation.channel)) {
+    const actor = input.authorId ?? input.authorKind;
+    await publishEvent(client, {
+      name: 'message.delivery_requested', tenantId: input.tenantId,
+      payload: { messageId: message.id, policy: input.delivery },
+      actor, requestId: input.requestId, propagateTrace: true,
+    });
+    await writeAudit(client, {
+      tenantId: input.tenantId, actor, actorKind: input.actorKind ?? input.authorKind,
+      action: 'message.delivery_requested', resource: 'message', resourceId: message.id,
+      result: 'success', requestId: input.requestId,
+      metadata: { conversationId: conversation.id, policy: input.delivery },
+    });
+  }
+  return message;
 }
 
 /** El canal reporta el avance de entrega; publica message.sent y message.failed. */
