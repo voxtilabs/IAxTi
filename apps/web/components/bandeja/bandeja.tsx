@@ -201,7 +201,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const miId = session?.user?.id ?? '';
 
   return (
-    <div className="pulso-inbox flex h-[calc(100vh-73px)] overflow-hidden">
+    <div className="pulso-inbox relative flex h-full min-h-0 overflow-hidden">
       <Dialog open={ayuda} onOpenChange={setAyuda}><DialogContent onCloseAutoFocus={(e) => { e.preventDefault(); ayudaTrigger.current?.focus(); }}>
         <DialogTitle>Atajos de la bandeja</DialogTitle>
         <DialogDescription>Funcionan cuando no estás escribiendo en un campo.</DialogDescription>
@@ -217,11 +217,11 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         aria-label="Conversaciones"
         data-densidad="densa"
         className={cn(
-          'pulso-inbox-list w-full shrink-0 flex-col overflow-y-auto border-r border-line bg-raised md:flex md:w-80',
+          'pulso-inbox-list relative w-full shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-line bg-raised lg:flex lg:w-80',
           pane === 'lista' ? 'flex' : 'hidden',
         )}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-raised p-4">
+        <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-raised p-4">
           <EncabezadoDePagina titulo="Bandeja" className="mb-0" accion={<Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button>} />
           <Tabs value={vista} onValueChange={(v) => setVista(v as Vista)} className="mt-3">
             <TabsList className="w-full">
@@ -344,7 +344,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       <section
         aria-label="Conversación"
         className={cn(
-          'pulso-chat min-w-0 flex-1 flex-col bg-bg md:flex',
+          'pulso-chat min-h-0 min-w-0 flex-1 flex-col bg-bg lg:flex',
           pane === 'chat' ? 'flex' : 'hidden',
         )}
       >
@@ -422,7 +422,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       <section
         aria-label="Ficha del contacto"
         className={cn(
-          'pulso-inbox-detail w-full shrink-0 flex-col overflow-y-auto border-l border-line bg-raised md:flex md:w-72',
+          'pulso-inbox-detail relative w-full shrink-0 flex-col overflow-y-auto overscroll-contain border-l border-line bg-raised lg:flex lg:w-72',
           pane === 'ficha' ? 'flex' : 'hidden',
         )}
       >

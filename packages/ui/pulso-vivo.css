@@ -124,6 +124,11 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-access-footer > p { text-align: right; }
 
 /* Bandeja: tres paneles reales; el centro queda tranquilo para leer mensajes. */
+/* El shell reparte la altura real entre soporte, cabecera y paneles (#429).
+   Las otras rutas mantienen su documento desplazable. */
+.pulso-workspace-inbox { height: 100dvh; min-height: 0; }
+.pulso-workspace-inbox > main { min-width: 0; min-height: 0; }
+.pulso-workspace-inbox > main > :is(header, p) { flex-shrink: 0; }
 .pulso-inbox { background: var(--canvas); }
 .pulso-inbox-list, .pulso-inbox-detail { background: var(--panel); }
 .pulso-inbox-list > .sticky { background: var(--panel); }
@@ -134,6 +139,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-conversation[aria-current="true"] { background: var(--action-soft); border-color: var(--action-soft-br); box-shadow: inset 3px 0 0 var(--action); }
 .pulso-chat { background: var(--bg); }
 .pulso-chat header { background: var(--panel); }
+.pulso-chat-contact { flex-basis: 140px; }
 .pulso-webchat { background: var(--canvas); }
 .pulso-webchat > header { background: var(--hero-surface); }
 
@@ -144,6 +150,10 @@ body { background: var(--canvas); font-size: 15px; }
 @media (min-width: 1100px) {
   .pulso-step-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pulso-step { min-height: 150px; }
+}
+@media (max-width: 1023px) {
+  .pulso-chat-header { gap: 8px; }
+  .pulso-chat-contact { flex-basis: calc(100% - 60px); }
 }
 @media (max-width: 767px) {
   [data-sidebar="menu-button"] { min-height: 46px; }

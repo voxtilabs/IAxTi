@@ -84,10 +84,11 @@ export function Chat({
   const [conceptoCobro, setConceptoCobro] = useState('');
   const [aQuien, setAQuien] = useState('');
   const [motivo, setMotivo] = useState('');
-  const finRef = useRef<HTMLDivElement>(null);
+  const historialRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    finRef.current?.scrollIntoView({ block: 'end' });
+    const historial = historialRef.current;
+    if (historial) historial.scrollTop = historial.scrollHeight;
   }, [mensajes]);
 
   if (!detalle) {
@@ -95,7 +96,7 @@ export function Chat({
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
         <p className="rotulo">Bandeja</p>
         <p className="max-w-xs text-body">Elige una conversación de la lista para atenderla aquí.</p>
-        <Button variant="secundario" size="chico" className="mt-2 md:hidden" onClick={onVolver}>
+        <Button variant="secundario" size="chico" className="mt-2 lg:hidden" onClick={onVolver}>
           <IconoVolver className="h-4 w-4" /> Ver la lista
         </Button>
       </div>
@@ -119,15 +120,15 @@ export function Chat({
 
   return (
     <>
-      <header className="flex items-center gap-3 border-b border-line px-4 py-3">
-        <Button variant="fantasma" size="icono" className="md:hidden" aria-label="Volver a la lista" onClick={onVolver}>
+      <header className="pulso-chat-header flex shrink-0 flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+        <Button variant="fantasma" size="icono" className="lg:hidden" aria-label="Volver a la lista" onClick={onVolver}>
           <IconoVolver className="h-4 w-4" />
         </Button>
-        <div className="min-w-0 flex-1">
+        <div className="pulso-chat-contact min-w-0 flex-1">
           <p className="truncate font-display font-bold text-ink">
             {detalle.contactName ?? detalle.contactPhone}
           </p>
-          <p className="dato text-muted">{detalle.contactPhone}</p>
+          <p className="dato truncate text-muted">{detalle.contactPhone}</p>
         </div>
         {modo !== null && modo !== 'off' && (
           <Button
@@ -147,7 +148,7 @@ export function Chat({
           </Button>
         )}
         <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
-        <Button variant="secundario" size="chico" className="md:hidden" onClick={onVerFicha}>
+        <Button variant="secundario" size="chico" className="lg:hidden" onClick={onVerFicha}>
           <IconoPersona className="h-4 w-4" /> Ficha
         </Button>
         <DropdownMenu>
@@ -184,7 +185,7 @@ export function Chat({
         </DropdownMenu>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div ref={historialRef} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6">
         <ol className="mx-auto flex max-w-2xl flex-col gap-3">
           {cronologicos.map((m) => (
             <li
@@ -211,7 +212,6 @@ export function Chat({
             </li>
           ))}
         </ol>
-        <div ref={finRef} />
       </div>
 
       {aviso && (
