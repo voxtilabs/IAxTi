@@ -5,6 +5,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
+import { LlevarseLosDatos } from './llevarse-los-datos';
 import { apiFetch, fmtClp } from '../lib/api';
 
 // Facturación (#67, SPEC §20): el plan, el próximo cobro y las facturas
@@ -107,6 +108,7 @@ export function Facturacion() {
           </ul>
         </div>
       )}
+      <LlevarseLosDatos />
     </div>
   );
 }
