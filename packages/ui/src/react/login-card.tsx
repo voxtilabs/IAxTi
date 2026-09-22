@@ -6,6 +6,7 @@ import { SessionProvider, useSession, type PublicConfig } from './session';
 import { MarcaJelly } from './marca-jelly';
 import { ModeToggle } from './mode-toggle';
 import { MARCA_LOCKUP_SVG } from './marca-svg';
+import { useMarcaSvg } from './use-marca-svg';
 
 const CAMPO =
   'h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink placeholder:text-faint';
@@ -167,12 +168,14 @@ export interface LoginCardProps {
 }
 
 export function LoginCard({ config, marcaSvg, titulo, subtitulo, conGoogle = true }: LoginCardProps) {
+  const marcaCabecera = useMarcaSvg(marcaSvg);
+  const marcaPie = useMarcaSvg(MARCA_LOCKUP_SVG);
   return (
     <SessionProvider config={config}>
       <div className="pulso-access">
         <div className="pulso-access-stage">
           <header className="pulso-access-header">
-            <span className="marca" aria-label={titulo ? 'VoxTi Labs' : 'IAxTi'} dangerouslySetInnerHTML={{ __html: marcaSvg }} />
+            <span className="marca" aria-label={titulo ? 'VoxTi Labs' : 'IAxTi'} dangerouslySetInnerHTML={{ __html: marcaCabecera }} />
             <ModeToggle />
           </header>
           <main className="pulso-access-main">
@@ -203,7 +206,7 @@ export function LoginCard({ config, marcaSvg, titulo, subtitulo, conGoogle = tru
             </section>
           </main>
           <footer className="pulso-access-footer">
-            <span className="marca" aria-label="VoxTi Labs" dangerouslySetInnerHTML={{ __html: MARCA_LOCKUP_SVG }} />
+            <span className="marca" aria-label="VoxTi Labs" dangerouslySetInnerHTML={{ __html: marcaPie }} />
             <p>Hecho para los negocios que hacen de cada conversación una relación.</p>
           </footer>
         </div>

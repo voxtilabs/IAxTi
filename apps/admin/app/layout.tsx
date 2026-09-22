@@ -15,7 +15,7 @@ import '@iaxti/ui/pulso-vivo.css';
 export const metadata = {
   title: 'IAxTi SuperAdmin',
   description: 'Panel de operación de la plataforma IAxTi.',
-  icons: { icon: '/marca/voxti-isotipo-cuadrado.svg' },
+  icons: { icon: '/marca/voxti-jelly.svg' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -10,6 +10,7 @@ import {
   RequireSession,
   SessionProvider,
   useSession,
+  useMarcaSvg,
   type AuditFetcher,
   type PublicConfig,
 } from '@iaxti/ui/react';
@@ -835,6 +836,7 @@ function CentroIA() {
 }
 
 export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSvg: string }) {
+  const firma = useMarcaSvg(marcaSvg);
   return (
     <SessionProvider config={config}>
       <RequireSession>
@@ -842,7 +844,7 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
           <header className="border-b border-line bg-raised">
             <div className="mx-auto flex max-w-contenido flex-wrap items-center gap-4 px-4 py-3">
               <a href="/" className="marca" aria-label="VoxTi Labs, panel de IAxTi"
-                 dangerouslySetInnerHTML={{ __html: marcaSvg }} />
+                 dangerouslySetInnerHTML={{ __html: firma }} />
               <span className="rotulo">SuperAdmin</span>
               <div className="ml-auto flex flex-wrap items-center gap-3">
                 <ModeToggle />

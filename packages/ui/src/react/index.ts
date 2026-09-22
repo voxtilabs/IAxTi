@@ -5,6 +5,7 @@ export { LoginCard } from './login-card';
 export type { LoginCardProps } from './login-card';
 export { ModeToggle } from './mode-toggle';
 export { MARCA_LOCKUP_SVG, IAXTI_LOCKUP_SVG, IAXTI_ISOTIPO_SVG } from './marca-svg';
+export { useMarcaSvg } from './use-marca-svg';
 
 // Componentes shadcn-style tematizados con Pulso (sin hex, sin dark:).
 export { cn } from './ui/cn';

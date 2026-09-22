@@ -24,6 +24,7 @@ import {
   SidebarTrigger,
   SessionProvider,
   useSession,
+  useMarcaSvg,
   type PublicConfig,
 } from '@iaxti/ui/react';
 import {
@@ -315,6 +316,7 @@ function CerrarSesion() {
 }
 
 function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; candados: Set<string> }) {
+  const firma = useMarcaSvg(marcaSvg);
   const activa = usePathname();
 
   const grupos = useMemo(() => {
@@ -370,8 +372,8 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
           target="_blank"
           rel="noreferrer"
           aria-label="VoxTi Labs"
-          className="marca-pie block px-2 py-1 text-muted opacity-70 transition-opacity hover:opacity-100 group-data-[collapsible=icon]:hidden"
-          dangerouslySetInnerHTML={{ __html: marcaSvg }}
+          className="marca-pie block px-2 py-1 text-muted group-data-[collapsible=icon]:hidden"
+          dangerouslySetInnerHTML={{ __html: firma }}
         />
       </SidebarFooter>
       <SidebarRail />
