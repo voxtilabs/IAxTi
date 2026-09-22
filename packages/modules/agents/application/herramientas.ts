@@ -41,6 +41,15 @@ export const HERRAMIENTAS_DE_LECTURA = {
   'analytics.metrica': 'analytics.read',
   'analytics.comparar': 'analytics.read',
   'analytics.catalogo': 'analytics.read',
+  // Quién es quien escribe y qué le pasó antes (#440). Estaban declaradas
+  // en el manifiesto de crm y sin implementación: el modelo nunca las
+  // recibía, así que volvía a preguntar lo que el negocio ya sabía.
+  //
+  // Son de LECTURA en el sentido estricto: no dejan rastro en la ficha ni
+  // cambian nada. Piden el permiso de contactos de la PERSONA, igual que
+  // todo lo demás — la IA no puede traer lo que quien atiende no vería.
+  'crm.find_contact': 'crm.contacts.read',
+  'crm.get_history': 'crm.contacts.read',
 } as const;
 
 export type HerramientaDeLectura = keyof typeof HERRAMIENTAS_DE_LECTURA;
@@ -60,6 +69,41 @@ export const HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS = {
 
 export type HerramientaQueEscribe = keyof typeof HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS;
 
+/**
+ * Las que un manifiesto declara y todavía no tienen implementación (#440).
+ *
+ * Van acá CON SU MOTIVO y no en silencio. `herramientasExpuestas` descarta
+ * lo que no tiene esquema, así que una herramienta declarada y sin
+ * implementar no falla: el modelo simplemente no la recibe y nadie se
+ * entera. Es el mismo agujero que estrenando los objetivos (#315), donde
+ * tres nombres inventados aportaban cero herramientas y ningún test se
+ * ponía rojo.
+ *
+ * El guard de `tools-que-existen` exige que toda herramienta declarada esté
+ * en una de las cuatro listas. Esta es la lista de "todavía no", y tener
+ * que escribir el motivo es lo que impide que crezca sola.
+ */
+export const HERRAMIENTAS_PENDIENTES: Record<string, string> = {
+  'crm.create_contact':
+    'Crear un contacto desde la IA duplica fichas: el camino de entrada ya lo crea solo cuando ' +
+    'alguien escribe, y por otra puerta no hay cómo saber si es la misma persona.',
+  'crm.update_contact':
+    'Pisa datos que escribió una persona. Necesita la decisión de qué campos y con qué evidencia ' +
+    '(ADR-0017 la dejó fuera por eso).',
+  'crm.move_deal':
+    'Mover una oportunidad de etapa es trabajo del equipo comercial; la IA propone y una persona ' +
+    'mueve. Se reevalúa cuando haya medición de acierto (#53).',
+  'crm.add_note':
+    'Se solapa con `crm.create_activity`, que ya está habilitada y deja mejor rastro. Habría que ' +
+    'decidir si la nota interna aporta algo distinto antes de implementarla.',
+  'conversations.suggest_reply':
+    'La sugerencia NO es una herramienta que el modelo pida: es la salida del copiloto (#48). ' +
+    'Declararla como tool fue un arrastre del manifiesto original.',
+  'conversations.request_handoff':
+    'El escalamiento ya ocurre por el prompt del objetivo y por el modo autónomo (#49), sin pasar ' +
+    'por una tool. Implementarla sería un segundo camino a lo mismo.',
+};
+
 /** Las que siguen cerradas, con su motivo en la ADR-0017. */
 export const HERRAMIENTAS_QUE_ESCRIBEN = [
   'calendar.book',
@@ -67,6 +111,10 @@ export const HERRAMIENTAS_QUE_ESCRIBEN = [
   'calendar.cancel',
   'conversations.send_reply',
   'conversations.set_state',
+  // `crm.update_deal` no la declara ningún manifiesto, y así está bien: no
+  // se declara una herramienta que no se quiere ofrecer nunca. Sigue acá
+  // porque esta lista es el registro de lo que decidió la ADR-0017, no un
+  // espejo de los manifiestos — sacarla haría desaparecer la decisión.
   'crm.update_deal',
   'payments.create_link',
 ] as const;
@@ -86,6 +134,18 @@ export interface DepsHerramientas {
   getContext: (conversationId: string) => Promise<unknown>;
   buscarConocimiento: (query: string) => Promise<unknown>;
   buscarProducto: (query: string) => Promise<unknown>;
+  /**
+   * Quién es esta persona y qué le pasó antes (#440).
+   *
+   * Opcionales: sin el módulo crm activo, pedirlas devuelve que no están
+   * disponibles, que es la verdad. `buscarContacto` recibe lo que el
+   * cliente dijo de sí mismo —un nombre, un teléfono—; `historialDelContacto`
+   * trabaja sobre el contacto de ESTA conversación, no sobre uno que el
+   * modelo elija: preguntar por el historial de otra persona sería una fuga
+   * con forma de herramienta.
+   */
+  buscarContacto?: (query: string) => Promise<unknown>;
+  historialDelContacto?: (contactId: string) => Promise<unknown>;
   /**
    * Los horarios libres de un día. Devuelve TRES como mucho (SPEC §16):
    * una lista larga en un chat no se lee, se abandona.
@@ -246,6 +306,25 @@ export async function ejecutarHerramienta(
         const query = String(input.args.query ?? '').trim();
         if (!query) throw new Error('Falta qué producto buscar.');
         datos = await deps.buscarProducto(query);
+        break;
+      }
+      case 'crm.find_contact': {
+        if (!deps.buscarContacto) throw new Error('La ficha de clientes no está disponible.');
+        const query = String(input.args.query ?? '').trim();
+        if (!query) throw new Error('Falta a quién buscar.');
+        datos = await deps.buscarContacto(query);
+        break;
+      }
+      case 'crm.get_history': {
+        if (!deps.historialDelContacto) throw new Error('La ficha de clientes no está disponible.');
+        // El contacto sale de la CONVERSACIÓN y no de los argumentos: que el
+        // modelo pueda nombrar a cualquiera sería pedirle el historial de
+        // otra persona con forma de herramienta.
+        const contactId = deps.contactoDeLaConversacion
+          ? await deps.contactoDeLaConversacion()
+          : null;
+        if (!contactId) throw new Error('Esta conversación todavía no tiene una ficha asociada.');
+        datos = await deps.historialDelContacto(contactId);
         break;
       }
       case 'calendar.get_slots': {

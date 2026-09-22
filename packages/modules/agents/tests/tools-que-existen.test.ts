@@ -3,6 +3,8 @@ import { ModuleRegistry } from '@iaxti/core';
 import { DEFINICIONES, OBJETIVOS } from '../domain/objetivo';
 import {
   HERRAMIENTAS_DE_LECTURA,
+  HERRAMIENTAS_PENDIENTES,
+  HERRAMIENTAS_QUE_ESCRIBEN,
   HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS,
 } from '../application/herramientas';
 
@@ -82,5 +84,53 @@ describe('las herramientas existen de verdad', () => {
     expect(DEFINICIONES.agendar.instruccion).toContain('no tomas la hora');
     expect(DEFINICIONES.cobrar.tools).not.toContain('payments.create_link');
     expect(DEFINICIONES.cobrar.instruccion).toContain('no mandas links de pago');
+  });
+
+  it('cada herramienta declarada tiene un tratamiento, aunque sea "todavía no"', () => {
+    // Ocho estaban declaradas y en ninguna lista (#440):
+    // `herramientasExpuestas` descarta lo que no tiene esquema, así que se
+    // filtraban EN SILENCIO — el modelo nunca las recibía y nadie se
+    // enteraba. Cuatro listas y ninguna otra opción: se ejecuta, escribe y
+    // está habilitada, está bloqueada con su motivo (ADR-0017), o está
+    // pendiente con la razón escrita.
+    const tratadas = new Set<string>([
+      ...Object.keys(HERRAMIENTAS_DE_LECTURA),
+      ...Object.keys(HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS),
+      ...HERRAMIENTAS_QUE_ESCRIBEN,
+      ...Object.keys(HERRAMIENTAS_PENDIENTES),
+    ]);
+    for (const tool of declaradas) {
+      expect(
+        tratadas.has(tool),
+        `"${tool}" está declarada y no está ni implementada, ni bloqueada, ni en pendientes. ` +
+          'Se va a filtrar en silencio: el modelo no la recibe y nadie se entera.',
+      ).toBe(true);
+    }
+  });
+
+  it('una pendiente que ningún módulo declara sobra', () => {
+    // Solo las PENDIENTES: "declarada y sin implementar" es su razón de
+    // existir, así que una que nadie declara no tiene nada que hacer ahí.
+    //
+    // Las BLOQUEADAS son otra cosa y por eso no se comprueban igual: esa
+    // lista es el registro de lo que decidió la ADR-0017, no un espejo de
+    // los manifiestos. `crm.update_deal` no la declara nadie —no se declara
+    // lo que no se quiere ofrecer nunca— y sigue en la lista a propósito:
+    // sacarla haría desaparecer la decisión. Estuve a punto de borrarla
+    // porque este mismo guard me lo pidió.
+    for (const tool of Object.keys(HERRAMIENTAS_PENDIENTES)) {
+      expect(
+        declaradas.has(tool),
+        `"${tool}" está en pendientes y ningún módulo la declara: no hay nada que implementar.`,
+      ).toBe(true);
+    }
+  });
+
+  it('cada pendiente explica POR QUÉ, no solo que falta', () => {
+    // Sin el motivo, la lista se vuelve el lugar donde se esconden las
+    // herramientas que nadie quiso implementar.
+    for (const [tool, motivo] of Object.entries(HERRAMIENTAS_PENDIENTES)) {
+      expect(motivo.length, `"${tool}" está pendiente sin explicar por qué`).toBeGreaterThan(40);
+    }
   });
 });
