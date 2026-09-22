@@ -20,10 +20,21 @@ import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
 import { processSuggest, type SuggestJob } from './copilot';
 import { realtimeConsumers } from './realtime';
-import { deleteR2Keys, onContactMerged, purgeTenantRetention, retentionConsumers, tenantsWithRetention } from '@iaxti/module-conversations';
+import {
+  deleteR2Keys,
+  onContactMerged,
+  purgeTenantRetention,
+  retentionConsumers,
+  sendMessage,
+  tenantsWithRetention,
+} from '@iaxti/module-conversations';
 import { notificationConsumers } from '@iaxti/module-notifications';
-import { barrerRecordatorios } from '@iaxti/module-calendar';
-import { onboardingConsumers } from '@iaxti/module-organizations';
+import {
+  barrerRecordatorios,
+  configuracionDeAvisos,
+  valoresDelAviso,
+} from '@iaxti/module-calendar';
+import { getTenantSettings, onboardingConsumers } from '@iaxti/module-organizations';
 import { objetivoConsumers } from '@iaxti/module-agents';
 import { transportesDeAviso } from './transportes-aviso';
 import {
@@ -34,6 +45,8 @@ import {
   sweepDueActivities,
 } from './sweeps';
 import { sincronizarPlantillas } from './plantillas-sync';
+import { enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
+import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
@@ -192,21 +205,87 @@ function start(): void {
           }
           // Recordatorios de cita (#59): 24 h y 2 h antes, por plantilla.
           // El horario de silencio lo aplica la cola, no esto.
+          //
+          // Esto estuvo cableado con `disponible: () => false` desde que se
+          // escribió: el barrido corría cada vez y no mandaba nada. El
+          // motivo era cierto cuando se escribió —hacía falta la plantilla
+          // aprobada (#44) y el número conectado— y dejó de serlo sin que
+          // nadie volviera a mirar.
           case 'calendar.reminders': {
             const res = await barrerRecordatorios(pool, {
-              // Mandar el recordatorio necesita una plantilla aprobada (#44)
-              // y el número conectado. Mientras no estén, el barrido NO toca
-              // las citas: marcarlas sin mandar nada las dejaba `reminded`
-              // para siempre, y el recordatorio no salía nunca — ni cuando
-              // la plantilla existiera.
-              disponible: () => false,
-              enviar: async () => ({
-                enviado: false,
-                motivo: 'falta la plantilla aprobada del recordatorio',
-              }),
+              // Del AMBIENTE: sin llave del proveedor no sale nada de nada.
+              disponible: () => Boolean(process.env.ZAVU_API_KEY),
+              // Del NEGOCIO: la plantilla del recordatorio es suya. Sin
+              // ella, sus citas no se tocan — marcarlas `reminded` sin
+              // mandar nada es peor que no marcarlas, porque `reminded` se
+              // lee como "al cliente ya se le avisó".
+              disponibleParaTenant: (tenantId) =>
+                withTenant(pool, tenantId, async (c) => {
+                  const cfg = configuracionDeAvisos(await getTenantSettings(c, tenantId));
+                  if (!cfg.activo) return false;
+                  // `connectedAt` es lo que dice que el número está: el
+                  // registro existe desde que se empieza a conectar.
+                  const numeros = await listWhatsAppNumbers(c, tenantId);
+                  return numeros.some((n) => n.connectedAt !== null);
+                }),
+              enviar: (cita) =>
+                withTenant(pool, cita.tenantId, async (c) => {
+                  const cfg = configuracionDeAvisos(await getTenantSettings(c, cita.tenantId));
+                  const templateId = cfg.plantillas[cita.aviso];
+                  // Un negocio puede querer solo el de 2 h. No es un fallo.
+                  if (!templateId) return { enviado: false, motivo: `sin plantilla para el aviso de ${cita.aviso}` };
+                  if (!cita.conversationId) {
+                    return { enviado: false, motivo: 'la cita no tiene conversación por dónde avisar' };
+                  }
+                  const plantilla = await getTemplate(c, cita.tenantId, templateId).catch(() => null);
+                  if (!plantilla) return { enviado: false, motivo: 'la plantilla configurada ya no existe' };
+                  if (plantilla.status !== 'approved') {
+                    return { enviado: false, motivo: `la plantilla está ${plantilla.status}` };
+                  }
+                  const persona = await c.query(
+                    'SELECT name FROM contacts WHERE tenant_id = $1 AND id = $2',
+                    [cita.tenantId, cita.contactId],
+                  );
+                  await enviarPlantilla(
+                    c,
+                    {
+                      tenantId: cita.tenantId,
+                      conversationId: cita.conversationId,
+                      templateId,
+                      valores: valoresDelAviso({
+                        nombre: persona.rows[0]?.name ?? null,
+                        cuando: cita.startsAt,
+                        zona: cfg.zona,
+                        variables: plantilla.variables,
+                      }),
+                      requestId: `recordatorio-${cita.appointmentId}-${cita.aviso}`,
+                    },
+                    {
+                      contactoDe: async () => cita.contactId,
+                      puedeIniciar: () =>
+                        canReceiveBusinessInitiated(c, cita.tenantId, cita.contactId),
+                      crearMensaje: (m) =>
+                        sendMessage(c, {
+                          tenantId: m.tenantId,
+                          conversationId: m.conversationId,
+                          authorKind: 'system',
+                          type: 'texto',
+                          body: m.body,
+                          // `business`: la cola le aplica el horario de
+                          // silencio y la ventana. Acá no se repite.
+                          delivery: 'business',
+                          requestId: m.requestId,
+                        }),
+                    },
+                  );
+                  return { enviado: true };
+                }).catch((error: Error) => ({ enviado: false, motivo: error.message })),
             });
-            if (res.enviados + res.saltados > 0) {
-              console.log(`scheduled: recordatorios ${res.enviados} enviados, ${res.saltados} sin salir`);
+            if (res.enviados + res.saltados + res.sinConfigurar > 0) {
+              console.log(
+                `scheduled: recordatorios ${res.enviados} enviados, ${res.saltados} sin salir, ` +
+                  `${res.sinConfigurar} de negocios sin recordatorio configurado`,
+              );
             }
             return res;
           }

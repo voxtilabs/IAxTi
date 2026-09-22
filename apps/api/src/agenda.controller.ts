@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -13,12 +14,15 @@ import { withTenant } from '@iaxti/db';
 import {
   agendar,
   cambiarEstadoCita,
+  configuracionDeAvisos,
   definirDisponibilidad,
   desdeHora,
   huecosDelDia,
   listarCitas,
   type EstadoCita,
 } from '@iaxti/module-calendar';
+import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
+import { listTemplates } from '@iaxti/module-whatsapp';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -53,6 +57,71 @@ export class AgendaController {
    * ofrece nada: la disponibilidad es lo que el negocio configura, y el
    * calendario real de Google se cruza encima cuando esa conexión exista.
    */
+  /**
+   * Con qué plantilla sale cada recordatorio (#59).
+   *
+   * Vive en la agenda y no en la pantalla de plantillas porque es una
+   * decisión de la AGENDA —qué se le avisa a quien tiene hora—, y porque
+   * así sigue existiendo cuando el negocio todavía no tiene WhatsApp: lo
+   * que falta se dice acá, en vez de que la sección no aparezca.
+   */
+  @Get('recordatorios')
+  @RequirePermission('calendar.manage_availability')
+  @ApiOperation({ summary: 'Qué plantilla sale como recordatorio de cita' })
+  async recordatorios(@Req() request: WithUser) {
+    const actor = request.actor as Actor;
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const cfg = configuracionDeAvisos(await getTenantSettings(c, actor.tenantId));
+      // Solo las APROBADAS se pueden elegir: una pendiente elegida hoy es un
+      // recordatorio que no sale mañana y nadie sabe por qué.
+      const plantillas = (await listTemplates(c, actor.tenantId))
+        .filter((p) => p.status === 'approved')
+        .map((p) => ({ id: p.id, name: p.name, variables: p.variables, body: p.body }));
+      // `recordatorios` es lo ELEGIDO y `plantillas` lo ELEGIBLE. Estaban
+      // los dos bajo el mismo nombre y la pantalla tenía que adivinar cuál
+      // venía: dos cosas distintas con un nombre son un error esperando.
+      return { recordatorios: cfg.plantillas, zona: cfg.zona, activo: cfg.activo, plantillas };
+    });
+  }
+
+  @Put('recordatorios')
+  @RequirePermission('calendar.manage_availability')
+  @ApiOperation({ summary: 'Elige la plantilla de cada recordatorio (o la quita)' })
+  async guardarRecordatorios(
+    @Req() request: WithUser,
+    @Body() body: { '24h'?: string | null; '2h'?: string | null; zona?: string },
+  ) {
+    const actor = request.actor as Actor;
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const aprobadas = new Set(
+        (await listTemplates(c, actor.tenantId)).filter((p) => p.status === 'approved').map((p) => p.id),
+      );
+      const elegida = (valor: string | null | undefined): string | null => {
+        const id = typeof valor === 'string' && valor.trim() ? valor.trim() : null;
+        if (id && !aprobadas.has(id)) {
+          throw new BadRequestException({
+            code: 'PLANTILLA_NO_APROBADA',
+            message:
+              'Esa plantilla no está aprobada. Un recordatorio con una plantilla pendiente no sale, ' +
+              'y el cliente no se entera de que no salió.',
+          });
+        }
+        return id;
+      };
+      const actuales = await getTenantSettings(c, actor.tenantId);
+      const calendar = (actuales.calendar ?? {}) as Record<string, unknown>;
+      await updateTenantSettings(c, actor.tenantId, {
+        calendar: {
+          ...calendar,
+          recordatorios: { '24h': elegida(body?.['24h']), '2h': elegida(body?.['2h']) },
+          ...(body?.zona ? { zona: body.zona } : {}),
+        },
+      });
+      const cfg = configuracionDeAvisos(await getTenantSettings(c, actor.tenantId));
+      return { recordatorios: cfg.plantillas, zona: cfg.zona, activo: cfg.activo };
+    });
+  }
+
   @Post('disponibilidad')
   @RequirePermission('calendar.manage_availability')
   @ApiOperation({ summary: 'Define los horarios que atiende alguien del equipo' })

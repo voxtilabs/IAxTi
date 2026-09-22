@@ -131,15 +131,27 @@ export async function barrerRecordatorios(
      * para quien ya tenía un emisor de verdad conectado.
      */
     disponible?: () => Promise<boolean> | boolean;
+    /**
+     * ¿Y ESTE negocio puede? (#59)
+     *
+     * `disponible` responde por el ambiente —si no hay llave del proveedor,
+     * no se manda nada de nada—. Pero la plantilla del recordatorio es de
+     * cada negocio: uno la tiene aprobada y el de al lado no.
+     *
+     * Sin esta pregunta, el negocio sin plantilla se llevaba sus citas a
+     * `reminded` igual, porque el marcado va antes del envío. Y `reminded`
+     * es un estado que una persona lee como "al cliente ya se le avisó".
+     */
+    disponibleParaTenant?: (tenantId: string) => Promise<boolean> | boolean;
     ahora?: Date;
   },
-): Promise<{ enviados: number; saltados: number; motivo?: string }> {
+): Promise<{ enviados: number; saltados: number; sinConfigurar: number; motivo?: string }> {
   const ahora = deps.ahora ?? new Date();
 
   if (deps.disponible && !(await deps.disponible())) {
     // No se toca nada: las citas siguen esperando su recordatorio para
     // cuando haya con qué mandarlo.
-    return { enviados: 0, saltados: 0, motivo: 'no hay por dónde mandar el recordatorio' };
+    return { enviados: 0, saltados: 0, sinConfigurar: 0, motivo: 'no hay por dónde mandar el recordatorio' };
   }
   // Los tenants salen de `tenants`, no de `appointments` (#286): una
   // consulta suelta a una tabla con RLS corre sin `app.tenant_id` y devuelve
@@ -147,9 +159,19 @@ export async function barrerRecordatorios(
   // el rol es superusuario.
   let enviados = 0;
   let saltados = 0;
+  let sinConfigurar = 0;
   await porCadaTenant(pool, async (client, tenantId) => {
     {
       const pendientes = await citasPorRecordar(client, { tenantId, ahora });
+      if (pendientes.length === 0) return;
+      // La pregunta por tenant se hace UNA vez y solo si hay algo que
+      // mandar: consultar la configuración de cada negocio en cada barrido,
+      // tenga o no citas, es trabajo que crece con la cartera y no sirve
+      // para nada.
+      if (deps.disponibleParaTenant && !(await deps.disponibleParaTenant(tenantId))) {
+        sinConfigurar += pendientes.length;
+        return;
+      }
       for (const cita of pendientes) {
         // Marcar primero: ver el comentario de `marcarAvisoEnviado`.
         const primero = await marcarAvisoEnviado(client, {
@@ -167,5 +189,5 @@ export async function barrerRecordatorios(
       }
     }
   });
-  return { enviados, saltados };
+  return { enviados, saltados, sinConfigurar };
 }

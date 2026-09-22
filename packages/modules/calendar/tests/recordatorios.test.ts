@@ -185,4 +185,53 @@ describe('cuando no hay por dónde mandar (#59)', () => {
     const fila = await admin.query('SELECT reminders_sent FROM appointments WHERE id = $1', [cita]);
     expect(fila.rows[0].reminders_sent).toEqual(['24h']);
   });
+
+  it('el negocio SIN recordatorio configurado no se lleva sus citas a reminded', async () => {
+    // `disponible` responde por el ambiente; la plantilla es de cada
+    // negocio. Sin esta segunda pregunta, el negocio que todavía no eligió
+    // su plantilla quedaba con las citas marcadas y el cliente sin aviso —
+    // y `reminded` una persona lo lee como "al cliente ya se le avisó".
+    const cita = await citaProxima('Negocio a medio configurar', '+56911117777');
+
+    const res = await barrerRecordatorios(admin, {
+      disponible: () => true,
+      disponibleParaTenant: () => false,
+      enviar: async () => {
+        throw new Error('no debería intentar enviar');
+      },
+    });
+    expect(res.sinConfigurar).toBeGreaterThan(0);
+    expect(res.enviados).toBe(0);
+
+    const fila = await admin.query(
+      'SELECT reminders_sent, status FROM appointments WHERE id = $1',
+      [cita],
+    );
+    expect(fila.rows[0].reminders_sent).toEqual([]);
+    expect(fila.rows[0].status).toBe('confirmed');
+  });
+
+  it('se le pregunta a cada negocio UNA vez, y solo si tiene algo que mandar', async () => {
+    // Consultar la configuración de todos los negocios en cada barrido,
+    // tengan o no citas, es trabajo que crece con la cartera y no sirve
+    // para nada. El barrido corre cada pocos minutos.
+    const preguntados: string[] = [];
+    await citaProxima('Uno con cita', '+56911116666');
+    await barrerRecordatorios(admin, {
+      disponible: () => true,
+      disponibleParaTenant: (tenantId) => {
+        preguntados.push(tenantId);
+        return true;
+      },
+      enviar: async () => ({ enviado: true }),
+    });
+    expect(preguntados.length).toBe(new Set(preguntados).size); // ni uno repetido
+    // Y de los tenants que hay en la base, solo se preguntó por los que
+    // tenían citas pendientes.
+    const conCitas = await admin.query(
+      `SELECT count(DISTINCT tenant_id)::int n FROM appointments
+        WHERE status IN ('confirmed','reminded')`,
+    );
+    expect(preguntados.length).toBeLessThanOrEqual(conCitas.rows[0].n);
+  });
 });
