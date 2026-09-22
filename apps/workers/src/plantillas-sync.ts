@@ -1,12 +1,14 @@
 import type { Pool, PoolClient } from 'pg';
 import { idsDeTenants, withTenant } from '@iaxti/db';
-import { listChannelAccounts } from '@iaxti/module-channels';
+import { getProvider, listChannelAccounts } from '@iaxti/module-channels';
+import type { ChannelAccountRef, PuertoDePlantillas } from '@iaxti/module-channels';
 import {
   aplicarEstadoDelProveedor,
+  ESTADOS_PLANTILLA,
   listTemplates,
-  listarEnZavu,
   sincronizarConZavu,
 } from '@iaxti/module-whatsapp';
+import type { EstadoPlantilla } from '@iaxti/module-whatsapp';
 
 /**
  * Reconciliación de plantillas con el proveedor (#44).
@@ -20,17 +22,26 @@ import {
  * revisión, no se llama al proveedor.
  */
 
-async function credencial(
+/**
+ * La cuenta lista para preguntarle al proveedor (#159).
+ *
+ * Devuelve la CUENTA y su puerto de plantillas, no una credencial suelta:
+ * el adaptador sabe sacar de la cuenta lo que necesita, y este worker deja
+ * de saber de quién es la API del otro lado. La credencial sigue por
+ * referencia — acá solo se comprueba que la variable exista.
+ */
+async function cuentaConPlantillas(
   c: PoolClient,
   tenantId: string,
-): Promise<{ apiKey: string; senderId: string } | null> {
+): Promise<{ cuenta: ChannelAccountRef; senderId: string; plantillas: PuertoDePlantillas } | null> {
   const cuentas = await listChannelAccounts(c, tenantId);
   const cuenta = cuentas.find((a) => a.kind === 'whatsapp' && a.state === 'active');
-  if (!cuenta?.credentialRef) return null;
-  const apiKey = process.env[cuenta.credentialRef];
+  if (!cuenta?.credentialRef || !process.env[cuenta.credentialRef]) return null;
   const senderId = cuenta.config.senderId as string | undefined;
-  if (!apiKey || !senderId) return null;
-  return { apiKey, senderId };
+  if (!senderId) return null;
+  const plantillas = getProvider(cuenta.kind)?.plantillas;
+  if (!plantillas) return null;
+  return { cuenta, senderId, plantillas };
 }
 
 export async function sincronizarPlantillas(
@@ -52,15 +63,21 @@ export async function sincronizarPlantillas(
         );
         if (hay.rowCount === 0) return 0; // sin nada esperando, no se molesta al proveedor
         conPendientes += 1;
-        const cred = await credencial(c, tenantId);
+        const conexion = await cuentaConPlantillas(c, tenantId);
         // Sin número conectado no hay a quién preguntarle. No es un error:
         // el tenant desconectó WhatsApp y sus plantillas quedaron ahí.
-        if (!cred) return 0;
-        const cfg = { apiKey: cred.apiKey };
+        if (!conexion) return 0;
 
-        // Primero que Zavu se ponga al día con Meta, después leemos.
-        await sincronizarConZavu(cfg, cred.senderId);
-        const enProveedor = await listarEnZavu(cfg, cred.senderId);
+        // Que el proveedor se ponga al día con Meta antes de leer. Esto
+        // SIGUE siendo específico de Zavu a propósito: es una peculiaridad
+        // suya —su copia se queda atrás de Meta— y no una operación que
+        // todo proveedor tenga. Ponerlo en el puerto sería inventarle a los
+        // demás una obligación que no les corresponde; el día que Zavu se
+        // vaya, esta línea se va con él y el resto queda igual.
+        const apiKey = process.env[conexion.cuenta.credentialRef!]!;
+        await sincronizarConZavu({ apiKey }, conexion.senderId);
+
+        const enProveedor = await conexion.plantillas.listar(conexion.cuenta);
         const porNombre = new Map(
           enProveedor.map((t) => [`${t.name}::${t.language}`, t] as const),
         );
@@ -71,15 +88,18 @@ export async function sincronizarPlantillas(
           if (nuestra.status !== 'pending') continue;
           revisadas += 1;
           const suya = porNombre.get(`${nuestra.name}::${nuestra.language}`);
-          // Un estado que no entendemos vuelve null y no se toca nada: es
-          // mejor seguir esperando que inventar una aprobación.
+          // Un estado que no entendemos NO se aplica: mejor seguir
+          // esperando que inventar una aprobación. El puerto devuelve el
+          // estado como texto —cada proveedor tiene los suyos— y acá se
+          // comprueba contra los nuestros antes de escribir nada.
           if (!suya?.status || suya.status === 'pending') continue;
+          if (!(ESTADOS_PLANTILLA as readonly string[]).includes(suya.status)) continue;
           const r = await aplicarEstadoDelProveedor(c, {
             tenantId,
             name: nuestra.name,
             language: nuestra.language,
-            status: suya.status,
-            reason: suya.rejectionReason,
+            status: suya.status as EstadoPlantilla,
+            reason: suya.motivoDeRechazo,
             providerId: suya.id,
           });
           if (r && r.status === suya.status) n += 1;

@@ -38,6 +38,12 @@ gatillo numérico (#82) y su plan de salida ensayado (#159).
 ## Consecuencias
 - Migrar de proveedor sigue siendo cambiar el adaptador: es lo que esta decisión
   compra, y es la razón de que se pueda tomar sin drama.
+  **Medido el 22/09/2026 (#159)**: era cierto para el camino de ENTRADA y falso
+  para las plantillas, que se llamaban por su nombre desde la API y el barrido.
+  Ya pasan por el puerto. Sigue siendo falso para el ENVÍO —`outbound.ts` llama
+  al módulo whatsapp directamente, porque ahí viven el reintento, la pausa por
+  calidad y la ventana de 24 h— y eso es a sabiendas: está escrito en
+  `docs/runbooks/SALIR-DEL-INTERMEDIARIO.md` con lo que costaría.
 - **El costo de volver crece con cada número conectado**, porque el
   re-onboarding es cliente por cliente. Por eso se mueve ahora, con cero
   clientes conectados, y no en seis meses.

@@ -58,11 +58,64 @@ export interface NormalizedInbound {
  * el cuerpo CRUDO; `normalize` traduce el payload del proveedor a la forma
  * única; `send` entrega y devuelve el id del proveedor.
  */
+/**
+ * Una plantilla tal como la ve el proveedor (#159).
+ *
+ * Los nombres son los NUESTROS, no los de nadie: el estado y la categoría
+ * ya los traduce cada adaptador. Un campo con el nombre del proveedor acá
+ * sería la misma dependencia por otra puerta.
+ */
+export interface PlantillaDelProveedor {
+  id: string;
+  name: string;
+  language: string;
+  /** null cuando el proveedor todavía no dice nada. */
+  status: string | null;
+  category: string;
+  /** Lo que dice Meta, que puede ir por delante del estado del proveedor. */
+  estadoDeMeta?: string;
+  /** Por qué la rechazó. Es lo único accionable de un rechazo. */
+  motivoDeRechazo?: string;
+}
+
+/**
+ * Las plantillas, por el mismo puerto que los mensajes (#159).
+ *
+ * Los mensajes ya eran portables —`send`, `verifyWebhook`, `normalize`— y
+ * las plantillas no: la API y el worker llamaban a `crearEnZavu`,
+ * `enviarARevisionEnZavu` y `listarEnZavu` POR SU NOMBRE. O sea que salir
+ * del intermediario era una línea en la mitad del producto y una reescritura
+ * en la otra mitad, y eso no se ve hasta que hay que hacerlo.
+ *
+ * Es opcional: el webchat y el simulador no tienen plantillas, y un canal
+ * sin esto simplemente no las ofrece.
+ */
+export interface PuertoDePlantillas {
+  crear(
+    cuenta: ChannelAccountRef,
+    input: {
+      name: string;
+      language: string;
+      body: string;
+      category: string;
+      footer?: string | null;
+      buttons?: Array<{ type: string; text: string }>;
+    },
+  ): Promise<PlantillaDelProveedor>;
+  enviarARevision(
+    cuenta: ChannelAccountRef,
+    input: { templateId: string; category: string },
+  ): Promise<PlantillaDelProveedor>;
+  listar(cuenta: ChannelAccountRef): Promise<PlantillaDelProveedor[]>;
+}
+
 export interface ChannelProvider {
   kind: ChannelKind;
   send(account: ChannelAccountRef, message: OutboundMessage): Promise<{ providerMessageId: string }>;
   verifyWebhook(headers: Record<string, string | string[] | undefined>, rawBody: string, secret: string): boolean;
   normalize(payload: unknown): NormalizedInbound[];
+  /** Solo los canales que tienen plantillas (hoy WhatsApp). */
+  plantillas?: PuertoDePlantillas;
 }
 
 // Registro de adaptadores: Zavu (#42) —que sirve whatsapp, instagram y

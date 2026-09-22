@@ -45,7 +45,8 @@ import {
   sweepDueActivities,
 } from './sweeps';
 import { sincronizarPlantillas } from './plantillas-sync';
-import { enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
+import { createZavuProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
+import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
 import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
@@ -67,6 +68,16 @@ function start(): void {
   if (!process.env.DATABASE_URL) {
     console.log('workers: sin DATABASE_URL; outbox y colas esperan configuración');
     return;
+  }
+  // Los adaptadores de canal, que en este proceso NO estaban registrados
+  // (#159). La API los registra desde #41 y los workers nunca: nadie lo
+  // notó porque el camino de salida llama a `deliverOutbound` del módulo
+  // whatsapp por su nombre, saltándose el puerto entero. O sea que el
+  // proceso que de verdad envía mensajes era el que menos usaba la
+  // abstracción que nos deja cambiar de proveedor.
+  if (!getProvider('simulador')) registerProvider(simuladorProvider);
+  for (const kind of ['whatsapp', 'instagram', 'messenger'] as const) {
+    if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
   }
   const registry = new ModuleRegistry().load();
   const pool = createPool();

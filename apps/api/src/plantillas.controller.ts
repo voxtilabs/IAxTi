@@ -12,11 +12,10 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import type { PoolClient } from 'pg';
-import { listChannelAccounts } from '@iaxti/module-channels';
+import { getProvider, listChannelAccounts } from '@iaxti/module-channels';
+import type { ChannelAccountRef, PuertoDePlantillas } from '@iaxti/module-channels';
 import {
   createTemplate,
-  crearEnZavu,
-  enviarARevisionEnZavu,
   enviarPlantilla,
   getTemplate,
   listTemplates,
@@ -54,24 +53,34 @@ function actorOf(request: WithUser): Actor {
  * hay número conectado no hay a quién pedirle la aprobación, y decirlo así
  * es más útil que un error del proveedor.
  */
+/**
+ * La cuenta de WhatsApp y el puerto de plantillas de su proveedor (#159).
+ *
+ * Antes esto devolvía la credencial y el emisor para armar llamadas a Zavu
+ * POR SU NOMBRE. Ahora devuelve la cuenta y el puerto: el proveedor sabe
+ * sacar lo suyo de la cuenta, y este controlador no necesita saber de quién
+ * es la API que hay del otro lado.
+ */
 async function cuentaDeWhatsApp(
   c: PoolClient,
   tenantId: string,
-): Promise<{ cfg: { apiKey: string }; senderId: string }> {
+): Promise<{ cuenta: ChannelAccountRef; plantillas: PuertoDePlantillas }> {
   const cuentas = await listChannelAccounts(c, tenantId);
   const cuenta = cuentas.find((a) => a.kind === 'whatsapp' && a.state === 'active');
   if (!cuenta) {
     throw new Error('Primero conecta el número de WhatsApp del negocio en Ajustes → Canales.');
   }
-  const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
-  if (!apiKey) {
+  if (!cuenta.credentialRef || !process.env[cuenta.credentialRef]) {
     throw new Error(
       `Falta la variable ${cuenta.credentialRef} en este ambiente (credenciales por referencia).`,
     );
   }
-  const senderId = cuenta.config.senderId as string | undefined;
-  if (!senderId) throw new Error('La cuenta de WhatsApp no tiene senderId configurado.');
-  return { cfg: { apiKey }, senderId };
+  if (!cuenta.config.senderId) throw new Error('La cuenta de WhatsApp no tiene senderId configurado.');
+  const plantillas = getProvider(cuenta.kind)?.plantillas;
+  if (!plantillas) {
+    throw new Error('El proveedor de este canal no maneja plantillas.');
+  }
+  return { cuenta, plantillas };
 }
 
 function seVeMal(err: unknown): never {
@@ -140,19 +149,18 @@ export class PlantillasController {
     try {
       return await withTenant(pool(), actor.tenantId, async (c) => {
         const plantilla = await getTemplate(c, actor.tenantId, id);
-        const cuenta = await cuentaDeWhatsApp(c, actor.tenantId);
+        const { cuenta, plantillas } = await cuentaDeWhatsApp(c, actor.tenantId);
 
         // Primero el viaje al proveedor, después la marca. Al revés, un fallo
         // de red dejaría la plantilla diciendo "en revisión" sin que nadie la
         // haya mandado, y la espera sería eterna.
-        const enZavu = plantilla.providerId
-          ? await enviarARevisionEnZavu(cuenta.cfg, {
+        const enElProveedor = plantilla.providerId
+          ? await plantillas.enviarARevision(cuenta, {
               templateId: plantilla.providerId,
-              senderId: cuenta.senderId,
               category: plantilla.category,
             })
           : await (async () => {
-              const creada = await crearEnZavu(cuenta.cfg, {
+              const creada = await plantillas.crear(cuenta, {
                 name: plantilla.name,
                 language: plantilla.language,
                 body: plantilla.body,
@@ -160,9 +168,8 @@ export class PlantillasController {
                 footer: plantilla.footer,
                 buttons: plantilla.buttons.map((text) => ({ type: 'quick_reply', text })),
               });
-              return enviarARevisionEnZavu(cuenta.cfg, {
+              return plantillas.enviarARevision(cuenta, {
                 templateId: creada.id,
-                senderId: cuenta.senderId,
                 category: plantilla.category,
               });
             })();
@@ -170,7 +177,7 @@ export class PlantillasController {
         return marcarEnviadaARevision(c, {
           tenantId: actor.tenantId,
           templateId: id,
-          providerId: enZavu.id,
+          providerId: enElProveedor.id,
           requestId: (request as { requestId?: string }).requestId,
         });
       });
