@@ -42,6 +42,7 @@ import {
   effectiveMode,
   feedbackSuggestion,
   pendingSuggestion,
+  porQueNoHaySugerencia,
   resolveSuggestion,
   setConversationMode,
   type ConversationMode,
@@ -359,15 +360,31 @@ export class ConversationsController {
 
   // --- El copiloto en assist (#48): el humano manda con un toque ---
 
+  /**
+   * La sugerencia vigente y, si no hay, POR QUÉ no la hay (#436).
+   *
+   * El copiloto se salta el trabajo en varios casos legítimos y el motivo
+   * se devolvía en el resultado del job, que no mira nadie. Desde la
+   * bandeja, las cinco causas se veían igual: el panel vacío.
+   *
+   * El motivo se calcula solo cuando NO hay sugerencia: en el camino bueno
+   * —que es el de siempre— no cuesta ni una consulta más.
+   */
   @Get(':id/suggestion')
   @RequireModule('agents')
   @RequirePermission('agents.use')
-  @ApiOperation({ summary: 'La sugerencia vigente del copiloto' })
+  @ApiOperation({ summary: 'La sugerencia vigente del copiloto, o por qué no hay' })
   async suggestion(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, (c) =>
-      pendingSuggestion(c, actor.tenantId, id),
-    );
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const sugerencia = await pendingSuggestion(c, actor.tenantId, id);
+      if (sugerencia) return { sugerencia, motivo: null };
+      const motivo = await porQueNoHaySugerencia(c, {
+        tenantId: actor.tenantId,
+        conversationId: id,
+      });
+      return { sugerencia: null, motivo };
+    });
   }
 
   @Post(':id/suggestions/:sid/send')

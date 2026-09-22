@@ -123,9 +123,12 @@ afterAll(async () => {
 describe('el copiloto por API (#48)', () => {
   it('la sugerencia vigente llega y "Enviar" responde con UN toque', async () => {
     const sug = (await sugerir())!;
+    // La respuesta trae la sugerencia Y, cuando no hay, por qué no (#436):
+    // desde la bandeja las cinco causas se veían igual, el panel vacío.
     const viva = await (await pedir(`/conversations/${conversacion}/suggestion`)).json();
-    expect(viva.id).toBe(sug.id);
-    expect(viva.suggestDeal).toBe(true);
+    expect(viva.motivo).toBeNull();
+    expect(viva.sugerencia.id).toBe(sug.id);
+    expect(viva.sugerencia.suggestDeal).toBe(true);
 
     const enviado = await pedir(`/conversations/${conversacion}/suggestions/${sug.id}/send`, {
       method: 'POST',
@@ -222,5 +225,17 @@ describe('el copiloto por API (#48)', () => {
     // En assist la IA jamás creó nada sola: hay UNA oportunidad, la del toque.
     const total = await admin.query('SELECT count(*)::int AS n FROM deals WHERE tenant_id = $1', [tenant]);
     expect(total.rows[0].n).toBe(1);
+  });
+
+  it('sin sugerencia, la respuesta dice POR QUÉ no la hay (#436)', async () => {
+    // Todas las sugerencias de esta conversación ya se resolvieron, así
+    // que no queda ninguna vigente: es el caso que en la bandeja se veía
+    // como un panel vacío sin explicación.
+    const r = await (await pedir(`/conversations/${conversacion}/suggestion`)).json();
+    expect(r.sugerencia).toBeNull();
+    expect(r.motivo).not.toBeNull();
+    expect(typeof r.motivo.codigo).toBe('string');
+    expect(r.motivo.texto.length).toBeGreaterThan(10);
+    expect(typeof r.motivo.loArreglaElNegocio).toBe('boolean');
   });
 });

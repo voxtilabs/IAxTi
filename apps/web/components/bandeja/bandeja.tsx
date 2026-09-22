@@ -45,6 +45,18 @@ import { ESTADOS, fmtEspera } from './estado';
 type Vista = 'todas' | 'mi_cola' | 'sin_responder';
 type Pane = 'lista' | 'chat' | 'ficha';
 
+interface SinSugerenciaDto {
+  codigo: string;
+  texto: string;
+  queHacer?: string;
+  loArreglaElNegocio: boolean;
+}
+
+interface RespuestaDeSugerencia {
+  sugerencia: SugerenciaDto | null;
+  motivo: SinSugerenciaDto | null;
+}
+
 export function Bandeja() {
   const tenant = useSelectedTenant();
   const negocioDeEntrada = useRef<string | null>(null);
@@ -68,6 +80,10 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
   const [notas, setNotas] = useState<NotaDto[]>([]);
   const [sugerencia, setSugerencia] = useState<SugerenciaDto | null>(null);
+  // Por qué NO hay sugerencia (#436). Sin esto, las cinco causas —sin
+  // llave, sin asistente, apagado, sin saldo, todavía trabajando— se ven
+  // igual desde acá: el panel vacío.
+  const [sinSugerencia, setSinSugerencia] = useState<SinSugerenciaDto | null>(null);
   const [analisis, setAnalisis] = useState<AnalisisDto | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [hits, setHits] = useState<BusquedaHit[] | null>(null);
@@ -102,14 +118,20 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           apiFetch<Mensaje[]>(config, session, tenant, `/conversations/${id}/messages`),
           apiFetch<NotaDto[]>(config, session, tenant, `/conversations/${id}/notes`),
           // agents puede estar apagado: el copiloto simplemente no aparece.
-          apiFetch<SugerenciaDto | null>(config, session, tenant, `/conversations/${id}/suggestion`).catch(() => null),
+          apiFetch<RespuestaDeSugerencia | null>(
+            config,
+            session,
+            tenant,
+            `/conversations/${id}/suggestion`,
+          ).catch(() => null),
           apiFetch<AnalisisDto>(config, session, tenant, `/conversations/${id}/analisis`).catch(() => null),
         ]);
         if (seleccionRef.current !== id) return;
         setDetalle(d);
         setMensajes(m);
         setNotas(n);
-        setSugerencia(sug);
+        setSugerencia(sug?.sugerencia ?? null);
+        setSinSugerencia(sug?.motivo ?? null);
         setAnalisis(ana);
       } catch (err) {
         setAviso((err as Error).message);
@@ -353,6 +375,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           mensajes={mensajes}
           atajos={atajos}
           sugerencia={sugerencia}
+          sinSugerencia={sinSugerencia}
           modo={analisis?.mode ?? null}
           miId={miId}
           aviso={aviso}

@@ -107,3 +107,6 @@ export type { HerramientaExpuesta } from './application/models';
 // Por qué NO contestó el proveedor, con nombre y con qué hacer (#402).
 export { motivoDelProveedor } from './application/motivo-del-proveedor';
 export type { MotivoDelProveedor, DiagnosticoDelProveedor } from './application/motivo-del-proveedor';
+// Por qué esta conversación no tiene sugerencia (#436).
+export { porQueNoHaySugerencia, describirSinSugerencia } from './application/por-que-no-sugirio';
+export type { SinSugerencia, CodigoSinSugerencia } from './application/por-que-no-sugirio';
