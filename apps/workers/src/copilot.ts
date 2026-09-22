@@ -26,8 +26,15 @@ import {
   knowledgeContext,
   searchKnowledge,
 } from '@iaxti/module-knowledge';
-import { huecosDelDia } from '@iaxti/module-calendar';
-import { createActivity, createDeal, listPipelines } from '@iaxti/module-crm';
+import { huecosDelDia, listarCitas } from '@iaxti/module-calendar';
+import {
+  createActivity,
+  createDeal,
+  listActivitiesByContact,
+  listContacts,
+  listDeals,
+  listPipelines,
+} from '@iaxti/module-crm';
 import { roleOf } from '@iaxti/module-identity';
 import {
   baseRoleHasPermission,
@@ -232,6 +239,53 @@ async function herramientasDeLaConversacion(
       // conversación, porque un nombre mal leído terminaría creándole una
       // oportunidad a otra persona.
       contactoDeLaConversacion: async () => conv.contactId ?? null,
+
+      // Quién es y qué le pasó antes (#440). Sin esto el asistente volvía a
+      // preguntar lo que el negocio ya sabía: estaban declaradas en el
+      // manifiesto de crm y no las implementaba nadie.
+      buscarContacto: async (query) => {
+        const { items } = await listContacts(client, data.tenantId, { q: query, limit: 5 });
+        // Lo mínimo para reconocer a alguien. La ficha entera es más de lo
+        // que hace falta para saludar por su nombre, y lo que no se manda
+        // no se puede filtrar.
+        return items.map((c) => ({
+          contactId: c.id,
+          nombre: c.name,
+          telefono: c.phone,
+          desde: c.lastActivityAt,
+          ultimaActividad: c.lastActivityAt,
+        }));
+      },
+      historialDelContacto: async (contactId) => {
+        const [oportunidades, actividades, citas] = await Promise.all([
+          listDeals(client, data.tenantId, { contactId, limit: 5 })
+            .then((r) => r.items)
+            .catch(() => []),
+          listActivitiesByContact(client, data.tenantId, contactId).catch(() => []),
+          listarCitas(client, {
+            tenantId: data.tenantId,
+            desde: new Date(Date.now() - 365 * 86_400_000),
+            hasta: new Date(Date.now() + 90 * 86_400_000),
+          }).catch(() => []),
+        ]);
+        return {
+          oportunidades: oportunidades.map((d: { title: string; status: string; valueClp: number | null }) => ({
+            titulo: d.title,
+            estado: d.status,
+            valor: d.valueClp,
+          })),
+          actividades: actividades
+            .slice(0, 5)
+            .map((a: { type: string; title: string; dueAt: Date | null; createdAt: Date }) => ({
+              tipo: a.type,
+              titulo: a.title,
+              cuando: a.dueAt ?? a.createdAt,
+            })),
+          citas: citas
+            .filter((c: { contactId: string }) => c.contactId === contactId)
+            .map((c: { startsAt: Date; status: string }) => ({ cuando: c.startsAt, estado: c.status })),
+        };
+      },
       crearActividad: (i) =>
         createActivity(client, {
           tenantId: data.tenantId,

@@ -15,6 +15,8 @@ export interface DealCard extends Deal {
 
 export interface DealFilters {
   pipelineId?: string;
+  /** Las de UNA persona: lo que el copiloto necesita para no repreguntar (#440). */
+  contactId?: string;
   stageId?: string;
   status?: 'open' | 'won' | 'lost';
   /** Solo las de este dueño… */
@@ -71,6 +73,7 @@ export async function listDeals(
     where.push(clause(params.length));
   };
   if (filters.pipelineId) push((n) => `d.pipeline_id = $${n}`, filters.pipelineId);
+  if (filters.contactId) push((n) => `d.contact_id = $${n}`, filters.contactId);
   if (filters.stageId) push((n) => `d.stage_id = $${n}`, filters.stageId);
   if (filters.status) push((n) => `d.status = $${n}`, filters.status);
   if (filters.ownerId) push((n) => `d.owner_id = $${n}`, filters.ownerId);

@@ -100,6 +100,7 @@ export {
   HERRAMIENTAS_DE_LECTURA,
   HERRAMIENTAS_QUE_ESCRIBEN,
   HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS,
+  HERRAMIENTAS_PENDIENTES,
 } from './application/herramientas';
 export type { ResultadoHerramienta, DepsHerramientas } from './application/herramientas';
 export { herramientasExpuestas, ESQUEMAS } from './application/herramientas-expuestas';

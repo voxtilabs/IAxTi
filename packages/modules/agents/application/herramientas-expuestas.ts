@@ -104,6 +104,24 @@ export const ESQUEMAS: Record<string, { description: string; parameters: Record<
       additionalProperties: false,
     },
   },
+  'crm.find_contact': {
+    description:
+      'Busca en la ficha de clientes por nombre, teléfono o correo. Úsala cuando quieras saber ' +
+      'si quien escribe ya es cliente, antes de preguntarle datos que el negocio ya tiene.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Nombre, teléfono o correo, tal como lo dijo.' },
+      },
+      required: ['query'],
+    },
+  },
+  'crm.get_history': {
+    description:
+      'Trae lo que ya pasó con la persona de ESTA conversación: sus oportunidades, sus citas y ' +
+      'sus últimas actividades. Úsala antes de volver a preguntarle algo que ya se sabe.',
+    parameters: { type: 'object', properties: {} },
+  },
   'calendar.get_slots': {
     description:
       'Los horarios libres de un día. Devuelve tres como máximo. Ofrecer horarios se puede; tomarlos no: para agendar, pasa con una persona.',
