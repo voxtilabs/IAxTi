@@ -137,6 +137,91 @@ function ProbarSinNumero() {
   );
 }
 
+interface PasoDto {
+  id: string;
+  titulo: string;
+  estado: 'bien' | 'mal' | 'atencion' | 'desconocido';
+  detalle: string;
+  queHacer?: string;
+}
+
+interface DiagnosticoDto {
+  accountId: string;
+  problema: string | null;
+  pasos: PasoDto[];
+}
+
+const TONO_DEL_PASO: Record<PasoDto['estado'], { rol: BadgeRole; texto: string }> = {
+  bien: { rol: 'good', texto: 'Bien' },
+  atencion: { rol: 'warn', texto: 'Atención' },
+  mal: { rol: 'bad', texto: 'Falla' },
+  desconocido: { rol: 'neutral', texto: 'Sin datos' },
+};
+
+/**
+ * Por qué este canal no está recibiendo (#434).
+ *
+ * «No me llegan los mensajes» tiene cuatro causas que se arreglan en
+ * lugares distintos y que desde afuera se ven todas iguales: la bandeja
+ * vacía. Esto las separa. Se abre a pedido y no al cargar la pantalla: es
+ * una pregunta que se hace cuando algo no anda, no en cada visita.
+ */
+function Diagnostico({ accountId }: { accountId: string }) {
+  const { config, session } = useSession();
+  const tenant = selectedTenant();
+  const [datos, setDatos] = useState<DiagnosticoDto | null>(null);
+  const [mirando, setMirando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const mirar = async () => {
+    if (!session || !tenant) return;
+    setMirando(true);
+    setError(null);
+    try {
+      setDatos(
+        await apiFetch<DiagnosticoDto>(config, session, tenant, `/channels/${accountId}/diagnostico`),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No pudimos revisarlo.');
+    } finally {
+      setMirando(false);
+    }
+  };
+
+  return (
+    <div className="mt-4">
+      <Button variant="secundario" size="chico" onClick={() => void mirar()} disabled={mirando}>
+        {mirando ? 'Revisando…' : datos ? 'Revisar de nuevo' : '¿Por qué no llegan los mensajes?'}
+      </Button>
+      {error && <p className="mt-2 text-sm text-bad-text">{error}</p>}
+      {datos && (
+        <ul className="mt-3 flex flex-col gap-2">
+          {datos.pasos.map((paso) => {
+            const tono = TONO_DEL_PASO[paso.estado];
+            return (
+              <li key={paso.id} className="rounded-campo border border-line bg-bg p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge role={tono.rol}>{tono.texto}</Badge>
+                  <span className="text-sm font-medium text-ink">{paso.titulo}</span>
+                  {datos.problema === paso.id && (
+                    <span className="text-xs text-warn-text">— es esto</span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-body">{paso.detalle}</p>
+                {paso.queHacer && (
+                  <p className="mt-1 text-sm text-muted">
+                    <strong className="font-medium text-body">Qué hacer:</strong> {paso.queHacer}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Canales() {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
@@ -211,6 +296,8 @@ export function Canales() {
                   <Badge role={estado.role}>{estado.label}</Badge>
                 </div>
                 <p className="mt-2 text-sm text-muted">{estado.ayuda}</p>
+
+                <Diagnostico accountId={canal.id} />
 
                 {canal.numbers.map((n) => {
                   const calidad = n.quality ? CALIDAD[n.quality] : null;
