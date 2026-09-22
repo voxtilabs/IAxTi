@@ -18,7 +18,6 @@ import { DelayUntilError, processOutbound } from './outbound';
 import { createOutboundPublisher, outboundRequestConsumers } from './outbound-dispatch';
 import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
-import { processSuggest, type SuggestJob } from './copilot';
 import { realtimeConsumers } from './realtime';
 import {
   deleteR2Keys,
@@ -480,15 +479,11 @@ function start(): void {
     );
     console.log('workers: worker de cola inbound activo');
 
-    // La cola agents (#48/#49): sugerencias, transcripciones y el modo
-    // autónomo del copiloto; sus salientes van por la MISMA cola outbound.
-    createModuleWorker(
-      'agents',
-      registry,
-      async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
-      redisConnection(),
-    );
-    console.log('workers: worker de cola agents activo');
+    // La cola `agents` (#48/#49) la consume el PROCESO de agents (#443).
+    // Acá solo se PRODUCE, desde el camino de entrada: una generación tarda
+    // segundos y una transcripción más, y mientras tanto este proceso es el
+    // que recibe webhooks, despacha salientes y corre los barridos. El
+    // despliegue ya tenía su contenedor esperando desde el primer día.
 
     // La salida de WhatsApp (#43): rate limit por número, backoff de BullMQ,
     // silencio del tenant para lo iniciado por el negocio.
