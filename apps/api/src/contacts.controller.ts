@@ -25,6 +25,7 @@ import {
   exportarTitular,
   getContactFicha,
   InvalidListQuery,
+  listActivities,
   listContacts,
   mergeContacts,
   previewImport,
@@ -33,6 +34,7 @@ import {
 } from '@iaxti/module-crm';
 import type { ActivityType, ImportField } from '@iaxti/module-crm';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -357,6 +359,37 @@ export class ContactsController {
       }
       throw err;
     });
+  }
+
+  /**
+   * Lo que hay que hacer, junto (#454).
+   *
+   * Las actividades se creaban —desde la ficha y desde el asistente— y la
+   * única forma de verlas era abrir la ficha del contacto exacto. «¿Qué
+   * tengo que hacer hoy?» no tenía respuesta en el producto.
+   *
+   * Va en el controlador de contactos y no en uno nuevo porque una
+   * actividad no existe sin su contacto: es su ficha, vista de otro lado.
+   */
+  @Get('activities')
+  @RequirePermission('crm.contacts.read')
+  @ApiOperation({ summary: 'Actividades pendientes del negocio, lo vencido primero' })
+  async actividades(
+    @Req() request: WithUser,
+    @Query('todas') todas?: string,
+    @Query('incluirHechas') incluirHechas?: string,
+  ) {
+    const actor = actorOf(request);
+    // Quien no puede ver lo del equipo ve lo SUYO, igual que el tablero de
+    // oportunidades (ADR-0008: el permiso decide, no el rol).
+    const soloMias = todas !== 'true' || !actorCan(actor, 'crm.read_all');
+    return withTenant(pool(), actor.tenantId, (c) =>
+      listActivities(c, {
+        tenantId: actor.tenantId,
+        ...(soloMias ? { ownerId: actor.userId } : {}),
+        incluirHechas: incluirHechas === 'true',
+      }),
+    );
   }
 
   @Post('activities/:activityId/done')

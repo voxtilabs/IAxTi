@@ -41,6 +41,7 @@ export {
   ActivityReferenceError,
   createActivity,
   completeActivity,
+  listActivities,
   listActivitiesByContact,
   markDueActivities,
   getContactFicha,
