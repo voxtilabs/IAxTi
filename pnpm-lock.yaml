@@ -1203,12 +1203,24 @@ importers:
       '@iaxti/db':
         specifier: workspace:*
         version: link:../db
+      '@iaxti/module-agents':
+        specifier: workspace:*
+        version: link:../modules/agents
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../modules/audit
       '@iaxti/module-authorization':
         specifier: workspace:*
         version: link:../modules/authorization
+      '@iaxti/module-calendar':
+        specifier: workspace:*
+        version: link:../modules/calendar
+      '@iaxti/module-conversations':
+        specifier: workspace:*
+        version: link:../modules/conversations
+      '@iaxti/module-crm':
+        specifier: workspace:*
+        version: link:../modules/crm
       '@iaxti/module-identity':
         specifier: workspace:*
         version: link:../modules/identity

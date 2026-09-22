@@ -11,8 +11,12 @@
   "dependencies": {
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
+    "@iaxti/module-agents": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-authorization": "workspace:*",
+    "@iaxti/module-calendar": "workspace:*",
+    "@iaxti/module-conversations": "workspace:*",
+    "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "pg": "^8.13.0"
