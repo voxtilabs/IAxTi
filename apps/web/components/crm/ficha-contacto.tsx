@@ -7,6 +7,7 @@ import { Badge, Button, IconoCheck, Input, Select, SelectContent, SelectItem, Se
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import { DerechosDelTitular } from './derechos-del-titular';
+import { FusionarDuplicado } from './fusionar-duplicado';
 import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
 
 // La ficha de contacto (#32, SPEC §10/§29): historia, oportunidades y
@@ -259,6 +260,14 @@ export function FichaContacto({
       {/* Los derechos de la persona, en su ficha y no escondidos en un
           menú: quien recibe la solicitud llega por acá (#447). En el panel
           de la bandeja no van: ahí se está atendiendo, no administrando. */}
+      {/* Fusionar duplicados (#447): pasa todo el tiempo —la misma
+          persona escribe por WhatsApp y después por el chat del sitio— y
+          `mergeContacts` existía desde #34 sin puerta. Va acá arriba de los
+          derechos porque es operación diaria, no un trámite. */}
+      {!compacta && (
+        <FusionarDuplicado contactId={contactId} nombre={ficha.contact.name} onFusionado={cargar} />
+      )}
+
       {!compacta && <DerechosDelTitular contactId={contactId} nombre={ficha.contact.name} />}
 
       {/* Espacio reservado para la IA (Fase 3), con rótulo mono (#32). */}
