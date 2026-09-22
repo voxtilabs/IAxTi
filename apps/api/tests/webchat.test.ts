@@ -42,6 +42,19 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // La cola `agents` es COMPARTIDA con los demás tests del monorepo, y
+  // ahora cada mensaje de webchat encola una sugerencia (#438). Un job
+  // olvidado se lo lleva el worker de otro test —que cuenta cuántas veces
+  // se llamó— y lo rompe por un motivo que no tiene nada que ver con lo
+  // suyo. Se borran los de ESTE tenant, no la cola entera.
+  const cola = new Queue('agents', { connection: redisConnection() });
+  for (const job of await cola.getJobs(['waiting', 'delayed', 'completed', 'failed'])) {
+    if ((job.data as { tenantId?: string } | undefined)?.tenantId === tenant) {
+      await cola.remove(job.id!).catch(() => undefined);
+    }
+  }
+  await cola.close();
+
   await app.close();
   for (const tabla of ['webchat_sessions', 'webchat_widgets', 'assignments', 'messages', 'conversations', 'contacts', 'channel_accounts', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
@@ -124,7 +137,6 @@ describe('webchat público', () => {
         conversationId: cuerpo.conversationId,
         messageId: cuerpo.messageId,
       });
-      await job!.remove();
     } finally {
       await cola.close();
     }

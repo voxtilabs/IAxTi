@@ -57,10 +57,14 @@ describe('colas BullMQ', () => {
     let calls = 0;
     const worker = createModuleWorker('agents', registry, async () => { calls++; return { ok: true }; }, redisConnection(), { disabled: 'delay' });
     abiertos.push(worker, events, queue, { close: async () => void connection.quit() });
-    const delayed = new Promise<void>(resolve => events.once('delayed', () => resolve()));
     const job = await queue.add('espera-modulo', { moduleId: 'calendar' });
-    await delayed;
-    expect(await job.getState()).toBe('delayed');
+    // Se espera por el estado de ESTE job y no por el evento `delayed` de la
+    // cola: el evento es de la cola entera, así que cualquier otro job
+    // —de otro test corriendo contra el mismo Redis— lo dispara y la
+    // comprobación de abajo se hace antes de tiempo. Se veía como
+    // «expected 'waiting' to be 'delayed'», que parece un fallo del
+    // producto y es del test.
+    await expect.poll(() => job.getState(), { timeout: 15_000 }).toBe('delayed');
     expect((await queue.getJob(job.id!))?.attemptsMade).toBe(0);
     expect(calls).toBe(0);
     registry.enable('calendar');
