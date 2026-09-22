@@ -17,7 +17,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, fmtClp } from '../lib/api';
 
 // Conocimiento (#51, SPEC §14): que la IA responda con lo que el negocio
 // DICE. Fuentes con vigencia, catálogo con precio/stock como campos, y la
@@ -32,6 +32,16 @@ interface FuenteDto {
   validUntil: string | null;
   chunkCount?: number;
   createdAt: string;
+}
+
+interface ProductoDto {
+  sku: string | null;
+  name: string;
+  price: number | null;
+  currency: string;
+  stock: number | null;
+  description: string | null;
+  sourceName: string;
 }
 
 interface BusquedaDto {
@@ -74,6 +84,11 @@ export function Conocimiento() {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  // Qué fuente se está reindexando (#447): reindexar dos veces la misma es
+  // pagarle dos veces al proveedor de embeddings por lo mismo.
+  const [reindexando, setReindexando] = useState<string | null>(null);
+  /** Lo que la IA encontraría como PRODUCTO, con precio y stock (#447). */
+  const [productos, setProductos] = useState<ProductoDto[] | null>(null);
   const [resultado, setResultado] = useState<BusquedaDto | null>(null);
 
   useEffect(() => setTenant(selectedTenant()), []);
@@ -138,13 +153,39 @@ export function Conocimiento() {
     }
   };
 
+  const reindexar = async (id: string) => {
+    if (!session || !tenant) return;
+    setAviso(null);
+    setReindexando(id);
+    try {
+      await apiFetch(config, session, tenant, `/knowledge/sources/${id}/reindex`, { method: 'POST' });
+      await cargar();
+    } catch (e) {
+      setAviso((e as Error).message);
+    } finally {
+      setReindexando(null);
+    }
+  };
+
   const probar = async () => {
     if (!session || !q.trim()) return;
     setAviso(null);
     try {
-      setResultado(
-        await apiFetch<BusquedaDto>(config, session, tenant, `/knowledge/search?q=${encodeURIComponent(q)}`),
-      );
+      // Las dos cosas que la IA consultaría con esa pregunta, juntas: el
+      // pasaje del texto y el PRODUCTO con su precio (#447). Verlas por
+      // separado escondía el caso que más importa — cuando la búsqueda
+      // encuentra un pasaje que habla del precio y el catálogo tiene otro.
+      const [hits, prods] = await Promise.all([
+        apiFetch<BusquedaDto>(config, session, tenant, `/knowledge/search?q=${encodeURIComponent(q)}`),
+        apiFetch<ProductoDto[]>(
+          config,
+          session,
+          tenant,
+          `/knowledge/products?q=${encodeURIComponent(q)}`,
+        ).catch(() => []),
+      ]);
+      setResultado(hits);
+      setProductos(prods);
     } catch (err) {
       setAviso((err as Error).message);
     }
@@ -246,6 +287,21 @@ export function Conocimiento() {
                   </p>
                 </div>
                 <Badge role={ESTADO[f.status].role}>{ESTADO[f.status].label}</Badge>
+                {/* Reindexar (#447): la ruta existía y no la llamaba nadie,
+                    así que una fuente que falló o que venció solo se podía
+                    arreglar borrándola y volviendo a subirla — perdiendo
+                    su historial. Se ofrece donde tiene sentido: en la que
+                    no está sirviendo. */}
+                {(f.status === 'failed' || f.status === 'expired') && (
+                  <Button
+                    variant="secundario"
+                    size="chico"
+                    disabled={reindexando === f.id}
+                    onClick={() => void reindexar(f.id)}
+                  >
+                    {reindexando === f.id ? 'Reindexando…' : 'Reindexar'}
+                  </Button>
+                )}
                 <Button variant="fantasma" size="chico" onClick={() => void eliminar(f.id)}>
                   Eliminar
                 </Button>
@@ -267,6 +323,30 @@ export function Conocimiento() {
           />
           <Button variant="secundario" onClick={() => void probar()}>Probar</Button>
         </div>
+        {/* El catálogo primero: si la pregunta toca un producto, el precio
+            exacto manda sobre cualquier pasaje de texto que lo mencione. */}
+        {productos !== null && productos.length > 0 && (
+          <div className="mt-3">
+            <p className="rotulo">Del catálogo, con precio exacto</p>
+            <ul className="mt-2 flex flex-col gap-2">
+              {productos.map((p) => (
+                <li key={`${p.sku ?? p.name}`} className="rounded-campo border border-line bg-bg p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm font-bold text-ink">{p.name}</span>
+                    <span className="dato text-ink">
+                      {p.price === null ? 'sin precio' : fmtClp(p.price)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">
+                    {p.sku ? `SKU ${p.sku} · ` : ''}
+                    {p.stock === null ? 'sin stock declarado' : `${p.stock} en stock`} · {p.sourceName}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {resultado && (
           <div className="mt-3">
             {resultado.expiredSources.length > 0 && (
