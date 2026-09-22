@@ -108,6 +108,28 @@ async function main() {
   }
   // Campañas (#348): negocio y datos sintéticos separados de la bandeja.
   // No se levanta workers: ningún mensaje de este ensayo sale a un proveedor.
+  // Doce días de números para que el gráfico de Reportes exista (#424).
+  // Sin `daily_metrics` el tablero muestra el estado vacío —que también se
+  // prueba, con el tenant por defecto— y no habría gráfico que leer.
+  // Valores irregulares a propósito: una escala se prueba con un pico.
+  const CONVERSACIONES = [3, 7, 2, 11, 5, 0, 9, 14, 6, 4, 8, 12];
+  for (const [i, conversaciones] of CONVERSACIONES.entries()) {
+    const dia = `now()::date - ${CONVERSACIONES.length - 1 - i}`;
+    for (const [metric, value] of [
+      ['conversaciones_nuevas', conversaciones],
+      ['resueltas', Math.floor(conversaciones * 0.6)],
+      ['oportunidades_creadas', Math.floor(conversaciones / 3)],
+    ]) {
+      if (value === 0) continue;
+      await pool.query(
+        `INSERT INTO daily_metrics (tenant_id, day, metric, owner_id, value)
+         VALUES ($1, ${dia}, $2, '00000000-0000-0000-0000-000000000000', $3)
+         ON CONFLICT DO NOTHING`,
+        [tableTenant, metric, value],
+      );
+    }
+  }
+
   const campaignTenantId = (await pool.query("INSERT INTO tenants (name, plan) VALUES ('E2E Campañas', 'crece') RETURNING id")).rows[0].id;
   const adminInv = await withTenant(pool, campaignTenantId, (c) => createInvitation(c, {
     tenantId: campaignTenantId, email: `admin-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'ADMIN',
