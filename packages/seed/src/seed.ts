@@ -6,6 +6,7 @@ import { writeAudit } from '@iaxti/module-audit';
 import { baseRoleHasPermission } from '@iaxti/module-authorization';
 import { upsertProfile } from '@iaxti/module-identity';
 import { createTenant } from '@iaxti/module-organizations';
+import { sembrarDemo, type ResultadoDemo } from './demo';
 
 // Seed del tenant de prueba (issue #18, criterio de salida de la Fase 1):
 // idempotente — correrlo dos veces no duplica nada.
@@ -55,6 +56,8 @@ async function ensureTenant(client: PoolClient): Promise<string> {
 export interface SeedResult {
   tenantId: string;
   users: Array<{ email: string; userId: string; role: string; loginReal: boolean }>;
+  /** Lo que se sembró para poder MIRAR el producto (#432). */
+  demo: ResultadoDemo;
 }
 
 export async function seed(pool: Pool): Promise<SeedResult> {
@@ -98,7 +101,16 @@ export async function seed(pool: Pool): Promise<SeedResult> {
     users.push({ email: user.email, userId, role: user.role, loginReal: supabaseId !== null });
   }
 
-  return { tenantId, users };
+  // El negocio con cosas adentro (#432). Va DESPUÉS de los usuarios porque
+  // las conversaciones y las citas se reparten entre ellos: una bandeja
+  // donde todo es de nadie no se parece a ninguna bandeja.
+  const demo = await sembrarDemo(pool, {
+    tenantId,
+    duenaId: users[0].userId,
+    vendedorId: users[1].userId,
+  });
+
+  return { tenantId, users, demo };
 }
 
 async function main() {
@@ -111,6 +123,15 @@ async function main() {
     for (const u of result.users) {
       console.log(
         `- ${u.email} · rol ${u.role} · ${u.loginReal ? `login real (clave: ${DEMO_PASSWORD})` : 'sin Supabase: uuid determinista'}`,
+      );
+    }
+    if (result.demo.yaEstaba) {
+      console.log('Datos de demostración: ya estaban (el seed no duplica nada).');
+    } else {
+      const d = result.demo;
+      console.log(
+        `Datos de demostración: ${d.contactos} contactos, ${d.conversaciones} conversaciones, ` +
+          `${d.oportunidades} oportunidades, ${d.citas} citas y ${d.diasDeMetricas} días de métricas.`,
       );
     }
     // El criterio de la fase: el ADMIN puede lo que el USER no.
