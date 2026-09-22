@@ -1,0 +1,16 @@
+[
+  {
+    "name": "pr425",
+    "selectedRange": "true",
+    "metricText": "CONVERSACIONES\n\n700",
+    "resolvedBarBackgrounds": [
+      "rgba(0, 0, 0, 0)"
+    ]
+  },
+  {
+    "name": "pr426",
+    "selectedRange": "true",
+    "metricText": "Conversaciones\n300\nQué mide",
+    "resolvedBarBackgrounds": []
+  }
+]

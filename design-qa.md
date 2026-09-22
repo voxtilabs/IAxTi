@@ -1,3 +1,37 @@
+# Firma VoxTiLabs con volumen · revisión #427
+
+**final result: passed** — sin hallazgos visuales P0/P1/P2 pendientes en el alcance.
+
+Se aplica la firma vectorial de VOXIA 2 autorizada por el usuario, con la
+geometría oficial existente y material de `--jelly-*`. Las letras conservan
+los tonos de texto de IAxTi. Se mantiene la composición y el tamaño del acceso.
+Fuente anterior: build `fa15277`; referencia externa: SVG locales de VOXIA 2.
+
+La referencia, el material adaptado y las comparaciones conjuntas de acceso
+web diurno, admin móvil nocturno y Reportes diurno fueron abiertas y revisadas.
+Están en `docs/evidencias/427/`. Viewports CSS iguales en cada par, densidad 1,
+escritorio 1366×768 y móvil 360×640; comparaciones a escala 0,5 y 1 respectivamente.
+Las capturas individuales conservan resolución nativa.
+
+Hallazgos corregidos:
+
+- **P2 · firma plana y atenuada.** Se incorpora el acabado de volumen y luces
+  y se elimina la opacidad del 70 % en el pie. La identidad tipográfica no cambia.
+- **P2 · referencias compartidas al repetir el SVG.** Cada instancia asigna
+  IDs SSR propios. El acceso admin verifica dos firmas sin IDs repetidos ni
+  referencias a otro SVG.
+
+20 pares de vistas con dimensiones del documento idénticas, sin excepciones JS
+ni overflow horizontal. Los logins siguen entrando completos. El material es
+estático; colores, espaciado y tipografía de los controles se conservan. El
+favicon corporativo de admin también usa el isotipo de VOXIA 2.
+
+Validación: build 30 tareas, tipos 54, lint, fronteras, 49 tests UI y 63 E2E
+aprobados; cinco capturas opcionales omitidas. Sesiones/datos visuales sintéticos,
+OTP simulado. Verificación del despliegue registrada posteriormente en el PR.
+
+---
+
 # Reportes con jerarquía y navegación fluida · revisión #424
 
 **final result: passed** — no quedan hallazgos visuales P0/P1/P2 en el

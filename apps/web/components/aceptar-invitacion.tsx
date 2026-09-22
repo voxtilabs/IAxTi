@@ -3,7 +3,7 @@
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useEffect, useState } from 'react';
-import { Button, SessionProvider, useSession, type PublicConfig } from '@iaxti/ui/react';
+import { Button, SessionProvider, useSession, useMarcaSvg, type PublicConfig } from '@iaxti/ui/react';
 import { apiFetch } from '../lib/api';
 
 // Canjear una invitación (#28).
@@ -109,11 +109,12 @@ export function AceptarInvitacion({
   marcaSvg: string;
   token: string;
 }) {
+  const firma = useMarcaSvg(marcaSvg);
   return (
     <SessionProvider config={config}>
       <main className="flex min-h-screen items-center justify-center bg-bg px-4">
         <div className="w-full max-w-md pulso-panel rounded-tarjeta border border-line bg-raised p-8">
-          <span className="marca" aria-hidden dangerouslySetInnerHTML={{ __html: marcaSvg }} />
+          <span className="marca" aria-hidden dangerouslySetInnerHTML={{ __html: firma }} />
           <Canje token={token} />
         </div>
       </main>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -16 241 221" fill="none" role="img" aria-label="Isotipo VoxTi Labs, cristal azul">
+ <title>VoxTi Labs · cristal azul</title>
+ <desc>Geometría del isotipo oficial. Material vectorial inspirado en LOGOTIPO1.jpeg, aportado por el propietario.</desc>
+ <defs>
+  <path id="shape" d="M206.679 289.775C257.789 289.601 284.852 281.523 279.868 346.337C279.389 352.557 280.675 359.231 279.242 365.998C269.455 412.237 210.457 375.007 184.332 400.204C157.89 425.707 192.213 469.65 145.32 476.898C121.332 477.118 75.4512 484.333 73.3398 451.18C72.3606 435.806 70.1216 397.956 79.1191 385.837C94.2723 365.426 135.524 379.282 155.691 374.527C201.88 363.636 152.303 296.54 206.679 289.775Z"/>
+  <linearGradient id="glass" x1="0" y1="0" x2=".92" y2="1"><stop stop-color="#c6eeff"/><stop offset=".14" stop-color="#479dff"/><stop offset=".36" stop-color="#1264fa"/><stop offset=".66" stop-color="#0544e7"/><stop offset=".88" stop-color="#162bad"/><stop offset="1" stop-color="#021866"/></linearGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ecfaff"/><stop offset=".2" stop-color="#75c6ff"/><stop offset=".5" stop-color="#0967f9"/><stop offset=".76" stop-color="#2340bb"/><stop offset="1" stop-color="#3d5afe"/></linearGradient>
+  <radialGradient id="light"><stop stop-color="#b5f9ff" stop-opacity=".94"/><stop offset=".32" stop-color="#39ceff" stop-opacity=".76"/><stop offset="1" stop-color="#087aff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#f0fdff"/><stop offset=".5" stop-color="#adf1ff" stop-opacity=".78"/><stop offset="1" stop-color="#83bfff" stop-opacity="0"/></linearGradient>
+  <clipPath id="inside"><use href="#shape"/></clipPath>
+  <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4"/></filter>
+  <filter id="shine" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.4"/></filter>
+ </defs>
+ <g transform="translate(-72 -289)">
+  <use href="#shape" transform="translate(2 5)" fill="#041359" stroke="#071e82" stroke-width="3"/>
+  <use href="#shape" fill="url(#glass)" stroke="url(#rim)" stroke-width="3"/>
+  <g clip-path="url(#inside)">
+   <ellipse cx="215" cy="313" rx="53" ry="38" fill="url(#light)"/>
+   <ellipse cx="110" cy="407" rx="44" ry="47" fill="url(#light)"/>
+   <ellipse cx="249" cy="365" rx="34" ry="29" fill="url(#light)"/>
+   <ellipse cx="143" cy="454" rx="39" ry="27" fill="url(#light)"/>
+   <path d="M186 330 Q181 296 219 298 M83 415 Q79 380 117 385" stroke="url(#edge)" stroke-width="7" stroke-linecap="round" filter="url(#shine)"/>
+   <path d="M270 329 Q277 376 253 380 M167 428 Q179 467 131 468" stroke="#45c9ff" stroke-opacity=".7" stroke-width="6" stroke-linecap="round" filter="url(#soft)"/>
+   <path d="M185 385 Q169 393 171 414" stroke="#64b8ff" stroke-opacity=".48" stroke-width="8" filter="url(#soft)"/>
+   <path d="M186 313 Q190 299 210 299 M84 399 Q85 386 101 385" stroke="#effcff" stroke-opacity=".88" stroke-width="3" stroke-linecap="round"/>
+  </g>
+ </g>
+</svg>
