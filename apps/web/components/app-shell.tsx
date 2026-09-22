@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import {
   MarcaJelly,
   ModeToggle,
@@ -56,7 +57,7 @@ import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
 import type { NavItem } from '../lib/nav';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 import { rutasConCandado } from '../lib/candados';
 
@@ -169,26 +170,31 @@ const ICONOS: Record<string, LucideIcon> = {
  */
 function useModulosConCandado(): Set<string> {
   const { session, config } = useSession();
-  const [candados, setCandados] = useState<Set<string>>(new Set());
+  const tenant = useSelectedTenant();
+  const [resultado, setResultado] = useState<{ tenant: string; token: string; rutas: Set<string> } | null>(null);
   useEffect(() => {
-    const tenant = selectedTenant();
+    const controller = new AbortController();
     if (!session || !tenant) return;
     void Promise.all([
       // Qué rutas trae cada módulo: el menú llega aplanado y ahí ya se
       // perdió de qué módulo salió cada item.
-      fetch(`${config.apiUrl}/v1/me/modules`, { cache: 'no-store' }).then(
+      fetch(`${config.apiUrl}/v1/me/modules`, { cache: 'no-store', signal: controller.signal }).then(
         (r) => r.json() as Promise<Array<{ id: string; nav: NavItem[] }>>,
       ),
       apiFetch<Array<{ id: string; acceso: 'completo' | 'solo_lectura' }>>(
-        config, session, tenant, '/me/modules/acceso',
+        config, session, tenant, '/me/modules/acceso', { signal: controller.signal },
       ),
     ])
-      .then(([modulos, acceso]) => setCandados(rutasConCandado(modulos, acceso)))
+      .then(([modulos, acceso]) => {
+        if (!controller.signal.aborted) setResultado({ tenant, token: session.access_token, rutas: rutasConCandado(modulos, acceso) });
+      })
       // Si falla, el menú queda como lo dibujó el servidor: sin candados,
       // que es exactamente lo de antes. El tope igual lo aplica la API.
-      .catch(() => setCandados(new Set()));
-  }, [session, config]);
-  return candados;
+      .catch(() => { if (!controller.signal.aborted) setResultado(null); });
+    return () => controller.abort();
+  }, [session, config, tenant]);
+  return resultado?.tenant === tenant && resultado?.token === session?.access_token
+    ? resultado.rutas : new Set();
 }
 
 function Grupo({
@@ -244,7 +250,7 @@ function Grupo({
                   return (
                     <SidebarMenuItem key={seccion}>
                       <SidebarMenuButton asChild isActive={aqui} tooltip={seccion}>
-                        <a href={dentro[0].path}>
+                        <Link href={dentro[0].path} prefetch={false}>
                           <Icono />
                           <span>{seccion}</span>
                           {cerrada && (
@@ -253,7 +259,7 @@ function Grupo({
                               aria-label="incluido en un plan superior"
                             />
                           )}
-                        </a>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -272,7 +278,7 @@ function Grupo({
                         : item.label
                     }
                   >
-                    <a href={item.path}>
+                    <Link href={item.path} prefetch={false}>
                       <Icono />
                       <span>{item.label}</span>
                       {conCandado && (
@@ -284,7 +290,7 @@ function Grupo({
                           aria-label="incluido en un plan superior"
                         />
                       )}
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
@@ -308,8 +314,7 @@ function CerrarSesion() {
   );
 }
 
-function Barra({ nav, marcaSvg }: { nav: NavItem[]; marcaSvg: string }) {
-  const candados = useModulosConCandado();
+function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; candados: Set<string> }) {
   const activa = usePathname();
 
   const grupos = useMemo(() => {
@@ -328,13 +333,13 @@ function Barra({ nav, marcaSvg }: { nav: NavItem[]; marcaSvg: string }) {
       <SidebarHeader>
         {/* Plegada, conserva el isotipo como acceso al inicio y oculta
             el nombre y el selector para no desbordar los iconos. */}
-        <a href="/" className="pulso-brand" aria-label="IAxTi, inicio">
+        <Link href="/" prefetch={false} className="pulso-brand" aria-label="IAxTi, inicio">
           <MarcaJelly />
           <span className="group-data-[collapsible=icon]:hidden">
             <span className="pulso-brand-name">IAxTi</span>
             <span className="pulso-brand-caption">Tu negocio, conectado</span>
           </span>
-        </a>
+        </Link>
         {/* Para quien maneja varios negocios esto es lo más importante del
             menú, y en el encabezado viejo estaba perdido entre otros tres
             controles. Acá es lo primero. */}
@@ -386,17 +391,24 @@ function Barra({ nav, marcaSvg }: { nav: NavItem[]; marcaSvg: string }) {
  * `GET /me/modules` y un módulo apagado desaparece sin desplegar (SPEC §26).
  * El `grupo` de cada destino también viene de ahí.
  */
-export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellProps) {
+export function AppShell(props: ShellProps) {
+  return <SessionProvider config={props.config}><RequireSession>
+    <ContenidoShell {...props} />
+  </RequireSession></SessionProvider>;
+}
+
+function ContenidoShell({ marcaSvg, nav, sinMargen, children }: ShellProps) {
+  // Menú y pestañas comparten la misma lectura; no duplicar módulos/acceso.
+  const candados = useModulosConCandado();
   const ruta = usePathname();
   const pagina = nav.find((item) => item.path === ruta || ruta?.startsWith(`${item.path}/`));
   return (
-    <SessionProvider config={config}>
-      <RequireSession>
+    <>
         {/* La bandeja es a ancho completo y la barra arranca plegada: es la
             pantalla de tres paneles, y ahí cada píxel de ancho es una
             columna que se ve. */}
         <SidebarProvider defaultOpen={!sinMargen} className="pulso-workspace">
-          <Barra nav={nav} marcaSvg={marcaSvg} />
+          <Barra nav={nav} marcaSvg={marcaSvg} candados={candados} />
           <SidebarInset>
             <SoporteAviso />
             <header className="pulso-topbar flex items-center gap-3 border-b border-line px-6 py-3">
@@ -418,12 +430,11 @@ export function AppShell({ config, marcaSvg, nav, sinMargen, children }: ShellPr
                   la página, y la página es la que renderiza este shell.
                   Puestas acá, una pantalla de ajustes nueva las tiene sin
                   que nadie se acuerde. */}
-              <PestanasAjustes />
+              <PestanasAjustes items={nav} candados={candados} />
               {children}
             </main>
           </SidebarInset>
         </SidebarProvider>
-      </RequireSession>
-    </SessionProvider>
+    </>
   );
 }

@@ -45,9 +45,14 @@ export function ApiKeys() {
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      setKeys(await apiFetch<KeyDto[]>(config, session, tenant, '/apikeys'));
-      setScopes(await apiFetch<string[]>(config, session, tenant, '/apikeys/scopes'));
-      setConsumo(await apiFetch<ConsumoDto>(config, session, tenant, '/api-usage').catch(() => null));
+      const [nuevosKeys, nuevosScopes, nuevosConsumo] = await Promise.all([
+        apiFetch<KeyDto[]>(config, session, tenant, '/apikeys'),
+        apiFetch<string[]>(config, session, tenant, '/apikeys/scopes'),
+        apiFetch<ConsumoDto>(config, session, tenant, '/api-usage').catch(() => null),
+      ]);
+      setKeys(nuevosKeys);
+      setScopes(nuevosScopes);
+      setConsumo(nuevosConsumo);
     } catch (err) {
       setAviso((err as Error).message);
       setKeys([]);

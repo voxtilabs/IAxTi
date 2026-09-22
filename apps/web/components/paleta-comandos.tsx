@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AvisoResultado, Button, Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
   Dialog, DialogTrigger, DialogContent, DialogDescription, DialogTitle, useSession,
@@ -10,6 +11,7 @@ import { selectedTenant } from './tenant-switcher';
 
 export function PaletaComandos({ nav }: { nav: Array<{ path: string; label: string }> }) {
   const { session, config } = useSession();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [contacts, setContacts] = useState<Array<{ id: string; name: string | null; phone: string | null }>>([]);
@@ -52,7 +54,7 @@ export function PaletaComandos({ nav }: { nav: Array<{ path: string; label: stri
     return () => { current = false; controller.abort(); clearTimeout(timer); window.removeEventListener('storage', changed); window.removeEventListener('iaxti-tenant-changed', changed); };
   }, [config, session, q, open]);
 
-  const go = (path: string) => { setOpen(false); window.location.assign(path); };
+  const go = (path: string) => { setOpen(false); router.push(path); };
   const normal = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger asChild><Button variant="fantasma" aria-label="Buscar o ir a…" aria-keyshortcuts="Control+k Meta+k"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar o ir a…</span></Button></DialogTrigger>

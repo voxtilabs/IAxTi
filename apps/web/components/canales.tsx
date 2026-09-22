@@ -149,8 +149,12 @@ export function Canales() {
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      setCanales(await apiFetch<CanalDto[]>(config, session, tenant, '/channels'));
-      setWidgets(await apiFetch<WidgetDto[]>(config, session, tenant, '/webchat/widgets').catch(() => []));
+      const [nuevosCanales, nuevosWidgets] = await Promise.all([
+        apiFetch<CanalDto[]>(config, session, tenant, '/channels'),
+        apiFetch<WidgetDto[]>(config, session, tenant, '/webchat/widgets').catch(() => []),
+      ]);
+      setCanales(nuevosCanales);
+      setWidgets(nuevosWidgets);
     } catch (err) {
       setAviso((err as Error).message);
     }

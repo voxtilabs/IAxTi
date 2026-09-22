@@ -52,23 +52,20 @@ export function Equipo() {
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
-    try {
-      const d = await apiFetch<{ miembros: MiembroDto[]; invitaciones: InvitacionDto[] }>(
-        config, session, tenant, '/equipo',
-      );
-      setDatos(d);
+    const [equipo, disponibles] = await Promise.allSettled([
+      apiFetch<{ miembros: MiembroDto[]; invitaciones: InvitacionDto[] }>(config, session, tenant, '/equipo'),
+      apiFetch<RolDisponible[]>(config, session, tenant, '/roles'),
+    ]);
+    if (equipo.status === 'fulfilled') {
+      setDatos(equipo.value);
       setError(null);
-    } catch (e) {
-      setError((e as Error).message);
+    } else {
+      setError((equipo.reason as Error).message);
       setDatos({ miembros: [], invitaciones: [] });
     }
-    try {
-      setRoles(await apiFetch<RolDisponible[]>(config, session, tenant, '/roles'));
-    } catch {
-      // Sin la lista de roles la pantalla sigue sirviendo: se invita con los
-      // base, que existen siempre.
-      setRoles([{ name: 'ADMIN' }, { name: 'SUPERVISOR' }, { name: 'USER' }]);
-    }
+    // Sin el catálogo siguen disponibles los roles base, igual que antes.
+    setRoles(disponibles.status === 'fulfilled' ? disponibles.value
+      : [{ name: 'ADMIN' }, { name: 'SUPERVISOR' }, { name: 'USER' }]);
   }, [config, session, tenant]);
 
   useEffect(() => {

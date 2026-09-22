@@ -1,3 +1,66 @@
+# Reportes con jerarquía y navegación fluida · revisión #424
+
+**final result: passed** — no quedan hallazgos visuales P0/P1/P2 en el
+alcance revisado. Las métricas, permisos y funciones existentes se conservan.
+
+## Fuente y evidencia
+
+Solicitud: rediseñar gráficas simplistas y diagnosticar la carga por categoría.
+Fuente: build de staging `0568202`, antes del cambio. Implementación basada en
+`facfd8b`, que incorpora también el avance independiente de staging.
+
+Capturas de navegador con los mismos fixtures sintéticos, período de 30 días,
+fecha de referencia 2026-09-21, modo, viewport CSS y densidad 1. Escritorio
+1440×1000 y móvil 360×800. Las comparaciones conjuntas de `docs/evidencias/424/`
+se abrieron y revisaron en día y noche, en ambos tamaños:
+`comparacion-after-reportes-{dia,noche}-{1440,360}-30.png`.
+Ambos lados se muestran a escala 0,5 en escritorio y 1:1 en móvil; las imágenes
+son de página completa. Las capturas individuales conservan resolución nativa.
+
+## Hallazgos y correcciones
+
+1. **P2 · gráfica sin contexto.** Barras pequeñas sin fechas ni escala, con
+   una altura mínima incluso para cero. Se reemplazan por series diarias con
+   eje desde cero, leyenda, trazo discontinuo para resueltas, selector de día
+   por teclado y tabla. Las fechas faltantes se completan con cero real.
+2. **P2 · todas las cifras pesaban igual.** Se priorizan conversaciones,
+   resueltas, pendientes y primera respuesta. Cierres tienen un anillo con
+   cantidades explícitas; oportunidades, su propia evolución. Los recursos
+   permanecen disponibles y cada definición puede abrirse sin depender de hover.
+3. **P2 · montos partidos en móvil durante la primera iteración.** La tarjeta
+   de pagos ahora ocupa el ancho móvil y el anillo comercial cede espacio a
+   las cifras. Revisión final: $4.850.000 y $2.790.000 íntegros a 360 px.
+4. **P1 · respuesta anterior bajo otro rango o negocio.** Peticiones cancelables,
+   memoria limitada a vista/sesión/negocio y descarte de respuestas fuera de
+   contexto. Revalidación visible y recuperación de errores. Los tests cubren
+   respuestas desordenadas y limpieza de datos al perder permisos.
+
+Tipografía Outfit/Inter/mono, colores semánticos, material jelly, radios y
+marca siguen Pulso Vivo. Aumentan la jerarquía y el espacio útil de las gráficas;
+no cambian acciones de negocio. El contenido se apila en móvil sin overflow
+horizontal. El scroll vertical de un reporte con varias secciones es deliberado;
+no se modifica el ajuste de altura del login.
+
+## Validación y límites
+
+- 12 vistas finales: rangos 7/30/90, dos modos y dos anchos, sin excepciones
+  JavaScript ni desbordes horizontales. Capturas anteriores equivalentes.
+- 63 E2E aprobados, cinco capturas opcionales omitidas. Incluyen navegación,
+  candados sin duplicados, cargas paralelas, teclado, tenant, errores, tablas,
+  campañas, bandeja y ajuste de altura del acceso. OTP simulado.
+- UI: 49 tests; web: 58; analytics: 19; API de analytics: 2. Build de 30 tareas,
+  tipos de 54 tareas, lint y fronteras de módulos aprobados.
+- Las capturas y medidas por pestaña usan fixtures. La comparación de SQL sí
+  usa staging, con lectura acotada y sin mutaciones. Sus límites y las muestras
+  están en `docs/evidencias/424/README.md`. No se simula trabajo para demorar UI.
+- Se conservan las definiciones y el porcentaje redondeado de la API; no se
+  presenta cierre como embudo de las conversaciones recién creadas.
+
+Verificación de imagen desplegada, salud y navegador de staging: se añade al
+PR después del merge. Esta revisión no certifica accesibilidad de todo el producto.
+
+---
+
 # Colorimetría fresca de IAxTi · revisión #408
 
 **final result: passed** — no quedan hallazgos visuales P0/P1/P2 en el alcance

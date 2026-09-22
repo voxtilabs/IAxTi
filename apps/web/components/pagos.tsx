@@ -71,8 +71,12 @@ export function Pagos() {
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      setProveedores(await apiFetch<ProveedorDto[]>(config, session, tenant, '/payments/providers'));
-      setLinks(await apiFetch<LinkDto[]>(config, session, tenant, '/payments/links'));
+      const [nuevosProveedores, nuevosLinks] = await Promise.all([
+        apiFetch<ProveedorDto[]>(config, session, tenant, '/payments/providers'),
+        apiFetch<LinkDto[]>(config, session, tenant, '/payments/links'),
+      ]);
+      setProveedores(nuevosProveedores);
+      setLinks(nuevosLinks);
     } catch (err) {
       setAviso((err as Error).message);
       setProveedores([]);

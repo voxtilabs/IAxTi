@@ -1,12 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Lock } from 'lucide-react';
-import { useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
-import { rutasConCandado } from '../lib/candados';
 import type { NavItem } from '../lib/nav';
 
 /**
@@ -20,29 +16,8 @@ import type { NavItem } from '../lib/nav';
  * Salen de `GET /me/modules`, igual que el menú. Acá no hay lista: si un
  * módulo se apaga para el tenant, su pestaña desaparece sola.
  */
-export function PestanasAjustes() {
-  const { config, session } = useSession();
+export function PestanasAjustes({ items, candados }: { items: NavItem[]; candados: Set<string> }) {
   const activa = usePathname();
-  const [items, setItems] = useState<NavItem[]>([]);
-  const [candados, setCandados] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const tenant = selectedTenant();
-    if (!session || !tenant) return;
-    void Promise.all([
-      fetch(`${config.apiUrl}/v1/me/modules`, { cache: 'no-store' }).then(
-        (r) => r.json() as Promise<Array<{ id: string; nav: NavItem[] }>>,
-      ),
-      apiFetch<Array<{ id: string; acceso: 'completo' | 'solo_lectura' }>>(
-        config, session, tenant, '/me/modules/acceso',
-      ).catch(() => []),
-    ])
-      .then(([modulos, acceso]) => {
-        setItems(modulos.flatMap((m) => m.nav));
-        setCandados(rutasConCandado(modulos, acceso));
-      })
-      .catch(() => setItems([]));
-  }, [config, session]);
 
   const aqui = items.find((i) => i.path === activa);
   const seccion = aqui?.seccion;
@@ -63,8 +38,9 @@ export function PestanasAjustes() {
           const conCandado = candados.has(i.path);
           return (
             <li key={i.path}>
-              <a
+              <Link
                 href={i.path}
+                prefetch={false}
                 aria-current={puesta ? 'page' : undefined}
                 title={conCandado ? 'Tu plan no incluye esta función: puedes mirar, no cambiar.' : undefined}
                 className={[
@@ -77,7 +53,7 @@ export function PestanasAjustes() {
                 {i.label}
                 {/* El candado se ve: bajar de plan nunca esconde (SPEC §6). */}
                 {conCandado && <Lock className="size-3 text-muted" aria-label="incluido en un plan superior" />}
-              </a>
+              </Link>
             </li>
           );
         })}

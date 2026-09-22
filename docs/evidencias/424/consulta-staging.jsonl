@@ -1,0 +1,2 @@
+{"at":"2026-09-21T23:46:03.275Z","readOnly":true,"scope":"getDashboard database service only; excludes HTTP/auth/browser","results":[{"sampleTenant":1,"days":7,"metricDays":3,"samplesMs":[300.1,524.1,788.6,254,255],"optimizedMs":[68.8,65.5,65.9,65.6,66.3],"equivalent":true},{"sampleTenant":1,"days":30,"metricDays":3,"samplesMs":[517.1,254.3,785.2,788.8,255.5],"optimizedMs":[66,65.2,66,65.8,67.4],"equivalent":true},{"sampleTenant":1,"days":90,"metricDays":3,"samplesMs":[522.3,258.4,258.5,259,255.9],"optimizedMs":[68.2,65.9,66.6,66.5,67.6],"equivalent":true}]}
+

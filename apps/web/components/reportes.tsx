@@ -1,31 +1,18 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
-
-import { useCallback, useEffect, useState } from 'react';
-import { Badge, EstadoVacio, Skeleton, Tabs, TabsList, TabsTrigger, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useState } from 'react';
+import { CheckCheck, Clock3, MessageSquare, MessagesSquare, RefreshCw, type LucideIcon } from 'lucide-react';
+import {
+  AvisoResultado, Badge, Button, EncabezadoDePagina, EstadoVacio, GraficoCierre, GraficoSeries,
+  Skeleton, Tabs, TabsList, TabsTrigger,
+} from '@iaxti/ui/react';
 import { PreguntaALosNumeros } from './pregunta-a-los-numeros';
-import { apiFetch, fmtClp } from '../lib/api';
+import { useReporte } from './use-reporte';
+import { fmtClp } from '../lib/api';
+import { diasDelReporte, fechaReporte } from '../lib/reportes';
 
-// Reportes (#66, SPEC §19): cómo va el negocio sin configurar nada.
-// Cada número muestra su DEFINICIÓN al pasar el cursor — nada inventado.
-
-interface DashboardDto {
-  metrics: Record<string, number>;
-  primeraRespuesta: { medianaSeg: number | null; p90Seg: number | null; muestras: number };
-  sinResponderAhora: number;
-  tasaCierre: number | null;
-  porDia: Array<{ day: string; conversaciones: number; resueltas: number; oportunidades: number }>;
-  definiciones: Record<string, string>;
-}
-
-const RANGOS = [
-  { dias: 7, label: '7 días' },
-  { dias: 30, label: '30 días' },
-  { dias: 90, label: '90 días' },
-];
-
+const RANGOS = [7, 30, 90];
+const numero = new Intl.NumberFormat('es-CL');
 function fmtSeg(seg: number | null): string {
   if (seg === null) return '—';
   if (seg < 60) return `${seg} s`;
@@ -33,131 +20,107 @@ function fmtSeg(seg: number | null): string {
   return `${(seg / 3600).toFixed(1)} h`;
 }
 
-function Cifra({
-  rotulo, valor, definicion, alerta,
-}: { rotulo: string; valor: string; definicion: string; alerta?: boolean }) {
-  return (
-    <div
-      className="pulso-panel rounded-tarjeta border border-line bg-raised p-4"
-      title={definicion}
-    >
-      <p className="rotulo">{rotulo}</p>
-      <p className={`dato mt-1 text-2xl font-bold ${alerta ? 'text-warn-text' : 'text-ink'}`}>{valor}</p>
-    </div>
-  );
+function Cifra({ rotulo, valor, definicion, alerta, icono: Icono, amplia }: {
+  rotulo: string; valor: string; definicion?: string; alerta?: boolean; icono?: LucideIcon; amplia?: boolean;
+}) {
+  return <article className={`pulso-report-metric pulso-panel rounded-tarjeta border border-line bg-raised ${amplia ? 'col-span-2 sm:col-span-1' : ''}`} title={definicion}>
+    <h3 className="pulso-report-metric-label">{Icono && <Icono aria-hidden="true" />}{rotulo}</h3>
+    <strong className={`pulso-report-metric-value font-mono ${alerta ? 'text-warn-text' : 'text-ink'}`}>{valor}</strong>
+    {definicion && <details className="pulso-report-definition"><summary>Qué mide</summary><p>{definicion}</p></details>}
+  </article>;
 }
 
 export function Reportes() {
-  const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
   const [dias, setDias] = useState(30);
-  const [datos, setDatos] = useState<DashboardDto | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const { tenant, datos, rango, actualizado, cargando, aviso, reintentar } = useReporte(dias);
+  const m = datos?.metrics;
+  const d = datos?.definiciones;
+  const serie = datos ? diasDelReporte(datos.porDia, rango.from, rango.to) : [];
+  const movimiento = serie.some((dia) => dia.conversaciones > 0 || dia.resueltas > 0 || dia.oportunidades > 0);
+  const etiquetas = serie.map((dia) => fechaReporte(dia.day));
 
-  useEffect(() => setTenant(selectedTenant()), []);
-  const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
-    try {
-      const hasta = new Date().toISOString().slice(0, 10);
-      const desde = new Date(Date.now() - (dias - 1) * 86_400_000).toISOString().slice(0, 10);
-      setDatos(
-        await apiFetch<DashboardDto>(config, session, tenant, `/analytics/dashboard?from=${desde}&to=${hasta}`),
-      );
-    } catch (err) {
-      setAviso((err as Error).message);
-    }
-  }, [config, session, tenant, dias]);
-  useEffect(() => void cargar(), [cargar]);
-
-  if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
-  if (aviso) {
-    return (
-      <AvisoResultado persistente>
-        {aviso}
-      </AvisoResultado>
-    );
-  }
-  if (!datos) return <div className="max-w-3xl"><Skeleton className="h-64" /></div>;
-
-  const d = datos.definiciones;
-  const m = datos.metrics;
-  const maxDia = Math.max(1, ...datos.porDia.map((x) => x.conversaciones));
-
-  return (
-    <div className="max-w-3xl">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <EncabezadoDePagina
-            rotulo="REPORTES"
-            titulo="Cómo va el negocio"
-          />
-        </div>
-        <Tabs value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
-          <TabsList>
-            {RANGOS.map((r) => (
-              <TabsTrigger key={r.dias} value={String(r.dias)}>{r.label}</TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        Pasa el cursor sobre cualquier número para ver exactamente qué mide.
-      </p>
-
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Cifra rotulo="Conversaciones" valor={String(m.conversaciones_nuevas)} definicion={d.conversaciones_nuevas} />
-        <Cifra rotulo="Sin responder AHORA" valor={String(datos.sinResponderAhora)} definicion={d.sin_responder_ahora} alerta={datos.sinResponderAhora > 0} />
-        <Cifra rotulo="Resueltas" valor={String(m.resueltas)} definicion={d.resueltas} />
-        <Cifra
-          rotulo="1ª respuesta (mediana)"
-          valor={fmtSeg(datos.primeraRespuesta.medianaSeg)}
-          definicion={`${d.primera_respuesta} (${datos.primeraRespuesta.muestras} conversaciones medidas; p90 ${fmtSeg(datos.primeraRespuesta.p90Seg)})`}
-        />
-        <Cifra rotulo="Oportunidades" valor={String(m.oportunidades_creadas)} definicion={d.oportunidades_creadas} />
-        <Cifra
-          rotulo="Tasa de cierre"
-          valor={datos.tasaCierre === null ? '—' : `${Math.round(datos.tasaCierre * 100)} %`}
-          definicion={d.tasa_cierre}
-        />
-        <Cifra rotulo="Valor ganado" valor={fmtClp(m.valor_ganado_clp)} definicion={d.valor_ganado_clp} />
-        <Cifra rotulo="Uso de IA" valor={String(m.ia_ejecuciones)} definicion={`${d.ia_ejecuciones} Costo estimado: USD ${m.ia_costo_usd.toFixed(3)}.`} />
-      </div>
-
-      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
-        <div className="flex items-baseline justify-between">
-          <span className="rotulo" title={d.conversaciones_nuevas}>Conversaciones por día</span>
-          <Badge role="neutral">últimos {dias} días</Badge>
-        </div>
-        {datos.porDia.length === 0 ? (
-          <EstadoVacio compacto className="mt-3" titulo="Todavía no hay movimiento en este período"
-            descripcion="Aquí verás cómo evolucionan las conversaciones y oportunidades cuando tu equipo empiece a atender. También puedes elegir un período más amplio arriba."
-            accion={{ etiqueta: 'Abrir la bandeja', href: '/bandeja' }} />
-        ) : (
-          <div className="mt-3 flex h-32 items-end gap-[2px]" role="img" aria-label="Conversaciones nuevas por día">
-            {datos.porDia.map((x) => (
-              <div
-                key={x.day}
-                className="flex-1 rounded-t-boton bg-action"
-                style={{ height: `${Math.max(4, (x.conversaciones / maxDia) * 100)}%` }}
-                title={`${x.day}: ${x.conversaciones} conversaciones, ${x.resueltas} resueltas, ${x.oportunidades} oportunidades`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Cifra rotulo="Mensajes enviados" valor={String(m.mensajes_enviados)} definicion={d.mensajes_enviados} />
-        <Cifra rotulo="Costo Meta" valor={m.costo_meta_usd > 0 ? `USD ${m.costo_meta_usd.toFixed(2)}` : '—'} definicion={d.costo_meta_usd} />
-        <Cifra rotulo="Citas" valor={m.citas_agendadas > 0 ? String(m.citas_agendadas) : '—'} definicion={d.citas_agendadas} />
-        <Cifra rotulo="Pagos" valor={m.pagos_recibidos_clp > 0 ? fmtClp(m.pagos_recibidos_clp) : '—'} definicion={d.pagos_recibidos_clp} />
-      </div>
-
-      {/* Va al final, DESPUÉS de los números: la pregunta nace mirándolos
-          (#410), y así la respuesta queda al lado de lo que explica. */}
-      <div className="mt-6">
-        <PreguntaALosNumeros />
+  return <section className="mx-auto max-w-5xl" aria-label="Reportes del negocio">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <EncabezadoDePagina rotulo="REPORTES" titulo="Cómo va el negocio" />
+      <Tabs value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
+        <TabsList aria-label="Período del reporte">{RANGOS.map((r) => <TabsTrigger key={r} value={String(r)}>{r} días</TabsTrigger>)}</TabsList>
+      </Tabs>
+    </div>
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+      <p className="text-sm text-muted">Conversaciones, resultados y recursos de tu negocio.</p>
+      <div className="flex items-center gap-3 text-xs text-muted">
+        <span role="status">{cargando ? 'Actualizando datos…' : actualizado ? `Actualizado ${actualizado.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+        <Button variant="fantasma" aria-label="Actualizar reportes" onClick={reintentar} disabled={cargando || !tenant}>
+          <RefreshCw aria-hidden="true" className="size-4" /> Actualizar
+        </Button>
       </div>
     </div>
-  );
+    {aviso && <div className="mt-3"><AvisoResultado tono="error" persistente>{aviso} Puedes volver a intentar con Actualizar.</AvisoResultado></div>}
+    {!tenant ? <p className="mt-4 text-muted">Elige un negocio en el selector.</p> : !datos || !m || !d ? (
+      cargando && <div className="mt-5 space-y-4" aria-label="Cargando reportes"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{RANGOS.concat(1).map((n) => <Skeleton key={n} className="h-36" />)}</div><Skeleton className="h-80" /></div>
+    ) : <div aria-busy={cargando}>
+      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Cifra rotulo="Conversaciones" valor={numero.format(m.conversaciones_nuevas)} definicion={d.conversaciones_nuevas} icono={MessagesSquare} />
+        <Cifra rotulo="Resueltas" valor={numero.format(m.resueltas)} definicion={d.resueltas} icono={CheckCheck} />
+        <Cifra rotulo="Sin responder ahora" valor={numero.format(datos.sinResponderAhora)} definicion={d.sin_responder_ahora} alerta={datos.sinResponderAhora > 0} icono={MessageSquare} />
+        <Cifra rotulo="1ª respuesta (mediana)" valor={fmtSeg(datos.primeraRespuesta.medianaSeg)} icono={Clock3}
+          definicion={`${d.primera_respuesta} (${datos.primeraRespuesta.muestras} conversaciones medidas; p90 ${fmtSeg(datos.primeraRespuesta.p90Seg)})`} />
+      </div>
+
+      <section className="pulso-panel mt-4 rounded-tarjeta border border-line bg-raised p-4 sm:p-6" aria-label="Evolución de conversaciones">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div><h2 className="font-display text-seccion font-bold text-ink">El ritmo de tus conversaciones</h2>
+            <p className="mt-1 text-sm text-muted">Nuevas y resueltas, día a día. Las líneas comparten la misma escala.</p></div>
+          <Badge role="neutral">{fechaReporte(rango.from)} – {fechaReporte(rango.to)}</Badge>
+        </div>
+        {!movimiento ? <EstadoVacio compacto className="mt-4" titulo="Todavía no hay movimiento en este período"
+          descripcion="Aquí verás cómo evolucionan las conversaciones y oportunidades cuando tu equipo empiece a atender. También puedes elegir un período más amplio arriba."
+          accion={{ etiqueta: 'Abrir la bandeja', href: '/bandeja' }} /> : <>
+          <GraficoSeries key={`${tenant}/${dias}`} titulo="Conversaciones nuevas y resueltas por día" etiquetas={etiquetas}
+            series={[{ nombre: 'Conversaciones', valores: serie.map((x) => x.conversaciones), tono: 'action' },
+              { nombre: 'Resueltas', valores: serie.map((x) => x.resueltas), tono: 'good' }]} />
+          <details className="mt-4 text-sm text-body">
+            <summary className="w-fit cursor-pointer text-action-text">Ver datos por día</summary>
+            <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs">
+              <caption className="sr-only">Conversaciones, resueltas y oportunidades del {fechaReporte(rango.from)} al {fechaReporte(rango.to)}</caption>
+              <thead><tr>{['Día', 'Conversaciones', 'Resueltas', 'Oportunidades'].map((label) => <th className="p-2" key={label} scope="col">{label}</th>)}</tr></thead>
+              <tbody>{serie.map((x) => <tr className="border-t border-line" key={x.day}><th className="p-2 font-mono font-normal" scope="row">{fechaReporte(x.day)}</th>{[x.conversaciones, x.resueltas, x.oportunidades].map((valor, i) => <td className="p-2 font-mono" key={i}>{numero.format(valor)}</td>)}</tr>)}</tbody>
+            </table></div>
+          </details>
+        </>}
+      </section>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <section className="pulso-panel rounded-tarjeta border border-line bg-raised p-5" aria-label="Resultados comerciales">
+          <h2 className="font-display text-seccion font-bold text-ink">De oportunidad a resultado</h2>
+          <p className="mt-1 text-sm text-muted" title={d.tasa_cierre}>Ganadas sobre las oportunidades cerradas del período.</p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-5">
+            <GraficoCierre ganadas={m.ganadas ?? 0} perdidas={m.perdidas ?? 0} tasa={datos.tasaCierre} />
+            <dl className="min-w-0 flex-1 space-y-3 text-sm">
+              <div className="flex justify-between gap-3"><dt>Ganadas</dt><dd className="font-mono font-bold">{numero.format(m.ganadas ?? 0)}</dd></div>
+              <div className="flex justify-between gap-3"><dt>Perdidas</dt><dd className="font-mono">{numero.format(m.perdidas ?? 0)}</dd></div>
+              <div className="border-t border-line pt-3"><dt className="text-muted">Valor ganado</dt><dd className="mt-1 break-words font-mono text-xl font-bold" title={d.valor_ganado_clp}>{fmtClp(m.valor_ganado_clp)}</dd></div>
+            </dl>
+          </div>
+          <p className="mt-4 text-xs text-muted">Las resueltas y ganadas pueden haberse iniciado antes del rango. No representan un embudo de las conversaciones nuevas.</p>
+        </section>
+        <section className="pulso-panel rounded-tarjeta border border-line bg-raised p-5" aria-label="Oportunidades creadas">
+          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-seccion font-bold text-ink">Oportunidades que llegan</h2><strong className="font-mono text-xl" title={d.oportunidades_creadas}>{numero.format(m.oportunidades_creadas)}</strong></div>
+          <p className="mt-1 text-sm text-muted">Oportunidades creadas en cada día del período.</p>
+          <GraficoSeries key={`${tenant}/${dias}`} titulo="Oportunidades creadas por día" etiquetas={etiquetas}
+            series={[{ nombre: 'Oportunidades', valores: serie.map((x) => x.oportunidades), tono: 'warn' }]} />
+        </section>
+      </div>
+
+      <h2 className="mt-7 font-display text-seccion font-bold text-ink">Recursos y actividad</h2>
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <Cifra rotulo="Mensajes enviados" valor={numero.format(m.mensajes_enviados)} definicion={d.mensajes_enviados} />
+        <Cifra rotulo="Uso de IA" valor={numero.format(m.ia_ejecuciones)} definicion={`${d.ia_ejecuciones} Costo estimado: USD ${m.ia_costo_usd.toFixed(3)}.`} />
+        <Cifra rotulo="Costo Meta" valor={m.costo_meta_usd > 0 ? `USD ${m.costo_meta_usd.toFixed(2)}` : '—'} definicion={d.costo_meta_usd} />
+        <Cifra rotulo="Citas" valor={m.citas_agendadas > 0 ? numero.format(m.citas_agendadas) : '—'} definicion={d.citas_agendadas} />
+        <Cifra amplia rotulo="Pagos" valor={m.pagos_recibidos_clp > 0 ? fmtClp(m.pagos_recibidos_clp) : '—'} definicion={d.pagos_recibidos_clp} />
+      </div>
+      <div className="mt-6"><PreguntaALosNumeros key={tenant} /></div>
+    </div>}
+  </section>;
 }
