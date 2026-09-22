@@ -19,3 +19,6 @@ export {
   AVISOS,
 } from './application/recordatorios';
 export type { CitaPorRecordar, AvisoId } from './application/recordatorios';
+// Con qué plantilla sale cada recordatorio, y cómo se le dice la hora (#59).
+export { configuracionDeAvisos, cuandoEnPalabras, valoresDelAviso } from './domain/aviso';
+export type { ConfiguracionDeAvisos } from './domain/aviso';

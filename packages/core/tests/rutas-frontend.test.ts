@@ -83,6 +83,11 @@ const screen = <Child onSelect={(suffix) => apiFetch(config, session, tenant, \`
     expect(rutasInexistentes(examinar(`apiFetch(config, session, tenant, construirRuta());`))).toHaveLength(1);
   });
 
+  // 30 s y no los 5 por defecto: este caso LEE EL REPOSITORIO ENTERO —los
+  // controladores de la API y cada llamada de web y admin— y eso crece con
+  // el producto. Tardaba 5,4 s con la máquina ocupada y fallaba por tiempo,
+  // que se lee como "hay una ruta rota" y no lo es. Un tope generoso sigue
+  // atrapando un escaneo que se descontrola de verdad.
   it('toda llamada de web y admin tiene una ruta declarada en la API', () => {
     const datos = inventarioDelRepositorio(join(__dirname, '..', '..', '..'));
     expect(datos.declaradas.length).toBeGreaterThan(150);
@@ -92,5 +97,5 @@ const screen = <Child onSelect={(suffix) => apiFetch(config, session, tenant, \`
     expect(rotas, 'Rutas que el frontend pide y la API no declara:\n' + rotas.map((r) =>
       `  ${r.archivo}:${r.linea} → ${r.ruta}`).join('\n') +
       '\nUna ruta dinámica debe poder resolverse a sus literales y parámetros.').toEqual([]);
-  });
+  }, 30_000);
 });

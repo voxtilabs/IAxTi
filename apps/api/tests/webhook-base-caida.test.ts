@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
+import type { Pool } from 'pg';
 
 /**
  * Un webhook entrante con la base caída (#361).
@@ -14,21 +15,29 @@ import type { INestApplication } from '@nestjs/common';
  * proveedor SÍ sabe reintentar. Va en su propio archivo porque cambia
  * `DATABASE_URL` del proceso: el pool de la API se crea una vez y queda.
  */
-process.env.DATABASE_URL = 'postgres://nadie:nadie@127.0.0.1:59999/no_existe';
-process.env.DB_CONNECT_TIMEOUT_MS = '300';
-
 let app: INestApplication;
 let base: string;
+let muerto: Pool;
 
 beforeAll(async () => {
+  const { createPool } = await import('@iaxti/db');
+  const { usarPool } = await import('../src/db');
   const { createApp } = await import('../src/main');
+  // Un pool hacia un puerto donde no hay nadie, INYECTADO: cambiar
+  // `process.env.DATABASE_URL` le cambiaría la base a los otros archivos de
+  // test, que corren en hilos del mismo proceso.
+  muerto = createPool('postgres://nadie:nadie@127.0.0.1:59999/no_existe');
+  usarPool(muerto);
   app = await createApp({ jwtVerify: async () => ({ userId: 'nadie' }) });
   await app.listen(0);
   base = await app.getUrl();
 });
 
 afterAll(async () => {
+  const { usarPool } = await import('../src/db');
+  usarPool(null);
   await app.close();
+  await muerto.end().catch(() => undefined);
 });
 
 describe('webhook con la base sin responder', () => {
