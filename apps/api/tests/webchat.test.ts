@@ -4,6 +4,8 @@ import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createWidget, setWidgetActive } from '@iaxti/module-webchat';
 import type { Widget } from '@iaxti/module-webchat';
+import { Queue } from 'bullmq';
+import { redisConnection } from '@iaxti/core';
 import { createApp } from '../src/main';
 
 // El lado público del webchat (#46): token + dominio como autenticación.
@@ -40,6 +42,19 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // La cola `agents` es COMPARTIDA con los demás tests del monorepo, y
+  // ahora cada mensaje de webchat encola una sugerencia (#438). Un job
+  // olvidado se lo lleva el worker de otro test —que cuenta cuántas veces
+  // se llamó— y lo rompe por un motivo que no tiene nada que ver con lo
+  // suyo. Se borran los de ESTE tenant, no la cola entera.
+  const cola = new Queue('agents', { connection: redisConnection() });
+  for (const job of await cola.getJobs(['waiting', 'delayed', 'completed', 'failed'])) {
+    if ((job.data as { tenantId?: string } | undefined)?.tenantId === tenant) {
+      await cola.remove(job.id!).catch(() => undefined);
+    }
+  }
+  await cola.close();
+
   await app.close();
   for (const tabla of ['webchat_sessions', 'webchat_widgets', 'assignments', 'messages', 'conversations', 'contacts', 'channel_accounts', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
@@ -95,5 +110,35 @@ describe('webchat público', () => {
     await withTenant(admin, tenant, (c) =>
       setWidgetActive(c, { tenantId: tenant, widgetId: widget.id, active: true }),
     );
+  });
+
+  it('el mensaje del visitante pide sugerencia al copiloto (#438)', async () => {
+    // WhatsApp y el simulador entran por la cola `inbound` y ES ESE worker
+    // el que encola la sugerencia. El webchat escribe directo en la bandeja
+    // —para que el visitante vea su mensaje al tiro— y se saltaba al
+    // copiloto entero: el único canal que funciona sin proveedor era el
+    // único sin asistente.
+    const cola = new Queue('agents', { connection: redisConnection() });
+    try {
+      const sesion = await (await post('/sessions', {})).json();
+      const res = await post('/messages', {
+        sessionId: sesion.sessionId,
+        body: '¿Tienen hora para mañana?',
+        visitor: { name: 'Sugerencia', phone: '+56999000077' },
+      });
+      const cuerpo = await res.json();
+      expect(cuerpo.status).toBe('delivered');
+      expect(cuerpo.messageId).toBeTruthy();
+
+      const job = await cola.getJob(`sg-${cuerpo.messageId}`);
+      expect(job, 'el webchat no pidió sugerencia').toBeDefined();
+      expect(job!.data).toMatchObject({
+        moduleId: 'agents',
+        conversationId: cuerpo.conversationId,
+        messageId: cuerpo.messageId,
+      });
+    } finally {
+      await cola.close();
+    }
   });
 });

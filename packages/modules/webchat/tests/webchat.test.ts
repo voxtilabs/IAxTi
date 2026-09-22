@@ -33,7 +33,13 @@ beforeAll(async () => {
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
   await admin.query('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_app');
   await admin.query(
-    'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, conversations, messages, assignments, channel_accounts, webchat_widgets, webchat_sessions, tenants, user_roles TO iaxti_app',
+    // `usage_meters` estaba faltando y este test pasaba igual: otro archivo
+    // se lo concedía antes al MISMO rol, que es del clúster, y el orden
+    // decidía si este pasaba. Corriendo solo fallaba con «permission denied
+    // for table usage_meters», que es justo lo que el camino de entrada
+    // toca desde #213 — cada conversación que recibe algo cuenta como
+    // activa del ciclo.
+    'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, conversations, messages, assignments, channel_accounts, webchat_widgets, webchat_sessions, tenants, user_roles, usage_meters TO iaxti_app',
   );
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
@@ -167,5 +173,40 @@ describe('el visitante (#46)', () => {
       [tenant],
     );
     expect(historial.rows[0].n).toBeGreaterThan(0); // nada se borra
+  });
+
+  it('devuelve el id del ÚLTIMO mensaje, también cuando vuelca lo pendiente', async () => {
+    // Lo necesita quien dispare el copiloto. Y tiene que ser el último: al
+    // identificarse entran de una vez el mensaje anónimo que esperaba y el
+    // nuevo, y el asistente tiene que mirar el más reciente.
+    const w = await withTenant(app, tenant, (c) =>
+      createWidget(c, { tenantId: tenant, allowedDomain: 'ultimo.cl' }),
+    );
+    const sesion = await withTenant(app, tenant, (c) =>
+      startSession(c, { tenantId: tenant, widgetId: w.id }),
+    );
+
+    const primero = await withTenant(app, tenant, (c) =>
+      postVisitorMessage(c, { widget: w, sessionId: sesion.id, body: 'Hola' }),
+    );
+    expect(primero.status).toBe('pending');
+    expect(primero.messageId).toBeUndefined(); // todavía no entró a la bandeja
+
+    const segundo = await withTenant(app, tenant, (c) =>
+      postVisitorMessage(c, {
+        widget: w,
+        sessionId: sesion.id,
+        body: 'Quiero agendar',
+        visitor: { name: 'Última', phone: '+56999000088' },
+      }),
+    );
+    expect(segundo.status).toBe('delivered');
+    expect(segundo.messageId).toBeTruthy();
+
+    const cual = await admin.query('SELECT body FROM messages WHERE tenant_id = $1 AND id = $2', [
+      tenant,
+      segundo.messageId,
+    ]);
+    expect(cual.rows[0].body).toBe('Quiero agendar');
   });
 });

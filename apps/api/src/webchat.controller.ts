@@ -20,12 +20,56 @@ import {
   startSession,
 } from '@iaxti/module-webchat';
 import type { Widget } from '@iaxti/module-webchat';
+import { createQueue, redisConnection } from '@iaxti/core';
 import { apiPool } from './db';
+import { registry } from './registry';
 import type { WithRequestId } from './request-id';
 
 // El lado PÚBLICO del webchat (#46): lo consume el iframe del widget desde
 // el origen de la app (mismo CORS que web/admin). El token del widget +
 // el referrer del sitio son la autenticación; fuera de dominio, 404 mudo.
+
+/**
+ * El copiloto para el webchat (#438).
+ *
+ * Los mensajes de WhatsApp y del simulador entran por la cola `inbound`, y
+ * ES ESE worker el que encola la sugerencia. El webchat escribe directo en
+ * la bandeja —para que el visitante vea su mensaje al tiro— y por eso se
+ * saltaba al copiloto entero: el único canal que funciona sin proveedor,
+ * el que sirve para partir hoy, era también el único sin asistente.
+ *
+ * Va DESPUÉS de responder el mensaje y no antes: la respuesta al visitante
+ * no espera a Redis. Y si encolar falla, el mensaje ya está en la bandeja —
+ * se pierde la sugerencia, no la conversación.
+ */
+let colaDeAgentes: ReturnType<typeof createQueue> | null = null;
+async function pedirSugerencia(
+  tenantId: string,
+  res: { status: string; conversationId?: string; messageId?: string },
+  requestId?: string,
+): Promise<void> {
+  if (res.status !== 'delivered' || !res.conversationId || !res.messageId) return;
+  if (!registry.isActive('agents')) return;
+  try {
+    colaDeAgentes ??= createQueue('agents', redisConnection());
+    await colaDeAgentes.add(
+      'suggest',
+      {
+        moduleId: 'agents',
+        tenantId,
+        conversationId: res.conversationId,
+        messageId: res.messageId,
+        knowledgeActivo: registry.isActive('knowledge'),
+        requestId,
+      },
+      // El MISMO jobId que usa el worker de entrada: si algún día el
+      // webchat pasara por esa cola, el duplicado ni entra.
+      { jobId: `sg-${res.messageId}` },
+    );
+  } catch (error) {
+    console.warn(`webchat: no se pudo pedir la sugerencia: ${(error as Error).message}`);
+  }
+}
 
 function pool() {
   const p = apiPool();
@@ -94,7 +138,7 @@ export class WebchatController {
       });
     }
     try {
-      return await withTenant(pool(), widget.tenantId, (c) =>
+      const res = await withTenant(pool(), widget.tenantId, (c) =>
         postVisitorMessage(c, {
           widget,
           sessionId: body.sessionId!,
@@ -103,6 +147,8 @@ export class WebchatController {
           requestId: request.requestId,
         }),
       );
+      await pedirSugerencia(widget.tenantId, res, request.requestId);
+      return res;
     } catch (err) {
       throw new BadRequestException({ code: 'WEBCHAT_ERROR', message: (err as Error).message });
     }

@@ -159,6 +159,15 @@ export async function getSession(
 export interface VisitorMessageResult {
   status: 'pending' | 'need_identity' | 'delivered';
   conversationId?: string;
+  /**
+   * El id del ÚLTIMO mensaje que quedó en la bandeja (#438).
+   *
+   * Lo necesita quien dispare el copiloto: el webchat escribe directo y no
+   * pasa por la cola de entrada, así que sin esto nadie podía encolar la
+   * sugerencia — el único canal que funciona sin proveedor era también el
+   * único sin asistente.
+   */
+  messageId?: string;
 }
 
 /**
@@ -184,6 +193,9 @@ export async function postVisitorMessage(
 
   const entregar = async (conversationId: string | null, contactId: string, textos: string[]) => {
     let conv = conversationId;
+    // El del ÚLTIMO texto: cuando se vuelca lo pendiente entran varios de
+    // una vez, y el copiloto tiene que mirar el más nuevo.
+    let ultimoMensaje: string | undefined;
     for (const texto of textos) {
       const res = await receiveInboundForContact(client, {
         tenantId: widget.tenantId,
@@ -194,6 +206,7 @@ export async function postVisitorMessage(
         requestId: input.requestId,
       });
       conv = res.conversation.id;
+      ultimoMensaje = res.message.id;
       if (res.conversationCreated) {
         await autoAssignNew(client, {
           tenantId: widget.tenantId,
@@ -202,18 +215,20 @@ export async function postVisitorMessage(
         });
       }
     }
-    return conv!;
+    return { conversationId: conv!, messageId: ultimoMensaje };
   };
 
   // Ya identificada: directo a la bandeja.
   if (session.contactId) {
-    const conversationId = await entregar(session.conversationId, session.contactId, [input.body]);
+    const { conversationId, messageId } = await entregar(session.conversationId, session.contactId, [
+      input.body,
+    ]);
     await client.query(
       `UPDATE webchat_sessions SET conversation_id = $3, updated_at = now()
         WHERE tenant_id = $1 AND id = $2`,
       [widget.tenantId, session.id, conversationId],
     );
-    return { status: 'delivered', conversationId };
+    return { status: 'delivered', conversationId, messageId };
   }
 
   // Con identidad en la mano: contacto + conversación + flush de pendientes.
@@ -226,14 +241,14 @@ export async function postVisitorMessage(
       requestId: input.requestId,
     });
     const textos = [...session.pending.map((m) => m.body), input.body];
-    const conversationId = await entregar(null, contact.id, textos);
+    const { conversationId, messageId } = await entregar(null, contact.id, textos);
     await client.query(
       `UPDATE webchat_sessions SET contact_id = $3, conversation_id = $4,
               visitor_name = $5, pending = '[]'::jsonb, updated_at = now()
         WHERE tenant_id = $1 AND id = $2`,
       [widget.tenantId, session.id, contact.id, conversationId, input.visitor.name ?? null],
     );
-    return { status: 'delivered', conversationId };
+    return { status: 'delivered', conversationId, messageId };
   }
 
   // Anónimo: el primero espera en la sesión; del segundo en adelante,
