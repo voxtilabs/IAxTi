@@ -25,8 +25,8 @@ capturas porque se realizó una nueva lectura del fixture.
 - `before.json` / `after.json` contienen las mediciones. Las firmas se revisaron
   también aisladas al tamaño real que tienen en la interfaz.
 - Build 30 tareas, tipos 54, lint y dependency-cruiser aprobados. 49 tests UI y
-  63 E2E aprobados sin reintentos; cinco capturas opcionales omitidas. La regresión
-  incluye Reportes, navegación, permisos y los tamaños de login de #406.
+  65 E2E aprobados sin reintentos; cinco capturas opcionales omitidas. La regresión
+  incluye los dos E2E de API real incorporados por #425, Reportes, navegación, permisos y los tamaños de login de #406.
 - No se añade una biblioteca ni una descarga de imagen para el lockup; el SVG
   es inline. Primera carga estimada por Next de Reportes: 490 → 491 kB (redondeo
   del reporte del build). El favicon autónomo de admin pesa 3.116 bytes.

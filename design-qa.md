@@ -26,7 +26,7 @@ ni overflow horizontal. Los logins siguen entrando completos. El material es
 estático; colores, espaciado y tipografía de los controles se conservan. El
 favicon corporativo de admin también usa el isotipo de VOXIA 2.
 
-Validación: build 30 tareas, tipos 54, lint, fronteras, 49 tests UI y 63 E2E
+Validación: build 30 tareas, tipos 54, lint, fronteras, 49 tests UI y 65 E2E
 aprobados; cinco capturas opcionales omitidas. Sesiones/datos visuales sintéticos,
 OTP simulado. Verificación del despliegue registrada posteriormente en el PR.
 
