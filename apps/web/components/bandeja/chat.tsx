@@ -55,6 +55,8 @@ export interface ChatProps {
   mensajes: Mensaje[] | null;
   atajos: QuickReplyDto[];
   sugerencia: SugerenciaDto | null;
+  /** Por qué NO hay sugerencia (#436). null = hay, o el módulo está apagado. */
+  sinSugerencia: { codigo: string; texto: string; queHacer?: string; loArreglaElNegocio: boolean } | null;
   /** Modo efectivo del copiloto; null = módulo agents apagado. */
   modo: 'assist' | 'autonomous' | 'off' | null;
   miId: string;
@@ -71,7 +73,7 @@ export interface ChatProps {
 }
 
 export function Chat({
-  detalle, mensajes, atajos, sugerencia, modo, miId, aviso,
+  detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
@@ -220,6 +222,23 @@ export function Chat({
         </AvisoResultado>
       )}
 
+
+      {/* Por qué no hay sugerencia (#436). Solo cuando el copiloto está
+          encendido: con el módulo apagado no falta nada, y explicar la
+          ausencia de algo que nadie contrató sería ruido.
+          `todavia_trabajando` tampoco se muestra: el copiloto corre después
+          del camino de entrada a propósito, y avisar de eso en cada mensaje
+          convertiría lo normal en una alarma. */}
+      {!sugerencia && sinSugerencia && modo !== null && modo !== 'off' &&
+        sinSugerencia.codigo !== 'todavia_trabajando' && (
+        <div className="mx-4 mb-2 rounded-campo border border-line bg-rest p-3">
+          <p className="rotulo">Sin sugerencia del asistente</p>
+          <p className="mt-1 text-sm text-body">{sinSugerencia.texto}</p>
+          {sinSugerencia.queHacer && (
+            <p className="mt-1 text-sm text-muted">{sinSugerencia.queHacer}</p>
+          )}
+        </div>
+      )}
 
       {/* El copiloto (#48): aviso action-soft sobre el campo — UN toque. */}
       {sugerencia && enVentana && (

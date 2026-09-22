@@ -232,6 +232,11 @@ export async function runAgentTask(
           // Qué herramientas se usaron queda en la ejecución: sin esto,
           // una respuesta con precio real y una inventada se ven igual.
           ...(res.herramientasUsadas?.length ? { herramientas: res.herramientasUsadas } : {}),
+          // Que la respuesta viniera cortada también (#436): el copiloto la
+          // descarta —media frase no se le muestra a nadie— y desde la
+          // bandeja eso se veía igual que "el modelo no entendió", que es
+          // otro problema con otro remedio.
+          ...(res.truncada ? { truncada: true } : {}),
         }),
         res.tokensIn,
         res.tokensOut,
