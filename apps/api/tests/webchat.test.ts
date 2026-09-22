@@ -4,6 +4,8 @@ import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createWidget, setWidgetActive } from '@iaxti/module-webchat';
 import type { Widget } from '@iaxti/module-webchat';
+import { Queue } from 'bullmq';
+import { redisConnection } from '@iaxti/core';
 import { createApp } from '../src/main';
 
 // El lado público del webchat (#46): token + dominio como autenticación.
@@ -95,5 +97,36 @@ describe('webchat público', () => {
     await withTenant(admin, tenant, (c) =>
       setWidgetActive(c, { tenantId: tenant, widgetId: widget.id, active: true }),
     );
+  });
+
+  it('el mensaje del visitante pide sugerencia al copiloto (#438)', async () => {
+    // WhatsApp y el simulador entran por la cola `inbound` y ES ESE worker
+    // el que encola la sugerencia. El webchat escribe directo en la bandeja
+    // —para que el visitante vea su mensaje al tiro— y se saltaba al
+    // copiloto entero: el único canal que funciona sin proveedor era el
+    // único sin asistente.
+    const cola = new Queue('agents', { connection: redisConnection() });
+    try {
+      const sesion = await (await post('/sessions', {})).json();
+      const res = await post('/messages', {
+        sessionId: sesion.sessionId,
+        body: '¿Tienen hora para mañana?',
+        visitor: { name: 'Sugerencia', phone: '+56999000077' },
+      });
+      const cuerpo = await res.json();
+      expect(cuerpo.status).toBe('delivered');
+      expect(cuerpo.messageId).toBeTruthy();
+
+      const job = await cola.getJob(`sg-${cuerpo.messageId}`);
+      expect(job, 'el webchat no pidió sugerencia').toBeDefined();
+      expect(job!.data).toMatchObject({
+        moduleId: 'agents',
+        conversationId: cuerpo.conversationId,
+        messageId: cuerpo.messageId,
+      });
+      await job!.remove();
+    } finally {
+      await cola.close();
+    }
   });
 });
