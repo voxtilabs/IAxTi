@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, IconoCheck, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
+import { DerechosDelTitular } from './derechos-del-titular';
 import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
 
 // La ficha de contacto (#32, SPEC §10/§29): historia, oportunidades y
@@ -254,6 +255,11 @@ export function FichaContacto({
           </Button>
         </form>
       </section>
+
+      {/* Los derechos de la persona, en su ficha y no escondidos en un
+          menú: quien recibe la solicitud llega por acá (#447). En el panel
+          de la bandeja no van: ahí se está atendiendo, no administrando. */}
+      {!compacta && <DerechosDelTitular contactId={contactId} nombre={ficha.contact.name} />}
 
       {/* Espacio reservado para la IA (Fase 3), con rótulo mono (#32). */}
       <section className="mt-6 rounded-campo border border-line bg-rest p-4">
