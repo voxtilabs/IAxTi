@@ -2,7 +2,7 @@
 
 import { AvisoResultado } from '@iaxti/ui/react';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AuditExplorer,
   MarcaJelly,
@@ -207,12 +207,77 @@ interface ConsumoRow {
   limit: number | null;
 }
 
+/**
+ * El tope propio de un tenant (#447).
+ *
+ * `PUT /platform/tenants/:id/api-quota` existía y no lo llamaba nadie:
+ * subirle el límite a un cliente que lo pedía era entrar a la base a mano.
+ *
+ * Vacío significa «el del plan», y eso hay que poder volver a elegirlo: un
+ * override que solo se puede poner y no sacar obliga a recordar el número
+ * que tenía el plan.
+ */
+function TopePropio({
+  tenantId,
+  nombre,
+  actual,
+  onGuardado,
+}: {
+  tenantId: string;
+  nombre: string;
+  actual: number | null;
+  onGuardado: () => void;
+}) {
+  const { session, config } = useSession();
+  const [valor, setValor] = useState(actual === null ? '' : String(actual));
+  const [guardando, setGuardando] = useState(false);
+
+  const guardar = async () => {
+    if (!session) return;
+    setGuardando(true);
+    try {
+      await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/api-quota`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requestsMonth: valor.trim() === '' ? null : Number(valor) }),
+      });
+      onGuardado();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <span className="flex items-center justify-end gap-1">
+      <input
+        aria-label={`Tope de API propio de ${nombre}`}
+        inputMode="numeric"
+        placeholder="del plan"
+        className="dato w-24 rounded-boton border border-line bg-bg px-2 py-1 text-right text-xs text-ink"
+        value={valor}
+        onChange={(e) => setValor(e.target.value.replace(/[^0-9]/g, ''))}
+      />
+      <button
+        type="button"
+        disabled={guardando || valor === (actual === null ? '' : String(actual))}
+        className="rounded-boton border border-line px-2 py-1 text-xs text-body disabled:opacity-40"
+        onClick={() => void guardar()}
+      >
+        {guardando ? '…' : 'Guardar'}
+      </button>
+    </span>
+  );
+}
+
 /** El consumo de API por tenant (#26): contra su tope, desde UsageMeter. */
 function TablaConsumoApi() {
   const { session, config } = useSession();
   const [filas, setFilas] = useState<ConsumoRow[] | null>(null);
 
-  useEffect(() => {
+  const cargar = useCallback(() => {
     if (!session) return;
     void fetch(`${config.apiUrl}/v1/platform/api-usage`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
@@ -220,6 +285,7 @@ function TablaConsumoApi() {
       if (res.ok) setFilas(await res.json());
     });
   }, [session, config.apiUrl]);
+  useEffect(cargar, [cargar]);
 
   if (!filas) return null;
 
@@ -230,7 +296,7 @@ function TablaConsumoApi() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-rest text-left">
-              {['Negocio', 'Plan', 'Requests', 'Tope', '% usado'].map((h) => (
+              {['Negocio', 'Plan', 'Requests', 'Tope', '% usado', 'Tope propio'].map((h) => (
                 <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
               ))}
             </tr>
@@ -260,6 +326,12 @@ function TablaConsumoApi() {
                         {pct} %
                       </span>
                     )}
+                  </td>
+                  {/* El override por tenant (#447): la ruta existía sin
+                      pantalla, así que subirle el tope a un cliente que lo
+                      pide era entrar a la base. Vacío = el del plan. */}
+                  <td className="px-4 py-4 text-right">
+                    <TopePropio tenantId={t.id} nombre={t.name} actual={t.limit} onGuardado={cargar} />
                   </td>
                 </tr>
               );
@@ -678,6 +750,170 @@ const AGRUPACIONES = [
 const clp = (n: number) => `$${n.toLocaleString('es-CL')}`;
 
 /** Centro de IA (#70): si el modelo barato conviene, se ve acá. */
+interface PorBorrarDto {
+  id: string;
+  name: string;
+  suspendidoDesde: string;
+  diasSuspendido: number;
+  avisadoEl: string | null;
+  borrable: boolean;
+}
+
+/**
+ * La cola de borrado (#447).
+ *
+ * `tenantsPorBorrar` existe y su ruta no la miraba nadie. La decisión ya
+ * estaba tomada: **el sistema avisa y una persona borra**, porque es
+ * irreversible y se lleva los datos de los clientes de nuestro cliente.
+ * Esto es la lista para esa persona — y sin ella, el aviso automático no
+ * llegaba a ningún escritorio.
+ *
+ * NO hay botón de borrar acá: se hace desde la fila del tenant, a
+ * propósito, para que borrar no sea la acción más cercana a la lista.
+ */
+function ColaDeBorrado() {
+  const { session, config } = useSession();
+  const [filas, setFilas] = useState<PorBorrarDto[] | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    void fetch(`${config.apiUrl}/v1/platform/tenants/por-borrar`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (res) => {
+      if (res.ok) setFilas(await res.json());
+    });
+  }, [session, config.apiUrl]);
+
+  if (!filas) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-xl font-bold text-ink">En cola de borrado</h2>
+      <p className="mb-4 max-w-prose text-sm text-muted">
+        Suspendidos hace tiempo. El sistema avisa; borrar lo hace una persona desde la fila del
+        negocio, arriba. Es irreversible y se lleva los datos de los clientes de ese negocio.
+      </p>
+      {filas.length === 0 ? (
+        <p className="rounded-campo border border-line bg-raised px-5 py-4 text-sm text-body">
+          Ninguno en cola. Es la respuesta que uno quiere ver acá.
+        </p>
+      ) : (
+        <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-rest text-left">
+                {['Negocio', 'Suspendido hace', 'Avisado', 'Estado'].map((h) => (
+                  <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((t) => (
+                <tr key={t.id} className="border-t border-line">
+                  <td className="px-4 py-3 font-medium text-ink">{t.name}</td>
+                  <td className="dato px-4 py-3 text-body">{t.diasSuspendido} días</td>
+                  <td className="px-4 py-3 text-body">
+                    {t.avisadoEl ? new Date(t.avisadoEl).toISOString().slice(0, 10) : 'sin avisar'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-boton border px-3 py-1 text-xs font-medium ${
+                        t.borrable
+                          ? 'border-bad-soft-br bg-bad-soft text-bad-text'
+                          : 'border-warn-soft-br bg-warn-soft text-warn-text'
+                      }`}
+                    >
+                      {t.borrable ? 'cumple el plazo' : 'todavía en plazo'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface PromptActivoDto {
+  tenantId: string;
+  agentId: string;
+  nombre: string;
+  promptName: string | null;
+  promptVersion: string | null;
+  ultimoScore: number | null;
+  ultimaEval: string | null;
+}
+
+/**
+ * Qué prompt está vivo en cada negocio y cómo le va (#447).
+ *
+ * La ruta existía sin pantalla. Es lo que permite responder «¿qué le
+ * cambiamos a este cliente y le sirvió?» sin entrar a la base — y sobre
+ * todo ver a los que corren SIN versión de prompt fijada, que son los que
+ * se mueven solos cuando cambiamos el prompt por defecto.
+ */
+function PromptsVivos() {
+  const { session, config } = useSession();
+  const [filas, setFilas] = useState<PromptActivoDto[] | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    void fetch(`${config.apiUrl}/v1/platform/ia/prompts`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).then(async (res) => {
+      if (res.ok) setFilas(await res.json());
+    });
+  }, [session, config.apiUrl]);
+
+  if (!filas || filas.length === 0) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-xl font-bold text-ink">Prompts vivos</h2>
+      <p className="mb-4 max-w-prose text-sm text-muted">
+        Qué versión corre en cada negocio y qué sacó en su última evaluación. Los que no tienen
+        versión fijada se mueven solos cuando cambia el prompt por defecto.
+      </p>
+      <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-rest text-left">
+              {['Asistente', 'Prompt', 'Versión', 'Último score', 'Medido'].map((h) => (
+                <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f) => (
+              <tr key={f.agentId} className="border-t border-line">
+                <td className="px-4 py-3 font-medium text-ink">{f.nombre}</td>
+                <td className="px-4 py-3 text-body">{f.promptName ?? 'el del código'}</td>
+                <td className="px-4 py-3">
+                  {f.promptVersion ? (
+                    <span className="dato text-ink">{f.promptVersion}</span>
+                  ) : (
+                    <span className="rounded-boton border border-warn-soft-br bg-warn-soft px-3 py-1 text-xs text-warn-text">
+                      sin fijar
+                    </span>
+                  )}
+                </td>
+                <td className="dato px-4 py-3 text-ink">
+                  {f.ultimoScore === null ? '—' : `${Math.round(f.ultimoScore * 100)}%`}
+                </td>
+                <td className="px-4 py-3 text-body">
+                  {f.ultimaEval ? new Date(f.ultimaEval).toISOString().slice(0, 10) : 'nunca'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function CentroIA() {
   const { session, config } = useSession();
   const [groupBy, setGroupBy] = useState<string>('modelo');
@@ -868,6 +1104,8 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
             <TablaConsumoApi />
             <AuditGlobal />
             <CentroIA />
+            <PromptsVivos />
+            <ColaDeBorrado />
             <SeguridadYSalud />
           </main>
         </div>

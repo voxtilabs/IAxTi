@@ -1,0 +1,48 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * Las tres funciones del panel que no tenían pantalla (#447).
+ *
+ * `GET /platform/tenants/por-borrar`, `GET /platform/ia/prompts` y
+ * `PUT /platform/tenants/:id/api-quota` existían con permisos, auditoría y
+ * tests de API — y ningún frontend las llamaba. La cola de borrado es la
+ * que más pesa: la decisión era «el sistema avisa y una PERSONA borra», y
+ * el aviso no llegaba a ningún escritorio.
+ *
+ * El guard de rutas (`rutas-frontend`) comprueba lo contrario —que el
+ * frontend no pida rutas inexistentes— y por eso este agujero pasaba: una
+ * ruta sin consumidor no rompe nada.
+ */
+const PANEL = readFileSync(
+  join(__dirname, '..', '..', '..', 'apps', 'admin', 'components', 'admin-shell.tsx'),
+  'utf8',
+);
+
+describe('el panel de SuperAdmin usa lo que la API ofrece', () => {
+  it('muestra la cola de borrado', () => {
+    expect(PANEL).toContain('/platform/tenants/por-borrar');
+  });
+
+  it('pero NO ofrece borrar desde esa lista', () => {
+    // Borrar es irreversible y se lleva los datos de los clientes de
+    // nuestro cliente: no puede ser la acción más cercana a la lista.
+    const bloque = PANEL.slice(PANEL.indexOf('function ColaDeBorrado'), PANEL.indexOf('interface PromptActivoDto'));
+    expect(bloque).not.toMatch(/action: 'delete'|\/state[\s\S]{0,80}delete/);
+  });
+
+  it('muestra qué prompt corre en cada negocio', () => {
+    expect(PANEL).toContain('/platform/ia/prompts');
+    // Los que no tienen versión fijada se mueven solos cuando cambia el
+    // prompt por defecto: es lo que hay que poder ver de un vistazo.
+    expect(PANEL).toContain('sin fijar');
+  });
+
+  it('deja cambiar el tope de API de un tenant, y volver al del plan', () => {
+    expect(PANEL).toContain('api-quota');
+    // Vacío = el del plan. Un override que solo se puede poner obliga a
+    // recordar de memoria el número que tenía el plan.
+    expect(PANEL).toMatch(/valor\.trim\(\) === '' \? null : Number\(valor\)/);
+  });
+});
