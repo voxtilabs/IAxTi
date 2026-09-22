@@ -131,4 +131,32 @@ describe('POST /webhooks/channels/:accountId', () => {
     const despues = await queue.getJobCountByTypes('waiting', 'delayed', 'completed', 'failed');
     expect(despues).toBe(antes);
   });
+
+  it('deja rastro de lo que pasó: aceptado y firma inválida se distinguen (#434)', async () => {
+    // Es la distinción que costó horas dos veces: «nunca llegó un webhook»
+    // y «llegan pero la firma no calza» se veían idénticos desde adentro,
+    // y se arreglan en lugares distintos.
+    await disparar({ mensajes: [{ id: 'rastro-1', from: '+56955550001', text: 'hola' }] });
+    const aceptado = await admin.query(
+      'SELECT last_webhook_result, last_webhook_ok_at FROM channel_accounts WHERE id = $1',
+      [cuenta],
+    );
+    expect(aceptado.rows[0].last_webhook_result).toBe('aceptado');
+    expect(aceptado.rows[0].last_webhook_ok_at).not.toBeNull();
+
+    const res = await disparar(
+      { mensajes: [{ id: 'rastro-2', from: '+56955550002', text: 'hola' }] },
+      'firma-que-no-calza',
+    );
+    expect(res.status).toBe(401);
+
+    const fallido = await admin.query(
+      'SELECT last_webhook_result, last_webhook_ok_at FROM channel_accounts WHERE id = $1',
+      [cuenta],
+    );
+    expect(fallido.rows[0].last_webhook_result).toBe('firma_invalida');
+    // El último bueno se conserva: saber DESDE CUÁNDO falla es la mitad del
+    // diagnóstico.
+    expect(fallido.rows[0].last_webhook_ok_at).not.toBeNull();
+  });
 });

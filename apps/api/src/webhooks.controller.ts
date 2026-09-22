@@ -12,7 +12,14 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { RawBodyRequest } from '@nestjs/common';
 import { createQueue, redisConnection } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
-import { findAccountById, getProvider, tenantDeCuenta } from '@iaxti/module-channels';
+import {
+  anotarWebhook,
+  findAccountById,
+  getProvider,
+  tenantDeCuenta,
+  type ResultadoDeWebhook,
+} from '@iaxti/module-channels';
+import type { Pool } from 'pg';
 import { normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
 import { conReintentoDeConexion, esFalloDeConexion } from './lib/arranque-en-frio';
@@ -32,6 +39,26 @@ function inboundQueue(): ReturnType<typeof createQueue> {
   return cola;
 }
 
+/**
+ * Anota el resultado sin que el webhook dependa de ello.
+ *
+ * Es diagnóstico: si la anotación falla, el mensaje del cliente tiene que
+ * entrar igual. Al revés sería cambiar una bandeja que funciona por una
+ * columna que informa.
+ */
+async function anotarResultado(
+  pool: Pool,
+  tenantId: string,
+  accountId: string,
+  resultado: ResultadoDeWebhook,
+): Promise<void> {
+  await withTenant(pool, tenantId, (c) => anotarWebhook(c, { tenantId, accountId, resultado })).catch(
+    (error: Error) => {
+      console.warn(`webhook: no se pudo anotar el rastro del canal ${accountId}: ${error.message}`);
+    },
+  );
+}
+
 @ApiTags('webhooks')
 @Controller('webhooks/channels')
 export class WebhooksController {
@@ -43,6 +70,8 @@ export class WebhooksController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const pool = apiPool();
+    const anotar = (tenantId: string, accountId: string, resultado: ResultadoDeWebhook) =>
+      anotarResultado(pool!, tenantId, accountId, resultado);
     if (!pool) {
       throw new ServiceUnavailableException({
         code: 'DB_NOT_CONFIGURED',
@@ -88,20 +117,32 @@ export class WebhooksController {
     const account = cuenta;
     // Cuenta inexistente y firma mala responden IGUAL: nada que sondear.
     if (!account || account.state === 'disconnected') {
+      // Si la cuenta EXISTE pero está desconectada, queda anotado: es la
+      // diferencia entre "el proveedor nos dejó de mandar" y "seguimos
+      // recibiendo y los estamos botando nosotros".
+      if (account) await anotar(account.tenantId, account.id, 'cuenta_desconectada');
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
     const provider = getProvider(account.kind);
     if (!provider) {
+      await anotar(account.tenantId, account.id, 'sin_proveedor');
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
     const secret = account.webhookSecretRef ? process.env[account.webhookSecretRef] : undefined;
     const rawBody = request.rawBody?.toString('utf8') ?? '';
     if (!secret || !provider.verifyWebhook(request.headers, rawBody, secret)) {
+      // Se anota ANTES de rechazar, y por eso existe todo esto (#434): una
+      // firma que no calza y un webhook que nunca llegó se ven idénticos
+      // desde adentro —la bandeja vacía— y se arreglan en lugares
+      // distintos. Sin el rastro, la única forma de distinguirlos era
+      // entrar a mirar logs que la API de Dokploy no expone.
+      await anotar(account.tenantId, account.id, secret ? 'firma_invalida' : 'sin_secreto');
       throw new UnauthorizedException({
         code: 'INVALID_SIGNATURE',
         message: 'La firma del webhook no calza.',
       });
     }
+    await anotar(account.tenantId, account.id, 'aceptado');
 
     const mensajes = provider.normalize(
       (request as unknown as { body: unknown }).body,
