@@ -1,8 +1,8 @@
 import type { PoolClient } from 'pg';
 import { DEFINICIONES, METRICS, TOTAL_OWNER, type Metric } from '../domain/metrics';
 
-// El dashboard (#66): suma filas agregadas + dos consultas livianas en
-// vivo (sin responder AHORA y percentiles sobre las muestras del rango).
+// El dashboard (#66/#424): agregados diarios y lecturas en vivo de
+// pendientes/percentiles, en un único viaje a la base.
 
 export interface DashboardInput {
   tenantId: string;
@@ -28,65 +28,56 @@ export async function getDashboard(
   input: DashboardInput,
 ): Promise<DashboardResult> {
   const owner = input.ownerId ?? TOTAL_OWNER;
-  const filas = await client.query(
-    `SELECT metric, SUM(value)::numeric AS total FROM daily_metrics
-      WHERE tenant_id = $1 AND day BETWEEN $2::date AND $3::date AND owner_id = $4
-      GROUP BY metric`,
-    [input.tenantId, input.from, input.to, owner],
-  );
-  const metrics = Object.fromEntries(METRICS.map((m) => [m, 0])) as Record<Metric, number>;
-  for (const fila of filas.rows) {
-    if ((METRICS as readonly string[]).includes(fila.metric)) {
-      metrics[fila.metric as Metric] = Number(fila.total);
-    }
-  }
-
-  const muestras = await client.query(
-    `SELECT count(*)::int AS n,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) AS mediana,
-            percentile_cont(0.9) WITHIN GROUP (ORDER BY seconds) AS p90
-       FROM response_samples
-      WHERE tenant_id = $1 AND day BETWEEN $2::date AND $3::date
-        AND ($4::uuid = $5::uuid OR owner_id = $4)`,
+  // Una sola ida a Postgres (#424): las cuatro consultas anteriores
+  // acumulaban la latencia de red incluso con tres días de datos. El CTE
+  // comparte las filas agregadas entre totales y serie; todas las métricas
+  // se leen además sobre el mismo snapshot, sin caché de datos del negocio.
+  const resultado = await client.query(
+    `WITH diarias AS MATERIALIZED (
+       SELECT day, metric, value FROM daily_metrics
+        WHERE tenant_id = $1 AND day BETWEEN $2::date AND $3::date AND owner_id = $4
+     ), totales AS (
+       SELECT metric, SUM(value)::numeric AS total FROM diarias GROUP BY metric
+     ), por_dia AS (
+       SELECT day::text,
+              COALESCE(SUM(value) FILTER (WHERE metric = 'conversaciones_nuevas'), 0)::int AS conversaciones,
+              COALESCE(SUM(value) FILTER (WHERE metric = 'resueltas'), 0)::int AS resueltas,
+              COALESCE(SUM(value) FILTER (WHERE metric = 'oportunidades_creadas'), 0)::int AS oportunidades
+         FROM diarias GROUP BY day
+     ), muestras AS (
+       SELECT count(*)::int AS n,
+              percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) AS mediana,
+              percentile_cont(0.9) WITHIN GROUP (ORDER BY seconds) AS p90
+         FROM response_samples
+        WHERE tenant_id = $1 AND day BETWEEN $2::date AND $3::date
+          AND ($4::uuid = $5::uuid OR owner_id = $4)
+     )
+     SELECT COALESCE((SELECT jsonb_object_agg(metric, total) FROM totales), '{}'::jsonb) AS metrics,
+            COALESCE((SELECT jsonb_agg(por_dia ORDER BY day) FROM por_dia), '[]'::jsonb) AS por_dia,
+            (SELECT count(*)::int FROM conversations
+              WHERE tenant_id = $1 AND state IN ('new','open')
+                AND last_inbound_at IS NOT NULL AND last_inbound_at = last_message_at
+                AND ($4::uuid = $5::uuid OR owner_id = $4)) AS sin_responder,
+            muestras.*
+       FROM muestras`,
     [input.tenantId, input.from, input.to, owner, TOTAL_OWNER],
   );
-  const m = muestras.rows[0];
-
-  const vivo = await client.query(
-    `SELECT count(*)::int AS n FROM conversations
-      WHERE tenant_id = $1 AND state IN ('new','open')
-        AND last_inbound_at IS NOT NULL AND last_inbound_at = last_message_at
-        AND ($2::uuid = $3::uuid OR owner_id = $2)`,
-    [input.tenantId, owner, TOTAL_OWNER],
-  );
-
+  const fila = resultado.rows[0];
+  const metrics = Object.fromEntries(METRICS.map((metric) => [
+    metric, Number(fila.metrics[metric] ?? 0),
+  ])) as Record<Metric, number>;
   const cerradas = metrics.ganadas + metrics.perdidas;
-  const porDia = await client.query(
-    `SELECT day::text,
-            SUM(value) FILTER (WHERE metric = 'conversaciones_nuevas')::int AS conversaciones,
-            SUM(value) FILTER (WHERE metric = 'resueltas')::int AS resueltas,
-            SUM(value) FILTER (WHERE metric = 'oportunidades_creadas')::int AS oportunidades
-       FROM daily_metrics
-      WHERE tenant_id = $1 AND day BETWEEN $2::date AND $3::date AND owner_id = $4
-      GROUP BY day ORDER BY day`,
-    [input.tenantId, input.from, input.to, owner],
-  );
 
   return {
     metrics,
     primeraRespuesta: {
-      medianaSeg: m.mediana === null ? null : Math.round(Number(m.mediana)),
-      p90Seg: m.p90 === null ? null : Math.round(Number(m.p90)),
-      muestras: m.n,
+      medianaSeg: fila.mediana === null ? null : Math.round(Number(fila.mediana)),
+      p90Seg: fila.p90 === null ? null : Math.round(Number(fila.p90)),
+      muestras: fila.n,
     },
-    sinResponderAhora: vivo.rows[0].n,
+    sinResponderAhora: fila.sin_responder,
     tasaCierre: cerradas > 0 ? Math.round((metrics.ganadas / cerradas) * 1000) / 1000 : null,
-    porDia: porDia.rows.map((d) => ({
-      day: d.day,
-      conversaciones: d.conversaciones ?? 0,
-      resueltas: d.resueltas ?? 0,
-      oportunidades: d.oportunidades ?? 0,
-    })),
+    porDia: fila.por_dia,
     definiciones: DEFINICIONES,
   };
 }

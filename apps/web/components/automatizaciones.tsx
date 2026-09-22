@@ -87,8 +87,12 @@ export function Automatizaciones() {
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      setReglas(await apiFetch<ReglaDto[]>(config, session, tenant, '/automations'));
-      setRuns(await apiFetch<RunDto[]>(config, session, tenant, '/automations/runs'));
+      const [nuevosReglas, nuevosRuns] = await Promise.all([
+        apiFetch<ReglaDto[]>(config, session, tenant, '/automations'),
+        apiFetch<RunDto[]>(config, session, tenant, '/automations/runs'),
+      ]);
+      setReglas(nuevosReglas);
+      setRuns(nuevosRuns);
     } catch (err) {
       setAviso((err as Error).message);
       setReglas([]);

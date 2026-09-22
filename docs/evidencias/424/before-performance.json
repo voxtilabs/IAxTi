@@ -1,0 +1,6323 @@
+[
+  {
+    "path": "/ajustes/ia",
+    "label": "IA",
+    "section": "Inteligencia",
+    "measurements": [
+      {
+        "dataNetworkMs": 623,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 411
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 437
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 459
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 466
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 467
+          },
+          {
+            "path": "/v1/agents/objetivos",
+            "status": 200,
+            "endMs": 518
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 525
+          },
+          {
+            "path": "/v1/agents/usage",
+            "status": 200,
+            "endMs": 540
+          },
+          {
+            "path": "/v1/agents/configurador",
+            "status": 200,
+            "endMs": 562
+          },
+          {
+            "path": "/v1/agents/configurador/quien",
+            "status": 200,
+            "endMs": 569
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 573
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 623
+          }
+        ],
+        "errors": [],
+        "heading": "Consumo del asistente",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 535,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 360
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 366
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 367
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 430
+          },
+          {
+            "path": "/v1/agents/usage",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/agents/objetivos",
+            "status": 200,
+            "endMs": 454
+          },
+          {
+            "path": "/v1/agents/configurador",
+            "status": 200,
+            "endMs": 469
+          },
+          {
+            "path": "/v1/agents/configurador/quien",
+            "status": 200,
+            "endMs": 469
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 471
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 535
+          }
+        ],
+        "errors": [],
+        "heading": "Consumo del asistente",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 532,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 338
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 340
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/agents/objetivos",
+            "status": 200,
+            "endMs": 432
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 447
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 459
+          },
+          {
+            "path": "/v1/agents/usage",
+            "status": 200,
+            "endMs": 460
+          },
+          {
+            "path": "/v1/agents/configurador",
+            "status": 200,
+            "endMs": 460
+          },
+          {
+            "path": "/v1/agents/configurador/quien",
+            "status": 200,
+            "endMs": 460
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 532
+          }
+        ],
+        "errors": [],
+        "heading": "Consumo del asistente",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 517,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 321
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 321
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 358
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 413
+          },
+          {
+            "path": "/v1/agents/objetivos",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/agents/usage",
+            "status": 200,
+            "endMs": 422
+          },
+          {
+            "path": "/v1/agents/configurador",
+            "status": 200,
+            "endMs": 459
+          },
+          {
+            "path": "/v1/agents/configurador/quien",
+            "status": 200,
+            "endMs": 461
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 464
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 517
+          }
+        ],
+        "errors": [],
+        "heading": "Consumo del asistente",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 537,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 346
+          },
+          {
+            "path": "/v1/agents/objetivos",
+            "status": 200,
+            "endMs": 434
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 441
+          },
+          {
+            "path": "/v1/agents/usage",
+            "status": 200,
+            "endMs": 449
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 450
+          },
+          {
+            "path": "/v1/agents/configurador/quien",
+            "status": 200,
+            "endMs": 450
+          },
+          {
+            "path": "/v1/agents/configurador",
+            "status": 200,
+            "endMs": 450
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 537
+          }
+        ],
+        "errors": [],
+        "heading": "Consumo del asistente",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/reportes",
+    "label": "Reportes",
+    "section": "Trabajo",
+    "measurements": [
+      {
+        "dataNetworkMs": 628,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 403
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 406
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 417
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 417
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/analytics/dashboard",
+            "status": 200,
+            "endMs": 514
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 530
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 628
+          }
+        ],
+        "errors": [],
+        "heading": "C\u00f3mo va el negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 553,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 338
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 352
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 352
+          },
+          {
+            "path": "/v1/analytics/dashboard",
+            "status": 200,
+            "endMs": 435
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 452
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 553
+          }
+        ],
+        "errors": [],
+        "heading": "C\u00f3mo va el negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 532,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 355
+          },
+          {
+            "path": "/v1/analytics/dashboard",
+            "status": 200,
+            "endMs": 420
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 441
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 532
+          }
+        ],
+        "errors": [],
+        "heading": "C\u00f3mo va el negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 548,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 361
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 368
+          },
+          {
+            "path": "/v1/analytics/dashboard",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 457
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 548
+          }
+        ],
+        "errors": [],
+        "heading": "C\u00f3mo va el negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 531,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/analytics/dashboard",
+            "status": 200,
+            "endMs": 418
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 425
+          },
+          {
+            "path": "/v1/agents",
+            "status": 200,
+            "endMs": 531
+          }
+        ],
+        "errors": [],
+        "heading": "C\u00f3mo va el negocio",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/auditoria",
+    "label": "Auditor\u00eda",
+    "section": "Cuenta",
+    "measurements": [
+      {
+        "dataNetworkMs": 556,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 436
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 440
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 440
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 452
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 468
+          },
+          {
+            "path": "/v1/audit",
+            "status": 200,
+            "endMs": 468
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 538
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 556
+          }
+        ],
+        "errors": [],
+        "heading": "El libro de tu cuenta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 463,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 363
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 371
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 378
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 380
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 380
+          },
+          {
+            "path": "/v1/audit",
+            "status": 200,
+            "endMs": 453
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 463
+          }
+        ],
+        "errors": [],
+        "heading": "El libro de tu cuenta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 470,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 352
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 358
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 363
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 369
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 369
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 408
+          },
+          {
+            "path": "/v1/audit",
+            "status": 200,
+            "endMs": 456
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 470
+          }
+        ],
+        "errors": [],
+        "heading": "El libro de tu cuenta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 443,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 347
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 352
+          },
+          {
+            "path": "/v1/audit",
+            "status": 200,
+            "endMs": 428
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 443
+          }
+        ],
+        "errors": [],
+        "heading": "El libro de tu cuenta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 460,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 357
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 360
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 361
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 368
+          },
+          {
+            "path": "/v1/audit",
+            "status": 200,
+            "endMs": 451
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 460
+          }
+        ],
+        "errors": [],
+        "heading": "El libro de tu cuenta",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/api",
+    "label": "API",
+    "section": "Integraciones",
+    "measurements": [
+      {
+        "dataNetworkMs": 813,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 472
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 488
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 498
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 500
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 545
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 549
+          },
+          {
+            "path": "/v1/apikeys",
+            "status": 200,
+            "endMs": 585
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 590
+          },
+          {
+            "path": "/v1/apikeys/scopes",
+            "status": 200,
+            "endMs": 692
+          },
+          {
+            "path": "/v1/api-usage",
+            "status": 200,
+            "endMs": 813
+          }
+        ],
+        "errors": [],
+        "heading": "Tus llaves de integraci\u00f3n",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 631,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 321
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 340
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 351
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 352
+          },
+          {
+            "path": "/v1/apikeys",
+            "status": 200,
+            "endMs": 415
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 438
+          },
+          {
+            "path": "/v1/apikeys/scopes",
+            "status": 200,
+            "endMs": 523
+          },
+          {
+            "path": "/v1/api-usage",
+            "status": 200,
+            "endMs": 631
+          }
+        ],
+        "errors": [],
+        "heading": "Tus llaves de integraci\u00f3n",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 622,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 299
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 302
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 309
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/apikeys",
+            "status": 200,
+            "endMs": 402
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/apikeys/scopes",
+            "status": 200,
+            "endMs": 511
+          },
+          {
+            "path": "/v1/api-usage",
+            "status": 200,
+            "endMs": 622
+          }
+        ],
+        "errors": [],
+        "heading": "Tus llaves de integraci\u00f3n",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 677,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 346
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 366
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 375
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 375
+          },
+          {
+            "path": "/v1/apikeys",
+            "status": 200,
+            "endMs": 453
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 473
+          },
+          {
+            "path": "/v1/apikeys/scopes",
+            "status": 200,
+            "endMs": 566
+          },
+          {
+            "path": "/v1/api-usage",
+            "status": 200,
+            "endMs": 677
+          }
+        ],
+        "errors": [],
+        "heading": "Tus llaves de integraci\u00f3n",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 649,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/apikeys",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 440
+          },
+          {
+            "path": "/v1/apikeys/scopes",
+            "status": 200,
+            "endMs": 542
+          },
+          {
+            "path": "/v1/api-usage",
+            "status": 200,
+            "endMs": 649
+          }
+        ],
+        "errors": [],
+        "heading": "Tus llaves de integraci\u00f3n",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/roles",
+    "label": "Roles",
+    "section": "Tu negocio",
+    "measurements": [
+      {
+        "dataNetworkMs": 566,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 392
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 410
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 442
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 443
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 443
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 454
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 499
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 539
+          },
+          {
+            "path": "/v1/roles/catalogo",
+            "status": 200,
+            "endMs": 566
+          }
+        ],
+        "errors": [],
+        "heading": "Qui\u00e9n puede qu\u00e9",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 526,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 313
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 435
+          },
+          {
+            "path": "/v1/roles/catalogo",
+            "status": 200,
+            "endMs": 526
+          }
+        ],
+        "errors": [],
+        "heading": "Qui\u00e9n puede qu\u00e9",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 519,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 309
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 409
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/roles/catalogo",
+            "status": 200,
+            "endMs": 519
+          }
+        ],
+        "errors": [],
+        "heading": "Qui\u00e9n puede qu\u00e9",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 585,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 370
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 382
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 394
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 407
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 475
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 506
+          },
+          {
+            "path": "/v1/roles/catalogo",
+            "status": 200,
+            "endMs": 585
+          }
+        ],
+        "errors": [],
+        "heading": "Qui\u00e9n puede qu\u00e9",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 529,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 338
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 338
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 423
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 440
+          },
+          {
+            "path": "/v1/roles/catalogo",
+            "status": 200,
+            "endMs": 529
+          }
+        ],
+        "errors": [],
+        "heading": "Qui\u00e9n puede qu\u00e9",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/automatizaciones",
+    "label": "Automatizaciones",
+    "section": "Inteligencia",
+    "measurements": [
+      {
+        "dataNetworkMs": 509,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 308
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/automations",
+            "status": 200,
+            "endMs": 397
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 408
+          },
+          {
+            "path": "/v1/automations/runs",
+            "status": 200,
+            "endMs": 509
+          }
+        ],
+        "errors": [],
+        "heading": "El seguimiento que hoy no se hace",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 513,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 304
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 308
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 308
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/automations",
+            "status": 200,
+            "endMs": 406
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/automations/runs",
+            "status": 200,
+            "endMs": 513
+          }
+        ],
+        "errors": [],
+        "heading": "El seguimiento que hoy no se hace",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 536,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 330
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 332
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 342
+          },
+          {
+            "path": "/v1/automations",
+            "status": 200,
+            "endMs": 428
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 438
+          },
+          {
+            "path": "/v1/automations/runs",
+            "status": 200,
+            "endMs": 536
+          }
+        ],
+        "errors": [],
+        "heading": "El seguimiento que hoy no se hace",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 508,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 292
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 300
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 309
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/automations",
+            "status": 200,
+            "endMs": 400
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 410
+          },
+          {
+            "path": "/v1/automations/runs",
+            "status": 200,
+            "endMs": 508
+          }
+        ],
+        "errors": [],
+        "heading": "El seguimiento que hoy no se hace",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 528,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 313
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 317
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/automations",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 424
+          },
+          {
+            "path": "/v1/automations/runs",
+            "status": 200,
+            "endMs": 528
+          }
+        ],
+        "errors": [],
+        "heading": "El seguimiento que hoy no se hace",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/campanas",
+    "label": "Campa\u00f1as",
+    "section": "Trabajo",
+    "measurements": [
+      {
+        "dataNetworkMs": 625,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 411
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 424
+          },
+          {
+            "path": "/v1/campanas",
+            "status": 200,
+            "endMs": 424
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 424
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 513
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 522
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 625
+          }
+        ],
+        "errors": [],
+        "heading": "Campa\u00f1as",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 538,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 320
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/campanas",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 433
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 538
+          }
+        ],
+        "errors": [],
+        "heading": "Campa\u00f1as",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 559,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 321
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 342
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 354
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 357
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 357
+          },
+          {
+            "path": "/v1/campanas",
+            "status": 200,
+            "endMs": 426
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 455
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 559
+          }
+        ],
+        "errors": [],
+        "heading": "Campa\u00f1as",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 531,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 313
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 330
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/campanas",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 428
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 531
+          }
+        ],
+        "errors": [],
+        "heading": "Campa\u00f1as",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 534,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 321
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/campanas",
+            "status": 200,
+            "endMs": 426
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 430
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 534
+          }
+        ],
+        "errors": [],
+        "heading": "Campa\u00f1as",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/facturacion",
+    "label": "Facturaci\u00f3n",
+    "section": "Cuenta",
+    "measurements": [
+      {
+        "dataNetworkMs": 438,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 341
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 341
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 347
+          },
+          {
+            "path": "/v1/billing",
+            "status": 200,
+            "endMs": 437
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 438
+          }
+        ],
+        "errors": [],
+        "heading": "Tu plan y tus facturas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 420,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/billing",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 420
+          }
+        ],
+        "errors": [],
+        "heading": "Tu plan y tus facturas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 459,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 361
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 368
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 368
+          },
+          {
+            "path": "/v1/billing",
+            "status": 200,
+            "endMs": 428
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 459
+          }
+        ],
+        "errors": [],
+        "heading": "Tu plan y tus facturas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 426,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 305
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 309
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/billing",
+            "status": 200,
+            "endMs": 410
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 426
+          }
+        ],
+        "errors": [],
+        "heading": "Tu plan y tus facturas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 415,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 304
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 317
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 320
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 320
+          },
+          {
+            "path": "/v1/billing",
+            "status": 200,
+            "endMs": 405
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 415
+          }
+        ],
+        "errors": [],
+        "heading": "Tu plan y tus facturas",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/agenda",
+    "label": "Agenda",
+    "section": "Trabajo",
+    "measurements": [
+      {
+        "dataNetworkMs": 524,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 407
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 415
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/agenda",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 524
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 524
+          }
+        ],
+        "errors": [],
+        "heading": "Agenda",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 455,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/agenda",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 455
+          }
+        ],
+        "errors": [],
+        "heading": "Agenda",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 420,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/agenda",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 412
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 420
+          }
+        ],
+        "errors": [],
+        "heading": "Agenda",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 443,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 349
+          },
+          {
+            "path": "/v1/agenda",
+            "status": 200,
+            "endMs": 350
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 423
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 443
+          }
+        ],
+        "errors": [],
+        "heading": "Agenda",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 475,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 346
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 358
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 362
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 362
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 371
+          },
+          {
+            "path": "/v1/agenda",
+            "status": 200,
+            "endMs": 371
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 449
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 475
+          }
+        ],
+        "errors": [],
+        "heading": "Agenda",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/canales",
+    "label": "Canales",
+    "section": "Canales",
+    "measurements": [
+      {
+        "dataNetworkMs": 647,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 435
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 435
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 447
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 447
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 449
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 451
+          },
+          {
+            "path": "/v1/channels",
+            "status": 200,
+            "endMs": 538
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 553
+          },
+          {
+            "path": "/v1/webchat/widgets",
+            "status": 200,
+            "endMs": 647
+          }
+        ],
+        "errors": [],
+        "heading": "Tus canales conectados",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 518,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 305
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/channels",
+            "status": 200,
+            "endMs": 411
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 433
+          },
+          {
+            "path": "/v1/webchat/widgets",
+            "status": 200,
+            "endMs": 518
+          }
+        ],
+        "errors": [],
+        "heading": "Tus canales conectados",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 568,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 350
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 356
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 383
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 383
+          },
+          {
+            "path": "/v1/channels",
+            "status": 200,
+            "endMs": 459
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 471
+          },
+          {
+            "path": "/v1/webchat/widgets",
+            "status": 200,
+            "endMs": 568
+          }
+        ],
+        "errors": [],
+        "heading": "Tus canales conectados",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 543,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 352
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/channels",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 439
+          },
+          {
+            "path": "/v1/webchat/widgets",
+            "status": 200,
+            "endMs": 543
+          }
+        ],
+        "errors": [],
+        "heading": "Tus canales conectados",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 555,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 349
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 349
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/channels",
+            "status": 200,
+            "endMs": 443
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 450
+          },
+          {
+            "path": "/v1/webchat/widgets",
+            "status": 200,
+            "endMs": 555
+          }
+        ],
+        "errors": [],
+        "heading": "Tus canales conectados",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/bandeja",
+    "label": "Bandeja",
+    "section": "Trabajo",
+    "measurements": [
+      {
+        "dataNetworkMs": 558,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 438
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 442
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 450
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 454
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 455
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 458
+          },
+          {
+            "path": "/v1/quick-replies",
+            "status": 200,
+            "endMs": 556
+          },
+          {
+            "path": "/v1/conversations",
+            "status": 200,
+            "endMs": 558
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 558
+          }
+        ],
+        "errors": [],
+        "heading": "Bandeja",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 437,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 321
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/conversations",
+            "status": 200,
+            "endMs": 427
+          },
+          {
+            "path": "/v1/quick-replies",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 437
+          }
+        ],
+        "errors": [],
+        "heading": "Bandeja",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 440,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 338
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/conversations",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/quick-replies",
+            "status": 200,
+            "endMs": 416
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 440
+          }
+        ],
+        "errors": [],
+        "heading": "Bandeja",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 429,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/conversations",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/quick-replies",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 429
+          }
+        ],
+        "errors": [],
+        "heading": "Bandeja",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 442,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/conversations",
+            "status": 200,
+            "endMs": 422
+          },
+          {
+            "path": "/v1/quick-replies",
+            "status": 200,
+            "endMs": 442
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 442
+          }
+        ],
+        "errors": [],
+        "heading": "Bandeja",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/contactos",
+    "label": "Contactos",
+    "section": "Clientes",
+    "measurements": [
+      {
+        "dataNetworkMs": 576,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 426
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 426
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 427
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 439
+          },
+          {
+            "path": "/v1/contacts",
+            "status": 200,
+            "endMs": 443
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 444
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 526
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 547
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 576
+          }
+        ],
+        "errors": [],
+        "heading": "Contactos",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 534,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 317
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/contacts",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 534
+          }
+        ],
+        "errors": [],
+        "heading": "Contactos",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 534,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 307
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 313
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 320
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/contacts",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 534
+          }
+        ],
+        "errors": [],
+        "heading": "Contactos",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 541,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/contacts",
+            "status": 200,
+            "endMs": 415
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 541
+          }
+        ],
+        "errors": [],
+        "heading": "Contactos",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 527,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 332
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 332
+          },
+          {
+            "path": "/v1/contacts",
+            "status": 200,
+            "endMs": 417
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 427
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 527
+          }
+        ],
+        "errors": [],
+        "heading": "Contactos",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/campos",
+    "label": "Campos",
+    "section": "Tu negocio",
+    "measurements": [
+      {
+        "dataNetworkMs": 468,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 355
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 374
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 374
+          },
+          {
+            "path": "/v1/campos",
+            "status": 200,
+            "endMs": 374
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 453
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 468
+          }
+        ],
+        "errors": [],
+        "heading": "Campos propios de tu negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 461,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 370
+          },
+          {
+            "path": "/v1/campos",
+            "status": 200,
+            "endMs": 371
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 449
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 461
+          }
+        ],
+        "errors": [],
+        "heading": "Campos propios de tu negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 415,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 317
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/campos",
+            "status": 200,
+            "endMs": 332
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 415
+          }
+        ],
+        "errors": [],
+        "heading": "Campos propios de tu negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 432,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 292
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 304
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/campos",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 395
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 432
+          }
+        ],
+        "errors": [],
+        "heading": "Campos propios de tu negocio",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 412,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 298
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 304
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/campos",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 412
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 412
+          }
+        ],
+        "errors": [],
+        "heading": "Campos propios de tu negocio",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/empresas",
+    "label": "Empresas",
+    "section": "Clientes",
+    "measurements": [
+      {
+        "dataNetworkMs": 533,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 401
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 408
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 424
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 430
+          },
+          {
+            "path": "/v1/empresas",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 432
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 507
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 533
+          }
+        ],
+        "errors": [],
+        "heading": "Empresas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 439,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 351
+          },
+          {
+            "path": "/v1/empresas",
+            "status": 200,
+            "endMs": 351
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 427
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 439
+          }
+        ],
+        "errors": [],
+        "heading": "Empresas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 433,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 332
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 332
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/empresas",
+            "status": 200,
+            "endMs": 340
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 433
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 433
+          }
+        ],
+        "errors": [],
+        "heading": "Empresas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 419,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 313
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 313
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 317
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/empresas",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 413
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 419
+          }
+        ],
+        "errors": [],
+        "heading": "Empresas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 435,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 340
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 340
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 341
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 342
+          },
+          {
+            "path": "/v1/empresas",
+            "status": 200,
+            "endMs": 343
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 432
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 435
+          }
+        ],
+        "errors": [],
+        "heading": "Empresas",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/etiquetas",
+    "label": "Etiquetas",
+    "section": "Tu negocio",
+    "measurements": [
+      {
+        "dataNetworkMs": 513,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 399
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 405
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 411
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 415
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 415
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 507
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 513
+          }
+        ],
+        "errors": [],
+        "heading": "Etiquetas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 463,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 341
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 371
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 434
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 463
+          }
+        ],
+        "errors": [],
+        "heading": "Etiquetas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 446,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 321
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 340
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 342
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 354
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 420
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 446
+          }
+        ],
+        "errors": [],
+        "heading": "Etiquetas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 439,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 307
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 331
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 346
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 347
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 439
+          }
+        ],
+        "errors": [],
+        "heading": "Etiquetas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 422,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 313
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 320
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/tags",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 422
+          }
+        ],
+        "errors": [],
+        "heading": "Etiquetas",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/oportunidades",
+    "label": "Oportunidades",
+    "section": "Clientes",
+    "measurements": [
+      {
+        "dataNetworkMs": 517,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 399
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 405
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 408
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/pipelines",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 501
+          },
+          {
+            "path": "/v1/loss-reasons",
+            "status": 200,
+            "endMs": 502
+          },
+          {
+            "path": "/v1/saved-filters",
+            "status": 200,
+            "endMs": 512
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 517
+          }
+        ],
+        "errors": [],
+        "heading": "Prepara las etapas de tus ventas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 445,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 343
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 347
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 347
+          },
+          {
+            "path": "/v1/pipelines",
+            "status": 200,
+            "endMs": 423
+          },
+          {
+            "path": "/v1/loss-reasons",
+            "status": 200,
+            "endMs": 430
+          },
+          {
+            "path": "/v1/saved-filters",
+            "status": 200,
+            "endMs": 443
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 445
+          }
+        ],
+        "errors": [],
+        "heading": "Prepara las etapas de tus ventas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 429,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 306
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 320
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 349
+          },
+          {
+            "path": "/v1/pipelines",
+            "status": 200,
+            "endMs": 415
+          },
+          {
+            "path": "/v1/loss-reasons",
+            "status": 200,
+            "endMs": 422
+          },
+          {
+            "path": "/v1/saved-filters",
+            "status": 200,
+            "endMs": 422
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 429
+          }
+        ],
+        "errors": [],
+        "heading": "Prepara las etapas de tus ventas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 413,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 297
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 303
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 306
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 307
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/pipelines",
+            "status": 200,
+            "endMs": 401
+          },
+          {
+            "path": "/v1/loss-reasons",
+            "status": 200,
+            "endMs": 410
+          },
+          {
+            "path": "/v1/saved-filters",
+            "status": 200,
+            "endMs": 413
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 413
+          }
+        ],
+        "errors": [],
+        "heading": "Prepara las etapas de tus ventas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 441,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 336
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 377
+          },
+          {
+            "path": "/v1/pipelines",
+            "status": 200,
+            "endMs": 435
+          },
+          {
+            "path": "/v1/loss-reasons",
+            "status": 200,
+            "endMs": 437
+          },
+          {
+            "path": "/v1/saved-filters",
+            "status": 200,
+            "endMs": 441
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 441
+          }
+        ],
+        "errors": [],
+        "heading": "Prepara las etapas de tus ventas",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/equipo",
+    "label": "Equipo",
+    "section": "Tu negocio",
+    "measurements": [
+      {
+        "dataNetworkMs": 554,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 427
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 437
+          },
+          {
+            "path": "/v1/equipo",
+            "status": 200,
+            "endMs": 442
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 443
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 443
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 529
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 542
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 554
+          }
+        ],
+        "errors": [],
+        "heading": "Tu equipo",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 433,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 306
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 314
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/equipo",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 418
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 433
+          }
+        ],
+        "errors": [],
+        "heading": "Tu equipo",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 461,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 346
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 346
+          },
+          {
+            "path": "/v1/equipo",
+            "status": 200,
+            "endMs": 346
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 429
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 441
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 461
+          }
+        ],
+        "errors": [],
+        "heading": "Tu equipo",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 460,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 342
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/equipo",
+            "status": 200,
+            "endMs": 349
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 428
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 449
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 460
+          }
+        ],
+        "errors": [],
+        "heading": "Tu equipo",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 524,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 398
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 401
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 403
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 406
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 407
+          },
+          {
+            "path": "/v1/equipo",
+            "status": 200,
+            "endMs": 411
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 501
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 511
+          },
+          {
+            "path": "/v1/roles",
+            "status": 200,
+            "endMs": 524
+          }
+        ],
+        "errors": [],
+        "heading": "Tu equipo",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/webhooks",
+    "label": "Webhooks",
+    "section": "Integraciones",
+    "measurements": [
+      {
+        "dataNetworkMs": 629,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 307
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 307
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/webhooks-salientes",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 420
+          },
+          {
+            "path": "/v1/webhooks-salientes/eventos",
+            "status": 200,
+            "endMs": 521
+          },
+          {
+            "path": "/v1/webhooks-salientes/entregas",
+            "status": 200,
+            "endMs": 629
+          }
+        ],
+        "errors": [],
+        "heading": "Av\u00edsale a tus sistemas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 631,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/webhooks-salientes",
+            "status": 200,
+            "endMs": 413
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 420
+          },
+          {
+            "path": "/v1/webhooks-salientes/eventos",
+            "status": 200,
+            "endMs": 524
+          },
+          {
+            "path": "/v1/webhooks-salientes/entregas",
+            "status": 200,
+            "endMs": 631
+          }
+        ],
+        "errors": [],
+        "heading": "Av\u00edsale a tus sistemas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 650,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 333
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 347
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/webhooks-salientes",
+            "status": 200,
+            "endMs": 436
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 440
+          },
+          {
+            "path": "/v1/webhooks-salientes/eventos",
+            "status": 200,
+            "endMs": 542
+          },
+          {
+            "path": "/v1/webhooks-salientes/entregas",
+            "status": 200,
+            "endMs": 650
+          }
+        ],
+        "errors": [],
+        "heading": "Av\u00edsale a tus sistemas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 643,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 317
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 330
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 342
+          },
+          {
+            "path": "/v1/webhooks-salientes",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 436
+          },
+          {
+            "path": "/v1/webhooks-salientes/eventos",
+            "status": 200,
+            "endMs": 533
+          },
+          {
+            "path": "/v1/webhooks-salientes/entregas",
+            "status": 200,
+            "endMs": 643
+          }
+        ],
+        "errors": [],
+        "heading": "Av\u00edsale a tus sistemas",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 675,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 357
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 361
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 361
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 364
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 368
+          },
+          {
+            "path": "/v1/webhooks-salientes",
+            "status": 200,
+            "endMs": 454
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 460
+          },
+          {
+            "path": "/v1/webhooks-salientes/eventos",
+            "status": 200,
+            "endMs": 563
+          },
+          {
+            "path": "/v1/webhooks-salientes/entregas",
+            "status": 200,
+            "endMs": 675
+          }
+        ],
+        "errors": [],
+        "heading": "Av\u00edsale a tus sistemas",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/conocimiento",
+    "label": "Conocimiento",
+    "section": "Inteligencia",
+    "measurements": [
+      {
+        "dataNetworkMs": 536,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 421
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 424
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 436
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 437
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 437
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 440
+          },
+          {
+            "path": "/v1/knowledge/sources",
+            "status": 200,
+            "endMs": 523
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 536
+          }
+        ],
+        "errors": [],
+        "heading": "Lo que tu negocio dice",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 408,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 287
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 296
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 296
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 297
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 316
+          },
+          {
+            "path": "/v1/knowledge/sources",
+            "status": 200,
+            "endMs": 393
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 408
+          }
+        ],
+        "errors": [],
+        "heading": "Lo que tu negocio dice",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 434,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 328
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 329
+          },
+          {
+            "path": "/v1/knowledge/sources",
+            "status": 200,
+            "endMs": 415
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 434
+          }
+        ],
+        "errors": [],
+        "heading": "Lo que tu negocio dice",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 454,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 343
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 375
+          },
+          {
+            "path": "/v1/knowledge/sources",
+            "status": 200,
+            "endMs": 446
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 454
+          }
+        ],
+        "errors": [],
+        "heading": "Lo que tu negocio dice",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 409,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 299
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 302
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/knowledge/sources",
+            "status": 200,
+            "endMs": 402
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 409
+          }
+        ],
+        "errors": [],
+        "heading": "Lo que tu negocio dice",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/notificaciones",
+    "label": "Avisos",
+    "section": "Canales",
+    "measurements": [
+      {
+        "dataNetworkMs": 588,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 364
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 374
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 382
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 383
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 383
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 391
+          },
+          {
+            "path": "/v1/notifications/preferences",
+            "status": 200,
+            "endMs": 474
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 486
+          },
+          {
+            "path": "/v1/notifications/push/clave",
+            "status": 200,
+            "endMs": 588
+          }
+        ],
+        "errors": [],
+        "heading": "Qu\u00e9 avisos recibes",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 524,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 309
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 309
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 327
+          },
+          {
+            "path": "/v1/notifications/preferences",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 414
+          },
+          {
+            "path": "/v1/notifications/push/clave",
+            "status": 200,
+            "endMs": 524
+          }
+        ],
+        "errors": [],
+        "heading": "Qu\u00e9 avisos recibes",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 523,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 303
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 318
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 338
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 347
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 354
+          },
+          {
+            "path": "/v1/notifications/preferences",
+            "status": 200,
+            "endMs": 411
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 441
+          },
+          {
+            "path": "/v1/notifications/push/clave",
+            "status": 200,
+            "endMs": 523
+          }
+        ],
+        "errors": [],
+        "heading": "Qu\u00e9 avisos recibes",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 515,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 298
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 298
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 319
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 330
+          },
+          {
+            "path": "/v1/notifications/preferences",
+            "status": 200,
+            "endMs": 403
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 423
+          },
+          {
+            "path": "/v1/notifications/push/clave",
+            "status": 200,
+            "endMs": 515
+          }
+        ],
+        "errors": [],
+        "heading": "Qu\u00e9 avisos recibes",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 518,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 293
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 295
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 310
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 311
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 325
+          },
+          {
+            "path": "/v1/notifications/preferences",
+            "status": 200,
+            "endMs": 403
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 417
+          },
+          {
+            "path": "/v1/notifications/push/clave",
+            "status": 200,
+            "endMs": 518
+          }
+        ],
+        "errors": [],
+        "heading": "Qu\u00e9 avisos recibes",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/bandeja",
+    "label": "Ajustes",
+    "section": "Tu negocio",
+    "measurements": [
+      {
+        "dataNetworkMs": 546,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 428
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 438
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 444
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 448
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 449
+          },
+          {
+            "path": "/v1/settings/bandeja",
+            "status": 200,
+            "endMs": 449
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 534
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 546
+          }
+        ],
+        "errors": [],
+        "heading": "Asignaci\u00f3n y tiempos de respuesta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 438,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 315
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 322
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/settings/bandeja",
+            "status": 200,
+            "endMs": 422
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 438
+          }
+        ],
+        "errors": [],
+        "heading": "Asignaci\u00f3n y tiempos de respuesta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 518,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 386
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 405
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 408
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 410
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 425
+          },
+          {
+            "path": "/v1/settings/bandeja",
+            "status": 200,
+            "endMs": 493
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 518
+          }
+        ],
+        "errors": [],
+        "heading": "Asignaci\u00f3n y tiempos de respuesta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 442,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 320
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 324
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 330
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 338
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/settings/bandeja",
+            "status": 200,
+            "endMs": 423
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 442
+          }
+        ],
+        "errors": [],
+        "heading": "Asignaci\u00f3n y tiempos de respuesta",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 438,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 335
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/settings/bandeja",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 423
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 438
+          }
+        ],
+        "errors": [],
+        "heading": "Asignaci\u00f3n y tiempos de respuesta",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/pagos",
+    "label": "Pagos",
+    "section": "Cuenta",
+    "measurements": [
+      {
+        "dataNetworkMs": 545,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 397
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 403
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 413
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 418
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 419
+          },
+          {
+            "path": "/v1/payments/providers",
+            "status": 200,
+            "endMs": 426
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 504
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 519
+          },
+          {
+            "path": "/v1/payments/links",
+            "status": 200,
+            "endMs": 545
+          }
+        ],
+        "errors": [],
+        "heading": "Cobra con links desde el chat",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 566,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 354
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 365
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 369
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 378
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 385
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 385
+          },
+          {
+            "path": "/v1/payments/providers",
+            "status": 200,
+            "endMs": 459
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 488
+          },
+          {
+            "path": "/v1/payments/links",
+            "status": 200,
+            "endMs": 566
+          }
+        ],
+        "errors": [],
+        "heading": "Cobra con links desde el chat",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 551,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 343
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 353
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 354
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 354
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 363
+          },
+          {
+            "path": "/v1/payments/providers",
+            "status": 200,
+            "endMs": 444
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 450
+          },
+          {
+            "path": "/v1/payments/links",
+            "status": 200,
+            "endMs": 551
+          }
+        ],
+        "errors": [],
+        "heading": "Cobra con links desde el chat",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 555,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 339
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 345
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 360
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 364
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 374
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 378
+          },
+          {
+            "path": "/v1/payments/providers",
+            "status": 200,
+            "endMs": 446
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 465
+          },
+          {
+            "path": "/v1/payments/links",
+            "status": 200,
+            "endMs": 555
+          }
+        ],
+        "errors": [],
+        "heading": "Cobra con links desde el chat",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 544,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 323
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 326
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 332
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 334
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 337
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 348
+          },
+          {
+            "path": "/v1/payments/providers",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 437
+          },
+          {
+            "path": "/v1/payments/links",
+            "status": 200,
+            "endMs": 544
+          }
+        ],
+        "errors": [],
+        "heading": "Cobra con links desde el chat",
+        "skeletons": 0
+      }
+    ]
+  },
+  {
+    "path": "/ajustes/plantillas",
+    "label": "Plantillas",
+    "section": "Canales",
+    "measurements": [
+      {
+        "dataNetworkMs": 568,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 431
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 448
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 458
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 466
+          },
+          {
+            "path": "/v1/plantillas",
+            "status": 200,
+            "endMs": 471
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 471
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 536
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 568
+          }
+        ],
+        "errors": [],
+        "heading": "Plantillas de WhatsApp",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 447,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 330
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 344
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 351
+          },
+          {
+            "path": "/v1/plantillas",
+            "status": 200,
+            "endMs": 351
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 420
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 447
+          }
+        ],
+        "errors": [],
+        "heading": "Plantillas de WhatsApp",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 408,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 288
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 292
+          },
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 303
+          },
+          {
+            "path": "/v1/plantillas",
+            "status": 200,
+            "endMs": 312
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 394
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 408
+          }
+        ],
+        "errors": [],
+        "heading": "Plantillas de WhatsApp",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 407,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 293
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 298
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 303
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 303
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 303
+          },
+          {
+            "path": "/v1/plantillas",
+            "status": 200,
+            "endMs": 308
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 396
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 407
+          }
+        ],
+        "errors": [],
+        "heading": "Plantillas de WhatsApp",
+        "skeletons": 0
+      },
+      {
+        "dataNetworkMs": 398,
+        "documents": 1,
+        "requests": [
+          {
+            "path": "/v1/me",
+            "status": 200,
+            "endMs": 292
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 299
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 300
+          },
+          {
+            "path": "/v1/me/modules",
+            "status": 200,
+            "endMs": 301
+          },
+          {
+            "path": "/v1/support-status",
+            "status": 200,
+            "endMs": 302
+          },
+          {
+            "path": "/v1/plantillas",
+            "status": 200,
+            "endMs": 304
+          },
+          {
+            "path": "/v1/notifications",
+            "status": 200,
+            "endMs": 397
+          },
+          {
+            "path": "/v1/me/modules/acceso",
+            "status": 200,
+            "endMs": 398
+          }
+        ],
+        "errors": [],
+        "heading": "Plantillas de WhatsApp",
+        "skeletons": 0
+      }
+    ]
+  }
+]

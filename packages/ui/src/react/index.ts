@@ -89,3 +89,5 @@ export { Avisos, AvisoResultado, toast } from './ui/avisos';
 export { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from './ui/command';
 
 export { MarcaJelly } from './marca-jelly';
+export { GraficoSeries, GraficoCierre } from './grafico-series';
+export type { SerieGrafico } from './grafico-series';

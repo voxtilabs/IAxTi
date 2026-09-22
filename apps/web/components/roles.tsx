@@ -51,8 +51,12 @@ export function Roles() {
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      setRoles(await apiFetch<RolDto[]>(config, session, tenant, '/roles'));
-      setCatalogo(await apiFetch<PermisoDto[]>(config, session, tenant, '/roles/catalogo'));
+      const [nuevosRoles, nuevosCatalogo] = await Promise.all([
+        apiFetch<RolDto[]>(config, session, tenant, '/roles'),
+        apiFetch<PermisoDto[]>(config, session, tenant, '/roles/catalogo'),
+      ]);
+      setRoles(nuevosRoles);
+      setCatalogo(nuevosCatalogo);
     } catch (err) {
       setAviso((err as Error).message);
       setRoles([]);

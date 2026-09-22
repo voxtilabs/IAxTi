@@ -50,9 +50,14 @@ export function WebhooksSalientes() {
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      setWebhooks(await apiFetch<WebhookDto[]>(config, session, tenant, '/webhooks-salientes'));
-      setEventos(await apiFetch<string[]>(config, session, tenant, '/webhooks-salientes/eventos'));
-      setEntregas(await apiFetch<EntregaDto[]>(config, session, tenant, '/webhooks-salientes/entregas'));
+      const [nuevosWebhooks, nuevosEventos, nuevosEntregas] = await Promise.all([
+        apiFetch<WebhookDto[]>(config, session, tenant, '/webhooks-salientes'),
+        apiFetch<string[]>(config, session, tenant, '/webhooks-salientes/eventos'),
+        apiFetch<EntregaDto[]>(config, session, tenant, '/webhooks-salientes/entregas'),
+      ]);
+      setWebhooks(nuevosWebhooks);
+      setEventos(nuevosEventos);
+      setEntregas(nuevosEntregas);
     } catch (err) {
       setAviso((err as Error).message);
       setWebhooks([]);

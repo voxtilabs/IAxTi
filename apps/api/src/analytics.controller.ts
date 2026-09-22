@@ -55,31 +55,31 @@ export class AnalyticsController {
     // Mediodía UTC como ancla al calcular desde un `to` dado: así ninguna
     // zona horaria corre el día al restar.
     const ancla = to && esDia(to) ? new Date(`${to}T12:00:00Z`) : new Date();
-    const zona = await withTenant(pool(), actor.tenantId, (c) =>
-      zonaDelTenant(c, actor.tenantId),
-    );
-    const pordefecto = ultimosDias(30, zona, ancla);
-    const hasta = to ?? pordefecto.to;
-    const desde = from ?? pordefecto.from;
-    if (!esDia(desde) || !esDia(hasta) || desde > hasta) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'El rango de fechas no se entiende (from y to como AAAA-MM-DD).',
-      });
-    }
-    const dias = (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000;
-    if (dias > MAX_RANGO_DIAS) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'El rango máximo es un año.',
-      });
-    }
-    // Sin read_all se ven SOLO los números propios (verificación en el
-    // caso de uso, ADR-0008) — pedir los de un colega también exige read_all.
-    const verTodo = actorCan(actor, 'analytics.read_all');
-    const dueño = verTodo ? (ownerId ?? null) : actor.userId;
-    return withTenant(pool(), actor.tenantId, (c) =>
-      getDashboard(c, { tenantId: actor.tenantId, from: desde, to: hasta, ownerId: dueño }),
-    );
+    // Zona y métricas pertenecen a la misma lectura del negocio (#424).
+    // Evita otra conexión y otro BEGIN/set_config/COMMIT para la zona.
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const zona = await zonaDelTenant(c, actor.tenantId);
+      const pordefecto = ultimosDias(30, zona, ancla);
+      const hasta = to ?? pordefecto.to;
+      const desde = from ?? pordefecto.from;
+      if (!esDia(desde) || !esDia(hasta) || desde > hasta) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'El rango de fechas no se entiende (from y to como AAAA-MM-DD).',
+        });
+      }
+      const dias = (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000;
+      if (dias > MAX_RANGO_DIAS) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'El rango máximo es un año.',
+        });
+      }
+      // Sin read_all se ven SOLO los números propios (verificación en el
+      // caso de uso, ADR-0008) — pedir los de un colega también exige read_all.
+      const verTodo = actorCan(actor, 'analytics.read_all');
+      const dueño = verTodo ? (ownerId ?? null) : actor.userId;
+      return getDashboard(c, { tenantId: actor.tenantId, from: desde, to: hasta, ownerId: dueño });
+    });
   }
 }

@@ -726,6 +726,10 @@ imagina.
 - **Reglas:** se calculan desde eventos en tablas agregadas por día y tenant, no
   con consultas pesadas en vivo. Todo número muestra su definición al pasar el
   cursor. Sin métricas inventadas ni proyecciones.
+- **Presentación y carga:** ADR-0024 (#424): escala desde cero, fechas,
+  comparación de series y tabla accesible; sin actividad ni demoras inventadas.
+  Una lectura SQL consistente; rangos cancelables y memoria local de la vista
+  con revalidación, aislada por sesión y negocio.
 - **Permisos:** `analytics.read` (propio), `analytics.read_all`.
 - **Apagado:** el dashboard muestra solo el resumen de la bandeja.
 - **Plan mínimo:** Base (básico); avanzado en Equipo.
