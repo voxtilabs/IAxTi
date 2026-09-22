@@ -84,6 +84,9 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   // llave, sin asistente, apagado, sin saldo, todavía trabajando— se ven
   // igual desde acá: el panel vacío.
   const [sinSugerencia, setSinSugerencia] = useState<SinSugerenciaDto | null>(null);
+  // Qué saliente se está reintentando (#445): sin esto, dos clics seguidos
+  // mandan dos recuperaciones del mismo pedido.
+  const [reintentando, setReintentando] = useState<string | null>(null);
   const [analisis, setAnalisis] = useState<AnalisisDto | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [hits, setHits] = useState<BusquedaHit[] | null>(null);
@@ -376,6 +379,28 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           atajos={atajos}
           sugerencia={sugerencia}
           sinSugerencia={sinSugerencia}
+          reintentando={reintentando}
+          onReintentar={async (messageId) => {
+            if (!session || !tenant || !seleccion) return;
+            setAviso(null);
+            setReintentando(messageId);
+            try {
+              await apiFetch(
+                config,
+                session,
+                tenant,
+                `/conversations/${seleccion}/messages/${messageId}/retry-delivery`,
+                { method: 'POST' },
+              );
+              // El estado lo cambia el despacho, no esta respuesta: se
+              // recarga para mostrar lo que de verdad quedó.
+              await cargarConversacion(seleccion);
+            } catch (err) {
+              setAviso((err as Error).message);
+            } finally {
+              setReintentando(null);
+            }
+          }}
           modo={analisis?.mode ?? null}
           miId={miId}
           aviso={aviso}

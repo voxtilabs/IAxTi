@@ -67,6 +67,10 @@ export interface ChatProps {
   onAsignar: (aQuien: string, motivo?: string) => Promise<void>;
   onEstado: (estado: string, hasta?: string) => Promise<void>;
   onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
+  /** Retoma el despacho de un saliente que falló (#445). */
+  onReintentar: (messageId: string) => Promise<void>;
+  /** Qué mensaje se está reintentando ahora, para no ofrecerlo dos veces. */
+  reintentando: string | null;
   onModo: (modo: 'assist' | 'autonomous') => Promise<void>;
   onCobrar: (montoClp: number, concepto: string) => Promise<void>;
   onCrearOportunidad: (titulo: string) => Promise<void>;
@@ -74,6 +78,7 @@ export interface ChatProps {
 
 export function Chat({
   detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
+  onReintentar, reintentando,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
@@ -210,6 +215,24 @@ export function Chat({
                   <HoraDato iso={m.createdAt} />
                   {m.direction === 'out' && <Entrega estado={m.deliveryStatus} />}
                 </p>
+                {/* Un mensaje que no llegó es una conversación perdida
+                    (#445). La recuperación existe desde #380 y retoma el
+                    MISMO pedido —no crea otro mensaje, así que no duplica
+                    si en realidad sí había salido— y no la llamaba nadie:
+                    la bandeja mostraba el ícono rojo y ninguna acción. */}
+                {m.direction === 'out' && m.deliveryStatus === 'failed' && (
+                  <p className="mt-1 flex flex-wrap items-center justify-end gap-2">
+                    <span className="text-micro text-bad-text">No llegó.</span>
+                    <Button
+                      size="chico"
+                      variant="secundario"
+                      disabled={reintentando === m.id}
+                      onClick={() => void onReintentar(m.id)}
+                    >
+                      {reintentando === m.id ? 'Reintentando…' : 'Reintentar'}
+                    </Button>
+                  </p>
+                )}
               </div>
             </li>
           ))}
