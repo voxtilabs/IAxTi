@@ -26,6 +26,8 @@ export interface Activity {
   dueAt: Date | null;
   doneAt: Date | null;
   createdAt: Date;
+  /** Quién la creó. `null` en las de antes de #454: no se inventa. */
+  createdByKind: string | null;
 }
 
 function rowToActivity(row: Record<string, unknown>): Activity {
@@ -40,6 +42,7 @@ function rowToActivity(row: Record<string, unknown>): Activity {
     dueAt: (row.due_at as Date) ?? null,
     doneAt: (row.done_at as Date) ?? null,
     createdAt: row.created_at as Date,
+    createdByKind: (row.created_by_kind as string) ?? null,
   };
 }
 
@@ -77,8 +80,9 @@ export async function createActivity(
     if (!deal.rowCount) throw new ActivityReferenceError('DEAL_NOT_FOUND');
   }
   const r = await client.query(
-    `INSERT INTO activities (tenant_id, contact_id, deal_id, type, title, body, owner_id, due_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    `INSERT INTO activities (tenant_id, contact_id, deal_id, type, title, body, owner_id, due_at,
+                             created_by_kind)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
     [
       input.tenantId,
       input.contactId,
@@ -88,6 +92,9 @@ export async function createActivity(
       input.body ?? null,
       input.ownerId ?? null,
       input.dueAt ?? null,
+      // Quién la creó (#454). La tarea que anotó el asistente se revisa
+      // distinto de la que anotó uno mismo, y en la tabla eran idénticas.
+      input.actorKind ?? 'system',
     ],
   );
   await client.query(
@@ -134,6 +141,64 @@ export async function listActivitiesByContact(
     [tenantId, contactId],
   );
   return r.rows.map(rowToActivity);
+}
+
+/**
+ * Lo que hay que hacer, en todo el negocio (#454).
+ *
+ * Las actividades se creaban desde la ficha y desde el asistente, el
+ * barrido las marcaba vencidas y publicaba el aviso… y no había forma de
+ * verlas juntas: la única puerta era abrir la ficha del contacto exacto.
+ * «¿Qué tengo que hacer hoy?» no tenía respuesta en el producto.
+ *
+ * El orden no es negociable: **lo vencido primero**. Una lista por fecha
+ * de creación entierra lo atrasado debajo de lo que recién se anotó, que
+ * es justo al revés de para qué se mira.
+ *
+ * `ownerId` filtra lo de una persona. Sin él, todo el equipo — pero eso lo
+ * decide el permiso de quien pregunta, no esta función.
+ */
+export async function listActivities(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    ownerId?: string;
+    /** También las que ya se hicieron. Por defecto NO: esto es una lista de pendientes. */
+    incluirHechas?: boolean;
+    limit?: number;
+  },
+): Promise<Array<Activity & { contactName: string | null; contactPhone: string | null }>> {
+  const limite = Math.min(Math.max(1, Math.floor(input.limit ?? 100)), 200);
+  const params: unknown[] = [input.tenantId];
+  const where = ['a.tenant_id = $1'];
+  if (input.ownerId) {
+    params.push(input.ownerId);
+    // Las sin dueño entran igual: una tarea de nadie es de todos, y
+    // esconderla la deja sin hacer para siempre.
+    where.push(`(a.owner_id = $${params.length} OR a.owner_id IS NULL)`);
+  }
+  if (!input.incluirHechas) where.push('a.done_at IS NULL');
+
+  const r = await client.query(
+    `SELECT a.*, k.name AS contact_name, k.phone AS contact_phone
+       FROM activities a
+       JOIN contacts k ON k.id = a.contact_id AND k.tenant_id = a.tenant_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY
+        -- Vencido primero, después lo que tiene fecha, y al final lo que no
+        -- la tiene: una tarea sin fecha no es urgente, es un recordatorio.
+        (a.done_at IS NULL AND a.due_at IS NOT NULL AND a.due_at < now()) DESC,
+        (a.due_at IS NULL) ASC,
+        a.due_at ASC,
+        a.created_at DESC
+      LIMIT ${limite}`,
+    params,
+  );
+  return r.rows.map((row) => ({
+    ...rowToActivity(row),
+    contactName: (row.contact_name as string) ?? null,
+    contactPhone: (row.contact_phone as string) ?? null,
+  }));
 }
 
 /** Vencidas sin avisar → activity.due UNA vez. Lo llama el barrido de workers. */

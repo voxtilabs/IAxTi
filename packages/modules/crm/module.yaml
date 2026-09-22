@@ -53,6 +53,10 @@ nav:
   - { label: Empresas, path: /empresas, permission: crm.companies.read, grupo: Clientes }
   - { label: Etiquetas, path: /ajustes/etiquetas, permission: crm.tags.manage, grupo: Configuración, seccion: Tu negocio }
   - { label: Oportunidades, path: /oportunidades, permission: crm.deals.read, grupo: Clientes }
+  # Las actividades se creaban —también las crea el asistente— y solo se
+  # veían abriendo la ficha del contacto exacto (#454). Va en Trabajo: es lo
+  # que alguien mira al empezar el día, no configuración.
+  - { label: Pendientes, path: /pendientes, permission: crm.contacts.read, grupo: Trabajo }
 widgets:
   - { id: crm.resumen, permission: crm.deals.read }
 plan_min: base
