@@ -55,7 +55,7 @@ export function Ficha({
 
   return (
     <div className="p-6">
-      <Button variant="fantasma" size="chico" className="mb-4 md:hidden" onClick={onVolver}>
+      <Button variant="fantasma" size="chico" className="mb-4 lg:hidden" onClick={onVolver}>
         <IconoVolver className="h-4 w-4" /> Volver al chat
       </Button>
       <div className="flex items-center gap-3">

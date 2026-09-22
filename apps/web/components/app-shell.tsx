@@ -409,7 +409,7 @@ function ContenidoShell({ marcaSvg, nav, sinMargen, children }: ShellProps) {
         {/* La bandeja es a ancho completo y la barra arranca plegada: es la
             pantalla de tres paneles, y ahí cada píxel de ancho es una
             columna que se ve. */}
-        <SidebarProvider defaultOpen={!sinMargen} className="pulso-workspace">
+        <SidebarProvider defaultOpen={!sinMargen} className={sinMargen ? 'pulso-workspace pulso-workspace-inbox' : 'pulso-workspace'}>
           <Barra nav={nav} marcaSvg={marcaSvg} candados={candados} />
           <SidebarInset>
             <SoporteAviso />
@@ -425,8 +425,8 @@ function ContenidoShell({ marcaSvg, nav, sinMargen, children }: ShellProps) {
                 <ModeToggle />
               </div>
             </header>
-            <main className={sinMargen ? 'min-w-0' : 'pulso-content mx-auto w-full max-w-contenido'}>
-              {/* Las pestañas de la sección van DENTRO del main y las pone
+            <div className={sinMargen ? 'min-h-0 min-w-0 flex-1' : 'pulso-content mx-auto w-full max-w-contenido'}>
+              {/* Las pestañas de la sección van DENTRO del contenido y las pone
                   el shell, no cada página (#387). Como layout de
                   `app/ajustes/` quedarían por fuera: el layout envuelve a
                   la página, y la página es la que renderiza este shell.
@@ -434,7 +434,7 @@ function ContenidoShell({ marcaSvg, nav, sinMargen, children }: ShellProps) {
                   que nadie se acuerde. */}
               <PestanasAjustes items={nav} candados={candados} />
               {children}
-            </main>
+            </div>
           </SidebarInset>
         </SidebarProvider>
     </>

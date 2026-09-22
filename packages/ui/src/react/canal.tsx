@@ -81,11 +81,15 @@ export function CanalIcono({ canal, className }: { canal: string; className?: st
   );
 }
 
-/** Icono + nombre. El nombre puede ocultarse visualmente, nunca al lector. */
+/**
+ * Icono + nombre. El nombre puede ocultarse visualmente, nunca al lector.
+ * El contenedor relativo mantiene el sr-only dentro de su fila: sin él,
+ * una lista desplazable larga puede agrandar el documento entero (#429).
+ */
 export function CanalChip({ canal, soloIcono }: { canal: string; soloIcono?: boolean }) {
   const nombre = nombreCanal(canal);
   return (
-    <span className="inline-flex items-center gap-1 text-muted" title={nombre}>
+    <span className="relative inline-flex items-center gap-1 text-muted" title={nombre}>
       <CanalIcono canal={canal} />
       <span className={soloIcono ? 'sr-only' : 'text-xs'}>{nombre}</span>
     </span>

@@ -988,7 +988,10 @@ Lo que el código debe cumplir:
   significado. Avisos: qué pasó y qué hacer. Estados vacíos: qué va a aparecer y
   la acción que lo provoca. Foco visible. 360 px sin scroll horizontal.
 - Producto: bandeja de tres paneles (lista `--bg-raised`, chat `--bg`, ficha
-  `--bg-raised`; apilados en celular). Sugerencia del copiloto como aviso
+  `--bg-raised`; navegación por panel bajo 1024 px). Bandeja ocupa la altura
+  disponible de la ventana, descontando cabecera y aviso de soporte; lista,
+  historial y ficha desplazan su contenido sin extender el documento (#429).
+  Sugerencia del copiloto como aviso
   `action-soft` sobre el campo con un primario "Enviar sugerencia". Acciones de la
   IA en la ficha con rótulo mono ("AGENDÓ", "ENVIÓ LINK") y explicación en
   `--text-body`. Configurador con el dispositivo antes/después de Pulso. Costos en

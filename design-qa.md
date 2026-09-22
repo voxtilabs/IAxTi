@@ -1,3 +1,36 @@
+# Bandeja contenida en la ventana · revisión #429
+
+**final result: passed** en el alcance reproducido de desplazamiento y
+adaptación móvil/tablet. Evidencia: [capturas y medidas](docs/evidencias/429/README.md).
+
+Se abrieron primero las capturas de staging `8cbf762`, con datos sintéticos
+de tres y cincuenta conversaciones, y luego las comparaciones conjuntas
+con el build corregido: escritorio nocturno 1366×768, chat móvil diurno
+360×640 y tablet diurna 768×768. Se preservan tokens, marcas y funciones.
+
+Hallazgos resueltos:
+
+- **P1 · documento vacío al bajar.** Las etiquetas accesibles del canal
+  escapaban de la lista: documento de 3.288 px en una ventana de 768 px.
+  Contenedor relativo en `CanalChip` y paneles con scroll propio. La
+  altura definitiva del documento coincide con la ventana.
+- **P2 · soporte empuja la bandeja.** El shell reparte la altura disponible
+  entre aviso, cabecera y contenido; autoscroll limitado al historial.
+- **P2 · contacto y botones se solapan en móvil.** El encabezado admite
+  filas distintas; nombre, teléfono y acciones permanecen legibles.
+- **P2 · tablet fuerza tres paneles.** A 768 px el documento medía 832 px
+  y el chat quedaba recortado. La navegación existente por panel se usa
+  bajo 1024 px; desde ese ancho se mantienen las tres columnas.
+
+Se comprobaron día/noche, 360/768/1024/1366 px, cambios de altura, historiales
+largos y foco. E2E: 68 aprobados (cinco capturas opcionales omitidas), con
+regresión nueva en tres tamaños; antes del arreglo fallaba en móvil y
+escritorio. Reportes conserva su scroll y los overlays siguen funcionando.
+No se inspeccionaron mensajes de clientes. Las capturas usan la interfaz
+real y respuestas sintéticas; E2E valida además sesión y API locales reales.
+
+---
+
 # Firma VoxTiLabs con volumen · revisión #427
 
 **final result: passed** — sin hallazgos visuales P0/P1/P2 pendientes en el alcance.
