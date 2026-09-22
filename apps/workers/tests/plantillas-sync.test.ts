@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { createTemplate, getTemplate, marcarEnviadaARevision } from '@iaxti/module-whatsapp';
+import { createTemplate, createZavuProvider, getTemplate, marcarEnviadaARevision } from '@iaxti/module-whatsapp';
+import { getProvider, registerProvider } from '@iaxti/module-channels';
 import { sincronizarPlantillas } from '../src/plantillas-sync';
 
 /**
@@ -16,6 +17,13 @@ const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:
 let admin: Pool;
 let tenant: string;
 const fetchReal = globalThis.fetch;
+
+// El barrido pide las plantillas POR EL PUERTO del canal (#159), así que
+// necesita el adaptador registrado — igual que en producción, donde lo
+// registra el arranque del proceso. Hasta este cambio el proceso de workers
+// no registraba ninguno y nadie lo notaba: el camino de salida llamaba al
+// módulo whatsapp por su nombre.
+if (!getProvider('whatsapp')) registerProvider(createZavuProvider('whatsapp'));
 
 const base = {
   name: 'recordatorio_colgado',

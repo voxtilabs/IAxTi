@@ -14,7 +14,33 @@ import type {
 // del puerto.
 
 import { baseDeZavu } from './zavu-base';
-import { envioDePlantilla } from './zavu-plantillas';
+import {
+  crearEnZavu,
+  enviarARevisionEnZavu,
+  envioDePlantilla,
+  listarEnZavu,
+  type PlantillaEnZavu,
+} from './zavu-plantillas';
+import type { CategoriaPlantilla } from '../domain/plantillas';
+
+/**
+ * De la forma de Zavu a la NUESTRA (#159).
+ *
+ * Un campo con el nombre del proveedor en el puerto sería la misma
+ * dependencia por otra puerta: `whatsappStatus` se llama `estadoDeMeta`
+ * porque eso es lo que significa, venga de quien venga.
+ */
+function deZavu(t: PlantillaEnZavu) {
+  return {
+    id: t.id,
+    name: t.name,
+    language: t.language,
+    status: t.status,
+    category: t.category as string,
+    ...(t.whatsappStatus ? { estadoDeMeta: t.whatsappStatus } : {}),
+    ...(t.rejectionReason ? { motivoDeRechazo: t.rejectionReason } : {}),
+  };
+}
 
 export { ZAVU_API_BASE_DEFAULT } from './zavu-base';
 
@@ -134,11 +160,76 @@ export function createZavuProvider(
   const canal = CANAL[kind];
   if (!canal) throw new Error(`Zavu no transporta el canal "${kind}".`);
   const apiBase = baseDeZavu(config.apiBase);
-  const fetchImpl = config.fetchImpl ?? fetch;
+  /**
+   * El `fetch` se resuelve al LLAMAR, no al crear el adaptador.
+   *
+   * Capturado al crear, el adaptador se queda con la referencia que había
+   * en ese instante: quien lo registre al arrancar el proceso —que es lo
+   * correcto— deja fuera cualquier reemplazo posterior. Se vio al registrar
+   * los adaptadores en los workers (#159): el barrido de plantillas seguía
+   * llamando al `fetch` real aunque el test lo hubiera cambiado.
+   */
+  const fetchImpl: typeof fetch = (...args) => (config.fetchImpl ?? globalThis.fetch)(...args);
   const now = config.now ?? Date.now;
+
+  /**
+   * De dónde saca cada cuenta su credencial y su emisor.
+   *
+   * La credencial va POR REFERENCIA: la cuenta guarda el NOMBRE de la
+   * variable, nunca el valor.
+   */
+  const configDeLaCuenta = (account: ChannelAccountRef) => {
+    const apiKey = account.credentialRef ? process.env[account.credentialRef] : undefined;
+    if (!apiKey) throw new Error('La cuenta de canal no tiene credencial configurada.');
+    const senderId = account.config.senderId as string | undefined;
+    if (!senderId) throw new Error('La cuenta de canal no tiene senderId.');
+    return { cfg: { apiKey, apiBase, fetchImpl }, senderId };
+  };
 
   return {
     kind,
+
+    /**
+     * Las plantillas, por el puerto y no por su nombre (#159).
+     *
+     * La API y el worker llamaban a `crearEnZavu` y compañía directamente,
+     * así que salir del intermediario era una línea en la mitad del
+     * producto y una reescritura en la otra. Solo WhatsApp las tiene:
+     * Instagram y Messenger comparten transporte pero no plantillas.
+     */
+    ...(kind === 'whatsapp'
+      ? {
+          plantillas: {
+            async crear(account: ChannelAccountRef, input) {
+              const { cfg } = configDeLaCuenta(account);
+              return deZavu(
+                await crearEnZavu(cfg, {
+                  name: input.name,
+                  language: input.language,
+                  body: input.body,
+                  category: input.category as CategoriaPlantilla,
+                  footer: input.footer,
+                  buttons: input.buttons,
+                }),
+              );
+            },
+            async enviarARevision(account: ChannelAccountRef, input) {
+              const { cfg, senderId } = configDeLaCuenta(account);
+              return deZavu(
+                await enviarARevisionEnZavu(cfg, {
+                  templateId: input.templateId,
+                  senderId,
+                  category: input.category as CategoriaPlantilla,
+                }),
+              );
+            },
+            async listar(account: ChannelAccountRef) {
+              const { cfg, senderId } = configDeLaCuenta(account);
+              return (await listarEnZavu(cfg, senderId)).map(deZavu);
+            },
+          },
+        }
+      : {}),
 
     async send(account: ChannelAccountRef, message: OutboundMessage) {
       const apiKey = account.credentialRef ? process.env[account.credentialRef] : undefined;

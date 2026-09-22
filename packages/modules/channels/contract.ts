@@ -15,6 +15,8 @@ export type {
   ChannelAccountRef,
   OutboundMessage,
   NormalizedInbound,
+  PuertoDePlantillas,
+  PlantillaDelProveedor,
 } from './domain/port';
 export {
   createChannelAccount,
