@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parse } from 'yaml';
 import type { Pool } from 'pg';
+import { blindarEsquema } from './blindaje';
 
 interface ModuleManifest {
   module: { id: string };
@@ -134,6 +135,11 @@ export async function runMigrations(pool: Pool, modulesDir = findModulesDir()): 
         }
       }
     }
+    // El blindaje va DESPUÉS de todas las migraciones y en cada corrida
+    // (#456): una migración blinda lo que existía el día que se escribió, y
+    // lo que se publica solo es justamente la tabla que alguien agregue
+    // después. Acá se recorre el catálogo entero cada vez.
+    await blindarEsquema(lock);
     return applied;
   } finally {
     await lock.query("SELECT pg_advisory_unlock(hashtext('iaxti_migrations'))");

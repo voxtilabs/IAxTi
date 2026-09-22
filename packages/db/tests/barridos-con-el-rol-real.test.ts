@@ -139,13 +139,31 @@ describe('el rol de la aplicación y los barridos', () => {
 });
 
 describe('ningún barrido consulta una tabla con RLS fuera de withTenant', () => {
-  it('las consultas sueltas al pool solo tocan tablas sin RLS', async () => {
+  it('las consultas sueltas al pool solo tocan tablas que no filtran por tenant', async () => {
     const raiz = join(__dirname, '../../..');
+    /**
+     * Las que de verdad devuelven CERO filas sin `app.tenant_id`: las que
+     * tienen una política que lo consulta.
+     *
+     * Antes esto preguntaba por «tabla con RLS» a secas, y alcanzaba
+     * porque RLS y «filtra por tenant» eran lo mismo. Desde el blindaje
+     * del esquema (#456) ya no: `tenants`, `outbox` y las de plataforma
+     * tienen RLS encendida —para que la API de datos de Supabase no las
+     * publique— con una política permisiva que no mira el tenant. Una
+     * consulta suelta contra ellas sigue devolviendo todo, que es lo que
+     * los barridos necesitan.
+     *
+     * El criterio correcto no es si hay RLS: es si la política pregunta
+     * por `app.tenant_id`.
+     */
     const conRls = new Set(
       (
         await admin.query(
-          `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relrowsecurity`,
+          `SELECT DISTINCT p.tablename AS relname
+             FROM pg_policies p
+            WHERE p.schemaname = 'public'
+              AND (COALESCE(p.qual, '') LIKE '%app.tenant_id%'
+                OR COALESCE(p.with_check, '') LIKE '%app.tenant_id%')`,
         )
       ).rows.map((x) => x.relname as string),
     );
