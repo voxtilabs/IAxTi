@@ -22,11 +22,26 @@ interface UsoDto {
   porDia?: Array<{ day: string; costUsd: number; executions: number }>;
 }
 
+/** Una corrida del asistente, como la devuelve `GET /agents/executions`. */
+interface CorridaDto {
+  id: string;
+  task: string;
+  model: string;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  costUsd: number | null;
+  latencyMs: number | null;
+  status: string;
+  createdAt: string;
+}
+
 export function ConsumoIA() {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
   const [uso, setUso] = useState<UsoDto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** Las corridas una por una; se piden al abrir el detalle, no antes. */
+  const [corridas, setCorridas] = useState<CorridaDto[] | null>(null);
 
   useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
@@ -38,6 +53,16 @@ export function ConsumoIA() {
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
+
+  const cargarCorridas = useCallback(async () => {
+    if (!session || !tenant) return;
+    try {
+      setCorridas(await apiFetch<CorridaDto[]>(config, session, tenant, '/agents/executions'));
+    } catch (err) {
+      setAviso((err as Error).message);
+      setCorridas([]);
+    }
+  }, [config, session, tenant]);
 
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
   if (aviso) {
@@ -115,6 +140,74 @@ export function ConsumoIA() {
               </tbody>
             </table>
           )}
+          {/* Las corridas una por una (#460).
+              `GET /agents/executions` existía desde #49 y no la llamaba
+              nadie: el agregado por día dice CUÁNTO, y cuando algo sale
+              caro o lento lo que hace falta es cuál. Acá está el trace,
+              que es con lo que se busca en Grafana. */}
+          <details className="mt-4">
+            <summary
+              className="w-fit cursor-pointer text-sm text-action-text"
+              onClick={() => {
+                if (corridas === null) void cargarCorridas();
+              }}
+            >
+              Ver las últimas corridas, una por una
+            </summary>
+            {corridas === null ? (
+              <p className="mt-2 text-sm text-muted">Buscando…</p>
+            ) : corridas.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">Todavía no hay corridas registradas.</p>
+            ) : (
+              <table className="mt-2 w-full text-sm">
+                <thead>
+                  <tr className="text-left">
+                    <th className="rotulo py-1">Cuándo</th>
+                    <th className="rotulo py-1">Para qué</th>
+                    <th className="rotulo py-1">Modelo</th>
+                    <th className="rotulo py-1 text-right">Tokens</th>
+                    <th className="rotulo py-1 text-right">Demoró</th>
+                    <th className="rotulo py-1 text-right">USD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {corridas.map((c) => (
+                    <tr key={c.id} className="border-t border-line">
+                      <td className="dato py-1.5">
+                        {new Date(c.createdAt).toLocaleString('es-CL', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="py-1.5 text-body">
+                        {c.task}
+                        {/* Una corrida que falló cuesta igual: verla entre
+                            las buenas es lo que explica un costo que no
+                            calza con lo que se ve en la bandeja. */}
+                        {c.status !== 'ok' && (
+                          <span className="ml-2 text-micro text-bad-text">{c.status}</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-muted">{c.model}</td>
+                      <td className="dato py-1.5 text-right">
+                        {c.tokensIn === null && c.tokensOut === null
+                          ? '—'
+                          : `${c.tokensIn ?? 0} + ${c.tokensOut ?? 0}`}
+                      </td>
+                      <td className="dato py-1.5 text-right">
+                        {c.latencyMs === null ? '—' : `${(c.latencyMs / 1000).toFixed(1)} s`}
+                      </td>
+                      <td className="dato py-1.5 text-right">
+                        {c.costUsd === null ? '—' : c.costUsd.toFixed(4)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </details>
         </div>
       )}
     </div>
