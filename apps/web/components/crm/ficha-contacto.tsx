@@ -10,6 +10,9 @@ import { DerechosDelTitular } from './derechos-del-titular';
 import { FusionarDuplicado } from './fusionar-duplicado';
 import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
 
+/** «Sin empresa» necesita un valor: Radix no acepta la cadena vacía. */
+const SIN_EMPRESA = '__sin_empresa__';
+
 // La ficha de contacto (#32, SPEC §10/§29): historia, oportunidades y
 // actividades. La usa la página /contactos/[id] Y el panel derecho de la
 // bandeja — una sola ficha, dos lugares. RUT, montos y fechas en mono (§3).
@@ -82,6 +85,8 @@ export function FichaContacto({
   const [campos, setCampos] = useState<CampoDto[]>([]);
   const [etiquetas, setEtiquetas] = useState<EtiquetaDto[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [empresas, setEmpresas] = useState<Array<{ id: string; name: string }>>([]);
+  const [guardandoEmpresa, setGuardandoEmpresa] = useState(false);
   const [titulo, setTitulo] = useState('');
   const [tipo, setTipo] = useState<'llamada' | 'reunion' | 'tarea' | 'nota'>('tarea');
   const [vence, setVence] = useState('');
@@ -108,11 +113,38 @@ export function FichaContacto({
       } catch {
         setEtiquetas([]);
       }
+      // Las empresas para el selector. Si el módulo o el permiso no están,
+      // el selector queda con lo que ya tiene puesto y nada más.
+      try {
+        setEmpresas(
+          await apiFetch<Array<{ id: string; name: string }>>(config, session, tenant, '/empresas'),
+        );
+      } catch {
+        setEmpresas([]);
+      }
     } catch (err) {
       setAviso((err as Error).message);
     }
   }, [config, session, tenant, contactId]);
   useEffect(() => void cargar(), [cargar]);
+
+  /** Cuelga el contacto de una empresa, o lo baja de la que tenía. */
+  async function asignarEmpresa(companyId: string | null) {
+    if (!session || !tenant || !contactId || guardandoEmpresa) return;
+    setGuardandoEmpresa(true);
+    try {
+      await apiFetch(config, session, tenant, `/contacts/${contactId}/empresa`, {
+        method: 'PUT',
+        body: JSON.stringify({ companyId }),
+      });
+      setAviso(null);
+      await cargar();
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setGuardandoEmpresa(false);
+    }
+  }
 
   async function agregarActividad(e: FormEvent) {
     e.preventDefault();
@@ -169,6 +201,44 @@ export function FichaContacto({
         <dd><Badge role="neutral">{contact.origin}</Badge></dd>
         <dt className="text-muted">Cliente desde</dt>
         <dd><FechaDato iso={contact.created_at} /></dd>
+        {/* De qué empresa es (#460). `PUT /contacts/:id/empresa` existía
+            desde #217 y no la llamaba nadie: las empresas se creaban y
+            ningún contacto se podía colgar de una, así que la pantalla de
+            Empresas mostraba fichas vacías para siempre. */}
+        <dt className="text-muted">Empresa</dt>
+        <dd className="flex flex-wrap items-center gap-2">
+          <Select
+            value={contact.company_id ?? SIN_EMPRESA}
+            disabled={guardandoEmpresa}
+            onValueChange={(valor) => void asignarEmpresa(valor === SIN_EMPRESA ? null : valor)}
+          >
+            <SelectTrigger className="h-9 w-56 bg-field text-sm" aria-label="Empresa del contacto">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* Radix no acepta el valor vacío como opción, así que "sin
+                  empresa" viaja con centinela y se traduce a null al salir:
+                  el servidor distingue null —descolgar— de un id. */}
+              <SelectItem value={SIN_EMPRESA}>Sin empresa</SelectItem>
+              {/* La que tiene puesta va sí o sí, aunque esté archivada: si
+                  no, el selector la mostraría como "Sin empresa" y el
+                  primer cambio la borraría sin que nadie lo pidiera. */}
+              {contact.company_id && !empresas.some((e) => e.id === contact.company_id) && (
+                <SelectItem value={contact.company_id}>
+                  {contact.company_name ?? 'La que tiene hoy'}
+                </SelectItem>
+              )}
+              {empresas.map((e) => (
+                <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {contact.company_id && (
+            <a className="text-sm text-action-text underline" href={`/empresas/${contact.company_id}`}>
+              Ver la empresa
+            </a>
+          )}
+        </dd>
       </dl>
 
       {etiquetas.length > 0 && (

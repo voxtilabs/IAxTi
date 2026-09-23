@@ -235,10 +235,16 @@ export async function getContactFicha(
   deals: Array<Record<string, unknown>>;
   activities: Activity[];
 }> {
+  // La empresa viaja con la ficha (#460): `contacts.company_id` existía
+  // desde #217 y la ficha no lo proyectaba, así que la pantalla no podía
+  // mostrar de qué empresa es alguien ni ofrecerse a cambiarlo.
   const contacto = await client.query(
-    `SELECT id, phone, name, email, rut, origin, owner_id, custom,
-            opt_in_at, opted_out_at, last_activity_at, created_at
-       FROM contacts WHERE tenant_id = $1 AND id = $2`,
+    `SELECT c.id, c.phone, c.name, c.email, c.rut, c.origin, c.owner_id, c.custom,
+            c.opt_in_at, c.opted_out_at, c.last_activity_at, c.created_at,
+            c.company_id, e.name AS company_name
+       FROM contacts c
+       LEFT JOIN companies e ON e.id = c.company_id AND e.tenant_id = c.tenant_id
+      WHERE c.tenant_id = $1 AND c.id = $2`,
     [tenantId, contactId],
   );
   if (contacto.rowCount === 0) throw new Error('No encontramos ese contacto. Puede que se haya eliminado.');
