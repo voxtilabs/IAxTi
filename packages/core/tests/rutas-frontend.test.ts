@@ -21,8 +21,8 @@ apiFetch(config, session, tenant, '/etiquetas').catch(() => []);
 apiFetch(config, session, tenant, '/channels');
 `);
     expect(rutasInexistentes(datos)).toEqual([
-      { archivo: 'apps/web/example.tsx', linea: 2, ruta: '/canales' },
-      { archivo: 'apps/web/example.tsx', linea: 3, ruta: '/etiquetas' },
+      { archivo: 'apps/web/example.tsx', linea: 2, ruta: '/canales', metodo: 'GET' },
+      { archivo: 'apps/web/example.tsx', linea: 3, ruta: '/etiquetas', metodo: 'GET' },
     ]);
   });
 
@@ -60,7 +60,7 @@ fetch(\`\${config.apiUrl}/v1/inventada\`);
     expect(datos.declaradas).not.toContain('/inventada');
     expect(datos.llamadas).toHaveLength(2);
     expect(rutasInexistentes(datos)).toEqual([
-      { archivo: 'apps/admin/components/test.tsx', linea: 5, ruta: '/inventada' },
+      { archivo: 'apps/admin/components/test.tsx', linea: 5, ruta: '/inventada', metodo: 'GET' },
     ]);
   });
 
