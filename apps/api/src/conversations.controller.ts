@@ -75,6 +75,8 @@ interface EntregaInput {
   conversation: Awaited<ReturnType<typeof getConversation>>;
   texto: string;
   type: MessageType;
+  /** Lo que se subió a R2 antes de responder (#458): llave, nombre y tipo. */
+  adjuntos?: Array<{ key: string; filename?: string; contentType?: string }>;
   requestId?: string;
 }
 
@@ -102,6 +104,7 @@ async function entregarRespuesta(
     authorId: actor.userId,
     type: input.type,
     body: input.texto,
+    ...(input.adjuntos?.length ? { attachments: input.adjuntos } : {}),
     requestId: input.requestId,
     delivery: 'reply',
     actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
@@ -222,14 +225,33 @@ export class ConversationsController {
   async reply(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { body?: string; type?: string },
+    @Body()
+    body: {
+      body?: string;
+      type?: string;
+      adjuntos?: Array<{ key?: string; filename?: string; contentType?: string }>;
+    },
   ) {
     const actor = actorOf(request);
-    if (!body?.body?.trim()) {
+    // Con adjunto, el texto es opcional: una foto sola es un mensaje
+    // completo. Sin adjunto y sin texto no hay nada que mandar (#458).
+    const adjuntos = (body?.adjuntos ?? [])
+      .filter((a): a is { key: string; filename?: string; contentType?: string } =>
+        typeof a?.key === 'string' && a.key.startsWith(`${actor.tenantId}/`))
+      .slice(0, 1);
+    if (!body?.body?.trim() && adjuntos.length === 0) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
-        message: 'Escribe el mensaje antes de enviarlo.',
+        message: 'Escribe el mensaje o adjunta un archivo antes de enviarlo.',
         details: [{ field: 'body' }],
+      });
+    }
+    // La llave nace con prefijo del tenant: una de otro negocio no se manda
+    // ni por error ni a propósito.
+    if ((body?.adjuntos ?? []).length > adjuntos.length) {
+      throw new BadRequestException({
+        code: 'ADJUNTO_INVALIDO',
+        message: 'Solo se puede mandar un archivo por mensaje, y tiene que ser de este negocio.',
       });
     }
     return withTenant(pool(), actor.tenantId, async (c) => {
@@ -257,8 +279,9 @@ export class ConversationsController {
         actor,
         conversationId: id,
         conversation,
-        texto: body.body!,
+        texto: body.body?.trim() ?? '',
         type: (body.type as MessageType) ?? 'texto',
+        ...(adjuntos.length ? { adjuntos } : {}),
         requestId: request.requestId,
       });
     });

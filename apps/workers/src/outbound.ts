@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 import type IORedis from 'ioredis';
 import type { Job } from 'bullmq';
 import { withTenant } from '@iaxti/db';
+import { presignUrl, storageFromEnv } from '@iaxti/core';
 import {
   bandejaSettings,
   enSilencio,
@@ -32,6 +33,35 @@ export class DelayUntilError extends Error {
   constructor(public readonly ms: number) {
     super(`Reprogramado ${Math.round(ms / 60000)} min (horario de silencio).`);
   }
+}
+
+/**
+ * De llaves privadas en R2 a URLs que el proveedor pueda bajar (#458).
+ *
+ * La firma dura poco a propósito: es un archivo de un cliente y no tiene
+ * por qué quedar accesible en una URL eterna. Por eso se firma al
+ * despachar y no al responder.
+ */
+async function adjuntosParaElProveedor(
+  crudos: unknown[],
+): Promise<Array<{ url: string; filename?: string; contentType?: string }>> {
+  if (crudos.length === 0) return [];
+  const storage = storageFromEnv();
+  if (!storage) return [];
+  const salida: Array<{ url: string; filename?: string; contentType?: string }> = [];
+  for (const crudo of crudos) {
+    const a = crudo as { key?: string; url?: string; filename?: string; contentType?: string };
+    // Un adjunto que YA trae URL pública se manda tal cual: es el caso del
+    // que llegó de afuera y todavía no se copió a R2.
+    const url = a.key ? presignUrl(storage, 'GET', a.key) : a.url;
+    if (!url) continue;
+    salida.push({
+      url,
+      ...(a.filename ? { filename: a.filename } : {}),
+      ...(a.contentType ? { contentType: a.contentType } : {}),
+    });
+  }
+  return salida;
 }
 
 export async function processOutbound(
@@ -122,6 +152,21 @@ export async function processOutbound(
       }
     }
 
+    /**
+     * Los adjuntos, convertidos en algo que el proveedor pueda bajar (#458).
+     *
+     * En R2 la llave es privada: el proveedor no la puede leer. Se firma
+     * acá, en el momento del despacho, y NO al responder — una URL firmada
+     * al guardar el mensaje estaría vencida cuando el reintento del quinto
+     * intento salga cuatro horas después.
+     */
+    const adjuntos = await adjuntosParaElProveedor(ctx.attachments);
+    if (ctx.attachments.length > 0 && adjuntos.length === 0) {
+      // Mandar el texto sin la foto sería peor que no mandar: el cliente
+      // recibe "acá va la cotización" y no va nada.
+      return rechazar('No pudimos preparar el adjunto para enviarlo. Revisa el almacenamiento.');
+    }
+
     let res: { providerMessageId: string };
     try {
       res = await deliverOutbound(
@@ -131,6 +176,7 @@ export async function processOutbound(
           to: ctx.phone,
           body: ctx.body ?? undefined,
           type: ctx.type,
+          ...(adjuntos.length > 0 ? { attachments: adjuntos } : {}),
           // La plantilla viaja con el MENSAJE, no con el job: así un
           // reintento de la cola manda exactamente la misma (#44).
           extra: ctx.extra ?? undefined,

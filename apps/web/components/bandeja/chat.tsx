@@ -2,7 +2,7 @@
 
 import { AvisoResultado } from '@iaxti/ui/react';
 
-import { Bot, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { Bot, Paperclip, ThumbsDown, ThumbsUp } from 'lucide-react';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
@@ -63,7 +63,8 @@ export interface ChatProps {
   aviso: string | null;
   onVolver: () => void;
   onVerFicha: () => void;
-  onResponder: (texto: string) => Promise<void>;
+  /** Responde. El adjunto es opcional: una foto sola ya es un mensaje (#458). */
+  onResponder: (texto: string, adjunto?: File) => Promise<void>;
   onAsignar: (aQuien: string, motivo?: string) => Promise<void>;
   onEstado: (estado: string, hasta?: string) => Promise<void>;
   onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
@@ -84,6 +85,8 @@ export function Chat({
   const [motivoAbajo, setMotivoAbajo] = useState(false);
   const [motivoFeedback, setMotivoFeedback] = useState('');
   const [texto, setTexto] = useState('');
+  /** El archivo elegido, todavía sin subir: se sube al enviar (#458). */
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [dialogoAsignar, setDialogoAsignar] = useState(false);
   const [dialogoCobrar, setDialogoCobrar] = useState(false);
@@ -115,11 +118,14 @@ export function Chat({
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
-    if (!texto.trim() || enviando) return;
+    // Con archivo, el texto es opcional: una foto sola es un mensaje
+    // completo, y exigir un pie obliga a escribir "mira" para poder mandarla.
+    if ((!texto.trim() && !archivo) || enviando) return;
     setEnviando(true);
     try {
-      await onResponder(texto.trim());
+      await onResponder(texto.trim(), archivo ?? undefined);
       setTexto('');
+      setArchivo(null);
     } finally {
       setEnviando(false);
     }
@@ -264,6 +270,19 @@ export function Chat({
       )}
 
       {/* El copiloto (#48): aviso action-soft sobre el campo — UN toque. */}
+      {/* Lo que se va a mandar, visible y quitable: un archivo elegido por
+          error y no visto sale igual. */}
+      {archivo && enVentana && (
+        <p className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-campo border border-line bg-rest px-3 py-2 text-sm text-body">
+          <Paperclip aria-hidden className="size-3.5 text-muted" />
+          <span className="min-w-0 flex-1 truncate">{archivo.name}</span>
+          <span className="text-micro text-muted">{Math.ceil(archivo.size / 1024)} KB</span>
+          <Button variant="fantasma" size="chico" onClick={() => setArchivo(null)}>
+            Quitar
+          </Button>
+        </p>
+      )}
+
       {sugerencia && enVentana && (
         <div className="mx-4 mb-2 rounded-campo border border-action-soft-br bg-action-soft p-3">
           <p className="rotulo">Sugerencia del asistente{sugerencia.confidence !== null && ` · ${Math.round(sugerencia.confidence * 100)} %`}</p>
@@ -366,6 +385,19 @@ export function Chat({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          {/* Adjuntar (#458). Antes el camino entero existía sin puerta:
+              la URL prefirmada, el campo en el mensaje y el tipo del
+              adaptador. Lo que faltaba era esto y que el adaptador lo
+              tradujera. */}
+          <label className="flex h-control w-11 shrink-0 cursor-pointer items-center justify-center rounded-boton border border-line-strong text-body hover:bg-rest">
+            <Paperclip aria-hidden className="size-4" />
+            <span className="sr-only">Adjuntar un archivo</span>
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+            />
+          </label>
           <Textarea
             aria-label="Mensaje"
             placeholder="Escribe tu respuesta…"
@@ -380,7 +412,7 @@ export function Chat({
             }}
             className="max-h-40"
           />
-          <Button type="submit" size="icono" aria-label="Enviar" disabled={!texto.trim() || enviando} className="h-control w-11">
+          <Button type="submit" size="icono" aria-label="Enviar" disabled={(!texto.trim() && !archivo) || enviando} className="h-control w-11">
             <IconoEnviar className="h-4 w-4" />
           </Button>
         </form>
