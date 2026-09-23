@@ -76,6 +76,10 @@ export interface Mensaje {
   body: string | null;
   deliveryStatus: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
   authorKind: 'contact' | 'user' | 'agent' | 'system';
+  /** Lo que viajó con el mensaje, ya en R2 y con prefijo por tenant (#42). */
+  attachments?: Array<{ key: string; name: string; contentType: string }>;
+  /** Los que llegaron y no se alcanzaron a guardar: ya no hay qué abrir. */
+  lostAttachments?: number;
   createdAt: string;
 }
 
