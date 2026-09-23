@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -16,6 +17,8 @@ import {
   cambiarEstadoCita,
   configuracionDeAvisos,
   definirDisponibilidad,
+  listarDisponibilidad,
+  quitarDisponibilidad,
   desdeHora,
   huecosDelDia,
   listarCitas,
@@ -120,6 +123,47 @@ export class AgendaController {
       const cfg = configuracionDeAvisos(await getTenantSettings(c, actor.tenantId));
       return { recordatorios: cfg.plantillas, zona: cfg.zona, activo: cfg.activo };
     });
+  }
+
+  /**
+   * Los horarios que ya están definidos (#460). Sin esta lectura la
+   * pantalla de horarios no podía existir: se podían DEFINIR y no se
+   * podían ver, así que cada visita agregaba una franja más sobre las
+   * que ya estaban.
+   */
+  @Get('disponibilidad')
+  @RequirePermission('calendar.read')
+  @ApiOperation({ summary: 'Los horarios de atención de alguien del equipo' })
+  async verDisponibilidad(@Req() request: WithUser, @Query('ownerId') ownerId?: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      listarDisponibilidad(c, { tenantId: actor.tenantId, ownerId: ownerId ?? actor.userId }),
+    );
+  }
+
+  @Delete('disponibilidad/:id')
+  @RequirePermission('calendar.manage_availability')
+  @ApiOperation({ summary: 'Quita una franja horaria' })
+  async borrarDisponibilidad(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Query('ownerId') ownerId?: string,
+  ) {
+    const actor = actorOf(request);
+    try {
+      await withTenant(pool(), actor.tenantId, (c) =>
+        quitarDisponibilidad(c, {
+          tenantId: actor.tenantId,
+          ownerId: ownerId ?? actor.userId,
+          id,
+        }),
+      );
+      // Las citas ya tomadas no se tocan: siguen en la agenda y hay que
+      // avisarles a mano. Borrar el horario no las cancela.
+      return { ok: true };
+    } catch (err) {
+      seVeMal(err);
+    }
   }
 
   @Post('disponibilidad')
