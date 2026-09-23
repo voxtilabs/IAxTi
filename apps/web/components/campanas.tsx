@@ -54,7 +54,18 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   const [nombre, setNombre] = useState('');
   const [plantillaId, setPlantillaId] = useState('');
   const [valores, setValores] = useState<string[]>([]);
-  const [filtros, setFiltros] = useState<CampaignFilters>({});
+  /** El alcance del filtro que se está armando, sin campaña de por medio. */
+  const [alcance, setAlcance] = useState<CampaignPreview | null>(null);
+  const [filtros, setFiltrosCrudos] = useState<CampaignFilters>({});
+  /**
+   * Tocar un filtro borra el alcance que se mostraba: un número que ya no
+   * corresponde a lo que está en pantalla es peor que ninguno, porque se
+   * lee como el de ahora.
+   */
+  const setFiltros: typeof setFiltrosCrudos = (valor) => {
+    setAlcance(null);
+    setFiltrosCrudos(valor);
+  };
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const cerrojo = useRef(false);
@@ -82,9 +93,21 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
     await ejecutar(async () => {
       const [ps, ss, es] = await Promise.all([cliente!.templates(), cliente!.segments(), cliente!.tags()]);
       setPlantillas(ps.filter((p) => p.status === 'approved')); setSegmentos(ss); setEtiquetas(es);
-      setNombre(''); setPlantillaId(''); setValores([]); setFiltros({});
+      setNombre(''); setPlantillaId(''); setValores([]); setFiltros({}); setAlcance(null);
       setCampana(null); setPrevia(null); setCanales(null); creacion.current = null;
       setVista('nueva');
+    });
+  }
+
+  /**
+   * A cuántos alcanza el filtro que se está armando, sin crear nada.
+   * El conteo es de ESTE momento: el segmento es una consulta viva y
+   * alguien puede darse de baja entre esto y el envío, así que la vista
+   * previa de la campaña vuelve a contar antes de mandar.
+   */
+  async function verAlcance() {
+    await ejecutar(async () => {
+      setAlcance(await cliente!.previewSegment(filtros));
     });
   }
 
@@ -199,6 +222,34 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           <label className="block text-sm">Sin actividad hace al menos (días)<Input type="number" min="0" step="1" className="mt-1 font-mono" value={filtros.sinActividadDias ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, sinActividadDias: e.target.value === '' ? undefined : Number(e.target.value) }))} /></label>
           {!!etiquetas.length && <fieldset><legend className="text-sm">Con todas estas etiquetas</legend><div className="mt-2 flex flex-wrap gap-3">{etiquetas.map((tag) => <label key={tag.id} className="inline-flex min-h-control items-center gap-2 text-sm"><Checkbox checked={filtros.tagIds?.includes(tag.id) ?? false} onCheckedChange={(marcado) => setFiltros((f) => ({ ...f, tagIds: marcado === true ? [...(f.tagIds ?? []), tag.id] : (f.tagIds ?? []).filter((id) => id !== tag.id) }))} />{tag.name}</label>)}</div></fieldset>}
           <p className="text-sm text-muted">Solo se incluyen contactos con teléfono y consentimiento. Los filtros guardados de etapa y campos propios también se conservan.</p>
+          {/* A cuántos alcanza, antes de crear nada (#460).
+              `POST /campanas/segmentos/vista-previa` existía desde #64 y no
+              la llamaba nadie: la otra vista previa necesita una campaña ya
+              creada, así que para saber si el filtro servía había que crear
+              un borrador, mirarlo y borrarlo. */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="secundario" disabled={ocupado} onClick={() => void verAlcance()}>
+              {ocupado ? 'Contando…' : 'Ver a cuántos alcanza'}
+            </Button>
+            {alcance && (
+              <p className="text-sm text-body">
+                <strong className="font-mono text-ink">{alcance.total}</strong>{' '}
+                {alcance.total === 1 ? 'contacto' : 'contactos'}
+                {alcance.muestra.length > 0 && (
+                  <span className="text-muted">
+                    {' '}· por ejemplo {alcance.muestra.slice(0, 3).map((c) => c.name ?? c.phone).join(', ')}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+          {alcance?.total === 0 && (
+            // Una campaña a cero no falla: se manda y no le llega a nadie.
+            <p className="text-sm text-warn-text">
+              Con estos filtros no queda nadie. Revisa las etiquetas, el origen o los días sin
+              actividad antes de crear la campaña.
+            </p>
+          )}
         </fieldset>
         <Button type="submit" disabled={ocupado || !plantilla || !nombre.trim()}>{ocupado ? 'Preparando…' : 'Crear borrador y ver destinatarios'}</Button>
       </form>}

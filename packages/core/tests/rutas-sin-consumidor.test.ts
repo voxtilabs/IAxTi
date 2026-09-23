@@ -50,7 +50,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   '/agenda/huecos': 'La usa el asistente por su herramienta; la agenda no la dibuja (#460).',
   '/agents/:id/run': 'Sin pantalla a propósito: es para el SDK y las pruebas, no para el dueño.',
   '/agents/executions': 'El consumo se ve agregado en Ajustes → IA; la lista cruda no tiene pantalla (#460).',
-  '/campanas/segmentos/vista-previa': 'Falta: ver a quién alcanza un segmento antes de guardarlo (#460).',
   '/platform/tenants/:id/retention': 'Falta en el panel: el override de retención por negocio (#460).',
 };
 

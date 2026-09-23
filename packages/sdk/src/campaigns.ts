@@ -81,6 +81,13 @@ export function campaignClient(config: { apiUrl: string; token: string; tenantId
     segments: () => call<Array<{ id: string; name: string; filters: CampaignFilters }>>('CampanasController_segmentos'),
     create: (body: { name: string; templateId: string; filtros: CampaignFilters; valores: string[] }, key: string) => call<Campaign>('CampanasController_crear', { body, key }),
     preview: (id: string) => call<CampaignPreview>('CampanasController_previa', { id }),
+    /**
+     * A cuántos alcanza un filtro ANTES de crear nada (#460). La otra
+     * vista previa necesita una campaña ya creada: para saber si el
+     * segmento sirve había que crear un borrador y mirarlo.
+     */
+    previewSegment: (filtros: CampaignFilters) =>
+      call<CampaignPreview>('CampanasController_vistaPrevia', { body: { filtros } }),
     send: (id: string, key: string) => call<{ encolados: number; saltados: number; motivos: Record<string, number> }>('CampanasController_enviar', { id, key }),
     results: (id: string) => call<CampaignResults>('CampanasController_resultados', { id }),
   };
