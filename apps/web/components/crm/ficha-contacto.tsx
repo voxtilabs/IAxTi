@@ -87,6 +87,14 @@ export function FichaContacto({
   const [aviso, setAviso] = useState<string | null>(null);
   const [empresas, setEmpresas] = useState<Array<{ id: string; name: string }>>([]);
   const [guardandoEmpresa, setGuardandoEmpresa] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [borrador, setBorrador] = useState<{
+    name: string;
+    email: string;
+    rut: string;
+    custom: Record<string, unknown>;
+  }>({ name: '', email: '', rut: '', custom: {} });
   const [titulo, setTitulo] = useState('');
   const [tipo, setTipo] = useState<'llamada' | 'reunion' | 'tarea' | 'nota'>('tarea');
   const [vence, setVence] = useState('');
@@ -127,6 +135,39 @@ export function FichaContacto({
     }
   }, [config, session, tenant, contactId]);
   useEffect(() => void cargar(), [cargar]);
+
+  /**
+   * Guarda las correcciones. Lo vacío viaja como `null` y no como cadena:
+   * "sin correo" y "correo en blanco" son cosas distintas, y el servidor
+   * distingue.
+   */
+  async function guardarDatos() {
+    if (!session || !tenant || !contactId || guardando) return;
+    setGuardando(true);
+    try {
+      await apiFetch(config, session, tenant, `/contacts/${contactId}`, {
+        method: 'PATCH',
+        // Vacío viaja como `null` y eso BORRA; no mandar el campo lo
+        // dejaría como estaba, que es justo lo contrario de lo que pidió
+        // quien borró el correo en pantalla.
+        body: JSON.stringify({
+          name: borrador.name.trim() || null,
+          email: borrador.email.trim() || null,
+          rut: borrador.rut.trim() || null,
+          custom: borrador.custom,
+        }),
+      });
+      setAviso(null);
+      setEditando(false);
+      await cargar();
+    } catch (err) {
+      // El RUT malo, una opción fuera de la lista o un obligatorio vacío:
+      // el mensaje del dominio ya explica cuál, y se muestra tal cual.
+      setAviso((err as Error).message);
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   /** Cuelga el contacto de una empresa, o lo baja de la que tenía. */
   async function asignarEmpresa(companyId: string | null) {
@@ -251,7 +292,126 @@ export function FichaContacto({
         </p>
       )}
 
-      <CamposPropios valores={contact.custom} definiciones={campos} />
+      {/* Corregir los datos (#480). `PATCH /contacts/:id` existe desde #34
+          y no la llamaba nadie: un nombre mal escrito, un correo o un RUT
+          solo se arreglaban volviendo a importar la planilla, y los campos
+          propios del negocio solo se podían llenar en la importación. */}
+      {editando ? (
+        <form
+          className="mt-6 flex flex-col gap-3 rounded-tarjeta border border-line bg-raised p-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void guardarDatos();
+          }}
+        >
+          <h3 className="text-sm font-medium text-ink">Corregir los datos</h3>
+          <label className="flex flex-col gap-1 text-sm text-body">
+            Nombre
+            <Input value={borrador.name} onChange={(e) => setBorrador({ ...borrador, name: e.target.value })} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-body">
+            Correo
+            <Input
+              type="email"
+              value={borrador.email}
+              onChange={(e) => setBorrador({ ...borrador, email: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-body">
+            RUT
+            <Input
+              className="dato"
+              value={borrador.rut}
+              onChange={(e) => setBorrador({ ...borrador, rut: e.target.value })}
+            />
+            <span className="text-xs text-muted">
+              El servidor lo valida y lo guarda normalizado; si está malo, lo dice.
+            </span>
+          </label>
+          {campos
+            .filter((d) => d.entity === 'contact')
+            .map((d) => (
+              <label key={d.id} className="flex flex-col gap-1 text-sm text-body">
+                {d.label}
+                {d.required && <span className="sr-only"> (obligatorio)</span>}
+                {d.type === 'si_no' ? (
+                  // Sí/no viaja como BOOLEANO, no como la palabra: el
+                  // servidor rechaza 'true' con «es de sí o no», y el
+                  // rechazo llegaría recién al guardar.
+                  <span className="flex gap-2">
+                    {[
+                      { v: true, t: 'Sí' },
+                      { v: false, t: 'No' },
+                      { v: undefined, t: 'Sin responder' },
+                    ].map((o) => (
+                      <Button
+                        key={o.t}
+                        type="button"
+                        size="chico"
+                        variant={borrador.custom[d.key] === o.v ? 'secundario' : 'fantasma'}
+                        aria-pressed={borrador.custom[d.key] === o.v}
+                        onClick={() =>
+                          setBorrador({ ...borrador, custom: { ...borrador.custom, [d.key]: o.v } })
+                        }
+                      >
+                        {o.t}
+                      </Button>
+                    ))}
+                  </span>
+                ) : (
+                  <Input
+                    type={d.type === 'numero' || d.type === 'moneda' ? 'number' : d.type === 'fecha' ? 'date' : 'text'}
+                    list={d.type === 'lista' ? `opciones-${d.id}` : undefined}
+                    className={d.type === 'texto' || d.type === 'lista' ? '' : 'dato'}
+                    value={String(borrador.custom[d.key] ?? '')}
+                    onChange={(e) =>
+                      setBorrador({ ...borrador, custom: { ...borrador.custom, [d.key]: e.target.value } })
+                    }
+                  />
+                )}
+                {/* Las opciones se ofrecen pero no se imponen: el servidor
+                    es quien rechaza una fuera de la lista, y su mensaje
+                    dice cuál es la lista. */}
+                {d.type === 'lista' && (
+                  <datalist id={`opciones-${d.id}`}>
+                    {d.options.map((o) => (
+                      <option key={o} value={o} />
+                    ))}
+                  </datalist>
+                )}
+              </label>
+            ))}
+          <span className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={guardando}>
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </Button>
+            <Button type="button" variant="secundario" onClick={() => setEditando(false)}>
+              Dejar como estaba
+            </Button>
+          </span>
+        </form>
+      ) : (
+        <>
+          <CamposPropios valores={contact.custom} definiciones={campos} />
+          <span className="mt-4 block">
+            <Button
+              variant="secundario"
+              size="chico"
+              onClick={() => {
+                setBorrador({
+                  name: contact.name ?? '',
+                  email: contact.email ?? '',
+                  rut: contact.rut ?? '',
+                  custom: { ...(contact.custom ?? {}) },
+                });
+                setEditando(true);
+              }}
+            >
+              Corregir los datos
+            </Button>
+          </span>
+        </>
+      )}
 
       {/* Oportunidades (montos en mono). */}
       <section className="mt-6">

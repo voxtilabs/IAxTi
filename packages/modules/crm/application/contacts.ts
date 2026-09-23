@@ -238,9 +238,9 @@ export async function updateContact(
   input: {
     tenantId: string;
     contactId: string;
-    name?: string;
-    email?: string;
-    rut?: string;
+    name?: string | null;
+    email?: string | null;
+    rut?: string | null;
     ownerId?: string;
     custom?: Record<string, unknown>;
     requestId?: string;
@@ -259,13 +259,18 @@ export async function updateContact(
     custom = validarCustom(declarados, custom);
   }
 
+  // Mandar `null` BORRA; no mandar el campo lo deja como estaba. Antes
+  // `name` e `email` iban por COALESCE, así que borrarlos era imposible:
+  // el contacto que pidió que le sacaran el correo se quedaba con él y la
+  // pantalla parecía no hacer nada (#480). El RUT ya distinguía las dos
+  // cosas y ahora los tres se comportan igual.
   const result = await client.query(
     `UPDATE contacts SET
-       name = COALESCE($3, name),
-       email = COALESCE($4, email),
-       rut = CASE WHEN $5::boolean THEN $6 ELSE rut END,
-       owner_id = COALESCE($7, owner_id),
-       custom = custom || COALESCE($8::jsonb, '{}'::jsonb),
+       name = CASE WHEN $3::boolean THEN $4 ELSE name END,
+       email = CASE WHEN $5::boolean THEN $6 ELSE email END,
+       rut = CASE WHEN $7::boolean THEN $8 ELSE rut END,
+       owner_id = COALESCE($9, owner_id),
+       custom = custom || COALESCE($10::jsonb, '{}'::jsonb),
        updated_at = now(),
        last_activity_at = now()
      WHERE tenant_id = $1 AND id = $2
@@ -273,8 +278,10 @@ export async function updateContact(
     [
       input.tenantId,
       input.contactId,
-      input.name ?? null,
-      input.email ?? null,
+      input.name !== undefined,
+      input.name || null,
+      input.email !== undefined,
+      input.email || null,
       rut !== undefined,
       rut ?? null,
       input.ownerId ?? null,
