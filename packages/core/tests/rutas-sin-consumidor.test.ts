@@ -59,9 +59,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   'POST /automations/sequences': 'Falta crear una secuencia de seguimiento (#480).',
   'DELETE /webhooks-salientes/:id': 'Falta borrar un webhook saliente; hoy solo se crean (#480).',
   'DELETE /notifications/push': 'Falta desuscribir este dispositivo de las notificaciones (#480).',
-  'POST /platform/tenants': 'Falta crear un negocio desde el panel; hoy nace por el registro (#480).',
-  'DELETE /platform/tenants/:id/support': 'Falta cortar el modo soporte antes de que venza (#480).',
-  'POST /platform/audit/verify': 'Falta el botón que comprueba la cadena del audit (#480).',
 };
 
 /** Una llamada calza con una ruta si ocupa sus ranuras, no si inventa sufijos. */

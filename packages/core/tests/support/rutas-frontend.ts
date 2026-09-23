@@ -120,6 +120,11 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
     const init = call.arguments[api ? 4 : 1];
     if (!init) return 'GET';
     if (!ts.isObjectLiteralExpression(init)) return undefined;
+    // `{ ...init }` puede traer el método adentro: no se sabe. Dar por
+    // GET lo que no se leyó convertiría un POST con pantalla en una ruta
+    // "sin consumidor", que es justo el error que esta guarda causa más
+    // caro — mandar a construir algo que ya existe.
+    if (init.properties.some((p) => ts.isSpreadAssignment(p))) return undefined;
     const prop = init.properties.find(
       (p) => ts.isPropertyAssignment(p) && p.name.getText() === 'method',
     );

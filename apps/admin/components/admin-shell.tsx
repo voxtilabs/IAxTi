@@ -52,6 +52,8 @@ function TablaTenants() {
   const [tenants, setTenants] = useState<TenantRow[] | null>(null);
   const [sinAcceso, setSinAcceso] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [nombreNuevo, setNombreNuevo] = useState('');
+  const [rubroNuevo, setRubroNuevo] = useState('');
 
   const cargar = () => {
     if (!session) return;
@@ -100,6 +102,49 @@ function TablaTenants() {
           {aviso}
         </AvisoResultado>
       )}
+      {/* Crear un negocio a mano (#480). `POST /platform/tenants` existía
+          desde #69 y no la llamaba nadie: un cliente que se cierra por
+          teléfono había que meterlo por la API, y el que opera IAxTi no
+          tiene por qué entrar a la base para eso. Nace en prueba, como lo
+          crea el servidor. */}
+      <form
+        className="mb-4 flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!nombreNuevo.trim()) return;
+          void accion('/platform/tenants', {
+            body: JSON.stringify({ name: nombreNuevo.trim(), rubro: rubroNuevo.trim() || undefined }),
+          }).then(() => {
+            setNombreNuevo('');
+            setRubroNuevo('');
+          });
+        }}
+      >
+        <label className="text-xs text-muted">
+          Nombre del negocio
+          <input
+            className="mt-1 block w-56 rounded-boton border border-line bg-bg px-2 py-1 text-sm text-ink"
+            value={nombreNuevo}
+            onChange={(e) => setNombreNuevo(e.target.value)}
+            placeholder="Peluquería Rosa"
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Rubro (opcional)
+          <input
+            className="mt-1 block w-44 rounded-boton border border-line bg-bg px-2 py-1 text-sm text-ink"
+            value={rubroNuevo}
+            onChange={(e) => setRubroNuevo(e.target.value)}
+            placeholder="belleza"
+          />
+        </label>
+        <button
+          type="submit"
+          className="rounded-boton border border-action-soft-br bg-action-soft px-3 py-1.5 text-sm text-action-text"
+        >
+          Crear negocio (nace en prueba)
+        </button>
+      </form>
     <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
       <table className="w-full text-sm">
         <thead>
@@ -187,6 +232,21 @@ function TablaTenants() {
                     }
                   >
                     Soporte 4 h
+                  </button>
+                  {/* Cortar el soporte antes de que venza (#480).
+                      `DELETE /platform/tenants/:id/support` existía desde
+                      #219 y no la llamaba nadie: se encendía por cuatro
+                      horas y no había forma de apagarlo antes, aunque el
+                      cliente esté viendo el aviso de que lo estamos
+                      mirando. */}
+                  <button
+                    type="button"
+                    className="rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body"
+                    onClick={() =>
+                      void accion(`/platform/tenants/${t.id}/support`, { method: 'DELETE' })
+                    }
+                  >
+                    Cortar soporte
                   </button>
                   <RetencionDelTenant tenantId={t.id} nombre={t.name} />
                 </div>
