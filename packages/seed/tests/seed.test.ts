@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations } from '@iaxti/db';
 import { seed, TENANT_NAME, USERS } from '../src/seed';
+import { limpiarDemo } from './support/limpiar-demo';
 
 // En CI no hay SUPABASE_*: el seed usa uuids deterministas — la idempotencia
 // se prueba igual. El login real se verifica contra staging a mano.
@@ -14,17 +15,9 @@ beforeAll(async () => {
   admin = createPool(ADMIN_URL);
   await runMigrations(admin); // CI parte con base virgen
   // Hermético: el tenant demo puede existir con usuarios de OTRO modo
-  // (uuids reales de Supabase vs deterministas); se parte de cero.
-  const previo = await admin.query('SELECT id FROM tenants WHERE name = $1', [TENANT_NAME]);
-  if ((previo.rowCount ?? 0) > 0) {
-    const id = previo.rows[0].id;
-    await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-    await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [id]);
-    await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
-    await admin.query('DELETE FROM user_roles WHERE tenant_id = $1', [id]);
-    await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [id]);
-    await admin.query('DELETE FROM tenants WHERE id = $1', [id]);
-  }
+  // (uuids reales de Supabase vs deterministas) o con los datos de la
+  // demo puestos por el otro archivo; se parte de cero.
+  await limpiarDemo(admin, TENANT_NAME);
 });
 
 afterAll(async () => {
