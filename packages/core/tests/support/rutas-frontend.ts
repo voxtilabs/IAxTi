@@ -3,8 +3,14 @@ import { dirname, join, relative } from 'node:path';
 import ts from 'typescript';
 
 const VARIABLE = '«valor»';
-export interface RutaLlamada { archivo: string; linea: number; ruta: string }
-export interface InventarioRutas { declaradas: string[]; llamadas: RutaLlamada[] }
+export interface RutaLlamada { archivo: string; linea: number; ruta: string; metodo?: string }
+export interface InventarioRutas {
+  declaradas: string[];
+  /** Cada ruta con su verbo: `POST /quick-replies`. Un GET a la misma ruta
+   *  no es consumidor del POST, y ahí se escondía media familia. */
+  declaradasConVerbo: string[];
+  llamadas: RutaLlamada[];
+}
 
 function archivos(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -33,6 +39,7 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
   const files = program.getSourceFiles();
   const calls: ts.CallExpression[] = [];
   const declaradas: string[] = [];
+  const declaradasConVerbo: string[] = [];
   function recorrer(node: ts.Node, visitar: (n: ts.Node) => void) {
     visitar(node);
     ts.forEachChild(node, (n) => recorrer(n, visitar));
@@ -92,12 +99,34 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
     if (!ts.isClassDeclaration(node)) return;
     const prefijos = decoradores(node).flatMap((d) => rutaDecorador(d, /^Controller$/) ?? []);
     for (const member of node.members) {
-      const rutas = decoradores(member).flatMap((d) => rutaDecorador(d, /^(Get|Post|Put|Patch|Delete|Head|Options|All)$/) ?? []);
-      for (const prefijo of prefijos) for (const ruta of rutas) {
-        declaradas.push('/' + [prefijo, ruta].map((s) => s.replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/'));
+      for (const d of decoradores(member)) {
+        const verbo = ts.isCallExpression(d.expression) ? d.expression.expression.getText() : '';
+        if (!/^(Get|Post|Put|Patch|Delete|Head|Options|All)$/.test(verbo)) continue;
+        for (const prefijo of prefijos) for (const ruta of rutaDecorador(d, /^(Get|Post|Put|Patch|Delete|Head|Options|All)$/) ?? []) {
+          const path = '/' + [prefijo, ruta].map((s) => s.replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
+          declaradas.push(path);
+          declaradasConVerbo.push(`${verbo.toUpperCase()} ${path}`);
+        }
       }
     }
   });
+
+  /**
+   * Con qué verbo se llama. Sale del objeto de opciones: `{ method: 'POST' }`
+   * en `apiFetch`/`fetch`. Sin objeto, es un GET — que es lo que hacen los
+   * dos por defecto.
+   */
+  function metodoDeLaLlamada(call: ts.CallExpression, api: boolean): string | undefined {
+    const init = call.arguments[api ? 4 : 1];
+    if (!init) return 'GET';
+    if (!ts.isObjectLiteralExpression(init)) return undefined;
+    const prop = init.properties.find(
+      (p) => ts.isPropertyAssignment(p) && p.name.getText() === 'method',
+    );
+    if (!prop || !ts.isPropertyAssignment(prop)) return 'GET';
+    const vals = valores(prop.initializer);
+    return vals.length === 1 ? vals[0].toUpperCase() : undefined;
+  }
 
   const llamadas: RutaLlamada[] = [];
   // Los ayudantes del cliente que reciben la ruta en el cuarto argumento.
@@ -118,10 +147,15 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
         archivo: call.getSourceFile().fileName,
         linea: call.getSourceFile().getLineAndCharacterOfPosition(call.getStart()).line + 1,
         ruta,
+        metodo: metodoDeLaLlamada(call, api),
       });
     }
   }
-  return { declaradas: [...new Set(declaradas)], llamadas };
+  return {
+    declaradas: [...new Set(declaradas)],
+    declaradasConVerbo: [...new Set(declaradasConVerbo)],
+    llamadas,
+  };
 }
 
 /** Un valor dinámico solo puede ocupar un parámetro del servidor, no inventar un sufijo. */
@@ -151,8 +185,18 @@ export function rutasDelSdk(fuentes: Record<string, string>): RutaLlamada[] {
     lineas.forEach((linea, i) => {
       const m = linea.match(/"path":\s*"\/v1(\/[^"]*)"/);
       if (!m) return;
+      // El verbo va en la misma entrada generada: en la línea de arriba
+      // cuando está indentada, o en la misma cuando el generador la
+      // escribió de corrido (`{"method":"GET","path":"/v1/onboarding"}`).
+      const verbo = (linea.match(/"method":\s*"([A-Z]+)"/) ??
+        lineas[i - 1]?.match(/"method":\s*"([A-Z]+)"/))?.[1];
       // `{id}` del OpenAPI es `:id` del servidor: la misma ranura.
-      salida.push({ archivo, linea: i + 1, ruta: m[1].replace(/\{([^}]+)\}/g, ':$1') });
+      salida.push({
+        archivo,
+        linea: i + 1,
+        ruta: m[1].replace(/\{([^}]+)\}/g, ':$1'),
+        metodo: verbo,
+      });
     });
   }
   return salida;

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { inventarioDelRepositorio } from './support/rutas-frontend';
 
 /**
- * Una ruta que no usa nadie (#447).
+ * Una ruta que no usa nadie (#447, #480).
  *
  * El guard de `rutas-frontend` comprueba una dirección: que el frontend no
  * pida rutas que la API no declara. La otra dirección no la miraba nadie, y
@@ -11,6 +11,11 @@ import { inventarioDelRepositorio } from './support/rutas-frontend';
  * inventario a mano encontró dieciocho — entre ellas los derechos del
  * titular (obligación legal implementada y no ejercible), reintentar un
  * mensaje que no llegó, y las evaluaciones del asistente.
+ *
+ * Y la primera versión de esta guarda miraba solo la RUTA. Un `POST` a una
+ * ruta que alguien lee con `GET` se daba por consumido: así pasaban
+ * inadvertidas doce funciones más —editar un contacto entre ellas—, porque
+ * la pantalla que las lee existe y la que las escribe no.
  *
  * Una ruta sin consumidor no rompe nada: simplemente la función no existe
  * para quien la necesita. Por eso hace falta que alguien pregunte.
@@ -21,32 +26,46 @@ import { inventarioDelRepositorio } from './support/rutas-frontend';
  */
 const SIN_CONSUMIDOR: Record<string, string> = {
   // Las llama la infraestructura, no una pantalla.
-  '/health': 'Liveness: la llama Docker y Uptime Kuma (#17).',
-  '/ready': 'Readiness: la llama el smoke del despliegue y Dokploy (#17).',
-  '/health/modules': 'El grafo de módulos, para diagnosticar un arranque (#11).',
+  'GET /health': 'Liveness: la llama Docker y Uptime Kuma (#17).',
+  'GET /ready': 'Readiness: la llama el smoke del despliegue y Dokploy (#17).',
+  'GET /health/modules': 'El grafo de módulos, para diagnosticar un arranque (#11).',
 
   // Las llama alguien de afuera.
-  '/webhooks/channels/:accountId': 'La llama el proveedor de canales cuando entra un mensaje (#41).',
-  '/webhooks/payments/:providerId': 'La llama el proveedor de pagos al confirmar (#61).',
-  '/mcp': 'La llama una IA de afuera con la API key del negocio (#419).',
+  'POST /webhooks/channels/:accountId': 'La llama el proveedor de canales cuando entra un mensaje (#41).',
+  'POST /webhooks/payments/:providerId': 'La llama el proveedor de pagos al confirmar (#61).',
+  'POST /mcp': 'La llama una IA de afuera con la API key del negocio (#419).',
 
   // El widget del sitio arma la base y el sufijo por separado
   // (`${apiUrl}/webchat/${widgetId}` + '/sessions'), y el extractor sigue
   // una llamada, no una composición. Son suyas: `webchat-chat.tsx`.
-  '/webchat/:widgetId/config': 'La llama el widget del sitio, que compone la base aparte (#46).',
-  '/webchat/:widgetId/sessions': 'La llama el widget del sitio para abrir la sesión (#46).',
-  '/webchat/:widgetId/messages': 'La llama el widget: manda el mensaje del visitante y sondea (#46).',
+  'GET /webchat/:widgetId/config': 'La llama el widget del sitio, que compone la base aparte (#46).',
+  'POST /webchat/:widgetId/sessions': 'La llama el widget del sitio para abrir la sesión (#46).',
+  'POST /webchat/:widgetId/messages': 'La llama el widget: manda el mensaje del visitante (#46).',
+  'GET /webchat/:widgetId/messages': 'La llama el widget para sondear lo que le respondieron (#46).',
 
   // Fixtures del guard de permisos: existen para probarlo.
-  '/demo/no-existe/:id': 'Fixture: comprueba que un módulo apagado responde 404 (#11).',
-  '/demo/protegido': 'Fixture: comprueba que el guard exige permiso (#9).',
+  'GET /demo/no-existe/:id': 'Fixture: comprueba que un módulo apagado responde 404 (#11).',
+  'GET /demo/protegido': 'Fixture: comprueba que el guard exige permiso (#9).',
+
+  'POST /agents/:id/run': 'Sin pantalla a propósito: es para el SDK y las pruebas, no para el dueño.',
 
   // --- Lo que SÍ es una función sin puerta, con su issue ---
   //
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
-  '/agents/:id/run': 'Sin pantalla a propósito: es para el SDK y las pruebas, no para el dueño.',
+  'PATCH /contacts/:id': 'Falta editar un contacto: hoy el nombre o el correo se corrigen solo importando (#480).',
+  'PUT /tags/contacto/:contactId': 'Falta etiquetar desde la ficha; la bandeja solo las muestra (#480).',
+  'PUT /empresas/:id': 'Falta editar una empresa ya creada (#480).',
+  'POST /campanas/segmentos': 'Falta guardar un segmento con nombre; la pantalla solo los lee (#480).',
+  'PUT /settings/retencion': 'Falta que el negocio fije cuánto guarda sus conversaciones (#480).',
+  'POST /automations': 'Falta crear una regla desde la pantalla de automatizaciones (#480).',
+  'POST /automations/sequences': 'Falta crear una secuencia de seguimiento (#480).',
+  'DELETE /webhooks-salientes/:id': 'Falta borrar un webhook saliente; hoy solo se crean (#480).',
+  'DELETE /notifications/push': 'Falta desuscribir este dispositivo de las notificaciones (#480).',
+  'POST /platform/tenants': 'Falta crear un negocio desde el panel; hoy nace por el registro (#480).',
+  'DELETE /platform/tenants/:id/support': 'Falta cortar el modo soporte antes de que venza (#480).',
+  'POST /platform/audit/verify': 'Falta el botón que comprueba la cadena del audit (#480).',
 };
 
 /** Una llamada calza con una ruta si ocupa sus ranuras, no si inventa sufijos. */
@@ -59,12 +78,25 @@ function calza(declarada: string, llamada: string): boolean {
   );
 }
 
+/**
+ * ¿Alguien llama a esta ruta CON ESTE VERBO? Una llamada cuyo método no se
+ * pudo leer —porque las opciones vienen de una variable— cuenta para
+ * cualquiera: preferimos dejar pasar una antes que mandar a nadie a buscar
+ * una pantalla que sí existe.
+ */
+function laLlamaAlguien(declarada: string, datos: ReturnType<typeof inventarioDelRepositorio>): boolean {
+  const [verbo, path] = declarada.split(' ');
+  return datos.llamadas.some(
+    (l) => calza(path, l.ruta) && (l.metodo === undefined || l.metodo === verbo),
+  );
+}
+
 const datos = inventarioDelRepositorio(join(__dirname, '..', '..', '..'));
 
 describe('rutas que no usa nadie (#447)', () => {
   it('toda ruta declarada tiene consumidor, o dice por qué no', () => {
-    const huerfanas = datos.declaradas.filter(
-      (r) => !datos.llamadas.some((l) => calza(r, l.ruta)) && !(r in SIN_CONSUMIDOR),
+    const huerfanas = datos.declaradasConVerbo.filter(
+      (r) => !laLlamaAlguien(r, datos) && !(r in SIN_CONSUMIDOR),
     );
     expect(
       huerfanas,
@@ -78,16 +110,16 @@ describe('rutas que no usa nadie (#447)', () => {
     // Si no, la lista deja de ser el inventario de lo que falta: seguiría
     // diciendo "no tiene pantalla" de algo construido, y la siguiente
     // persona la leería como un mapa viejo.
-    const yaConstruidas = Object.keys(SIN_CONSUMIDOR).filter((r) =>
-      datos.llamadas.some((l) => calza(r, l.ruta)),
-    );
+    const yaConstruidas = Object.keys(SIN_CONSUMIDOR).filter((r) => laLlamaAlguien(r, datos));
     expect(yaConstruidas, 'Ya las llama alguien: sácalas de SIN_CONSUMIDOR').toEqual([]);
   }, 30_000);
 
   it('la lista no junta polvo: todas siguen declaradas', () => {
     // Una excepción para una ruta que ya no existe esconde el día en que
     // alguien la borre y vuelva a aparecer el mismo agujero.
-    const fantasmas = Object.keys(SIN_CONSUMIDOR).filter((r) => !datos.declaradas.includes(r));
+    const fantasmas = Object.keys(SIN_CONSUMIDOR).filter(
+      (r) => !datos.declaradasConVerbo.includes(r),
+    );
     expect(fantasmas, 'Ya no están declaradas: sácalas de SIN_CONSUMIDOR').toEqual([]);
   }, 30_000);
 
@@ -97,10 +129,24 @@ describe('rutas que no usa nadie (#447)', () => {
     }
   });
 
-  it('el SDK cuenta como consumidor', () => {
+  it('el verbo importa: un GET no consume el POST de la misma ruta', () => {
+    // Es lo que escondía doce funciones: la pantalla que LEE existe y la
+    // que ESCRIBE no, y mirando solo la ruta las dos se ven iguales.
+    const falso = { ...datos, llamadas: [{ archivo: 'x', linea: 1, ruta: '/contacts', metodo: 'GET' }] };
+    expect(laLlamaAlguien('GET /contacts', falso)).toBe(true);
+    expect(laLlamaAlguien('POST /contacts', falso)).toBe(false);
+  });
+
+  it('el SDK cuenta como consumidor, con su verbo', () => {
     // Sus tablas generadas tienen la ruta como DATO, no como llamada. Sin
     // mirarlas, campañas y embudos parecían rutas que no usa nadie — y son
     // las que la web usa a través del cliente.
-    expect(datos.llamadas.some((l) => l.archivo.includes('packages/sdk/'))).toBe(true);
+    // Solo las tablas generadas: el `fetch` interno del cliente arma su
+    // método desde la tabla (`method: ruta.method`), así que ahí el verbo
+    // no se puede leer del código — y no hace falta, porque la entrada de
+    // la tabla ya lo trae.
+    const delSdk = datos.llamadas.filter((l) => l.archivo.includes('.generated'));
+    expect(delSdk.length).toBeGreaterThan(0);
+    expect(delSdk.every((l) => typeof l.metodo === 'string')).toBe(true);
   });
 });
