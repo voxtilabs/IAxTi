@@ -3,10 +3,11 @@
 import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, DataTable, EstadoVacio, Input, Skeleton, useSession, type ColumnDef, type SortingState, type RowSelectionState } from '@iaxti/ui/react';
+import { Badge, Button, DataTable, EstadoVacio, Input, Skeleton, useSession, type ColumnDef, type SortingState, type RowSelectionState } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
 import { crmClient } from '@iaxti/sdk';
 import { EtiquetarSeleccion } from './etiquetar-seleccion';
+import { apiDescargar } from '../../lib/api';
 
 interface ContactoItem {
   id: string;
@@ -38,6 +39,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
   const [q, setQ] = useState('');
   const [items, setItems] = useState<ContactoItem[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -55,6 +57,35 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
   }, [client, q, currentCursor, sorting]);
   useEffect(() => { void cargar(); return () => { serial.current++; }; }, [cargar]);
 
+  /**
+   * Llevarse la cartera en CSV (#460).
+   *
+   * `GET /contacts/exportar` existe desde #248 y no la llamaba nadie: se
+   * podía importar una planilla y no sacarla. La contraparte de "trae tu
+   * lista" es "llévatela cuando quieras", y sin botón esa promesa dependía
+   * de escribirnos.
+   */
+  async function exportar() {
+    if (!session || exportando) return;
+    setExportando(true);
+    try {
+      const { texto, nombre } = await apiDescargar(config, session, tenant, '/contacts/exportar');
+      // El BOM lo pone el servidor para que Excel en español abra los
+      // acentos bien; acá se respeta el texto tal cual llegó.
+      const url = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      a.click();
+      URL.revokeObjectURL(url);
+      setAviso(null);
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setExportando(false);
+    }
+  }
+
   const columns: ColumnDef<ContactoItem, unknown>[] = [
     { id: 'name', accessorKey: 'name', header: 'Contacto', enableHiding: false, cell: ({ row }) => <div>
       <a className="block min-h-control break-words text-action-text" href={`/contactos/${row.original.id}`}><span className="block font-medium">{row.original.name ?? 'Sin nombre aún'}</span>
@@ -69,9 +100,17 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
     <div className="max-w-5xl" data-densidad="densa">
       <div className="flex flex-wrap items-center gap-4">
         <EncabezadoDePagina titulo="Contactos" />
+        <Button
+          variant="secundario"
+          className="ml-auto"
+          disabled={exportando || items?.length === 0}
+          onClick={() => void exportar()}
+        >
+          {exportando ? 'Armando el archivo…' : 'Exportar CSV'}
+        </Button>
         <a
           href="/contactos/importar"
-          className="ml-auto inline-flex min-h-control items-center rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest"
+          className="inline-flex min-h-control items-center rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest"
         >
           Importar CSV
         </a>

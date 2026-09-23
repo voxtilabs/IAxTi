@@ -40,6 +40,37 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/**
+ * Lo mismo, pero para una respuesta que NO es JSON: la exportación de
+ * contactos viaja como CSV y con su nombre de archivo en la cabecera. Pasarla
+ * por `apiFetch` reventaría en `res.json()` justo con la respuesta buena.
+ */
+export async function apiDescargar(
+  config: PublicConfig,
+  session: Session,
+  tenantId: string,
+  path: string,
+): Promise<{ texto: string; nombre: string; filas: number | null }> {
+  const res = await fetch(`${config.apiUrl}/v1${path}`, {
+    headers: { Authorization: `Bearer ${session.access_token}`, 'X-Tenant-Id': tenantId },
+  });
+  if (!res.ok) {
+    const cuerpo = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+    throw new ApiError(
+      cuerpo?.code ?? 'ERROR',
+      cuerpo?.message ?? 'Algo salió mal. Intenta de nuevo.',
+      res.status,
+    );
+  }
+  const disposicion = res.headers.get('Content-Disposition') ?? '';
+  const filas = res.headers.get('X-Filas');
+  return {
+    texto: await res.text(),
+    nombre: /filename="([^"]+)"/.exec(disposicion)?.[1] ?? 'descarga.csv',
+    filas: filas === null ? null : Number(filas),
+  };
+}
+
 // Formas que devuelve la API de la bandeja (#37).
 export interface ConversacionItem {
   id: string;
