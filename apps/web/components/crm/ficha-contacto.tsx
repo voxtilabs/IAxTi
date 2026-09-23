@@ -3,7 +3,24 @@
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, IconoCheck, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
+import {
+  Badge,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+  IconoCheck,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  useSession,
+} from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import { DerechosDelTitular } from './derechos-del-titular';
@@ -87,6 +104,8 @@ export function FichaContacto({
   const [aviso, setAviso] = useState<string | null>(null);
   const [empresas, setEmpresas] = useState<Array<{ id: string; name: string }>>([]);
   const [guardandoEmpresa, setGuardandoEmpresa] = useState(false);
+  /** El catálogo del negocio, para ofrecer cuáles se pueden poner. */
+  const [catalogo, setCatalogo] = useState<EtiquetaDto[]>([]);
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [borrador, setBorrador] = useState<{
@@ -120,6 +139,13 @@ export function FichaContacto({
         );
       } catch {
         setEtiquetas([]);
+      }
+      // El catálogo de etiquetas, para ofrecer cuáles poner. Si falla, se
+      // siguen viendo las que el contacto ya tiene.
+      try {
+        setCatalogo(await apiFetch<EtiquetaDto[]>(config, session, tenant, '/tags'));
+      } catch {
+        setCatalogo([]);
       }
       // Las empresas para el selector. Si el módulo o el permiso no están,
       // el selector queda con lo que ya tiene puesto y nada más.
@@ -166,6 +192,21 @@ export function FichaContacto({
       setAviso((err as Error).message);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  /** Deja al contacto con exactamente estas etiquetas. */
+  async function cambiarEtiquetas(tagIds: string[]) {
+    if (!session || !tenant || !contactId) return;
+    try {
+      await apiFetch(config, session, tenant, `/tags/contacto/${contactId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ tagIds }),
+      });
+      setAviso(null);
+      await cargar();
+    } catch (err) {
+      setAviso((err as Error).message);
     }
   }
 
@@ -282,15 +323,55 @@ export function FichaContacto({
         </dd>
       </dl>
 
-      {etiquetas.length > 0 && (
-        <p className="mt-4 flex flex-wrap gap-2">
-          {etiquetas.map((t) => (
-            <Badge key={t.id} role={t.role}>
-              {t.name}
-            </Badge>
-          ))}
-        </p>
-      )}
+      {/* Etiquetar desde la ficha (#480). `PUT /tags/contacto/:contactId`
+          existe desde #35 y no la llamaba nadie: las etiquetas se creaban,
+          se veían en la bandeja y no había dónde ponérselas a alguien.
+          La ruta deja al contacto con EXACTAMENTE las que se manden, así
+          que se manda la lista completa de lo que quedó marcado. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {etiquetas.map((t) => (
+          <Badge key={t.id} role={t.role}>
+            {t.name}
+          </Badge>
+        ))}
+        {etiquetas.length === 0 && <span className="text-sm text-muted">Sin etiquetas.</span>}
+        {catalogo.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="fantasma" size="chico">Etiquetar</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Etiquetas del negocio</DropdownMenuLabel>
+              {catalogo.map((t) => {
+                const puesta = etiquetas.some((e) => e.id === t.id);
+                return (
+                  <DropdownMenuItem
+                    key={t.id}
+                    // `onSelect` con preventDefault: marcar varias seguidas
+                    // sin que el menú se cierre en cada una.
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      void cambiarEtiquetas(
+                        puesta
+                          ? etiquetas.filter((x) => x.id !== t.id).map((x) => x.id)
+                          : [...etiquetas.map((x) => x.id), t.id],
+                      );
+                    }}
+                  >
+                    {/* Un icono y no un carácter: Pulso prohíbe los emoji
+                        porque se dibujan con la fuente del sistema, no
+                        heredan el color ni escalan con la tipografía. */}
+                    <span className="mr-2 flex w-4 justify-center">
+                      {puesta && <IconoCheck className="h-3.5 w-3.5 text-action-text" />}
+                    </span>
+                    {t.name}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
 
       {/* Corregir los datos (#480). `PATCH /contacts/:id` existe desde #34
           y no la llamaba nadie: un nombre mal escrito, un correo o un RUT
