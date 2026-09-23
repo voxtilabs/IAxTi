@@ -32,8 +32,24 @@ import {
   Textarea,
   cn,
 } from '@iaxti/ui/react';
-import { enVentana24h, renderQuickReply, type ConversacionDetalle, type Mensaje, type QuickReplyDto, type SugerenciaDto } from '../../lib/api';
+import {
+  enVentana24h,
+  renderPlantilla,
+  renderQuickReply,
+  variablesDePlantilla,
+  type ConversacionDetalle,
+  type Mensaje,
+  type PlantillaDto,
+  type QuickReplyDto,
+  type SugerenciaDto,
+} from '../../lib/api';
 import { ESTADOS } from './estado';
+
+/** Cuántos valores pide una plantilla: el mayor índice, como en el servidor. */
+function cuantasVariables(p: PlantillaDto): number {
+  const vars = variablesDePlantilla(p.body);
+  return vars.length === 0 ? 0 : Math.max(...vars);
+}
 
 function HoraDato({ iso }: { iso: string }) {
   const d = new Date(iso);
@@ -75,12 +91,21 @@ export interface ChatProps {
   onModo: (modo: 'assist' | 'autonomous') => Promise<void>;
   onCobrar: (montoClp: number, concepto: string) => Promise<void>;
   onCrearOportunidad: (titulo: string) => Promise<void>;
+  /**
+   * Las plantillas aprobadas del negocio (#460). `null` = todavía no se
+   * piden: se cargan al abrir el selector, porque fuera de la ventana de
+   * 24 h es cuando importan y el módulo puede estar apagado.
+   */
+  plantillas: PlantillaDto[] | null;
+  onCargarPlantillas: () => Promise<void>;
+  onEnviarPlantilla: (templateId: string, valores: string[]) => Promise<void>;
 }
 
 export function Chat({
   detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   onReintentar, reintentando,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
+  plantillas, onCargarPlantillas, onEnviarPlantilla,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
   const [motivoFeedback, setMotivoFeedback] = useState('');
@@ -93,6 +118,10 @@ export function Chat({
   const [montoCobro, setMontoCobro] = useState('');
   const [conceptoCobro, setConceptoCobro] = useState('');
   const [aQuien, setAQuien] = useState('');
+  const [dialogoPlantilla, setDialogoPlantilla] = useState(false);
+  const [elegida, setElegida] = useState<PlantillaDto | null>(null);
+  const [valores, setValores] = useState<string[]>([]);
+  const [mandandoPlantilla, setMandandoPlantilla] = useState(false);
   const [motivo, setMotivo] = useState('');
   const historialRef = useRef<HTMLDivElement>(null);
 
@@ -114,6 +143,7 @@ export function Chat({
   }
 
   const enVentana = enVentana24h(detalle.lastInboundAt);
+  const aprobadas = (plantillas ?? []).filter((p) => p.status === 'approved');
   const cronologicos = mensajes ? [...mensajes].reverse() : [];
 
   async function enviar(e: FormEvent) {
@@ -418,14 +448,149 @@ export function Chat({
         </form>
       ) : (
         <div className="border-t border-line p-4">
-          <Button variant="soft" disabled className="w-full">
+          <Button
+            variant="soft"
+            className="w-full"
+            onClick={() => {
+              setDialogoPlantilla(true);
+              if (plantillas === null) void onCargarPlantillas();
+            }}
+          >
             Elegir plantilla — pasaron más de 24 h desde su último mensaje
           </Button>
           <p className="mt-2 text-center text-xs text-muted">
-            Las plantillas aprobadas llegan con la conexión real de WhatsApp.
+            Pasadas 24 horas desde su último mensaje, WhatsApp solo deja escribir con una
+            plantilla que Meta aprobó.
           </p>
         </div>
       )}
+
+      {/* Elegir plantilla (#460).
+          La ruta existía desde #44 y el botón estaba DESHABILITADO con un
+          texto que decía que las plantillas llegaban "con la conexión real".
+          Ya habían llegado: lo que faltaba era esto, y sin esto, pasadas las
+          24 h, quien atiende no le podía escribir a nadie. */}
+      <Dialog open={dialogoPlantilla} onOpenChange={(abierto) => {
+        setDialogoPlantilla(abierto);
+        if (!abierto) { setElegida(null); setValores([]); }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{elegida ? elegida.name : 'Elegir una plantilla'}</DialogTitle>
+            <DialogDescription>
+              {elegida
+                ? 'Completa lo que cambia en cada envío. Así es como lo va a leer.'
+                : 'Solo aparecen las que Meta aprobó: una en revisión falla en el proveedor y la persona nunca la recibe.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {plantillas === null ? (
+            <p className="py-4 text-sm text-muted">Buscando las plantillas del negocio…</p>
+          ) : elegida === null ? (
+            aprobadas.length === 0 ? (
+              <div className="flex flex-col gap-2 py-2">
+                <p className="text-sm text-body">
+                  Todavía no hay ninguna plantilla aprobada. Meta se demora en revisarlas, así que
+                  conviene tenerlas antes de necesitarlas.
+                </p>
+                <a href="/ajustes/plantillas" className="text-sm font-medium text-action-text underline">
+                  Ir a Plantillas de WhatsApp
+                </a>
+              </div>
+            ) : (
+              <ul className="flex max-h-72 flex-col gap-2 overflow-y-auto py-1">
+                {aprobadas.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      className="w-full rounded-tarjeta border border-line bg-raised p-3 text-left hover:bg-rest"
+                      onClick={() => {
+                        setElegida(p);
+                        setValores(Array.from({ length: cuantasVariables(p) }, () => ''));
+                      }}
+                    >
+                      <span className="dato text-sm text-ink">{p.name}</span>
+                      <span className="ml-2 text-xs text-muted">{p.language}</span>
+                      <p className="mt-1 line-clamp-2 text-sm text-body">{p.body}</p>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <div className="flex flex-col gap-3 py-1">
+              {variablesDePlantilla(elegida.body).map((n, i) => (
+                <label key={n} className="flex flex-col gap-1 text-sm text-body">
+                  Valor de {`{{${n}}}`}
+                  <Input
+                    value={valores[i] ?? ''}
+                    onChange={(e) => {
+                      const nuevo = [...valores];
+                      nuevo[i] = e.target.value;
+                      setValores(nuevo);
+                    }}
+                  />
+                  <span className="flex gap-2">
+                    {[
+                      { etiqueta: 'Su nombre', valor: detalle.contactName },
+                      { etiqueta: 'Su teléfono', valor: detalle.contactPhone },
+                    ]
+                      .filter((c) => Boolean(c.valor))
+                      .map((c) => (
+                        <Button
+                          key={c.etiqueta}
+                          type="button"
+                          variant="fantasma"
+                          size="chico"
+                          onClick={() => {
+                            const nuevo = [...valores];
+                            nuevo[i] = c.valor as string;
+                            setValores(nuevo);
+                          }}
+                        >
+                          {c.etiqueta}
+                        </Button>
+                      ))}
+                  </span>
+                </label>
+              ))}
+              <div className="rounded-tarjeta border border-line bg-rest p-3">
+                <p className="rotulo mb-1">Así llega</p>
+                <p className="whitespace-pre-wrap text-sm text-body">
+                  {renderPlantilla(elegida.body, valores)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {elegida && (
+              <Button variant="fantasma" onClick={() => { setElegida(null); setValores([]); }}>
+                Ver las otras
+              </Button>
+            )}
+            <Button variant="secundario" onClick={() => setDialogoPlantilla(false)}>Cancelar</Button>
+            {elegida && (
+              <Button
+                disabled={mandandoPlantilla || valores.some((v) => !v.trim())}
+                onClick={async () => {
+                  setMandandoPlantilla(true);
+                  try {
+                    await onEnviarPlantilla(elegida.id, valores);
+                    setDialogoPlantilla(false);
+                    setElegida(null);
+                    setValores([]);
+                  } finally {
+                    setMandandoPlantilla(false);
+                  }
+                }}
+              >
+                {mandandoPlantilla ? 'Enviando…' : 'Enviar la plantilla'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogoCobrar} onOpenChange={setDialogoCobrar}>
         <DialogContent>
