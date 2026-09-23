@@ -54,7 +54,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
-  'PATCH /contacts/:id': 'Falta editar un contacto: hoy el nombre o el correo se corrigen solo importando (#480).',
   'PUT /tags/contacto/:contactId': 'Falta etiquetar desde la ficha; la bandeja solo las muestra (#480).',
   'PUT /empresas/:id': 'Falta editar una empresa ya creada (#480).',
   'POST /campanas/segmentos': 'Falta guardar un segmento con nombre; la pantalla solo los lee (#480).',

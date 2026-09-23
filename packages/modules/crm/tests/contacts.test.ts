@@ -166,4 +166,33 @@ describe('contactos (rol de aplicación, RLS activa)', () => {
       ),
     ).rejects.toThrow(/dígito verificador/);
   });
+
+  it('mandar null BORRA; no mandar el campo lo deja como estaba (#480)', async () => {
+    // `name` e `email` iban por COALESCE: borrarlos era imposible, y el
+    // contacto que pidió que le sacaran el correo se quedaba con él
+    // mientras la pantalla parecía no hacer nada.
+    const { contact } = await withTenant(app, tenantA, (c) =>
+      ensureContactByPhone(c, { tenantId: tenantA, phone: '+56955557777', origin: 'manual' }),
+    );
+    await withTenant(app, tenantA, (c) =>
+      updateContact(c, {
+        tenantId: tenantA,
+        contactId: contact.id,
+        name: 'Con correo',
+        email: 'antes@ejemplo.cl',
+      }),
+    );
+
+    const sinCorreo = await withTenant(app, tenantA, (c) =>
+      updateContact(c, { tenantId: tenantA, contactId: contact.id, email: null }),
+    );
+    expect(sinCorreo.email).toBeNull();
+    // Y lo que no se mandó sigue donde estaba.
+    expect(sinCorreo.name).toBe('Con correo');
+
+    const sinNombre = await withTenant(app, tenantA, (c) =>
+      updateContact(c, { tenantId: tenantA, contactId: contact.id, name: null }),
+    );
+    expect(sinNombre.name).toBeNull();
+  });
 });
