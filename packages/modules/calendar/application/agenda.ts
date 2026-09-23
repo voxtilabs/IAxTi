@@ -42,6 +42,18 @@ export async function definirDisponibilidad(
   if (input.finMin <= input.inicioMin) {
     throw new Error('La hora de cierre tiene que ser después de la de apertura.');
   }
+  // Dos franjas que se pisan el mismo día no agregan horas: duplican los
+  // huecos que la agenda ofrece, y el cliente ve la misma hora dos veces.
+  const choca = await client.query(
+    `SELECT 1 FROM availability
+      WHERE tenant_id = $1 AND owner_id = $2 AND weekday = $3
+        AND start_minute < $5 AND end_minute > $4
+      LIMIT 1`,
+    [input.tenantId, input.ownerId, input.weekday, input.inicioMin, input.finMin],
+  );
+  if (choca.rowCount) {
+    throw new Error('Ya hay un horario que se pisa con ese, ese día. Quita el otro primero.');
+  }
   const r = await client.query(
     `INSERT INTO availability
        (tenant_id, owner_id, weekday, start_minute, end_minute, slot_minutes, buffer_minutes, min_notice_minutes)
@@ -68,6 +80,46 @@ export async function definirDisponibilidad(
     respiro: f.buffer_minutes,
     anticipacion: f.min_notice_minutes,
   };
+}
+
+/**
+ * Los horarios configurados de alguien, ordenados como se leen (#460).
+ *
+ * Sin esto la pantalla de horarios no podía existir: se podían DEFINIR y
+ * no se podían ver, así que cada visita agregaba una franja más sobre las
+ * que ya estaban y la agenda ofrecía huecos duplicados.
+ */
+export async function listarDisponibilidad(
+  client: PoolClient,
+  input: { tenantId: string; ownerId: string },
+): Promise<Disponibilidad[]> {
+  const r = await client.query(
+    `SELECT * FROM availability WHERE tenant_id = $1 AND owner_id = $2
+      ORDER BY weekday, start_minute`,
+    [input.tenantId, input.ownerId],
+  );
+  return r.rows.map((f) => ({
+    id: f.id,
+    ownerId: f.owner_id,
+    weekday: f.weekday,
+    inicio: comoHora(f.start_minute),
+    fin: comoHora(f.end_minute),
+    duracion: f.slot_minutes,
+    respiro: f.buffer_minutes,
+    anticipacion: f.min_notice_minutes,
+  }));
+}
+
+/** Quita una franja. Las citas ya tomadas no se tocan: siguen en la agenda. */
+export async function quitarDisponibilidad(
+  client: PoolClient,
+  input: { tenantId: string; ownerId: string; id: string },
+): Promise<void> {
+  const r = await client.query(
+    'DELETE FROM availability WHERE tenant_id = $1 AND owner_id = $2 AND id = $3',
+    [input.tenantId, input.ownerId, input.id],
+  );
+  if (r.rowCount === 0) throw new Error('Ese horario no existe, o no es de esta persona.');
 }
 
 export interface HuecoOfrecido {

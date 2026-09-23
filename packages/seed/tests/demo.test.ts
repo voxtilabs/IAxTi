@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations } from '@iaxti/db';
 import { seed, TENANT_NAME } from '../src/seed';
+import { limpiarDemo } from './support/limpiar-demo';
 
 /**
  * El negocio de demostración tiene cosas adentro (#432).
@@ -20,21 +21,7 @@ let tenantId: string;
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
   await runMigrations(admin);
-  const previo = await admin.query('SELECT id FROM tenants WHERE name = $1', [TENANT_NAME]);
-  if ((previo.rowCount ?? 0) > 0) {
-    const id = previo.rows[0].id;
-    await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-    await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [id]);
-    await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
-    for (const tabla of [
-      'daily_metrics', 'appointments', 'deals', 'pipelines', 'messages', 'conversations',
-      'contact_identities', 'contacts', 'quick_replies', 'tags', 'agents', 'channel_accounts',
-      'loss_reasons', 'user_roles', 'outbox', 'usage_meters', 'assignments',
-    ]) {
-      await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [id]).catch(() => undefined);
-    }
-    await admin.query('DELETE FROM tenants WHERE id = $1', [id]);
-  }
+  await limpiarDemo(admin, TENANT_NAME);
   ({ tenantId } = await seed(admin));
 });
 

@@ -2,6 +2,8 @@
 export const MODULE_ID = 'calendar' as const;
 export {
   definirDisponibilidad,
+  listarDisponibilidad,
+  quitarDisponibilidad,
   huecosDelDia,
   agendar,
   cambiarEstadoCita,
