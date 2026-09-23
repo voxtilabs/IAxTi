@@ -47,7 +47,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
   '/plantillas/:id': 'Falta la pantalla para editar y borrar una plantilla (#460).',
-  '/billing/cancelar': 'Falta la pantalla: SPEC §6 pide cancelar en un clic y la ruta ya entrega la exportación (#460).',
   '/agenda/disponibilidad': 'Falta la pantalla para definir los horarios de atención (#460).',
   '/agenda/huecos': 'La usa el asistente por su herramienta; la agenda no la dibuja (#460).',
   '/agents/:id/objetivo': 'Falta la pantalla: si el asistente logra su objetivo y cuánto es mérito suyo (#460).',
