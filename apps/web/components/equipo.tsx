@@ -32,6 +32,7 @@ interface InvitacionDto {
 }
 
 interface RolDisponible {
+  id: string;
   name: string;
 }
 
@@ -49,6 +50,7 @@ export function Equipo() {
   const [form, setForm] = useState({ email: '', rol: 'USER' });
   const [enviando, setEnviando] = useState(false);
   const [quitando, setQuitando] = useState<string | null>(null);
+  const [cambiando, setCambiando] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
@@ -64,13 +66,50 @@ export function Equipo() {
       setDatos({ miembros: [], invitaciones: [] });
     }
     // Sin el catálogo siguen disponibles los roles base, igual que antes.
-    setRoles(disponibles.status === 'fulfilled' ? disponibles.value
-      : [{ name: 'ADMIN' }, { name: 'SUPERVISOR' }, { name: 'USER' }]);
+    setRoles(
+      disponibles.status === 'fulfilled'
+        ? disponibles.value
+        : // Sin el catálogo siguen los roles base por NOMBRE: alcanza para
+          // invitar, no para cambiarle el rol a alguien —eso pide el id— y
+          // por eso el selector de la fila se apaga cuando esto pasa.
+          [
+            { id: '', name: 'ADMIN' },
+            { id: '', name: 'SUPERVISOR' },
+            { id: '', name: 'USER' },
+          ],
+    );
   }, [config, session, tenant]);
 
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  /**
+   * Le cambia el rol a alguien del equipo. Lo que NO se comprueba acá es
+   * quedarse sin administradores: eso lo decide el servidor en la misma
+   * transacción, porque el equipo puede cambiar entre que esta pantalla
+   * cargó y el clic.
+   */
+  async function cambiarRol(m: MiembroDto, roleId: string) {
+    if (!session || !tenant || !roleId || cambiando) return;
+    const rol = roles.find((r) => r.id === roleId);
+    if (!rol || rol.name === m.rol) return;
+    setCambiando(m.userId);
+    setOk(null);
+    try {
+      await apiFetch(config, session, tenant, '/roles/assign', {
+        method: 'POST',
+        body: JSON.stringify({ userId: m.userId, roleId }),
+      });
+      setError(null);
+      setOk(`${m.nombre ?? m.email ?? 'Esa persona'} ahora es ${rol.name}.`);
+      await cargar();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCambiando(null);
+    }
+  }
 
   async function invitar(e: FormEvent) {
     e.preventDefault();
@@ -144,7 +183,12 @@ export function Equipo() {
       )}
       {ok && (
         <AvisoResultado tono="success">
-          {ok} Le llega un enlace para entrar; mientras no lo use, la invitación aparece abajo.
+          {ok}
+          {/* El detalle del enlace es de la invitación, no de un cambio de
+              rol: pegado siempre, decía una cosa falsa la mitad de las
+              veces. */}
+          {ok.startsWith('Invitación') &&
+            ' Le llega un enlace para entrar; mientras no lo use, la invitación aparece abajo.'}
         </AvisoResultado>
       )}
 
@@ -196,7 +240,30 @@ export function Equipo() {
                 </span>
                 {m.email && m.nombre && <span className="block truncate text-xs text-muted">{m.email}</span>}
               </span>
-              <Badge role="neutral">{m.rol}</Badge>
+              {/* Cambiar el rol (#460). `POST /roles/assign` existía desde
+                  #73 y no la llamaba nadie: el rol con el que alguien entró
+                  era el rol que tenía para siempre, y la única salida era
+                  quitarle el acceso y volver a invitarlo. */}
+              {roles.some((r) => r.id) ? (
+                <Select
+                  value={roles.find((r) => r.name === m.rol)?.id ?? ''}
+                  onValueChange={(id) => void cambiarRol(m, id)}
+                  disabled={cambiando === m.userId}
+                >
+                  <SelectTrigger className="h-9 w-40 bg-field text-sm" aria-label={`Rol de ${m.nombre ?? m.email ?? 'esta persona'}`}>
+                    <SelectValue placeholder={m.rol} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge role="neutral">{m.rol}</Badge>
+              )}
               <span className="text-xs text-muted">desde el {cuando(m.desde)}</span>
               <Button
                 variant="fantasma"

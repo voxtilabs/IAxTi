@@ -149,6 +149,26 @@ export async function assignRole(
     [input.tenantId, input.userId, input.roleId],
   );
   if (r.rowCount === 0) throw new Error('Esa persona no es parte del equipo todavía.');
+
+  // Nadie puede dejar al negocio sin quién administre (#460).
+  //
+  // Mientras asignar un rol era una llamada a la API a mano, esto era un
+  // error difícil de cometer. Con un selector en la pantalla del equipo es
+  // un clic — y el que se baja a sí mismo de ADMIN pierde el acceso a la
+  // pantalla que usaría para arreglarlo. Se mira DESPUÉS del UPDATE, en la
+  // misma transacción: así cuenta el mundo tal como quedaría.
+  const administran = await client.query(
+    `SELECT count(*)::int AS n
+       FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+      WHERE ur.tenant_id = $1
+        AND ((r.base AND r.name = 'ADMIN') OR r.permissions @> '["roles.manage"]'::jsonb)`,
+    [input.tenantId],
+  );
+  if (administran.rows[0].n === 0) {
+    throw new Error(
+      'Alguien tiene que poder administrar el negocio: deja a otra persona como ADMIN antes de cambiar este rol.',
+    );
+  }
   await writeAudit(client, {
     tenantId: input.tenantId,
     actor: input.actor,
