@@ -46,7 +46,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
-  '/agenda/huecos': 'La usa el asistente por su herramienta; la agenda no la dibuja (#460).',
   '/agents/:id/run': 'Sin pantalla a propósito: es para el SDK y las pruebas, no para el dueño.',
   '/agents/executions': 'El consumo se ve agregado en Ajustes → IA; la lista cruda no tiene pantalla (#460).',
 };

@@ -7,6 +7,7 @@ import { Badge, Button, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/r
 import { selectedTenant } from './tenant-switcher';
 import { RecordatoriosDeCita } from './recordatorios-de-cita';
 import { HorariosDeAtencion } from './horarios-de-atencion';
+import { DarUnaHora } from './dar-una-hora';
 import { apiFetch, type CitaDto } from '../lib/api';
 
 // La agenda (#58, SPEC §16): las citas de la semana y qué pasó con cada una.
@@ -196,6 +197,9 @@ export function Agenda() {
       )}
       {/* La configuración va DESPUÉS de las horas: quien abre la agenda
           viene a ver qué tiene hoy, no a configurar. */}
+      {/* Dar una hora va con las citas, no con la configuración: es
+          trabajo del día, no un ajuste (#460). */}
+      <DarUnaHora onAgendada={() => void cargar()} />
       <HorariosDeAtencion />
       <RecordatoriosDeCita />
     </section>
