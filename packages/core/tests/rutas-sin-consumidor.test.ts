@@ -64,7 +64,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
-  'POST /automations/sequences': 'Falta crear una secuencia de seguimiento (#480).',
 };
 
 /** Una llamada calza con una ruta si ocupa sus ranuras, no si inventa sufijos. */
