@@ -188,6 +188,7 @@ function TablaTenants() {
                   >
                     Soporte 4 h
                   </button>
+                  <RetencionDelTenant tenantId={t.id} nombre={t.name} />
                 </div>
               </td>
             </tr>
@@ -196,6 +197,101 @@ function TablaTenants() {
       </table>
     </div>
     </div>
+  );
+}
+
+/**
+ * La retención de un negocio (#460).
+ *
+ * `GET|PUT /platform/tenants/:id/retention` existía desde #331 y no la
+ * llamaba nadie. La retención sale del plan, y el override por tenant —lo
+ * que se le promete a un cliente que pide guardar más tiempo, o menos—
+ * había que escribirlo en `tenants.settings` a mano.
+ *
+ * Lo que decide no es el número: es cuántas conversaciones se llevaría la
+ * próxima purga con ese número puesto. Por eso el GET lo devuelve y acá se
+ * muestra antes de guardar.
+ */
+function RetencionDelTenant({ tenantId, nombre }: { tenantId: string; nombre: string }) {
+  const { session, config } = useSession();
+  const [abierto, setAbierto] = useState(false);
+  const [datos, setDatos] = useState<{ months: number | null; cutoff: string | null; wouldPurge: number } | null>(null);
+  const [valor, setValor] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  const cargar = useCallback(async () => {
+    if (!session) return;
+    const res = await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/retention`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) return;
+    const cuerpo = await res.json();
+    setDatos(cuerpo);
+    setValor(cuerpo.months === null ? '' : String(cuerpo.months));
+  }, [session, config.apiUrl, tenantId]);
+
+  const guardar = async () => {
+    if (!session) return;
+    setGuardando(true);
+    try {
+      // Vacío significa «la del plan», y eso hay que poder volver a
+      // elegirlo: un override que solo se pone obliga a recordar de
+      // memoria el número que traía el plan.
+      await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/retention`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ months: valor.trim() === '' ? null : Number(valor) }),
+      });
+      await cargar();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        className="rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body"
+        onClick={() => {
+          setAbierto(true);
+          void cargar();
+        }}
+      >
+        Retención
+      </button>
+    );
+  }
+
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      <input
+        aria-label={`Meses de retención de ${nombre}`}
+        inputMode="numeric"
+        placeholder="del plan"
+        className="dato w-20 rounded-boton border border-line bg-bg px-2 py-1 text-right text-xs text-ink"
+        value={valor}
+        onChange={(e) => setValor(e.target.value.replace(/[^0-9]/g, ''))}
+      />
+      <button
+        type="button"
+        disabled={guardando}
+        className="rounded-boton border border-line px-2 py-1 text-xs text-body disabled:opacity-40"
+        onClick={() => void guardar()}
+      >
+        {guardando ? '…' : 'Guardar'}
+      </button>
+      {datos && (
+        <span className="text-xs text-muted">
+          {datos.months === null
+            ? 'sin límite'
+            : `${datos.months} meses · la próxima purga se llevaría ${datos.wouldPurge}`}
+        </span>
+      )}
+    </span>
   );
 }
 
