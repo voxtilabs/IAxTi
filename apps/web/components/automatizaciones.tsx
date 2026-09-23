@@ -12,6 +12,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Input,
   Skeleton,
   Switch,
   useSession,
@@ -82,6 +83,17 @@ export function Automatizaciones() {
   const [vertical, setVertical] = useState('otro');
   const [aviso, setAviso] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ ruleId: string; items: Array<{ label: string }> } | null>(null);
+  const [creando, setCreando] = useState(false);
+  const [nueva, setNueva] = useState({
+    name: '',
+    tipo: 'time' as 'event' | 'time',
+    evento: 'conversation.created',
+    base: 'no_reply',
+    horas: '24',
+    etapa: '',
+    accion: 'add_note',
+    texto: '',
+  });
 
   useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
@@ -115,6 +127,42 @@ export function Automatizaciones() {
     }
   };
 
+  /** Arma la forma que el dominio espera y deja que él valide el resto. */
+  async function crearRegla() {
+    if (creando) return;
+    setCreando(true);
+    try {
+      const trigger =
+        nueva.tipo === 'event'
+          ? { kind: 'event', event: nueva.evento }
+          : {
+              kind: 'time',
+              time: {
+                base: nueva.base,
+                hours: Number(nueva.horas),
+                ...(nueva.base === 'in_stage' ? { stageName: nueva.etapa } : {}),
+              },
+            };
+      const params =
+        nueva.accion === 'create_activity'
+          ? { type: 'llamada', title: nueva.texto.trim(), dueHours: 4 }
+          : { body: nueva.texto.trim() };
+      const creada = await llamar('/automations', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: nueva.name.trim(),
+          trigger,
+          actions: [{ kind: nueva.accion, params }],
+        }),
+      });
+      // Solo se limpia si de verdad se creó: si el dominio la rechazó, lo
+      // escrito sigue ahí para corregirlo.
+      if (creada) setNueva({ ...nueva, name: '', texto: '' });
+    } finally {
+      setCreando(false);
+    }
+  }
+
   return (
     <div className="max-w-2xl">
       <EncabezadoDePagina
@@ -145,6 +193,133 @@ export function Automatizaciones() {
           Crear las 3 reglas del rubro
         </Button>
       </div>
+
+      {/* Crear una regla propia (#480). `POST /automations` existe desde
+          #62 y no la llamaba nadie: el negocio se quedaba con las tres de
+          su rubro o con nada. El guard no lo veía porque el GET de la
+          misma ruta sí tiene pantalla.
+
+          La regla nace APAGADA, como ya la crea el servidor: primero la
+          vista previa, después el interruptor. */}
+      <form
+        className="mt-4 flex flex-col gap-3 pulso-panel rounded-tarjeta border border-line bg-raised p-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void crearRegla();
+        }}
+      >
+        <span className="rotulo">Una regla tuya</span>
+        <label className="text-sm">
+          Cómo la vas a reconocer
+          <Input
+            className="mt-1"
+            value={nueva.name}
+            onChange={(e) => setNueva({ ...nueva, name: e.target.value })}
+            placeholder="Avisar cuando una oportunidad se estanca"
+          />
+        </label>
+
+        <fieldset className="flex flex-col gap-2 text-sm">
+          <legend className="mb-1">Cuándo</legend>
+          <span className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="chico"
+              variant={nueva.tipo === 'event' ? 'secundario' : 'fantasma'}
+              aria-pressed={nueva.tipo === 'event'}
+              onClick={() => setNueva({ ...nueva, tipo: 'event' })}
+            >
+              Cuando pasa algo
+            </Button>
+            <Button
+              type="button"
+              size="chico"
+              variant={nueva.tipo === 'time' ? 'secundario' : 'fantasma'}
+              aria-pressed={nueva.tipo === 'time'}
+              onClick={() => setNueva({ ...nueva, tipo: 'time' })}
+            >
+              Cuando pasa el tiempo
+            </Button>
+          </span>
+          {nueva.tipo === 'event' ? (
+            <Select value={nueva.evento} onValueChange={(v) => setNueva({ ...nueva, evento: v })}>
+              <SelectTrigger aria-label="Qué tiene que pasar" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(EVENTO_LABEL).map(([v, label]) => (
+                  <SelectItem key={v} value={v}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="flex flex-wrap items-end gap-2">
+              <Select value={nueva.base} onValueChange={(v) => setNueva({ ...nueva, base: v })}>
+                <SelectTrigger aria-label="Contando desde" className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no_reply">sin respuesta del negocio</SelectItem>
+                  <SelectItem value="in_stage">estancada en una etapa</SelectItem>
+                </SelectContent>
+              </Select>
+              <label className="text-sm">
+                Horas
+                <Input
+                  type="number"
+                  min="1"
+                  className="dato mt-1 w-24"
+                  value={nueva.horas}
+                  onChange={(e) => setNueva({ ...nueva, horas: e.target.value })}
+                />
+              </label>
+              {nueva.base === 'in_stage' && (
+                <label className="text-sm">
+                  ¿En cuál?
+                  <Input
+                    className="mt-1 w-48"
+                    value={nueva.etapa}
+                    onChange={(e) => setNueva({ ...nueva, etapa: e.target.value })}
+                    placeholder="Cotizado"
+                  />
+                </label>
+              )}
+            </span>
+          )}
+        </fieldset>
+
+        <fieldset className="flex flex-col gap-2 text-sm">
+          <legend className="mb-1">Qué hace</legend>
+          <Select value={nueva.accion} onValueChange={(v) => setNueva({ ...nueva, accion: v })}>
+            <SelectTrigger aria-label="Qué hace" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="add_note">deja una nota interna</SelectItem>
+              <SelectItem value="create_activity">crea una tarea</SelectItem>
+              <SelectItem value="send_message">le manda un mensaje al cliente</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={nueva.texto}
+            onChange={(e) => setNueva({ ...nueva, texto: e.target.value })}
+            placeholder={nueva.accion === 'create_activity' ? 'Llamar para retomar' : 'Lo que dice la nota o el mensaje'}
+          />
+          {nueva.accion === 'send_message' && (
+            // Lo dice el servidor igual, pero enterarse al guardar es
+            // tarde: esto es lo que más se olvida.
+            <span className="text-xs text-muted">
+              Igual respeta consentimiento y horario de silencio: si no corresponde, no sale.
+            </span>
+          )}
+        </fieldset>
+
+        <span>
+          <Button type="submit" disabled={creando || !nueva.name.trim() || !nueva.texto.trim()}>
+            {creando ? 'Creando…' : 'Crear la regla (nace apagada)'}
+          </Button>
+        </span>
+      </form>
 
       <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Reglas</span>

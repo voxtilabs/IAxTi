@@ -56,7 +56,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // que impide que se olviden otra vez.
   'PUT /empresas/:id': 'Falta editar una empresa ya creada (#480).',
   'PUT /settings/retencion': 'Falta que el negocio fije cuánto guarda sus conversaciones (#480).',
-  'POST /automations': 'Falta crear una regla desde la pantalla de automatizaciones (#480).',
   'POST /automations/sequences': 'Falta crear una secuencia de seguimiento (#480).',
   'DELETE /webhooks-salientes/:id': 'Falta borrar un webhook saliente; hoy solo se crean (#480).',
   'DELETE /notifications/push': 'Falta desuscribir este dispositivo de las notificaciones (#480).',
