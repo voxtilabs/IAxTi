@@ -560,6 +560,13 @@ export async function getOutboundContext(
   body: string | null;
   type: MessageType;
   /**
+   * Los adjuntos del mensaje (#458). Viajan como los guardó quien respondió
+   * —la llave en R2, el nombre y el tipo—; quien los DESPACHA es el que
+   * sabe convertir eso en una URL que el proveedor pueda bajar, porque la
+   * llave es privada y la firma dura poco.
+   */
+  attachments: unknown[];
+  /**
    * Datos propios del canal que el adaptador necesita. Hoy: la plantilla
    * aprobada con la que sale un mensaje fuera de la ventana (#44). Viaja en
    * `meta` del mensaje porque es del mensaje, no de la conversación.
@@ -569,7 +576,8 @@ export async function getOutboundContext(
   const r = await client.query(
     // Se responde por DONDE escribió: la identidad del canal manda y el
     // teléfono queda de respaldo para los contactos anteriores al #74.
-    `SELECT m.conversation_id, m.body, m.type, m.meta, m.delivery_status, m.provider_message_id,
+    `SELECT m.conversation_id, m.body, m.type, m.meta, m.attachments, m.delivery_status,
+            m.provider_message_id,
             c.channel, c.channel_account_id, c.contact_id, c.last_inbound_at, k.opted_out_at,
             COALESCE(i.identity, k.phone) AS phone
        FROM messages m
@@ -595,6 +603,7 @@ export async function getOutboundContext(
     phone: row.phone,
     body: row.body ?? null,
     type: row.type,
+    attachments: (row.attachments as unknown[]) ?? [],
     extra: (row.meta as { plantilla?: unknown })?.plantilla
       ? { plantilla: (row.meta as { plantilla: unknown }).plantilla }
       : null,

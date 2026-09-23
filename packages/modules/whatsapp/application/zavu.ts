@@ -30,6 +30,40 @@ import type { CategoriaPlantilla } from '../domain/plantillas';
  * dependencia por otra puerta: `whatsappStatus` se llama `estadoDeMeta`
  * porque eso es lo que significa, venga de quien venga.
  */
+/**
+ * Un adjunto, en la forma que Zavu espera (#458).
+ *
+ * `messageType` sale del tipo del archivo y no del nombre: un `.jpg`
+ * renombrado a `.pdf` se manda como imagen igual, porque lo que el
+ * proveedor mira es el contenido.
+ *
+ * Solo el PRIMERO. WhatsApp manda un medio por mensaje, y pasar el resto en
+ * silencio sería prometer que salieron.
+ */
+function envioDeAdjunto(
+  adjuntos?: Array<{ url: string; filename?: string; contentType?: string }>,
+): Record<string, unknown> {
+  const a = adjuntos?.[0];
+  if (!a) return {};
+  const tipo = (a.contentType ?? '').toLowerCase();
+  const messageType = tipo.startsWith('image/')
+    ? 'image'
+    : tipo.startsWith('video/')
+      ? 'video'
+      : tipo.startsWith('audio/')
+        ? 'audio'
+        : 'document';
+  return {
+    messageType,
+    content: {
+      mediaUrl: a.url,
+      // El nombre solo tiene sentido en un documento: en una imagen, lo que
+      // se ve es el pie de foto.
+      ...(messageType === 'document' && a.filename ? { filename: a.filename } : {}),
+    },
+  };
+}
+
 function deZavu(t: PlantillaEnZavu) {
   return {
     id: t.id,
@@ -250,6 +284,11 @@ export function createZavuProvider(
           to: message.to,
           channel: canal,
           ...(message.body !== undefined ? { text: message.body } : {}),
+          // El adjunto tampoco viaja como texto (#458): Zavu lo quiere como
+          // `messageType` + `content.mediaUrl`, y el cuerpo pasa a ser el
+          // pie de foto. Uno por mensaje, que es lo que WhatsApp permite:
+          // mandar el segundo como si nada sería perderlo en silencio.
+          ...envioDeAdjunto(message.attachments),
           // Una plantilla no viaja como texto: Zavu la quiere como
           // `messageType: 'template'` con el id del proveedor y las
           // variables por posición. La traducción vive acá y no en el

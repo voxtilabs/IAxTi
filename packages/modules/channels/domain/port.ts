@@ -38,7 +38,15 @@ export interface OutboundMessage {
   to: string; // teléfono E.164 o id del canal
   type: string;
   body?: string;
-  attachments?: unknown[];
+  /**
+   * Los adjuntos, ya listos para que el proveedor los baje (#458).
+   *
+   * Era `unknown[]` y nadie los miraba: el campo existía en el puerto y el
+   * adaptador no lo traducía, así que un mensaje con foto salía sin la
+   * foto. Tiparlo es lo que obliga a que quien despacha entregue una URL
+   * de verdad, no una llave privada de R2 que el proveedor no puede leer.
+   */
+  attachments?: Array<{ url: string; filename?: string; contentType?: string }>;
   /** Datos propios del canal (plantilla, botones, …). */
   extra?: Record<string, unknown>;
 }

@@ -460,7 +460,35 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           }}
           onVolver={() => setPane('lista')}
           onVerFicha={() => setPane('ficha')}
-          onResponder={(texto) => accion('/messages', { body: texto })}
+          onResponder={async (texto, archivo) => {
+            // El archivo se sube a R2 con una URL prefirmada ANTES de
+            // mandar el mensaje: si la subida falla, no queda un mensaje
+            // prometiendo un adjunto que no existe (#458).
+            let adjuntos;
+            if (archivo && session && tenant && seleccion) {
+              const permiso = await apiFetch<{ key: string; uploadUrl: string }>(
+                config,
+                session,
+                tenant,
+                `/conversations/${seleccion}/attachments`,
+                { method: 'POST', body: JSON.stringify({ filename: archivo.name }) },
+              );
+              const subida = await fetch(permiso.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': archivo.type || 'application/octet-stream' },
+                body: archivo,
+              });
+              if (!subida.ok) throw new Error('No pudimos subir el archivo. Inténtalo de nuevo.');
+              adjuntos = [
+                {
+                  key: permiso.key,
+                  filename: archivo.name,
+                  contentType: archivo.type || 'application/octet-stream',
+                },
+              ];
+            }
+            await accion('/messages', { body: texto, ...(adjuntos ? { adjuntos } : {}) });
+          }}
           onAsignar={(aQuien, motivo) => accion('/assign', { toOwnerId: aQuien, reason: motivo })}
           onEstado={(estado, hasta) => accion('/state', { state: estado, snoozedUntil: hasta })}
         />

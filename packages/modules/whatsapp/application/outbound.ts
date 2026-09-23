@@ -75,6 +75,11 @@ export interface OutboundJobData {
   body?: string;
   type?: string;
   /**
+   * Los adjuntos ya listos para el proveedor (#458): URL que puede bajar,
+   * nombre y tipo. Quien despacha los firma; acá solo viajan.
+   */
+  attachments?: Array<{ url: string; filename?: string; contentType?: string }>;
+  /**
    * ¿Lo inicia el NEGOCIO (automatización, secuencia, campaña) o es una
    * persona respondiendo en la bandeja? De esto dependen el horario de
    * silencio y la pausa por calidad (SPEC §8, #45).
@@ -120,6 +125,7 @@ export async function deliverOutbound(
     to: data.to,
     type: data.type ?? 'texto',
     body: data.body,
+    ...(data.attachments?.length ? { attachments: data.attachments } : {}),
     // La plantilla aprobada, si el mensaje sale con una (#44). El adaptador
     // decide cómo la manda; acá solo viaja.
     ...(data.extra ? { extra: data.extra } : {}),
