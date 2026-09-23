@@ -49,7 +49,45 @@ export interface Message {
   authorKind: AuthorKind;
   authorId: string | null;
   providerMessageId: string | null;
+  /**
+   * Lo que viajó con el mensaje, ya en R2 y con prefijo por tenant (#42).
+   * Se proyecta —antes se guardaba y nadie lo miraba, así que un mensaje
+   * con foto se veía vacío en la bandeja (#460).
+   */
+  attachments: Array<{ key: string; name: string; contentType: string }>;
+  /**
+   * Cuántos llegaron y NO se alcanzaron a guardar. El inbound tolera que la
+   * descarga falle —perder el texto por un adjunto sería peor— y las URLs
+   * del proveedor caducan, así que después no hay nada que abrir. Decirlo
+   * es mejor que una burbuja vacía sin explicación.
+   */
+  lostAttachments: number;
   createdAt: Date;
+}
+
+/**
+ * Los adjuntos tal como quedaron guardados. Lo que no tiene llave no se
+ * pudo guardar: se cuenta aparte en `lostAttachments`, porque de eso no
+ * hay nada que abrir pero sí algo que decir.
+ */
+function adjuntosDeLaFila(valor: unknown): Message['attachments'] {
+  if (!Array.isArray(valor)) return [];
+  return valor.flatMap((a) => {
+    const adjunto = a as { key?: unknown; name?: unknown; filename?: unknown; contentType?: unknown };
+    if (typeof adjunto.key !== 'string') return [];
+    return [
+      {
+        key: adjunto.key,
+        name:
+          (typeof adjunto.name === 'string' && adjunto.name) ||
+          (typeof adjunto.filename === 'string' && adjunto.filename) ||
+          adjunto.key.split('/').pop() ||
+          'adjunto',
+        contentType:
+          typeof adjunto.contentType === 'string' ? adjunto.contentType : 'application/octet-stream',
+      },
+    ];
+  });
 }
 
 function rowToConversation(row: Record<string, unknown>): Conversation {
@@ -82,6 +120,10 @@ function rowToMessage(row: Record<string, unknown>): Message {
     authorKind: row.author_kind as AuthorKind,
     authorId: (row.author_id as string) ?? null,
     providerMessageId: (row.provider_message_id as string) ?? null,
+    attachments: adjuntosDeLaFila(row.attachments),
+    lostAttachments:
+      (Array.isArray(row.attachments) ? row.attachments.length : 0) -
+      adjuntosDeLaFila(row.attachments).length,
     createdAt: row.created_at as Date,
   };
 }

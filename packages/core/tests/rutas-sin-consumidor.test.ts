@@ -63,7 +63,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   '/etapas/:id': 'Falta: renombrar una etapa o cambiarle el tipo (#460).',
   '/roles/assign': 'Falta asignarle un rol a alguien del equipo desde la pantalla (#460).',
   '/payments/links/:id/cancel': 'Falta cancelar un link de pago ya emitido (#460).',
-  '/attachments/url': 'Falta: bajar un adjunto recibido desde la bandeja (#460).',
   '/platform/tenants/:id/retention': 'Falta en el panel: el override de retención por negocio (#460).',
 };
 
