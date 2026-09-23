@@ -99,13 +99,15 @@ export interface ChatProps {
   plantillas: PlantillaDto[] | null;
   onCargarPlantillas: () => Promise<void>;
   onEnviarPlantilla: (templateId: string, valores: string[]) => Promise<void>;
+  /** Abre un adjunto recibido; la URL se firma al pedirla y dura 15 min (#460). */
+  onAbrirAdjunto: (key: string) => void;
 }
 
 export function Chat({
   detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   onReintentar, reintentando,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
-  plantillas, onCargarPlantillas, onEnviarPlantilla,
+  plantillas, onCargarPlantillas, onEnviarPlantilla, onAbrirAdjunto,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
   const [motivoFeedback, setMotivoFeedback] = useState('');
@@ -247,6 +249,38 @@ export function Chat({
                   <p className="rotulo mb-1">Respondió el asistente</p>
                 )}
                 <p className="whitespace-pre-wrap text-cuerpo text-ink">{m.body}</p>
+                {/* Abrir lo que mandó el cliente (#460). Se guardan en R2
+                    desde #42 —Meta los expira, por eso se bajan al llegar—
+                    y la bandeja no los mostraba: un mensaje con foto se
+                    veía vacío, y la foto era todo el mensaje. */}
+                {(m.lostAttachments ?? 0) > 0 && (
+                  <p className="mt-2 text-micro text-muted">
+                    {m.lostAttachments === 1
+                      ? 'Llegó un archivo que no alcanzamos a guardar; pídeselo de nuevo.'
+                      : `Llegaron ${m.lostAttachments} archivos que no alcanzamos a guardar; pídeselos de nuevo.`}
+                  </p>
+                )}
+                {/* `?? []` y no `.length` a secas: la bandeja también se
+                    dibuja con mensajes que no vienen de esta API —las
+                    pruebas de navegador los sirven a mano—, y un campo que
+                    falte no puede dejar en blanco la conversación entera. */}
+                {(m.attachments ?? []).length > 0 && (
+                  <ul className="mt-2 flex flex-col gap-1">
+                    {(m.attachments ?? []).map((a) => (
+                      <li key={a.key}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-campo border border-line bg-rest px-3 py-2 text-left text-sm text-body hover:bg-raised"
+                          onClick={() => onAbrirAdjunto(a.key)}
+                        >
+                          <Paperclip aria-hidden className="size-4 shrink-0" />
+                          <span className="truncate">{a.name}</span>
+                          <span className="ml-auto shrink-0 text-micro text-muted">Abrir</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="mt-1 flex items-center justify-end gap-1">
                   <HoraDato iso={m.createdAt} />
                   {m.direction === 'out' && <Entrega estado={m.deliveryStatus} />}

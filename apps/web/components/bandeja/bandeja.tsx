@@ -392,6 +392,28 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               setAviso((err as Error).message);
             }
           }}
+          onAbrirAdjunto={(key) => {
+            if (!session || !tenant) return;
+            // La pestaña se abre DENTRO del clic y se llena después: si se
+            // abriera al volver la URL firmada, el navegador la bloquearía
+            // por no venir de un gesto de la persona.
+            const ventana = window.open('', '_blank', 'noopener');
+            void (async () => {
+              try {
+                const { url } = await apiFetch<{ url: string }>(
+                  config,
+                  session,
+                  tenant,
+                  `/attachments/url?key=${encodeURIComponent(key)}`,
+                );
+                if (ventana) ventana.location.href = url;
+                else window.location.href = url;
+              } catch (err) {
+                ventana?.close();
+                setAviso((err as Error).message);
+              }
+            })();
+          }}
           onEnviarPlantilla={async (templateId, valores) => {
             if (!session || !tenant || !seleccion) return;
             setAviso(null);
