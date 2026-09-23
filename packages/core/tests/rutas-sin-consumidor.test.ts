@@ -54,10 +54,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   '/agents/executions': 'El consumo se ve agregado en Ajustes → IA; la lista cruda no tiene pantalla (#460).',
   '/campanas/segmentos/vista-previa': 'Falta: ver a quién alcanza un segmento antes de guardarlo (#460).',
   '/contacts/:id/empresa': 'Falta: enlazar un contacto con su empresa desde la ficha (#460).',
-  '/pipelines/:id': 'Falta la administración de embudos y etapas (#460).',
-  '/pipelines/:id/etapas': 'Falta: crear y quitar etapas de un embudo desde la pantalla (#460).',
-  '/pipelines/:id/orden': 'Falta: reordenar las etapas de un embudo (#460).',
-  '/etapas/:id': 'Falta: renombrar una etapa o cambiarle el tipo (#460).',
   '/payments/links/:id/cancel': 'Falta cancelar un link de pago ya emitido (#460).',
   '/platform/tenants/:id/retention': 'Falta en el panel: el override de retención por negocio (#460).',
 };
