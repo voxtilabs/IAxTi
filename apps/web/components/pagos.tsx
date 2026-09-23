@@ -66,6 +66,7 @@ export function Pagos() {
   const [credRef, setCredRef] = useState('');
   const [secretRef, setSecretRef] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
+  const [cancelando, setCancelando] = useState<string | null>(null);
 
   useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
@@ -83,6 +84,22 @@ export function Pagos() {
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
+
+  const cancelar = async (l: LinkDto) => {
+    if (!session || !tenant || cancelando) return;
+    setCancelando(l.id);
+    try {
+      await apiFetch(config, session, tenant, `/payments/links/${l.id}/cancel`, { method: 'POST' });
+      setAviso(null);
+      await cargar();
+    } catch (err) {
+      // Un link ya pagado no se cancela: eso es una devolución, y la hace
+      // el proveedor. El servidor lo dice con su propio mensaje.
+      setAviso((err as Error).message);
+    } finally {
+      setCancelando(null);
+    }
+  };
 
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
 
@@ -177,6 +194,21 @@ export function Pagos() {
                 </div>
                 <span className="dato font-bold text-ink">{fmtClp(l.amountClp)}</span>
                 <Badge role={ESTADO_LINK[l.status].role}>{ESTADO_LINK[l.status].label}</Badge>
+                {/* Cancelar un link emitido (#460). `POST /payments/links/:id/cancel`
+                    existe desde #60 y no la llamaba nadie: un link con el
+                    monto equivocado se quedaba vivo hasta que alguien lo
+                    pagaba. Solo se ofrece en los que todavía no se pagan;
+                    el servidor igual rechaza lo demás. */}
+                {(l.status === 'created' || l.status === 'sent') && (
+                  <Button
+                    variant="fantasma"
+                    size="chico"
+                    disabled={cancelando === l.id}
+                    onClick={() => void cancelar(l)}
+                  >
+                    {cancelando === l.id ? 'Cancelando…' : 'Cancelar'}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
