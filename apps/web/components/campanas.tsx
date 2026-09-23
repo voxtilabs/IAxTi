@@ -56,6 +56,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   const [valores, setValores] = useState<string[]>([]);
   /** El alcance del filtro que se está armando, sin campaña de por medio. */
   const [alcance, setAlcance] = useState<CampaignPreview | null>(null);
+  const [nombreSegmento, setNombreSegmento] = useState('');
   const [filtros, setFiltrosCrudos] = useState<CampaignFilters>({});
   /**
    * Tocar un filtro borra el alcance que se mostraba: un número que ya no
@@ -105,6 +106,19 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
    * alguien puede darse de baja entre esto y el envío, así que la vista
    * previa de la campaña vuelve a contar antes de mandar.
    */
+  /**
+   * Guarda el filtro con nombre y lo deja elegible al tiro: recargar la
+   * lista es lo que hace que el trabajo de armarlo no se pierda.
+   */
+  async function guardarSegmento() {
+    if (!nombreSegmento.trim()) return;
+    await ejecutar(async () => {
+      await cliente!.saveSegment(nombreSegmento.trim(), filtros);
+      setSegmentos(await cliente!.segments());
+      setNombreSegmento('');
+    });
+  }
+
   async function verAlcance() {
     await ejecutar(async () => {
       setAlcance(await cliente!.previewSegment(filtros));
@@ -242,6 +256,28 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
                 )}
               </p>
             )}
+          </div>
+          {/* Guardar el filtro con nombre (#480). La pantalla los LEÍA
+              —«partir de un segmento guardado»— y no había forma de crear
+              uno: los que existían habían entrado por la API a mano. */}
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-sm">
+              Guardar este filtro como
+              <Input
+                className="mt-1 w-56"
+                value={nombreSegmento}
+                onChange={(e) => setNombreSegmento(e.target.value)}
+                placeholder="Clientas del año pasado"
+              />
+            </label>
+            <Button
+              type="button"
+              variant="secundario"
+              disabled={ocupado || !nombreSegmento.trim()}
+              onClick={() => void guardarSegmento()}
+            >
+              Guardar segmento
+            </Button>
           </div>
           {alcance?.total === 0 && (
             // Una campaña a cero no falla: se manda y no le llega a nadie.

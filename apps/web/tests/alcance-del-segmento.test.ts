@@ -37,6 +37,21 @@ describe('alcance del segmento', () => {
     expect(CAMPANAS).toMatch(/const setFiltros[\s\S]{0,160}setAlcance\(null\)/);
   });
 
+  it('el filtro se puede guardar con nombre (#480)', () => {
+    // La pantalla los LEÍA —«partir de un segmento guardado»— y no había
+    // forma de crear uno: los que existían habían entrado por la API a
+    // mano.
+    expect(SDK).toContain("call<{ id: string; name: string }>('CampanasController_guardar'");
+    expect(CAMPANAS).toContain('cliente!.saveSegment(nombreSegmento.trim(), filtros)');
+  });
+
+  it('guardado, queda elegible al tiro', () => {
+    // Recargar la lista es lo que hace que el trabajo de armarlo no se
+    // pierda al cerrar el formulario.
+    const i = CAMPANAS.indexOf('saveSegment');
+    expect(CAMPANAS.slice(i, i + 200)).toContain('await cliente!.segments()');
+  });
+
   it('cero destinatarios se dice, no se deja pasar callado', () => {
     // Una campaña a cero no falla: se manda y no le llega a nadie.
     expect(CAMPANAS).toContain('alcance?.total === 0');

@@ -5,7 +5,7 @@ const document = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const operaciones = [
   'CampanasController_listar', 'CampanasController_crear', 'CampanasController_previa',
   'CampanasController_enviar', 'CampanasController_resultados', 'CampanasController_segmentos',
-  'CampanasController_vistaPrevia',
+  'CampanasController_vistaPrevia', 'CampanasController_guardar',
   'PlantillasController_list', 'ChannelsController_list', 'TagsController_list',
   'MeController_accesoDeModulos',
 ];
