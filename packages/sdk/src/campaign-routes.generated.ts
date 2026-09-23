@@ -28,6 +28,10 @@ export const campaignRoutes = {
     "method": "POST",
     "path": "/v1/campanas/segmentos/vista-previa"
   },
+  "CampanasController_guardar": {
+    "method": "POST",
+    "path": "/v1/campanas/segmentos"
+  },
   "PlantillasController_list": {
     "method": "GET",
     "path": "/v1/plantillas"

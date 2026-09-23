@@ -88,6 +88,13 @@ export function campaignClient(config: { apiUrl: string; token: string; tenantId
      */
     previewSegment: (filtros: CampaignFilters) =>
       call<CampaignPreview>('CampanasController_vistaPrevia', { body: { filtros } }),
+    /**
+     * Guarda el filtro con un nombre (#480). La pantalla los LEÍA —«partir
+     * de un segmento guardado»— y no había forma de crear uno: los que
+     * existían habían entrado por la API a mano.
+     */
+    saveSegment: (name: string, filtros: CampaignFilters) =>
+      call<{ id: string; name: string }>('CampanasController_guardar', { body: { name, filtros } }),
     send: (id: string, key: string) => call<{ encolados: number; saltados: number; motivos: Record<string, number> }>('CampanasController_enviar', { id, key }),
     results: (id: string) => call<CampaignResults>('CampanasController_resultados', { id }),
   };

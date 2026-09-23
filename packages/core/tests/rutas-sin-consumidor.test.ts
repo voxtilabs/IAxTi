@@ -55,7 +55,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
   'PUT /empresas/:id': 'Falta editar una empresa ya creada (#480).',
-  'POST /campanas/segmentos': 'Falta guardar un segmento con nombre; la pantalla solo los lee (#480).',
   'PUT /settings/retencion': 'Falta que el negocio fije cuánto guarda sus conversaciones (#480).',
   'POST /automations': 'Falta crear una regla desde la pantalla de automatizaciones (#480).',
   'POST /automations/sequences': 'Falta crear una secuencia de seguimiento (#480).',
