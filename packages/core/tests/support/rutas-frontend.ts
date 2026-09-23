@@ -131,7 +131,36 @@ export function rutasInexistentes(datos: InventarioRutas): RutaLlamada[] {
   }));
 }
 
+/**
+ * Las rutas que consume el SDK (#447).
+ *
+ * El SDK no llama con `apiFetch`: tiene tablas generadas desde el OpenAPI
+ * donde la ruta es un DATO (`"path": "/v1/campanas/{id}/enviar"`). Sin
+ * mirarlas, campañas, embudos y etiquetas parecen rutas que no usa nadie
+ * — y son las que usa la web a través del cliente.
+ */
+export function rutasDelSdk(fuentes: Record<string, string>): RutaLlamada[] {
+  const salida: RutaLlamada[] = [];
+  for (const [archivo, texto] of Object.entries(fuentes)) {
+    if (!archivo.includes('packages/sdk/')) continue;
+    const lineas = texto.split('\n');
+    lineas.forEach((linea, i) => {
+      const m = linea.match(/"path":\s*"\/v1(\/[^"]*)"/);
+      if (!m) return;
+      // `{id}` del OpenAPI es `:id` del servidor: la misma ranura.
+      salida.push({ archivo, linea: i + 1, ruta: m[1].replace(/\{([^}]+)\}/g, ':$1') });
+    });
+  }
+  return salida;
+}
+
 export function inventarioDelRepositorio(raiz: string): InventarioRutas {
-  const paths = ['apps/web', 'apps/admin', 'apps/api/src'].flatMap((dir) => archivos(join(raiz, dir)));
-  return inventario(Object.fromEntries(paths.map((path) => [relative(raiz, path), readFileSync(path, 'utf8')])));
+  const paths = ['apps/web', 'apps/admin', 'apps/api/src', 'packages/sdk/src'].flatMap((dir) =>
+    archivos(join(raiz, dir)),
+  );
+  const fuentes = Object.fromEntries(
+    paths.map((path) => [relative(raiz, path), readFileSync(path, 'utf8')]),
+  );
+  const base = inventario(fuentes);
+  return { ...base, llamadas: [...base.llamadas, ...rutasDelSdk(fuentes)] };
 }
