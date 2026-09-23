@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { LlevarseLosDatos } from './llevarse-los-datos';
+import { CancelarSuscripcion } from './cancelar-suscripcion';
 import { apiFetch, fmtClp } from '../lib/api';
 
 // Facturación (#67, SPEC §20): el plan, el próximo cobro y las facturas
@@ -109,6 +110,10 @@ export function Facturacion() {
         </div>
       )}
       <LlevarseLosDatos />
+      {/* Cancelar va DESPUÉS de la exportación, y no porque sea menos
+          importante: quien está por irse debería ver primero que sus datos
+          son suyos. La ruta igual genera la exportación antes de cerrar. */}
+      {sub.status !== 'cancelled' && <CancelarSuscripcion onCancelada={() => void cargar()} />}
     </div>
   );
 }
