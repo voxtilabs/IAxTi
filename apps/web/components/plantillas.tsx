@@ -45,6 +45,13 @@ export function Plantillas() {
   const [creando, setCreando] = useState(false);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', body: '', category: 'utility' as PlantillaDto['category'] });
+  /**
+   * Cuál se está corrigiendo (#460). `PUT /plantillas/:id` existía desde
+   * #44 y no la llamaba nadie: una plantilla que Meta rechazó —o una con
+   * una falta de ortografía— solo se podía arreglar creando otra, y la
+   * rechazada se quedaba ahí para siempre.
+   */
+  const [editando, setEditando] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
@@ -66,11 +73,20 @@ export function Plantillas() {
     if (!session || !tenant || creando) return;
     setCreando(true);
     try {
-      await apiFetch(config, session, tenant, '/plantillas', {
-        method: 'POST',
-        body: JSON.stringify({ ...form, language: 'es_CL' }),
-      });
+      // Corregir una rechazada la devuelve a borrador y le limpia el
+      // motivo del rechazo: eso lo hace el servidor, acá solo se manda.
+      await apiFetch(
+        config,
+        session,
+        tenant,
+        editando ? `/plantillas/${editando}` : '/plantillas',
+        {
+          method: editando ? 'PUT' : 'POST',
+          body: JSON.stringify({ ...form, language: 'es_CL' }),
+        },
+      );
       setForm({ name: '', body: '', category: 'utility' });
+      setEditando(null);
       setError(null);
       await cargar();
     } catch (err) {
@@ -123,7 +139,9 @@ export function Plantillas() {
       )}
 
       <form id="nueva-plantilla" onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
-        <h2 className="text-base font-bold text-ink">Nueva plantilla</h2>
+        <h2 className="text-base font-bold text-ink">
+          {editando ? 'Corregir la plantilla' : 'Nueva plantilla'}
+        </h2>
 
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           Nombre
@@ -181,10 +199,26 @@ export function Plantillas() {
           </div>
         )}
 
-        <span>
+        <span className="flex flex-wrap gap-2">
           <Button type="submit" disabled={creando || varsMalNumeradas}>
-            {creando ? 'Creando…' : 'Crear borrador'}
+            {creando
+              ? 'Guardando…'
+              : editando
+                ? 'Guardar los cambios'
+                : 'Crear borrador'}
           </Button>
+          {editando && (
+            <Button
+              type="button"
+              variant="secundario"
+              onClick={() => {
+                setEditando(null);
+                setForm({ name: '', body: '', category: 'utility' });
+              }}
+            >
+              Dejarla como estaba
+            </Button>
+          )}
         </span>
       </form>
 
@@ -205,15 +239,31 @@ export function Plantillas() {
                     {p.variables} {p.variables === 1 ? 'variable' : 'variables'}
                   </span>
                 )}
+                {/* Solo borrador y rechazada se editan: una en revisión o
+                    aprobada la tiene Meta, y el servidor lo rechaza con su
+                    motivo. Ofrecerlo igual sería prometer algo que no es. */}
                 {(p.status === 'draft' || p.status === 'rejected') && (
-                  <Button
-                    variant="secundario"
-                    size="chico"
-                    disabled={enviando === p.id}
-                    onClick={() => void aRevision(p)}
-                  >
-                    {enviando === p.id ? 'Mandando…' : 'Mandar a revisión'}
-                  </Button>
+                  <>
+                    <Button
+                      variant="secundario"
+                      size="chico"
+                      disabled={enviando === p.id}
+                      onClick={() => void aRevision(p)}
+                    >
+                      {enviando === p.id ? 'Mandando…' : 'Mandar a revisión'}
+                    </Button>
+                    <Button
+                      variant="fantasma"
+                      size="chico"
+                      onClick={() => {
+                        setEditando(p.id);
+                        setForm({ name: p.name, body: p.body, category: p.category });
+                        document.getElementById('nombre-plantilla')?.focus();
+                      }}
+                    >
+                      Corregir
+                    </Button>
+                  </>
                 )}
               </div>
               <p className="mt-2 whitespace-pre-wrap text-sm text-body">{p.body}</p>
