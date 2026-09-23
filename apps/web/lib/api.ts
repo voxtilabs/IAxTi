@@ -161,6 +161,9 @@ export interface FichaContacto {
     created_at: string;
     /** Los campos propios del negocio (#34). La API ya los mandaba. */
     custom: Record<string, unknown> | null;
+    /** De qué empresa es (#460). La columna existía desde #217, sin proyectar. */
+    company_id: string | null;
+    company_name: string | null;
   };
   deals: Array<{
     id: string;

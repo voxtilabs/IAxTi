@@ -11,6 +11,7 @@ import {
   listCompanies,
   updateCompany,
 } from '../application/empresas';
+import { getContactFicha } from '../application/activities';
 
 /**
  * Empresas (issue 248). La tabla estaba desde 0001 con `contacts.company_id`
@@ -135,6 +136,22 @@ describe('colgar contactos', () => {
 
     await en((c) => asignarEmpresa(c, { tenantId: tenant, contactId: contacto, companyId: null }));
     expect(await en((c) => companyContacts(c, tenant, empresa))).toHaveLength(0);
+  });
+
+  it('la ficha del contacto dice de qué empresa es (#460)', async () => {
+    // `contacts.company_id` existía desde #217 y la ficha no lo
+    // proyectaba: la pantalla no podía mostrarlo ni ofrecerse a cambiarlo,
+    // así que Empresas mostraba fichas vacías para siempre.
+    const e = await en((c) => createCompany(c, { tenantId: tenant, name: 'Ferretería Rosa', custom: { giro: 'retail' } }));
+    await en((c) => asignarEmpresa(c, { tenantId: tenant, contactId: contacto, companyId: e.id }));
+    const ficha = await en((c) => getContactFicha(c, tenant, contacto));
+    expect(ficha.contact.company_id).toBe(e.id);
+    expect(ficha.contact.company_name).toBe('Ferretería Rosa');
+
+    await en((c) => asignarEmpresa(c, { tenantId: tenant, contactId: contacto, companyId: null }));
+    const sinEmpresa = await en((c) => getContactFicha(c, tenant, contacto));
+    expect(sinEmpresa.contact.company_id).toBeNull();
+    expect(sinEmpresa.contact.company_name).toBeNull();
   });
 
   it('a un contacto que no existe no se le asigna nada', async () => {
