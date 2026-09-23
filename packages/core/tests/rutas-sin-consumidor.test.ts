@@ -47,7 +47,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
   '/agents/:id/run': 'Sin pantalla a propósito: es para el SDK y las pruebas, no para el dueño.',
-  '/agents/executions': 'El consumo se ve agregado en Ajustes → IA; la lista cruda no tiene pantalla (#460).',
 };
 
 /** Una llamada calza con una ruta si ocupa sus ranuras, no si inventa sufijos. */
