@@ -45,4 +45,14 @@ describe('el panel de SuperAdmin usa lo que la API ofrece', () => {
     // recordar de memoria el número que tenía el plan.
     expect(PANEL).toMatch(/valor\.trim\(\) === '' \? null : Number\(valor\)/);
   });
+
+  it('deja fijar la retención de un negocio, y muestra qué se llevaría (#460)', () => {
+    // La retención sale del plan; el override por tenant —lo que se le
+    // promete a un cliente que pide guardar más, o menos— había que
+    // escribirlo en `tenants.settings` a mano.
+    expect(PANEL).toContain('/retention');
+    // Lo que decide no es el número de meses: es cuántas conversaciones se
+    // llevaría la próxima purga con ese número puesto.
+    expect(PANEL).toContain('wouldPurge');
+  });
 });
