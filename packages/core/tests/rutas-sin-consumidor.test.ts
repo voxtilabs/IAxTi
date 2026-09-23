@@ -65,8 +65,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
   'POST /automations/sequences': 'Falta crear una secuencia de seguimiento (#480).',
-  'DELETE /webhooks-salientes/:id': 'Falta borrar un webhook saliente; hoy solo se crean (#480).',
-  'DELETE /notifications/push': 'Falta desuscribir este dispositivo de las notificaciones (#480).',
 };
 
 /** Una llamada calza con una ruta si ocupa sus ranuras, no si inventa sufijos. */

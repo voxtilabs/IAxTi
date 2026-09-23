@@ -104,6 +104,36 @@ function PermisoPush() {
     }
   }
 
+  /**
+   * Corta el push en ESTE navegador. Se hacen las dos cosas: darse de baja
+   * en el navegador y borrar la suscripción en el servidor. Si solo se
+   * hiciera lo segundo, el navegador seguiría suscrito y el servidor le
+   * mandaría a una suscripción que ya no reconoce.
+   */
+  async function desactivar() {
+    if (!session) return;
+    setAviso(null);
+    try {
+      const registro = await navigator.serviceWorker.getRegistration();
+      const suscripcion = await registro?.pushManager.getSubscription();
+      if (suscripcion) {
+        await fetch(`${config.apiUrl}/v1/notifications/push`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+            'X-Tenant-Id': selectedTenant() ?? '',
+          },
+          body: JSON.stringify({ endpoint: suscripcion.endpoint }),
+        });
+        await suscripcion.unsubscribe();
+      }
+      setEstado('listo');
+    } catch (err) {
+      setAviso((err as Error).message);
+    }
+  }
+
   if (estado === 'cargando' || estado === 'no_disponible') return null;
   return (
     <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-4">
@@ -121,6 +151,19 @@ function PermisoPush() {
           className="mt-2 rounded-boton bg-action px-3 py-1.5 text-sm font-medium text-action-contrast"
         >
           Activar en este dispositivo
+        </button>
+      )}
+      {/* Apagarlos (#480). `DELETE /notifications/push` existe desde #75 y
+          no la llamaba nadie: activar era un botón y apagar había que ir a
+          buscarlo a la configuración del navegador —donde apagarlo quema
+          el permiso para siempre y volver a encenderlo es un trámite. */}
+      {estado === 'activo' && (
+        <button
+          type="button"
+          onClick={() => void desactivar()}
+          className="mt-2 rounded-boton border border-line-strong px-3 py-1.5 text-sm font-medium text-body"
+        >
+          Dejar de recibirlos aquí
         </button>
       )}
       {aviso && <p className="mt-2 text-sm text-warn-text">{aviso}</p>}

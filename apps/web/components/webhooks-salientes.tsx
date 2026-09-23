@@ -168,6 +168,17 @@ export function WebhooksSalientes() {
                   >
                     Rotar secreto
                   </Button>
+                  {/* Borrar uno (#480). `DELETE /webhooks-salientes/:id`
+                      existe desde #71 y no la llamaba nadie: el apagado
+                      deja la URL y su secreto guardados, y un endpoint que
+                      ya no es nuestro no debería quedarse en la base. */}
+                  <Button
+                    variant="fantasma"
+                    size="chico"
+                    onClick={() => void accion(`/webhooks-salientes/${w.id}`, { method: 'DELETE' })}
+                  >
+                    Borrar
+                  </Button>
                   <Switch
                     aria-label={`Activar ${w.url}`}
                     checked={w.active}
