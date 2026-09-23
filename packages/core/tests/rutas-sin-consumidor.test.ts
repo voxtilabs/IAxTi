@@ -64,7 +64,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
-  'PUT /empresas/:id': 'Falta editar una empresa ya creada (#480).',
   'POST /automations/sequences': 'Falta crear una secuencia de seguimiento (#480).',
   'DELETE /webhooks-salientes/:id': 'Falta borrar un webhook saliente; hoy solo se crean (#480).',
   'DELETE /notifications/push': 'Falta desuscribir este dispositivo de las notificaciones (#480).',
