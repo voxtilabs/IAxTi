@@ -100,9 +100,13 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
   });
 
   const llamadas: RutaLlamada[] = [];
+  // Los ayudantes del cliente que reciben la ruta en el cuarto argumento.
+  // `apiDescargar` es `apiFetch` para respuestas que no son JSON (el CSV de
+  // contactos): si no estuviera acá, su ruta parecería no tener consumidor.
+  const AYUDANTES = new Set(['apiFetch', 'apiDescargar']);
   for (const call of calls.filter((c) => !c.getSourceFile().fileName.includes('/api/'))) {
     const nombre = call.expression.getText();
-    const api = nombre === 'apiFetch';
+    const api = AYUDANTES.has(nombre);
     if (!api && nombre !== 'fetch') continue;
     // La implementación central de apiFetch se cubre en sus sitios de uso.
     if (!api && /\/lib\/api\.ts$/.test(call.getSourceFile().fileName)) continue;
