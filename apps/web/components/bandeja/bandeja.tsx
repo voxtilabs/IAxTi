@@ -30,6 +30,7 @@ import {
   type Mensaje,
   type AnalisisDto,
   type NotaDto,
+  type PlantillaDto,
   type QuickReplyDto,
   type SugerenciaDto,
 } from '../../lib/api';
@@ -78,6 +79,8 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [pane, setPane] = useState<Pane>('lista');
   const [aviso, setAviso] = useState<string | null>(null);
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
+  /** Plantillas del negocio; null hasta que alguien abra el selector (#460). */
+  const [plantillas, setPlantillas] = useState<PlantillaDto[] | null>(null);
   const [notas, setNotas] = useState<NotaDto[]>([]);
   const [sugerencia, setSugerencia] = useState<SugerenciaDto | null>(null);
   // Por qué NO hay sugerencia (#436). Sin esto, las cinco causas —sin
@@ -377,6 +380,32 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           detalle={detalle}
           mensajes={mensajes}
           atajos={atajos}
+          plantillas={plantillas}
+          onCargarPlantillas={async () => {
+            if (!session || !tenant) return;
+            try {
+              setPlantillas(await apiFetch<PlantillaDto[]>(config, session, tenant, '/plantillas'));
+            } catch (err) {
+              // Sin plantillas no hay selector, pero sí hay que decir por qué:
+              // el módulo whatsapp puede estar apagado en este plan.
+              setPlantillas([]);
+              setAviso((err as Error).message);
+            }
+          }}
+          onEnviarPlantilla={async (templateId, valores) => {
+            if (!session || !tenant || !seleccion) return;
+            setAviso(null);
+            try {
+              await apiFetch(config, session, tenant, `/plantillas/${templateId}/enviar`, {
+                method: 'POST',
+                body: JSON.stringify({ conversationId: seleccion, valores }),
+              });
+              await cargarConversacion(seleccion);
+            } catch (err) {
+              setAviso((err as Error).message);
+              throw err;
+            }
+          }}
           sugerencia={sugerencia}
           sinSugerencia={sinSugerencia}
           reintentando={reintentando}

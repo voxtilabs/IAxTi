@@ -260,6 +260,22 @@ export interface PlantillaDto {
   variables: number;
 }
 
+/**
+ * Cuántas variables tiene el cuerpo y en qué orden, contadas como las cuenta
+ * el servidor: `{{1}}`, `{{2}}`… Se usa para pedir un valor por cada una
+ * antes de mandarla, porque `renderizar()` rechaza que falte uno.
+ */
+export function variablesDePlantilla(body: string): number[] {
+  const vistas = new Set<number>();
+  for (const m of body.matchAll(/\{\{\s*(\d+)\s*\}\}/g)) vistas.add(Number(m[1]));
+  return [...vistas].sort((a, b) => a - b);
+}
+
+/** El texto tal como lo va a leer la persona, con los valores puestos. */
+export function renderPlantilla(body: string, valores: string[]): string {
+  return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => valores[Number(n) - 1] || `{{${n}}}`);
+}
+
 /** Un campo propio del negocio (#34, SPEC §10). */
 export interface CampoDto {
   id: string;

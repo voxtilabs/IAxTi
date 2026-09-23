@@ -46,7 +46,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de
   // esta lista a medida que se construyen; que estén acá escritas es lo
   // que impide que se olviden otra vez.
-  '/plantillas/:id/enviar': 'Falta la pantalla: fuera de la ventana de 24 h el botón está DESHABILITADO y la ruta existe (#460).',
   '/plantillas/:id': 'Falta la pantalla para editar y borrar una plantilla (#460).',
   '/billing/cancelar': 'Falta la pantalla: SPEC §6 pide cancelar en un clic y la ruta ya entrega la exportación (#460).',
   '/agenda/disponibilidad': 'Falta la pantalla para definir los horarios de atención (#460).',
@@ -91,6 +90,16 @@ describe('rutas que no usa nadie (#447)', () => {
         'esta guarda viene a cazar— o hay que escribir en SIN_CONSUMIDOR por qué no la ' +
         'tienen:\n' + huerfanas.map((r) => `  ${r}`).join('\n'),
     ).toEqual([]);
+  }, 30_000);
+
+  it('una excepción que ya tiene pantalla se saca de la lista', () => {
+    // Si no, la lista deja de ser el inventario de lo que falta: seguiría
+    // diciendo "no tiene pantalla" de algo construido, y la siguiente
+    // persona la leería como un mapa viejo.
+    const yaConstruidas = Object.keys(SIN_CONSUMIDOR).filter((r) =>
+      datos.llamadas.some((l) => calza(r, l.ruta)),
+    );
+    expect(yaConstruidas, 'Ya las llama alguien: sácalas de SIN_CONSUMIDOR').toEqual([]);
   }, 30_000);
 
   it('la lista no junta polvo: todas siguen declaradas', () => {
