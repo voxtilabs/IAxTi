@@ -83,11 +83,14 @@ function languageModel(provider: Provider, model: string): LanguageModel {
     case 'anthropic':
       return createAnthropic({ apiKey })(model);
     case 'glm':
-      // GLM (Zhipu) expone endpoint compatible OpenAI (ADR-0011 / #54).
+      // GLM servido por el catálogo de NVIDIA (ADR-0025 §7): la llave es
+      // `nvapi-` y el endpoint es compatible OpenAI. Tool-calling y
+      // streaming verificados el 2026-09-25 con `z-ai/glm-5.3`. Quien use
+      // Zhipu directo pone su base por GLM_API_BASE.
       return createOpenAICompatible({
         name: 'glm',
         apiKey,
-        baseURL: process.env.GLM_API_BASE ?? 'https://open.bigmodel.cn/api/paas/v4',
+        baseURL: process.env.GLM_API_BASE ?? 'https://integrate.api.nvidia.com/v1',
       })(model);
   }
 }

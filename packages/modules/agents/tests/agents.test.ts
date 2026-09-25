@@ -108,7 +108,7 @@ describe('runtime (#47)', () => {
     );
     expect(res.text).toContain('Respuesta simulada');
     expect(res.traceId).toBe(requestId); // MISMO trace desde el request
-    expect(res.provider).toBe('google'); // el default por tarea (sugerir)
+    expect(res.provider).toBe('glm'); // el default por tarea (sugerir, ADR-0025)
     expect(res.costUsd).toBeGreaterThan(0);
 
     const fila = await admin.query('SELECT * FROM agent_executions WHERE id = $1', [res.executionId]);
