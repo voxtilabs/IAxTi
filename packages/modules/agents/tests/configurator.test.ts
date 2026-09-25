@@ -10,6 +10,7 @@ import {
   proposeConfiguration,
   snapshotConfig,
 } from '../application/configurator';
+import { DEFAULT_TASK_MODELS } from '../domain/config';
 import { createAgent } from '../application/agents';
 import type { ModelPortFactory } from '../application/models';
 
@@ -110,12 +111,14 @@ describe('proponer → aplicar (#50)', () => {
     expect(res.proposal.status).toBe('pending');
     expect(res.proposal.diff.items.some((i) => i.nombre === 'Barbería')).toBe(true);
 
-    // La corrida quedó como execution `configurar` (modelo de gama alta).
+    // La corrida quedó como execution `configurar` (modelo de gama alta:
+    // el de la tarea, nunca el flash del volumen).
     const ej = await admin.query(
       `SELECT provider, model FROM agent_executions WHERE tenant_id = $1 AND task = 'configurar'`,
       [tenant],
     );
-    expect(ej.rows[0].model).toContain('pro');
+    expect(ej.rows[0].model).toBe(DEFAULT_TASK_MODELS.configurar.model);
+    expect(ej.rows[0].model).not.toContain('flash');
 
     const viva = await withTenant(admin, tenant, (c) => pendingProposal(c, tenant));
     expect(viva?.id).toBe(res.proposal.id);

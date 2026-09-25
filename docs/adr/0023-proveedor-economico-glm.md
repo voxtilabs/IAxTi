@@ -1,6 +1,10 @@
 # ADR 0023 · El proveedor económico (GLM) y qué le podemos mandar
 
-**Estado:** aceptada · 2026-09-21 · decide el issue #54 · se apoya en la
+**Estado:** supersedida parcialmente por la
+[ADR-0025](0025-el-agente-general.md) §7 (2026-09-25): la restricción por
+tarea ya no rige — GLM corre en todas las tareas de texto, servido por el
+catálogo de NVIDIA. Los HECHOS de esta ADR siguen válidos y citados allá.
+· aceptada 2026-09-21 · decide el issue #54 · se apoya en la
 [ADR-0006](0006-observabilidad.md) y la
 [ADR-0017](0017-que-puede-escribir-la-ia.md)
 

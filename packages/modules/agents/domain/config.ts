@@ -53,16 +53,26 @@ export interface TaskModel {
  * de regresión (#53) importa más de lo que parecía: es lo que avisa si la
  * versión nueva rinde peor.
  */
+/**
+ * Desde ADR-0025 §7 (2026-09-25) el proveedor por defecto es GLM — servido
+ * por el catálogo de NVIDIA, ver `models.ts`. `z-ai/glm-5.3-flash` para el
+ * volumen, `z-ai/glm-5.3` para las tareas pesadas.
+ *
+ * `transcribir` se queda en Google y no es política: es capacidad. La
+ * transcripción entra como PARTE DE AUDIO (file part) y el endpoint de GLM
+ * en NVIDIA es de texto. Configurarle GLM a esa tarea fallaría en cada
+ * audio recibido.
+ */
 export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
-  clasificar: { provider: 'google', model: 'gemini-flash-latest' },
-  sugerir: { provider: 'google', model: 'gemini-flash-latest' },
-  responder: { provider: 'google', model: 'gemini-flash-latest' },
+  clasificar: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
+  sugerir: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
+  responder: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
   // La tarea pesada: entiende el negocio y propone su configuración.
-  configurar: { provider: 'google', model: 'gemini-pro-latest' },
-  conocer: { provider: 'google', model: 'gemini-flash-latest' },
-  resumir: { provider: 'google', model: 'gemini-flash-latest' },
+  configurar: { provider: 'glm', model: 'z-ai/glm-5.3' },
+  conocer: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
+  resumir: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
   transcribir: { provider: 'google', model: 'gemini-flash-latest' },
-  analizar: { provider: 'google', model: 'gemini-flash-latest' },
+  analizar: { provider: 'glm', model: 'z-ai/glm-5.3' },
 };
 
 /**
@@ -112,8 +122,17 @@ export interface IaSettings {
  *
  * No es una lista de "malos": es una lista de "todavía no tenemos el papel".
  * Sale de acá el día que ese papel exista para nuestra cuenta.
+ *
+ * `glm` SALIÓ el 2026-09-25 por ADR-0025 §7: decisión del dueño, y la
+ * cuenta real sirve GLM por el catálogo de NVIDIA (`integrate.api.nvidia.com`)
+ * — el destino de los datos es NVIDIA, no Zhipu directo. El MECANISMO se
+ * queda: el próximo proveedor sin papeles entra acá y todo esto vuelve a
+ * regir sin escribir código.
  */
-const SIN_GARANTIA_DE_DATOS = new Set<string>(['glm']);
+const SIN_GARANTIA_DE_DATOS = new Set<string>([]);
+
+/** Proveedores cuyo endpoint no recibe audio ni archivos. */
+const SOLO_TEXTO = new Set<string>(['glm']);
 
 /**
  * La única tarea que sobrevive a la redacción.
@@ -139,6 +158,10 @@ export function vaRedactadoAlProveedor(provider: string, task: AgentTask): boole
  * lugar para enseñar una política.
  */
 export function proveedorPermitidoParaTarea(provider: string, task: AgentTask): boolean {
+  // Capacidad, no política: `transcribir` entra como parte de audio y el
+  // endpoint de GLM es de texto. Configurárselo fallaría en CADA audio
+  // recibido, así que cae al por defecto como cualquier config inválida.
+  if (task === 'transcribir' && SOLO_TEXTO.has(provider)) return false;
   if (!SIN_GARANTIA_DE_DATOS.has(provider)) return true;
   return SOBREVIVE_A_LA_REDACCION.has(task);
 }
@@ -211,6 +234,12 @@ const PRECIOS_BASE: Record<string, { in: number; out: number }> = {
   'google:gemini-2.5-pro': { in: 1.25, out: 10 },
   'anthropic:claude-haiku-4-5-20251001': { in: 1, out: 5 },
   'glm:glm-4.6': { in: 0.6, out: 2.2 },
+  // Los por defecto desde ADR-0025. REFERENCIA PROVISIONAL: la tarifa por
+  // token del catálogo de NVIDIA no está confirmada para nuestra cuenta
+  // (#497 la pide); mientras, la referencia pública de la familia GLM.
+  // Se corrige sin deploy por AGENT_PRICES_JSON.
+  'glm:z-ai/glm-5.3': { in: 0.6, out: 2.2 },
+  'glm:z-ai/glm-5.3-flash': { in: 0.1, out: 0.4 },
 };
 
 export function estimateCostUsd(

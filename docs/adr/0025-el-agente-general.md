@@ -131,6 +131,18 @@ y queda registrada acá con estos resguardos:
    toma la tarea y el panel lo dice. Ahorrar con un modelo que configura
    mal un negocio es más caro que el margen.
 
+### Actualización 2026-09-25 · la cuenta sirve GLM por NVIDIA
+
+La llave entregada es del **catálogo de NVIDIA** (`nvapi-`,
+`integrate.api.nvidia.com`), que sirve `z-ai/glm-5.3` y
+`z-ai/glm-5.3-flash`. Eso cambia el cuadro de la §7 para mejor: **el
+destino de los datos es NVIDIA (EE.UU.), no Zhipu directo**, y los
+términos a verificar pasan a ser los de NVIDIA. Tool-calling y streaming
+verificados ese mismo día contra el endpoint real. Queda pendiente
+confirmar la tarifa por token de nuestra cuenta para el panel de costos
+(mientras, referencia provisional de la familia GLM, corregible por
+`AGENT_PRICES_JSON` sin deploy).
+
 ## Consecuencias
 
 - El costo de una función nueva baja a: ruta + herramienta + prueba. La

@@ -95,6 +95,7 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_STAGING }}
+          GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
@@ -103,6 +104,13 @@ jobs:
           compose_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}")
           env_actual=$(printf '%s\n' "$compose_actual" | jq -r '.env')
           env_nuevo=$(printf '%s\n' "$env_actual" | sed "s|^IMAGE=.*|IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}|")
+          # GLM (ADR-0025): la llave viaja como secreto de GitHub y el deploy
+          # la SIEMBRA en el env de Dokploy si falta — así ningún humano la
+          # pega en el panel. Si ya está, manda la del panel (el operador
+          # puede haberla rotado ahí).
+          if [ -n "${GLM_API_KEY}" ] && ! printf '%s\n' "$env_nuevo" | grep -q '^GLM_API_KEY='; then
+            env_nuevo=$(printf '%s\nGLM_API_KEY=%s' "$env_nuevo" "${GLM_API_KEY}")
+          fi
           # Raw no toma los cambios del YAML versionado (#396). Completar solo
           # los checks ausentes, preservando la configuración del operador.
           # El documento puede contener secretos: archivo privado, nunca logs.
