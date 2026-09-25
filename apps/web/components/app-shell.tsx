@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 import { SoporteAviso } from './soporte-aviso';
 import { PaletaComandos } from './paleta-comandos';
+import { AgenteGeneral } from './agente-general';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
@@ -420,6 +421,11 @@ function ContenidoShell({ marcaSvg, nav, sinMargen, children }: ShellProps) {
                 <strong>{pagina?.label ?? (ruta === '/' ? 'Puesta en marcha' : 'IAxTi')}</strong>
               </div>
               <div className="ml-auto flex items-center gap-3">
+                {/* IAxTi va en la barra de TODA la app y no en una pantalla
+                    suya: configurar conversando solo sirve si está donde
+                    estás (#493). Primero él, después buscar: pedir es lo
+                    que se hace más seguido. */}
+                <AgenteGeneral />
                 <PaletaComandos nav={nav} />
                 <Campana />
                 <ModeToggle />
