@@ -13,7 +13,8 @@
     "migrate:deploy": "pnpm --filter @iaxti/db run build && pnpm --filter @iaxti/db run migrate",
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
     "seed": "pnpm --filter @iaxti/seed run build && pnpm --filter @iaxti/seed run seed",
-    "zavu:conectar": "node scripts/conectar-zavu.mjs"
+    "zavu:conectar": "node scripts/conectar-zavu.mjs",
+    "catalogo": "node scripts/dump-openapi.mjs /tmp/iaxti-openapi.json && node scripts/generar-catalogo-herramientas.mjs /tmp/iaxti-openapi.json"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",

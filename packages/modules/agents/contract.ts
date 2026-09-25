@@ -106,6 +106,12 @@ export type { ResultadoHerramienta, DepsHerramientas } from './application/herra
 export { herramientasExpuestas, ESQUEMAS } from './application/herramientas-expuestas';
 export type { HerramientaExpuesta } from './application/models';
 // Por qué NO contestó el proveedor, con nombre y con qué hacer (#402).
+// El catálogo de herramientas del Agente General (#492, ADR-0025). La
+// mitad generada del código, la mitad curada por una persona.
+export { CATALOGO, herramientasPara, nombreDeHerramienta, tratoDe } from './application/catalogo';
+export type { Herramienta, TratoDeLaHerramienta } from './application/catalogo';
+export { NO_SON_HERRAMIENTA, SIN_CONFIRMACION } from './application/catalogo-curado';
+
 export { motivoDelProveedor } from './application/motivo-del-proveedor';
 export type { MotivoDelProveedor, DiagnosticoDelProveedor } from './application/motivo-del-proveedor';
 // Por qué esta conversación no tiene sugerencia (#436).

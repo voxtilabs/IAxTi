@@ -3,7 +3,17 @@ import { join } from 'node:path';
 import { inventarioDelRepositorio } from './support/rutas-frontend';
 
 /**
- * Una ruta que no usa nadie (#447, #480).
+ * Una ruta que no usa nadie (#447, #480) — y POR QUÉ SIGUE VIVA (#492).
+ *
+ * Desde ADR-0025 el criterio es «toda ruta tiene **herramienta o**
+ * pantalla», y el catálogo del Agente General cubre la API entera: mirado
+ * así, esta guarda no tendría nada que decir nunca.
+ *
+ * Sigue acá porque cuida otra cosa. El catálogo le da la puerta al AGENTE;
+ * esta lista dice qué cosas una PERSONA no puede hacer por sí misma, y eso
+ * sigue siendo una decisión de producto que conviene ver escrita. Cada
+ * entrada de abajo es, hoy, «solo por conversación» — y está bien que lo
+ * sea, pero no está bien que pase sin que nadie lo note.
  *
  * El guard de `rutas-frontend` comprueba una dirección: que el frontend no
  * pida rutas que la API no declara. La otra dirección no la miraba nadie, y
