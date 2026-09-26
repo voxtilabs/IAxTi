@@ -44,18 +44,46 @@ function declarados(): Set<string> {
   return todos;
 }
 
-/** Cualquier mención del permiso en el código: ruta, `actorCan`, tool. */
+/**
+ * Dónde se VERIFICA un permiso de verdad (#539).
+ *
+ * Esto contaba cualquier string con punto que apareciera en el código, y por
+ * eso pasaba engañado: `base-roles.ts` REPARTE permisos —dice qué trae cada
+ * rol— y eso no es verificarlos. Un permiso que solo estaba ahí contaba como
+ * cumplido, así que `teams.manage` llevaba meses declarado, repartido a
+ * SUPERVISOR y ADMIN, y sin una sola ruta que lo exija. Ni siquiera figuraba en
+ * PENDIENTES, porque la guarda decía que estaba en uso.
+ *
+ * Ahora solo cuentan las formas en que un permiso de verdad decide algo. Y
+ * `base-roles.ts` queda excluido explícitamente: repartir no es verificar.
+ */
+const FORMAS_DE_VERIFICAR: RegExp[] = [
+  /@RequirePermission\('([^']+)'\)/g,
+  // `actorCan(actor, 'x')`, `actorPuede('x')`, `permisos.has('x')`,
+  // `puede('x')` — las cuatro formas que usa el repo para preguntar.
+  /(?:actorCan|actorPuede|puede)\([^)]*'([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)'/g,
+  /permisos\.has\('([^']+)'\)/g,
+  /scopes[^\n]*includes\('([^']+)'\)/g,
+  // El mapa del MCP (`PERMISO_DE`) y las listas de herramientas: ahí el
+  // permiso es el valor que después se exige.
+  /^\s*[a-zA-Z_]+:\s*'([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)',?$/gm,
+];
+
+/** Repartir un permiso no es verificarlo. */
+const NO_ES_VERIFICAR = ['domain/base-roles.ts'];
+
 function verificados(): Set<string> {
   const usados = new Set<string>();
   const fuentes = [
     ...archivosTs(join(REPO, 'apps/api/src')),
     ...archivosTs(join(REPO, 'apps/workers/src')),
+    ...archivosTs(join(REPO, 'apps/agents/src')),
     ...archivosTs(MODULOS).filter((f) => !f.includes('/tests/')),
-  ];
+  ].filter((f) => !NO_ES_VERIFICAR.some((excluido) => f.includes(excluido)));
   for (const archivo of fuentes) {
     const contenido = readFileSync(archivo, 'utf8');
-    for (const m of contenido.matchAll(/'([a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+)'/g)) {
-      usados.add(m[1]);
+    for (const patron of FORMAS_DE_VERIFICAR) {
+      for (const m of contenido.matchAll(patron)) usados.add(m[1]);
     }
   }
   // Los manifiestos también los usan: nav y tools declaran permisos.
@@ -88,8 +116,17 @@ const PENDIENTES: Record<string, string> = {
   'tenant.billing': 'Ver y cambiar el plan desde la app; hoy lo hace el SuperAdmin (#69).',
   'whatsapp.numbers.manage':
     'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',
-  'crm.contacts.update': 'Cubierto por crm.contacts.create en el controlador; falta separar la edición.',
-  'crm.deals.close': 'Cerrar una oportunidad usa crm.deals.update; falta separar el cierre.',
+  // `crm.contacts.update` y `crm.deals.close` estaban acá y YA SE EXIGEN:
+  // el primero en contacts.controller.ts:330 y empresas.controller.ts:177, el
+  // segundo en deals.controller.ts:234 (`puedeCerrar`). Los sacó la prueba
+  // nueva de «cada pendiente sigue sin verificarse»: la lista decía «falta» de
+  // dos cosas hechas, y la siguiente persona la habría leído como un mapa
+  // viejo.
+  'teams.manage':
+    'Los equipos no están construidos (#540): la tabla `teams` existe con RLS y sin un solo endpoint, ' +
+    'y `conversations.team_id` tampoco se escribe nunca. Llevaba meses declarado y REPARTIDO a ' +
+    'SUPERVISOR y ADMIN sin que esta guarda lo notara, porque contaba la concesión de base-roles.ts ' +
+    'como si fuera una verificación.',
 };
 
 describe('catálogo de permisos', () => {
@@ -132,5 +169,36 @@ describe('catálogo de permisos', () => {
     const declarada = declarados();
     const fantasmas = Object.keys(PENDIENTES).filter((p) => !declarada.has(p));
     expect(fantasmas, `Pendientes que ya no están en ningún catálogo: ${fantasmas.join(', ')}`).toEqual([]);
+  });
+
+  it('repartir un permiso NO cuenta como verificarlo', () => {
+    // Es la propiedad que faltaba y por la que esto pasaba engañado. Se fija con
+    // un permiso que EXISTE, está repartido en base-roles.ts, y no lo exige
+    // ninguna ruta: si `verificados()` volviera a leer ese archivo, este test
+    // avisa antes de que la guarda entera vuelva a dar permiso.
+    const usada = verificados();
+    expect(
+      usada.has('teams.manage'),
+      'verificados() volvió a contar base-roles.ts: repartir no es verificar',
+    ).toBe(false);
+    // Y el archivo sigue repartiéndolo, o sea el caso sigue siendo el caso.
+    const base = readFileSync(
+      join(REPO, 'packages/modules/authorization/domain/base-roles.ts'),
+      'utf8',
+    );
+    expect(base, 'si ya no se reparte, este test perdió su sujeto').toContain("'teams.manage'");
+  });
+
+  it('cada pendiente sigue declarado y sigue sin verificarse', () => {
+    // Una lista de pendientes con entradas ya construidas dice «falta» de algo
+    // que está hecho, y la siguiente persona la lee como un mapa viejo.
+    const declarada = declarados();
+    const usada = verificados();
+    const yaNoAplican = Object.keys(PENDIENTES).filter((p) => !declarada.has(p) || usada.has(p));
+    expect(
+      yaNoAplican,
+      'Sácalos de PENDIENTES: o ya no están declarados, o ya se verifican:\n  ' +
+        yaNoAplican.join('\n  '),
+    ).toEqual([]);
   });
 });
