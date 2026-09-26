@@ -57,7 +57,7 @@ beforeAll(async () => {
   // transacciones y casos de uso son los reales. JWT tiene su propia suite.
   app = await createApp({
     jwtVerify: async token => ({ userId: token }),
-    resolveRole: async (t, u) => t !== tenant ? null : u === owner ? 'ADMIN' : [seller, colleague].includes(u) ? 'USER' : null,
+    resolveRole: async (t, u) => t !== tenant ? null : u === owner ? 'ADMIN' : u === seller || u === colleague ? 'USER' : null,
     resolveApiKey: async token => ['recuperar', 'solo-reply'].includes(token) ? {
       id: apiKeyId, tenantId: tenant,
       scopes: token === 'recuperar' ? ['conversations.reply', 'conversations.read_all'] : ['conversations.reply'],

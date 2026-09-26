@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import {
   normalizarNombre,
@@ -33,7 +33,10 @@ const base: PlantillaBorrador = {
   footer: 'Responde SALIR para no recibir más',
 };
 
-const en = <T>(fn: (c: never) => Promise<T>) => withTenant(admin, tenant, fn as never);
+// Tipado de verdad y no con `as never` (#507): el casteo era para callar al
+// compilador, y callaba TODO el archivo — cada resultado salía `unknown`, así
+// que ningún `expect` sobre una propiedad estaba comprobando nada.
+const en = <T>(fn: (c: PoolClient) => Promise<T>) => withTenant(admin, tenant, fn);
 
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);

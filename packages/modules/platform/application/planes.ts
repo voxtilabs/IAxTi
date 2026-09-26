@@ -53,7 +53,12 @@ export async function listPlans(client: Pick<Pool, 'query'>): Promise<PlanRow[]>
   return r.rows.map(rowToPlan);
 }
 
-const CAMPOS_EDITABLES: Record<string, string> = {
+// Sin anotar `Record<string, string>`: con ella, `keyof typeof` es `string`,
+// así que el `changes` de abajo quedaba `Partial<Record<string, number|null>>`
+// y el `modules?: string[]` del intersect colapsaba a `undefined` — o sea,
+// pasar módulos era intipable, y un nombre de campo mal escrito tampoco se
+// cazaba. Con `as const` el keyof son las ocho llaves de verdad.
+const CAMPOS_EDITABLES = {
   priceClp: 'price_clp',
   metaIncludedUsd: 'meta_included_usd',
   iaBudgetUsd: 'ia_budget_usd',
@@ -62,7 +67,7 @@ const CAMPOS_EDITABLES: Record<string, string> = {
   iaExecutionsMonth: 'ia_executions_month',
   retentionMonths: 'retention_months',
   apiRequestsMonth: 'api_requests_month',
-};
+} as const satisfies Record<string, string>;
 
 /** Edita el plan SIN desplegar. Cada cambio queda en platform_audit. */
 export async function updatePlan(

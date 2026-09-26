@@ -35,9 +35,15 @@ async function emitir(name: string, payload: Record<string, unknown>, actor = 's
   }
 }
 
+// `AAAA-MM-DD` y no `Date`, que es lo que recibe en producción. El propio
+// `DashboardInput` avisa que mandar un `Date` hace que Postgres lo convierta y
+// el rango se corra un día: esta prueba venía haciendo justo eso, así que
+// medía sobre una ventana distinta a la real.
+const soloElDia = (d: Date) => d.toISOString().slice(0, 10);
+
 function dashboard(ownerId?: string | null) {
-  const hoy = new Date();
-  const hace7 = new Date(Date.now() - 7 * 86_400_000);
+  const hoy = soloElDia(new Date());
+  const hace7 = soloElDia(new Date(Date.now() - 7 * 86_400_000));
   return withTenant(admin, tenant, (c) =>
     getDashboard(c, { tenantId: tenant, from: hace7, to: hoy, ownerId: ownerId ?? null }),
   );

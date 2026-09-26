@@ -220,7 +220,9 @@ describe('la propuesta cortada no pide "más detalle" (#310)', () => {
         cortada,
       ),
     );
-    expect(res.status).toBe('failed');
+    // La unión discriminada no se estrecha con un `expect`, y el mensaje es
+    // justo lo que esta prueba vino a comprobar: se estrecha a mano una vez.
+    if (res.status !== 'failed') throw new Error(`Esperábamos que fallara y fue ${res.status}.`);
     expect(res.error).toContain('a medias');
     // El consejo viejo —"intenta de nuevo con más detalle"— empeoraba el
     // problema: más detalle alarga el contexto y lo corta antes. Y esto es

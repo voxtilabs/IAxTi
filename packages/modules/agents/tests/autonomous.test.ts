@@ -264,11 +264,14 @@ describe('cortado por el tope de salida (#310)', () => {
       setConversationMode(c, { tenantId: tenant, conversationId: conv, mode: 'autonomous', actor: 'user-1' }),
     );
     const res = await alAire(conv, cortado);
-    expect(res.action).toBe('escalated');
-    // El modelo no falló: no le alcanzó el espacio, y eso se arregla
-    // distinto. Con 'error_del_modelo' el dueño cree que el proveedor anda
-    // mal y no que sus conversaciones son largas.
-    expect(res.reason).toBe('respuesta_cortada');
+    // En un `toMatchObject` y no en dos expects: `AutonomousOutcome` es una
+    // unión discriminada y un `expect` no la estrecha, así que leer `.reason`
+    // suelto no compila. De paso, el fallo dice las dos cosas de una.
+    //
+    // El modelo no falló: no le alcanzó el espacio, y eso se arregla distinto.
+    // Con 'error_del_modelo' el dueño cree que el proveedor anda mal y no que
+    // sus conversaciones son largas.
+    expect(res).toMatchObject({ action: 'escalated', reason: 'respuesta_cortada' });
   });
 
   it('nunca le manda media frase al cliente', async () => {

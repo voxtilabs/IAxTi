@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
+import type { OutboundJobData } from '@iaxti/module-whatsapp';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
 import type IORedis from 'ioredis';
@@ -55,7 +56,17 @@ async function nuevoSaliente(): Promise<string> {
   return m.id;
 }
 
-function jobPara(messageId: string, extra: Record<string, unknown> = {}, attemptsMade = 0) {
+// El `extra` era `Record<string, unknown>` y cada llamada iba con `as never`:
+// así se podía armar un job SIN `initiatedByBusiness`, que en `OutboundJobData`
+// es obligatorio justamente porque olvidarlo hacía salir una automatización a
+// las 3 de la mañana (#372). El helper de la prueba podía construir la forma
+// que el producto se ocupó de volver imposible. Ahora cada llamada dice qué
+// tipo de envío es, que además es de lo que tratan varias de estas pruebas.
+function jobPara(
+  messageId: string,
+  extra: Partial<OutboundJobData> & Pick<OutboundJobData, 'initiatedByBusiness'>,
+  attemptsMade = 0,
+) {
   return {
     attemptsMade,
     opts: { attempts: 5 },
@@ -125,7 +136,7 @@ describe('processOutbound (#43)', () => {
   it('entrega por el adaptador y deja sent con el wamid en el mensaje', async () => {
     modo = 'ok';
     const messageId = await nuevoSaliente();
-    const res = await processOutbound(admin, redis, jobPara(messageId) as never);
+    const res = await processOutbound(admin, redis, jobPara(messageId, { initiatedByBusiness: false }));
     expect(res.providerMessageId).toMatch(/^wamid\.fake-/);
     const fila = await admin.query(
       'SELECT delivery_status, provider_message_id FROM messages WHERE id = $1',
@@ -139,10 +150,10 @@ describe('processOutbound (#43)', () => {
     modo = 'fallo';
     const messageId = await nuevoSaliente();
     await expect(
-      processOutbound(admin, redis, jobPara(messageId, {}, 0) as never),
+      processOutbound(admin, redis, jobPara(messageId, { initiatedByBusiness: false }, 0)),
     ).rejects.toThrow(/HTTP 400/);
 
-    const final = await processOutbound(admin, redis, jobPara(messageId, {}, 4) as never);
+    const final = await processOutbound(admin, redis, jobPara(messageId, { initiatedByBusiness: false }, 4));
     expect(final.failed).toBeTruthy();
     const fila = await admin.query('SELECT delivery_status, meta FROM messages WHERE id = $1', [messageId]);
     expect(fila.rows[0].delivery_status).toBe('failed');
@@ -158,11 +169,11 @@ describe('processOutbound (#43)', () => {
     );
     const iniciado = await nuevoSaliente();
     await expect(
-      processOutbound(admin, redis, jobPara(iniciado, { initiatedByBusiness: true }) as never),
+      processOutbound(admin, redis, jobPara(iniciado, { initiatedByBusiness: true })),
     ).rejects.toThrow(DelayUntilError);
 
     const respuesta = await nuevoSaliente();
-    const res = await processOutbound(admin, redis, jobPara(respuesta) as never);
+    const res = await processOutbound(admin, redis, jobPara(respuesta, { initiatedByBusiness: false }));
     expect(res.providerMessageId).toBeTruthy(); // la respuesta salió igual
     await admin.query(`UPDATE tenants SET settings = '{}'::jsonb WHERE id = $1`, [tenant]);
   });
@@ -180,7 +191,7 @@ describe('processOutbound (#43)', () => {
     const res = await processOutbound(
       admin,
       redis,
-      jobPara(comprobante, { initiatedByBusiness: true, transaccional: true }) as never,
+      jobPara(comprobante, { initiatedByBusiness: true, transaccional: true }),
     );
     expect(res.providerMessageId).toBeTruthy();
     await admin.query(`UPDATE tenants SET settings = '{}'::jsonb WHERE id = $1`, [tenant]);
@@ -195,6 +206,11 @@ describe('pausa por calidad (#45)', () => {
       connectWhatsAppNumber(c, {
         tenantId: tenant,
         name: 'Con calidad',
+        // `senderId` es obligatorio desde ADR-0014: sin él quedaba una fila con
+        // sender_id NULL, que es la forma VIEJA (Meta directo) y la que el
+        // producto ya no puede crear. La prueba corría sobre una fila que
+        // producción no produce.
+        senderId: 'sender-out-quality',
         phoneNumberId: 'pn-out-quality',
         credentialRef: 'FAKE_WA_KEY',
         webhookSecretRef: 'Y',
@@ -209,13 +225,13 @@ describe('pausa por calidad (#45)', () => {
     );
 
     const iniciado = await nuevoSaliente();
-    const res = await processOutbound(admin, redis, jobPara(iniciado, { initiatedByBusiness: true }) as never);
+    const res = await processOutbound(admin, redis, jobPara(iniciado, { initiatedByBusiness: true }));
     expect(res.failed).toMatch(/pausamos los envíos/);
     const fila = await admin.query('SELECT delivery_status FROM messages WHERE id = $1', [iniciado]);
     expect(fila.rows[0].delivery_status).toBe('failed');
 
     const respuesta = await nuevoSaliente();
-    const ok = await processOutbound(admin, redis, jobPara(respuesta) as never);
+    const ok = await processOutbound(admin, redis, jobPara(respuesta, { initiatedByBusiness: false }));
     expect(ok.providerMessageId).toBeTruthy(); // responder nunca se pausa
   });
 });
@@ -224,7 +240,7 @@ describe('estados del webhook (#43)', () => {
   it('delivered y read con costo quedan en el mensaje; failed trae causa legible', async () => {
     modo = 'ok';
     const messageId = await nuevoSaliente();
-    const enviado = await processOutbound(admin, redis, jobPara(messageId) as never);
+    const enviado = await processOutbound(admin, redis, jobPara(messageId, { initiatedByBusiness: false }));
     const wamid = enviado.providerMessageId!;
 
     const res = await processDeliveryStatuses(admin, {
@@ -242,7 +258,7 @@ describe('estados del webhook (#43)', () => {
 
     // failed con código de Meta → causa en español para la bandeja.
     const fallado = await nuevoSaliente();
-    const conWamid = await processOutbound(admin, redis, jobPara(fallado) as never);
+    const conWamid = await processOutbound(admin, redis, jobPara(fallado, { initiatedByBusiness: false }));
     await processDeliveryStatuses(admin, {
       tenantId: tenant,
       statuses: [

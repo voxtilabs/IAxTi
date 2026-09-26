@@ -1,0 +1,15 @@
+// Solo para `pnpm typecheck` (#507): el mismo proyecto MÁS las pruebas.
+// Aparte del de build porque `build` y `typecheck` comparten tsconfig, y
+// meter las pruebas en el include haría que el build las emita en dist/.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "contract.ts",
+    "domain",
+    "application",
+    "tests"
+  ]
+}

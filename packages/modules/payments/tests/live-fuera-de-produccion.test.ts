@@ -67,6 +67,9 @@ const cobrar = (providerId: string) =>
       tenantId: tenant,
       contactId: contacto,
       providerId,
+      // `actorUserId` es obligatorio (null = lo crea el sistema): faltaba, y
+      // el link quedaba sin quién lo emitió.
+      actorUserId: null,
       amountClp: 15000,
       concept: 'una hora de corte',
     }),

@@ -90,7 +90,10 @@ describe('cobrar de punta a punta con un proveedor', () => {
 
   it('la credencial va por REFERENCIA: en la base está el nombre, no el valor', async () => {
     const p = await withTenant(admin, tenant, (c) => getProviderById(c, tenant, proveedor));
-    expect(p.credentialRef).toBe(CRED);
+    // Que exista se afirma: si no, `p.credentialRef` sobre null revienta con un
+    // TypeError y el fallo diría cualquier cosa menos que el proveedor no está.
+    expect(p, 'el proveedor que acabamos de crear tiene que estar').not.toBeNull();
+    expect(p!.credentialRef).toBe(CRED);
     // Lo que importa: el valor NO está guardado en ninguna parte.
     const fila = await admin.query('SELECT * FROM payment_providers WHERE id = $1', [proveedor]);
     expect(JSON.stringify(fila.rows[0])).not.toContain('llave-de-mentira');
@@ -184,7 +187,6 @@ describe('cobrar de punta a punta con un proveedor', () => {
       admin,
       { moduleId: 'payments', tenantId: tenant, providerId: proveedor, providerKind: 'simulado', pago },
       fetch,
-      {},
     );
     // Idempotente: el proveedor reintenta y no puede duplicar el cobro.
     expect(res.outcome).toBe('already');
@@ -200,7 +202,7 @@ describe('cobrar de punta a punta con un proveedor', () => {
   it('un link pagado no se puede cancelar: es inmutable', async () => {
     const { cancelLink } = await import('@iaxti/module-payments');
     await expect(
-      withTenant(admin, tenant, (c) => cancelLink(c, { tenantId: tenant, linkId })),
+      withTenant(admin, tenant, (c) => cancelLink(c, { tenantId: tenant, linkId, actor: 'test' })),
     ).rejects.toThrow();
   });
 });

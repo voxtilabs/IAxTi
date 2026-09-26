@@ -40,6 +40,17 @@ export interface CreateAppOptions {
   resolveSupportSession?:
     | ((tenantId: string, userId: string) => Promise<{ id: string } | null>)
     | null;
+  /**
+   * Los permisos de un rol CUSTOM (#73); null lo apaga.
+   *
+   * Faltaba en esta interfaz mientras el guard sí lo aceptaba, así que una
+   * prueba que lo inyectaba se quedaba igual con el de la base — que tiene
+   * cache de 60 s. Un test que cambia un permiso y lo comprueba al tiro
+   * pasaba o fallaba según qué lectura hubiera calentado la cache antes.
+   */
+  resolveCustomPermissions?:
+    | ((tenantId: string, roleName: string) => Promise<string[] | null>)
+    | null;
   /** El acceso por PLAN (issue 209); null lo apaga en tests sin base. */
   resolveAccesoModulo?:
     | ((tenantId: string, moduleId: string) => Promise<'completo' | 'solo_lectura'>)
@@ -141,7 +152,12 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       resolveRole,
       resolvePlatformAdmin,
       resolveApiKey: resolveApiKeyOpt,
-      resolveCustomPermissions: pool ? dbCustomPermissionsResolver(pool) : null,
+      resolveCustomPermissions:
+        options.resolveCustomPermissions !== undefined
+          ? options.resolveCustomPermissions
+          : pool
+            ? dbCustomPermissionsResolver(pool)
+            : null,
       // Modo soporte (issue 219): lectura del tenant SOLO con sesión viva.
       resolveSupportSession:
         options.resolveSupportSession !== undefined

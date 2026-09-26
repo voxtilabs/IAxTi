@@ -35,6 +35,9 @@ beforeAll(async () => {
     connectWhatsAppNumber(c, {
       tenantId: tenant,
       name: 'Calidad',
+      // `senderId` es obligatorio desde ADR-0014: sin él la fila quedaba con
+      // sender_id NULL, la forma vieja que el producto ya no puede crear.
+      senderId: 'sender-quality-test',
       phoneNumberId: 'pn-quality-1',
       credentialRef: 'X',
       webhookSecretRef: 'Y',
