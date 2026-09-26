@@ -314,3 +314,10 @@ body { background: var(--canvas); font-size: 15px; }
   .pulso-chart-ring { width: 128px; height: 128px; }
   .pulso-chart-ring strong { font-size: 24px; }
 }
+
+/* El gráfico de series lo dibuja recharts (#525); el color y el tamaño salen de
+   acá y no del componente. Pulso son tokens: ningún componente sabe en qué modo
+   está, y los 11 px de los ejes ya eran los de `.pulso-chart-scale`. */
+.pulso-chart .recharts-cartesian-axis-tick text { fill: var(--text-muted); font-size: 11px; }
+.pulso-chart .recharts-cartesian-grid line { stroke: var(--border); }
+.pulso-chart .recharts-reference-line line { stroke: var(--text-muted); }

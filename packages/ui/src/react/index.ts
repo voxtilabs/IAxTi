@@ -98,5 +98,9 @@ export { Message, MessageContent } from './ui/message';
 export { Loader } from './ui/loader';
 
 export { MarcaJelly } from './marca-jelly';
-export { GraficoSeries, GraficoCierre } from './grafico-series';
+// GraficoSeries NO sale por acá a propósito (#525): arrastra recharts, que son
+// ~150 kB, y el barril lo mete en la primera carga de TODAS las pantallas. Se
+// pide por `@iaxti/ui/react/grafico` y se carga diferido donde se usa.
+// `GraficoCierre` sí: son dos círculos y un strokeDasharray, sin librería.
+export { GraficoCierre } from './grafico-cierre';
 export type { SerieGrafico } from './grafico-series';
