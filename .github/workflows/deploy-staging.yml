@@ -32,7 +32,18 @@ on:
 # `pg_advisory_lock` se libera solo cuando muere la conexión del runner.
 concurrency:
   group: deploy-staging
-  cancel-in-progress: true
+  # NO se cancela el que va (#598). `cancel-in-progress: true` es correcto para
+  # CI —no tiene sentido seguir compilando un commit que ya quedó viejo— y es
+  # EQUIVOCADO para un despliegue: un deploy no se puede abortar a medias.
+  #
+  # Pasó el 26/09. Dos merges seguidos encolaron dos deploys del mismo commit; el
+  # segundo canceló al primero justo después de `compose.deploy`, así que Dokploy
+  # quedó a mitad de recrear el stack: Traefik vivo con su certificado y ningún
+  # backend detrás. Los tres hostnames de staging devolviendo 404 y 503.
+  #
+  # En cola, el segundo espera y vuelve a desplegar el mismo commit — que es
+  # idempotente, porque la imagen se fija por SHA. Tarda más y no rompe nada.
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -101,7 +112,35 @@ jobs:
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
           auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
 
-          compose_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}")
+          # Si Dokploy no contesta, decirlo ASÍ y no con `curl: (22)` (#598).
+          #
+          # El 26/09 el deploy murió acá con «curl: (22) The requested URL
+          # returned error: 502» y nada más. Ese 22 es el código de salida de
+          # curl, no una explicación: quien lo lee no sabe si se cayó Dokploy, si
+          # cambió la URL o si Cloudflare Access rechazó las credenciales. Y el
+          # trabajo de #571 no ayudó, porque solo cubría la ESPERA — esta llamada
+          # es antes.
+          if ! compose_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" 2>&1); then
+            codigo=$(curl -sS -o /dev/null -w '%{http_code}' "${auth[@]}" \
+              "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" 2>/dev/null || echo '000')
+            echo "No se pudo hablar con Dokploy (HTTP ${codigo})."
+            case "$codigo" in
+              502|503|504)
+                echo "Su API está caída o reiniciando. El stack que ya corre NO se toca:"
+                echo "esto falla antes de tocar nada, así que staging sigue como estaba."
+                echo "Hay que revivir Dokploy en el VPS; lo primero a mirar es el disco."
+                ;;
+              401|403)
+                echo "Dokploy responde pero rechaza las credenciales: revisa DOKPLOY_API_KEY"
+                echo "y las dos de Cloudflare Access."
+                ;;
+              000)
+                echo "Ni siquiera hubo respuesta: DNS, red o la URL cambió."
+                ;;
+              *) echo "Respondió algo inesperado. El cuerpo no se imprime: puede traer entorno." ;;
+            esac
+            exit 1
+          fi
           env_actual=$(printf '%s\n' "$compose_actual" | jq -r '.env')
           env_nuevo=$(printf '%s\n' "$env_actual" | sed "s|^IMAGE=.*|IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}|")
           # GLM (ADR-0025): la llave viaja como secreto de GitHub y el deploy
