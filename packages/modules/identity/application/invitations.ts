@@ -71,9 +71,26 @@ export async function acceptInvitation(
     throw new Error('Esa invitación venció (duran 7 días). Pide que te inviten de nuevo.');
   }
 
+  /**
+   * El rol de la invitación: base O PROPIO del negocio (#556).
+   *
+   * Buscaba solo entre los base (`tenant_id IS NULL AND base`). Desde que se
+   * puede invitar a un rol propio (#532) eso dejaba la invitación MUERTA: se
+   * creaba con su correo y su enlace, la persona entraba, hacía clic, y acá
+   * fallaba con «Rol desconocido». Peor: la fila se quedaba sin aceptar, así que
+   * tampoco se podía volver a invitar a esa dirección hasta que venciera.
+   *
+   * Se resuelve como lo hace `assignRole`: el rol del negocio o un base que no
+   * sea SUPERADMIN. Ese es el mismo conjunto que se puede asignar, y una
+   * invitación no es más que una asignación diferida.
+   */
   const role = await client.query(
-    'SELECT id FROM roles WHERE name = $1 AND tenant_id IS NULL AND base',
-    [inv.role_name],
+    `SELECT id FROM roles
+      WHERE name = $2
+        AND (tenant_id = $1 OR (tenant_id IS NULL AND base AND name <> 'SUPERADMIN'))
+      ORDER BY base DESC
+      LIMIT 1`,
+    [inv.tenant_id, inv.role_name],
   );
   if (role.rowCount === 0) throw new Error(`Rol desconocido en la invitación: ${inv.role_name}`);
 

@@ -26,12 +26,13 @@ import {
   listAgents,
   listExecutions,
   motivoDelProveedor,
+  PROVIDERS,
   providerAvailable,
   resolverObjetivo,
   runAgentTask,
   updateAgent,
 } from '@iaxti/module-agents';
-import { getTenantSettings } from '@iaxti/module-organizations';
+import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
 import { catalogoDeMetricas, metricaEnRango } from '@iaxti/module-analytics';
 import { enteroDeEntorno } from '@iaxti/core';
 import { z } from 'zod';
@@ -52,7 +53,7 @@ import {
 import { ConflictException } from '@nestjs/common';
 import type { AgentInput, Provider } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
-import { Cuerpo, textoRequerido } from './validar';
+import { Cuerpo, textoRequerido, validar } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -119,10 +120,98 @@ const DescripcionDelNegocio = z.object({
   vertical: z.string().optional(),
 });
 
+/**
+ * Los ajustes de IA del negocio (#536).
+ *
+ * Solo DOS cosas, y las dos son promesas que el producto ya hacía:
+ *
+ * - `soloProveedor`: el resguardo de ADR-0025 §7. Un cliente que exige por
+ *   escrito un único proveedor de IA —una pyme con contrato de datos, o que
+ *   simplemente no quiere que la conversación con sus clientes pase por cierto
+ *   proveedor— no tenía forma de conseguirlo: `iaSettings` lo LEÍA y ninguna
+ *   ruta lo escribía, así que solo se podía aplicar con un UPDATE a mano en
+ *   producción. Y el ADR declaraba el problema resuelto, o sea que nadie iba a
+ *   revisarlo: quien recibiera ese pedido iba a buscar la pantalla y no la iba a
+ *   encontrar.
+ * - `redactPII`: si los datos personales se tapan antes de mandar trazas al
+ *   observador de IA (SPEC §13).
+ *
+ * Lo que NO se expone, a propósito: el modelo por tarea (`tasks`) y el modelo
+ * económico. Son perillas de quien conoce los modelos, y ADR-0025 puso al
+ * Agente General como la vía de configuración justamente para no llenar la
+ * interfaz de perillas que un dueño de pyme no puede evaluar. Se siguen
+ * respetando si están escritas; lo que no hay es pantalla para ponerlas.
+ */
+const AjustesDeIa = z.object({
+  soloProveedor: z
+    .enum(PROVIDERS, { error: `El proveedor es uno de: ${PROVIDERS.join(', ')}.` })
+    .nullable(),
+  redactPII: z.boolean({ error: 'Dinos si tapamos los datos personales, sí o no.' }).optional(),
+});
+
 @ApiTags('agents')
 @Controller('agents')
 @RequireModule('agents')
 export class AgentsController {
+  @Get('ajustes')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'Los ajustes de IA del negocio: proveedor único y datos personales' })
+  async ajustesDeIa(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    const settings = await withTenant(pool(), actor.tenantId, (c) =>
+      getTenantSettings(c, actor.tenantId),
+    );
+    const ia = iaSettings(settings);
+    return {
+      soloProveedor: ia.soloProveedor,
+      redactPII: ia.redactPII,
+      // Cuáles tienen llave EN ESTE ambiente: elegir uno sin llave deja al
+      // asistente sin contestar, y la pantalla tiene que poder decirlo antes.
+      disponibles: PROVIDERS.filter((p) => providerAvailable(p)),
+    };
+  }
+
+  @Put('ajustes')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'Guarda el proveedor único y el trato de datos personales' })
+  async guardarAjustesDeIa(@Req() request: WithUser, @Body() body: unknown) {
+    const actor = actorOf(request);
+    // `validar` suelto: el pipe de `@Cuerpo` convierte el cuerpo ausente en `{}`
+    // y acá esa diferencia ES el 400.
+    const ajustes = validar(AjustesDeIa, body);
+    // Sin llave no se guarda. Elegir un proveedor que este ambiente no tiene
+    // deja al asistente sin contestar a cada mensaje, y el negocio no tiene
+    // forma de saber por qué: mismo criterio que al subir un PDF sin el
+    // proveedor multimodal (#522) — avisar ANTES, no después.
+    if (ajustes.soloProveedor && !providerAvailable(ajustes.soloProveedor)) {
+      const hay = PROVIDERS.filter((p) => providerAvailable(p));
+      throw new BadRequestException({
+        code: 'PROVIDER_UNAVAILABLE',
+        message:
+          `En este ambiente no hay llave para ${ajustes.soloProveedor}, así que tu asistente ` +
+          'dejaría de contestar. ' +
+          (hay.length ? `Con llave hoy: ${hay.join(', ')}.` : 'Hoy no hay ninguno configurado.'),
+        details: [{ field: 'soloProveedor' }],
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      // Se mezcla DENTRO de `ia`: `updateTenantSettings` hace `settings ||
+      // patch`, que es merge de primer nivel, así que escribir `{ ia: {...} }`
+      // pisaría `tasks` y `economico` — las dos perillas que esta pantalla no
+      // muestra y que un negocio puede tener puestas.
+      const actuales = (await getTenantSettings(c, actor.tenantId)) as {
+        ia?: Record<string, unknown>;
+      };
+      const ia = { ...(actuales.ia ?? {}) };
+      if (ajustes.soloProveedor === null) delete ia.soloProveedor;
+      else ia.soloProveedor = ajustes.soloProveedor;
+      if (ajustes.redactPII !== undefined) ia.redactPII = ajustes.redactPII;
+      await updateTenantSettings(c, actor.tenantId, { ia });
+      const guardado = iaSettings({ ia });
+      return { soloProveedor: guardado.soloProveedor, redactPII: guardado.redactPII };
+    });
+  }
+
   @Get()
   @RequirePermission('agents.use')
   @ApiOperation({ summary: 'Asistentes del negocio' })

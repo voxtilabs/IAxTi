@@ -124,17 +124,17 @@ function escritas(): Set<string> {
 
 /** Lo que se lee y no se escribe, con su motivo. Vacío es el objetivo. */
 const SIN_ESCRITOR: Record<string, string> = {
+  // `ia` salió de esta lista en #536: `PUT /agents/ajustes` escribe
+  // `soloProveedor` y `redactPII`. Las otras dos claves de `ia` —`tasks` y
+  // `economico`— siguen sin pantalla A PROPÓSITO: son perillas de quien conoce
+  // los modelos, y ADR-0025 puso al Agente General como vía de configuración
+  // justamente para no llenar la interfaz de cosas que un dueño de pyme no
+  // puede evaluar. Se respetan si están escritas; lo que no hay es pantalla.
   billing:
     'Dentro vive `iaAmpliacionClp`, la ampliación de cuota de IA contratada: la línea de ' +
     'factura «Ampliación de asistencias de IA» está lista en pricing.ts y la clave no se ' +
     'puede escribir, así que nunca aparece en ninguna factura (#536). Va desde SuperAdmin, ' +
     'no desde el negocio: es un cargo contratado.',
-  ia:
-    'El resguardo de ADR-0025 §7: el negocio que exige por escrito UN solo proveedor de IA, y ' +
-    'el modo económico. Se lee en `iaSettings` y ninguna ruta lo escribe, así que hoy solo se ' +
-    'puede aplicar con un UPDATE a mano en producción (#536). Y el ADR declara el problema ' +
-    'resuelto, o sea que nadie va a ir a revisarlo: quien reciba ese pedido va a buscar la ' +
-    'pantalla y no la va a encontrar.',
 };
 
 describe('los ajustes del tenant tienen quien los escriba (#535)', () => {

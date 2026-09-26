@@ -6,6 +6,7 @@ import { ModoAutonomo } from '../../../components/modo-autonomo';
 import { Evaluaciones } from '../../../components/evaluaciones';
 import { LogroDelObjetivo } from '../../../components/logro-del-objetivo';
 import { Configurador } from '../../../components/configurador';
+import { AjustesDeIa } from '../../../components/ajustes-de-ia';
 import { internalApiUrl, publicConfig } from '../../../lib/config';
 import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
@@ -17,6 +18,10 @@ export default async function PaginaConsumoIA() {
   return (
     <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
       <ConsumoIA />
+      {/* El proveedor único va arriba del configurador (#536): decide DÓNDE
+          corre todo lo demás, así que elegirlo después de armar el asistente
+          sería armarlo dos veces. */}
+      <AjustesDeIa />
       <Configurador />
       <Asistente />
       <ModoAutonomo />
