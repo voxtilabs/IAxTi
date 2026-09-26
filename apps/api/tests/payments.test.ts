@@ -176,3 +176,96 @@ describe('/v1/payments (#60)', () => {
     ).toBe(404);
   });
 });
+
+describe('el tope de monto se puede configurar de verdad (#535)', () => {
+  /**
+   * `settings.pagos.maxLinkClpUser` se LEÍA desde el primer día y ninguna ruta
+   * lo escribía: la única escritura del repo era el `UPDATE` crudo del
+   * `beforeAll` de este mismo archivo. Por eso el test pasaba y el producto no.
+   *
+   * Así que el tope quedaba en null siempre, la guarda del módulo nunca
+   * disparaba, y cualquier vendedor con rol USER podía emitir un link por el
+   * monto que quisiera y mandarlo al chat del cliente en el mismo click —
+   * mientras la matriz §23 y la pantalla de roles le prometían al dueño que
+   * «hasta tope» lo protege.
+   *
+   * Estas pruebas escriben por la RUTA. Es la diferencia que importa.
+   */
+  it('el dueño lo escribe por la ruta y el vendedor queda topado', async () => {
+    const guardado = await pedir(duena, '/payments/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ maxLinkClpUser: 50_000 }),
+    });
+    expect(guardado.status).toBe(200);
+    expect((await guardado.json()).maxLinkClpUser).toBe(50_000);
+
+    // Y se lee de vuelta: sin el GET, la pantalla no puede mostrar lo guardado.
+    const leido = await (await pedir(duena, '/payments/ajustes')).json();
+    expect(leido.maxLinkClpUser).toBe(50_000);
+
+    const pasado = await pedir(vendedor, '/payments/links', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: conversacion, amountClp: 80_000, concept: 'Pasado del tope' }),
+    });
+    expect(pasado.status).toBe(400);
+    expect(JSON.stringify(await pasado.json())).toContain('supera tu tope');
+  });
+
+  it('el tope no pisa las otras claves de pagos', async () => {
+    // `updateTenantSettings` hace `settings || patch`, que es merge de PRIMER
+    // nivel: escribir `{ pagos: { maxLinkClpUser } }` a secas se llevaría
+    // `paidStageName` y cualquier otra clave de pagos (#536).
+    await admin.query(
+      `UPDATE tenants SET settings = jsonb_set(settings, '{pagos,paidStageName}', '"Pagado"') WHERE id = $1`,
+      [tenant],
+    );
+    await pedir(duena, '/payments/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ maxLinkClpUser: 30_000 }),
+    });
+    const fila = await admin.query('SELECT settings FROM tenants WHERE id = $1', [tenant]);
+    const pagos = (fila.rows[0].settings as { pagos: Record<string, unknown> }).pagos;
+    expect(pagos.paidStageName, 'se llevó la otra clave de pagos').toBe('Pagado');
+    expect(pagos.maxLinkClpUser).toBe(30_000);
+  });
+
+  it('null lo saca, y entonces el vendedor vuelve a cobrar sin tope', async () => {
+    // Quitar el tope tiene que ser posible: un negocio que lo puso por un mes
+    // de promoción no puede quedar atado a él.
+    const quitado = await pedir(duena, '/payments/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ maxLinkClpUser: null }),
+    });
+    expect(quitado.status).toBe(200);
+    expect((await quitado.json()).maxLinkClpUser).toBeNull();
+
+    const grande = await pedir(vendedor, '/payments/links', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: conversacion, amountClp: 900_000, concept: 'Sin tope' }),
+    });
+    // Puede fallar por no haber proveedor configurado, pero NO por el tope.
+    expect(JSON.stringify(await grande.json())).not.toContain('supera tu tope');
+  });
+
+  it('un tope de cero o negativo se rechaza con el mensaje del producto', async () => {
+    // Un tope de 0 dejaría al vendedor sin poder cobrar nada y se vería como
+    // «no tiene tope» en la pantalla: los dos son cero.
+    for (const valor of [0, -5000]) {
+      const r = await pedir(duena, '/payments/ajustes', {
+        method: 'PUT',
+        body: JSON.stringify({ maxLinkClpUser: valor }),
+      });
+      expect(r.status, `${valor} debería rechazarse`).toBe(400);
+      expect((await r.json()).message).toContain('mayor que cero');
+    }
+  });
+
+  it('el vendedor no puede cambiarse su propio tope', async () => {
+    // Es lo mínimo: un tope que el topado puede subir no es un tope.
+    const r = await pedir(vendedor, '/payments/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ maxLinkClpUser: 999_999 }),
+    });
+    expect(r.status).toBe(403);
+  });
+});

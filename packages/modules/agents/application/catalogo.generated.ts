@@ -3453,6 +3453,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "PaymentsController_ajustes": {
+    "metodo": "GET",
+    "ruta": "/v1/payments/ajustes",
+    "resumen": "El tope de monto para quien cobra con límite",
+    "permiso": "tenant.settings",
+    "modulo": "payments",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "PaymentsController_cancel": {
     "metodo": "POST",
     "ruta": "/v1/payments/links/{id}/cancel",
@@ -3503,6 +3516,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "number"
         }
       },
+      "additionalProperties": false
+    }
+  },
+  "PaymentsController_guardarAjustes": {
+    "metodo": "PUT",
+    "ruta": "/v1/payments/ajustes",
+    "resumen": "Guarda el tope de monto para quien cobra con límite",
+    "permiso": "tenant.settings",
+    "modulo": "payments",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     }
   },
