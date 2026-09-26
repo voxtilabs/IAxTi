@@ -10,10 +10,11 @@ export default function LoginPage() {
       marcaSvg={MARCA_LOCKUP_SVG}
       titulo="Panel de IAxTi"
       subtitulo="Solo para quien opera la plataforma."
-      // Sin Google acá: GoTrue fuerza el redirect al site_url (#113) y el
-      // operador terminaría en la app de clientes. El código del correo
-      // entra igual y no depende de ningún redirect.
-      conGoogle={false}
+      // Los redirects de GoTrue NO llegan a este dominio: fuerza `redirect_to`
+      // al site_url aunque la URL esté en la allowlist (#113). Así que acá no
+      // se ofrece Google ni se dice "abre el enlace" — las dos cosas dejarían
+      // al operador en la app de clientes. Se entra con el código.
+      recibeLosRedirects={false}
     />
   );
 }
