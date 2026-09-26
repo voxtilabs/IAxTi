@@ -28,7 +28,7 @@ export type {
   SendMessageInput,
   OutboundPolicy,
 } from './application/conversations';
-export { listInbox, getConversationDetail } from './application/inbox';
+export { listInbox, getConversationDetail, huboAlgunaConversacion } from './application/inbox';
 export { autoAssignNew } from './application/assignment';
 export {
   createQuickReply,

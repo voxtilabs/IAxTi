@@ -119,6 +119,8 @@ export type {
   PasoDelAgente,
   PropuestaDelAgente,
   DepsDelAgenteGeneral,
+  DiagnosticoDelNegocio,
+  LoQueFalta,
 } from './application/agente-general';
 
 // El catálogo de herramientas del Agente General (#492, ADR-0025). La

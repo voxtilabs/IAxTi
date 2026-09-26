@@ -6,6 +6,7 @@ import { listChannelAccounts } from '@iaxti/module-channels';
 import { listSources } from '@iaxti/module-knowledge';
 import { listarEquipo, listarInvitaciones } from '@iaxti/module-identity';
 import { listPipelines } from '@iaxti/module-crm';
+import { huboAlgunaConversacion } from '@iaxti/module-conversations';
 import type { PoolClient } from 'pg';
 import { RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
@@ -80,6 +81,25 @@ function verificadores(client: PoolClient, tenantId: string): Partial<Record<str
             return {
               hecho: fuentes.length > 0,
               detalle: fuentes.length ? `${fuentes.length} fuente${fuentes.length > 1 ? 's' : ''}` : 'sin catálogo',
+            };
+          },
+        }
+      : {}),
+    ...(si('conversations')
+      ? {
+          // El paso obligatorio que NO tenía verificador (#495): salía
+          // siempre del historial de la columna, que no retrocede. O sea que
+          // el producto podía mostrar ese check en verde sobre un negocio
+          // que jamás recibió un mensaje, y jamás podía aparecer como
+          // desfase. Lo encontró el mapeo del propio código.
+          first_message: async () => {
+            const { conversaciones, ultimoMensajeEl } = await huboAlgunaConversacion(client, tenantId);
+            return {
+              hecho: conversaciones > 0,
+              detalle: conversaciones
+                ? `${conversaciones} conversación${conversaciones > 1 ? 'es' : ''}` +
+                  (ultimoMensajeEl ? `, la última el ${ultimoMensajeEl.toISOString().slice(0, 10)}` : '')
+                : 'todavía no llega ningún mensaje',
             };
           },
         }

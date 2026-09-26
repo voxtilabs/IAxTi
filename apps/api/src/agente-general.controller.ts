@@ -14,6 +14,8 @@ import { enteroDeEntorno } from '@iaxti/core';
 import {
   CuotaDeIaAgotada,
   aplicarPropuesta,
+  type DiagnosticoDelNegocio,
+  type LoQueFalta,
   conversarConElAgenteGeneral,
   modeloDelAgenteGeneral,
   motivoDelProveedor,
@@ -21,6 +23,16 @@ import {
   type Provider,
 } from '@iaxti/module-agents';
 import { agenteGeneralApagado } from '@iaxti/module-platform';
+import { onboardingStatus, type Verificador } from '@iaxti/module-organizations';
+import { listChannelAccounts } from '@iaxti/module-channels';
+import { listSources } from '@iaxti/module-knowledge';
+import { listarEquipo, listarInvitaciones } from '@iaxti/module-identity';
+import { listPipelines } from '@iaxti/module-crm';
+import { huboAlgunaConversacion } from '@iaxti/module-conversations';
+import { listarDisponibilidad } from '@iaxti/module-calendar';
+import { listTemplates, puedeEnviarse } from '@iaxti/module-whatsapp';
+import { listRules, ruleModuleGaps } from '@iaxti/module-automations';
+import { getQuota } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { permisosDelActor } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
@@ -123,6 +135,208 @@ async function verificarQueEsteEncendido(client: PoolClient, tenantId: string): 
   });
 }
 
+/**
+ * Qué le falta al negocio (#495).
+ *
+ * Vive ACÁ y no en el módulo `agents` por la misma razón que los
+ * verificadores del onboarding: es el único lugar que conoce todos los
+ * contratos. `agents` no puede consultar las tablas de calendar, de channels
+ * ni de whatsapp — y no debería poder.
+ *
+ * Dos fuentes, y la primera ya existía entera: el onboarding, que mira lo
+ * que HAY hoy y no lo que la columna recuerda (#56). La segunda son los
+ * huecos que el onboarding no cubre porque no son pasos de puesta en marcha
+ * sino cosas que se apagan con el tiempo: los horarios, las plantillas, las
+ * reglas, la cuota.
+ *
+ * Cada módulo apagado simplemente no aporta su chequeo. Nada se inventa: si
+ * no se puede mirar, no aparece como pendiente.
+ */
+async function queLeFalta(
+  client: PoolClient,
+  tenantId: string,
+  /** Quién conversa: la disponibilidad es SUYA, no del negocio. */
+  ownerId: string | undefined,
+): Promise<DiagnosticoDelNegocio> {
+  const activo = (id: string) => registry.isActive(id);
+  const falta: LoQueFalta[] = [];
+  const alDia: string[] = [];
+
+  const onboarding = await onboardingStatus(client, tenantId, {
+    activeModules: [...modulosActivos()],
+    verificadores: verificadoresDelOnboarding(client, tenantId),
+  });
+  for (const paso of onboarding.pasos) {
+    if (paso.bloqueado) continue;
+    if (paso.hecho) {
+      alDia.push(paso.detalle ? `${paso.titulo}: ${paso.detalle}` : paso.titulo);
+      continue;
+    }
+    falta.push({
+      que: paso.titulo,
+      porQue: paso.ayuda,
+      comoSeArregla: null,
+      // Un paso obligatorio de la puesta en marcha bloquea vender; uno
+      // opcional, no. Lo dice el catálogo de pasos, no yo.
+      urgencia: paso.opcional ? 'cuandoPuedas' : 'bloquea',
+    });
+  }
+
+  // Horarios de atención: sin ellos la agenda ofrece lo que quedó por
+  // defecto, y el asistente ofrece esas mismas horas.
+  if (activo('calendar')) {
+    // La disponibilidad es POR PERSONA: se pregunta por quien conversa. Sin
+    // persona identificada —una API key— este chequeo no aplica y se salta,
+    // que es mejor que decirle a una integración que "no tiene horarios".
+    const franjas = ownerId
+      ? await listarDisponibilidad(client, { tenantId, ownerId }).catch(() => [])
+      : null;
+    if (franjas !== null && franjas.length === 0) {
+      falta.push({
+        que: 'No tienes definidos los horarios en que atiendes',
+        porQue: 'La agenda ofrece horas con lo que quedó por defecto, y el asistente ofrece esas mismas.',
+        comoSeArregla: 'agenda.disponibilidad',
+        urgencia: 'importa',
+      });
+    } else if (franjas !== null) {
+      alDia.push(`Horarios de atención: ${franjas.length} franja${franjas.length > 1 ? 's' : ''}`);
+    }
+  }
+
+  // Plantillas aprobadas: sin una, pasadas 24 h no se le puede escribir a
+  // nadie. Es la mitad de para qué sirve el producto.
+  if (activo('whatsapp')) {
+    const plantillas = await listTemplates(client, tenantId, {}).catch(() => []);
+    // `puedeEnviarse` y no `status === 'approved'`: la regla de qué plantilla
+    // se puede mandar ya está escrita en el dominio, y replicarla acá sería
+    // la segunda copia que se queda vieja.
+    const aprobadas = plantillas.filter((p) => puedeEnviarse(p.status));
+    if (aprobadas.length === 0) {
+      falta.push({
+        que: 'No tienes ninguna plantilla de WhatsApp aprobada',
+        porQue:
+          plantillas.length > 0
+            ? 'Tienes plantillas, pero ninguna aprobada por Meta: pasadas 24 h desde el último mensaje del cliente no puedes escribirle.'
+            : 'Pasadas 24 h desde el último mensaje del cliente, una plantilla aprobada es lo único que WhatsApp deja salir.',
+        comoSeArregla: plantillas.length > 0 ? 'plantillas.revision' : 'plantillas.create',
+        urgencia: 'importa',
+      });
+    } else {
+      alDia.push(`Plantillas aprobadas: ${aprobadas.length}`);
+    }
+  }
+
+  // Reglas activas: el seguimiento que hoy no se hace.
+  if (activo('automations')) {
+    const reglas = await listRules(client, tenantId).catch(() => []);
+    const activas = reglas.filter((r) => r.active);
+    if (activas.length === 0) {
+      // Una regla apagada y una regla que NO SE PUEDE activar son cosas
+      // distintas: decirle "enciéndela" a alguien cuyo módulo está apagado
+      // lo manda a apretar un botón que no va a funcionar. `ruleModuleGaps`
+      // ya sabe cuál es cuál.
+      const trabadas = reglas
+        .map((r) => ({ regla: r, faltan: ruleModuleGaps(r.actions, [...modulosActivos()]) }))
+        .filter((x) => x.faltan.length > 0);
+      const todasTrabadas = reglas.length > 0 && trabadas.length === reglas.length;
+      falta.push({
+        que: todasTrabadas
+          ? 'Tus reglas no pueden trabajar: les falta una parte del producto'
+          : 'No tienes ninguna regla trabajando sola',
+        porQue: todasTrabadas
+          ? `Necesitan ${[...new Set(trabadas.flatMap((t) => t.faltan))].join(', ')}, que no está activo en tu plan.`
+          : reglas.length > 0
+            ? 'Tienes reglas creadas pero apagadas: mira su vista previa y enciéndelas.'
+            : 'Una cotización que se enfría no avisa sola; una regla sí.',
+        comoSeArregla: todasTrabadas ? null : reglas.length > 0 ? 'automations.setActive' : 'automations.seed',
+        urgencia: 'cuandoPuedas',
+      });
+    } else {
+      alDia.push(`Reglas activas: ${activas.length}`);
+    }
+  }
+
+  // La cuota: avisar ANTES de que corte, no después.
+  if (activo('agents')) {
+    const cuota = await getQuota(client, tenantId).catch(() => null);
+    if (cuota?.pct !== null && cuota?.pct !== undefined && cuota.pct >= 80) {
+      falta.push({
+        que: `Vas en el ${cuota.pct} % de tu cuota de IA del mes`,
+        porQue:
+          cuota.exhausted
+            ? 'Ya se agotó: el asistente dejó de responder hasta el próximo ciclo o hasta que subas de plan.'
+            : 'Cuando llegue a 100 %, el asistente deja de responder hasta el próximo ciclo.',
+        comoSeArregla: null,
+        urgencia: cuota.exhausted ? 'bloquea' : 'importa',
+      });
+    }
+  }
+
+  return { falta, alDia, yaNoEstaLoQueFiguraHecho: onboarding.desfase };
+}
+
+/**
+ * Los mismos verificadores que la pantalla de puesta en marcha.
+ *
+ * Repetirlos acá sería tener dos verdades sobre el mismo paso, y la que se
+ * quedaría vieja es siempre la segunda. Están duplicados con
+ * `onboarding.controller.ts` a la espera de que uno de los dos lo ceda: lo
+ * anoto porque es deuda, no diseño.
+ */
+function verificadoresDelOnboarding(
+  client: PoolClient,
+  tenantId: string,
+): Partial<Record<string, Verificador>> {
+  const si = (id: string) => registry.isActive(id);
+  return {
+    ...(si('crm')
+      ? {
+          configured: async () => {
+            const pipelines = await listPipelines(client, tenantId);
+            return { hecho: pipelines.length > 0, detalle: `${pipelines.length} embudos` };
+          },
+        }
+      : {}),
+    ...(si('channels')
+      ? {
+          whatsapp_connected: async () => {
+            const cuentas = await listChannelAccounts(client, tenantId);
+            const activas = cuentas.filter((c) => c.kind === 'whatsapp' && c.state === 'active');
+            return { hecho: activas.length > 0, detalle: `${activas.length} números activos` };
+          },
+        }
+      : {}),
+    ...(si('knowledge')
+      ? {
+          knowledge_added: async () => {
+            const fuentes = await listSources(client, tenantId);
+            return { hecho: fuentes.length > 0, detalle: `${fuentes.length} fuentes` };
+          },
+        }
+      : {}),
+    ...(si('conversations')
+      ? {
+          first_message: async () => {
+            const { conversaciones } = await huboAlgunaConversacion(client, tenantId);
+            return { hecho: conversaciones > 0, detalle: `${conversaciones} conversaciones` };
+          },
+        }
+      : {}),
+    ...(si('identity')
+      ? {
+          team_invited: async () => {
+            const [equipo, invitaciones] = await Promise.all([
+              listarEquipo(client, tenantId),
+              listarInvitaciones(client, tenantId),
+            ]);
+            const otros = Math.max(equipo.length - 1, 0) + invitaciones.length;
+            return { hecho: otros > 0, detalle: `${otros} además de ti` };
+          },
+        }
+      : {}),
+  };
+}
+
 const modulosActivos = () =>
   new Set(
     registry
@@ -187,7 +401,15 @@ export class AgenteGeneralController {
             actorUserId: actor.userId,
             requestId: request.requestId,
           },
-          { modelo, provider, model, llamarApi: llamarLaPropiaApi(request) },
+          {
+            modelo,
+            provider,
+            model,
+            llamarApi: llamarLaPropiaApi(request),
+            // La disponibilidad es de QUIEN atiende, no del negocio: se
+            // pregunta por la persona que está conversando.
+            diagnosticar: () => queLeFalta(c, actor.tenantId, actor.userId),
+          },
         );
       } catch (err) {
         if (err instanceof CuotaDeIaAgotada) {

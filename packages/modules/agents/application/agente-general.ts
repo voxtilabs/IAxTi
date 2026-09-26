@@ -68,6 +68,46 @@ export interface RespuestaDelAgente {
   costUsd: number | null;
 }
 
+/**
+ * Lo que el negocio tiene sin terminar (#495).
+ *
+ * Cada cosa trae POR QUÉ importa y CON QUÉ se arregla, y eso segundo es el
+ * punto: el nombre de una herramienta del catálogo, para que el agente no
+ * solo diagnostique — pueda ofrecer hacerlo ahí mismo. Un diagnóstico que
+ * termina en "anda a Ajustes" no ahorra nada.
+ */
+export interface LoQueFalta {
+  /** En palabras del negocio: «no tienes horarios de atención definidos». */
+  que: string;
+  /** Qué se rompe hoy por eso. Sin esto el modelo inventa la consecuencia. */
+  porQue: string;
+  /** La herramienta que lo resuelve, si existe una. `null` = se hace a mano. */
+  comoSeArregla: string | null;
+  /**
+   * `bloquea` = no se puede vender sin eso; `importa` = duele todos los días;
+   * `cuandoPuedas` = mejora, no urgencia. El orden de la respuesta sale de
+   * acá y no del orden en que se consultó.
+   */
+  urgencia: 'bloquea' | 'importa' | 'cuandoPuedas';
+}
+
+/**
+ * Se llama así y no `Diagnostico` a secas porque `channels` ya exporta un
+ * `Diagnostico` —el de por qué un canal no anda—, y dos tipos con el mismo
+ * nombre en dos contratos es una confusión garantizada en el próximo import.
+ */
+export interface DiagnosticoDelNegocio {
+  falta: LoQueFalta[];
+  /** Lo que sí está, para no repetirlo como pendiente. */
+  alDia: string[];
+  /**
+   * Lo que figura hecho y hoy no lo está (`desfase` del onboarding): el
+   * registro no retrocede por diseño, así que un paso marcado de más se
+   * queda marcado. Es lo que más confunde a un negocio.
+   */
+  yaNoEstaLoQueFiguraHecho: string[];
+}
+
 /** Lo que hace falta de afuera: el modelo y cómo se llama a la propia API. */
 export interface DepsDelAgenteGeneral {
   modelo: ModelPort;
@@ -85,6 +125,15 @@ export interface DepsDelAgenteGeneral {
     query: Record<string, string>;
     cuerpo: Record<string, unknown> | null;
   }) => Promise<{ ok: boolean; estado: number; datos: unknown }>;
+  /**
+   * Qué le falta al negocio (#495).
+   *
+   * Lo arma QUIEN CONOCE TODOS LOS CONTRATOS —la app—, igual que los
+   * verificadores del onboarding: `agents` no puede consultar las tablas de
+   * calendar, channels ni whatsapp, y no debería poder. Sin esto la
+   * herramienta no se ofrece y el agente lo dice en vez de inventar.
+   */
+  diagnosticar?: () => Promise<DiagnosticoDelNegocio>;
 }
 
 /**
@@ -94,6 +143,11 @@ export interface DepsDelAgenteGeneral {
  * versionado afuera, y una versión nueva pasa por la evaluación antes de
  * promoverse. La constante de abajo es el RESPALDO — lo que corre si
  * Langfuse no está configurado, que es el caso en desarrollo.
+ *
+ * OJO al agregar una herramienta: en producción el prompt sale de Langfuse,
+ * así que una línea nueva acá NO llega sola. La herramienta se le ofrece
+ * igual —el modelo la ve en `tools`— pero la instrucción de CUÁNDO usarla
+ * hay que promoverla en la versión de allá.
  */
 export const PROMPT_DEL_AGENTE_GENERAL = 'iaxti/agente-general';
 
@@ -302,11 +356,63 @@ export async function conversarConElAgenteGeneral(
     },
   };
 
+  /**
+   * «¿Qué me falta?» (#495).
+   *
+   * Es la pregunta que un dueño de pyme hace con esas palabras, y todo el
+   * cálculo ya existía —el onboarding mira lo que HAY hoy, no lo que la
+   * columna recuerda—. Lo que faltaba era que el agente lo tuviera a mano y
+   * lo contara en español, con el arreglo ofrecido en la misma frase.
+   */
+  const queFalta: HerramientaExpuesta | null = deps.diagnosticar
+    ? {
+        name: 'que_le_falta_al_negocio',
+        description:
+          'Revisa el estado real del negocio: qué está sin terminar, por qué importa y con qué se ' +
+          'arregla. Úsala cuando pregunten qué les falta, cómo van, o por qué algo no funciona. ' +
+          'Después ofrece hacer lo primero de la lista.',
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
+        ejecutar: async () => {
+          const d = await deps.diagnosticar!();
+          pasos.push({
+            herramienta: 'que_le_falta_al_negocio',
+            modulo: null,
+            metodo: 'GET',
+            ruta: '(varios módulos)',
+            ok: true,
+          });
+          const orden = { bloquea: 0, importa: 1, cuandoPuedas: 2 } as const;
+          return {
+            // Ordenado acá y no en el prompt: el modelo respeta un orden que
+            // ya viene hecho, y discute uno que le piden calcular.
+            falta: [...d.falta]
+              .sort((a, b) => orden[a.urgencia] - orden[b.urgencia])
+              // El arreglo se ofrece SOLO si quien pregunta puede hacerlo.
+              // El diagnóstico lo arma la app mirando los módulos activos, y
+              // eso no es lo mismo que los permisos de esta persona: a una
+              // vendedora se le ofrecería "crea una plantilla" y recibiría un
+              // 403 después de decir que sí. Se le deja el pendiente —tiene
+              // que saberlo— y se le quita el botón.
+              .map((f) => ({
+                ...f,
+                comoSeArregla: f.comoSeArregla && porNombre.has(f.comoSeArregla) ? f.comoSeArregla : null,
+              })),
+            alDia: d.alDia,
+            yaNoEstaLoQueFiguraHecho: d.yaNoEstaLoQueFiguraHecho,
+            nota:
+              d.falta.length === 0
+                ? 'No le falta nada de lo que sabemos mirar: dilo así, sin inventar pendientes.'
+                : 'Cuenta lo primero con sus palabras y ofrece hacerlo con la herramienta de `comoSeArregla`.',
+          };
+        },
+      }
+    : null;
+
   const res = await deps.modelo.generate({
     system: (await getVersionedPrompt(PROMPT_DEL_AGENTE_GENERAL).catch(() => null)) ?? INSTRUCCION,
     prompt: '',
     mensajes: input.turnos,
-    tools: [buscar, preparar],
+    tools: queFalta ? [buscar, preparar, queFalta] : [buscar, preparar],
     // Buscar, a veces mirar de nuevo, preparar, y contestar.
     maxSteps: 6,
     maxOutputTokens: DEFAULT_TASK_OUTPUT_TOKENS.configuracion_conversada,
