@@ -2795,6 +2795,49 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "KnowledgeController_crearDesdePdf": {
+    "metodo": "POST",
+    "ruta": "/v1/knowledge/sources/pdf",
+    "resumen": "Registra e indexa un PDF ya subido",
+    "permiso": "knowledge.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "validUntil": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "KnowledgeController_destinoDelPdf": {
+    "metodo": "POST",
+    "ruta": "/v1/knowledge/sources/pdf/destino",
+    "resumen": "URL prefirmada para subir un PDF del conocimiento",
+    "permiso": "knowledge.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "KnowledgeController_products": {
     "metodo": "GET",
     "ruta": "/v1/knowledge/products",
