@@ -3,13 +3,36 @@
 import { useState } from 'react';
 import { CheckCheck, Clock3, MessageSquare, MessagesSquare, RefreshCw, type LucideIcon } from 'lucide-react';
 import {
-  AvisoResultado, Badge, Button, EncabezadoDePagina, EstadoVacio, GraficoCierre, GraficoSeries,
+  AvisoResultado, Badge, Button, EncabezadoDePagina, EstadoVacio, GraficoCierre,
   Skeleton, Tabs, TabsList, TabsTrigger,
 } from '@iaxti/ui/react';
+import dynamic from 'next/dynamic';
 import { PreguntaALosNumeros } from './pregunta-a-los-numeros';
 import { useReporte } from './use-reporte';
 import { fmtClp } from '../lib/api';
 import { diasDelReporte, fechaReporte } from '../lib/reportes';
+
+/**
+ * El gráfico se carga cuando hace falta, no antes (#525).
+ *
+ * Recharts pesa ~150 kB y esta es la única pantalla que lo usa. Importándolo
+ * derecho, la primera carga de reportes pasaba de 499 a 648 kB — y el motivo por
+ * el que estos gráficos estaban escritos a mano era justamente el peso, así que
+ * pagarlo en silencio habría sido cambiar un problema por otro.
+ *
+ * Diferirlo no cuesta nada aquí: la pantalla ya muestra esqueletos mientras pide
+ * los datos, así que el gráfico nunca es lo primero que se ve. `ssr: false`
+ * porque el trazado necesita medir el ancho del contenedor, que en el servidor
+ * no existe: renderizarlo allá da un gráfico de cero píxeles que después salta.
+ */
+const GraficoSeries = dynamic(
+  () => import('@iaxti/ui/react/grafico').then((m) => m.GraficoSeries),
+  {
+    ssr: false,
+    // Del alto exacto del gráfico, para que la página no dé un salto al llegar.
+    loading: () => <Skeleton className="h-[220px] w-full" />,
+  },
+);
 
 const RANGOS = [7, 30, 90];
 const numero = new Intl.NumberFormat('es-CL');
