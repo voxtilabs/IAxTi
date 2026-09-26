@@ -170,14 +170,34 @@ export type ModelPortFactory = (provider: Provider, model: string) => ModelPort;
 
 /** Transcripción de audio (#48): Gemini multimodal. Inyectable en tests. */
 export interface TranscribePort {
+  /** Quién transcribió de verdad, para que la corrida no mienta el costo. */
+  proveedor: string;
+  modelo: string;
   transcribe(audio: { bytes: Uint8Array; contentType: string }): Promise<string>;
 }
 
-export function aiSdkTranscriber(model = 'gemini-flash-latest'): TranscribePort {
+/**
+ * La transcripción es la ÚNICA tarea que no corre en GLM, y no es una
+ * preferencia: es capacidad (ADR-0025 §7).
+ *
+ * El audio entra como parte de archivo y el catálogo de NVIDIA que sirve GLM
+ * no publica ningún modelo de audio —se revisó el 25-09: cero ASR entre sus
+ * 82 modelos—. Forzarla a GLM haría fallar cada nota de voz recibida.
+ *
+ * Sin llave de Google, esto lanza y `transcribeInboundAudio` devuelve null:
+ * la nota de voz llega igual, sin texto buscable. Es una degradación
+ * aceptada, no una falla — y por eso el proveedor de verdad usado queda
+ * registrado en la corrida, en vez de escribirse a mano.
+ */
+export const PROVEEDOR_DE_TRANSCRIPCION = { provider: 'google' as const, model: 'gemini-flash-latest' };
+
+export function aiSdkTranscriber(model = PROVEEDOR_DE_TRANSCRIPCION.model): TranscribePort {
   return {
+    proveedor: PROVEEDOR_DE_TRANSCRIPCION.provider,
+    modelo: model,
     async transcribe(audio) {
       const res = await generateText({
-        model: languageModel('google', model),
+        model: languageModel(PROVEEDOR_DE_TRANSCRIPCION.provider, model),
         messages: [
           {
             role: 'user',

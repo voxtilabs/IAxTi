@@ -168,7 +168,11 @@ describe('el copiloto (#48)', () => {
       transcribeInboundAudio(
         c,
         { tenantId: tenant, messageId: mensajeAudio, bytes: new Uint8Array(8), contentType: 'audio/ogg' },
-        { transcribe: async () => 'Hola, quiero confirmar la hora de mañana por favor.' },
+        {
+          proveedor: 'google',
+          modelo: 'gemini-flash-latest',
+          transcribe: async () => 'Hola, quiero confirmar la hora de mañana por favor.',
+        },
       ),
     );
     expect(texto).toContain('confirmar la hora');
@@ -183,6 +187,31 @@ describe('el copiloto (#48)', () => {
       [tenant],
     );
     expect(ej.rows[0].n).toBe(1);
+  });
+
+  it('la corrida guarda quién transcribió DE VERDAD', async () => {
+    // Estaba escrito a mano como google/gemini-flash-latest: con el
+    // proveedor por tarea configurable, esa fila podía atribuirle el costo a
+    // un modelo que no corrió — y "costos visibles sin margen escondido" es
+    // una promesa del producto, no un detalle.
+    const otro = await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, direction, type, author_kind)
+       VALUES ($1, $2, 'in', 'audio', 'contact') RETURNING id`,
+      [tenant, conversacion],
+    );
+    await withTenant(admin, tenant, (c) =>
+      transcribeInboundAudio(
+        c,
+        { tenantId: tenant, messageId: otro.rows[0].id, bytes: new Uint8Array(4), contentType: 'audio/ogg' },
+        { proveedor: 'inventado', modelo: 'modelo-x', transcribe: async () => 'algo dijo' },
+      ),
+    );
+    const fila = await admin.query(
+      `SELECT provider, model FROM agent_executions
+        WHERE tenant_id = $1 AND task = 'transcribir' ORDER BY created_at DESC LIMIT 1`,
+      [tenant],
+    );
+    expect(fila.rows[0]).toMatchObject({ provider: 'inventado', model: 'modelo-x' });
   });
 
   it('el conocimiento (#51) entra al contexto de la sugerencia con su cita', async () => {
