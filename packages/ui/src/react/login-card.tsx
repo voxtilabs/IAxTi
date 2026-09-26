@@ -11,7 +11,7 @@ import { useMarcaSvg } from './use-marca-svg';
 const CAMPO =
   'h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink placeholder:text-faint';
 
-function Formulario({ conGoogle: ofreceGoogle }: { conGoogle: boolean }) {
+function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
   const { supabase } = useSession();
   const [email, setEmail] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -56,9 +56,18 @@ function Formulario({ conGoogle: ofreceGoogle }: { conGoogle: boolean }) {
   if (estado === 'enviado' || estado === 'codigo-malo') {
     return (
       <form onSubmit={entrarConCodigo} className="flex flex-col gap-4">
+        {/* La instrucción cambia según el dominio (#113).
+
+            Donde el enlace del correo SÍ aterriza —la app de clientes, que
+            vive en el site_url— se ofrecen los dos caminos. Donde NO, decirle
+            "abre el enlace" es mandarlo a la aplicación equivocada y dejarlo
+            preguntándose por qué ve una bandeja de conversaciones en vez del
+            panel. El código entra igual y no pisa ningún redirect. */}
         <p className="rounded-campo border border-action-soft-br bg-action-soft px-5 py-4 text-sm text-action-text">
-          <span className="font-medium">Revisa tu correo ({email}).</span> Abre el enlace desde
-          este mismo dispositivo, o escribe aquí el código de 6 dígitos si viene en el correo.
+          <span className="font-medium">Revisa tu correo ({email}).</span>{' '}
+          {recibeLosRedirects
+            ? 'Abre el enlace desde este mismo dispositivo, o escribe aquí el código de 6 dígitos si viene en el correo.'
+            : 'Escribe aquí el código de 6 dígitos del correo. Acá se entra con el código, no con el enlace.'}
         </p>
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           Código
@@ -130,7 +139,7 @@ function Formulario({ conGoogle: ofreceGoogle }: { conGoogle: boolean }) {
       >
         Enviarme el acceso
       </button>
-      {ofreceGoogle && (
+      {recibeLosRedirects && (
         <button
           type="button"
           onClick={() => void conGoogle()}
@@ -149,25 +158,36 @@ export interface LoginCardProps {
   titulo?: string;
   subtitulo?: string;
   /**
-   * Si se ofrece "Entrar con Google". Por defecto sí, que es lo correcto en
-   * la app de clientes: vive en el `site_url`, así que el redirect vuelve a
-   * donde tiene que volver.
+   * ¿Los redirects de autenticación aterrizan en ESTE dominio? (#113)
    *
-   * En el panel de plataforma va APAGADO. GoTrue fuerza `redirect_to` al
-   * `site_url` aunque la URL pedida esté en la allowlist (#113), así que el
-   * operador que entra por Google desde admin aterriza en la app de
-   * CLIENTES. El código de 6 dígitos no pisa ese camino y funciona igual.
+   * Es una sola pregunta porque las dos consecuencias tienen la misma causa:
+   * GoTrue fuerza `redirect_to` al `site_url` aunque la URL pedida esté en la
+   * allowlist. Donde eso no aplica —la app de clientes, que vive en el
+   * site_url— todo funciona. En el panel de plataforma, no:
    *
-   * Es una decisión bajo incertidumbre, dicha con todas sus letras: el
-   * comportamiento está reportado para el enlace mágico y no lo pude
-   * comprobar para OAuth con staging caído. Ofrecer un botón que quizás deja
-   * a alguien en la app equivocada es peor que no ofrecerlo, sobre todo
-   * cuando hay otro camino que sí sabemos que funciona.
+   * - "Entrar con Google" dejaría al operador en la app de CLIENTES.
+   * - Decirle "abre el enlace del correo" lo manda al mismo lugar, y se queda
+   *   preguntándose por qué ve una bandeja en vez del panel.
+   *
+   * Con `false` desaparece el botón de Google y la instrucción dice lo único
+   * que sí funciona: el código de 6 dígitos, que no pisa ningún redirect.
+   *
+   * Sobre Google en particular, la incertidumbre dicha con todas sus letras:
+   * el comportamiento está reportado para el enlace mágico y no lo pude
+   * comprobar para OAuth. Ofrecer un botón que quizás deja a alguien en la
+   * app equivocada es peor que no ofrecerlo cuando hay otro camino que sí
+   * sabemos que funciona.
    */
-  conGoogle?: boolean;
+  recibeLosRedirects?: boolean;
 }
 
-export function LoginCard({ config, marcaSvg, titulo, subtitulo, conGoogle = true }: LoginCardProps) {
+export function LoginCard({
+  config,
+  marcaSvg,
+  titulo,
+  subtitulo,
+  recibeLosRedirects = true,
+}: LoginCardProps) {
   const marcaCabecera = useMarcaSvg(marcaSvg);
   const marcaPie = useMarcaSvg(MARCA_LOCKUP_SVG);
   return (
@@ -200,7 +220,7 @@ export function LoginCard({ config, marcaSvg, titulo, subtitulo, conGoogle = tru
                 <p className="mt-3 text-sm text-body">
                   {subtitulo ?? 'Sin contraseña: te mandamos el acceso a tu correo.'}
                 </p>
-                <Formulario conGoogle={conGoogle} />
+                <Formulario recibeLosRedirects={recibeLosRedirects} />
               </div>
               <p className="pulso-access-note">Tu equipo. Tu contexto. Tu forma de atender.</p>
             </section>
