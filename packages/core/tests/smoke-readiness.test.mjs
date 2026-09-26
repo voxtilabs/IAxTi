@@ -136,11 +136,22 @@ describe('el smoke verifica QUÉ build quedó vivo (#565)', () => {
     expect(result.stdout).toContain('está corriendo otra imagen');
   });
 
-  it('un /health que no informa el SHA avisa pero no rompe el despliegue', () => {
-    // Es el caso de un servicio todavía sin la versión, o de una imagen vieja
-    // desplegada a mano: no se puede verificar, y decirlo es mejor que fallar.
-    const result = run('recover', { SHA });
+  it('sin SHA en el entorno no se verifica nada y no se inventa un rojo', () => {
+    // Este mismo paso se ejecuta de verdad en esta prueba, y ahí no hay commit
+    // desplegado: comparar contra la nada y fallar sería un rojo sin significado.
+    const result = run('recover');
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('no informa el SHA');
+    expect(result.stdout).toContain('Sin SHA en el entorno');
+  });
+
+  it('un /health que no informa el SHA FALLA: es una imagen vieja (#573)', () => {
+    // Era un aviso, y el aviso se dio justo en el caso que más importa: el
+    // despliegue de 34ce61e dijo «done» y staging siguió sirviendo una imagen
+    // anterior a #566 — la que no informa el SHA. Una comprobación de imagen
+    // vieja que se calla cuando la imagen es vieja no comprueba nada.
+    const result = run('recover', { SHA });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('imagen anterior');
+    expect(result.stdout).toContain('#573');
   });
 });

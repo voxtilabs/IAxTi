@@ -220,9 +220,25 @@ jobs:
           # falló, si el contenedor viejo nunca murió— y hasta ahora eso no se
           # veía: el smoke pasaba porque la app de antes contesta igual de bien.
           # `/health` trae el SHA desde el tag de IAXTI_IMAGE.
+          # Sin SHA no hay nada contra qué comparar: este mismo paso se ejecuta
+          # de verdad en una prueba, y ahí no hay commit desplegado. Comparar
+          # contra la nada y fallar sería un rojo que no significa nada.
           vivo=$(curl -sS -m 15 "${BASE}/health" | jq -r '.sha // empty')
-          if [ -z "$vivo" ]; then
-            echo "::warning::/health no informa el SHA: no se puede verificar qué build quedó vivo (#565)."
+          if [ -z "${SHA:-}" ]; then
+            echo "Sin SHA en el entorno: no se verifica qué build quedó vivo."
+          elif [ -z "$vivo" ]; then
+            # Esto era un aviso y ahora FALLA (#573), porque el aviso se dio
+            # justo en el caso que más importa: el despliegue de 34ce61e dijo
+            # «done» y staging siguió sirviendo una imagen anterior a #566, que
+            # es la que no informa el SHA. Una comprobación de imagen vieja que
+            # se calla cuando la imagen es vieja no comprueba nada.
+            #
+            # Y el smoke no lo puede notar de otra forma: la imagen vieja
+            # contesta /health y /ready en 200 perfectamente.
+            echo "/health no informa el SHA, así que está corriendo una imagen anterior a #566."
+            echo "El deploy dijo que salió bien. Eso es lo que describe #573: revisa qué"
+            echo "imagen tiene el contenedor antes de dar este despliegue por bueno."
+            fallo=1
           elif [ "${SHA#"$vivo"}" = "${SHA}" ]; then
             echo "Lo que atiende es ${vivo}, y se desplegó ${SHA}."
             echo "El deploy dijo que salió bien pero está corriendo otra imagen."
