@@ -318,6 +318,32 @@ export function createZavuProvider(
            * no cambia si el job se reencola.
            */
           idempotencyKey: message.messageId,
+          /**
+           * El fallback a SMS, APAGADO (#589).
+           *
+           * Zavu lo trae encendido por defecto: si WhatsApp falla, entrega el
+           * mensaje como SMS. Nunca lo tocamos, y eso deja sin efecto todo lo que
+           * este producto se ocupa de cumplir:
+           *
+           * - **La ventana de 24 h.** `processOutbound` rechaza lo libre fuera de
+           *   la ventana y exige plantilla aprobada. Si el proveedor lo manda por
+           *   SMS, esa regla no aplica y el texto sale igual.
+           * - **El consentimiento es POR CANAL.** La persona escribió por WhatsApp
+           *   o dio opt-in ahí; el registro guarda el canal a propósito. Un SMS es
+           *   un canal que no aceptó.
+           * - **La plantilla aprobada.** Una plantilla que falla saldría como SMS
+           *   en texto plano: el cliente recibe un mensaje que Meta no aprobó.
+           * - **El costo.** Medimos Meta e IA por tenant; el SMS no está en esa
+           *   cuenta. El negocio pagaría envíos que no ve, y la regla dice que los
+           *   costos son visibles y sin margen escondido.
+           * - **Y la bandeja mentiría**: el mensaje quedaría registrado como
+           *   WhatsApp con su estado de entrega, y habría salido por otra vía.
+           *
+           * Que un negocio QUIERA caer a SMS es razonable —un aviso de entrega—,
+           * pero eso es una función con su consentimiento, su costo visible y su
+           * decisión, no un valor por defecto del proveedor.
+           */
+          fallbackEnabled: false,
           ...(message.body !== undefined ? { text: message.body } : {}),
           // El adjunto tampoco viaja como texto (#458): Zavu lo quiere como
           // `messageType` + `content.mediaUrl`, y el cuerpo pasa a ser el

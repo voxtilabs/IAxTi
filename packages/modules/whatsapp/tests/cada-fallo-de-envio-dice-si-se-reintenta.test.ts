@@ -190,3 +190,56 @@ describe('un reintento no manda el mensaje dos veces (#585)', () => {
     expect(llaves).toEqual(['msg-xyz', 'msg-xyz']);
   });
 });
+
+describe('el proveedor no puede saltarse nuestras reglas (#589)', () => {
+  /**
+   * Zavu trae el fallback a SMS ENCENDIDO por defecto, y nunca lo apagamos. Eso
+   * dejaba sin efecto la ventana de 24 h, el consentimiento por canal y la
+   * plantilla aprobada: el worker rechaza lo libre fuera de la ventana, y el
+   * proveedor lo mandaba igual por otra vía.
+   *
+   * Lo encontré leyendo las REGLAS DE NEGOCIO de su documentación, no el esquema:
+   * el esquema solo dice que el campo existe.
+   */
+  async function cuerpoDeUnEnvio(): Promise<Record<string, unknown>> {
+    let cuerpo: Record<string, unknown> = {};
+    const fetchMock = vi.fn(async (_url: string, init: { body: string }) => {
+      cuerpo = JSON.parse(init.body);
+      return { ok: true, status: 200, json: async () => ({ id: 'wamid.1' }) };
+    });
+    process.env.ZAVU_KEY_FB = 'zv_test';
+    const p = createZavuProvider('whatsapp', {
+      apiBase: 'https://zavu.test/v1',
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await p.send(
+      {
+        id: 'cuenta-fb',
+        tenantId: 'tenant-fb',
+        kind: 'whatsapp',
+        name: 'n',
+        state: 'active',
+        credentialRef: 'ZAVU_KEY_FB',
+        config: { senderId: 'snd_fb' },
+      },
+      { to: '+56987654321', type: 'texto', body: 'Hola' },
+    );
+    delete process.env.ZAVU_KEY_FB;
+    return cuerpo;
+  }
+
+  it('todo envío pide explícitamente que NO caiga a SMS', async () => {
+    const cuerpo = await cuerpoDeUnEnvio();
+    // `undefined` no sirve: el defecto del proveedor es `true`. Tiene que ir el
+    // false explícito en el cuerpo.
+    expect(cuerpo.fallbackEnabled).toBe(false);
+  });
+
+  it('y va en el MISMO envío, no en una configuración de cuenta', async () => {
+    // Un ajuste en el panel del proveedor se puede cambiar desde afuera y nadie
+    // se enteraría. En el cuerpo de cada mensaje, no.
+    const cuerpo = await cuerpoDeUnEnvio();
+    expect(Object.keys(cuerpo)).toContain('fallbackEnabled');
+    expect(cuerpo.channel).toBe('whatsapp');
+  });
+});
