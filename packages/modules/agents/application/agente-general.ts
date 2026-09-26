@@ -151,6 +151,43 @@ export interface DepsDelAgenteGeneral {
  */
 export const PROMPT_DEL_AGENTE_GENERAL = 'iaxti/agente-general';
 
+/**
+ * Las pantallas desde las que se puede abrir el Agente General (#509).
+ *
+ * Es una lista CERRADA a propósito, y el cliente manda el id —no la frase.
+ * Este texto entra en el system prompt: aceptar lo que mande el navegador
+ * sería dejar que cualquiera con una sesión le escriba instrucciones al
+ * agente que tiene las 195 herramientas del producto. Un id que no esté acá
+ * se ignora y el agente trabaja sin contexto de pantalla, que es lo que hacía
+ * antes y funciona.
+ */
+export const PANTALLAS: Record<string, string> = {
+  inicio: 'el inicio',
+  bandeja: 'la bandeja de conversaciones',
+  oportunidades: 'el embudo de oportunidades',
+  contactos: 'los contactos',
+  empresas: 'las empresas',
+  agenda: 'la agenda',
+  campanas: 'las campañas',
+  reportes: 'los reportes',
+  pendientes: 'los pendientes del día',
+  conocimiento: 'el conocimiento del negocio',
+  asistente: 'la configuración del asistente',
+  automatizaciones: 'las automatizaciones',
+  canales: 'los canales de atención',
+  plantillas: 'las plantillas de WhatsApp',
+  embudos: 'los embudos',
+  equipo: 'el equipo',
+  cobros: 'los cobros',
+  facturacion: 'el plan y la facturación',
+  ajustes: 'los ajustes del negocio',
+};
+
+/** La frase de una pantalla, o null si el id no es de la lista. */
+export function nombreDePantalla(id: unknown): string | null {
+  return typeof id === 'string' && Object.hasOwn(PANTALLAS, id) ? PANTALLAS[id] : null;
+}
+
 const INSTRUCCION = [
   'Eres IAxTi, el Agente General de la plataforma IAxTi: un CRM conversacional para pymes',
   'chilenas, WhatsApp primero. Le hablas a la persona que atiende o al dueño del negocio.',
@@ -242,6 +279,15 @@ export async function conversarConElAgenteGeneral(
     permisos: ReadonlySet<string>;
     modulosActivos: ReadonlySet<string>;
     actorUserId?: string;
+    /**
+     * Desde qué pantalla se abrió, ya traducida a palabras del negocio con
+     * `nombreDePantalla` (#509). Para que arranque por donde está la persona.
+     *
+     * NO lo limita: sigue teniendo las mismas herramientas desde cualquier
+     * pantalla. Y es la pantalla, no lo que hay en ella: nada del contenido
+     * que la persona esté mirando entra acá.
+     */
+    pantalla?: string;
     /** El MISMO trace desde el request hasta la generación (SPEC §13). */
     requestId?: string;
   },
@@ -420,8 +466,22 @@ export async function conversarConElAgenteGeneral(
       }
     : null;
 
+  // La pantalla se suma al final para que no tape nada de la instrucción y
+  // para que el prompt versionado en Langfuse siga siendo el que manda.
+  const base = (await getVersionedPrompt(PROMPT_DEL_AGENTE_GENERAL).catch(() => null)) ?? INSTRUCCION;
+  const system = input.pantalla
+    ? [
+        base,
+        '',
+        `La persona te está escribiendo desde ${input.pantalla}. Si lo que pide tiene que ver con`,
+        'eso, empieza por ahí sin preguntarle dónde está. Si pide otra cosa, atiéndela igual: puedes',
+        'todo desde cualquier pantalla. No le nombres la pantalla de vuelta ni le expliques que lo',
+        'sabes.',
+      ].join('\n')
+    : base;
+
   const res = await deps.modelo.generate({
-    system: (await getVersionedPrompt(PROMPT_DEL_AGENTE_GENERAL).catch(() => null)) ?? INSTRUCCION,
+    system,
     prompt: '',
     mensajes: input.turnos,
     tools: queFalta ? [buscar, preparar, queFalta] : [buscar, preparar],

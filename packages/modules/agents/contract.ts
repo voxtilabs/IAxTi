@@ -113,6 +113,8 @@ export {
   modeloDelAgenteGeneral,
   repartirArgumentos,
   CuotaDeIaAgotada,
+  nombreDePantalla,
+  PANTALLAS,
 } from './application/agente-general';
 export type {
   RespuestaDelAgente,

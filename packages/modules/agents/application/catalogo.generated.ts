@@ -301,6 +301,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
               }
             }
           }
+        },
+        "pantalla": {
+          "type": "string"
         }
       },
       "additionalProperties": false

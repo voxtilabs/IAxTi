@@ -225,7 +225,8 @@ export function Plantillas() {
       {items.length === 0 ? (
         <EstadoVacio titulo="Prepara tu primera plantilla"
           descripcion="Aquí verás tus plantillas y su revisión por Meta. Necesitas una aprobada para escribir fuera de la ventana de 24 horas."
-          accion={{ etiqueta: 'Escribir una plantilla', onClick: () => document.getElementById('nombre-plantilla')?.focus() }} />
+          accion={{ etiqueta: 'Escribir una plantilla', onClick: () => document.getElementById('nombre-plantilla')?.focus() }}
+          pideleAIAxTi="Arma una plantilla para avisarle al cliente que llegó su pedido" />
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((p) => (
