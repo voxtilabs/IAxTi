@@ -48,7 +48,13 @@ function haceCuanto(cuando: Date, ahora: Date): string {
 
 export async function diagnosticarCanal(
   client: PoolClient,
-  input: { tenantId: string; accountId: string; ahora?: Date },
+  input: {
+    tenantId: string;
+    accountId: string;
+    ahora?: Date;
+    /** El ambiente donde corre, para el aviso de envíos reales (#593). */
+    ambiente?: string;
+  },
   deps: {
     /** ¿Existe la variable de entorno con ese nombre? El VALOR no se mira. */
     hayCredencial: (ref: string | null) => boolean;
@@ -83,6 +89,10 @@ export async function diagnosticarCanal(
   const pasos: PasoDelDiagnostico[] = [];
 
   pasos.push(pasoDeLaCuenta(cuenta));
+  // Primero de todo cuando aplica (#593): antes de explicarle a alguien por qué
+  // un mensaje no salió, hay que decirle que lo que escriba SALE DE VERDAD.
+  const avisoReal = pasoDeEnviosReales(cuenta, input.ambiente);
+  if (avisoReal) pasos.unshift(avisoReal);
   pasos.push(pasoDeLaCredencial(cuenta, deps.hayCredencial));
   pasos.push(pasoDelWebhook(rastro, ahora));
   // Después del webhook y no antes: el orden de este archivo va de afuera
@@ -138,6 +148,38 @@ export async function diagnosticarCanal(
 
   const roto = pasos.find((p) => p.estado === 'mal');
   return { accountId: cuenta.id, kind: cuenta.kind, problema: roto?.id ?? null, pasos };
+}
+
+/**
+ * «Este canal manda de verdad» (#593).
+ *
+ * Probar contra un número real en staging es una decisión defendible, y desde #593
+ * el producto la soporta sin obligar a falsear `IAXTI_ENV`. Lo que no puede es
+ * pasar desapercibida: quien atiende tiene que saber que lo que escribe le llega
+ * a alguien.
+ *
+ * En producción no se muestra: ahí mandar de verdad es lo normal, y un aviso que
+ * sale siempre no se lee.
+ */
+function pasoDeEnviosReales(
+  cuenta: ChannelAccountRef,
+  ambiente: string | undefined,
+): PasoDelDiagnostico | null {
+  if (cuenta.config.enviosReales !== true) return null;
+  if (ambiente === 'production') return null;
+  return {
+    id: 'envios_reales',
+    titulo: 'Este canal manda mensajes de verdad',
+    // `atencion` y no `mal`: no está roto, está declarado. Pero tampoco es
+    // `bien`, porque no es el estado normal de un ambiente de pruebas.
+    estado: 'atencion',
+    detalle:
+      `El ambiente es "${ambiente ?? 'sin declarar'}" y este canal está conectado con una ` +
+      'credencial de producción: lo que se escriba le llega de verdad a quien esté del otro lado.',
+    queHacer:
+      'Es a propósito si alguien declaró ZAVU_ENVIOS_REALES. Si no lo esperabas, ' +
+      'desconecta el canal antes de que alguien responda una conversación.',
+  };
 }
 
 function pasoDeLaCuenta(cuenta: ChannelAccountRef): PasoDelDiagnostico {

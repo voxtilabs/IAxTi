@@ -69,6 +69,12 @@ export async function connectWhatsAppNumber(
     displayPhone?: string;
     credentialRef: string;
     webhookSecretRef: string;
+    /**
+     * Si esta conexión manda mensajes DE VERDAD (#593). Queda en la cuenta y no
+     * solo en el log de quien conectó: el log se lee una vez, el canal lo lee
+     * cualquiera que entre a preguntarse por qué un mensaje salió de staging.
+     */
+    enviosReales?: boolean;
   },
 ): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
   const existentes = await client.query(
@@ -92,6 +98,7 @@ export async function connectWhatsAppNumber(
       senderId: input.senderId,
       phoneNumberId: input.phoneNumberId ?? null,
       wabaId: input.wabaId ?? null,
+      ...(input.enviosReales ? { enviosReales: true } : {}),
     },
   });
   let row;

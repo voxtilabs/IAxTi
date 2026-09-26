@@ -59,20 +59,43 @@ export async function quienSoy(llamar: LlamarZavu): Promise<ProyectoZavu> {
 }
 
 /**
- * La regla que hasta ahora vivía solo en la cabeza de alguien: **una llave
- * de producción no entra a staging**. En producción se manda desde el
- * número real del negocio a clientes reales; una prueba mal apuntada les
- * escribe de verdad, y eso no se deshace con un rollback.
+ * ¿Sirve esta llave para este ambiente? (#593)
  *
- * Se decide con `isTestMode` de la API, no con el prefijo del token: un
- * token se puede renombrar, lo que la API responde no.
+ * La regla de fondo sigue siendo la misma: en producción se manda desde el número
+ * real del negocio a clientes reales, y una prueba mal apuntada les escribe de
+ * verdad — eso no se deshace con un rollback. Se decide con `isTestMode` de la
+ * API y no con el prefijo del token: un token se puede renombrar, lo que la API
+ * responde no.
+ *
+ * Lo que cambió es la SALIDA. Antes la única forma de conectar una llave de
+ * producción fuera de producción era declarar `IAXTI_ENV=production`, y eso está
+ * mal porque `IAXTI_ENV` no es solo para esto: lo lee la comprobación de
+ * aislamiento por tenant en `rls.ts`, el `environment` de Sentry y la generación
+ * de links de pago. Para hacer algo legítimo había que mentirle al resto del
+ * sistema, y la mentira no se queda quieta.
+ *
+ * Así que ahora son dos preguntas separadas:
+ *
+ *  1. ¿En qué ambiente corro? → `IAXTI_ENV`, y nadie lo toca para conectar.
+ *  2. ¿Puede esta instalación mandar mensajes de verdad? → `enviosReales`, una
+ *     declaración propia y explícita.
+ *
+ * Probar con un número real es una decisión defendible —un WhatsApp de verdad se
+ * comporta distinto que un simulador— y el producto tiene que soportarla sin
+ * obligar a falsear el ambiente. Lo que NO puede es pasar desapercibida: quien
+ * la declara lo hace a propósito, y el canal queda marcado para que cualquiera
+ * que mire lo vea.
  */
 export function llaveSirveParaAmbiente(
   proyecto: ProyectoZavu,
   ambiente: string | undefined,
-): { ok: true } | { ok: false; motivo: string } {
+  enviosReales = false,
+): { ok: true; reales: boolean } | { ok: false; motivo: string } {
   const esProduccion = ambiente === 'production';
   if (esProduccion && proyecto.isTestMode) {
+    // Este lado no se negocia: en producción una llave de prueba significa que
+    // los clientes del negocio no reciben nada, y nadie se enteraría hasta que
+    // alguien reclame. No hay declaración que lo haga aceptable.
     return {
       ok: false,
       motivo:
@@ -80,15 +103,23 @@ export function llaveSirveParaAmbiente(
     };
   }
   if (!esProduccion && !proyecto.isTestMode) {
-    return {
-      ok: false,
-      motivo:
-        `Esta es una llave de PRODUCCIÓN y el ambiente es "${ambiente ?? 'sin declarar'}". ` +
-        'Conectarla acá manda mensajes reales a clientes reales desde el número del negocio. ' +
-        'Usa la llave de prueba, o declara IAXTI_ENV=production si de verdad es producción.',
-    };
+    if (!enviosReales) {
+      return {
+        ok: false,
+        motivo:
+          `Esta es una llave de PRODUCCIÓN y el ambiente es "${ambiente ?? 'sin declarar'}". ` +
+          'Conectarla acá manda mensajes reales a clientes reales desde el número del negocio.\n' +
+          'Si es lo que quieres —probar contra un número de verdad—, declara ' +
+          'ZAVU_ENVIOS_REALES=1 y queda registrado en el canal.\n' +
+          'Si no, usa la llave de prueba. Lo que NO hay que hacer es declarar ' +
+          'IAXTI_ENV=production: eso le miente al aislamiento por tenant, a Sentry y a ' +
+          'los links de pago.',
+      };
+    }
+    // Declarado a propósito: pasa, y el llamador se encarga de que quede visible.
+    return { ok: true, reales: true };
   }
-  return { ok: true };
+  return { ok: true, reales: esProduccion };
 }
 
 /**
@@ -167,6 +198,8 @@ export async function conectarSender(
     webhookSecretRef: string;
     llamar: LlamarZavu;
     kind?: ChannelKind;
+    /** Si esta conexión manda de verdad (#593). Se guarda en la cuenta. */
+    enviosReales?: boolean;
   },
 ): Promise<ResultadoConexion> {
   const avisos: string[] = [];
@@ -177,6 +210,7 @@ export async function conectarSender(
     displayPhone: input.sender.name,
     credentialRef: input.credentialRef,
     webhookSecretRef: input.webhookSecretRef,
+    ...(input.enviosReales ? { enviosReales: true } : {}),
   });
 
   const webhookUrl = urlWebhook(input.baseUrl, account.id);

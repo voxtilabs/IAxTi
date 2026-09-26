@@ -86,7 +86,13 @@ export class ChannelsController {
       const esWhatsApp = cuenta.kind === 'whatsapp';
       return diagnosticarCanal(
         c,
-        { tenantId: actor.tenantId, accountId: id },
+        {
+          tenantId: actor.tenantId,
+          accountId: id,
+          // Para el aviso de «este canal manda de verdad» (#593), que solo sale
+          // cuando el ambiente NO es producción.
+          ...(process.env.IAXTI_ENV ? { ambiente: process.env.IAXTI_ENV } : {}),
+        },
         {
           // Solo se mira si la variable EXISTE. El valor no sale de acá ni
           // en el diagnóstico ni en los logs.

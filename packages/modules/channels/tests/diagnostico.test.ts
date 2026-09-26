@@ -403,3 +403,72 @@ describe('el emisor se le pregunta al proveedor (#591)', () => {
     expect(paso.estado).toBe('bien');
   });
 });
+
+describe('«este canal manda de verdad» se avisa (#593)', () => {
+  /**
+   * Probar con el número real en staging es una decisión del negocio y el producto
+   * la soporta desde #593. Lo que no puede es pasar desapercibida: quien atiende
+   * tiene que saber que lo que escribe le llega a alguien de verdad.
+   *
+   * Una declaración silenciosa es una trampa para el próximo que abra una
+   * conversación en este ambiente.
+   */
+  async function canalReal(nombre: string, enviosReales: boolean) {
+    const cuenta = await en((c) =>
+      createChannelAccount(c, {
+        tenantId: tenant,
+        kind: 'whatsapp',
+        name: nombre,
+        credentialRef: 'LLAVE_DE_PRUEBA',
+        webhookSecretRef: 'SECRETO_DE_PRUEBA',
+        config: { senderId: 'snd_real', ...(enviosReales ? { enviosReales: true } : {}) },
+      }),
+    );
+    await en((c) => setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }));
+    return cuenta;
+  }
+
+  const pasos = async (accountId: string, ambiente?: string) => {
+    const d = await en((c) =>
+      diagnosticarCanal(
+        c,
+        { tenantId: tenant, accountId, ...(ambiente ? { ambiente } : {}) },
+        { hayCredencial: () => true },
+      ),
+    );
+    return d.pasos;
+  };
+
+  it('en staging, con envíos reales, el aviso va PRIMERO', async () => {
+    // Antes de explicarle a alguien por qué un mensaje no salió, hay que decirle
+    // que lo que escriba sale de verdad. El orden es parte del mensaje.
+    const cuenta = await canalReal('Número real', true);
+    const p = await pasos(cuenta.id, 'staging');
+    expect(p[0]!.id).toBe('envios_reales');
+    expect(p[0]!.estado).toBe('atencion');
+    expect(p[0]!.detalle).toContain('le llega de verdad');
+    expect(p[0]!.queHacer).toContain('ZAVU_ENVIOS_REALES');
+  });
+
+  it('sin la marca, no aparece: no se inventa un aviso', async () => {
+    const cuenta = await canalReal('Número de prueba', false);
+    const p = await pasos(cuenta.id, 'staging');
+    expect(p.some((x) => x.id === 'envios_reales')).toBe(false);
+  });
+
+  it('en producción no aparece: ahí mandar de verdad es lo normal', async () => {
+    // Un aviso que sale siempre no se lee, y entonces tampoco se lee cuando
+    // importa.
+    const cuenta = await canalReal('Número real en prod', true);
+    const p = await pasos(cuenta.id, 'production');
+    expect(p.some((x) => x.id === 'envios_reales')).toBe(false);
+  });
+
+  it('el aviso no reemplaza el diagnóstico: los otros pasos siguen ahí', async () => {
+    const cuenta = await canalReal('Número real', true);
+    const p = await pasos(cuenta.id, 'staging');
+    for (const id of ['cuenta', 'credencial', 'webhook', 'emisor']) {
+      expect(p.some((x) => x.id === id), id).toBe(true);
+    }
+  });
+});

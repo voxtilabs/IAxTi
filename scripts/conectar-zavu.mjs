@@ -41,7 +41,13 @@ const llamar = clienteZavu(apiKey);
 // API (`isTestMode`), no el prefijo del token — un token se renombra, la
 // respuesta de la API no.
 const proyecto = await quienSoy(llamar);
-const veredicto = llaveSirveParaAmbiente(proyecto, process.env.IAXTI_ENV);
+// Dos preguntas separadas (#593): en qué ambiente corro, y si esta instalación
+// puede mandar de verdad. La segunda NO se deduce de la primera, porque probar
+// con un número real en staging es legítimo y antes obligaba a declarar
+// IAXTI_ENV=production — que le miente al aislamiento por tenant, a Sentry y a
+// los links de pago.
+const enviosReales = process.env.ZAVU_ENVIOS_REALES === '1';
+const veredicto = llaveSirveParaAmbiente(proyecto, process.env.IAXTI_ENV, enviosReales);
 console.log(
   `\nProyecto: ${proyecto.project.name} · llave de ${proyecto.isTestMode ? 'PRUEBA' : 'PRODUCCIÓN'}` +
     ` · ambiente: ${process.env.IAXTI_ENV ?? 'sin declarar'}`,
@@ -84,6 +90,16 @@ if (!veredicto.ok) {
   console.error(`\n${veredicto.motivo}`);
   process.exit(1);
 }
+if (veredicto.reales && process.env.IAXTI_ENV !== 'production') {
+  // Ruidoso a propósito. Una declaración silenciosa es una trampa para el
+  // próximo que conecte un canal en este ambiente sin saber que lo que escriba
+  // le llega a alguien de verdad.
+  console.warn(
+    '\n*** ENVÍOS REALES declarados en un ambiente que no es producción. ***\n' +
+      'Lo que se escriba desde este canal le llega de verdad a quien esté del otro lado.\n' +
+      'Queda marcado en el canal y el diagnóstico lo va a mostrar.',
+  );
+}
 
 const elegido = elegirSender(senders, kind, senderPedido);
 if ('error' in elegido) {
@@ -99,6 +115,10 @@ try {
       tenantId,
       nombre,
       sender: elegido.sender,
+      // Queda EN LA CUENTA y no solo en el log del script (#593): el log lo lee
+      // quien conecta, una vez; el canal lo lee cualquiera que entre a mirar por
+      // qué un mensaje salió de verdad desde staging.
+      enviosReales: veredicto.reales,
       baseUrl,
       credentialRef,
       webhookSecretRef,
