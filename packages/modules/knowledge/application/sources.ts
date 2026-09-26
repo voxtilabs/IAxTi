@@ -4,7 +4,7 @@ import { writeAudit } from '@iaxti/module-audit';
 import { parseCsv } from '@iaxti/module-crm';
 import { splitIntoChunks, stripHtml, toVectorLiteral } from '../domain/chunking';
 import type { EmbedPort, PdfTextPort, UrlTextPort } from './embeddings';
-import { googleEmbedPort, geminiPdfTextPort } from './embeddings';
+import { nvidiaEmbedPort, geminiPdfTextPort, DIMENSIONES } from './embeddings';
 
 // Fuentes (#51, SPEC §14): lo que el negocio DICE. Con vigencia opcional —
 // una lista de precios vencida es peor que ninguna: la IA la ignora y avisa.
@@ -143,7 +143,7 @@ export async function processSource(
   input: { tenantId: string; sourceId: string; pdfBytes?: Uint8Array; requestId?: string },
   ports: ProcessPorts = {},
 ): Promise<Source> {
-  const embed = ports.embed ?? googleEmbedPort();
+  const embed = ports.embed ?? nvidiaEmbedPort();
   const r = await client.query('SELECT * FROM sources WHERE tenant_id = $1 AND id = $2', [
     input.tenantId,
     input.sourceId,
@@ -200,11 +200,34 @@ export async function processSource(
     }
     if (piezas.length === 0) throw new Error('La fuente no tiene contenido que indexar.');
 
-    const vectores = await embed.embed(piezas.map((p) => p.content));
+    const vectores = await embed.embed(
+      piezas.map((p) => p.content),
+      'pasaje',
+    );
+    // Se revisa ANTES de tocar la base y no se confía en que la rechace.
+    //
+    // Un vector del largo equivocado es un error de Postgres, y un error de
+    // Postgres aborta la transacción: el `UPDATE ... status = 'failed'` del
+    // catch se ejecuta sobre una transacción muerta y se pierde con el
+    // rollback. La fuente queda en 'processing' para siempre, y el job de
+    // reindexación (#502) la vuelve a tomar cada dos minutos pagándole al
+    // proveedor cada vez. Acá el error es de JavaScript, la transacción sigue
+    // viva y la fuente queda 'failed' con el motivo a la vista.
+    if (vectores.length !== piezas.length) {
+      throw new Error(
+        `El proveedor devolvió ${vectores.length} vectores para ${piezas.length} pedazos de texto.`,
+      );
+    }
+    const raro = vectores.findIndex((v) => v.length !== DIMENSIONES);
+    if (raro !== -1) {
+      throw new Error(
+        `El proveedor devolvió un vector de ${vectores[raro].length} dimensiones y la tabla espera ${DIMENSIONES}. ¿Cambió el modelo de embeddings?`,
+      );
+    }
     for (let i = 0; i < piezas.length; i++) {
       await client.query(
         `INSERT INTO chunks (tenant_id, source_id, content, question, embedding, position)
-         VALUES ($1,$2,$3,$4,$5::vector,$6)`,
+         VALUES ($1,$2,$3,$4,$5::halfvec,$6)`,
         [
           input.tenantId,
           input.sourceId,
@@ -311,4 +334,89 @@ export async function tenantsWithExpirable(client: Pick<PoolClient, 'query'>): P
     `SELECT id FROM tenants WHERE COALESCE(state, 'active') <> 'deleted' ORDER BY created_at`,
   );
   return r.rows.map((x) => x.id);
+}
+
+export interface Reindexacion {
+  /** Fuentes que quedaron indexadas de nuevo. */
+  listas: number;
+  /** Fuentes que fallaron: quedan en 'failed' con su motivo, visible en la app. */
+  fallidas: number;
+  /** true si quedan fuentes pendientes para la próxima pasada. */
+  quedanMas: boolean;
+}
+
+/**
+ * Reindexa las fuentes que quedaron sin vector (#502).
+ *
+ * Cambiar de modelo de embeddings deja el índice vacío: los vectores viejos
+ * son de otro modelo y de otro largo, no se convierten y no se comparan. La
+ * migración 0002 los borra y devuelve las fuentes a 'processing'; esto es
+ * lo que las vuelve a dejar 'active'. Sin esto, la migración deja a cada
+ * negocio con su conocimiento cargado en la app y la IA sin encontrar nada.
+ *
+ * Va por tandas y no de una: cada fuente paga una llamada al proveedor, y un
+ * bucle sobre todos los negocios en un solo job es la forma de que un
+ * reintento salga carísimo. `quedanMas` le dice a quien lo llama que vuelva.
+ *
+ * Las fuentes PDF se quedan afuera a propósito: su texto se extrae del
+ * archivo en el momento de subirlo y no se guarda, así que no hay de dónde
+ * reindexarlas sin volver a subir el PDF. Hoy no existen —la API rechaza
+ * `kind: 'pdf'`— y cuando existan, esto tiene que leer el archivo de R2 por
+ * `r2_key`.
+ */
+export async function reindexarPendientes(
+  client: PoolClient,
+  tenantId: string,
+  ports: ProcessPorts = {},
+  porTanda = 5,
+): Promise<Reindexacion> {
+  const pendientes = await client.query(
+    `SELECT id FROM sources
+      WHERE tenant_id = $1 AND status = 'processing' AND kind <> 'pdf'
+      ORDER BY created_at
+      LIMIT $2`,
+    [tenantId, porTanda + 1],
+  );
+  const ids = pendientes.rows.slice(0, porTanda).map((r) => r.id as string);
+  let listas = 0;
+  let fallidas = 0;
+  for (const sourceId of ids) {
+    try {
+      // OJO: `processSource` no lanza cuando la fuente falla — atrapa el
+      // error, deja la fuente en 'failed' con el motivo y la devuelve. Si
+      // acá contáramos por el `catch`, toda fuente rota se contaría como
+      // lista y el log diría que la reindexación va bien mientras ninguna
+      // contesta. El status es el que sabe.
+      const r = await processSource(client, { tenantId, sourceId, requestId: 'reindex' }, ports);
+      if (r.status === 'active') listas++;
+      else fallidas++;
+    } catch {
+      // Lo que sí lanza es lo que no llegó a ser un fallo de la fuente (la
+      // base caída, por ejemplo). Seguimos con la siguiente: una fuente rota
+      // no puede dejar sin conocimiento a las demás.
+      fallidas++;
+    }
+  }
+  return { listas, fallidas, quedanMas: pendientes.rowCount! > porTanda };
+}
+
+/**
+ * ¿Tiene este negocio algo esperando reindexación? (#502)
+ *
+ * Va DENTRO de `withTenant`, igual que todo lo que toca `sources`. La
+ * tentación era listar de una los negocios con fuentes pendientes —un solo
+ * `SELECT DISTINCT tenant_id FROM sources`— y recorrerlos. Eso funciona con
+ * el rol de hoy porque es superusuario: Postgres no evalúa las políticas.
+ * Con el rol de aplicación que pide #370 la misma consulta devolvería cero
+ * filas y el job no encontraría nada nunca, sin un error en ningún log. El
+ * barrido se hace como el de vigencias: los negocios salen de `tenants`, que
+ * no filtra por tenant, y el trabajo se hace adentro.
+ */
+export async function hayQueReindexar(client: PoolClient, tenantId: string): Promise<boolean> {
+  const r = await client.query(
+    `SELECT 1 FROM sources
+      WHERE tenant_id = $1 AND status = 'processing' AND kind <> 'pdf' LIMIT 1`,
+    [tenantId],
+  );
+  return (r.rowCount ?? 0) > 0;
 }

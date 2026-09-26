@@ -156,11 +156,26 @@ puede, y medido donde no:
   Google la transcripción devuelve `null` y la nota de voz **llega igual, sin
   texto buscable**: es una degradación aceptada, no una falla. Queda como la
   única tarea con Gemini, y por capacidad, no por preferencia.
-- **Embeddings del conocimiento: movibles, con reindexación.** NVIDIA sirve
-  `nvidia/nemotron-3-embed-1b`, probado el 26-09, con **2048 dimensiones**
-  contra las 768 de `chunks.embedding`. Cambiar de proveedor obliga a una
-  columna nueva y a reindexar todo lo indexado. Va en su propio issue: no es
-  un cambio de configuración.
+- **Embeddings del conocimiento: movidos (#502).** Corren en
+  `nvidia/nemotron-3-embed-1b`, **2048 dimensiones fijas** — pedir
+  `dimensions: 1024` responde «dimensions must be one of 2048». Tres cosas
+  que costaron una migración y no un cambio de configuración:
+  - De los siete modelos de embedding que lista el catálogo, **seis responden
+    404 para esta cuenta** («Not found for account»). Solo ése está
+    habilitado, así que no hay plan B dentro del mismo proveedor.
+  - 2048 no entra en el índice HNSW de pgvector, que acepta **hasta 2000
+    dimensiones** sobre `vector`. La columna pasó a `halfvec`, que se indexa
+    hasta 4000: media precisión, la mitad de disco, y para ordenar por coseno
+    la diferencia no se nota.
+  - El modelo es **asimétrico**: le entra `input_type` y devuelve vectores
+    distintos para el mismo texto según el rol (coseno 0.57 entre `query` y
+    `passage` de «hola»). Con el rol correcto una pregunta le saca 0.430 al
+    pasaje bueno contra 0.088 al malo; con el rol errado los puntajes se
+    aplastan a 0.414 contra 0.385 y el orden lo decide el azar. Por eso
+    `EmbedPort.embed` pide el rol como parámetro obligatorio: el compilador
+    no deja olvidarlo, porque olvidarlo no falla — contesta peor y calla.
+  El AI SDK no sirve acá: su proveedor compatible-OpenAI no manda
+  `input_type`.
 
 Y una corrección que este cambio dejó a la vista: el «solo este proveedor»
 por tenant era configuración **tarea por tarea**, así que al agregar

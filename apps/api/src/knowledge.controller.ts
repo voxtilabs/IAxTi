@@ -137,11 +137,23 @@ export class KnowledgeController {
           sourceId: id,
           requestId: request.requestId,
         });
-      } catch {
-        throw new NotFoundException({
-          code: 'SOURCE_NOT_FOUND',
-          message: 'No encontramos esa fuente.',
-        });
+      } catch (err) {
+        // Solo el "no existe" es un 404. Antes este catch se tragaba
+        // cualquier cosa —el proveedor caído, la base— y le decía al negocio
+        // que su fuente no existía: se queda buscando un dato que está y el
+        // problema era otro. Lo demás sube como 500 con su request id, que es
+        // lo que se puede seguir en los logs.
+        //
+        // Ojo: un fallo DE LA FUENTE no llega acá. `processSource` lo atrapa,
+        // deja la fuente en 'failed' con el motivo y la devuelve — el negocio
+        // lo ve en la app, que es donde sirve.
+        if ((err as Error).message === 'No encontramos esa fuente.') {
+          throw new NotFoundException({
+            code: 'SOURCE_NOT_FOUND',
+            message: 'No encontramos esa fuente.',
+          });
+        }
+        throw err;
       }
     });
   }
