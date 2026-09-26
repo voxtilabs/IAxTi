@@ -19,10 +19,42 @@ import { join } from 'node:path';
  * Si alguna vez hace falta un nativo a propósito, va en `EXCEPCIONES` con
  * su motivo, como las demás listas de este repo.
  */
-const COMPONENTES = join(__dirname, '..', 'components');
-const APP = join(__dirname, '..', 'app');
+const RAIZ = join(__dirname, '..', '..', '..');
 
-const EXCEPCIONES: Record<string, string> = {};
+/**
+ * Los tres árboles donde vive interfaz, y no solo `apps/web` (#537).
+ *
+ * Miraba únicamente la app de clientes, con la lista de excepciones VACÍA —o
+ * sea, afirmando que no quedaba ningún control nativo en el producto— mientras
+ * había cuatro: un `<select>` en el shell del panel de plataforma y tres
+ * `<input type="checkbox">` en `data-table.tsx`, que es el propio sistema de
+ * diseño. El nativo se pinta con los colores del sistema operativo: en modo
+ * noche queda un desplegable blanco en una pantalla oscura.
+ */
+const ARBOLES = [
+  join(RAIZ, 'apps', 'web', 'components'),
+  join(RAIZ, 'apps', 'web', 'app'),
+  join(RAIZ, 'apps', 'admin', 'components'),
+  join(RAIZ, 'apps', 'admin', 'app'),
+  join(RAIZ, 'packages', 'ui', 'src', 'react'),
+];
+
+/**
+ * Los primitivos que IMPLEMENTAN el control: ahí el nativo es el control.
+ *
+ * Con su ruta completa y no por nombre de archivo: `select.tsx` en otra carpeta
+ * no queda exento de rebote.
+ */
+const EXCEPCIONES: Record<string, string> = {
+  'packages/ui/src/react/ui/checkbox.tsx':
+    'Es el Checkbox del sistema: envuelve el primitivo de Radix, que es quien pone el input.',
+  'packages/ui/src/react/ui/select.tsx':
+    'Es el Select del sistema; el `<select>` que aparece está en un comentario que explica qué se cambió.',
+  'packages/ui/src/react/ui/switch.tsx':
+    'Es el Switch del sistema: mismo caso que el Checkbox.',
+  'packages/ui/src/react/ui/data-table.tsx':
+    'El comentario de arriba del Checkbox nombra el nativo para decir por qué NO se usa.',
+};
 
 const PROHIBIDOS: Array<{ patron: RegExp; que: string; usa: string }> = [
   { patron: /<select\b/g, que: '<select> nativo', usa: 'Select de @iaxti/ui/react' },
@@ -40,7 +72,7 @@ function fuentes(dir: string, acc: string[] = []): string[] {
 }
 
 describe('los controles salen del sistema de diseño', () => {
-  const archivos = [...fuentes(COMPONENTES), ...fuentes(APP)];
+  const archivos = ARBOLES.flatMap((d) => fuentes(d));
 
   it('hay pantallas que mirar', () => {
     expect(archivos.length).toBeGreaterThan(30);
@@ -49,12 +81,12 @@ describe('los controles salen del sistema de diseño', () => {
   it('ningún control nativo donde el sistema ya tiene uno', () => {
     const encontrados: string[] = [];
     for (const archivo of archivos) {
-      const nombre = archivo.split('/').pop()!;
-      if (nombre in EXCEPCIONES) continue;
+      const relativo = archivo.slice(RAIZ.length + 1);
+      if (relativo in EXCEPCIONES) continue;
       const texto = readFileSync(archivo, 'utf8');
       for (const { patron, que, usa } of PROHIBIDOS) {
         const n = (texto.match(patron) ?? []).length;
-        if (n > 0) encontrados.push(`${nombre}: ${n} ${que} — usa ${usa}`);
+        if (n > 0) encontrados.push(`${relativo}: ${n} ${que} — usa ${usa}`);
       }
     }
     expect(
@@ -67,8 +99,8 @@ describe('los controles salen del sistema de diseño', () => {
   });
 
   it('la lista de excepciones no junta polvo', () => {
-    const nombres = new Set(archivos.map((a) => a.split('/').pop()!));
-    const sobrantes = Object.keys(EXCEPCIONES).filter((e) => !nombres.has(e));
+    const relativos = new Set(archivos.map((a) => a.slice(RAIZ.length + 1)));
+    const sobrantes = Object.keys(EXCEPCIONES).filter((e) => !relativos.has(e));
     expect(sobrantes, `excepciones de archivos que ya no existen: ${sobrantes.join(', ')}`).toEqual([]);
   });
 });
