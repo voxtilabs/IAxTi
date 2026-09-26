@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type SortingState, type RowSelectionState } from '@tanstack/react-table';
 import { Button } from './button';
+import { Checkbox } from './checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table';
 
 export type { ColumnDef, SortingState, RowSelectionState } from '@tanstack/react-table';
@@ -37,7 +38,12 @@ export function DataTable<T extends { id: string }>({ label, columns, rows, sort
     <div className="flex flex-wrap items-center justify-between gap-3">
       <details className="text-dato"><summary className="inline-flex min-h-control cursor-pointer items-center text-action-text">Columnas</summary>
         <div className="flex flex-wrap gap-3">{table.getAllLeafColumns().filter((c) => c.getCanHide()).map((c) => <label key={c.id} className="inline-flex min-h-control items-center gap-2">
-          <input type="checkbox" checked={c.getIsVisible()} disabled={small && !mobileColumns.includes(c.id)} onChange={(e) => setVisibility((v) => ({ ...v, [c.id]: e.target.checked }))} />
+          {/* El Checkbox de Pulso y no un `<input type="checkbox">`: el
+              nativo se pinta con los colores del sistema operativo y en modo
+              noche queda un cuadrado blanco. La guarda que prohíbe los nativos
+              solo miraba apps/web, así que los tres de este archivo —el propio
+              sistema de diseño— sobrevivieron (#537). */}
+          <Checkbox checked={c.getIsVisible()} disabled={small && !mobileColumns.includes(c.id)} onCheckedChange={(v) => setVisibility((prev) => ({ ...prev, [c.id]: v === true }))} />
           {typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id}{small && !mobileColumns.includes(c.id) ? ' (pantalla amplia)' : ''}
         </label>)}</div>
       </details>
@@ -47,7 +53,7 @@ export function DataTable<T extends { id: string }>({ label, columns, rows, sort
     <div className="pulso-panel overflow-hidden rounded-tarjeta border border-line bg-raised">
       <Table aria-label={label}>
         <TableHeader><TableRow>
-          <TableHead className="w-14 px-1"><label className="flex min-h-control items-center justify-center"><input type="checkbox" aria-label="Seleccionar esta página" checked={all} disabled={loading || !rows.length} onChange={(e) => onSelection(e.target.checked ? Object.fromEntries(ids.map((id) => [id, true])) : {})} /></label></TableHead>
+          <TableHead className="w-14 px-1"><label className="flex min-h-control items-center justify-center"><Checkbox aria-label="Seleccionar esta página" checked={all} disabled={loading || !rows.length} onCheckedChange={(v) => onSelection(v === true ? Object.fromEntries(ids.map((id) => [id, true])) : {})} /></label></TableHead>
           {table.getHeaderGroups()[0]?.headers.map((h) => <TableHead key={h.id} aria-sort={h.column.getIsSorted() === 'asc' ? 'ascending' : h.column.getIsSorted() === 'desc' ? 'descending' : undefined}>
             {h.column.getCanSort() ? <button type="button" disabled={loading} className="min-h-control w-full text-left text-action-text" onClick={h.column.getToggleSortingHandler()}>
               {flexRender(h.column.columnDef.header, h.getContext())}<span aria-hidden="true">{h.column.getIsSorted() === 'asc' ? ' ↑' : h.column.getIsSorted() === 'desc' ? ' ↓' : ''}</span>
@@ -55,7 +61,7 @@ export function DataTable<T extends { id: string }>({ label, columns, rows, sort
           </TableHead>)}
         </TableRow></TableHeader>
         <TableBody>{table.getRowModel().rows.map((r) => <TableRow key={r.id} data-state={selection[r.id] ? 'selected' : undefined}>
-          <TableCell className="px-1"><label className="flex min-h-control items-center justify-center"><input type="checkbox" aria-label={`Seleccionar fila ${r.index + 1}`} checked={!!selection[r.id]} disabled={loading} onChange={(e) => onSelection({ ...selection, [r.id]: e.target.checked })} /></label></TableCell>
+          <TableCell className="px-1"><label className="flex min-h-control items-center justify-center"><Checkbox aria-label={`Seleccionar fila ${r.index + 1}`} checked={!!selection[r.id]} disabled={loading} onCheckedChange={(v) => onSelection({ ...selection, [r.id]: v === true })} /></label></TableCell>
           {r.getVisibleCells().map((cell) => <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}
         </TableRow>)}</TableBody>
       </Table>

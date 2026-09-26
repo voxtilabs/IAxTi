@@ -8,6 +8,11 @@ import {
   MarcaJelly,
   ModeToggle,
   RequireSession,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   SessionProvider,
   useSession,
   useMarcaSvg,
@@ -170,20 +175,29 @@ function TablaTenants() {
               </td>
               <td className="px-4 py-4">
                 <div className="flex flex-wrap gap-2">
-                  <select
-                    aria-label={`Plan de ${t.name}`}
-                    className="rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body"
+                  {/* El Select de Pulso y no el desplegable nativo: ese se
+                      pinta con los colores del sistema operativo y en modo
+                      noche queda blanco en una pantalla oscura. La guarda de
+                      controles solo miraba apps/web, así que este sobrevivió
+                      con la lista de excepciones vacía diciendo que no quedaba
+                      ninguno (#537). */}
+                  <Select
                     value={t.plan}
-                    onChange={(e) =>
+                    onValueChange={(plan) =>
                       void accion(`/platform/tenants/${t.id}/plan`, {
-                        body: JSON.stringify({ plan: e.target.value }),
+                        body: JSON.stringify({ plan }),
                       })
                     }
                   >
-                    {['base', 'crece', 'equipo'].map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label={`Plan de ${t.name}`} className="h-8 w-28 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['base', 'crece', 'equipo'].map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {t.state === 'suspended' || t.state === 'read_only' || t.state === 'past_due' ? (
                     <button
                       type="button"

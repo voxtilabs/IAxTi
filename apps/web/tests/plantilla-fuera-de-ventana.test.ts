@@ -17,9 +17,52 @@ const BANDEJA = readFileSync(join(__dirname, '..', 'components', 'bandeja', 'ban
 
 describe('elegir plantilla', () => {
   it('el botón ya no está deshabilitado', () => {
-    const boton = CHAT.slice(CHAT.indexOf('Elegir plantilla') - 400, CHAT.indexOf('Elegir plantilla'));
-    expect(boton).not.toMatch(/disabled(\s|$|\})/);
+    /**
+     * Esta guarda no cazaba nada y era la única que vigilaba esto.
+     *
+     * El regex era `/disabled(\s|$|\})/`: exigía que después de `disabled`
+     * viniera un espacio, el fin del string o `}`. En JSX el atributo se
+     * escribe `disabled={…}`, y ahí lo que sigue es `=`. Probado:
+     *
+     *   'disabled={enviando}'      → false   (la forma que el repo escribe)
+     *   'disabled={!texto.trim()}' → false
+     *   '<button disabled>'        → false
+     *   'disabled }'               → true    (una forma que nadie escribe)
+     *
+     * O sea: si mañana alguien vuelve a poner una condición en ese botón, CI
+     * quedaba verde y la pyme dejaba de poder contestarle a cualquier
+     * conversación de más de un día. Se descubre cuando un cliente reclama que
+     * no le respondieron, no en el PR.
+     *
+     * Y la ventana de 400 caracteres era la otra mitad del problema: si alguien
+     * le agrega props o clases al `<Button>`, la apertura de la etiqueta se sale
+     * de la ventana y ni un regex correcto vería el atributo. Ahora el corte se
+     * ancla en la etiqueta misma.
+     */
+    const fin = CHAT.indexOf('Elegir plantilla');
+    const inicio = CHAT.lastIndexOf('<Button', fin);
+    expect(inicio, 'no encontramos la etiqueta del botón').toBeGreaterThan(-1);
+    const boton = CHAT.slice(inicio, fin);
+    expect(boton).not.toMatch(/\bdisabled\b/);
     expect(boton).toContain('setDialogoPlantilla(true)');
+  });
+
+  it('la guarda de arriba SÍ caza un disabled, en las formas que el repo escribe', () => {
+    // Una guarda que no puede fallar no guarda nada, y esta no podía. Se
+    // comprueba el regex contra las formas de verdad en vez de confiar en que
+    // funciona — que es exactamente lo que no se hizo la primera vez.
+    const regex = /\bdisabled\b/;
+    for (const forma of [
+      'disabled={enviando}',
+      'disabled={!texto.trim()}',
+      'disabled={reintentando === m.id}',
+      '<Button disabled>',
+      'disabled',
+    ]) {
+      expect(regex.test(forma), `no caza ${forma}`).toBe(true);
+    }
+    // Y no se dispara con algo que solo se parece.
+    expect(regex.test('disabledPorAhora={false}')).toBe(false);
   });
 
   it('solo ofrece las aprobadas', () => {
