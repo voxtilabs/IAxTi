@@ -31,9 +31,12 @@ import {
   createActivity,
   createDeal,
   listActivitiesByContact,
+  getContactFicha,
   listContacts,
+  listCustomFields,
   listDeals,
   listPipelines,
+  paraLaIa,
 } from '@iaxti/module-crm';
 import { roleOf } from '@iaxti/module-identity';
 import {
@@ -42,6 +45,38 @@ import {
   isBaseRole,
 } from '@iaxti/module-authorization';
 import { presignUrl, storageFromEnv } from '@iaxti/core';
+
+/**
+ * Los campos propios del negocio que el asistente SÍ puede ver (#528).
+ *
+ * Vive en una función con nombre y no suelto dentro del contexto por una razón
+ * concreta: el filtro por `visible_ia` es la única cosa que impide que una nota
+ * interna salga del negocio, y un filtro que hay que acordarse de aplicar en
+ * cada lugar donde se arma un contexto es un filtro que algún día no se aplica.
+ *
+ * Faltaba entero, y faltaba en los DOS sentidos. El «sí» no servía: una pyme
+ * declaraba «Talla», «Modelo del auto» o «Convenio» como visible para el
+ * asistente y el asistente jamás lo recibía, así que le volvía a preguntar al
+ * cliente lo que la ficha ya tenía — el problema que #440 dice haber resuelto.
+ * Y el «no» se cumplía por ACCIDENTE: no había filtro porque no se mandaba
+ * nada, así que el día que alguien enchufara `custom` sin acordarse de
+ * `paraLaIa`, salían las notas internas. Y los campos que una pyme marca
+ * ocultos son justo esos.
+ *
+ * Devuelve `{}` cuando no hay nada que mostrar, y quien la use no agrega la
+ * llave: una llave vacía es una línea más que el modelo lee y el negocio paga.
+ */
+export async function datosDelNegocioParaLaIa(
+  client: PoolClient,
+  tenantId: string,
+  contactId: string,
+): Promise<Record<string, unknown>> {
+  const [campos, ficha] = await Promise.all([
+    listCustomFields(client, tenantId, 'contact').catch(() => []),
+    getContactFicha(client, tenantId, contactId).catch(() => null),
+  ]);
+  return paraLaIa(campos, (ficha?.contact?.custom as Record<string, unknown>) ?? {});
+}
 
 // El copiloto (#48) corre en la cola `agents`, DESPUÉS del camino de
 // entrada: la bandeja jamás espera a la IA. Sin llaves de proveedor, el
@@ -257,7 +292,7 @@ async function herramientasDeLaConversacion(
         }));
       },
       historialDelContacto: async (contactId) => {
-        const [oportunidades, actividades, citas] = await Promise.all([
+        const [oportunidades, actividades, citas, camposPropios] = await Promise.all([
           listDeals(client, data.tenantId, { contactId, limit: 5 })
             .then((r) => r.items)
             .catch(() => []),
@@ -267,6 +302,7 @@ async function herramientasDeLaConversacion(
             desde: new Date(Date.now() - 365 * 86_400_000),
             hasta: new Date(Date.now() + 90 * 86_400_000),
           }).catch(() => []),
+          datosDelNegocioParaLaIa(client, data.tenantId, contactId),
         ]);
         return {
           oportunidades: oportunidades.map((d: { title: string; status: string; valueClp: number | null }) => ({
@@ -284,6 +320,9 @@ async function herramientasDeLaConversacion(
           citas: citas
             .filter((c: { contactId: string }) => c.contactId === contactId)
             .map((c: { startsAt: Date; status: string }) => ({ cuando: c.startsAt, estado: c.status })),
+          // Solo si hay alguno: una llave vacía en el contexto es una línea
+          // más que el modelo lee y paga sin que diga nada.
+          ...(Object.keys(camposPropios).length > 0 ? { datosDelNegocio: camposPropios } : {}),
         };
       },
       crearActividad: (i) =>
