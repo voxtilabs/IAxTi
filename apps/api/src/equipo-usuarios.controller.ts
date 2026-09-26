@@ -25,6 +25,7 @@ import { sendNotificationEmail } from '@iaxti/module-notifications';
 import { z } from 'zod';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo } from './validar';
+import { permisosDelActor } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
@@ -105,23 +106,60 @@ export class EquipoUsuariosController {
     const actor = actorOf(request);
     // Ya viene sin espacios y en minúscula: lo dejó así el esquema.
     const email = body.email;
-    const rol = (body.rol ?? '').trim().toUpperCase();
+    const pedido = (body.rol ?? '').trim();
 
     return withTenant(pool(), actor.tenantId, async (c) => {
       // El rol tiene que existir DE VERDAD: invitar a un rol inventado crea
       // a alguien que entra y no puede hacer nada, y eso se descubre tarde.
       const roles = await listRoles(c, actor.tenantId, new Set(registry.permissionsCatalog().keys()));
-      if (!roles.some((r) => r.name === rol)) {
+      /**
+       * Sin pasar a MAYÚSCULAS, que era otro defecto de la misma línea (#532).
+       *
+       * La ruta hacía `.toUpperCase()` —pensado para los roles base, que son
+       * ADMIN, SUPERVISOR y USER— y los roles PROPIOS del negocio tienen nombre
+       * libre: «Recepcionista», «Jefe de local». Así que invitar a cualquier rol
+       * propio respondía ROLE_UNKNOWN y la función de #73 era inalcanzable desde
+       * acá. Lo encontró la prueba de escalada: esperaba ROLE_FORBIDDEN y llegó
+       * ROLE_UNKNOWN.
+       *
+       * Se compara sin distinguir mayúsculas —para que «admin» siga sirviendo—
+       * y se usa el nombre TAL COMO está guardado de ahí en adelante.
+       */
+      const destino = roles.find((r) => r.name.toLowerCase() === pedido.toLowerCase());
+      if (!destino) {
         throw new BadRequestException({
           code: 'ROLE_UNKNOWN',
-          message: `El rol "${rol}" no existe. Disponibles: ${roles.map((r) => r.name).join(', ')}.`,
+          message: `El rol "${pedido}" no existe. Disponibles: ${roles.map((r) => r.name).join(', ')}.`,
         });
       }
-      // Nadie invita por encima de sí mismo: un SUPERVISOR no crea ADMIN.
-      if (rol === 'ADMIN' && actor.role !== 'ADMIN' && actor.role !== 'SUPERADMIN') {
+      const rol = destino.name;
+      /**
+       * Nadie invita por encima de sí mismo (#532).
+       *
+       * Comparando PERMISOS y no nombres. Antes era
+       * `rol === 'ADMIN' && actor.role !== 'ADMIN' && actor.role !== 'SUPERADMIN'`,
+       * que es justo lo que ADR-0008 prohíbe — y además no veía el caso que
+       * importa: un rol PROPIO del negocio (#73) que cargue más permisos que
+       * quien invita. Un ADMIN puede crear «Jefe de local» con `users.invite`;
+       * esa persona llegaba acá y el check solo le impedía invitar al rol
+       * llamado literalmente ADMIN. Invitar a otro rol propio con más permisos
+       * que el suyo pasaba sin problema.
+       *
+       * Y la rama del SUPERADMIN era código muerto: su conjunto son
+       * `platform.*` y `audit.read`, así que nunca pasa el guard de
+       * `users.invite` de esta ruta.
+       *
+       * Para los roles base no cambia nada: un ADMIN tiene todo lo que no es
+       * `platform.*`, así que cualquier rol del negocio es un subconjunto suyo.
+       */
+      const mios = await permisosDelActor(c, actor);
+      const deMas = destino.permissions.filter((p) => !mios.has(p));
+      if (deMas.length > 0) {
         throw new BadRequestException({
           code: 'ROLE_FORBIDDEN',
-          message: 'Solo quien administra el negocio puede invitar a otra persona como ADMIN.',
+          message:
+            `El rol "${rol}" puede hacer cosas que tú no puedes, así que no puedes invitar a ` +
+            'alguien con ese rol. Pídeselo a quien administra el negocio.',
         });
       }
 
