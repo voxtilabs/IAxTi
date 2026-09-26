@@ -451,7 +451,13 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        // `text-muted` y no `text-sidebar-foreground/70` (#548): el modificador
+        // de opacidad necesita que el color esté definido por canales
+        // (`rgb(var(--x) / <alpha-value>)`), y los tokens de Pulso son colores
+        // completos. Comprobado con Tailwind: emitía `.text-sidebar-foreground`
+        // y NO la variante con `/70`, así que los rótulos de sección de la barra
+        // salían al mismo tono que los enlaces y la jerarquía se perdía.
+        "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-muted outline-none ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
         className
       )}
