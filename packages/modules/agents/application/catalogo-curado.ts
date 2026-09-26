@@ -34,6 +34,13 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   WebchatController_config: 'La llama el widget del sitio del cliente, no una persona (#46).',
 
   // Subir un archivo es de las manos de una persona, no de un agente (#522).
+  // El tope de cobro del vendedor: es un ajuste de gobierno, no una acción del
+  // día (#535). Leerlo no molesta a nadie, pero la ESCRITURA es justo el límite
+  // que protege al negocio de un cobro de más, y no puede moverla algo que
+  // conversa. La cambia una persona con `tenant.settings`, en su pantalla.
+  PaymentsController_guardarAjustes:
+    'Sube o baja el tope de monto de quien cobra: es el límite que protege al negocio, y lo mueve una persona en su pantalla (#535).',
+
   KnowledgeController_destinoDelPdf:
     'Devuelve dónde poner un archivo que el agente no tiene: no puede elegir un PDF del computador de nadie (#522).',
   KnowledgeController_crearDesdePdf:

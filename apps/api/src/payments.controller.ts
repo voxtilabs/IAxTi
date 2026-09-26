@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   NotFoundException,
   Param,
   Post,
+  Put,
   Query,
   Req,
   ServiceUnavailableException,
@@ -27,10 +29,10 @@ import {
   type ProviderKind,
 } from '@iaxti/module-payments';
 import { getConversation, salePorProveedor, sendMessage, updateDeliveryStatus } from '@iaxti/module-conversations';
-import { getTenantSettings } from '@iaxti/module-organizations';
+import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
-import { Cuerpo } from './validar';
+import { Cuerpo, validar } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import type { WithRequestId } from './request-id';
@@ -108,10 +110,71 @@ const NuevoLinkDePago = z
     message: 'El link nace de una conversación o de una oportunidad.',
   });
 
+/**
+ * El tope de monto para quien cobra con límite (#535).
+ *
+ * `null` lo saca: un negocio que hoy no tiene tope no puede quedar con uno por
+ * omisión, porque alguien que cobra $800.000 sin problema empezaría a recibir un
+ * rechazo que nadie le explicó. El tope se activa cuando el negocio lo escribe.
+ */
+const AjustesDeCobro = z.object({
+  maxLinkClpUser: z
+    .number({ error: 'El tope va en pesos, como número.' })
+    .int('El tope va en pesos enteros.')
+    .min(1, 'El tope tiene que ser mayor que cero. Para quitarlo, déjalo vacío.')
+    .nullable(),
+});
+
 @ApiTags('payments')
 @Controller('payments')
 @RequireModule('payments')
 export class PaymentsController {
+  /**
+   * El tope de monto del vendedor (#535).
+   *
+   * `settings.pagos.maxLinkClpUser` se LEÍA desde el primer día —en la ruta de
+   * crear el link— y ninguna ruta lo escribía: la única escritura del repo era
+   * un `UPDATE` crudo en un test, que es justo por lo que el test pasaba y el
+   * producto no. Así que el tope quedaba en null siempre y cualquier vendedor
+   * con rol USER podía emitir un link por el monto que quisiera y mandarlo al
+   * chat del cliente en el mismo click. La matriz §23 le promete al dueño que
+   * «hasta tope» lo protege.
+   */
+  @Get('ajustes')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'El tope de monto para quien cobra con límite' })
+  async ajustes(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    const settings = (await withTenant(pool(), actor.tenantId, (c) =>
+      getTenantSettings(c, actor.tenantId),
+    )) as { pagos?: { maxLinkClpUser?: number } };
+    return { maxLinkClpUser: settings.pagos?.maxLinkClpUser ?? null };
+  }
+
+  @Put('ajustes')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'Guarda el tope de monto para quien cobra con límite' })
+  async guardarAjustes(@Req() request: WithUser, @Body() body: unknown) {
+    const actor = actorOf(request);
+    // `validar` suelto y no `@Cuerpo(...)`: el pipe convierte el cuerpo ausente
+    // en `{}` y acá esa diferencia ES el 400 — un PUT sin cuerpo tiene que
+    // decirlo, no responder 200 diciendo que guardó.
+    const ajustes = validar(AjustesDeCobro, body);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      // Se mezcla DENTRO de `pagos`: `updateTenantSettings` hace `settings ||
+      // patch`, que es merge de primer nivel, así que escribir `{ pagos: {...} }`
+      // pisaría las otras claves de pagos (#536).
+      const actuales = (await getTenantSettings(c, actor.tenantId)) as {
+        pagos?: Record<string, unknown>;
+      };
+      const pagos = { ...(actuales.pagos ?? {}) };
+      if (ajustes.maxLinkClpUser === null) delete pagos.maxLinkClpUser;
+      else pagos.maxLinkClpUser = ajustes.maxLinkClpUser;
+      await updateTenantSettings(c, actor.tenantId, { pagos });
+      return { maxLinkClpUser: ajustes.maxLinkClpUser };
+    });
+  }
+
   @Get('providers')
   @RequirePermission('payments.manage_providers')
   @ApiOperation({ summary: 'Los proveedores de pago del tenant' })

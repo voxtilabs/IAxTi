@@ -67,23 +67,66 @@ export function Pagos() {
   const [secretRef, setSecretRef] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
+  // El tope del vendedor (#535): `null` es «sin tope», y es distinto de 0.
+  const [tope, setTope] = useState<number | null>(null);
+  const [topeEscrito, setTopeEscrito] = useState('');
+  const [guardandoTope, setGuardandoTope] = useState(false);
 
   useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
-      const [nuevosProveedores, nuevosLinks] = await Promise.all([
+      const [nuevosProveedores, nuevosLinks, ajustes] = await Promise.all([
         apiFetch<ProveedorDto[]>(config, session, tenant, '/payments/providers'),
         apiFetch<LinkDto[]>(config, session, tenant, '/payments/links'),
+        // Sin `tenant.settings` esto responde 403, y no es un error que mostrar:
+        // quien atiende ve la pantalla sin el campo del tope, que no es suyo.
+        apiFetch<{ maxLinkClpUser: number | null }>(config, session, tenant, '/payments/ajustes').catch(
+          () => null,
+        ),
       ]);
       setProveedores(nuevosProveedores);
       setLinks(nuevosLinks);
+      if (ajustes) {
+        setTope(ajustes.maxLinkClpUser);
+        setTopeEscrito(ajustes.maxLinkClpUser === null ? '' : String(ajustes.maxLinkClpUser));
+      }
     } catch (err) {
       setAviso((err as Error).message);
       setProveedores([]);
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
+
+  /**
+   * Guarda el tope del vendedor (#535).
+   *
+   * Vacío es `null` —sin tope—, y es distinto de 0: un tope de cero dejaría al
+   * vendedor sin poder cobrar nada y en la pantalla se vería igual que «sin
+   * tope», porque los dos son cero. El servidor rechaza el 0 y acá se manda
+   * null.
+   */
+  const guardarTope = async () => {
+    if (!session || !tenant || guardandoTope) return;
+    const limpio = topeEscrito.replace(/\D/g, '');
+    setGuardandoTope(true);
+    try {
+      const r = await apiFetch<{ maxLinkClpUser: number | null }>(
+        config,
+        session,
+        tenant,
+        '/payments/ajustes',
+        { method: 'PUT', body: JSON.stringify({ maxLinkClpUser: limpio ? Number(limpio) : null }) },
+      );
+      setTope(r.maxLinkClpUser);
+      setTopeEscrito(r.maxLinkClpUser === null ? '' : String(r.maxLinkClpUser));
+      setAviso(null);
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setGuardandoTope(false);
+    }
+  };
 
   const cancelar = async (l: LinkDto) => {
     if (!session || !tenant || cancelando) return;
@@ -139,6 +182,33 @@ export function Pagos() {
       </p>
 
       <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+        <span className="rotulo">Tope por cobro</span>
+        <p className="mt-2 text-sm text-body">
+          Hasta cuánto puede cobrar quien atiende. Quien supervisa cobra sin tope. Déjalo vacío
+          para que nadie tenga tope.
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+            Monto máximo
+            <Input
+              aria-label="Tope por cobro en pesos"
+              inputMode="numeric"
+              className="dato w-44"
+              placeholder="Sin tope"
+              value={topeEscrito}
+              onChange={(e) => setTopeEscrito(e.target.value.replace(/\D/g, ''))}
+            />
+          </label>
+          <Button variant="secundario" disabled={guardandoTope} onClick={() => void guardarTope()}>
+            {guardandoTope ? 'Guardando…' : 'Guardar tope'}
+          </Button>
+          <span className="text-sm text-muted">
+            {tope === null ? 'Hoy nadie tiene tope.' : `Hoy el tope es ${fmtClp(tope)}.`}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Conectar proveedor</span>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Select value={kind} onValueChange={setKind}>
