@@ -24,6 +24,19 @@ export const CAUSAS_META: Record<number | string, string> = {
   url_not_verified: 'Ese enlace todavía no está verificado para enviarse por este canal.',
   pending_url_verification: 'El enlace quedó esperando verificación antes de poder enviarse.',
   destination_not_verified: 'Ese destinatario no está verificado todavía en la cuenta.',
+  /**
+   * La llave de prueba solo alcanza a la gente del equipo (#596).
+   *
+   * Zavu lo responde así, textual: «Sandbox mode: a test key only reaches the
+   * phone numbers of people on your team. Send to one of those, or use a live
+   * API key.» Va acá y no en la tabla por status porque es lo ÚNICO que
+   * distingue este 403 de un 403 por credencial mala, y los dos mandan a
+   * arreglar cosas opuestas.
+   */
+  'Sandbox mode':
+    'Este canal está conectado con una llave de prueba, y esas solo alcanzan a los números ' +
+    'del equipo en el proveedor. Agrega ese número al equipo, o conecta el canal con una ' +
+    'llave de producción.',
   daily_limit_exceeded: 'Se alcanzó el tope de envíos del día; sigue mañana.',
   a2p_limit_exceeded: 'Se alcanzó el tope mensual de mensajes del plan.',
   rate_limited: 'El proveedor pidió bajar el ritmo; se reintenta solo.',
@@ -139,8 +152,28 @@ export function codigoDelProveedor(cuerpo: string): number | string | undefined 
 }
 
 export function mensajeDeRechazo(status: number): string {
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return 'El canal rechazó nuestras credenciales. Un administrador tiene que reconectarlo en Canales.';
+  }
+  if (status === 403) {
+    /**
+     * 401 y 403 NO son lo mismo, y confundirlos costó tres días (#596).
+     *
+     * 401 es «no sé quién eres»: la credencial está mala y hay que reconectar.
+     * 403 es «sé quién eres y esto no lo puedes hacer»: la credencial está
+     * PERFECTA y el problema es el destino, el número o el permiso.
+     *
+     * Estaban juntos, así que un rechazo de sandbox —«a test key only reaches
+     * the phone numbers of people on your team»— se leía como «el canal rechazó
+     * nuestras credenciales, reconéctalo». O sea que el producto mandaba a
+     * reconectar un canal sano, y reconectarlo no arreglaba nada, así que se
+     * hacía otra vez. Es la peor clase de mensaje: no solo no ayuda, manda en
+     * la dirección contraria.
+     */
+    return (
+      'El canal no tiene permitido escribirle a ese número. La credencial está bien: ' +
+      'lo que falta es el permiso para ese destino.'
+    );
   }
   if (status === 404) {
     return 'El emisor de este canal ya no existe en el proveedor. Reconéctalo en Canales.';
