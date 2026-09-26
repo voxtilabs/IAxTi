@@ -29,19 +29,40 @@ while [ "$#" -gt 0 ]; do
   if [ "$1" = -w ]; then format="$2"; break; fi
   shift
 done
+estado=$([ "$code" = 200 ] && echo ok || echo degraded)
+# Con printf y no con comillas escapadas: este archivo se escribe desde una
+# plantilla de JavaScript, donde \" se convierte en " y el shell recibe una
+# cadena partida. Se me rompió así, y printf no necesita comillas dentro.
+cuerpo=$(printf '{%sstatus%s:%s%s%s' '"' '"' '"' "$estado" '"')
+# El SHA solo cuando la prueba lo pide: así se simula tanto un /health que no lo
+# informa (el de antes de #565) como uno que informa otro build.
+if [ -n "\${FAKE_SHA:-}" ] && [[ "$url" == */health ]]; then
+  cuerpo=$(printf '%s,%ssha%s:%s%s%s' "$cuerpo" '"' '"' '"' "$FAKE_SHA" '"')
+fi
+cuerpo="$cuerpo}"
 if [[ "$format" == *'\\n'* ]]; then
-  printf '{"status":"%s"}\\n%s' "$([ "$code" = 200 ] && echo ok || echo degraded)" "$code"
+  printf '%s\\n%s' "$cuerpo" "$code"
 elif [ -n "$format" ]; then
   printf '%s' "$code"
+else
+  # Sin -w: solo el cuerpo. Es como lee el SHA la comprobación de #565.
+  printf '%s' "$cuerpo"
 fi
 `, { mode: 0o755 });
 });
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
 
-function run(mode) {
-  const counter = join(directory, mode);
+function run(mode, extra = {}) {
+  const counter = join(directory, mode + (extra.FAKE_SHA ?? '') + (extra.SHA ?? ''));
   const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', smoke], {
-    env: { ...process.env, BASE: 'http://prueba.invalid', PATH: `${directory}:${process.env.PATH}`, COUNTER: counter, MODE: mode },
+    env: {
+      ...process.env,
+      BASE: 'http://prueba.invalid',
+      PATH: `${directory}:${process.env.PATH}`,
+      COUNTER: counter,
+      MODE: mode,
+      ...extra,
+    },
     encoding: 'utf8', timeout: 10_000,
   });
   return { ...result, checks: Number(readFileSync(counter, 'utf8')) };
@@ -89,5 +110,37 @@ describe('smoke espera dependencias reales (#17, #254)', () => {
     });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('::warning::');
+  });
+});
+
+/**
+ * Que lo que quedó vivo sea lo que se desplegó (#565).
+ *
+ * Dokploy puede decir «done» sobre la imagen anterior —si el pull falló, si el
+ * contenedor viejo nunca murió— y hasta ahora el smoke pasaba igual, porque la
+ * app de antes contesta `/health` y `/ready` perfectamente bien. Un despliegue
+ * que no desplegó nada se leía como bueno.
+ */
+describe('el smoke verifica QUÉ build quedó vivo (#565)', () => {
+  const SHA = 'abcdef1234567890abcdef1234567890abcdef12';
+
+  it('el SHA que contesta coincide con el desplegado: pasa y lo dice', () => {
+    const result = run('recover', { SHA, FAKE_SHA: SHA.slice(0, 12) });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Build vivo: abcdef123456');
+  });
+
+  it('está corriendo OTRA imagen: falla, aunque /health y /ready contesten 200', () => {
+    const result = run('recover', { SHA, FAKE_SHA: '999999999999' });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('está corriendo otra imagen');
+  });
+
+  it('un /health que no informa el SHA avisa pero no rompe el despliegue', () => {
+    // Es el caso de un servicio todavía sin la versión, o de una imagen vieja
+    // desplegada a mano: no se puede verificar, y decirlo es mejor que fallar.
+    const result = run('recover', { SHA });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('no informa el SHA');
   });
 });

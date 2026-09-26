@@ -134,7 +134,25 @@ jobs:
             st=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.composeStatus')
             echo "[$i] $st"
             if [ "$st" = "done" ]; then exit 0; fi
-            if [ "$st" = "error" ]; then echo "Deploy falló en Dokploy"; exit 1; fi
+            if [ "$st" = "error" ]; then
+              # Antes esto era la última línea del log: «Deploy falló en
+              # Dokploy» y nada más (#565). Un fallo transitorio y uno real se
+              # veían idénticos, así que había que entrar al panel para saber
+              # cuál era — y eso enseña a reintentar sin mirar.
+              echo "Deploy falló en Dokploy. Lo que informa del último despliegue:"
+              # Solo los campos ESTRUCTURADOS del despliegue, no el log crudo:
+              # la salida de un `compose up` puede arrastrar nombres y valores
+              # del entorno, y este log de Actions lo lee cualquiera con acceso
+              # al repo. Con el estado y el mensaje de error alcanza para
+              # distinguir «la imagen no estaba» de «el contenedor no arrancó».
+              curl -fsS "${auth[@]}" \
+                "${DOKPLOY_URL}/api/deployment.all?composeId=${COMPOSE_ID}" 2>/dev/null \
+                | jq -r 'if type == "array" then .[0:3] else . end
+                         | if type == "array" then .[] else . end
+                         | "  \(.createdAt // "?") · \(.status // "?") · \(.title // "sin título")\n  \(.errorMessage // .description // "sin detalle" | tostring | .[0:400])"' \
+                || echo "  (no se pudo leer el detalle del despliegue; queda el panel de Dokploy)"
+              exit 1
+            fi
           done
           echo "Timeout esperando el deploy"; exit 1
 
@@ -197,6 +215,21 @@ jobs:
 
           fallo=0
           mirar /health || fallo=1
+          # Y que lo que está vivo sea lo que ACABAMOS de desplegar (#565).
+          # Dokploy puede decir «done» sobre la imagen anterior —si el pull
+          # falló, si el contenedor viejo nunca murió— y hasta ahora eso no se
+          # veía: el smoke pasaba porque la app de antes contesta igual de bien.
+          # `/health` trae el SHA desde el tag de IAXTI_IMAGE.
+          vivo=$(curl -sS -m 15 "${BASE}/health" | jq -r '.sha // empty')
+          if [ -z "$vivo" ]; then
+            echo "::warning::/health no informa el SHA: no se puede verificar qué build quedó vivo (#565)."
+          elif [ "${SHA#"$vivo"}" = "${SHA}" ]; then
+            echo "Lo que atiende es ${vivo}, y se desplegó ${SHA}."
+            echo "El deploy dijo que salió bien pero está corriendo otra imagen."
+            fallo=1
+          else
+            echo "Build vivo: ${vivo} (coincide con el commit desplegado)."
+          fi
           mirar /health/modules || fallo=1
           # `/ready` SÍ mira las dependencias: una API viva sin base contesta
           # /health en 200 y no sirve para nada. Sin esto, un despliegue con

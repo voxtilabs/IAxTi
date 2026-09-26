@@ -6,6 +6,7 @@ import {
   createModuleWorker,
   enteroDeEntorno,
   redisConnection,
+  versionDelBuild,
 } from '@iaxti/core';
 import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
 import { processSuggest, type SuggestJob } from './copilot';
@@ -60,7 +61,9 @@ function start(): void {
 const server = createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service }));
+    // La versión, igual que en la API (#565): un despliegue que dice
+    // «done» sobre la imagen anterior es lo que hoy no se vería.
+    res.end(JSON.stringify({ status: 'ok', service, ...versionDelBuild() }));
     return;
   }
   if (req.url === '/ready') {

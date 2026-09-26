@@ -55,7 +55,7 @@ import {
 } from '@iaxti/module-organizations';
 import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
 import { withTenant } from '@iaxti/db';
-import { redisConnection } from '@iaxti/core';
+import { redisConnection, versionDelBuild } from '@iaxti/core';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
@@ -98,7 +98,10 @@ export { registry };
 class HealthController {
   @Get('health')
   health() {
-    return { status: 'ok', service: 'api' };
+    // La versión va acá y no en `/ready` (#565): «¿qué eres?» no es «¿puedes
+    // atender?». Y `/health` sigue sin mirar dependencias, que es lo que lo
+    // hace apto para provocar un reinicio.
+    return { status: 'ok', service: 'api', ...versionDelBuild() };
   }
 
   /**
