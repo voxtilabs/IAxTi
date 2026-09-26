@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Get,
   NotFoundException,
@@ -16,6 +15,7 @@ import {
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { withTenant } from '@iaxti/db';
+import { z } from 'zod';
 import {
   ActivityReferenceError,
   completeActivity,
@@ -34,6 +34,7 @@ import {
 } from '@iaxti/module-crm';
 import type { ActivityType, ImportField } from '@iaxti/module-crm';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -51,7 +52,79 @@ function pool() {
 
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
 
-const TIPOS: ActivityType[] = ['llamada', 'reunion', 'tarea', 'nota'];
+/**
+ * Los cuatro tipos de actividad. Va con `satisfies` para que el día que el
+ * dominio agregue o renombre uno, esto no compile en vez de aceptar un tipo
+ * que la base no conoce.
+ */
+const TIPOS = ['llamada', 'reunion', 'tarea', 'nota'] as const satisfies readonly ActivityType[];
+
+/**
+ * Los esquemas de entrada (#524), al lado de sus rutas.
+ *
+ * El mensaje va escrito acá porque es lo que va a leer quien está atendiendo a
+ * un cliente, no un «Required».
+ */
+
+/**
+ * El CSV que se importa (#34). El esquema es uno porque la vista previa y la
+ * confirmación reciben el MISMO cuerpo: la previa es la confirmación sin
+ * escribir.
+ */
+const ImportacionDeCsv = z.object({
+  csv: textoRequerido('Pega o sube el contenido del CSV.'),
+  // El mapeo se acepta como vino, sin comprobar que cada valor sea un campo
+  // importable: una columna mal rotulada ya la rechaza el caso de uso con
+  // IMPORT_ERROR y su mensaje («Indica cuál columna es el teléfono»), y
+  // meterla al esquema cambiaría ese código por VALIDATION_ERROR. De ahí el
+  // cast al llamarlo: el tipo dice lo mismo que decía el `@Body()` de antes.
+  mapping: z.record(z.string(), z.string()).optional(),
+});
+
+/** La supresión por solicitud del titular (SPEC §39). */
+const SupresionDelTitular = z.object({
+  // El motivo puede venir vacío: quien decide si la supresión procede es el
+  // caso de uso, y lo dice con SUPRESION_RECHAZADA.
+  motivo: z.string().optional(),
+});
+
+const DuplicadoAFusionar = z.object({
+  duplicateId: textoRequerido('Indica el contacto duplicado que se fusiona en este.'),
+});
+
+const CorreccionDeContacto = z.object({
+  // Nulables a propósito: mandar `null` BORRA y no mandar el campo lo deja
+  // como estaba (#480). Un esquema que solo aceptara texto dejaría otra vez
+  // sin forma de vaciar el correo, que es justo el bug que #480 arregló.
+  name: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  rut: z.string().nullable().optional(),
+  ownerId: z.string().optional(),
+  // El contenido de `custom` se valida DENTRO del caso de uso contra los
+  // campos que declaró este negocio —tipo, obligatoriedad, opciones de
+  // lista—; el esquema no sabe qué declaró cada uno.
+  custom: z.record(z.string(), z.unknown()).optional(),
+});
+
+const NuevaActividad = z.object({
+  // Primero el tipo y después el título: con los dos malos el mensaje que se
+  // lee es el del tipo, como era con los dos `if` seguidos.
+  type: z.enum(TIPOS, { error: 'La actividad es llamada, reunión, tarea o nota.' }),
+  title: textoRequerido('La actividad necesita un título.'),
+  body: z.string().optional(),
+  // Se acepta lo que `new Date` entienda, igual que antes: la ficha manda ISO
+  // y el agente manda AAAA-MM-DD. El mensaje va en el tipo Y en la
+  // restricción: un `dueAt` que llegue como número falla el tipo, no el
+  // refine, y ahí saldría el «Invalid input» de zod.
+  dueAt: z
+    .string({ error: 'Indica una fecha válida para la actividad.' })
+    .refine(
+      (v) => Number.isFinite(new Date(v).getTime()),
+      'Indica una fecha válida para la actividad.',
+    )
+    .optional(),
+  dealId: z.string().optional(),
+});
 
 /** La ficha de contacto (#32, SPEC §10/§29) y sus actividades. */
 @ApiTags('crm')
@@ -116,19 +189,16 @@ export class ContactsController {
   @ApiOperation({ summary: 'Vista previa del CSV: mapeo y validación fila a fila' })
   async importPreview(
     @Req() request: WithUser,
-    @Body() body: { csv?: string; mapping?: Record<number, ImportField> },
+    @Cuerpo(ImportacionDeCsv) body: z.infer<typeof ImportacionDeCsv>,
   ) {
     const actor = actorOf(request);
-    if (!body?.csv?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Pega o sube el contenido del CSV.',
-        details: [{ field: 'csv' }],
-      });
-    }
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
-        previewImport(c, { tenantId: actor.tenantId, csv: body.csv!, mapping: body.mapping }),
+        previewImport(c, {
+          tenantId: actor.tenantId,
+          csv: body.csv,
+          mapping: body.mapping as Record<number, ImportField> | undefined,
+        }),
       );
     } catch (err) {
       throw new BadRequestException({ code: 'IMPORT_ERROR', message: (err as Error).message });
@@ -140,22 +210,15 @@ export class ContactsController {
   @ApiOperation({ summary: 'Confirma la importación: crea las filas válidas' })
   async importConfirm(
     @Req() request: WithUser,
-    @Body() body: { csv?: string; mapping?: Record<number, ImportField> },
+    @Cuerpo(ImportacionDeCsv) body: z.infer<typeof ImportacionDeCsv>,
   ) {
     const actor = actorOf(request);
-    if (!body?.csv?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Pega o sube el contenido del CSV.',
-        details: [{ field: 'csv' }],
-      });
-    }
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         confirmImport(c, {
           tenantId: actor.tenantId,
-          csv: body.csv!,
-          mapping: body.mapping,
+          csv: body.csv,
+          mapping: body.mapping as Record<number, ImportField> | undefined,
           actor: actor.userId,
           requestId: request.requestId,
         }),
@@ -191,7 +254,7 @@ export class ContactsController {
   async suprimirTitular(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { motivo?: string },
+    @Cuerpo(SupresionDelTitular) body: z.infer<typeof SupresionDelTitular>,
   ) {
     const actor = actorOf(request);
     try {
@@ -200,7 +263,7 @@ export class ContactsController {
           tenantId: actor.tenantId,
           contactId: id,
           actor: actor.userId,
-          motivo: body?.motivo ?? '',
+          motivo: body.motivo ?? '',
           requestId: request.requestId,
         }),
       );
@@ -215,22 +278,15 @@ export class ContactsController {
   async merge(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { duplicateId?: string },
+    @Cuerpo(DuplicadoAFusionar) body: z.infer<typeof DuplicadoAFusionar>,
   ) {
     const actor = actorOf(request);
-    if (!body?.duplicateId) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Indica el contacto duplicado que se fusiona en este.',
-        details: [{ field: 'duplicateId' }],
-      });
-    }
     try {
       await withTenant(pool(), actor.tenantId, (c) =>
         mergeContacts(c, {
           tenantId: actor.tenantId,
           primaryId: id,
-          duplicateId: body.duplicateId!,
+          duplicateId: body.duplicateId,
           actor: actor.userId,
           requestId: request.requestId,
         }),
@@ -276,14 +332,7 @@ export class ContactsController {
   async actualizar(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body()
-    body: {
-      name?: string;
-      email?: string;
-      rut?: string;
-      ownerId?: string;
-      custom?: Record<string, unknown>;
-    },
+    @Cuerpo(CorreccionDeContacto) body: z.infer<typeof CorreccionDeContacto>,
   ) {
     const actor = actorOf(request);
     try {
@@ -291,6 +340,9 @@ export class ContactsController {
         updateContact(c, {
           tenantId: actor.tenantId,
           contactId: id,
+          // El esquema descarta lo que no declara, así que este `...body` ya
+          // no puede traer un `tenantId` de otro negocio y pisar el de
+          // arriba: antes era el orden del spread lo único que lo cuidaba.
           ...body,
           actor: actor.userId,
           requestId: request.requestId,
@@ -313,36 +365,22 @@ export class ContactsController {
   async crear(
     @Req() request: WithUser,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() body: { type?: string; title?: string; body?: string; dueAt?: string; dealId?: string },
+    @Cuerpo(NuevaActividad) body: z.infer<typeof NuevaActividad>,
   ) {
     const actor = actorOf(request);
-    if (!TIPOS.includes(body?.type as ActivityType)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'La actividad es llamada, reunión, tarea o nota.',
-        details: [{ field: 'type' }],
-      });
-    }
-    if (!body?.title?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'La actividad necesita un título.',
-        details: [{ field: 'title' }],
-      });
-    }
+    // El `dealId` se queda con el pipe y NO pasa al esquema: su rechazo sale
+    // con el código del pipe de Nest (BAD_REQUEST), no con VALIDATION_ERROR,
+    // y pasarlo a zod cambiaría el código que ya reciben el SDK y el agente.
     if (body.dealId !== undefined) {
       await new ParseUUIDPipe().transform(body.dealId, { type: 'body', data: 'dealId' });
-    }
-    if (body.dueAt !== undefined && !Number.isFinite(new Date(body.dueAt).getTime())) {
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Indica una fecha válida para la actividad.', details: [{ field: 'dueAt' }] });
     }
     return withTenant(pool(), actor.tenantId, (c) =>
       createActivity(c, {
         tenantId: actor.tenantId,
         contactId: id,
         dealId: body.dealId,
-        type: body.type as ActivityType,
-        title: body.title!,
+        type: body.type,
+        title: body.title,
         body: body.body,
         // La API key tiene identidad de servicio; no es un responsable humano.
         ownerId: actor.kind === 'apikey' ? undefined : actor.userId,

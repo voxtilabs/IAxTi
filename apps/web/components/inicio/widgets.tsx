@@ -128,10 +128,14 @@ function SinResponder() {
 /**
  * Cómo va el embudo: cuánto hay abierto y cuánto está detenido.
  *
- * Lo detenido es el número por el que alguien hace algo hoy — una
- * oportunidad parada no se arregla sola, y `stalled` ya lo calcula el
- * producto. El total abierto va al lado para que el detenido tenga tamaño:
+ * Lo detenido es el número por el que alguien hace algo hoy: una oportunidad
+ * parada no se arregla sola. El total abierto va al lado para darle tamaño —
  * tres de cinco no es lo mismo que tres de doscientas.
+ *
+ * `stalled` lo marca el job `crm.stalled` de workers, una vez al día. Cuando
+ * escribí esto dije que «el producto ya lo calcula» y era falso: la función
+ * existía, su comentario decía que un job la llamaba, y ese job no existía
+ * (#529). Este número era siempre cero.
  */
 function ResumenDelEmbudo() {
   const { datos, cargando } = useDatos<{ items: DealCardDto[] }>('/deals?status=open&limit=100');

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import { getProvider, listChannelAccounts } from '@iaxti/module-channels';
 import type { ChannelAccountRef, PuertoDePlantillas } from '@iaxti/module-channels';
@@ -26,6 +27,7 @@ import {
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import { sendMessage } from '@iaxti/module-conversations';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -93,6 +95,27 @@ function seVeMal(err: unknown): never {
   }
   throw new BadRequestException({ code: 'VALIDATION_ERROR', message: mensaje });
 }
+
+/**
+ * A qué conversación va la plantilla (#524).
+ *
+ * El mensaje se copia tal cual del `if` que había: lo lee quien está en la
+ * bandeja mirando una conversación que se enfrió, no quien programa.
+ */
+const EnvioDePlantilla = z.object({
+  conversationId: textoRequerido('Falta a qué conversación mandarla.'),
+  // Los valores siguen siendo tolerantes A PROPÓSITO: acá nunca hubo `throw`,
+  // había un `Array.isArray(...) ? ... : []`, así que lo que no venga como
+  // arreglo de textos se ignora igual que antes. Con un `z.array()` pelado, un
+  // cuerpo que hoy responde 201 empezaría a responder 400, y eso es mover el
+  // contrato. El `.catch()` deja la forma DECLARADA para el catálogo (#492)
+  // sin cambiar quién pasa.
+  //
+  // Que falten valores no se comprueba acá tampoco: cuántos necesita depende
+  // de la plantilla, que el esquema no conoce. Lo dice `renderizar` con el
+  // número exacto.
+  valores: z.array(z.string()).optional().catch(undefined),
+});
 
 @ApiTags('whatsapp')
 @Controller('plantillas')
@@ -198,24 +221,18 @@ export class PlantillasController {
   async enviar(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { conversationId?: string; valores?: string[] },
+    @Cuerpo(EnvioDePlantilla) body: z.infer<typeof EnvioDePlantilla>,
   ) {
     const actor = actorOf(request);
-    if (!body?.conversationId) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta a qué conversación mandarla.',
-      });
-    }
     try {
       const res = await withTenant(pool(), actor.tenantId, async (c) =>
         enviarPlantilla(
           c,
           {
             tenantId: actor.tenantId,
-            conversationId: body.conversationId!,
+            conversationId: body.conversationId,
             templateId: id,
-            valores: Array.isArray(body?.valores) ? body.valores : [],
+            valores: body.valores ?? [],
             authorId: actor.userId,
             requestId: (request as { requestId?: string }).requestId,
           },
