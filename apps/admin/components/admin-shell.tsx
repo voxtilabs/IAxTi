@@ -27,6 +27,8 @@ interface TenantRow {
   plan: string;
   state: string;
   createdAt: string;
+  /** El cargo mensual por ampliación de IA contratada, en pesos (#536). */
+  iaAmpliacionClp: number | null;
 }
 
 // El color nunca es el único portador: la etiqueta lleva el texto del estado.
@@ -154,7 +156,7 @@ function TablaTenants() {
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-rest text-left">
-            {['Negocio', 'Rubro', 'Plan', 'Estado', 'Creado', 'Acciones'].map((h) => (
+            {['Negocio', 'Rubro', 'Plan', 'Estado', 'Creado', 'Ampliación IA', 'Acciones'].map((h) => (
               <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
             ))}
           </tr>
@@ -172,6 +174,14 @@ function TablaTenants() {
               </td>
               <td className="dato px-4 py-4 text-right text-ink">
                 {new Date(t.createdAt).toISOString().slice(0, 10)}
+              </td>
+              <td className="px-4 py-4 text-right">
+                <AmpliacionDeIa
+                  actual={t.iaAmpliacionClp}
+                  nombre={t.name}
+                  onGuardado={cargar}
+                  tenantId={t.id}
+                />
               </td>
               <td className="px-4 py-4">
                 <div className="flex flex-wrap gap-2">
@@ -365,6 +375,90 @@ function RetencionDelTenant({ tenantId, nombre }: { tenantId: string; nombre: st
             : `${datos.months} meses · la próxima purga se llevaría ${datos.wouldPurge}`}
         </span>
       )}
+    </span>
+  );
+}
+
+/**
+ * La ampliación de IA contratada de un tenant (#536).
+ *
+ * La línea de factura «Ampliación de asistencias de IA» estaba lista en
+ * `pricing.ts` desde que se escribió, y el plan más alto se vende con «cuota de IA
+ * ampliable» — pero la clave no se podía escribir por ninguna ruta, así que la
+ * línea nunca apareció en una factura y el cliente que contrataba la ampliación no
+ * la pagaba.
+ *
+ * Va acá y no en los ajustes del negocio porque es un CARGO CONTRATADO: un ADMIN
+ * que pudiera moverlo estaría editando su propia factura.
+ *
+ * A diferencia de `TopePropio`, esto MUESTRA el error. Ese componente hace el
+ * `fetch` y no mira la respuesta, así que un rechazo se ve igual que un guardado:
+ * para un tope de requests es molesto, para un monto que va a una factura no es
+ * aceptable. Queda anotado para arreglar el vecino aparte.
+ */
+function AmpliacionDeIa({
+  tenantId,
+  nombre,
+  actual,
+  onGuardado,
+}: {
+  tenantId: string;
+  nombre: string;
+  actual: number | null;
+  onGuardado: () => void;
+}) {
+  const { session, config } = useSession();
+  const [valor, setValor] = useState(actual === null ? '' : String(actual));
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const guardar = async () => {
+    if (!session) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      const res = await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/ampliacion-ia`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        // Vacío es «no tiene ampliación», y eso hay que poder volver a elegirlo:
+        // un cargo que solo se puede poner y no sacar obliga a entrar a la base.
+        body: JSON.stringify({ montoClp: valor.trim() === '' ? null : Number(valor) }),
+      });
+      if (!res.ok) {
+        const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(cuerpo?.message ?? 'No pudimos guardar el monto. Intenta de nuevo.');
+        return;
+      }
+      onGuardado();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <span className="inline-flex flex-col items-end gap-1">
+      <span className="flex items-center justify-end gap-1">
+        <input
+          aria-label={`Ampliación de IA contratada de ${nombre}, en pesos`}
+          className="dato w-24 rounded-boton border border-line bg-bg px-2 py-1 text-right text-xs text-ink"
+          inputMode="numeric"
+          onChange={(e) => setValor(e.target.value.replace(/[^0-9]/g, ''))}
+          placeholder="sin ampliar"
+          value={valor}
+        />
+        <button
+          className="rounded-boton border border-line px-2 py-1 text-xs text-body disabled:opacity-40"
+          disabled={guardando || valor === (actual === null ? '' : String(actual))}
+          onClick={() => void guardar()}
+          type="button"
+        >
+          {guardando ? '…' : 'Guardar'}
+        </button>
+      </span>
+      {error && <span className="max-w-48 text-right text-xs text-bad-text">{error}</span>}
     </span>
   );
 }

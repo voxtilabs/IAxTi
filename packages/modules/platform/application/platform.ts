@@ -7,6 +7,8 @@ export interface TenantSummary {
   plan: string;
   state: string;
   createdAt: Date;
+  /** El cargo mensual por ampliación de IA contratada, en pesos (#536). */
+  iaAmpliacionClp: number | null;
 }
 
 /**
@@ -16,7 +18,11 @@ export interface TenantSummary {
  */
 export async function listTenants(client: PoolClient): Promise<TenantSummary[]> {
   const result = await client.query(
-    `SELECT id, name, rubro, plan, state, created_at
+    // La ampliación de IA viaja en la lista (#536): el panel necesita mostrar
+    // el valor actual para poder editarlo, y un campo que solo se puede escribir
+    // a ciegas es cómo alguien pisa un cargo que ya estaba.
+    `SELECT id, name, rubro, plan, state, created_at,
+            settings->'billing'->>'iaAmpliacionClp' AS ia_ampliacion_clp
        FROM tenants ORDER BY created_at DESC LIMIT 100`,
   );
   return result.rows.map((row) => ({
@@ -26,6 +32,7 @@ export async function listTenants(client: PoolClient): Promise<TenantSummary[]> 
     plan: row.plan,
     state: row.state,
     createdAt: row.created_at,
+    iaAmpliacionClp: row.ia_ampliacion_clp === null ? null : Number(row.ia_ampliacion_clp),
   }));
 }
 

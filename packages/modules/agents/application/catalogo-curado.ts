@@ -41,6 +41,9 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PaymentsController_guardarAjustes:
     'Sube o baja el tope de monto de quien cobra: es el límite que protege al negocio, y lo mueve una persona en su pantalla (#535).',
 
+  PlatformController_ampliacionDeIa:
+    'Fija un cargo mensual en la factura de un cliente. Es la misma línea que PaymentsController_guardarAjustes: lo que toca plata lo mueve una persona en su pantalla, no algo que conversa (#536).',
+
   EquipoController_limitesDeAdjunto:
     'Le dice a la interfaz qué tipos y qué tamaños acepta el canal, para poner el `accept` del selector. Es cableado de pantalla, no una pregunta que alguien le haga a un asistente (#560).',
 
