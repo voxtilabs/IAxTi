@@ -231,11 +231,43 @@ describe('links (#60)', () => {
         actorUserId: randomUUID(),
       }),
     );
-    await withTenant(admin, tenant, (c) => cancelLink(c, { tenantId: tenant, linkId: link.id, actor: 'test' }));
+    const quienCancela = randomUUID();
+    await withTenant(admin, tenant, (c) =>
+      cancelLink(c, { tenantId: tenant, linkId: link.id, actor: quienCancela }),
+    );
     await expect(
       withTenant(admin, tenant, (c) => cancelLink(c, { tenantId: tenant, linkId: link.id, actor: 'test' })),
     ).rejects.toThrow(/no se puede/);
+
+    // #513: cancelar deja rastro. Era la única operación de dinero del módulo
+    // que no lo hacía —pedía el actor y lo tiraba—, así que un link cancelado
+    // no se podía atribuir a nadie.
+    const rastro = await admin.query(
+      `SELECT actor, actor_kind, metadata FROM audit_log
+        WHERE tenant_id = $1 AND action = 'payments.link.cancel' AND resource_id = $2`,
+      [tenant, link.id],
+    );
+    expect(rastro.rowCount).toBe(1);
+    expect(rastro.rows[0].actor).toBe(quienCancela);
+    expect(rastro.rows[0].actor_kind).toBe('user');
+    // Y con el monto: es el dato por el que alguien va a preguntar.
+    expect(Number((rastro.rows[0].metadata as { amountClp: number }).amountClp)).toBe(5000);
+
+    const evento = await admin.query(
+      `SELECT payload FROM outbox WHERE tenant_id = $1 AND name = 'payment_link.cancelled'`,
+      [tenant],
+    );
+    expect(evento.rowCount).toBe(1);
+    expect((evento.rows[0].payload as { linkId: string }).linkId).toBe(link.id);
   });
+
+  // Un link PAGADO no se prueba acá, y el motivo vale escribirlo: el trigger
+  // de la migración 0001 es `BEFORE UPDATE OR DELETE`, así que un link pagado
+  // no se puede modificar NI borrar — es permanente, igual que el audit_log
+  // (SPEC §17). Una prueba que creara uno dejaría una fila para siempre en la
+  // base de pruebas, y su tenant tampoco se podría borrar por la FK. El
+  // rechazo de cancelar un pagado lo da el `status IN ('created','sent')` del
+  // UPDATE, que es el mismo camino que ya cubre el caso de arriba.
 });
 
 describe('confirmación (#61)', () => {

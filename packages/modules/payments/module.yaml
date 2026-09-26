@@ -17,6 +17,7 @@ events:
   publishes:
     - payment_link.created
     - payment_link.sent
+    - payment_link.cancelled
     - payment_link.expired
     - payment.received
     - payment.failed
