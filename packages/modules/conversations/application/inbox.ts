@@ -68,6 +68,33 @@ function decodeCursor(cursor: string): { sortValue: string; id: string } {
  * (índice tenant/state/last_message_at de §39). Vista `sin_responder`:
  * la que más tiempo lleva esperando primero.
  */
+/**
+ * ¿Hubo alguna conversación con un mensaje? (#495)
+ *
+ * Existe porque el paso «primera conversación» del onboarding es OBLIGATORIO
+ * y no tenía verificador: salía siempre del historial de la columna, que no
+ * retrocede — así que nunca podía aparecer como desfase, y el producto podía
+ * mostrar ese check en verde sobre un negocio que jamás recibió un mensaje.
+ *
+ * Cuenta las archivadas y las resueltas a propósito: la pregunta es si el
+ * negocio ya usó la bandeja alguna vez, no si tiene trabajo pendiente hoy.
+ */
+export async function huboAlgunaConversacion(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ conversaciones: number; ultimoMensajeEl: Date | null }> {
+  const r = await client.query(
+    `SELECT count(*)::int AS n, max(last_message_at) AS ultimo
+       FROM conversations
+      WHERE tenant_id = $1 AND last_message_at IS NOT NULL`,
+    [tenantId],
+  );
+  return {
+    conversaciones: Number(r.rows[0].n),
+    ultimoMensajeEl: (r.rows[0].ultimo as Date) ?? null,
+  };
+}
+
 export async function listInbox(
   client: PoolClient,
   tenantId: string,

@@ -285,6 +285,206 @@ describe('aplicar lo aprobado se revalida', () => {
   });
 });
 
+describe('«¿qué me falta?» (#495)', () => {
+  const diagnostico = {
+    falta: [
+      {
+        que: 'No tienes plantillas aprobadas',
+        porQue: 'Pasadas 24 h no puedes escribirle a nadie.',
+        comoSeArregla: 'plantillas.create',
+        urgencia: 'importa' as const,
+      },
+      {
+        que: 'Nadie te ha escrito todavía',
+        porQue: 'Sin una conversación no hay nada que atender.',
+        comoSeArregla: null,
+        urgencia: 'bloquea' as const,
+      },
+      {
+        que: 'No tienes reglas trabajando solas',
+        porQue: 'Una cotización que se enfría no avisa sola.',
+        comoSeArregla: 'automations.seed',
+        urgencia: 'cuandoPuedas' as const,
+      },
+    ],
+    alDia: ['Embudos: 1'],
+    yaNoEstaLoQueFiguraHecho: ['El número figura conectado y hoy no lo está'],
+  };
+
+  it('lo que más duele va primero, no en el orden en que se consultó', async () => {
+    let entregado: { falta?: Array<{ urgencia: string }> } = {};
+    await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿qué me falta?' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        diagnosticar: async () => diagnostico,
+        modelo: {
+          async generate(args) {
+            const h = (args.tools ?? []).find((t) => t.name === 'que_le_falta_al_negocio')!;
+            entregado = (await h.ejecutar({})) as typeof entregado;
+            return { text: 'Te falta esto.', tokensIn: 1, tokensOut: 1 };
+          },
+        },
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    // El orden lo arma la herramienta y no el prompt: el modelo respeta un
+    // orden hecho, y discute uno que le piden calcular.
+    expect(entregado.falta?.map((f) => f.urgencia)).toEqual(['bloquea', 'importa', 'cuandoPuedas']);
+  });
+
+  it('sin la dependencia inyectada, la herramienta NI SE OFRECE', async () => {
+    // `agents` no puede consultar las tablas de calendar ni de whatsapp: el
+    // diagnóstico lo arma quien conoce todos los contratos. Si no llega, el
+    // modelo no debe poder pedirlo y contestar con la nada.
+    let nombres: string[] = [];
+    await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿qué me falta?' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        modelo: {
+          async generate(args) {
+            nombres = (args.tools ?? []).map((t) => t.name);
+            return { text: 'No puedo revisarlo.', tokensIn: 1, tokensOut: 1 };
+          },
+        },
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    expect(nombres).toEqual(['buscar_herramienta', 'preparar_accion']);
+  });
+
+  it('no ofrece un arreglo que quien pregunta no puede hacer', async () => {
+    // El diagnóstico lo arma la app mirando los módulos ACTIVOS, y eso no es
+    // lo mismo que los permisos de esta persona: a una vendedora se le
+    // ofrecería «crea una plantilla» y recibiría un 403 después de decir que
+    // sí. El pendiente se queda —tiene que saberlo—, el botón se va.
+    let entregado: { falta?: Array<{ que: string; comoSeArregla: string | null }> } = {};
+    await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿qué me falta?' }],
+        // Solo puede leer conversaciones: nada de crear plantillas ni reglas.
+        permisos: new Set(['conversations.read']),
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        diagnosticar: async () => diagnostico,
+        modelo: {
+          async generate(args) {
+            const h = (args.tools ?? []).find((t) => t.name === 'que_le_falta_al_negocio')!;
+            entregado = (await h.ejecutar({})) as typeof entregado;
+            return { text: 'ok', tokensIn: 1, tokensOut: 1 };
+          },
+        },
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    // Los tres pendientes siguen ahí…
+    expect(entregado.falta).toHaveLength(3);
+    // …y ninguno viene con arreglo ofrecido, porque no puede hacer ninguno.
+    expect(entregado.falta?.every((f) => f.comoSeArregla === null)).toBe(true);
+  });
+
+  it('el paso queda registrado, con su módulo en null', async () => {
+    // No es de un módulo: junta varios. Decir que es de uno sería mentir en
+    // el panel de corridas.
+    const r = await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿cómo voy?' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        diagnosticar: async () => diagnostico,
+        modelo: modeloQuePide([{ tool: 'que_le_falta_al_negocio' }]),
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    expect(r.pasos[0]).toMatchObject({ herramienta: 'que_le_falta_al_negocio', modulo: null, ok: true });
+  });
+
+  it('sin nada pendiente, le dice al modelo que NO invente pendientes', async () => {
+    let entregado: { nota?: string } = {};
+    await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿qué me falta?' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        diagnosticar: async () => ({ falta: [], alDia: ['todo'], yaNoEstaLoQueFiguraHecho: [] }),
+        modelo: {
+          async generate(args) {
+            const h = (args.tools ?? []).find((t) => t.name === 'que_le_falta_al_negocio')!;
+            entregado = (await h.ejecutar({})) as typeof entregado;
+            return { text: 'Estás al día.', tokensIn: 1, tokensOut: 1 };
+          },
+        },
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    expect(entregado.nota).toContain('sin inventar');
+  });
+
+  it('el desfase viaja: es lo que más confunde a un negocio', async () => {
+    // El registro no retrocede por diseño, así que un paso marcado de más se
+    // queda marcado. Sin decirlo, el dueño cree que tiene WhatsApp conectado
+    // porque alguna vez lo estuvo.
+    let entregado: { yaNoEstaLoQueFiguraHecho?: string[] } = {};
+    await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿qué me falta?' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        diagnosticar: async () => diagnostico,
+        modelo: {
+          async generate(args) {
+            const h = (args.tools ?? []).find((t) => t.name === 'que_le_falta_al_negocio')!;
+            entregado = (await h.ejecutar({})) as typeof entregado;
+            return { text: 'ok', tokensIn: 1, tokensOut: 1 };
+          },
+        },
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    expect(entregado.yaNoEstaLoQueFiguraHecho).toEqual([
+      'El número figura conectado y hoy no lo está',
+    ]);
+  });
+});
+
 describe('el interruptor del panel corta la conversación (#496)', () => {
   it('apagado para ese negocio, no se genera nada', async () => {
     // El interruptor vive en el módulo platform y lo mira el controlador en

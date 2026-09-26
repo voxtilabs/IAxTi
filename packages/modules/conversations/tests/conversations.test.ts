@@ -16,6 +16,7 @@ import {
   sendMessage,
   updateDeliveryStatus,
 } from '../application/conversations';
+import { huboAlgunaConversacion } from '../application/inbox';
 
 const ADMIN_URL =
   process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
@@ -290,5 +291,34 @@ describe('bandeja (rol de aplicación, RLS activa)', () => {
     const ajenos = await withTenant(app, tenantB, (c) => c.query('SELECT * FROM messages'));
     expect(ajenas.rowCount).toBe(0);
     expect(ajenos.rowCount).toBe(0);
+  });
+});
+
+describe('¿hubo alguna conversación? (#495)', () => {
+  it('cuenta las que tienen mensajes, archivadas incluidas', async () => {
+    // La pregunta es si el negocio YA USÓ la bandeja alguna vez, no si tiene
+    // trabajo pendiente hoy: por eso no filtra por archivadas ni resueltas.
+    const { conversaciones, ultimoMensajeEl } = await withTenant(app, tenantA, (c) =>
+      huboAlgunaConversacion(c, tenantA),
+    );
+    expect(conversaciones).toBeGreaterThan(0);
+    expect(ultimoMensajeEl).toBeInstanceOf(Date);
+  });
+
+  it('un negocio recién creado responde cero, no null', async () => {
+    // Existe porque el paso «primera conversación» del onboarding es
+    // OBLIGATORIO y no tenía verificador: salía del historial de la columna,
+    // que no retrocede, así que el producto podía mostrar ese check en verde
+    // sobre un negocio que jamás recibió un mensaje.
+    const nuevo = (await admin.query("INSERT INTO tenants (name) VALUES ('sin-bandeja') RETURNING id"))
+      .rows[0].id;
+    const r = await withTenant(admin, nuevo, (c) => huboAlgunaConversacion(c, nuevo));
+    expect(r).toEqual({ conversaciones: 0, ultimoMensajeEl: null });
+  });
+
+  it('no ve las conversaciones de otro negocio', async () => {
+    const r = await withTenant(app, tenantB, (c) => huboAlgunaConversacion(c, tenantB));
+    const deA = await withTenant(app, tenantA, (c) => huboAlgunaConversacion(c, tenantA));
+    expect(r.conversaciones).toBeLessThan(deA.conversaciones);
   });
 });
