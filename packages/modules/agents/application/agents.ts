@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { writeAudit } from '@iaxti/module-audit';
-import { PROVIDERS, type Provider } from '../domain/config';
+import { getTenantSettings } from '@iaxti/module-organizations';
+import { PROVIDERS, iaSettings, type Provider } from '../domain/config';
 import { esObjetivo, type Objetivo } from '../domain/objetivo';
 
 // Agent (#47): el asistente del tenant, con TODO configurable.
@@ -77,13 +78,28 @@ export async function createAgent(
   if (input.provider && !PROVIDERS.includes(input.provider)) {
     throw new Error(`Proveedor desconocido: ${input.provider}.`);
   }
+  /**
+   * El proveedor por defecto sale de la CONFIGURACIÓN, no de un COALESCE.
+   *
+   * Estaba escrito en el SQL: `COALESCE($5,'google')` con
+   * `'gemini-flash-latest'`. Desde que el producto corre en GLM (ADR-0025
+   * §7) eso significaba que cada asistente nuevo nacía apuntando a un
+   * proveedor que este ambiente puede no tener configurado — y el Agente
+   * General crea asistentes (#494), así que dejaba de ser un caso de
+   * laboratorio.
+   *
+   * Sale del modelo de la tarea `sugerir`, que es la que un asistente de
+   * atención hace todo el día. Así hereda también el «solo este proveedor»
+   * del negocio: quien pidió solo Gemini no recibe un asistente en GLM.
+   */
+  const porDefecto = iaSettings(await getTenantSettings(client, input.tenantId)).tasks.sugerir;
   const r = await client.query(
     `INSERT INTO agents
        (tenant_id, name, personality, language, provider, model, prompt_name,
         prompt_version, fallback_system_prompt, allowed_tools, default_mode,
         autonomous_hours, limits, objetivo, objetivo_detalle)
-     VALUES ($1,$2,$3,COALESCE($4,'es-CL'),COALESCE($5,'google'),
-             COALESCE($6,'gemini-flash-latest'),$7,$8,$9,$10,COALESCE($11,'assist'),$12,$13,$14,$15)
+     VALUES ($1,$2,$3,COALESCE($4,'es-CL'),COALESCE($5,$16),
+             COALESCE($6,$17),$7,$8,$9,$10,COALESCE($11,'assist'),$12,$13,$14,$15)
      RETURNING *`,
     [
       input.tenantId,
@@ -101,6 +117,8 @@ export async function createAgent(
       JSON.stringify(input.limits ?? {}),
       input.objetivo ?? null,
       input.objetivoDetalle?.trim() || null,
+      porDefecto.provider,
+      porDefecto.model,
     ],
   );
   const agent = rowToAgent(r.rows[0]);

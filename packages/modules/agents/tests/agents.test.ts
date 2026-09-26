@@ -319,3 +319,42 @@ describe('el objetivo llega al prompt y a las herramientas (#315)', () => {
     expect(conAmbas.length).toBeGreaterThanOrEqual(tools.length);
   });
 });
+
+describe('un asistente nuevo nace en el proveedor del producto (#494)', () => {
+  it('sin proveedor explícito, hereda el de la tarea `sugerir`', async () => {
+    // Estaba en el SQL como COALESCE($5,'google') con 'gemini-flash-latest'.
+    // Desde que el producto corre en GLM (ADR-0025 §7) eso hacía nacer cada
+    // asistente apuntando a un proveedor que este ambiente puede no tener
+    // configurado — y el Agente General crea asistentes, así que dejó de ser
+    // un caso de laboratorio.
+    const nuevo = await withTenant(admin, tenant, (c) =>
+      createAgent(c, { tenantId: tenant, name: 'Sin proveedor', actor: 'test' }),
+    );
+    expect(nuevo.provider).toBe(DEFAULT_TASK_MODELS.sugerir.provider);
+    expect(nuevo.model).toBe(DEFAULT_TASK_MODELS.sugerir.model);
+  });
+
+  it('el negocio que pidió «solo Gemini» recibe un asistente en Gemini', async () => {
+    // El resguardo de ADR-0025 no vale solo para las tareas: si el cliente
+    // pidió un proveedor por escrito, un asistente creado después no puede
+    // nacer en otro.
+    const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('solo-gemini-ag') RETURNING id"))
+      .rows[0].id;
+    await admin.query(
+      `UPDATE tenants SET settings = jsonb_set(COALESCE(settings,'{}'::jsonb), '{ia}', '{"soloProveedor":"google"}'::jsonb) WHERE id = $1`,
+      [otro],
+    );
+    const nuevo = await withTenant(admin, otro, (c) =>
+      createAgent(c, { tenantId: otro, name: 'De ese cliente', actor: 'test' }),
+    );
+    expect(nuevo.provider).toBe('google');
+    expect(nuevo.model).toContain('gemini');
+  });
+
+  it('un proveedor explícito manda sobre el por defecto', async () => {
+    const nuevo = await withTenant(admin, tenant, (c) =>
+      createAgent(c, { tenantId: tenant, name: 'A mano', provider: 'anthropic', model: 'claude-haiku-4-5-20251001', actor: 'test' }),
+    );
+    expect(nuevo.provider).toBe('anthropic');
+  });
+});

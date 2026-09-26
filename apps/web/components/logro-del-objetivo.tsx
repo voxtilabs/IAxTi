@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Target } from 'lucide-react';
 import { useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
 import { apiFetch } from '../lib/api';
 
 /**
@@ -38,24 +38,20 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 export function LogroDelObjetivo() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
-  const [agente, setAgente] = useState<AgenteDto | null>(null);
+  // El objetivo es de CADA asistente: el que vende y el que responde números
+  // no se miden con la misma vara, y mostrar la tasa de uno bajo el nombre
+  // del otro es peor que no mostrarla (#494).
+  const { tenant, asistentes, elegido: agente, elegir } = useAsistenteElegido<AgenteDto>();
   const [tasa, setTasa] = useState<TasaDto | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
+    if (!session || !tenant || !agente) return;
     try {
-      const agentes = await apiFetch<AgenteDto[]>(config, session, tenant, '/agents');
-      const primero = agentes[0] ?? null;
-      setAgente(primero);
-      if (primero) {
-        setTasa(await apiFetch<TasaDto>(config, session, tenant, `/agents/${primero.id}/objetivo`));
-      }
+      setTasa(await apiFetch<TasaDto>(config, session, tenant, `/agents/${agente.id}/objetivo`));
     } catch {
       /* sin permiso para ver el consumo del asistente: la sección no aparece */
     }
-  }, [config, session, tenant]);
+  }, [config, session, tenant, agente]);
   useEffect(() => void cargar(), [cargar]);
 
   if (!tenant || !agente || !tasa || tasa.objetivo === null) return null;
@@ -70,6 +66,9 @@ export function LogroDelObjetivo() {
       <div className="flex flex-wrap items-center gap-2">
         <Target aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">¿Está logrando lo suyo?</h2>
+        <span className="ml-auto">
+          <SelectorDeAsistente asistentes={asistentes ?? []} elegidoId={agente.id} onElegir={elegir} />
+        </span>
       </div>
       <p className="mt-1 max-w-prose text-dato text-body">
         Cada conversación que atiende {agente.name} deja un intento, y al cerrarse se anota quién lo

@@ -14,8 +14,12 @@ const LOGRO = readFileSync(join(__dirname, '..', 'components', 'logro-del-objeti
 const PAGINA = readFileSync(join(__dirname, '..', 'app', 'ajustes', 'ia', 'page.tsx'), 'utf8');
 
 describe('logro del objetivo', () => {
-  it('llama a la ruta que ya medía', () => {
-    expect(LOGRO).toContain('`/agents/${primero.id}/objetivo`');
+  it('llama a la ruta que ya medía, del asistente ELEGIDO', () => {
+    // Era `agentes[0]`: el que vende y el que responde números no se miden
+    // con la misma vara, y mostrar la tasa de uno bajo el nombre del otro es
+    // peor que no mostrarla (#494).
+    expect(LOGRO).toContain('`/agents/${agente.id}/objetivo`');
+    expect(LOGRO).toContain('useAsistenteElegido');
   });
 
   it('va antes de «¿mejoró o empeoró?»', () => {
