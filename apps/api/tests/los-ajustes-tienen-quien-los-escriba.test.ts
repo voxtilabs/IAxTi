@@ -130,11 +130,14 @@ const SIN_ESCRITOR: Record<string, string> = {
   // los modelos, y ADR-0025 puso al Agente General como vía de configuración
   // justamente para no llenar la interfaz de cosas que un dueño de pyme no
   // puede evaluar. Se respetan si están escritas; lo que no hay es pantalla.
-  billing:
-    'Dentro vive `iaAmpliacionClp`, la ampliación de cuota de IA contratada: la línea de ' +
-    'factura «Ampliación de asistencias de IA» está lista en pricing.ts y la clave no se ' +
-    'puede escribir, así que nunca aparece en ninguna factura (#536). Va desde SuperAdmin, ' +
-    'no desde el negocio: es un cargo contratado.',
+  // `billing` salió en #536, y con eso esta lista queda VACÍA: las cuatro claves
+  // que el barrido encontró —`pagos.paidStageName`, `ia`, el tope de cobro y
+  // `billing.iaAmpliacionClp`— tienen quien las escriba.
+  //
+  // Vacía es el estado correcto, y la guarda de abajo es la que lo mantiene: una
+  // clave nueva que se lea sin escritor falla el PR, y una que ya tenga escritor
+  // no puede quedarse acá juntando polvo. Fue justo esta guarda la que me pidió
+  // borrar esta entrada cuando cablée la ruta.
 };
 
 describe('los ajustes del tenant tienen quien los escriba (#535)', () => {

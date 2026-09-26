@@ -3943,6 +3943,40 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "PlatformController_ampliacionDeIa": {
+    "metodo": "PUT",
+    "ruta": "/v1/platform/tenants/{id}/ampliacion-ia",
+    "resumen": "Cargo mensual por ampliación de IA contratada (CLP)",
+    "permiso": "platform.plans",
+    "modulo": "platform",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "montoClp": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "montoClp"
+      ],
+      "additionalProperties": false
+    }
+  },
   "PlatformController_apagarAgente": {
     "metodo": "POST",
     "ruta": "/v1/platform/agente-general/apagar",
