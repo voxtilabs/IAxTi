@@ -214,3 +214,41 @@ export async function conectarSender(
 
   return { number, account, senderId: input.sender.id, webhookUrl, webhookSecret, avisos };
 }
+
+/**
+ * Qué dice el proveedor del emisor que tenemos guardado (#591).
+ *
+ * El diagnóstico daba el paso del emisor por bueno con que hubiera un string en
+ * `config.senderId`. Pero el emisor vive allá: puede haber dejado de existir, o
+ * seguir existiendo y ya no tener el canal —Meta suspendió la cuenta, venció la
+ * autorización, alguien la desconectó—. La documentación de Zavu es explícita:
+ * el array `channels` del sender es la fuente de verdad, y vacío significa que
+ * no puede mandar nada.
+ *
+ * Devuelve `null` cuando NO SE PUDO PREGUNTAR, que es distinto de «no existe»:
+ * sin credencial o con el proveedor caído no sabemos nada, y el diagnóstico
+ * tiene un estado para eso. Confundirlos es lo que tenía este paso en verde
+ * mientras no salía ni un mensaje.
+ */
+export async function emisorDelProveedor(
+  llamar: LlamarZavu,
+  senderId: string,
+): Promise<{ existe: boolean; canales: string[] } | null> {
+  try {
+    // La API pagina con `{items, nextCursor}`; se aceptan las tres formas que
+    // ya tolera el script de conexión, por la misma razón que él.
+    const respuesta = (await llamar('/senders')) as
+      | SenderZavu[]
+      | { items?: SenderZavu[]; data?: SenderZavu[] };
+    const senders = Array.isArray(respuesta)
+      ? respuesta
+      : (respuesta.items ?? respuesta.data ?? []);
+    const suyo = senders.find((s) => s.id === senderId);
+    if (!suyo) return { existe: false, canales: [] };
+    return { existe: true, canales: suyo.channels ?? [] };
+  } catch {
+    // No se pudo preguntar. El motivo no se propaga a propósito: puede traer
+    // la credencial en el mensaje del error.
+    return null;
+  }
+}
