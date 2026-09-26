@@ -63,10 +63,32 @@ jobs:
 
       # ADR-0008: prohibido condicionar por rol; el único traductor
       # rol → permisos es domain/base-roles.ts del módulo authorization.
+      #
+      # Caza `===` Y `!==` (#532). Solo miraba `===`, así que
+      # `actor.role !== 'ADMIN'` pasó sin que nadie lo viera — y era una
+      # comparación por nombre que no veía un rol propio del negocio con más
+      # permisos que quien invitaba.
+      #
+      # Saca los comentarios antes de buscar: un comentario que CITA el código
+      # viejo para explicar por qué se cambió no es una condicional por rol.
+      # Con el grep a secas, documentar el defecto hacía fallar el PR que lo
+      # arreglaba.
+      #
+      # Las dos exentas son de otro `role`: `typeof role !== 'string'` del guard
+      # es una comprobación de tipo, y el de tags es el rol VISUAL de una
+      # etiqueta (good/warn/bad), que no tiene nada que ver con permisos.
       - name: Sin condicionales por rol
         run: |
-          if grep -rn --include='*.ts' -E "\brole\b *===" apps packages | grep -v 'domain/base-roles'; then
-            echo "Prohibido condicionar por rol fuera de base-roles.ts (ADR-0008)"; exit 1
+          encontrados=$(grep -rn --include='*.ts' -E "\brole\b *(===|!==)" apps packages \
+            | grep -v 'domain/base-roles' \
+            | grep -vE '^\s*[^:]+:[0-9]+:\s*(//|\*|/\*)' \
+            | grep -v "typeof role !== 'string'" \
+            | grep -v 'application/tags.ts' || true)
+          if [ -n "$encontrados" ]; then
+            echo "$encontrados"
+            echo "Prohibido condicionar por rol fuera de base-roles.ts (ADR-0008)."
+            echo "Compara PERMISOS: mira apps/api/src/equipo-usuarios.controller.ts"
+            exit 1
           fi
           echo "sin condicionales por rol"
 

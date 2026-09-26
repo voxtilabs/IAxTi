@@ -175,3 +175,85 @@ describe('/v1/roles (#73)', () => {
     ).toBe(400);
   });
 });
+
+describe('nadie invita por encima de sí mismo (#532)', () => {
+  /**
+   * El check era `rol === 'ADMIN' && actor.role !== 'ADMIN' && ...`: comparaba
+   * NOMBRES, que es lo que ADR-0008 prohíbe, y no veía el caso que importa —un
+   * rol propio del negocio (#73) con más permisos que quien invita—. El grep de
+   * CI tampoco lo vio, porque solo miraba `===`.
+   *
+   * El camino real: un ADMIN crea «Jefe de local» con `users.invite`. Esa
+   * persona llega a la ruta de invitar, y el check solo le impedía invitar al
+   * rol llamado literalmente ADMIN. Invitar a otro rol propio más poderoso que
+   * el suyo pasaba sin problema.
+   */
+  it('un rol propio con users.invite no puede invitar a uno más poderoso', async () => {
+    const jefeDeLocal = await (
+      await pedir(duena, '/roles', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Jefe de local', cloneFrom: 'USER' }),
+      })
+    ).json();
+    await pedir(duena, `/roles/${jefeDeLocal.id}`, {
+      method: 'PUT',
+      // Puede invitar y leer, nada más. En particular NO puede facturar.
+      body: JSON.stringify({ permissions: ['tenant.read', 'users.read', 'users.invite'] }),
+    });
+
+    const encargado = await (
+      await pedir(duena, '/roles', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Encargado', cloneFrom: 'USER' }),
+      })
+    ).json();
+    await pedir(duena, `/roles/${encargado.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions: ['tenant.read', 'billing.read', 'roles.read'] }),
+    });
+
+    // El jefe de local pasa a serlo de verdad.
+    await pedir(duena, '/roles/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: recepcionista, roleId: jefeDeLocal.id }),
+    });
+
+    // Y ahora intenta invitar a alguien con un rol que puede más que él.
+    const arriba = await pedir(recepcionista, '/equipo/invitaciones', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'colado@ajeno.cl', rol: 'Encargado' }),
+    });
+    expect(arriba.status, 'un rol propio no puede invitar por encima de sí mismo').toBe(400);
+    const cuerpo = await arriba.json();
+    expect(cuerpo.code).toBe('ROLE_FORBIDDEN');
+    // El mensaje es para quien atiende, no una lista de permisos.
+    expect(cuerpo.message).toContain('puede hacer cosas que tú no puedes');
+
+    // Y no quedó la invitación: el rechazo no es solo el código de estado.
+    const invitaciones = await admin.query(
+      'SELECT count(*)::int AS n FROM invitations WHERE tenant_id = $1 AND lower(email) = $2',
+      [tenant, 'colado@ajeno.cl'],
+    );
+    expect(invitaciones.rows[0].n).toBe(0);
+
+    // Lo que SÍ puede: invitar a un rol que no pasa de lo suyo.
+    const iguales = await pedir(recepcionista, '/equipo/invitaciones', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'otro@local.cl', rol: 'Jefe de local' }),
+    });
+    expect(iguales.status, 'invitar a su propio rol tiene que poder').toBe(201);
+  });
+
+  it('el ADMIN sigue pudiendo invitar a cualquier rol del negocio', async () => {
+    // Lo que no puede cambiar: un ADMIN tiene todo lo que no es `platform.*`,
+    // así que cualquier rol del negocio es un subconjunto suyo. Si esto falla,
+    // la comparación por permisos rompió el caso normal.
+    for (const rol of ['ADMIN', 'SUPERVISOR', 'USER']) {
+      const r = await pedir(duena, '/equipo/invitaciones', {
+        method: 'POST',
+        body: JSON.stringify({ email: `nuevo-${rol.toLowerCase()}@pyme.cl`, rol }),
+      });
+      expect(r.status, `el ADMIN no pudo invitar a ${rol}`).toBe(201);
+    }
+  });
+});
