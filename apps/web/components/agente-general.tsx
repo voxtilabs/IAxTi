@@ -105,7 +105,7 @@ function Propuesta({
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-dato">
           {filas.map(([clave, valor]) => (
             <div key={clave} className="col-span-2 grid grid-cols-subgrid">
-              <dt className="dato text-micro uppercase tracking-wide text-warn-text">{clave}</dt>
+              <dt className="dato text-rotulo uppercase tracking-wide text-warn-text">{clave}</dt>
               <dd className="dato break-words text-ink">
                 {typeof valor === 'object' ? JSON.stringify(valor) : String(valor)}
               </dd>
@@ -323,8 +323,8 @@ export function AgenteGeneral() {
                         key={`${p.herramienta}-${n}`}
                         className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-campo border border-line bg-rest px-3 py-1.5"
                       >
-                        <span className="dato text-micro text-ink">{p.herramienta}</span>
-                        {p.modulo && <span className="dato text-micro text-action-text">{p.modulo}</span>}
+                        <span className="dato text-rotulo text-ink">{p.herramienta}</span>
+                        {p.modulo && <span className="dato text-rotulo text-action-text">{p.modulo}</span>}
                         {!p.ok && <Badge role="bad">no se pudo</Badge>}
                       </li>
                     ))}

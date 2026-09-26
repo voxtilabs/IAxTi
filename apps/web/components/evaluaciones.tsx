@@ -39,13 +39,13 @@ interface AgenteDto {
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 function Diferencia({ corrida, previa }: { corrida: CorridaDto; previa?: CorridaDto }) {
-  if (!previa) return <span className="text-micro text-muted">primera medición</span>;
+  if (!previa) return <span className="text-rotulo text-muted">primera medición</span>;
   const delta = corrida.score - previa.score;
   // Cero no es "sin cambio" por casualidad: con pocos casos el promedio se
   // mueve poco, así que se muestra el número y no una flecha sola.
   const signo = delta > 0 ? '+' : '';
   return (
-    <span className={`text-micro ${delta < 0 ? 'text-bad-text' : delta > 0 ? 'text-good-text' : 'text-muted'}`}>
+    <span className={`text-rotulo ${delta < 0 ? 'text-bad-text' : delta > 0 ? 'text-good-text' : 'text-muted'}`}>
       {signo}
       {Math.round(delta * 100)} puntos vs. la anterior
     </span>
@@ -124,7 +124,7 @@ export function Evaluaciones() {
             <strong className="font-mono text-titulo text-ink">{pct(ultima.score)}</strong>
             <div className="flex flex-col">
               <Diferencia corrida={ultima} previa={corridas[1]} />
-              <span className="text-micro text-muted">
+              <span className="text-rotulo text-muted">
                 {ultima.casesMedidos} de {ultima.caseCount} casos medidos · {ultima.provider}/
                 {ultima.model}
               </span>

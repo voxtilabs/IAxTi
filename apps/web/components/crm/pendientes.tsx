@@ -154,7 +154,7 @@ export function Pendientes() {
                     {/* Lo que anotó el asistente se revisa distinto de lo
                         que anotó uno mismo (#454). */}
                     {a.createdByKind === 'agent' && (
-                      <span className="flex items-center gap-1 text-micro text-muted">
+                      <span className="flex items-center gap-1 text-rotulo text-muted">
                         <Bot aria-hidden className="size-3" /> del asistente
                       </span>
                     )}
