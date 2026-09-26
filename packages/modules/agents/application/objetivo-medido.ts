@@ -27,7 +27,11 @@ const REFERENCIA: Record<string, string> = {
   'appointment.created': 'appointmentId',
   'deal.created': 'dealId',
   'deal.stage_changed': 'dealId',
-  'payment.confirmed': 'paymentId',
+  // `linkId` y no `paymentId`: el payload de `payment.received` trae linkId,
+  // amountClp, conversationId, dealId y contactId — no hay ningún paymentId.
+  // Así que renombrar el evento sin cambiar esta llave habría dejado el
+  // objetivo roto de una forma más difícil de ver (#544).
+  'payment.received': 'linkId',
 };
 
 /** Todos los eventos que pueden cerrar un intento, sacados del catálogo. */
