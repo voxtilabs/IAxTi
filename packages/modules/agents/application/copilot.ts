@@ -368,9 +368,16 @@ export async function transcribeInboundAudio(
     await client.query(
       `INSERT INTO agent_executions
          (tenant_id, task, provider, model, input, output, latency_ms, trace_id, explanation)
-       VALUES ($1,'transcribir','google','gemini-flash-latest',$2,$3,$4,$5,$6)`,
+       VALUES ($1,'transcribir',$2,$3,$4,$5,$6,$7,$8)`,
       [
         input.tenantId,
+        // Quién transcribió DE VERDAD. Estaba escrito a mano como
+        // google/gemini-flash-latest: con el proveedor por tarea
+        // configurable, esa fila podía atribuirle el costo a un modelo que
+        // no corrió, y "costos visibles sin margen escondido" es una
+        // promesa del producto.
+        transcriber.proveedor,
+        transcriber.modelo,
         JSON.stringify({ messageId: input.messageId, contentType: input.contentType }),
         JSON.stringify({ chars: texto.length }),
         Date.now() - inicio,

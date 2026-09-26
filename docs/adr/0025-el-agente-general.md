@@ -143,6 +143,33 @@ confirmar la tarifa por token de nuestra cuenta para el panel de costos
 (mientras, referencia provisional de la familia GLM, corregible por
 `AGENT_PRICES_JSON` sin deploy).
 
+### Actualización 2026-09-26 · «full GLM» y sus dos límites reales
+
+Decisión del dueño: **todo en GLM, olvidarse de Gemini**. Aplicado donde se
+puede, y medido donde no:
+
+- **Texto: 100 % GLM.** Las ocho tareas de texto corren en `z-ai/glm-5.3` y
+  `z-ai/glm-5.3-flash`, incluida la del Agente General.
+- **Transcripción: no hay sustituto.** El catálogo de NVIDIA que sirve GLM
+  **no publica ningún modelo de audio** (revisado el 25-09: cero ASR entre
+  sus 82 modelos). Forzarla a GLM haría fallar cada nota de voz. Sin llave de
+  Google la transcripción devuelve `null` y la nota de voz **llega igual, sin
+  texto buscable**: es una degradación aceptada, no una falla. Queda como la
+  única tarea con Gemini, y por capacidad, no por preferencia.
+- **Embeddings del conocimiento: movibles, con reindexación.** NVIDIA sirve
+  `nvidia/nemotron-3-embed-1b`, probado el 26-09, con **2048 dimensiones**
+  contra las 768 de `chunks.embedding`. Cambiar de proveedor obliga a una
+  columna nueva y a reindexar todo lo indexado. Va en su propio issue: no es
+  un cambio de configuración.
+
+Y una corrección que este cambio dejó a la vista: el «solo este proveedor»
+por tenant era configuración **tarea por tarea**, así que al agregar
+`configuracion_conversada` un negocio que había pedido solo Gemini pasaba a
+GLM en esa tarea sin que nadie cambiara nada. Ahora es un ajuste propio
+(`ia.soloProveedor`) que cubre las tareas que existen y las que se agreguen:
+un cliente que pide un proveedor por escrito no puede depender de que
+alguien se acuerde de ampliarle una lista en el próximo despliegue.
+
 ## Consecuencias
 
 - El costo de una función nueva baja a: ruta + herramienta + prueba. La
