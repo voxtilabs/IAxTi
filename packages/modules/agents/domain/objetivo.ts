@@ -193,7 +193,12 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
       'que una persona mande el link. Tú no mandas links de pago ni confirmas pagos.',
     requiere: ['payments'],
     tools: ['knowledge.get_product', 'conversations.get_context'],
-    eventoDeExito: ['payment.confirmed'],
+    // `payment.received`, que es el evento que el módulo de pagos publica de
+    // verdad al confirmar un pago (#544). Decía `payment.confirmed`, un nombre
+    // que no existe en ningún manifiesto ni en ningún `publishEvent`: cada
+    // intento de este objetivo terminaba en «perdido» al vencer la ventana, y
+    // la tasa de logro decía 0 % para siempre.
+    eventoDeExito: ['payment.received'],
     datosMinimos: ['monto', 'qué se está pagando'],
     detallePorDefecto: 'lo acordado',
   },
