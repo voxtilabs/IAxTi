@@ -18,6 +18,24 @@ export interface NavItem {
 }
 
 /**
+ * Un widget del inicio, tal como lo declara el `module.yaml` de su módulo
+ * (#517).
+ *
+ * Estaban declarados y expuestos por `GET /me/modules` desde el principio, y
+ * ningún componente los leía: el inicio mostraba la puesta en marcha para
+ * siempre, también al negocio que terminó de configurarse hace medio año.
+ *
+ * El `id` es el contrato. Quién lo dibuja lo decide el frontend
+ * (`components/inicio/widgets.tsx`); qué módulo lo trae y con qué permiso se
+ * ve, el manifiesto. Así un módulo apagado se lleva el suyo sin desplegar,
+ * igual que su entrada del menú.
+ */
+export interface WidgetItem {
+  id: string;
+  permission: string;
+}
+
+/**
  * La navegación, pedida UNA vez y cacheada (#400).
  *
  * Estaba copiada en 26 páginas, todas con `cache: 'no-store'`. Esas llamadas
@@ -34,14 +52,31 @@ export interface NavItem {
  * aparecer en el menú.
  */
 export async function navDesdeLaApi(urlInterna: string): Promise<NavItem[]> {
+  return (await modulosDesdeLaApi(urlInterna)).flatMap((m) => m.nav);
+}
+
+/** Los widgets del inicio, de los módulos ACTIVOS (#517). */
+export async function widgetsDesdeLaApi(urlInterna: string): Promise<WidgetItem[]> {
+  return (await modulosDesdeLaApi(urlInterna)).flatMap((m) => m.widgets ?? []);
+}
+
+/**
+ * Una sola lectura para las dos cosas.
+ *
+ * Next dedupe las peticiones iguales dentro del mismo render, así que pedir
+ * la navegación y los widgets en la misma página no cuesta dos viajes. Y con
+ * el mismo `revalidate`, que es lo que evita agotar el cupo por IP (arriba).
+ */
+async function modulosDesdeLaApi(
+  urlInterna: string,
+): Promise<Array<{ nav: NavItem[]; widgets?: WidgetItem[] }>> {
   try {
     const res = await fetch(`${urlInterna}/v1/me/modules`, {
       // No `no-store`: ver arriba. 60 s.
       next: { revalidate: 60 },
     });
     if (!res.ok) return [];
-    const modules = (await res.json()) as Array<{ nav: NavItem[] }>;
-    return modules.flatMap((m) => m.nav);
+    return (await res.json()) as Array<{ nav: NavItem[]; widgets?: WidgetItem[] }>;
   } catch {
     // La API puede no estar en un build local: el shell degrada sin menú.
     return [];
