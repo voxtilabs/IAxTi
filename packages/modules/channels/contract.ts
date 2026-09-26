@@ -32,3 +32,14 @@ export { anotarWebhook, rastroDeWebhook } from './application/rastro';
 export type { ResultadoDeWebhook, RastroDeWebhook } from './application/rastro';
 export { diagnosticarCanal } from './application/diagnostico';
 export type { Diagnostico, PasoDelDiagnostico, EstadoDelPaso } from './application/diagnostico';
+
+// Los límites de un adjunto (#560): los declara el canal, y salen por acá para
+// que la API y la interfaz usen la misma tabla y el mismo mensaje.
+export {
+  LIMITES_WHATSAPP,
+  LIMITES_CONSERVADORES,
+  limitesDelCanal,
+  claseDeAdjunto,
+  revisarAdjunto,
+} from './domain/adjuntos';
+export type { ClaseDeAdjunto, LimiteDeAdjunto, RevisionDeAdjunto } from './domain/adjuntos';

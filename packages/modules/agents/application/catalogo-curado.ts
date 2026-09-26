@@ -41,6 +41,9 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PaymentsController_guardarAjustes:
     'Sube o baja el tope de monto de quien cobra: es el límite que protege al negocio, y lo mueve una persona en su pantalla (#535).',
 
+  EquipoController_limitesDeAdjunto:
+    'Le dice a la interfaz qué tipos y qué tamaños acepta el canal, para poner el `accept` del selector. Es cableado de pantalla, no una pregunta que alguien le haga a un asistente (#560).',
+
   KnowledgeController_destinoDelPdf:
     'Devuelve dónde poner un archivo que el agente no tiene: no puede elegir un PDF del computador de nadie (#522).',
   KnowledgeController_crearDesdePdf:

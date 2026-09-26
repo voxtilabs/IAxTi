@@ -66,6 +66,20 @@ function Entrega({ estado }: { estado: Mensaje['deliveryStatus'] }) {
   return <IconoReloj className="h-3.5 w-3.5 text-faint" aria-label="En cola" />;
 }
 
+/**
+ * Lo que este canal acepta como adjunto (#560). Lo sirve la API desde la tabla
+ * del módulo `channels`; acá no hay ningún número escrito a mano, a propósito.
+ */
+export interface LimitesDeAdjunto {
+  canal: string;
+  limites: Array<{
+    clase: string;
+    nombre: string;
+    maxBytes: number;
+    tipos: string[];
+  }>;
+}
+
 export interface ChatProps {
   detalle: ConversacionDetalle | null;
   mensajes: Mensaje[] | null;
@@ -77,12 +91,22 @@ export interface ChatProps {
   modo: 'assist' | 'autonomous' | 'off' | null;
   miId: string;
   aviso: string | null;
+  /** Qué acepta este canal; null mientras carga o si la ruta falló. */
+  limitesDeAdjunto: LimitesDeAdjunto | null;
   onVolver: () => void;
   onVerFicha: () => void;
-  /** Responde. El adjunto es opcional: una foto sola ya es un mensaje (#458). */
-  onResponder: (texto: string, adjunto?: File) => Promise<void>;
-  onAsignar: (aQuien: string, motivo?: string) => Promise<void>;
-  onEstado: (estado: string, hasta?: string) => Promise<void>;
+  /**
+   * Responde. El adjunto es opcional: una foto sola ya es un mensaje (#458).
+   *
+   * Devuelve si SALIÓ. Antes devolvía `void`, así que un envío fallido —fuera
+   * de la ventana, sin permiso, el adjunto rechazado— se veía igual que uno
+   * bueno desde acá y el borrador se borraba de todas formas (#560).
+   */
+  onResponder: (texto: string, adjunto?: File) => Promise<boolean>;
+  // Como `onResponder`, devuelven si salió: la bandeja ya sabe distinguirlo y
+  // esconderlo acá era lo que hacía que un fallo se viera como un éxito (#560).
+  onAsignar: (aQuien: string, motivo?: string) => Promise<boolean>;
+  onEstado: (estado: string, hasta?: string) => Promise<boolean>;
   onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
   /** Retoma el despacho de un saliente que falló (#445). */
   onReintentar: (messageId: string) => Promise<void>;
@@ -107,7 +131,7 @@ export function Chat({
   detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   onReintentar, reintentando,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
-  plantillas, onCargarPlantillas, onEnviarPlantilla, onAbrirAdjunto,
+  plantillas, onCargarPlantillas, onEnviarPlantilla, onAbrirAdjunto, limitesDeAdjunto,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
   const [motivoFeedback, setMotivoFeedback] = useState('');
@@ -145,6 +169,10 @@ export function Chat({
   }
 
   const enVentana = enVentana24h(detalle.lastInboundAt);
+  // Ni un tipo MIME escrito a mano acá: si la ruta no contestó, no se pone
+  // `accept` y el selector deja elegir cualquier cosa — que es como estaba
+  // antes y sigue teniendo su rechazo del lado del servidor.
+  const aceptados = limitesDeAdjunto?.limites.flatMap((l) => l.tipos).join(',') ?? null;
   const aprobadas = (plantillas ?? []).filter((p) => p.status === 'approved');
   const cronologicos = mensajes ? [...mensajes].reverse() : [];
 
@@ -155,9 +183,12 @@ export function Chat({
     if ((!texto.trim() && !archivo) || enviando) return;
     setEnviando(true);
     try {
-      await onResponder(texto.trim(), archivo ?? undefined);
-      setTexto('');
-      setArchivo(null);
+      // Solo se limpia si SALIÓ. Perder lo escrito porque WhatsApp cerró la
+      // ventana obliga a redactarlo de nuevo, y eso pasa a diario (#560).
+      if (await onResponder(texto.trim(), archivo ?? undefined)) {
+        setTexto('');
+        setArchivo(null);
+      }
     } finally {
       setEnviando(false);
     }
@@ -341,6 +372,18 @@ export function Chat({
           <Paperclip aria-hidden className="size-3.5 text-muted" />
           <span className="min-w-0 flex-1 truncate">{archivo.name}</span>
           <span className="text-rotulo text-muted">{Math.ceil(archivo.size / 1024)} KB</span>
+          {/* El tope de SU clase, no uno genérico (#560): «máx. 100 MB» junto a
+              una foto de 6 MB que no va a salir es peor que no decir nada. */}
+          {(() => {
+            const tipo = (archivo.type || '').split(';')[0]!.toLowerCase();
+            const suyo = limitesDeAdjunto?.limites.find((l) => l.tipos.includes(tipo));
+            if (!suyo) return null;
+            return (
+              <span className="text-rotulo text-muted">
+                máx. {Math.round(suyo.maxBytes / (1024 * 1024))} MB
+              </span>
+            );
+          })()}
           <Button variant="fantasma" size="chico" onClick={() => setArchivo(null)}>
             Quitar
           </Button>
@@ -459,6 +502,11 @@ export function Chat({
             <input
               type="file"
               className="hidden"
+              // Los tipos salen de la tabla del canal (#560): que el selector
+              // ni ofrezca un .exe es mejor que rechazarlo después. Es una
+              // pista y no la cerradura — la cerradura está en la ruta que
+              // firma la subida, y es la que manda.
+              {...(aceptados ? { accept: aceptados } : {})}
               onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
             />
           </label>

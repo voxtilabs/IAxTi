@@ -122,7 +122,7 @@ async function entregarRespuesta(
   return message;
 }
 
-function notFound(): never {
+export function notFound(): never {
   throw new NotFoundException({
     code: 'CONVERSATION_NOT_FOUND',
     message: 'No encontramos esa conversación. Puede que se haya archivado.',

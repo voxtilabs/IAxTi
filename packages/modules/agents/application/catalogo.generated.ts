@@ -2794,6 +2794,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "EquipoController_limitesDeAdjunto": {
+    "metodo": "GET",
+    "ruta": "/v1/conversations/{id}/attachments/limites",
+    "resumen": "Qué puede adjuntar esta conversación: tipos aceptados y peso máximo",
+    "permiso": "conversations.reply",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "EquipoController_notes": {
     "metodo": "GET",
     "ruta": "/v1/conversations/{id}/notes",
@@ -2850,11 +2871,22 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "filename": {
           "type": "string",
           "minLength": 1
+        },
+        "contentType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
         }
       },
       "required": [
         "id",
-        "filename"
+        "filename",
+        "contentType",
+        "sizeBytes"
       ],
       "additionalProperties": false
     }
