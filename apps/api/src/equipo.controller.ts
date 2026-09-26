@@ -1,6 +1,7 @@
 import {
   Controller,
   Delete,
+  BadRequestException,
   ForbiddenException,
   Get,
   NotFoundException,
@@ -13,6 +14,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { attachmentKey, presignUrl, storageFromEnv } from '@iaxti/core';
+import { limitesDelCanal, revisarAdjunto } from '@iaxti/module-channels';
 import {
   addInternalNote,
   createQuickReply,
@@ -28,6 +30,9 @@ import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { actorCan } from './authz/can';
 import { apiPool } from './db';
+// El 404 de conversación se comparte en vez de copiarse: dos literales iguales
+// en dos controllers se separan en el primer cambio de copy.
+import { notFound } from './conversations.controller';
 
 function pool() {
   const p = apiPool();
@@ -131,6 +136,15 @@ const NuevaNota = z.object({
 /** Dónde subir un adjunto: solo el nombre, la llave la arma la ruta (#524). */
 const DestinoDeAdjunto = z.object({
   filename: textoRequerido('Dinos el nombre del archivo.'),
+  // El tipo y el peso son OBLIGATORIOS (#560): sin ellos no se puede revisar
+  // nada antes de firmar la subida, y era justo eso lo que faltaba. Un cliente
+  // que no los manda recibe un VALIDATION_ERROR y no una URL firmada — que es
+  // lo contrario de antes, cuando cualquier cosa conseguía su URL.
+  contentType: textoRequerido('Dinos de qué tipo es el archivo.'),
+  sizeBytes: z
+    .number({ error: 'Dinos cuánto pesa el archivo.' })
+    .int('El peso va en bytes enteros.')
+    .positive('Un archivo vacío no se puede mandar.'),
 });
 
 /** Notas internas y búsqueda (SPEC §11). */
@@ -203,12 +217,48 @@ export class EquipoController {
         message: 'El almacenamiento de adjuntos aún no está configurado en este ambiente.',
       });
     }
-    await withTenant(pool(), actor.tenantId, (c) => getConversation(c, actor.tenantId, id));
+    const conversation = await withTenant(pool(), actor.tenantId, (c) =>
+      getConversation(c, actor.tenantId, id),
+    ).catch(notFound);
+    // La revisión va ANTES de firmar: firmar es dar permiso de escribir en el
+    // bucket del negocio, y darlo para un archivo que jamás va a salir se paga
+    // en almacenamiento y se cobra en tiempo de quien atiende (#560).
+    const revision = revisarAdjunto(
+      { contentType: body.contentType, sizeBytes: body.sizeBytes },
+      conversation.channel,
+    );
+    if (!revision.ok) {
+      throw new BadRequestException({ code: revision.code, message: revision.message });
+    }
     const key = attachmentKey(actor.tenantId, id, body.filename);
     return {
       key,
       uploadUrl: presignUrl(storage, 'PUT', key),
       expiresSeconds: 900,
+    };
+  }
+
+  @Get('conversations/:id/attachments/limites')
+  @RequirePermission('conversations.reply')
+  @ApiOperation({
+    summary: 'Qué puede adjuntar esta conversación: tipos aceptados y peso máximo',
+  })
+  async limitesDeAdjunto(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    // La interfaz PIDE los límites, no los copia (#560). Una tabla duplicada en
+    // el front se separa de la de acá en el primer cambio, y entonces ofrece
+    // subir algo que esta misma ruta va a rechazar.
+    const conversation = await withTenant(pool(), actor.tenantId, (c) =>
+      getConversation(c, actor.tenantId, id),
+    ).catch(notFound);
+    return {
+      canal: conversation.channel,
+      limites: limitesDelCanal(conversation.channel).map((l) => ({
+        clase: l.clase,
+        nombre: l.nombre,
+        maxBytes: l.maxBytes,
+        tipos: l.tipos,
+      })),
     };
   }
 

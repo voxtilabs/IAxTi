@@ -150,7 +150,11 @@ describe('adjuntos por tenant (R2)', () => {
   it('la subida se prefirma bajo el prefijo del tenant', async () => {
     const res = await pedir(vendedor, `/conversations/${conversacion}/attachments`, {
       method: 'POST',
-      body: JSON.stringify({ filename: 'presupuesto.pdf' }),
+      body: JSON.stringify({
+        filename: 'presupuesto.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 250_000,
+      }),
     });
     expect(res.status).toBe(201);
     const { key, uploadUrl } = await res.json();
@@ -165,5 +169,120 @@ describe('adjuntos por tenant (R2)', () => {
     const propio = await pedir(vendedor, `/attachments/url?key=${tenant}/${conversacion}/archivo.pdf`);
     expect(propio.status).toBe(200);
     expect((await propio.json()).url).toContain('X-Amz-Signature=');
+  });
+});
+
+/**
+ * La revisión pasa ANTES de firmar (#560). Antes no existía: la ruta solo pedía
+ * el nombre del archivo, así que cualquier cosa conseguía su URL, se subía a R2
+ * —que se paga— y recién el proveedor la rechazaba horas después.
+ */
+describe('qué se puede adjuntar (#560)', () => {
+  it('sin tipo ni peso no se firma nada', async () => {
+    const res = await pedir(vendedor, `/conversations/${conversacion}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'algo.pdf' }),
+    });
+    expect(res.status).toBe(400);
+    const cuerpo = await res.json();
+    expect(cuerpo.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('una imagen sobre el límite se rechaza sin URL firmada', async () => {
+    const res = await pedir(vendedor, `/conversations/${conversacion}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: 'foto.jpg',
+        contentType: 'image/jpeg',
+        sizeBytes: 6 * 1024 * 1024,
+      }),
+    });
+    expect(res.status).toBe(400);
+    const cuerpo = await res.json();
+    expect(cuerpo.code).toBe('ADJUNTO_MUY_GRANDE');
+    // El límite que se nombra es el de la imagen (5 MB), no el del documento.
+    expect(cuerpo.message).toMatch(/5 MB/);
+    // Y lo importante: no vuelve nada con que se pueda escribir en el bucket.
+    expect(cuerpo.uploadUrl).toBeUndefined();
+    expect(cuerpo.key).toBeUndefined();
+  });
+
+  it('un tipo que WhatsApp no acepta se rechaza con su propio código', async () => {
+    const res = await pedir(vendedor, `/conversations/${conversacion}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: 'instalador.exe',
+        contentType: 'application/x-msdownload',
+        sizeBytes: 1024,
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('ADJUNTO_TIPO_NO_ACEPTADO');
+  });
+
+  it('un documento dentro del límite SÍ se firma', async () => {
+    // Rechazar de más es el error contrario, y es el que hace que la gente
+    // deje de usar el clip. La conversación de esta prueba es del simulador,
+    // así que rige la tabla conservadora (8 MB): 6 tiene que pasar.
+    const res = await pedir(vendedor, `/conversations/${conversacion}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: 'planos.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 6 * 1024 * 1024,
+      }),
+    });
+    expect(res.status).toBe(201);
+    expect((await res.json()).uploadUrl).toContain('X-Amz-Signature=');
+  });
+
+  it('el límite es POR CANAL: el mismo PDF pasa en WhatsApp y no en el simulador', async () => {
+    const treintaMB = {
+      filename: 'planos.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 30 * 1024 * 1024,
+    };
+    // Simulador: sin tabla propia, rige la conservadora y 30 MB no entra.
+    const enSimulador = await pedir(vendedor, `/conversations/${conversacion}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify(treintaMB),
+    });
+    expect(enSimulador.status).toBe(400);
+    expect((await enSimulador.json()).code).toBe('ADJUNTO_MUY_GRANDE');
+
+    await admin.query('UPDATE conversations SET channel = $2 WHERE id = $1', [
+      conversacion,
+      'whatsapp',
+    ]);
+    try {
+      // WhatsApp sí admite documentos de 100 MB: el mismo archivo pasa.
+      const enWhatsApp = await pedir(vendedor, `/conversations/${conversacion}/attachments`, {
+        method: 'POST',
+        body: JSON.stringify(treintaMB),
+      });
+      expect(enWhatsApp.status).toBe(201);
+    } finally {
+      await admin.query('UPDATE conversations SET channel = $2 WHERE id = $1', [
+        conversacion,
+        'simulador',
+      ]);
+    }
+  });
+
+  it('la interfaz puede PEDIR los límites en vez de copiarlos', async () => {
+    const res = await pedir(vendedor, `/conversations/${conversacion}/attachments/limites`);
+    expect(res.status).toBe(200);
+    const cuerpo = await res.json();
+    expect(cuerpo.canal).toBe('simulador');
+    const clases = cuerpo.limites.map((l: { clase: string }) => l.clase);
+    expect(clases).toContain('imagen');
+    expect(clases).toContain('documento');
+    const imagen = cuerpo.limites.find((l: { clase: string }) => l.clase === 'imagen');
+    expect(imagen.maxBytes).toBe(5 * 1024 * 1024);
+    expect(imagen.tipos).toContain('image/jpeg');
+    // Y acá se ve la asimetría a propósito: un canal sin tabla NO hereda los
+    // 100 MB del documento de WhatsApp, hereda el tope conservador.
+    const documento = cuerpo.limites.find((l: { clase: string }) => l.clase === 'documento');
+    expect(documento.maxBytes).toBeLessThan(100 * 1024 * 1024);
   });
 });

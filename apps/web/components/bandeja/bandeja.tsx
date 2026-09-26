@@ -34,7 +34,7 @@ import {
   type QuickReplyDto,
   type SugerenciaDto,
 } from '../../lib/api';
-import { Chat } from './chat';
+import { Chat, type LimitesDeAdjunto } from './chat';
 import { Ficha } from './ficha';
 import { ESTADOS, fmtEspera } from './estado';
 
@@ -75,6 +75,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [items, setItems] = useState<ConversacionItem[] | null>(null);
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<ConversacionDetalle | null>(null);
+  const [limites, setLimites] = useState<LimitesDeAdjunto | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[] | null>(null);
   const [pane, setPane] = useState<Pane>('lista');
   const [aviso, setAviso] = useState<string | null>(null);
@@ -119,7 +120,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
     async (id: string) => {
       if (!session || !tenant) return;
       try {
-        const [d, m, n, sug, ana] = await Promise.all([
+        const [d, m, n, sug, ana, lim] = await Promise.all([
           apiFetch<ConversacionDetalle>(config, session, tenant, `/conversations/${id}`),
           apiFetch<Mensaje[]>(config, session, tenant, `/conversations/${id}/messages`),
           apiFetch<NotaDto[]>(config, session, tenant, `/conversations/${id}/notes`),
@@ -131,6 +132,16 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
             `/conversations/${id}/suggestion`,
           ).catch(() => null),
           apiFetch<AnalisisDto>(config, session, tenant, `/conversations/${id}/analisis`).catch(() => null),
+          // Qué acepta ESTE canal (#560). Se pide y no se copia: una tabla de
+          // tipos y tamaños duplicada en el front se separa de la del servidor
+          // en el primer cambio, y entonces el clip ofrece subir lo que la
+          // ruta va a rechazar.
+          apiFetch<LimitesDeAdjunto>(
+            config,
+            session,
+            tenant,
+            `/conversations/${id}/attachments/limites`,
+          ).catch(() => null),
         ]);
         if (seleccionRef.current !== id) return;
         setDetalle(d);
@@ -139,6 +150,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         setSugerencia(sug?.sugerencia ?? null);
         setSinSugerencia(sug?.motivo ?? null);
         setAnalisis(ana);
+        setLimites(lim);
       } catch (err) {
         setAviso((err as Error).message);
       }
@@ -155,7 +167,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       .catch(() => setAtajos([]));
   }, [config, session, tenant]);
   useEffect(() => {
-    if (seleccion) { setDetalle(null); setMensajes(null); void cargarConversacion(seleccion); }
+    if (seleccion) { setDetalle(null); setMensajes(null); setLimites(null); void cargarConversacion(seleccion); }
   }, [seleccion, cargarConversacion]);
 
   // Realtime por broadcast (SPEC §40): canal privado del tenant; cualquier
@@ -176,8 +188,13 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
     return () => void supabase.removeChannel(canal);
   }, [supabase, session, tenant, cargarLista, cargarConversacion]);
 
-  async function accion(path: string, body: unknown): Promise<void> {
-    if (!session || !tenant || !seleccion) return;
+  /**
+   * Devuelve si la acción SALIÓ. Antes era `void` y se tragaba el fallo: quien
+   * la llamaba no podía distinguir un envío bueno de uno rechazado, así que la
+   * bandeja mostraba el aviso y al mismo tiempo borraba el borrador (#560).
+   */
+  async function accion(path: string, body: unknown): Promise<boolean> {
+    if (!session || !tenant || !seleccion) return false;
     setAviso(null);
     try {
       await apiFetch(config, session, tenant, `/conversations/${seleccion}${path}`, {
@@ -186,8 +203,10 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       });
       await Promise.all([cargarConversacion(seleccion), cargarLista()]);
       toast.success(path === '/state' && (body as { state?: string }).state === 'resolved' ? 'Conversación resuelta' : 'Conversación actualizada');
+      return true;
     } catch (err) {
       setAviso((err as Error).message);
+      return false;
     }
   }
 
@@ -509,6 +528,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               setAviso((err as Error).message);
             }
           }}
+          limitesDeAdjunto={limites}
           onVolver={() => setPane('lista')}
           onVerFicha={() => setPane('ficha')}
           onResponder={async (texto, archivo) => {
@@ -517,28 +537,43 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
             // prometiendo un adjunto que no existe (#458).
             let adjuntos;
             if (archivo && session && tenant && seleccion) {
-              const permiso = await apiFetch<{ key: string; uploadUrl: string }>(
-                config,
-                session,
-                tenant,
-                `/conversations/${seleccion}/attachments`,
-                { method: 'POST', body: JSON.stringify({ filename: archivo.name }) },
-              );
-              const subida = await fetch(permiso.uploadUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': archivo.type || 'application/octet-stream' },
-                body: archivo,
-              });
-              if (!subida.ok) throw new Error('No pudimos subir el archivo. Inténtalo de nuevo.');
-              adjuntos = [
-                {
-                  key: permiso.key,
-                  filename: archivo.name,
-                  contentType: archivo.type || 'application/octet-stream',
-                },
-              ];
+              const contentType = archivo.type || 'application/octet-stream';
+              try {
+                // La ruta revisa tipo y tamaño ANTES de firmar (#560): si el
+                // archivo no cabe, no se sube nada y el mensaje que vuelve ya
+                // dice cuál es el máximo de ESA clase.
+                const permiso = await apiFetch<{ key: string; uploadUrl: string }>(
+                  config,
+                  session,
+                  tenant,
+                  `/conversations/${seleccion}/attachments`,
+                  {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      filename: archivo.name,
+                      contentType,
+                      sizeBytes: archivo.size,
+                    }),
+                  },
+                );
+                const subida = await fetch(permiso.uploadUrl, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': contentType },
+                  body: archivo,
+                });
+                if (!subida.ok) throw new Error('No pudimos subir el archivo. Inténtalo de nuevo.');
+                adjuntos = [{ key: permiso.key, filename: archivo.name, contentType }];
+              } catch (err) {
+                // Sin este catch el error se escapaba de `onResponder` y de
+                // `enviar`, que tampoco lo tenía: quedaba una promesa
+                // rechazada sin dueño, el clip puesto y NINGÚN aviso en
+                // pantalla. Con el rechazo por tamaño de #560 eso habría hecho
+                // invisible justamente lo que se agregó.
+                setAviso((err as Error).message);
+                return false;
+              }
             }
-            await accion('/messages', { body: texto, ...(adjuntos ? { adjuntos } : {}) });
+            return accion('/messages', { body: texto, ...(adjuntos ? { adjuntos } : {}) });
           }}
           onAsignar={(aQuien, motivo) => accion('/assign', { toOwnerId: aQuien, reason: motivo })}
           onEstado={(estado, hasta) => accion('/state', { state: estado, snoozedUntil: hasta })}
