@@ -254,7 +254,7 @@ export function Chat({
                     y la bandeja no los mostraba: un mensaje con foto se
                     veía vacío, y la foto era todo el mensaje. */}
                 {(m.lostAttachments ?? 0) > 0 && (
-                  <p className="mt-2 text-micro text-muted">
+                  <p className="mt-2 text-rotulo text-muted">
                     {m.lostAttachments === 1
                       ? 'Llegó un archivo que no alcanzamos a guardar; pídeselo de nuevo.'
                       : `Llegaron ${m.lostAttachments} archivos que no alcanzamos a guardar; pídeselos de nuevo.`}
@@ -275,7 +275,7 @@ export function Chat({
                         >
                           <Paperclip aria-hidden className="size-4 shrink-0" />
                           <span className="truncate">{a.name}</span>
-                          <span className="ml-auto shrink-0 text-micro text-muted">Abrir</span>
+                          <span className="ml-auto shrink-0 text-rotulo text-muted">Abrir</span>
                         </button>
                       </li>
                     ))}
@@ -292,7 +292,7 @@ export function Chat({
                     la bandeja mostraba el ícono rojo y ninguna acción. */}
                 {m.direction === 'out' && m.deliveryStatus === 'failed' && (
                   <p className="mt-1 flex flex-wrap items-center justify-end gap-2">
-                    <span className="text-micro text-bad-text">No llegó.</span>
+                    <span className="text-rotulo text-bad-text">No llegó.</span>
                     <Button
                       size="chico"
                       variant="secundario"
@@ -340,7 +340,7 @@ export function Chat({
         <p className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-campo border border-line bg-rest px-3 py-2 text-sm text-body">
           <Paperclip aria-hidden className="size-3.5 text-muted" />
           <span className="min-w-0 flex-1 truncate">{archivo.name}</span>
-          <span className="text-micro text-muted">{Math.ceil(archivo.size / 1024)} KB</span>
+          <span className="text-rotulo text-muted">{Math.ceil(archivo.size / 1024)} KB</span>
           <Button variant="fantasma" size="chico" onClick={() => setArchivo(null)}>
             Quitar
           </Button>

@@ -88,22 +88,22 @@ export function LogroDelObjetivo() {
             <div>
               <dt className="rotulo">Lo logró solo</dt>
               <dd className="dato text-2xl font-bold text-ink">{pct(tasa.tasaDelAgente ?? 0)}</dd>
-              <dd className="text-micro text-muted">{tasa.porElAgente} de {tasa.cerrados}</dd>
+              <dd className="text-rotulo text-muted">{tasa.porElAgente} de {tasa.cerrados}</dd>
             </div>
             <div>
               <dt className="rotulo">Con ayuda del equipo</dt>
               <dd className="dato text-2xl font-bold text-ink">{pct(tasa.tasaConAsistencia ?? 0)}</dd>
-              <dd className="text-micro text-muted">
+              <dd className="text-rotulo text-muted">
                 {tasa.asistidos} {tasa.asistidos === 1 ? 'conversación' : 'conversaciones'} las terminó alguien
               </dd>
             </div>
             <div>
               <dt className="rotulo">No se logró</dt>
               <dd className="dato text-2xl font-bold text-ink">{tasa.perdidos}</dd>
-              <dd className="text-micro text-muted">de {tasa.cerrados} terminadas</dd>
+              <dd className="text-rotulo text-muted">de {tasa.cerrados} terminadas</dd>
             </div>
           </dl>
-          <p className="mt-3 max-w-prose text-micro text-muted">
+          <p className="mt-3 max-w-prose text-rotulo text-muted">
             Las dos tasas juntas son lo que decide: si se parecen, el equipo casi no está
             interviniendo; si la segunda es mucho mayor, el asistente abre camino y alguien cierra.
           </p>

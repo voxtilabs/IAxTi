@@ -187,7 +187,7 @@ export function ConsumoIA() {
                             las buenas es lo que explica un costo que no
                             calza con lo que se ve en la bandeja. */}
                         {c.status !== 'ok' && (
-                          <span className="ml-2 text-micro text-bad-text">{c.status}</span>
+                          <span className="ml-2 text-rotulo text-bad-text">{c.status}</span>
                         )}
                       </td>
                       <td className="py-1.5 text-muted">{c.model}</td>

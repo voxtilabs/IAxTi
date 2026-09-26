@@ -109,7 +109,7 @@ function SinResponder() {
                   {c.contactName ?? 'Sin nombre'}
                 </span>
                 {c.lastMessageAt && (
-                  <span className="dato shrink-0 text-micro text-muted">
+                  <span className="dato shrink-0 text-rotulo text-muted">
                     {haceCuanto(c.lastMessageAt)}
                   </span>
                 )}

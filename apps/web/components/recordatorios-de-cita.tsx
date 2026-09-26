@@ -129,7 +129,7 @@ export function RecordatoriosDeCita() {
             {AVISOS.map((a) => (
               <label key={a.id} className="flex flex-col gap-1">
                 <span className="text-dato font-medium text-ink">{a.titulo}</span>
-                <span className="text-micro text-muted">{a.ayuda}</span>
+                <span className="text-rotulo text-muted">{a.ayuda}</span>
                 <Select
                   value={elegidas[a.id]}
                   onValueChange={(v) => setElegidas((e) => ({ ...e, [a.id]: v }))}
@@ -153,7 +153,7 @@ export function RecordatoriosDeCita() {
           {/* El contrato con quien escribe la plantilla. Va acá y no en la
               documentación porque una plantilla aprobada por Meta no se
               corrige: se crea otra y se espera de nuevo. */}
-          <p className="mt-4 rounded-campo border border-line bg-rest px-4 py-3 text-micro text-muted">
+          <p className="mt-4 rounded-campo border border-line bg-rest px-4 py-3 text-rotulo text-muted">
             En la plantilla, <strong className="text-body">{'{{1}}'}</strong> es el nombre de quien
             tiene la hora y <strong className="text-body">{'{{2}}'}</strong> es cuándo, en la hora de
             tu negocio. Si tu plantilla usa solo una variable, recibe el nombre.

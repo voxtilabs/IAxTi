@@ -166,7 +166,7 @@ export function PreguntaALosNumeros() {
               La respuesta quedó cortada. Prueba con una pregunta más acotada.
             </AvisoResultado>
           )}
-          <p className="mt-3 border-t border-line pt-2 text-micro text-muted">
+          <p className="mt-3 border-t border-line pt-2 text-rotulo text-muted">
             {respuesta.herramientasUsadas.length > 0 ? (
               <>Salió de {[...new Set(respuesta.herramientasUsadas.map((t) => DE_DONDE[t] ?? t))].join(' y ')}.</>
             ) : (
