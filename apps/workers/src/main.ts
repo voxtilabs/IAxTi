@@ -368,15 +368,27 @@ function start(): void {
             const res = await sweepBilling(pool);
             if (res.issued + res.overdue + res.readOnly > 0) {
               console.log(`scheduled: billing — ${res.issued} facturas, ${res.overdue} impagas, ${res.readOnly} read_only`);
-            // El final del ciclo (#218): el sistema avisa, una persona
-            // borra. Nunca se borra solo — es irreversible y se lleva datos
-            // de los clientes de nuestro cliente.
+            }
+            /**
+             * El final del ciclo (#218): el sistema avisa, una persona borra.
+             * Nunca se borra solo — es irreversible y se lleva datos de los
+             * clientes de nuestro cliente.
+             *
+             * Esto vivía DENTRO del `if` del log de arriba (#542), o sea que
+             * solo corría los días en que algún negocio facturó, cayó en mora o
+             * pasó a solo lectura. En un despliegue chico —el primer año— hay
+             * días enteros en que esos tres contadores son cero, y entonces el
+             * aviso no salía: `deletion_warned_at` se quedaba en NULL para
+             * siempre. La cola del SuperAdmin mostraba la fila como «sin
+             * avisar» y a los 90 días igual la marcaba «cumple el plazo».
+             *
+             * El aviso es un PASO del barrido, no un detalle del log.
+             */
             const cola = await avisarBorradoPendiente(pool);
             if (cola.avisados > 0 || cola.enCola > 0) {
               console.log(
                 `scheduled: borrado — ${cola.avisados} avisados, ${cola.enCola} esperando decisión del SuperAdmin`,
               );
-            }
             }
             return res;
           }
