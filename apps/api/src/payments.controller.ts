@@ -29,6 +29,7 @@ import {
   type ProviderKind,
 } from '@iaxti/module-payments';
 import { getConversation, salePorProveedor, sendMessage, updateDeliveryStatus } from '@iaxti/module-conversations';
+import { listPipelines } from '@iaxti/module-crm';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -123,6 +124,19 @@ const AjustesDeCobro = z.object({
     .int('El tope va en pesos enteros.')
     .min(1, 'El tope tiene que ser mayor que cero. Para quitarlo, déjalo vacío.')
     .nullable(),
+  /**
+   * La etapa a la que se mueve la oportunidad cuando el cliente paga (#536).
+   *
+   * Se leía en `confirm.ts` desde el principio y ninguna ruta la escribía, así
+   * que el cliente pagaba, el comprobante se publicaba en la conversación y la
+   * oportunidad se quedaba en «Propuesta» para siempre. El vendedor tenía que
+   * moverla a mano y nada se lo recordaba, así que el dueño miraba el embudo y
+   * veía plata «por cerrar» que ya estaba en su cuenta.
+   *
+   * `null` lo apaga: mover el deal es cortesía y hay negocios que prefieren
+   * hacerlo a mano.
+   */
+  paidStageName: z.string().trim().min(1, 'Dinos el nombre de la etapa.').nullable().optional(),
 });
 
 @ApiTags('payments')
@@ -145,10 +159,22 @@ export class PaymentsController {
   @ApiOperation({ summary: 'El tope de monto para quien cobra con límite' })
   async ajustes(@Req() request: WithUser) {
     const actor = actorOf(request);
-    const settings = (await withTenant(pool(), actor.tenantId, (c) =>
-      getTenantSettings(c, actor.tenantId),
-    )) as { pagos?: { maxLinkClpUser?: number } };
-    return { maxLinkClpUser: settings.pagos?.maxLinkClpUser ?? null };
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const settings = (await getTenantSettings(c, actor.tenantId)) as {
+        pagos?: { maxLinkClpUser?: number; paidStageName?: string };
+      };
+      // Los nombres de etapa que existen, para que la pantalla ofrezca elegir en
+      // vez de pedir que se escriba uno: un nombre que no calza con ninguna
+      // etapa no mueve nada y no avisa (confirm.ts lo busca por nombre).
+      const embudos = await listPipelines(c, actor.tenantId);
+      return {
+        maxLinkClpUser: settings.pagos?.maxLinkClpUser ?? null,
+        paidStageName: settings.pagos?.paidStageName ?? null,
+        etapasDisponibles: [
+          ...new Set(embudos.flatMap((p) => p.stages.map((e) => e.name))),
+        ].sort(),
+      };
+    });
   }
 
   @Put('ajustes')
@@ -170,8 +196,45 @@ export class PaymentsController {
       const pagos = { ...(actuales.pagos ?? {}) };
       if (ajustes.maxLinkClpUser === null) delete pagos.maxLinkClpUser;
       else pagos.maxLinkClpUser = ajustes.maxLinkClpUser;
+
+      // La etapa se valida contra las que EXISTEN (#536): `confirm.ts` la busca
+      // por nombre y si no calza no mueve nada ni avisa. Un typo acá sería un
+      // embudo que nunca se actualiza y nadie sabría por qué.
+      let enEmbudos: string[] = [];
+      let faltaEn: string[] = [];
+      if (ajustes.paidStageName !== undefined) {
+        if (ajustes.paidStageName === null) delete pagos.paidStageName;
+        else {
+          const embudos = await listPipelines(c, actor.tenantId);
+          const buscado = ajustes.paidStageName.toLowerCase();
+          enEmbudos = embudos.filter((p) => p.stages.some((e) => e.name.toLowerCase() === buscado)).map((p) => p.name);
+          faltaEn = embudos.filter((p) => !p.stages.some((e) => e.name.toLowerCase() === buscado)).map((p) => p.name);
+          if (enEmbudos.length === 0) {
+            const nombres = [...new Set(embudos.flatMap((p) => p.stages.map((e) => e.name)))];
+            throw new BadRequestException({
+              code: 'ETAPA_DESCONOCIDA',
+              message:
+                `Ninguno de tus embudos tiene una etapa "${ajustes.paidStageName}". ` +
+                (nombres.length
+                  ? `Las que tienes: ${nombres.join(', ')}.`
+                  : 'Todavía no tienes etapas: arma tu embudo primero.'),
+              details: [{ field: 'paidStageName' }],
+            });
+          }
+          pagos.paidStageName = ajustes.paidStageName;
+        }
+      }
+
       await updateTenantSettings(c, actor.tenantId, { pagos });
-      return { maxLinkClpUser: ajustes.maxLinkClpUser };
+      return {
+        maxLinkClpUser: ajustes.maxLinkClpUser,
+        paidStageName: (pagos.paidStageName as string) ?? null,
+        // Cuáles embudos van a mover la oportunidad y cuáles no: un negocio con
+        // dos embudos y la etapa en uno solo merece saberlo al guardar, no
+        // descubrirlo cuando el otro no se movió.
+        enEmbudos,
+        faltaEn,
+      };
     });
   }
 

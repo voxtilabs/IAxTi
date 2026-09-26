@@ -18,6 +18,14 @@ import {
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
 
+/**
+ * «No mover» como valor del desplegable.
+ *
+ * Radix no acepta `value=""` en un SelectItem, y `null` es exactamente lo que
+ * hay que mandar para apagarlo: este centinela hace el viaje de ida y vuelta.
+ */
+const SIN_MOVER = '__sin_mover__';
+
 // Pagos (#60/#61, SPEC §17): proveedores con credenciales POR REFERENCIA
 // (aquí solo se escribe el NOMBRE de la variable de entorno) y los links
 // con su estado. Montos SIEMPRE en mono.
@@ -71,6 +79,10 @@ export function Pagos() {
   const [tope, setTope] = useState<number | null>(null);
   const [topeEscrito, setTopeEscrito] = useState('');
   const [guardandoTope, setGuardandoTope] = useState(false);
+  // La etapa a la que se mueve la oportunidad al pagar (#536). `''` es «no
+  // mover»: hay negocios que prefieren hacerlo a mano.
+  const [etapaPagado, setEtapaPagado] = useState(SIN_MOVER);
+  const [etapasDisponibles, setEtapasDisponibles] = useState<string[]>([]);
 
   useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
@@ -81,15 +93,19 @@ export function Pagos() {
         apiFetch<LinkDto[]>(config, session, tenant, '/payments/links'),
         // Sin `tenant.settings` esto responde 403, y no es un error que mostrar:
         // quien atiende ve la pantalla sin el campo del tope, que no es suyo.
-        apiFetch<{ maxLinkClpUser: number | null }>(config, session, tenant, '/payments/ajustes').catch(
-          () => null,
-        ),
+        apiFetch<{
+          maxLinkClpUser: number | null;
+          paidStageName: string | null;
+          etapasDisponibles: string[];
+        }>(config, session, tenant, '/payments/ajustes').catch(() => null),
       ]);
       setProveedores(nuevosProveedores);
       setLinks(nuevosLinks);
       if (ajustes) {
         setTope(ajustes.maxLinkClpUser);
         setTopeEscrito(ajustes.maxLinkClpUser === null ? '' : String(ajustes.maxLinkClpUser));
+        setEtapaPagado(ajustes.paidStageName ?? SIN_MOVER);
+        setEtapasDisponibles(ajustes.etapasDisponibles ?? []);
       }
     } catch (err) {
       setAviso((err as Error).message);
@@ -111,16 +127,34 @@ export function Pagos() {
     const limpio = topeEscrito.replace(/\D/g, '');
     setGuardandoTope(true);
     try {
-      const r = await apiFetch<{ maxLinkClpUser: number | null }>(
+      const r = await apiFetch<{
+        maxLinkClpUser: number | null;
+        paidStageName: string | null;
+        enEmbudos: string[];
+        faltaEn: string[];
+      }>(
         config,
         session,
         tenant,
         '/payments/ajustes',
-        { method: 'PUT', body: JSON.stringify({ maxLinkClpUser: limpio ? Number(limpio) : null }) },
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            maxLinkClpUser: limpio ? Number(limpio) : null,
+            paidStageName: etapaPagado === SIN_MOVER ? null : etapaPagado,
+          }),
+        },
       );
       setTope(r.maxLinkClpUser);
       setTopeEscrito(r.maxLinkClpUser === null ? '' : String(r.maxLinkClpUser));
-      setAviso(null);
+      // Cuando el negocio tiene dos embudos y la etapa está en uno solo, el
+      // servidor lo dice al guardar: descubrirlo cuando el otro no se movió es
+      // descubrirlo tarde.
+      setAviso(
+        r.faltaEn?.length
+          ? `Guardado. Ojo: "${r.paidStageName}" no existe en ${r.faltaEn.join(' ni ')}, así que ahí la oportunidad no se va a mover sola.`
+          : null,
+      );
     } catch (err) {
       setAviso((err as Error).message);
     } finally {
@@ -205,6 +239,31 @@ export function Pagos() {
           <span className="text-sm text-muted">
             {tope === null ? 'Hoy nadie tiene tope.' : `Hoy el tope es ${fmtClp(tope)}.`}
           </span>
+        </div>
+
+        {/* La etapa de pagado (#536). Se ELIGE de las que existen, no se
+            escribe: `confirm.ts` la busca por nombre y un typo sería un embudo
+            que nunca se actualiza sin que nada avise. */}
+        <div className="mt-5 border-t border-line pt-4">
+          <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+            Cuando pagan, mover la oportunidad a
+            <Select value={etapaPagado} onValueChange={setEtapaPagado}>
+              <SelectTrigger aria-label="Etapa al pagar" className="w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SIN_MOVER}>No mover (lo hago yo)</SelectItem>
+                {etapasDisponibles.map((e) => (
+                  <SelectItem key={e} value={e}>{e}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <p className="mt-2 text-sm text-muted">
+            {etapasDisponibles.length === 0
+              ? 'Todavía no tienes etapas: arma tu embudo primero.'
+              : 'El cambio queda a nombre del sistema y se puede deshacer moviéndola de vuelta.'}
+          </p>
         </div>
       </div>
 

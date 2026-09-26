@@ -6,6 +6,7 @@ import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } fro
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { receiveInbound } from '@iaxti/module-conversations';
+import { createPipeline } from '@iaxti/module-crm';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 
@@ -267,5 +268,77 @@ describe('el tope de monto se puede configurar de verdad (#535)', () => {
       body: JSON.stringify({ maxLinkClpUser: 999_999 }),
     });
     expect(r.status).toBe(403);
+  });
+});
+
+describe('la etapa de pagado se puede configurar y se valida (#536)', () => {
+  beforeAll(async () => {
+    // El embudo del negocio: `confirm.ts` busca la etapa POR NOMBRE dentro del
+    // embudo de la oportunidad, así que sin etapas no hay nada que configurar.
+    await withTenant(admin, tenant, (c) =>
+      createPipeline(c, {
+        tenantId: tenant,
+        name: 'Ventas',
+        // Un embudo necesita al menos una abierta, una ganada y una perdida.
+        stages: [
+          { name: 'Propuesta', type: 'open' },
+          { name: 'Pagado', type: 'won' },
+          { name: 'No fue', type: 'lost' },
+        ],
+      }),
+    );
+  });
+
+  /**
+   * `settings.pagos.paidStageName` se leía en `confirm.ts` desde el principio y
+   * ninguna ruta la escribía. El cliente pagaba, el comprobante se publicaba en
+   * la conversación, y la oportunidad se quedaba en «Propuesta» para siempre: el
+   * vendedor tenía que moverla a mano y nada se lo recordaba, así que el dueño
+   * miraba el embudo y veía plata «por cerrar» que ya estaba en su cuenta.
+   */
+  it('se guarda, y dice en qué embudos va a mover la oportunidad', async () => {
+    const disponibles = await (await pedir(duena, '/payments/ajustes')).json();
+    expect(Array.isArray(disponibles.etapasDisponibles)).toBe(true);
+
+    // Con una etapa que EXISTE en el embudo del negocio.
+    const etapa = disponibles.etapasDisponibles.find((e: string) => e === 'Pagado');
+    expect(etapa, 'el negocio de prueba necesita al menos una etapa').toBeTruthy();
+
+    const r = await pedir(duena, '/payments/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ maxLinkClpUser: null, paidStageName: etapa }),
+    });
+    expect(r.status).toBe(200);
+    const cuerpo = await r.json();
+    expect(cuerpo.paidStageName).toBe(etapa);
+    // Cuáles embudos la tienen: un negocio con dos embudos y la etapa en uno
+    // solo merece saberlo al guardar, no descubrirlo cuando el otro no se movió.
+    expect(cuerpo.enEmbudos.length).toBeGreaterThan(0);
+  });
+
+  it('una etapa que no existe se rechaza con las que sí, no en silencio', async () => {
+    // `confirm.ts` la busca POR NOMBRE y si no calza no mueve nada ni avisa. Un
+    // typo sería un embudo que nunca se actualiza y nadie sabría por qué.
+    const r = await pedir(duena, '/payments/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ maxLinkClpUser: null, paidStageName: 'Cobrado y listo' }),
+    });
+    expect(r.status).toBe(400);
+    const cuerpo = await r.json();
+    expect(cuerpo.code).toBe('ETAPA_DESCONOCIDA');
+    // Y dice cuáles tiene: un «no existe» sin la lista obliga a adivinar.
+    expect(cuerpo.message).toContain('Las que tienes:');
+  });
+
+  it('null la apaga: mover el deal es cortesía, no obligación', async () => {
+    const r = await pedir(duena, '/payments/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ maxLinkClpUser: null, paidStageName: null }),
+    });
+    expect(r.status).toBe(200);
+    expect((await r.json()).paidStageName).toBeNull();
+    const fila = await admin.query('SELECT settings FROM tenants WHERE id = $1', [tenant]);
+    const pagos = (fila.rows[0].settings as { pagos?: Record<string, unknown> }).pagos ?? {};
+    expect(pagos).not.toHaveProperty('paidStageName');
   });
 });
