@@ -17,6 +17,7 @@ import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import {
   RateLimitedError,
   causaLegible,
+  esPermanente,
   deliverOutbound,
   isBusinessPaused,
   listTemplates,
@@ -184,6 +185,17 @@ export async function processOutbound(
         redis,
       );
     } catch (err) {
+      // Lo que no se arregla reintentando se rechaza YA (#556). Antes todo lo
+      // que no fuera rate limit se reencolaba, así que una credencial ausente
+      // o un emisor sin asignar dejaban el mensaje «enviando» varias horas
+      // antes de contar qué pasaba — y lo que contaba era el texto crudo del
+      // sistema. Un canal mal conectado se arregla; para eso hay que nombrarlo.
+      if (esPermanente(err)) {
+        // El cuerpo del proveedor va al log y no a la bandeja: sirve para
+        // depurar, no para quien está atendiendo a un cliente.
+        if (err.detalle) console.error(`outbound ${data.messageId}: ${err.detalle}`);
+        return rechazar(err.message);
+      }
       if (err instanceof RateLimitedError || !esUltimoIntento) {
         throw err; // BullMQ reintenta con backoff exponencial
       }

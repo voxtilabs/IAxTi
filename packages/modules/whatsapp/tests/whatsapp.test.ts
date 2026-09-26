@@ -215,7 +215,11 @@ describe('adaptador Zavu (#42, ADR-0014)', () => {
         },
         { to: '+56987654321', type: 'texto', body: 'Hola' },
       ),
-    ).rejects.toThrow(/whatsapp_window_closed/);
+      // El motivo llega TRADUCIDO (#556): la tabla de causas ya tenía esta
+      // frase en español y el camino de envío no la usaba, así que el vendedor
+      // leía el JSON crudo del proveedor. El código sigue estando, en el
+      // `detalle` que va al log.
+    ).rejects.toThrow(/Pasaron más de 24 horas/);
     delete process.env.ZAVU_KEY_TEST;
   });
 

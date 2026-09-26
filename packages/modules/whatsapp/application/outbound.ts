@@ -44,6 +44,114 @@ export class RateLimitedError extends Error {
 }
 
 /**
+ * Lo que NO se arregla reintentando.
+ *
+ * Cinco intentos con backoff exponencial es lo correcto para un 429 o un 503:
+ * el proveedor está saturado y se recupera. Pero una variable de entorno que
+ * falta, una API key mala o un emisor que no existe no aparecen solos. Sin
+ * distinguir, el mensaje se queda «enviando» varias horas y recién entonces el
+ * vendedor se entera de que el canal está mal conectado — y lo que lee es el
+ * texto crudo del sistema. Las dos cosas se arreglan acá: se rechaza al primer
+ * intento y con una frase que dice qué hacer.
+ *
+ * `detalle` es para el log —el cuerpo que devolvió el proveedor, que es lo que
+ * sirve para depurar— y `message` es lo que lee una persona. Ahí no van
+ * nombres de campos internos.
+ */
+export class ErrorPermanente extends Error {
+  readonly permanente = true as const;
+  constructor(
+    message: string,
+    public readonly detalle?: string,
+  ) {
+    super(message);
+    this.name = 'ErrorPermanente';
+  }
+}
+
+/**
+ * Por qué no basta `instanceof`: el worker importa el paquete COMPILADO y los
+ * tests importan la fuente, así que pueden convivir dos copias de la clase.
+ * Un `instanceof` contra la otra copia da false, el error se trata como
+ * transitorio y vuelve a reintentarse cinco veces — exactamente lo que este
+ * cambio existe para arreglar. La marca en la instancia sobrevive al cruce.
+ */
+export function esPermanente(err: unknown): err is ErrorPermanente {
+  if (err instanceof ErrorPermanente) return true;
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { permanente?: unknown }).permanente === true
+  );
+}
+
+/**
+ * Un rechazo HTTP del canal: ¿vale la pena volver a intentarlo?
+ *
+ * 429 y 5xx sí — saturado o caído, se recupera. El resto de los 4xx no: 401 es
+ * la credencial mala, 400 es la carga mala, 404 es el emisor que ya no existe.
+ * El 408 es la excepción entre los 4xx: es un timeout, no un problema con lo
+ * que mandamos.
+ */
+export function rechazoPermanente(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 429 && status !== 408;
+}
+
+/**
+ * Qué se le dice a una persona cuando el canal rechaza para siempre. El código
+ * HTTP no se muestra: no le sirve a quien está atendiendo, y el cuerpo crudo
+ * del proveedor va al log.
+ */
+/**
+ * El código que el proveedor metió en el cuerpo del rechazo.
+ *
+ * `CAUSAS_META` existe desde #43 para traducir estos códigos a una frase que
+ * una persona entiende, pero el camino de envío nunca los sacaba del cuerpo:
+ * el JSON crudo del proveedor se iba tal cual a la bandeja y la tabla se usaba
+ * solo para los webhooks de estado. Así, un «ventana cerrada» —que ya estaba
+ * escrito en español— llegaba al vendedor como
+ * `{"error":{"code":"whatsapp_window_closed"}}`.
+ *
+ * Se leen las formas que Zavu y Meta usan, y si ninguna calza se busca
+ * cualquier clave conocida dentro del texto: es un cuerpo de error, no un
+ * contrato, y cambia sin avisar.
+ */
+export function codigoDelProveedor(cuerpo: string): number | string | undefined {
+  if (!cuerpo) return undefined;
+  try {
+    const j = JSON.parse(cuerpo) as Record<string, unknown>;
+    const candidatos: unknown[] = [
+      (j.error as { code?: unknown } | undefined)?.code,
+      j.code,
+      (Array.isArray(j.errors) ? (j.errors[0] as { code?: unknown } | undefined)?.code : undefined),
+      (j.meta as { code?: unknown } | undefined)?.code,
+    ];
+    for (const c of candidatos) {
+      if ((typeof c === 'string' && c) || typeof c === 'number') {
+        if (CAUSAS_META[c] !== undefined) return c;
+      }
+    }
+  } catch {
+    // Un cuerpo que no es JSON es perfectamente posible (HTML de un proxy,
+    // texto pelado): se sigue al barrido de abajo.
+  }
+  return Object.keys(CAUSAS_META).find((k) => cuerpo.includes(k));
+}
+
+export function mensajeDeRechazo(status: number): string {
+  if (status === 401 || status === 403) {
+    return 'El canal rechazó nuestras credenciales. Un administrador tiene que reconectarlo en Canales.';
+  }
+  if (status === 404) {
+    return 'El emisor de este canal ya no existe en el proveedor. Reconéctalo en Canales.';
+  }
+  if (status === 413) {
+    return 'El adjunto pesa más de lo que este canal acepta. Mándalo más liviano.';
+  }
+  return 'El canal rechazó el envío y no lo va a aceptar reintentando. Revisa el número del contacto y la conexión del canal.';
+}
+
+/**
  * Cupo por número y por segundo (token bucket simple en Redis). Meta admite
  * ráfagas mucho mayores; partimos conservadores y configurable por env.
  */
@@ -118,7 +226,14 @@ export async function deliverOutbound(
   redis: IORedis,
 ): Promise<{ providerMessageId: string }> {
   const provider = getProvider(account.kind);
-  if (!provider) throw new Error(`No hay adaptador para el canal ${account.kind}.`);
+  if (!provider) {
+    // Un canal sin adaptador es un bug de configuración del módulo, no un
+    // temporal: reintentarlo cinco veces solo retrasa la noticia.
+    throw new ErrorPermanente(
+      'Este canal no está disponible para enviar. Avísanos: es una configuración que tenemos que corregir nosotros.',
+      `No hay adaptador para el canal ${account.kind}.`,
+    );
+  }
   const phoneNumberId = (account.config.phoneNumberId as string) ?? account.id;
   await checkNumberRateLimit(redis, phoneNumberId);
   return provider.send(account, {
