@@ -44,6 +44,7 @@ export {
   elegirSender,
   quienSoy,
   llaveSirveParaAmbiente,
+  emisorDelProveedor,
   conectarSender,
   urlWebhook,
   EVENTOS_WEBHOOK,

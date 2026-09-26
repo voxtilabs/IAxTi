@@ -293,3 +293,113 @@ describe('el canal que recibe y no manda (#526)', () => {
     expect(d.pasos.find((p) => p.id === 'emisor')?.estado).toBe('bien');
   });
 });
+
+describe('el emisor se le pregunta al proveedor (#591)', () => {
+  /**
+   * El paso del emisor se daba por bueno con que hubiera un string en
+   * `config.senderId`. Pero el emisor vive en el proveedor: puede haber dejado
+   * de existir, o seguir existiendo y ya no tener WhatsApp —Meta suspendió la
+   * cuenta, venció el token, alguien la desconectó—. La documentación de Zavu es
+   * explícita: el array `channels` del sender es la fuente de verdad, y vacío
+   * significa que no puede mandar nada.
+   *
+   * O sea que había un camino donde TODO el diagnóstico salía verde y no salía
+   * ni un mensaje. Es el mismo caso de #526 un paso más adentro.
+   */
+  async function canalSano(nombre: string) {
+    const cuenta = await en((c) =>
+      createChannelAccount(c, {
+        tenantId: tenant,
+        kind: 'whatsapp',
+        name: nombre,
+        credentialRef: 'LLAVE_DE_PRUEBA',
+        webhookSecretRef: 'SECRETO_DE_PRUEBA',
+        config: { senderId: 'snd_guardado' },
+      }),
+    );
+    await en((c) => setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }));
+    await en((c) =>
+      anotarWebhook(c, { tenantId: tenant, accountId: cuenta.id, resultado: 'aceptado' }),
+    );
+    return cuenta;
+  }
+
+  const emisorPaso = async (
+    accountId: string,
+    emisorEnElProveedor?: () => Promise<{ existe: boolean; canales: string[] } | null>,
+  ) => {
+    const d = await en((c) =>
+      diagnosticarCanal(
+        c,
+        { tenantId: tenant, accountId },
+        { hayCredencial: () => true, ...(emisorEnElProveedor ? { emisorEnElProveedor } : {}) },
+      ),
+    );
+    return d.pasos.find((p) => p.id === 'emisor')!;
+  };
+
+  it('el emisor existe y tiene el canal: verde, y lo dice', async () => {
+    const cuenta = await canalSano('Emisor sano');
+    const paso = await emisorPaso(cuenta.id, async () => ({
+      existe: true,
+      canales: ['whatsapp', 'sms'],
+    }));
+    expect(paso.estado).toBe('bien');
+    expect(paso.detalle).toContain('el proveedor confirma');
+  });
+
+  it('el emisor existe y PERDIÓ el canal: rojo, con lo que tiene hoy', async () => {
+    // Este es el caso que estaba en verde y no dejaba enviar.
+    const cuenta = await canalSano('Emisor sin whatsapp');
+    const paso = await emisorPaso(cuenta.id, async () => ({ existe: true, canales: ['sms'] }));
+    expect(paso.estado).toBe('mal');
+    expect(paso.detalle).toContain('ya no tiene WhatsApp');
+    // Decir qué tiene hoy es la diferencia entre «no funciona» y «está mal
+    // conectado el canal»: quien lo lee sabe dónde mirar.
+    expect(paso.detalle).toContain('sms');
+    expect(paso.queHacer).toBeTruthy();
+  });
+
+  it('el emisor sin ningún canal se dice distinto', async () => {
+    // `channels: []` es lo que devuelve el proveedor para un emisor recién
+    // creado o con su cuenta caída, y «no tiene WhatsApp (hoy tiene: )» sería
+    // una frase rota.
+    const cuenta = await canalSano('Emisor pelado');
+    const paso = await emisorPaso(cuenta.id, async () => ({ existe: true, canales: [] }));
+    expect(paso.estado).toBe('mal');
+    expect(paso.detalle).toContain('ningún canal activo');
+    expect(paso.detalle).not.toContain('hoy tiene: )');
+  });
+
+  it('el emisor ya no existe en el proveedor: rojo', async () => {
+    const cuenta = await canalSano('Emisor borrado');
+    const paso = await emisorPaso(cuenta.id, async () => ({ existe: false, canales: [] }));
+    expect(paso.estado).toBe('mal');
+    expect(paso.detalle).toContain('ya no existe');
+  });
+
+  it('si no se pudo preguntar, es DESCONOCIDO y no verde', async () => {
+    // Dar por bueno lo que no se pudo comprobar es exactamente cómo este paso
+    // estuvo verde mientras no salía ni un mensaje.
+    const cuenta = await canalSano('Sin poder preguntar');
+    const sinDep = await emisorPaso(cuenta.id);
+    expect(sinDep.estado).toBe('desconocido');
+    const conFallo = await emisorPaso(cuenta.id, async () => null);
+    expect(conFallo.estado).toBe('desconocido');
+    // Y un error del proveedor tampoco lo pone verde.
+    const conExcepcion = await emisorPaso(cuenta.id, async () => {
+      throw new Error('proveedor caído');
+    });
+    expect(conExcepcion.estado).toBe('desconocido');
+  });
+
+  it('el webchat sigue sin necesitar emisor', async () => {
+    // Entrega dentro de la app: preguntarle al proveedor por un emisor que no
+    // existe sería mandar a arreglar algo que no está roto.
+    const cuenta = await en((c) =>
+      createChannelAccount(c, { tenantId: tenant, kind: 'webchat', name: 'Web' }),
+    );
+    const paso = await emisorPaso(cuenta.id, async () => ({ existe: false, canales: [] }));
+    expect(paso.estado).toBe('bien');
+  });
+});

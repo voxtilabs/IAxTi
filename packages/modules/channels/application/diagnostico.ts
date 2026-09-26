@@ -58,6 +58,20 @@ export async function diagnosticarCanal(
     numeroConectado?: () => Promise<boolean>;
     /** Cuántos mensajes entraron en las últimas 24 h. */
     entrantesRecientes?: () => Promise<number>;
+    /**
+     * Qué dice el PROVEEDOR del emisor guardado (#591).
+     *
+     * Hasta ahora este paso se daba por bueno con que hubiera un string en
+     * `config.senderId`. Pero el emisor vive en el proveedor, no acá: puede
+     * haber dejado de existir, o seguir existiendo y ya no tener WhatsApp
+     * —Meta suspendió la cuenta, venció el token, alguien la desconectó—. El
+     * array `channels` del sender es la fuente de verdad, y vacío significa
+     * que no puede mandar nada.
+     *
+     * `null` = no se pudo preguntar (sin credencial, proveedor caído). Eso NO
+     * es «está bien»: es «no sabemos», y tiene su propio estado.
+     */
+    emisorEnElProveedor?: () => Promise<{ existe: boolean; canales: string[] } | null>;
   },
 ): Promise<Diagnostico> {
   const ahora = input.ahora ?? new Date();
@@ -74,7 +88,7 @@ export async function diagnosticarCanal(
   // Después del webhook y no antes: el orden de este archivo va de afuera
   // hacia adentro, y si el webhook nunca llegó no hay conversación que
   // contestar — mandar a revisar el emisor sería el consejo equivocado.
-  pasos.push(pasoDelEmisor(cuenta));
+  pasos.push(await pasoDelEmisor(cuenta, deps.emisorEnElProveedor));
 
   if (deps.numeroConectado) {
     const conectado = await deps.numeroConectado();
@@ -173,7 +187,10 @@ function pasoDeLaCuenta(cuenta: ChannelAccountRef): PasoDelDiagnostico {
  * `sender_id` no rellenó el `config`. La 0005 de whatsapp lo rellena; este
  * paso es para que si vuelve a faltar, se vea de una.
  */
-function pasoDelEmisor(cuenta: ChannelAccountRef): PasoDelDiagnostico {
+async function pasoDelEmisor(
+  cuenta: ChannelAccountRef,
+  enElProveedor?: () => Promise<{ existe: boolean; canales: string[] } | null>,
+): Promise<PasoDelDiagnostico> {
   // El webchat y el simulador entregan DENTRO de la app: no hay emisor que
   // configurar y marcar esto en rojo sería mandar a arreglar algo que no
   // existe.
@@ -187,20 +204,64 @@ function pasoDelEmisor(cuenta: ChannelAccountRef): PasoDelDiagnostico {
   }
   const senderId = cuenta.config.senderId;
   const hay = typeof senderId === 'string' && senderId.trim() !== '';
+  if (!hay) {
+    return {
+      id: 'emisor',
+      titulo: 'Emisor del canal',
+      estado: 'mal',
+      detalle: 'La cuenta no tiene emisor: los mensajes llegan, pero no sale ninguno.',
+      queHacer:
+        'Vuelve a conectar el número para que quede guardado su emisor. Mientras falte, ' +
+        'puedes recibir y leer, pero no responder.',
+    };
+  }
+
+  // Que haya un string guardado no es que el emisor sirva (#591). Se le
+  // pregunta al proveedor, que es donde vive.
+  const enProveedor = enElProveedor ? await enElProveedor().catch(() => null) : null;
+  if (!enProveedor) {
+    return {
+      id: 'emisor',
+      titulo: 'Emisor del canal',
+      // «No sabemos» no es «está bien»: dar por bueno lo que no se pudo
+      // comprobar es exactamente cómo este paso estuvo verde mientras no
+      // salía ni un mensaje.
+      estado: 'desconocido',
+      detalle: 'La cuenta tiene emisor guardado, pero no pudimos preguntarle al proveedor si sigue sirviendo.',
+      queHacer: 'Revisa la credencial del canal; sin ella no se puede comprobar el emisor.',
+    };
+  }
+  if (!enProveedor.existe) {
+    return {
+      id: 'emisor',
+      titulo: 'Emisor del canal',
+      estado: 'mal',
+      detalle: 'El emisor guardado ya no existe en el proveedor.',
+      queHacer: 'Vuelve a conectar el número: el emisor se borró o cambió de proyecto.',
+    };
+  }
+  if (!enProveedor.canales.includes(cuenta.kind)) {
+    const nombre = cuenta.kind === 'whatsapp' ? 'WhatsApp' : cuenta.kind;
+    return {
+      id: 'emisor',
+      titulo: 'Emisor del canal',
+      estado: 'mal',
+      // Este es el caso que estaba en verde y no dejaba enviar: el emisor
+      // existe, está guardado, y perdió el canal.
+      detalle:
+        enProveedor.canales.length === 0
+          ? `El emisor existe pero no tiene ningún canal activo, así que no sale ningún mensaje.`
+          : `El emisor existe pero ya no tiene ${nombre} activo (hoy tiene: ${enProveedor.canales.join(', ')}).`,
+      queHacer:
+        `Revisa en el proveedor que la cuenta de ${nombre} siga activa y conectada a este emisor. ` +
+        'Suele pasar cuando la cuenta se suspende o vence su autorización.',
+    };
+  }
   return {
     id: 'emisor',
     titulo: 'Emisor del canal',
-    estado: hay ? 'bien' : 'mal',
-    detalle: hay
-      ? 'La cuenta sabe con qué emisor mandar.'
-      : 'La cuenta no tiene emisor: los mensajes llegan, pero no sale ninguno.',
-    ...(hay
-      ? {}
-      : {
-          queHacer:
-            'Vuelve a conectar el número para que quede guardado su emisor. Mientras falte, ' +
-            'puedes recibir y leer, pero no responder.',
-        }),
+    estado: 'bien',
+    detalle: `La cuenta sabe con qué emisor mandar, y el proveedor confirma que tiene ${cuenta.kind} activo.`,
   };
 }
 

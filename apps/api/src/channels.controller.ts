@@ -12,7 +12,13 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { diagnosticarCanal, findAccountById, listChannelAccounts } from '@iaxti/module-channels';
-import { listTemplates, listWhatsAppNumbers, resumeBusinessSends } from '@iaxti/module-whatsapp';
+import {
+  clienteZavu,
+  emisorDelProveedor,
+  listTemplates,
+  listWhatsAppNumbers,
+  resumeBusinessSends,
+} from '@iaxti/module-whatsapp';
 import { createWidget, listWidgets, setWidgetActive } from '@iaxti/module-webchat';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -85,6 +91,25 @@ export class ChannelsController {
           // Solo se mira si la variable EXISTE. El valor no sale de acá ni
           // en el diagnóstico ni en los logs.
           hayCredencial: (ref) => Boolean(ref && process.env[ref]),
+          // Se le PREGUNTA al proveedor si el emisor guardado sigue sirviendo
+          // (#591). Antes el paso se daba por bueno con que hubiera un string
+          // en `config.senderId`, y había un camino donde todo el diagnóstico
+          // salía verde y no salía ni un mensaje.
+          //
+          // La credencial se lee acá y no se pasa hacia abajo: el diagnóstico
+          // recibe una función, nunca la llave.
+          ...(cuenta.kind !== 'webchat' && cuenta.kind !== 'simulador'
+            ? {
+                emisorEnElProveedor: async () => {
+                  const senderId = cuenta.config.senderId;
+                  const apiKey = cuenta.credentialRef
+                    ? process.env[cuenta.credentialRef]
+                    : undefined;
+                  if (typeof senderId !== 'string' || !senderId || !apiKey) return null;
+                  return emisorDelProveedor(clienteZavu(apiKey), senderId);
+                },
+              }
+            : {}),
           ...(esWhatsApp
             ? {
                 numeroConectado: async () =>
