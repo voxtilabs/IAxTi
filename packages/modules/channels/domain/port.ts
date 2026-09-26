@@ -39,6 +39,17 @@ export interface OutboundMessage {
   type: string;
   body?: string;
   /**
+   * NUESTRO id del mensaje, para que el adaptador pueda pedir idempotencia al
+   * proveedor (#585).
+   *
+   * Va en el puerto y no solo en los datos del job porque es parte de «qué
+   * mensaje se está entregando», no del transporte: cualquier adaptador que
+   * tenga una llave de idempotencia la necesita. Llegaba al adaptador de
+   * casualidad —`deliverOutbound` esparce los datos del job— pero no estaba en
+   * el tipo, así que nadie sabía que podía usarlo.
+   */
+  messageId?: string;
+  /**
    * Los adjuntos, ya listos para que el proveedor los baje (#458).
    *
    * Era `unknown[]` y nadie los miraba: el campo existía en el puerto y el

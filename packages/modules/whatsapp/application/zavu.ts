@@ -302,6 +302,22 @@ export function createZavuProvider(
           // Un BSUID es opaco y se devuelve como llegó; normalizarlo lo rompe.
           to: message.to,
           channel: canal,
+          /**
+           * La llave de idempotencia, que es NUESTRO id de mensaje (#585).
+           *
+           * El bloqueo de fila de `getOutboundContext` impide que dos
+           * consumidores manden el mismo mensaje, pero no cubre el caso que de
+           * verdad pasa: el primer intento llega a Zavu, Zavu lo acepta, y la
+           * respuesta se pierde —un timeout, la red—. Nosotros lanzamos, BullMQ
+           * reintenta, y el cliente recibe el mismo mensaje DOS VECES. La fila
+           * sigue en `queued` porque nunca nos llegó el id del proveedor, así
+           * que nada de lo nuestro lo detecta.
+           *
+           * Zavu lo resuelve con este campo y no lo estábamos usando. El id del
+           * mensaje es la llave natural: es único, estable entre reintentos, y
+           * no cambia si el job se reencola.
+           */
+          idempotencyKey: message.messageId,
           ...(message.body !== undefined ? { text: message.body } : {}),
           // El adjunto tampoco viaja como texto (#458): Zavu lo quiere como
           // `messageType` + `content.mediaUrl`, y el cuerpo pasa a ser el
