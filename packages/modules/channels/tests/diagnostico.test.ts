@@ -42,6 +42,10 @@ async function cuentaNueva(nombre: string) {
       name: nombre,
       credentialRef: 'LLAVE_DE_PRUEBA',
       webhookSecretRef: 'SECRETO_DE_PRUEBA',
+      // Con emisor: este ayudante arma un canal SANO, y sin `senderId` no
+      // sale ni un mensaje (#526). Sin esto las pruebas del webhook estarían
+      // corriendo sobre una cuenta que en producción no podría contestar.
+      config: { senderId: 'sender-de-prueba' },
     }),
   );
   await en((c) => setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }));
@@ -206,5 +210,86 @@ describe('el diagnóstico', () => {
     );
     expect(d.pasos.find((p) => p.id === 'cuenta')!.estado).toBe('atencion');
     expect(d.problema).toBe('webhook');
+  });
+});
+
+describe('el canal que recibe y no manda (#526)', () => {
+  it('sin emisor, lo dice: los mensajes llegan y no sale ninguno', async () => {
+    // El caso que el diagnóstico no veía. El adaptador lee `config.senderId` y
+    // sin él lanza en CADA envío, mientras los entrantes siguen llegando
+    // —se resuelven por el id de la cuenta del webhook—. Todo salía verde y el
+    // negocio veía los mensajes de sus clientes sin poder contestar ninguno.
+    const cuenta = await en((c) =>
+      createChannelAccount(c, {
+        tenantId: tenant,
+        kind: 'whatsapp',
+        name: 'Sin emisor',
+        credentialRef: 'LLAVE_DE_PRUEBA',
+        webhookSecretRef: 'SECRETO_DE_PRUEBA',
+      }),
+    );
+    await en((c) => setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }));
+    await en((c) =>
+      anotarWebhook(c, {
+        tenantId: tenant,
+        accountId: cuenta.id,
+        resultado: 'aceptado',
+      }),
+    );
+
+    const d = await en((c) =>
+      diagnosticarCanal(
+        c,
+        { tenantId: tenant, accountId: cuenta.id },
+        { hayCredencial: () => true },
+      ),
+    );
+    const emisor = d.pasos.find((p) => p.id === 'emisor');
+    expect(emisor?.estado).toBe('mal');
+    expect(emisor?.detalle).toContain('no sale ninguno');
+    // Y con el webhook llegando bien, el emisor ES el problema: es lo que
+    // convierte «no sé qué pasa» en una cosa que arreglar.
+    expect(d.problema).toBe('emisor');
+  });
+
+  it('el webhook manda sobre el emisor: sin webhook, el consejo es la URL', async () => {
+    // El orden va de afuera hacia adentro. Si el webhook nunca llegó no hay
+    // conversación que contestar, y mandar a revisar el emisor sería el
+    // consejo equivocado.
+    const cuenta = await en((c) =>
+      createChannelAccount(c, {
+        tenantId: tenant,
+        kind: 'whatsapp',
+        name: 'Ni webhook ni emisor',
+        credentialRef: 'LLAVE_DE_PRUEBA',
+        webhookSecretRef: 'SECRETO_DE_PRUEBA',
+      }),
+    );
+    await en((c) => setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }));
+    const d = await en((c) =>
+      diagnosticarCanal(
+        c,
+        { tenantId: tenant, accountId: cuenta.id },
+        { hayCredencial: () => true },
+      ),
+    );
+    expect(d.problema).toBe('webhook');
+  });
+
+  it('el webchat no necesita emisor y no se marca en rojo', async () => {
+    // Entrega DENTRO de la app. Marcarlo mal sería mandar a arreglar algo que
+    // no existe, y el diagnóstico perdería el sentido de mostrar un problema.
+    const cuenta = await en((c) =>
+      createChannelAccount(c, { tenantId: tenant, kind: 'webchat', name: 'Chat del sitio' }),
+    );
+    await en((c) => setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }));
+    const d = await en((c) =>
+      diagnosticarCanal(
+        c,
+        { tenantId: tenant, accountId: cuenta.id },
+        { hayCredencial: () => true },
+      ),
+    );
+    expect(d.pasos.find((p) => p.id === 'emisor')?.estado).toBe('bien');
   });
 });

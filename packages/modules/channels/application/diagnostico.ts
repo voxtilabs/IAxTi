@@ -71,6 +71,10 @@ export async function diagnosticarCanal(
   pasos.push(pasoDeLaCuenta(cuenta));
   pasos.push(pasoDeLaCredencial(cuenta, deps.hayCredencial));
   pasos.push(pasoDelWebhook(rastro, ahora));
+  // Después del webhook y no antes: el orden de este archivo va de afuera
+  // hacia adentro, y si el webhook nunca llegó no hay conversación que
+  // contestar — mandar a revisar el emisor sería el consejo equivocado.
+  pasos.push(pasoDelEmisor(cuenta));
 
   if (deps.numeroConectado) {
     const conectado = await deps.numeroConectado();
@@ -153,6 +157,50 @@ function pasoDeLaCuenta(cuenta: ChannelAccountRef): PasoDelDiagnostico {
     estado: 'mal',
     detalle: `El canal está ${cuenta.state}.`,
     queHacer: 'Vuelve a conectarlo: mientras esté así, los webhooks que lleguen se rechazan.',
+  };
+}
+
+/**
+ * ¿La cuenta sabe con qué emisor manda? (#526)
+ *
+ * Este paso faltaba y era el más caro de los que faltaban. El adaptador lee
+ * `config.senderId` y sin él lanza en CADA envío, mientras los entrantes
+ * siguen llegando —se resuelven por el id de la cuenta del webhook—. O sea: el
+ * diagnóstico salía todo verde, el negocio veía llegar los mensajes de sus
+ * clientes, y no podía contestar ninguno.
+ *
+ * Pasa en las cuentas conectadas antes de ADR-0014: la migración que introdujo
+ * `sender_id` no rellenó el `config`. La 0005 de whatsapp lo rellena; este
+ * paso es para que si vuelve a faltar, se vea de una.
+ */
+function pasoDelEmisor(cuenta: ChannelAccountRef): PasoDelDiagnostico {
+  // El webchat y el simulador entregan DENTRO de la app: no hay emisor que
+  // configurar y marcar esto en rojo sería mandar a arreglar algo que no
+  // existe.
+  if (cuenta.kind === 'webchat' || cuenta.kind === 'simulador') {
+    return {
+      id: 'emisor',
+      titulo: 'Emisor del canal',
+      estado: 'bien',
+      detalle: 'Este canal entrega dentro de la app: no necesita emisor.',
+    };
+  }
+  const senderId = cuenta.config.senderId;
+  const hay = typeof senderId === 'string' && senderId.trim() !== '';
+  return {
+    id: 'emisor',
+    titulo: 'Emisor del canal',
+    estado: hay ? 'bien' : 'mal',
+    detalle: hay
+      ? 'La cuenta sabe con qué emisor mandar.'
+      : 'La cuenta no tiene emisor: los mensajes llegan, pero no sale ninguno.',
+    ...(hay
+      ? {}
+      : {
+          queHacer:
+            'Vuelve a conectar el número para que quede guardado su emisor. Mientras falte, ' +
+            'puedes recibir y leer, pero no responder.',
+        }),
   };
 }
 
