@@ -361,3 +361,136 @@ describe('delegar el onboarding sigue sirviendo (#556)', () => {
     expect(rol.id).toBeTruthy();
   });
 });
+
+/**
+ * Las tres puertas que #556 dejó abiertas (#567).
+ *
+ * #556 cerró la escalada por invitación y anuncié la garantía «nadie reparte por
+ * encima de sí mismo». No se cumplía: `POST /roles/assign`, `PUT /roles/:id` y
+ * `POST /roles` pedían solo `roles.manage` y ninguna comprobaba nada. Y las tres
+ * son PEORES que la invitación, que necesita un correo, un enlace y que alguien
+ * acepte: acá el cambio es inmediato.
+ */
+describe('nadie reparte por encima de sí mismo, por ninguna de las cuatro puertas (#567)', () => {
+  let coordinador: { id: string; name: string };
+
+  beforeAll(async () => {
+    // Un rol que reparte poder pero NO toca plata: tiene `roles.manage` y no
+    // tiene `tenant.billing`. Es el actor de todo este bloque.
+    coordinador = await (
+      await pedir(duena, '/roles', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Coordinador 567', cloneFrom: 'USER' }),
+      })
+    ).json();
+    await pedir(duena, `/roles/${coordinador.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        permissions: ['tenant.read', 'users.read', 'roles.read', 'roles.manage'],
+      }),
+    });
+    await pedir(duena, '/roles/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: recepcionista, roleId: coordinador.id }),
+    });
+  });
+
+  it('no puede asignarse ADMIN a sí mismo', async () => {
+    const roles = await (await pedir(recepcionista, '/roles')).json();
+    const adminRol = roles.find((r: { name: string }) => r.name === 'ADMIN');
+    expect(adminRol, 'el ADMIN tiene que estar en la lista para que la prueba valga').toBeTruthy();
+
+    const r = await pedir(recepcionista, '/roles/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: recepcionista, roleId: adminRol.id }),
+    });
+    expect(r.status, 'con solo roles.manage se podía llegar a ADMIN en una petición').toBe(400);
+    expect((await r.json()).code).toBe('ROLE_FORBIDDEN');
+
+    // Y no quedó asignado: el rechazo no es solo el código de estado.
+    const fila = await admin.query(
+      `SELECT r.name FROM user_roles ut JOIN roles r ON r.id = ut.role_id
+        WHERE ut.tenant_id = $1 AND ut.user_id = $2`,
+      [tenant, recepcionista],
+    );
+    expect(fila.rows[0].name).toBe('Coordinador 567');
+  });
+
+  it('tampoco a otra persona: el agujero no es «a sí mismo», es «por encima»', async () => {
+    const roles = await (await pedir(recepcionista, '/roles')).json();
+    const adminRol = roles.find((r: { name: string }) => r.name === 'ADMIN');
+    const r = await pedir(recepcionista, '/roles/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: duena, roleId: adminRol.id }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('no puede agregarse un permiso que no tiene a su propio rol', async () => {
+    const r = await pedir(recepcionista, `/roles/${coordinador.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        permissions: ['tenant.read', 'roles.manage', 'tenant.billing'],
+      }),
+    });
+    expect(r.status, 'se podía escalar editando su propio rol').toBe(400);
+    expect((await r.json()).code).toBe('ROLE_FORBIDDEN');
+
+    // El rol quedó como estaba: sin `tenant.billing`.
+    const permisos = await withTenant(admin, tenant, (c) =>
+      customRolePermissions(c, tenant, 'Coordinador 567'),
+    );
+    expect(permisos).not.toContain('tenant.billing');
+    expect(permisos).toContain('roles.manage');
+  });
+
+  it('no puede clonar un rol que administra más que él', async () => {
+    // Clonar ADMIN es conseguir los permisos de ADMIN: después basta un assign.
+    const r = await pedir(recepcionista, '/roles', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Atajo 567', cloneFrom: 'ADMIN' }),
+    });
+    expect(r.status, 'clonar ADMIN era el camino largo al mismo lugar').toBe(400);
+    expect((await r.json()).code).toBe('ROLE_FORBIDDEN');
+
+    const creado = await admin.query(
+      'SELECT count(*)::int AS n FROM roles WHERE tenant_id = $1 AND name = $2',
+      [tenant, 'Atajo 567'],
+    );
+    expect(creado.rows[0].n).toBe(0);
+  });
+
+  it('la delegación SIGUE sirviendo: puede asignar un rol que no pasa de lo suyo', async () => {
+    // Esto es la mitad que importa. La primera versión de la regla comparaba el
+    // conjunto ENTERO y dejaba al delegado sin poder asignar a NADIE, porque
+    // cualquier rol tiene algún permiso que él no tiene — hasta un USER.
+    const roles = await (await pedir(recepcionista, '/roles')).json();
+    const userRol = roles.find((r: { name: string }) => r.name === 'USER');
+    const r = await pedir(recepcionista, '/roles/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: duena, roleId: userRol.id }),
+    });
+    expect(r.status, 'un coordinador tiene que poder asignar un rol de vendedor').toBe(201);
+
+    // Y se deja a la dueña como estaba, que el resto del archivo la usa de ADMIN.
+    await admin.query(
+      `UPDATE user_roles SET role_id = (SELECT id FROM roles WHERE name = 'ADMIN' AND base)
+        WHERE tenant_id = $1 AND user_id = $2`,
+      [tenant, duena],
+    );
+  });
+
+  it('y puede editar un rol que no administra más que él', async () => {
+    const auxiliar = await (
+      await pedir(duena, '/roles', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Auxiliar 567', cloneFrom: 'USER' }),
+      })
+    ).json();
+    const r = await pedir(recepcionista, `/roles/${auxiliar.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions: ['tenant.read', 'crm.contacts.read'] }),
+    });
+    expect(r.status, 'editar un rol que no reparte poder tiene que poder').toBe(200);
+  });
+});
