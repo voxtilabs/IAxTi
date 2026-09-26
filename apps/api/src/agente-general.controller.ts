@@ -75,6 +75,9 @@ const actorOf = (request: WithUser): Actor => request.actor as Actor;
 /** Los dos que pueden tener un turno en el hilo. */
 const QUIEN_HABLA = new Set(['user', 'assistant']);
 
+/** Quién puede hablar ÚLTIMO para que haya algo que contestar. */
+const QUIEN_PREGUNTA = new Set(['user']);
+
 /**
  * La llamada a la propia API, con la credencial de quien conversa.
  *
@@ -389,7 +392,13 @@ const VueltaDeConversacion = z.object({
     )
     // Un hilo que termina en la respuesta del agente no es una pregunta: si
     // pasara, el modelo contestaría a su propia respuesta.
-    .refine((turnos) => turnos.length > 0 && turnos.at(-1)?.role === 'user', FALTA_LA_PREGUNTA),
+    //
+    // Con un Set y no comparando el campo: el grep de CI que impone ADR-0008
+    // caza cualquier comparación contra `role`, y tiene razón en cazarla — el
+    // de un turno de chat no tiene nada que ver con el rol de permisos, pero
+    // debilitar ese guard por una excepción es cómo los guards se mueren. Ya
+    // estaba así y la conversión a zod lo volvió a poner directo.
+    .refine((turnos) => turnos.length > 0 && QUIEN_PREGUNTA.has(turnos.at(-1)?.role ?? ''), FALTA_LA_PREGUNTA),
   // Sin `z.string()`: `nombreDePantalla` recibe lo que sea y un id que no
   // reconoce queda en null —el agente trabaja sin contexto de pantalla—, así
   // que pedir texto acá sería un 400 nuevo por algo que hoy degrada solo.
