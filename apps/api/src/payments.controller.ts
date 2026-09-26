@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Get,
   NotFoundException,
@@ -29,7 +28,9 @@ import {
 } from '@iaxti/module-payments';
 import { getConversation, salePorProveedor, sendMessage, updateDeliveryStatus } from '@iaxti/module-conversations';
 import { getTenantSettings } from '@iaxti/module-organizations';
+import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import type { WithRequestId } from './request-id';
@@ -62,6 +63,51 @@ function inboundQueue(): ReturnType<typeof createQueue> {
 
 const KINDS: ProviderKind[] = ['flow', 'webpay', 'mercadopago', 'simulado'];
 
+/**
+ * Los esquemas de entrada (#524), al lado de sus rutas.
+ *
+ * El mensaje va escrito acá porque lo lee quien está cobrándole a un cliente,
+ * no quien programa. Y al esquema van SOLO las comprobaciones que hoy
+ * responden `VALIDATION_ERROR`: las que el caso de uso rechaza con su propio
+ * código (`PROVIDER_INVALID`, `LINK_INVALID`) se quedan donde están, porque
+ * zod da un solo `code` por esquema y cambiarlo movería el contrato.
+ */
+const NuevoProveedor = z.object({
+  kind: z.enum(['flow', 'webpay', 'mercadopago', 'simulado'], {
+    error: `El proveedor es uno de: ${KINDS.join(', ')}.`,
+  }),
+  // `name` y `credentialRef` NO se exigen acá aunque sean obligatorios: los
+  // revisa `addProvider` con sus propios mensajes (que el nombre no venga
+  // vacío, que la referencia sea el NOMBRE de la variable y no la
+  // credencial) y responde `PROVIDER_INVALID`. Ese código es el que ya
+  // conocen el SDK y la pantalla de Ajustes → Pagos.
+  name: z.string().optional(),
+  credentialRef: z.string().optional(),
+  webhookSecretRef: z.string().optional(),
+  // El modo llega como texto y el esquema no lo restringe: si 'live' se
+  // puede o no depende del AMBIENTE, que el esquema no conoce —se declara
+  // una vez al cargar el módulo— y el catálogo (#492) publicaría un 'mode'
+  // que miente según dónde corra. Se comprueba en la ruta, abajo.
+  mode: z.string().optional(),
+});
+
+const NuevoLinkDePago = z
+  .object({
+    conversationId: z.string().optional(),
+    dealId: z.string().optional(),
+    amountClp: z.number().optional(),
+    concept: z.string().optional(),
+    providerId: z.string().optional(),
+    expiresHours: z.number().optional(),
+  })
+  // De dónde nace el link es cosa de DOS campos: ninguno es obligatorio por
+  // su cuenta, pero uno tiene que venir. Por eso va como comprobación del
+  // objeto y sin `path`: el error no era de un campo y sus `details` tampoco
+  // lo nombraban.
+  .refine((body) => Boolean(body.conversationId || body.dealId), {
+    message: 'El link nace de una conversación o de una oportunidad.',
+  });
+
 @ApiTags('payments')
 @Controller('payments')
 @RequireModule('payments')
@@ -79,17 +125,12 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Conecta un proveedor (credenciales POR REFERENCIA)' })
   async addProvider(
     @Req() request: WithUser,
-    @Body()
-    body: { kind?: string; name?: string; credentialRef?: string; webhookSecretRef?: string; mode?: string },
+    @Cuerpo(NuevoProveedor) body: z.infer<typeof NuevoProveedor>,
   ) {
     const actor = actorOf(request);
-    if (!KINDS.includes(body?.kind as ProviderKind)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: `El proveedor es uno de: ${KINDS.join(', ')}.`,
-        details: [{ field: 'kind' }],
-      });
-    }
+    // El ambiente no es la forma del cuerpo, así que esto se queda como `if`
+    // (ver el esquema). El caso de uso lo vuelve a comprobar (ADR-0008): la
+    // regla es de él, no de esta puerta.
     if (body.mode === 'live' && (process.env.IAXTI_ENV ?? 'dev') !== 'production') {
       // SPEC §17: nunca credenciales reales fuera de producción.
       throw new BadRequestException({
@@ -102,7 +143,7 @@ export class PaymentsController {
       try {
         return await addProvider(c, {
           tenantId: actor.tenantId,
-          kind: body.kind as ProviderKind,
+          kind: body.kind,
           name: body.name ?? '',
           credentialRef: body.credentialRef ?? '',
           webhookSecretRef: body.webhookSecretRef,
@@ -135,23 +176,9 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Crea el link (monto de la oportunidad o escrito) y lo manda al chat' })
   async createLink(
     @Req() request: WithUser,
-    @Body()
-    body: {
-      conversationId?: string;
-      dealId?: string;
-      amountClp?: number;
-      concept?: string;
-      providerId?: string;
-      expiresHours?: number;
-    },
+    @Cuerpo(NuevoLinkDePago) body: z.infer<typeof NuevoLinkDePago>,
   ) {
     const actor = actorOf(request);
-    if (!body?.conversationId && !body?.dealId) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'El link nace de una conversación o de una oportunidad.',
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       // El tope del USER (matriz §23) vive en settings.pagos.maxLinkClpUser;
       // quien puede administrar proveedores no tiene tope.

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   ForbiddenException,
   ConflictException,
@@ -16,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { z } from 'zod';
 import {
   assignConversation,
   changeConversationState,
@@ -45,9 +45,9 @@ import {
   porQueNoHaySugerencia,
   resolveSuggestion,
   setConversationMode,
-  type ConversationMode,
 } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { actorCan } from './authz/can';
 import { apiPool } from './db';
@@ -128,6 +128,61 @@ function notFound(): never {
     message: 'No encontramos esa conversación. Puede que se haya archivado.',
   });
 }
+
+/**
+ * Los esquemas de entrada (#524), arriba y al lado de sus rutas.
+ *
+ * El mensaje va ESCRITO en el esquema porque lo lee quien está atendiendo a un
+ * cliente con el chat abierto, no quien programa: «Required» no le sirve de
+ * nada. Y al esquema van solo los VALIDATION_ERROR — un error con código
+ * propio (ADJUNTO_INVALIDO, OUTSIDE_WINDOW, INVALID_TRANSITION) se queda donde
+ * está, porque zod da un solo código por esquema y cambiarlo movería el
+ * contrato de la API.
+ */
+
+/** Responder: el texto, el adjunto, o los dos (#458). */
+const Respuesta = z.object({
+  // Ni el texto ni el adjunto son obligatorios por separado —una foto sola es
+  // un mensaje completo—, así que el «manda algo» se queda como `if` abajo.
+  body: z.string().optional(),
+  type: z.string().optional(),
+  // `key` queda OPCIONAL a propósito: un adjunto sin llave lo descarta el
+  // filtro de la ruta y sale como ADJUNTO_INVALIDO, que es su código de hoy.
+  // Exigirlo acá lo convertiría en VALIDATION_ERROR.
+  adjuntos: z
+    .array(
+      z.object({
+        key: z.string().optional(),
+        filename: z.string().optional(),
+        contentType: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+
+const Asignacion = z.object({
+  toOwnerId: textoRequerido('Indica a quién se asigna la conversación.'),
+  reason: z.string().optional(),
+});
+
+const NuevoEstado = z.object({
+  // Texto y no `z.enum`: el estado que existe pero no se alcanza desde el
+  // actual lo rechaza el caso de uso con INVALID_TRANSITION y su motivo (lo
+  // afirma la prueba de la bandeja). Un enum acá lo volvería VALIDATION_ERROR.
+  state: textoRequerido('Indica el estado nuevo.'),
+  snoozedUntil: z.string().optional(),
+});
+
+const Calificacion = z.object({
+  feedback: z.enum(['up', 'down'], { error: 'El feedback es up o down.' }),
+  reason: z.string().optional(),
+});
+
+const ModoDelAgente = z.object({
+  mode: z.enum(['assist', 'autonomous', 'off'], {
+    error: 'El modo es assist, autonomous u off.',
+  }),
+});
 
 /**
  * La bandeja (SPEC §11, #37). La verificación de dueño que exige ADR-0008
@@ -225,21 +280,21 @@ export class ConversationsController {
   async reply(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body()
-    body: {
-      body?: string;
-      type?: string;
-      adjuntos?: Array<{ key?: string; filename?: string; contentType?: string }>;
-    },
+    @Cuerpo(Respuesta) body: z.infer<typeof Respuesta>,
   ) {
     const actor = actorOf(request);
-    // Con adjunto, el texto es opcional: una foto sola es un mensaje
-    // completo. Sin adjunto y sin texto no hay nada que mandar (#458).
-    const adjuntos = (body?.adjuntos ?? [])
+    // El prefijo NO se valida en el esquema: depende del tenant de quien pide,
+    // que el esquema no conoce. Con adjunto, el texto es opcional: una foto
+    // sola es un mensaje completo. Sin adjunto y sin texto no hay nada que
+    // mandar (#458).
+    const adjuntos = (body.adjuntos ?? [])
       .filter((a): a is { key: string; filename?: string; contentType?: string } =>
-        typeof a?.key === 'string' && a.key.startsWith(`${actor.tenantId}/`))
+        typeof a.key === 'string' && a.key.startsWith(`${actor.tenantId}/`))
       .slice(0, 1);
-    if (!body?.body?.trim() && adjuntos.length === 0) {
+    // Este VALIDATION_ERROR se queda acá: no es «falta un campo» sino «entre
+    // el texto y el adjunto no vino ninguno», y los adjuntos que cuentan son
+    // los que pasaron el filtro del tenant de arriba.
+    if (!body.body?.trim() && adjuntos.length === 0) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'Escribe el mensaje o adjunta un archivo antes de enviarlo.',
@@ -248,7 +303,7 @@ export class ConversationsController {
     }
     // La llave nace con prefijo del tenant: una de otro negocio no se manda
     // ni por error ni a propósito.
-    if ((body?.adjuntos ?? []).length > adjuntos.length) {
+    if ((body.adjuntos ?? []).length > adjuntos.length) {
       throw new BadRequestException({
         code: 'ADJUNTO_INVALIDO',
         message: 'Solo se puede mandar un archivo por mensaje, y tiene que ser de este negocio.',
@@ -322,22 +377,15 @@ export class ConversationsController {
   async assign(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { toOwnerId?: string; reason?: string },
+    @Cuerpo(Asignacion) body: z.infer<typeof Asignacion>,
   ) {
     const actor = actorOf(request);
-    if (!body?.toOwnerId) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Indica a quién se asigna la conversación.',
-        details: [{ field: 'toOwnerId' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       await getConversation(c, actor.tenantId, id).catch(notFound);
       return assignConversation(c, {
         tenantId: actor.tenantId,
         conversationId: id,
-        toOwnerId: body.toOwnerId!,
+        toOwnerId: body.toOwnerId,
         reason: body.reason,
         actor: actor.userId,
         requestId: request.requestId,
@@ -351,16 +399,9 @@ export class ConversationsController {
   async state(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { state?: string; snoozedUntil?: string },
+    @Cuerpo(NuevoEstado) body: z.infer<typeof NuevoEstado>,
   ) {
     const actor = actorOf(request);
-    if (!body?.state) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Indica el estado nuevo.',
-        details: [{ field: 'state' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       await getConversation(c, actor.tenantId, id).catch(notFound);
       try {
@@ -473,21 +514,14 @@ export class ConversationsController {
     @Req() request: WithUser,
     @Param('id') id: string,
     @Param('sid') sid: string,
-    @Body() body: { feedback?: 'up' | 'down'; reason?: string },
+    @Cuerpo(Calificacion) body: z.infer<typeof Calificacion>,
   ) {
     const actor = actorOf(request);
-    if (body?.feedback !== 'up' && body?.feedback !== 'down') {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'El feedback es up o down.',
-        details: [{ field: 'feedback' }],
-      });
-    }
     await withTenant(pool(), actor.tenantId, (c) =>
       feedbackSuggestion(c, {
         tenantId: actor.tenantId,
         suggestionId: sid,
-        feedback: body.feedback!,
+        feedback: body.feedback,
         reason: body.reason,
       }),
     ).catch((err) => {
@@ -517,22 +551,15 @@ export class ConversationsController {
   async agentMode(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { mode?: string },
+    @Cuerpo(ModoDelAgente) body: z.infer<typeof ModoDelAgente>,
   ) {
     const actor = actorOf(request);
-    if (!['assist', 'autonomous', 'off'].includes(body?.mode ?? '')) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'El modo es assist, autonomous u off.',
-        details: [{ field: 'mode' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       await getConversation(c, actor.tenantId, id).catch(notFound);
       await setConversationMode(c, {
         tenantId: actor.tenantId,
         conversationId: id,
-        mode: body.mode as ConversationMode,
+        mode: body.mode,
         actor: actor.userId,
         requestId: request.requestId,
       });

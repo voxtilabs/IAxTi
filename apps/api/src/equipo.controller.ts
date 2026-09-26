@@ -1,6 +1,4 @@
 import {
-  BadRequestException,
-  Body,
   Controller,
   Delete,
   ForbiddenException,
@@ -24,7 +22,9 @@ import {
   listQuickReplies,
   searchConversations,
 } from '@iaxti/module-conversations';
+import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { actorCan } from './authz/can';
 import { apiPool } from './db';
@@ -41,6 +41,22 @@ function pool() {
 }
 
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
+
+/**
+ * El cuerpo de crear un atajo (#524).
+ *
+ * El mensaje es el MISMO en los dos campos porque así estaba escrito: quien
+ * crea el atajo lo lee como una sola instrucción, y da igual cuál de los dos
+ * falte.
+ */
+const NuevoAtajo = z.object({
+  shortcut: textoRequerido('El atajo necesita nombre y texto.'),
+  body: textoRequerido('El atajo necesita nombre y texto.'),
+  // El ámbito se queda como estaba en el tipo. Que 'negocio' se pueda o no
+  // NO va acá: depende del permiso de quien pide, y el esquema no conoce al
+  // actor — eso sigue siendo un `if` abajo, con su PERMISSION_DENIED.
+  scope: z.enum(['negocio', 'mio']).optional(),
+});
 
 /** Quick replies (SPEC §11): los del negocio + los personales de cada quien. */
 @ApiTags('conversations')
@@ -62,16 +78,9 @@ export class QuickRepliesController {
   @ApiOperation({ summary: 'Crea un atajo (del negocio exige quickreplies.manage)' })
   async create(
     @Req() request: WithUser,
-    @Body() body: { shortcut?: string; body?: string; scope?: 'negocio' | 'mio' },
+    @Cuerpo(NuevoAtajo) body: z.infer<typeof NuevoAtajo>,
   ) {
     const actor = actorOf(request);
-    if (!body?.shortcut || !body?.body) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'El atajo necesita nombre y texto.',
-        details: [{ field: !body?.shortcut ? 'shortcut' : 'body' }],
-      });
-    }
     const delNegocio = body.scope === 'negocio';
     if (delNegocio && !actorCan(actor, 'quickreplies.manage')) {
       throw new ForbiddenException({
@@ -82,8 +91,8 @@ export class QuickRepliesController {
     return withTenant(pool(), actor.tenantId, (c) =>
       createQuickReply(c, {
         tenantId: actor.tenantId,
-        shortcut: body.shortcut!,
-        body: body.body!,
+        shortcut: body.shortcut,
+        body: body.body,
         userId: delNegocio ? undefined : actor.userId,
       }),
     );
@@ -111,6 +120,19 @@ export class QuickRepliesController {
   }
 }
 
+/** La nota interna: lo único que tiene que venir es el texto (#524). */
+const NuevaNota = z.object({
+  body: textoRequerido('Escribe la nota antes de guardarla.'),
+  // A quiénes se menciona. No se comprueba que sigan en el equipo: una
+  // mención a alguien que se fue no debería botar la nota.
+  mentions: z.array(z.string()).optional(),
+});
+
+/** Dónde subir un adjunto: solo el nombre, la llave la arma la ruta (#524). */
+const DestinoDeAdjunto = z.object({
+  filename: textoRequerido('Dinos el nombre del archivo.'),
+});
+
 /** Notas internas y búsqueda (SPEC §11). */
 @ApiTags('conversations')
 @Controller()
@@ -133,23 +155,16 @@ export class EquipoController {
   async addNote(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { body?: string; mentions?: string[] },
+    @Cuerpo(NuevaNota) body: z.infer<typeof NuevaNota>,
   ) {
     const actor = actorOf(request);
-    if (!body?.body?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Escribe la nota antes de guardarla.',
-        details: [{ field: 'body' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       await getConversation(c, actor.tenantId, id);
       return addInternalNote(c, {
         tenantId: actor.tenantId,
         conversationId: id,
         authorId: actor.userId,
-        body: body.body!,
+        body: body.body,
         mentions: body.mentions,
       });
     });
@@ -178,16 +193,9 @@ export class EquipoController {
   async presignUpload(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { filename?: string },
+    @Cuerpo(DestinoDeAdjunto) body: z.infer<typeof DestinoDeAdjunto>,
   ) {
     const actor = actorOf(request);
-    if (!body?.filename) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Dinos el nombre del archivo.',
-        details: [{ field: 'filename' }],
-      });
-    }
     const storage = storageFromEnv();
     if (!storage) {
       throw new ServiceUnavailableException({
@@ -209,7 +217,10 @@ export class EquipoController {
   @ApiOperation({ summary: 'URL prefirmada para bajar un adjunto del tenant' })
   async presignDownload(@Req() request: WithUser, @Query('key') key?: string) {
     const actor = actorOf(request);
-    // La llave nace con prefijo por tenant: fuera de él no se firma nada.
+    // La llave nace con prefijo por tenant: fuera de él no se firma nada. No
+    // va a un esquema (#524): depende del tenant de quien pide, que el esquema
+    // no conoce, y su respuesta es ATTACHMENT_NOT_FOUND —no decimos si la
+    // llave de otro negocio existe— así que tampoco es un VALIDATION_ERROR.
     if (!key || !key.startsWith(`${actor.tenantId}/`)) {
       throw new NotFoundException({
         code: 'ATTACHMENT_NOT_FOUND',

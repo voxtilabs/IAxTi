@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Delete,
   Get,
@@ -23,7 +22,9 @@ import {
 } from '@iaxti/module-identity';
 import { listRoles } from '@iaxti/module-authorization';
 import { sendNotificationEmail } from '@iaxti/module-notifications';
+import { z } from 'zod';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
@@ -51,6 +52,33 @@ function actorOf(request: WithUser): Actor {
 
 const CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/**
+ * El cuerpo de una invitación (#524).
+ *
+ * `trim` y `toLowerCase` van EN el esquema y en ese orden: el correo se
+ * normaliza ANTES de comprobarlo y después viaja normalizado al resto de la
+ * ruta —la consulta de pendientes compara `lower(email)` y la respuesta
+ * devuelve ese mismo valor—. Dos mayúsculas distintas no son dos personas.
+ *
+ * El rol no se comprueba acá: los roles son los del negocio, salen de la base
+ * y el esquema no conoce a quien pide. Que exista es ROLE_UNKNOWN y que no sea
+ * por encima de quien invita es ROLE_FORBIDDEN, los dos más abajo con su
+ * propio código.
+ */
+const NuevaInvitacion = z.object({
+  email: z
+    .string({ error: 'Ese correo no se entiende.' })
+    .trim()
+    .toLowerCase()
+    .regex(CORREO, 'Ese correo no se entiende.'),
+  // Con mensaje propio y no el de zod: sin él, un `rol: 42` respondía «Invalid
+  // input: expected string, received number» a alguien que está invitando a
+  // una persona de su equipo. Cuál rol existe de verdad lo decide la rama
+  // ROLE_UNKNOWN de abajo, que necesita la lista del negocio y por eso no
+  // puede vivir en el esquema.
+  rol: z.string({ error: 'Dinos el rol de la persona que invitas.' }).optional(),
+});
+
 @ApiTags('equipo')
 @Controller('equipo')
 export class EquipoUsuariosController {
@@ -70,17 +98,14 @@ export class EquipoUsuariosController {
   @RequireModule('identity')
   @RequirePermission('users.invite')
   @ApiOperation({ summary: 'Invita a alguien con un rol' })
-  async invitar(@Req() request: WithUser, @Body() body: { email?: string; rol?: string }) {
+  async invitar(
+    @Req() request: WithUser,
+    @Cuerpo(NuevaInvitacion) body: z.infer<typeof NuevaInvitacion>,
+  ) {
     const actor = actorOf(request);
-    const email = (body?.email ?? '').trim().toLowerCase();
-    if (!CORREO.test(email)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Ese correo no se entiende.',
-        details: [{ field: 'email' }],
-      });
-    }
-    const rol = (body?.rol ?? '').trim().toUpperCase();
+    // Ya viene sin espacios y en minúscula: lo dejó así el esquema.
+    const email = body.email;
+    const rol = (body.rol ?? '').trim().toUpperCase();
 
     return withTenant(pool(), actor.tenantId, async (c) => {
       // El rol tiene que existir DE VERDAD: invitar a un rol inventado crea

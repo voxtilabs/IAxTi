@@ -14,7 +14,9 @@ import { withTenant } from '@iaxti/db';
 import { diagnosticarCanal, findAccountById, listChannelAccounts } from '@iaxti/module-channels';
 import { listTemplates, listWhatsAppNumbers, resumeBusinessSends } from '@iaxti/module-whatsapp';
 import { createWidget, listWidgets, setWidgetActive } from '@iaxti/module-webchat';
+import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -124,6 +126,18 @@ export class ChannelsController {
   }
 }
 
+/**
+ * El cuerpo para crear un widget (#524).
+ *
+ * El mensaje va escrito acá porque lo lee el dueño del negocio pegando su
+ * chat en el sitio, no quien programa: zod por su cuenta diría «Required».
+ */
+const NuevoWidget = z.object({
+  allowedDomain: textoRequerido('Dinos el dominio del sitio donde vivirá el chat.'),
+  name: z.string().optional(),
+  welcomeMessage: z.string().optional(),
+});
+
 /** Administración del webchat (#46): widgets y su snippet. */
 @ApiTags('channels')
 @Controller('webchat/widgets')
@@ -142,20 +156,15 @@ export class WebchatAdminController {
   @ApiOperation({ summary: 'Crea un widget para un dominio' })
   async create(
     @Req() request: WithUser,
-    @Body() body: { allowedDomain?: string; name?: string; welcomeMessage?: string },
+    @Cuerpo(NuevoWidget) body: z.infer<typeof NuevoWidget>,
   ) {
     const actor = actorOf(request);
-    if (!body?.allowedDomain?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Dinos el dominio del sitio donde vivirá el chat.',
-        details: [{ field: 'allowedDomain' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, (c) =>
       createWidget(c, {
         tenantId: actor.tenantId,
-        allowedDomain: body.allowedDomain!,
+        // Ya viene sin espacios: el dominio se guarda tal cual y después se
+        // compara contra el del navegador, donde un espacio de más no calza.
+        allowedDomain: body.allowedDomain,
         name: body.name,
         welcomeMessage: body.welcomeMessage,
       }),

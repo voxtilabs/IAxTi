@@ -17,7 +17,9 @@ import {
   listRoles,
   updateCustomRolePermissions,
 } from '@iaxti/module-authorization';
+import { z } from 'zod';
 import { RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
@@ -40,6 +42,28 @@ function actorOf(request: WithUser): Actor {
   return request.actor as Actor;
 }
 
+/**
+ * El cuerpo de asignar un rol (#524).
+ *
+ * El mismo mensaje en los dos campos porque así estaba escrito: quien asigna
+ * elige persona y rol en la misma pantalla y da igual cuál de los dos falte.
+ * Los `details` lo dicen campo por campo.
+ *
+ * Sin `idRequerido` a propósito: hoy un id con cualquier forma llega al módulo
+ * y vuelve como ROLE_INVALID. Exigir uuid acá cambiaría ese código por
+ * VALIDATION_ERROR, y el contrato no se mueve para ahorrar una vuelta.
+ */
+const FALTAN_PERSONA_Y_ROL = 'Faltan la persona y el rol.';
+
+const AsignacionDeRol = z.object({
+  userId: textoRequerido(FALTAN_PERSONA_Y_ROL),
+  roleId: textoRequerido(FALTAN_PERSONA_Y_ROL),
+});
+
+// Crear y editar siguen con `@Body()`: ahí no hay ningún VALIDATION_ERROR que
+// mover. El nombre, el rol que se clona y la lista de permisos los valida
+// `@iaxti/module-authorization` contra el catálogo, y lo que sale es
+// ROLE_INVALID. Un esquema los rechazaría antes con otro `code`.
 @ApiTags('roles')
 @Controller('roles')
 export class RolesController {
@@ -113,20 +137,17 @@ export class RolesController {
   @Post('assign')
   @RequirePermission('roles.manage')
   @ApiOperation({ summary: 'Asigna el rol a una persona del equipo (uno por tenant)' })
-  async assign(@Req() request: WithUser, @Body() body: { userId?: string; roleId?: string }) {
+  async assign(
+    @Req() request: WithUser,
+    @Cuerpo(AsignacionDeRol) body: z.infer<typeof AsignacionDeRol>,
+  ) {
     const actor = actorOf(request);
-    if (!body?.userId || !body?.roleId) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Faltan la persona y el rol.',
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       try {
         await assignRole(c, {
           tenantId: actor.tenantId,
-          userId: body.userId!,
-          roleId: body.roleId!,
+          userId: body.userId,
+          roleId: body.roleId,
           actor: actor.userId,
           requestId: request.requestId,
         });

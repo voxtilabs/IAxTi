@@ -1,14 +1,9 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Post,
-  Req,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Controller, Post, Req, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { z } from 'zod';
 import { createQueue, redisConnection } from '@iaxti/core';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { WithUser } from './authz/authz.guard';
 
 // El simulador de mensajes entrantes (#36): encola en la MISMA cola `inbound`
@@ -21,13 +16,22 @@ function inboundQueue(): ReturnType<typeof createQueue> | null {
   return cola;
 }
 
-interface SimularInboundBody {
-  phone?: string;
-  body?: string;
-  type?: string;
-  channel?: string;
-  providerMessageId?: string;
-}
+/**
+ * El mensaje que se finge que llegó (#524).
+ *
+ * Solo el teléfono es obligatorio, igual que antes: lo demás tiene valor por
+ * defecto al armar el job y se deja opcional acá para no inventar validaciones
+ * que la ruta nunca hizo. `type` y `channel` NO son enum a propósito: la
+ * gracia del simulador es probar lo que manda un canal, incluido un tipo que
+ * el worker todavía no entiende.
+ */
+const EntranteSimulado = z.object({
+  phone: textoRequerido('Falta el teléfono del contacto simulado.'),
+  body: z.string().optional(),
+  type: z.string().optional(),
+  channel: z.string().optional(),
+  providerMessageId: z.string().optional(),
+});
 
 @ApiTags('dev')
 @Controller('dev')
@@ -36,17 +40,10 @@ export class SimuladorController {
   @RequireModule('conversations')
   @RequirePermission('conversations.reply')
   @ApiOperation({ summary: 'Simula un mensaje entrante (solo local y staging)' })
-  async inbound(@Req() request: WithUser, @Body() body: SimularInboundBody) {
+  async inbound(@Req() request: WithUser, @Cuerpo(EntranteSimulado) body: z.infer<typeof EntranteSimulado>) {
     const tenantId = (request as unknown as { headers: Record<string, string> }).headers[
       'x-tenant-id'
     ];
-    if (!body?.phone) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta el teléfono del contacto simulado.',
-        details: [{ field: 'phone' }],
-      });
-    }
     const queue = inboundQueue();
     if (!queue) {
       throw new ServiceUnavailableException({
