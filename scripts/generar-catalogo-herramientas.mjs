@@ -158,6 +158,44 @@ export function argumentosDeLosControladores() {
 }
 
 /**
+ * Suma los parámetros que el OpenAPI declara y el AST no pudo ver (#546).
+ *
+ * El extractor del AST lee `@Param('x')` y `@Query('x')`, que llevan el nombre
+ * escrito. Una ruta que recibe `@Query() q: Consulta` —el objeto entero, sin
+ * nombre— no le da nada, y las cuatro rutas de auditoría son así: sus diez
+ * filtros no llegaban al catálogo, o sea que el agente llamaba la herramienta
+ * «con filtros» sin ningún argumento. El filtro se le caía en silencio y
+ * contestaba con las últimas entradas de TODO el libro como si fueran las
+ * pedidas — sobre auditoría, que es donde alguien pregunta quién cambió algo.
+ *
+ * El `@ApiQuery` del controlador sí los declara, y el documento es la verdad
+ * declarada: de ahí salen. Lo del AST manda cuando ya lo tenía, porque ahí el
+ * tipo viene del código.
+ */
+function conLosParametros(delAst, parametros) {
+  const base = delAst ?? { type: 'object', properties: {}, additionalProperties: false };
+  if (!Array.isArray(parametros) || parametros.length === 0) return base;
+  const properties = { ...(base.properties ?? {}) };
+  const required = new Set(base.required ?? []);
+  for (const p of parametros) {
+    if (!p?.name || (p.in !== 'query' && p.in !== 'path')) continue;
+    if (properties[p.name]) continue; // el AST ya lo tenía, con su tipo real
+    properties[p.name] = {
+      ...(p.schema ?? { type: 'string' }),
+      ...(p.description ? { description: p.description } : {}),
+      'x-iaxti-en': p.in === 'path' ? 'ruta' : 'query',
+    };
+    if (p.required || p.in === 'path') required.add(p.name);
+  }
+  return {
+    type: 'object',
+    properties,
+    ...(required.size ? { required: [...required] } : {}),
+    additionalProperties: false,
+  };
+}
+
+/**
  * Junta lo del AST (ruta y query) con el esquema del cuerpo, si lo hay.
  *
  * El cuerpo se APLANA en los argumentos de la herramienta: para el modelo es
@@ -202,7 +240,10 @@ export function construirCatalogo(documento) {
         permiso: op['x-iaxti-permission'] ?? null,
         modulo: op['x-iaxti-module'] ?? null,
         soloSesion: Boolean(op['x-iaxti-auth']),
-        argumentos: conElCuerpo(argumentos[op.operationId], cuerpos[op.operationId]),
+        argumentos: conElCuerpo(
+          conLosParametros(argumentos[op.operationId], op.parameters),
+          cuerpos[op.operationId],
+        ),
       };
     }
   }

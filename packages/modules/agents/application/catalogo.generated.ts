@@ -744,7 +744,73 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "format": {
+          "enum": [
+            "csv",
+            "json"
+          ],
+          "type": "string",
+          "description": "csv por omisión.",
+          "x-iaxti-en": "query"
+        },
+        "actor": {
+          "type": "string",
+          "description": "Quién lo hizo: id de usuario o de API key.",
+          "x-iaxti-en": "query"
+        },
+        "actorKind": {
+          "enum": [
+            "user",
+            "apikey",
+            "system"
+          ],
+          "type": "string",
+          "description": "user, apikey o system.",
+          "x-iaxti-en": "query"
+        },
+        "action": {
+          "type": "string",
+          "description": "La acción, como `crm.contact.update`.",
+          "x-iaxti-en": "query"
+        },
+        "resource": {
+          "type": "string",
+          "description": "El tipo de objeto: contact, deal, payment_link…",
+          "x-iaxti-en": "query"
+        },
+        "ip": {
+          "type": "string",
+          "description": "Desde qué IP.",
+          "x-iaxti-en": "query"
+        },
+        "result": {
+          "enum": [
+            "ok",
+            "denied"
+          ],
+          "type": "string",
+          "description": "ok o denied.",
+          "x-iaxti-en": "query"
+        },
+        "from": {
+          "type": "string",
+          "description": "Desde cuándo, AAAA-MM-DD.",
+          "x-iaxti-en": "query"
+        },
+        "to": {
+          "type": "string",
+          "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
+          "x-iaxti-en": "query"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Cuántas entradas, hasta 100.",
+          "x-iaxti-en": "query"
+        }
+      },
       "additionalProperties": false
     }
   },
@@ -757,7 +823,64 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "actor": {
+          "type": "string",
+          "description": "Quién lo hizo: id de usuario o de API key.",
+          "x-iaxti-en": "query"
+        },
+        "actorKind": {
+          "enum": [
+            "user",
+            "apikey",
+            "system"
+          ],
+          "type": "string",
+          "description": "user, apikey o system.",
+          "x-iaxti-en": "query"
+        },
+        "action": {
+          "type": "string",
+          "description": "La acción, como `crm.contact.update`.",
+          "x-iaxti-en": "query"
+        },
+        "resource": {
+          "type": "string",
+          "description": "El tipo de objeto: contact, deal, payment_link…",
+          "x-iaxti-en": "query"
+        },
+        "ip": {
+          "type": "string",
+          "description": "Desde qué IP.",
+          "x-iaxti-en": "query"
+        },
+        "result": {
+          "enum": [
+            "ok",
+            "denied"
+          ],
+          "type": "string",
+          "description": "ok o denied.",
+          "x-iaxti-en": "query"
+        },
+        "from": {
+          "type": "string",
+          "description": "Desde cuándo, AAAA-MM-DD.",
+          "x-iaxti-en": "query"
+        },
+        "to": {
+          "type": "string",
+          "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
+          "x-iaxti-en": "query"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Cuántas entradas, hasta 100.",
+          "x-iaxti-en": "query"
+        }
+      },
       "additionalProperties": false
     }
   },
@@ -3553,7 +3676,73 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "format": {
+          "enum": [
+            "csv",
+            "json"
+          ],
+          "type": "string",
+          "description": "csv por omisión.",
+          "x-iaxti-en": "query"
+        },
+        "actor": {
+          "type": "string",
+          "description": "Quién lo hizo: id de usuario o de API key.",
+          "x-iaxti-en": "query"
+        },
+        "actorKind": {
+          "enum": [
+            "user",
+            "apikey",
+            "system"
+          ],
+          "type": "string",
+          "description": "user, apikey o system.",
+          "x-iaxti-en": "query"
+        },
+        "action": {
+          "type": "string",
+          "description": "La acción, como `crm.contact.update`.",
+          "x-iaxti-en": "query"
+        },
+        "resource": {
+          "type": "string",
+          "description": "El tipo de objeto: contact, deal, payment_link…",
+          "x-iaxti-en": "query"
+        },
+        "ip": {
+          "type": "string",
+          "description": "Desde qué IP.",
+          "x-iaxti-en": "query"
+        },
+        "result": {
+          "enum": [
+            "ok",
+            "denied"
+          ],
+          "type": "string",
+          "description": "ok o denied.",
+          "x-iaxti-en": "query"
+        },
+        "from": {
+          "type": "string",
+          "description": "Desde cuándo, AAAA-MM-DD.",
+          "x-iaxti-en": "query"
+        },
+        "to": {
+          "type": "string",
+          "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
+          "x-iaxti-en": "query"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Cuántas entradas, hasta 100.",
+          "x-iaxti-en": "query"
+        }
+      },
       "additionalProperties": false
     }
   },
@@ -3566,7 +3755,64 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "actor": {
+          "type": "string",
+          "description": "Quién lo hizo: id de usuario o de API key.",
+          "x-iaxti-en": "query"
+        },
+        "actorKind": {
+          "enum": [
+            "user",
+            "apikey",
+            "system"
+          ],
+          "type": "string",
+          "description": "user, apikey o system.",
+          "x-iaxti-en": "query"
+        },
+        "action": {
+          "type": "string",
+          "description": "La acción, como `crm.contact.update`.",
+          "x-iaxti-en": "query"
+        },
+        "resource": {
+          "type": "string",
+          "description": "El tipo de objeto: contact, deal, payment_link…",
+          "x-iaxti-en": "query"
+        },
+        "ip": {
+          "type": "string",
+          "description": "Desde qué IP.",
+          "x-iaxti-en": "query"
+        },
+        "result": {
+          "enum": [
+            "ok",
+            "denied"
+          ],
+          "type": "string",
+          "description": "ok o denied.",
+          "x-iaxti-en": "query"
+        },
+        "from": {
+          "type": "string",
+          "description": "Desde cuándo, AAAA-MM-DD.",
+          "x-iaxti-en": "query"
+        },
+        "to": {
+          "type": "string",
+          "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
+          "x-iaxti-en": "query"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Cuántas entradas, hasta 100.",
+          "x-iaxti-en": "query"
+        }
+      },
       "additionalProperties": false
     }
   },

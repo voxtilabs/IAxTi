@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../src/main';
 import {
@@ -234,5 +234,52 @@ describe('los nombres son para el modelo, no para el compilador', () => {
     // pensado para ser corto, no para explicar.
     const mudas = CATALOGO.filter((h) => !h.descripcion.trim()).map((h) => h.nombre);
     expect(mudas, 'Sin descripción: ponle @ApiOperation summary al endpoint').toEqual([]);
+  });
+
+  it('una ruta que filtra por query declara sus filtros (#546)', () => {
+    /**
+     * `@Query() q: Consulta` —el objeto entero, sin nombre— no publica nada en
+     * el OpenAPI, y el catálogo del Agente General se genera de ahí. Las cuatro
+     * rutas de auditoría salían con `"parameters": []` y sus diez filtros no
+     * llegaban al modelo: el agente llamaba la herramienta «con filtros» sin
+     * ningún argumento, el filtro se le caía en silencio, y contestaba con las
+     * últimas entradas de TODO el libro como si fueran las pedidas. Sobre
+     * auditoría, que es donde alguien pregunta quién cambió algo.
+     *
+     * Se mira la FORMA del handler y no una lista de rutas: cualquier ruta
+     * nueva que reciba el objeto de query completo tiene el mismo problema.
+     */
+    const sinDeclarar: string[] = [];
+    for (const archivo of readdirSync(join(__dirname, '..', 'src')).filter((f) =>
+      f.endsWith('.controller.ts'),
+    )) {
+      // Sin comentarios: un comentario que EXPLICA el patrón no es el patrón.
+      // Me pasó al escribir esta misma guarda —la cazó mi propio comentario— y
+      // es la quinta vez en la noche que un texto explicativo dispara el grep
+      // que viene a cazar lo que explica.
+      const texto = readFileSync(join(__dirname, '..', 'src', archivo), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+      // Cada método que recibe `@Query()` sin nombre.
+      for (const m of texto.matchAll(/@Query\(\)\s+\w+/g)) {
+        // El bloque de decoradores de ese método: desde el @Get/@Post anterior.
+        const inicio = Math.max(
+          texto.lastIndexOf('@Get(', m.index),
+          texto.lastIndexOf('@Post(', m.index),
+        );
+        const bloque = texto.slice(inicio, m.index!);
+        if (!bloque.includes('ApiQuery') && !bloque.includes('ConFiltros')) {
+          const linea = texto.slice(0, m.index).split('\n').length;
+          sinDeclarar.push(`${archivo}:${linea}`);
+        }
+      }
+    }
+    expect(
+      sinDeclarar,
+      'Estas rutas reciben el objeto de query completo y no declaran ni un `@ApiQuery`. ' +
+        'Sus filtros no salen en el OpenAPI, así que el Agente General llama la ' +
+        'herramienta sin argumentos y el filtro se le cae en silencio:\n  ' +
+        sinDeclarar.join('\n  '),
+    ).toEqual([]);
   });
 });
