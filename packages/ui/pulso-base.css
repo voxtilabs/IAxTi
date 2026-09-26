@@ -76,6 +76,60 @@ a { color: var(--action-text); }
   animation: pulso-aparece 150ms ease-out;
 }
 [role="dialog"][data-state="closed"], [role="menu"][data-state="closed"] { animation: pulso-desaparece 150ms ease-in; }
+/*
+ * El cajón lateral y el globo de ayuda (#548).
+ *
+ * `sheet.tsx` y `tooltip.tsx` vinieron del registro de shadcn con 24 clases de
+ * `tailwindcss-animate` —`animate-in`, `fade-in-0`, `slide-in-from-left`…— y ese
+ * plugin NO está instalado ni declarado en ninguna config. Comprobado con una
+ * corrida aislada de Tailwind sobre esas clases: emitía `.animate-spin` (que sí
+ * es de Tailwind) y nada más. Las 24 no producían una línea de CSS.
+ *
+ * Consecuencia en el teléfono, que es donde el vendedor de la pyme contesta: el
+ * velo negro aparecía y desaparecía de golpe, y el cajón no entraba deslizándose
+ * desde el costado — heredaba el único fundido que existía, la regla genérica de
+ * `[role="dialog"]` de arriba, que sube 4 px. O sea que las cuatro variantes de
+ * lado del cajón eran decorativas: las cuatro se veían igual.
+ *
+ * Se escriben acá en vez de instalar el plugin. Pulso ya tiene sus keyframes, y
+ * traer una familia de 24 clases que cualquier componente puede usar suelto va
+ * en contra de ADR-0021 —nada de efectos arbitrarios en componentes— justo en el
+ * archivo donde vive la excepción.
+ */
+@keyframes pulso-desde-izquierda { from { translate: -100% 0; } to { translate: 0 0; } }
+@keyframes pulso-hacia-izquierda { from { translate: 0 0; } to { translate: -100% 0; } }
+@keyframes pulso-desde-derecha { from { translate: 100% 0; } to { translate: 0 0; } }
+@keyframes pulso-hacia-derecha { from { translate: 0 0; } to { translate: 100% 0; } }
+@keyframes pulso-desde-arriba { from { translate: 0 -100%; } to { translate: 0 0; } }
+@keyframes pulso-hacia-arriba { from { translate: 0 0; } to { translate: 0 -100%; } }
+@keyframes pulso-desde-abajo { from { translate: 0 100%; } to { translate: 0 0; } }
+@keyframes pulso-hacia-abajo { from { translate: 0 0; } to { translate: 0 100%; } }
+
+/* El velo: solo opacidad. Mover el velo marea y no aporta nada. */
+.pulso-velo[data-state="open"] { animation: pulso-aparece-plano 200ms ease-out; }
+.pulso-velo[data-state="closed"] { animation: pulso-desaparece 200ms ease-in; }
+@keyframes pulso-aparece-plano { from { opacity: 0; } to { opacity: 1; } }
+
+/*
+ * El cajón, por lado. Gana sobre la regla genérica de `[role="dialog"]` por
+ * especificidad (clase + atributo), que es lo que hace falta: sin esto el cajón
+ * se quedaría con el fundido de 4 px de un diálogo centrado.
+ */
+.pulso-cajon[data-side="left"][data-state="open"] { animation: pulso-desde-izquierda 300ms ease-out; }
+.pulso-cajon[data-side="left"][data-state="closed"] { animation: pulso-hacia-izquierda 250ms ease-in; }
+.pulso-cajon[data-side="right"][data-state="open"] { animation: pulso-desde-derecha 300ms ease-out; }
+.pulso-cajon[data-side="right"][data-state="closed"] { animation: pulso-hacia-derecha 250ms ease-in; }
+.pulso-cajon[data-side="top"][data-state="open"] { animation: pulso-desde-arriba 300ms ease-out; }
+.pulso-cajon[data-side="top"][data-state="closed"] { animation: pulso-hacia-arriba 250ms ease-in; }
+.pulso-cajon[data-side="bottom"][data-state="open"] { animation: pulso-desde-abajo 300ms ease-out; }
+.pulso-cajon[data-side="bottom"][data-state="closed"] { animation: pulso-hacia-abajo 250ms ease-in; }
+
+/* El globo de ayuda: el mismo fundido corto de todo lo que flota. */
+.pulso-globo[data-state="delayed-open"], .pulso-globo[data-state="instant-open"] {
+  animation: pulso-aparece 120ms ease-out;
+}
+.pulso-globo[data-state="closed"] { animation: pulso-desaparece 100ms ease-in; }
+
 [data-sonner-toast] { transition-duration: 150ms !important; box-shadow: none !important; }
 [data-sonner-toaster] { font-family: inherit; }
 [data-sonner-toast] [data-close-button] { position: static; transform: none; flex-shrink: 0; }
