@@ -47,6 +47,8 @@ import { RequireAuth, RequireModule, RequirePermission } from './authz/decorator
 import type { WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { writeAudit } from '@iaxti/module-audit';
+import { z } from 'zod';
+import { Cuerpo } from './validar';
 import {
   accesoAlModulo,
   exportarTenant,
@@ -245,6 +247,22 @@ class MeController {
   }
 }
 
+/**
+ * El cargo por ampliación de IA (#536). Entero de pesos, o `null` para quitarlo.
+ *
+ * Con mensajes escritos y no los de zod: quien usa el panel de plataforma está
+ * fijando la factura de un cliente, y «Expected number, received string» no le
+ * dice qué hacer. `null` es cómo se da de baja la ampliación — no un cero, que en
+ * una factura se lee como «se cobró $0» en vez de «no se cobró».
+ */
+const AmpliacionDeIa = z.object({
+  montoClp: z
+    .number({ error: 'Dinos el monto mensual en pesos, o null para quitar la ampliación.' })
+    .int('El monto va en pesos enteros.')
+    .positive('El monto es mayor que cero. Para quitar la ampliación, manda null.')
+    .nullable(),
+});
+
 @ApiTags('platform')
 @Controller('platform')
 class PlatformController {
@@ -299,6 +317,87 @@ class PlatformController {
       ),
     );
     return { tenantId: id, requestsMonthOverride: valor };
+  }
+
+  /**
+   * La ampliación de IA contratada (#536).
+   *
+   * `buildInvoiceLines` tiene lista la línea «Ampliación de asistencias de IA
+   * contratada» desde que se escribió, y el plan más alto se vende con «cuota de
+   * IA ampliable» (SPEC §6). Pero `settings.billing.iaAmpliacionClp` no se podía
+   * escribir por ninguna ruta, así que la línea NUNCA apareció en una factura y el
+   * concepto `ampliacion_ia` era código muerto: el cliente que contrataba la
+   * ampliación no la pagaba.
+   *
+   * Va en el panel de plataforma y no en los ajustes del negocio, y esa es la
+   * decisión: es un **cargo contratado**, no una preferencia. Un ADMIN que pudiera
+   * moverlo estaría editando su propia factura.
+   *
+   * Y audita, a diferencia de su ruta hermana de cuota de API: esto es plata que
+   * entra en una factura del cliente, y el «quién lo puso y cuándo» es lo primero
+   * que alguien va a preguntar cuando el monto no cuadre.
+   */
+  @Put('tenants/:id/ampliacion-ia')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Cargo mensual por ampliación de IA contratada (CLP)' })
+  async ampliacionDeIa(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Cuerpo(AmpliacionDeIa) body: z.infer<typeof AmpliacionDeIa>,
+  ) {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    // `request.user` y no `request.actor`: en las rutas de plataforma el actor de
+    // tenant no existe —quien pide no es del negocio— y es la misma forma que usa
+    // `createTenant` unas líneas más abajo.
+    const quien = request.user!.userId;
+    const valor = body.montoClp;
+    return withTenant(pool, id, async (c) => {
+      // El monto anterior, para que la auditoría diga de cuánto a cuánto. Un
+      // registro que solo dice el valor nuevo no permite reconstruir una factura.
+      const antes = await c.query<{ monto: string | null }>(
+        `SELECT settings->'billing'->>'iaAmpliacionClp' AS monto FROM tenants WHERE id = $1`,
+        [id],
+      );
+      if (antes.rowCount === 0) {
+        throw new NotFoundException({
+          code: 'TENANT_NOT_FOUND',
+          message: 'No encontramos ese tenant.',
+        });
+      }
+      // Se parcha DENTRO de `billing` con `||`: `jsonb_set` con el objeto entero
+      // se llevaría cualquier otra clave que viva ahí.
+      await c.query(
+        `UPDATE tenants SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{billing}',
+           COALESCE(settings->'billing', '{}'::jsonb) || jsonb_build_object('iaAmpliacionClp', $2::numeric))
+          WHERE id = $1`,
+        [id, valor],
+      );
+      // En la MISMA transacción que el cambio (regla de seguridad §3).
+      await writeAudit(c, {
+        tenantId: id,
+        actor: quien,
+        // `superadmin` y no `user`: quien cambia esto no es del negocio, y en el
+        // registro del cliente la diferencia es justamente lo que se va a mirar.
+        actorKind: 'superadmin',
+        action: 'billing.ampliacion_ia.cambiada',
+        resource: 'tenant',
+        resourceId: id,
+        result: 'ok',
+        requestId: request.requestId,
+        metadata: {
+          antesClp: antes.rows[0].monto === null ? null : Number(antes.rows[0].monto),
+          ahoraClp: valor,
+        },
+      });
+      return { tenantId: id, iaAmpliacionClp: valor };
+    });
   }
 
   /** El dashboard de consumo de API del SuperAdmin (#26): requests del
