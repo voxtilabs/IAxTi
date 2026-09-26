@@ -74,16 +74,21 @@ jobs:
       # Con el grep a secas, documentar el defecto hacía fallar el PR que lo
       # arreglaba.
       #
-      # Las dos exentas son de otro `role`: `typeof role !== 'string'` del guard
-      # es una comprobación de tipo, y el de tags es el rol VISUAL de una
-      # etiqueta (good/warn/bad), que no tiene nada que ver con permisos.
+      # Las dos exentas van por su EXPRESIÓN exacta y no por archivo: exentar
+      # `application/tags.ts` entero dejaba pasar cualquier condicional por rol
+      # que alguien agregue después en ese archivo — y el comodín además cubría
+      # cualquier `application/tags.ts` de cualquier paquete.
+      #
+      # `typeof role !== 'string'` del guard es una comprobación de tipo, y
+      # `input.role !== undefined` de tags es el rol VISUAL de una etiqueta
+      # (good/warn/bad), que no tiene nada que ver con permisos.
       - name: Sin condicionales por rol
         run: |
           encontrados=$(grep -rn --include='*.ts' -E "\brole\b *(===|!==)" apps packages \
             | grep -v 'domain/base-roles' \
             | grep -vE '^\s*[^:]+:[0-9]+:\s*(//|\*|/\*)' \
             | grep -v "typeof role !== 'string'" \
-            | grep -v 'application/tags.ts' || true)
+            | grep -v "input.role !== undefined" || true)
           if [ -n "$encontrados" ]; then
             echo "$encontrados"
             echo "Prohibido condicionar por rol fuera de base-roles.ts (ADR-0008)."

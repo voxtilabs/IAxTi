@@ -209,7 +209,9 @@ describe('nadie invita por encima de sí mismo (#532)', () => {
     ).json();
     await pedir(duena, `/roles/${encargado.id}`, {
       method: 'PUT',
-      body: JSON.stringify({ permissions: ['tenant.read', 'billing.read', 'roles.read'] }),
+      // `roles.manage` es de los que MANDAN: reparte poder. Por eso este rol
+      // queda por encima del jefe de local, que solo puede invitar.
+      body: JSON.stringify({ permissions: ['tenant.read', 'roles.manage'] }),
     });
 
     // El jefe de local pasa a serlo de verdad.
@@ -218,7 +220,7 @@ describe('nadie invita por encima de sí mismo (#532)', () => {
       body: JSON.stringify({ userId: recepcionista, roleId: jefeDeLocal.id }),
     });
 
-    // Y ahora intenta invitar a alguien con un rol que puede más que él.
+    // Y ahora intenta invitar a alguien con un rol que ADMINISTRA más que él.
     const arriba = await pedir(recepcionista, '/equipo/invitaciones', {
       method: 'POST',
       body: JSON.stringify({ email: 'colado@ajeno.cl', rol: 'Encargado' }),
@@ -227,7 +229,7 @@ describe('nadie invita por encima de sí mismo (#532)', () => {
     const cuerpo = await arriba.json();
     expect(cuerpo.code).toBe('ROLE_FORBIDDEN');
     // El mensaje es para quien atiende, no una lista de permisos.
-    expect(cuerpo.message).toContain('puede hacer cosas que tú no puedes');
+    expect(cuerpo.message).toContain('puede administrar cosas que tú no administras');
 
     // Y no quedó la invitación: el rechazo no es solo el código de estado.
     const invitaciones = await admin.query(
@@ -255,5 +257,107 @@ describe('nadie invita por encima de sí mismo (#532)', () => {
       });
       expect(r.status, `el ADMIN no pudo invitar a ${rol}`).toBe(201);
     }
+  });
+});
+
+describe('delegar el onboarding sigue sirviendo (#556)', () => {
+  /**
+   * La primera versión de «nadie invita por encima de sí mismo» comparaba el
+   * conjunto ENTERO de permisos, y eso rompía justo el caso que la delegación
+   * existe para servir: un rol angosto con `users.invite` no podía invitar a
+   * NADIE, porque cualquier rol asignable tiene más permisos que él — hasta un
+   * USER quedaba «por encima».
+   *
+   * Lo cazó una revisión de código, no una prueba: la mía afirmaba que el jefe
+   * de local podía invitar a su propio rol, y eso seguía pasando. El caso que
+   * importa —invitar a un USER normal, que es para lo que se delega— no estaba
+   * probado.
+   */
+  it('un rol angosto con users.invite SÍ puede incorporar a un vendedor', async () => {
+    const soloInvita = await (
+      await pedir(duena, '/roles', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Encargada de turno', cloneFrom: 'USER' }),
+      })
+    ).json();
+    await pedir(duena, `/roles/${soloInvita.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions: ['tenant.read', 'users.read', 'users.invite'] }),
+    });
+    await pedir(duena, '/roles/assign', {
+      method: 'POST',
+      body: JSON.stringify({ userId: recepcionista, roleId: soloInvita.id }),
+    });
+
+    // Un USER tiene MUCHOS permisos que ella no tiene —responder, contactos,
+    // agenda— y ninguno de ellos reparte poder. Tiene que poder.
+    const r = await pedir(recepcionista, '/equipo/invitaciones', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'vendedora-nueva@pyme.cl', rol: 'USER' }),
+    });
+    expect(r.status, 'delegar el onboarding y no poder incorporar a nadie es no delegar nada').toBe(
+      201,
+    );
+  });
+
+  it('pero no puede incorporar a alguien que reparta roles', async () => {
+    const r = await pedir(recepcionista, '/equipo/invitaciones', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'jefa@pyme.cl', rol: 'ADMIN' }),
+    });
+    expect(r.status).toBe(400);
+    expect((await r.json()).code).toBe('ROLE_FORBIDDEN');
+  });
+
+  it('la invitación a un rol PROPIO se puede aceptar de verdad', async () => {
+    /**
+     * La regresión que encontró la revisión: `acceptInvitation` buscaba el rol
+     * solo entre los base, así que invitar a un rol propio creaba una
+     * invitación MUERTA — con su correo y su enlace— que fallaba al aceptarla
+     * con «Rol desconocido». Y la fila quedaba sin aceptar, bloqueando reinvitar
+     * a esa dirección hasta que venciera.
+     *
+     * Mi prueba anterior afirmaba el 201 de la invitación y nunca la aceptaba:
+     * verde con la función rota de punta a punta.
+     */
+    const rol = await (
+      await pedir(duena, '/roles', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Cajera', cloneFrom: 'USER' }),
+      })
+    ).json();
+
+    const invitada = randomUUID();
+    const creada = await pedir(duena, '/equipo/invitaciones', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'cajera@pyme.cl', rol: 'Cajera' }),
+    });
+    expect(creada.status).toBe(201);
+    // El token viaja dentro del enlace, una sola vez: sirve para pasarlo a mano
+    // cuando el correo no está configurado.
+    const { enlace } = await creada.json();
+    const token = String(enlace).split('/').pop();
+    expect(token, 'la invitación tiene que traer su enlace con el token').toBeTruthy();
+
+    const aceptada = await fetch(`${base}/v1/invitaciones/${token}/aceptar`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${await firmar(invitada)}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(
+      aceptada.status,
+      'la invitación a un rol propio no se podía aceptar',
+    ).toBe(201);
+
+    // Y quedó con ESE rol, no con el base del que se clonó.
+    const fila = await admin.query(
+      `SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+        WHERE ur.tenant_id = $1 AND ur.user_id = $2`,
+      [tenant, invitada],
+    );
+    expect(fila.rows[0]?.name).toBe('Cajera');
+    expect(rol.id).toBeTruthy();
   });
 });

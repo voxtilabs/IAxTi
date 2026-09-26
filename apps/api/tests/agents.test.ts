@@ -352,3 +352,77 @@ describe('/v1/agents (#47)', () => {
   });
 });
 
+
+describe('los ajustes de IA del negocio se pueden escribir (#536)', () => {
+  /**
+   * `settings.ia` se LEÍA en `iaSettings` desde el principio y ninguna ruta lo
+   * escribía: la única escritura del repo era un `UPDATE` crudo en este mismo
+   * archivo, unas líneas más arriba. Por eso mi prueba de #494 —«el negocio que
+   * pidió solo Gemini recibe un asistente en Gemini»— pasaba: la escribía ella
+   * misma con SQL.
+   *
+   * O sea que el resguardo de ADR-0025 §7 estaba implementado y era
+   * inalcanzable: a un cliente que exige por escrito un único proveedor solo se
+   * le podía dar con un UPDATE a mano en producción. Y el ADR declara el
+   * problema resuelto, así que nadie iba a ir a revisarlo.
+   */
+  it('el dueño elige proveedor único por la ruta, y el asistente nuevo nace ahí', async () => {
+    const disponibles = await (await pedir(duena, '/agents/ajustes')).json();
+    expect(Array.isArray(disponibles.disponibles)).toBe(true);
+    expect(disponibles.soloProveedor).toBeNull();
+
+    // En este ambiente no hay llaves, así que el rechazo es el camino esperado:
+    // elegir un proveedor sin llave dejaría al asistente sin contestar.
+    const sinLlave = await pedir(duena, '/agents/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ soloProveedor: 'google' }),
+    });
+    if (disponibles.disponibles.includes('google')) {
+      expect(sinLlave.status).toBe(200);
+      expect((await sinLlave.json()).soloProveedor).toBe('google');
+    } else {
+      expect(sinLlave.status).toBe(400);
+      const cuerpo = await sinLlave.json();
+      expect(cuerpo.code).toBe('PROVIDER_UNAVAILABLE');
+      // Y dice qué pasaría, no un «no disponible» a secas.
+      expect(cuerpo.message).toContain('dejaría de contestar');
+    }
+  });
+
+  it('un proveedor inventado se rechaza con los que existen', async () => {
+    const r = await pedir(duena, '/agents/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ soloProveedor: 'openai' }),
+    });
+    expect(r.status).toBe(400);
+    expect((await r.json()).message).toContain('uno de:');
+  });
+
+  it('guardar el proveedor no pisa las perillas que la pantalla no muestra', async () => {
+    // `updateTenantSettings` hace `settings || patch`, merge de PRIMER nivel:
+    // escribir `{ ia: { soloProveedor } }` a secas se llevaría `tasks` y
+    // `economico`, que un negocio puede tener puestas y esta pantalla no toca.
+    await admin.query(
+      `UPDATE tenants SET settings = jsonb_set(COALESCE(settings,'{}'::jsonb), '{ia}', '{"economico":{"provider":"glm","model":"z-ai/glm-5.3-flash"}}'::jsonb) WHERE id = $1`,
+      [tenant],
+    );
+    const r = await pedir(duena, '/agents/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ soloProveedor: null, redactPII: false }),
+    });
+    expect(r.status).toBe(200);
+    const fila = await admin.query('SELECT settings FROM tenants WHERE id = $1', [tenant]);
+    const ia = (fila.rows[0].settings as { ia: Record<string, unknown> }).ia;
+    expect(ia.economico, 'se llevó el modelo económico').toBeTruthy();
+    expect(ia.redactPII).toBe(false);
+    expect(ia).not.toHaveProperty('soloProveedor');
+  });
+
+  it('el vendedor no toca los ajustes de IA del negocio', async () => {
+    const r = await pedir(vendedor, '/agents/ajustes', {
+      method: 'PUT',
+      body: JSON.stringify({ soloProveedor: null }),
+    });
+    expect(r.status).toBe(403);
+  });
+});

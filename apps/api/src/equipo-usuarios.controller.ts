@@ -66,6 +66,42 @@ const CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  * por encima de quien invita es ROLE_FORBIDDEN, los dos más abajo con su
  * propio código.
  */
+/**
+ * Los permisos que deciden QUIÉN PUEDE QUÉ, o que mueven plata y configuración
+ * del negocio (#556).
+ *
+ * Son los únicos que se comparan al invitar, y la primera versión de esto
+ * comparaba el conjunto ENTERO — lo que rompía el caso que la delegación existe
+ * para servir. Un rol propio angosto, «Jefe de local» con `users.invite` y poco
+ * más, no podía invitar a NADIE: cualquier rol asignable tiene más permisos que
+ * él, así que hasta un USER quedaba «por encima». Y una API key con scopes
+ * `users.read` + `users.invite` tampoco, por lo mismo. Delegar el onboarding y
+ * que el delegado no pueda incorporar a nadie es dejar la función sin sentido.
+ *
+ * Lo que de verdad hay que impedir es otra cosa: que alguien use la invitación
+ * para crear una cuenta capaz de RE-REPARTIR poder, o de tocar el dinero y la
+ * configuración del negocio. El «Jefe de local» puede incorporar un vendedor;
+ * lo que no puede es incorporar a alguien que después reparta roles.
+ *
+ * `roles.read`, `users.read` y `tenant.read` NO están: leer quién es quién no
+ * reparte nada, y meterlos volvería a romper la delegación.
+ *
+ * Hay una guarda que falla el PR si aparece un permiso nuevo de estas familias
+ * y no se decide si manda o no: una lista curada se muere sola.
+ */
+export const MANDAN = new Set([
+  'roles.manage',
+  'users.invite',
+  'users.manage',
+  'tenant.settings',
+  'tenant.billing',
+  'apikeys.manage',
+  'payments.manage_providers',
+  'agents.configure',
+  'channels.manage',
+  'webhooks.manage',
+]);
+
 const NuevaInvitacion = z.object({
   email: z
     .string({ error: 'Ese correo no se entiende.' })
@@ -125,7 +161,27 @@ export class EquipoUsuariosController {
        * Se compara sin distinguir mayúsculas —para que «admin» siga sirviendo—
        * y se usa el nombre TAL COMO está guardado de ahí en adelante.
        */
-      const destino = roles.find((r) => r.name.toLowerCase() === pedido.toLowerCase());
+      const calzan = roles.filter((r) => r.name.toLowerCase() === pedido.toLowerCase());
+      /**
+       * Dos roles que solo difieren en mayúsculas: se pregunta, no se adivina.
+       *
+       * El índice único de `roles` es `(tenant_id, name)` y distingue
+       * mayúsculas, así que un negocio puede tener «Jefe» y «jefe». Elegir el
+       * primero del orden —`base DESC, created_at`— le daría al invitado el rol
+       * MÁS VIEJO, que puede ser el más amplio, sin que nadie se enterara: el
+       * permiso se comprueba contra el rol resuelto, así que no es una escalada,
+       * pero sí es darle a alguien un rol que no era (#556).
+       */
+      if (calzan.length > 1) {
+        throw new BadRequestException({
+          code: 'ROLE_AMBIGUO',
+          message:
+            `Tienes más de un rol que se escribe "${pedido}" con distintas mayúsculas ` +
+            `(${calzan.map((r) => r.name).join(', ')}). Escríbelo tal cual para que no quede duda.`,
+          details: [{ field: 'rol' }],
+        });
+      }
+      const destino = calzan[0];
       if (!destino) {
         throw new BadRequestException({
           code: 'ROLE_UNKNOWN',
@@ -153,13 +209,20 @@ export class EquipoUsuariosController {
        * `platform.*`, así que cualquier rol del negocio es un subconjunto suyo.
        */
       const mios = await permisosDelActor(c, actor);
-      const deMas = destino.permissions.filter((p) => !mios.has(p));
+      // El catálogo filtra los dos lados: los permisos de un rol propio salen
+      // crudos de la base, y un permiso renombrado en un `module.yaml` dejaría
+      // en la fila un string que nadie puede tener — así ni el ADMIN podría
+      // invitar a ese rol, con un mensaje que no explica por qué (#556).
+      const catalogo = new Set(registry.permissionsCatalog().keys());
+      const deMas = destino.permissions
+        .filter((p) => catalogo.has(p))
+        .filter((p) => MANDAN.has(p) && !mios.has(p));
       if (deMas.length > 0) {
         throw new BadRequestException({
           code: 'ROLE_FORBIDDEN',
           message:
-            `El rol "${rol}" puede hacer cosas que tú no puedes, así que no puedes invitar a ` +
-            'alguien con ese rol. Pídeselo a quien administra el negocio.',
+            `El rol "${rol}" puede administrar cosas que tú no administras, así que no puedes ` +
+            'invitar a alguien con ese rol. Pídeselo a quien administra el negocio.',
         });
       }
 
@@ -309,7 +372,11 @@ export class InvitacionesController {
       // Los tres motivos por los que una invitación no sirve son distintos y
       // el que la recibe necesita saber cuál es: pedir otra, o avisar que ya
       // entró.
-      if (/no existe|ya fue usada|venció/.test(message)) {
+      // `Rol desconocido` entra acá también (#556): antes caía al rethrow y
+      // salía un 500 sin `code` ni `requestId`, o sea fuera del formato único de
+      // la plataforma justo en la pantalla donde alguien intenta entrar por
+      // primera vez. Puede pasar si el rol se borró entre invitar y aceptar.
+      if (/no existe|ya fue usada|venció|Rol desconocido/.test(message)) {
         throw new BadRequestException({ code: 'INVITATION_INVALID', message });
       }
       throw err;

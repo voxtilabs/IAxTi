@@ -312,6 +312,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgentsController_ajustesDeIa": {
+    "metodo": "GET",
+    "ruta": "/v1/agents/ajustes",
+    "resumen": "Los ajustes de IA del negocio: proveedor único y datos personales",
+    "permiso": "tenant.settings",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "AgentsController_configuradorAplicar": {
     "metodo": "POST",
     "ruta": "/v1/agents/configurador/{pid}/aplicar",
@@ -464,6 +477,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "ruta": "/v1/agents/executions",
     "resumen": "Corridas con tokens, costo, latencia y trace",
     "permiso": "agents.usage.read",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "AgentsController_guardarAjustesDeIa": {
+    "metodo": "PUT",
+    "ruta": "/v1/agents/ajustes",
+    "resumen": "Guarda el proveedor único y el trato de datos personales",
+    "permiso": "tenant.settings",
     "modulo": "agents",
     "soloSesion": false,
     "argumentos": {
