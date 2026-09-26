@@ -5,7 +5,7 @@ import type { Pool } from 'pg';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
-import { addSource, processSource, type EmbedPort } from '@iaxti/module-knowledge';
+import { addSource, processSource, DIMENSIONES, type EmbedPort } from '@iaxti/module-knowledge';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 
@@ -24,8 +24,10 @@ const duena = randomUUID(); // ADMIN
 const vendedor = randomUUID(); // USER
 
 const fakeEmbed: EmbedPort = {
+  // Las dimensiones salen del módulo: escritas a mano, el día que cambie el
+  // modelo el test pasa y la base rechaza (#502).
   async embed(texts) {
-    return texts.map(() => new Array(768).fill(0.01));
+    return texts.map(() => new Array(DIMENSIONES).fill(0.01));
   },
 };
 

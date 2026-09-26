@@ -29,7 +29,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- text-embedding-004 entrega 768 dimensiones.
+-- Los embeddings los define la migración 0002 (#502): halfvec(2048).
+-- Esta columna nace en 768 por historia; 0002 la reemplaza.
 CREATE TABLE IF NOT EXISTS chunks (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id  uuid NOT NULL REFERENCES tenants(id),

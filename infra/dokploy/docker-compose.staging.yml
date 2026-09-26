@@ -57,11 +57,14 @@ x-env: &app-env
   # sola y nadie se entera.
   SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
 
-  # Embeddings del módulo de conocimiento. Sin la llave,
-  # `embeddingsAvailable()` es false e indexar lanza.
+  # Sigue viva por dos cosas y nada más: la transcripción de notas de voz
+  # (el catálogo de NVIDIA no publica ningún modelo de audio) y el negocio
+  # que pidió por escrito quedarse en Gemini. Los embeddings ya NO la usan.
   GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
   # GLM por el catálogo de NVIDIA (ADR-0025 §7): proveedor por defecto de
-  # todas las tareas de texto desde el 25-09.
+  # todas las tareas de texto desde el 25-09, y de los embeddings del
+  # conocimiento desde #502. Sin esta llave `embeddingsAvailable()` es false,
+  # indexar avisa y el job de reindexación se queda esperando.
   GLM_API_KEY: ${GLM_API_KEY}
   GLM_API_BASE: ${GLM_API_BASE:-https://integrate.api.nvidia.com/v1}
 

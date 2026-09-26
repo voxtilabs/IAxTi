@@ -10,9 +10,12 @@ import {
   parseCatalog,
   processSource,
   tenantsWithExpirable,
+  reindexarPendientes,
+  hayQueReindexar,
 } from '../application/sources';
 import { getProduct, knowledgeContext, searchKnowledge } from '../application/search';
-import type { EmbedPort } from '../application/embeddings';
+import type { EmbedPort, RolDelTexto } from '../application/embeddings';
+import { DIMENSIONES } from '../application/embeddings';
 
 const ADMIN_URL =
   process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
@@ -20,18 +23,22 @@ const ADMIN_URL =
 let admin: Pool;
 let tenant: string;
 
-// Embedder falso pero SEMÁNTICO a su manera: bolsa de palabras a 768 dims
-// por hash — textos que comparten palabras quedan cerca. Cuenta llamadas
-// para probar el cache.
+// Embedder falso pero SEMÁNTICO a su manera: bolsa de palabras por hash —
+// textos que comparten palabras quedan cerca. Cuenta llamadas para probar el
+// cache y ANOTA EL ROL, que es lo único que delata a quien embebe una
+// pregunta como si fuera un pasaje (#502): el modelo real es asimétrico y
+// con el rol errado contesta peor sin fallar.
 let llamadas = 0;
+let roles: RolDelTexto[] = [];
 const fakeEmbed: EmbedPort = {
-  async embed(texts) {
+  async embed(texts, rol) {
     llamadas += texts.length;
+    roles.push(rol);
     return texts.map((t) => {
-      const v = new Array(768).fill(0);
+      const v = new Array(DIMENSIONES).fill(0);
       for (const palabra of t.toLowerCase().split(/\W+/).filter((w) => w.length > 2)) {
         let h = 0;
-        for (const ch of palabra) h = (h * 31 + ch.charCodeAt(0)) % 768;
+        for (const ch of palabra) h = (h * 31 + ch.charCodeAt(0)) % DIMENSIONES;
         v[h] += 1;
       }
       const norma = Math.sqrt(v.reduce((a, x) => a + x * x, 0)) || 1;
@@ -189,5 +196,166 @@ describe('fuentes e índice (#51)', () => {
     );
     const productos = await admin.query('SELECT count(*)::int AS n FROM products WHERE tenant_id = $1', [tenant]);
     expect(productos.rows[0].n).toBe(0);
+  });
+});
+
+describe('el modelo es asimétrico: el rol tiene que llegar bien (#502)', () => {
+  it('lo que se indexa va como pasaje y lo que se pregunta como pregunta', async () => {
+    // No es un detalle de implementación: el modelo real devuelve vectores
+    // distintos según `input_type` (coseno 0.57 entre los dos roles del mismo
+    // texto). Embeber la pregunta como pasaje aplasta los puntajes —medido:
+    // 0.414 contra 0.385 donde debía ser 0.430 contra 0.088— y el buscador
+    // sigue contestando, peor y sin avisar. Por eso se prueba el rol y no
+    // solo que haya resultados.
+    const fuente = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'texto',
+        name: 'Horarios del rol',
+        content: 'Atendemos de lunes a viernes de 10 a 19 y los sabados hasta las 14.',
+        actor: 'test',
+      }),
+    );
+    roles = [];
+    await withTenant(admin, tenant, (c) =>
+      processSource(c, { tenantId: tenant, sourceId: fuente.id }, { embed: fakeEmbed }),
+    );
+    expect(roles, 'indexar embebe PASAJES').toEqual(['pasaje']);
+
+    roles = [];
+    await withTenant(admin, tenant, (c) =>
+      searchKnowledge(c, { tenantId: tenant, query: 'a que hora abren los sabados' }, fakeEmbed),
+    );
+    expect(roles, 'buscar embebe una PREGUNTA').toEqual(['pregunta']);
+
+    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }));
+  });
+
+  it('un vector del largo equivocado lo rechaza la base, no lo guarda callado', async () => {
+    // Si la columna aceptara cualquier largo, cambiar de modelo dejaría
+    // vectores de dos tamaños conviviendo y el orden por coseno sería basura
+    // sin que nada falle.
+    const corto: EmbedPort = { async embed(texts) { return texts.map(() => new Array(768).fill(0.1)); } };
+    const fuente = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'texto',
+        name: 'Vector corto',
+        content: 'Cualquier cosa con largo suficiente para hacer un chunk de verdad.',
+        actor: 'test',
+      }),
+    );
+    // Y queda 'failed' CON el motivo, no en 'processing' para siempre: si el
+    // largo lo rechazara Postgres, el error abortaría la transacción y el
+    // "marcala como fallida" se perdería en el rollback — y el job de
+    // reindexación la tomaría cada dos minutos pagándole al proveedor.
+    const r = await withTenant(admin, tenant, (c) =>
+      processSource(c, { tenantId: tenant, sourceId: fuente.id }, { embed: corto }),
+    );
+    expect(r.status).toBe('failed');
+    expect(r.error).toContain('dimensiones');
+    const despues = await withTenant(admin, tenant, (c) => listSources(c, tenant));
+    expect(despues.find((f) => f.id === fuente.id)?.status).toBe('failed');
+    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }));
+  });
+});
+
+describe('reindexación tras cambiar de modelo (#502)', () => {
+  it('toma las que quedaron en processing y las deja contestando', async () => {
+    // Es el trabajo que la migración 0002 deja pendiente. Sin esto el negocio
+    // ve su conocimiento cargado en la app y la IA no encuentra nada.
+    const fuente = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'faq',
+        name: 'FAQ por reindexar',
+        content: JSON.stringify([{ q: '¿Tienen estacionamiento?', a: 'Si, dos cupos en el patio.' }]),
+        actor: 'test',
+      }),
+    );
+    await withTenant(admin, tenant, (c) =>
+      processSource(c, { tenantId: tenant, sourceId: fuente.id }, { embed: fakeEmbed }),
+    );
+    // Lo que hace la migración: fuera los vectores, la fuente a 'processing'.
+    await admin.query('DELETE FROM chunks WHERE tenant_id = $1 AND source_id = $2', [
+      tenant,
+      fuente.id,
+    ]);
+    await admin.query("UPDATE sources SET status = 'processing' WHERE id = $1", [fuente.id]);
+
+    expect(await withTenant(admin, tenant, (c) => hayQueReindexar(c, tenant))).toBe(true);
+
+    const r = await withTenant(admin, tenant, (c) =>
+      reindexarPendientes(c, tenant, { embed: fakeEmbed }),
+    );
+    expect(r.listas).toBeGreaterThanOrEqual(1);
+    expect(r.fallidas).toBe(0);
+
+    const despues = await withTenant(admin, tenant, (c) => listSources(c, tenant));
+    expect(despues.find((f) => f.id === fuente.id)?.status).toBe('active');
+    const hallado = await withTenant(admin, tenant, (c) =>
+      searchKnowledge(c, { tenantId: tenant, query: 'estacionamiento' }, fakeEmbed),
+    );
+    expect(hallado.hits.map((h) => h.content).join(' ')).toContain('cupos');
+    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }));
+  });
+
+  it('avisa que quedan más en vez de hacerlas todas de una', async () => {
+    // Cada fuente paga una llamada al proveedor: un job que barre todos los
+    // negocios de una es la forma de que un reintento salga carísimo.
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const f = await withTenant(admin, tenant, (c) =>
+        addSource(c, {
+          tenantId: tenant,
+          kind: 'texto',
+          name: `Tanda ${i}`,
+          content: `Contenido numero ${i} con largo suficiente para un chunk de verdad.`,
+          actor: 'test',
+        }),
+      );
+      ids.push(f.id);
+    }
+    const r = await withTenant(admin, tenant, (c) =>
+      reindexarPendientes(c, tenant, { embed: fakeEmbed }, 2),
+    );
+    expect(r.listas).toBe(2);
+    expect(r.quedanMas).toBe(true);
+    for (const id of ids) await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: id, actor: 'test' }));
+  });
+
+  it('una fuente rota no deja a las otras sin indexar', async () => {
+    const buena = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'texto',
+        name: 'Sana',
+        content: 'Este texto se indexa sin problema y tiene largo de sobra.',
+        actor: 'test',
+      }),
+    );
+    // Vaciada DESPUÉS de crearse: `addSource` no deja crear una sin
+    // contenido, pero una fuente puede quedar así por una edición o por un
+    // reproceso de una URL que hoy devuelve una página en blanco.
+    const vacia = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'texto',
+        name: 'Vacía',
+        content: 'Esto se va a vaciar a mano para simular una fuente que quedó sin nada.',
+        actor: 'test',
+      }),
+    );
+    await admin.query("UPDATE sources SET content = '' WHERE id = $1", [vacia.id]);
+    const r = await withTenant(admin, tenant, (c) =>
+      reindexarPendientes(c, tenant, { embed: fakeEmbed }, 10),
+    );
+    expect(r.listas).toBeGreaterThanOrEqual(1);
+    expect(r.fallidas).toBeGreaterThanOrEqual(1);
+    const despues = await withTenant(admin, tenant, (c) => listSources(c, tenant));
+    expect(despues.find((f) => f.id === buena.id)?.status).toBe('active');
+    expect(despues.find((f) => f.id === vacia.id)?.status).toBe('failed');
+    for (const id of [buena.id, vacia.id])
+      await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: id, actor: 'test' }));
   });
 });

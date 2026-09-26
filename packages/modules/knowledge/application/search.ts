@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { hashQuery, toVectorLiteral } from '../domain/chunking';
 import type { EmbedPort } from './embeddings';
-import { googleEmbedPort } from './embeddings';
+import { nvidiaEmbedPort } from './embeddings';
 
 // El retrieval (#51): top-K por coseno SOLO sobre fuentes vigentes, con la
 // cita a la fuente SIEMPRE — que la IA responda con lo que el negocio dice.
@@ -27,7 +27,7 @@ const CACHE_TTL = "interval '1 hour'";
 export async function searchKnowledge(
   client: PoolClient,
   input: { tenantId: string; query: string; k?: number },
-  embedPort: EmbedPort = googleEmbedPort(),
+  embedPort: EmbedPort = nvidiaEmbedPort(),
 ): Promise<KnowledgeResult> {
   const k = input.k ?? 4;
   const query = input.query?.trim() ?? '';
@@ -48,15 +48,17 @@ export async function searchKnowledge(
     return { hits: cache.rows[0].results as KnowledgeHit[], cached: true, expiredSources };
   }
 
-  const [vector] = await embedPort.embed([query]);
+  // 'pregunta', no 'pasaje': el modelo es asimétrico y con el rol errado los
+  // puntajes se aplastan hasta que el orden lo decide el azar (#502).
+  const [vector] = await embedPort.embed([query], 'pregunta');
   const r = await client.query(
     `SELECT c.content, c.question, s.id AS source_id, s.name AS source_name,
-            1 - (c.embedding <=> $2::vector) AS score
+            1 - (c.embedding <=> $2::halfvec) AS score
        FROM chunks c
        JOIN sources s ON s.id = c.source_id AND s.tenant_id = c.tenant_id
       WHERE c.tenant_id = $1 AND s.status = 'active'
         AND (s.valid_until IS NULL OR s.valid_until > now())
-      ORDER BY c.embedding <=> $2::vector
+      ORDER BY c.embedding <=> $2::halfvec
       LIMIT $3`,
     [input.tenantId, toVectorLiteral(vector), k],
   );

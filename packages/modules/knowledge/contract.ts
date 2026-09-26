@@ -7,15 +7,25 @@ export {
   deleteSource,
   expireSources,
   tenantsWithExpirable,
+  reindexarPendientes,
+  hayQueReindexar,
   parseCatalog,
 } from './application/sources';
-export type { Source, SourceKind, AddSourceInput, ProcessPorts } from './application/sources';
+export type {
+  Source,
+  SourceKind,
+  AddSourceInput,
+  ProcessPorts,
+  Reindexacion,
+} from './application/sources';
 export { searchKnowledge, getProduct, knowledgeContext } from './application/search';
 export type { KnowledgeHit, KnowledgeResult, ProductHit } from './application/search';
 export {
   googleEmbedPort,
+  nvidiaEmbedPort,
+  DIMENSIONES,
   geminiPdfTextPort,
   embeddingsAvailable,
 } from './application/embeddings';
-export type { EmbedPort, PdfTextPort, UrlTextPort } from './application/embeddings';
+export type { EmbedPort, PdfTextPort, UrlTextPort, RolDelTexto } from './application/embeddings';
 export { splitIntoChunks, stripHtml, hashQuery } from './domain/chunking';

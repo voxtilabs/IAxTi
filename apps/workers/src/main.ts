@@ -47,7 +47,12 @@ import { sincronizarPlantillas } from './plantillas-sync';
 import { createZavuProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
-import { expireSources, tenantsWithExpirable } from '@iaxti/module-knowledge';
+import {
+  expireSources,
+  tenantsWithExpirable,
+  reindexarPendientes,
+  embeddingsAvailable,
+} from '@iaxti/module-knowledge';
 import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
@@ -349,6 +354,39 @@ function start(): void {
             if (total > 0) console.log(`scheduled: ${total} fuentes de conocimiento vencidas`);
             return { expired: total };
           }
+          // Reindexación del conocimiento (#502): al cambiar de modelo de
+          // embeddings los vectores viejos no sirven, y las fuentes quedan en
+          // 'processing'. Esto es lo que las vuelve a dejar contestando.
+          case 'knowledge.reindex': {
+            if (!embeddingsAvailable()) {
+              // Sin llave no hay nada que reintentar y las fuentes se quedan
+              // en 'processing', que es la verdad. Lo decimos una vez por
+              // pasada en vez de llenar el log de intentos.
+              console.log('scheduled: reindexación en espera — falta GLM_API_KEY');
+              return { skipped: true };
+            }
+            // Los negocios salen de `tenants`, que no filtra por tenant; lo
+            // que toca `sources` corre adentro de withTenant. Barrerlos todos
+            // de una consulta suelta funcionaría hoy sólo porque el rol es
+            // superusuario, y se quedaría en cero el día que deje de serlo
+            // (#370). Mismo patrón que el barrido de vigencias.
+            const negocios = await tenantsWithExpirable(pool);
+            let listas = 0;
+            let fallidas = 0;
+            let quedanMas = false;
+            for (const tenantId of negocios) {
+              const r = await withTenant(pool, tenantId, (c) => reindexarPendientes(c, tenantId));
+              listas += r.listas;
+              fallidas += r.fallidas;
+              quedanMas = quedanMas || r.quedanMas;
+            }
+            if (listas + fallidas > 0) {
+              console.log(
+                `scheduled: reindexación — ${listas} fuentes listas, ${fallidas} fallidas${quedanMas ? ', quedan más' : ''}`,
+              );
+            }
+            return { listas, fallidas, quedanMas };
+          }
           default:
             console.log(`scheduled: job ${job.name} procesado`);
             return { ok: true };
@@ -381,6 +419,15 @@ function start(): void {
         'knowledge.expire',
         { moduleId: 'knowledge' },
         { repeat: { pattern: '30 * * * *', tz: 'America/Santiago' } },
+      ),
+      // Cada cinco minutos (#502). Va seguido porque mientras haya fuentes
+      // sin indexar el negocio tiene la IA sin conocimiento; y no más
+      // seguido porque el barrido pasa por todos los negocios y cada fuente
+      // reindexada le paga al proveedor.
+      scheduled.add(
+        'knowledge.reindex',
+        { moduleId: 'knowledge' },
+        { repeat: { every: 300_000 } },
       ),
       scheduled.add(
         'automations.sweep',
