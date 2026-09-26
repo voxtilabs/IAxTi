@@ -88,6 +88,11 @@ export { Separator } from './ui/separator';
 
 export { Avisos, AvisoResultado, toast } from './ui/avisos';
 export { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from './ui/command';
+// AI Elements del AI SDK de Vercel, tematizados Pulso (#493). Vienen del
+// registro oficial: no están escritos acá, solo se les cambiaron los tokens.
+export { Conversation, ConversationContent, ConversationScrollButton } from './ui/conversation';
+export { Message, MessageContent } from './ui/message';
+export { Loader } from './ui/loader';
 
 export { MarcaJelly } from './marca-jelly';
 export { GraficoSeries, GraficoCierre } from './grafico-series';

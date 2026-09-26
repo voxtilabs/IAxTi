@@ -257,6 +257,55 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgenteGeneralController_aplicar": {
+    "metodo": "POST",
+    "ruta": "/v1/agente-general/aplicar",
+    "resumen": "Aplica la acción que el Agente General dejó propuesta",
+    "permiso": "agents.use",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "herramienta": {
+          "type": "string"
+        },
+        "argumentos": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "AgenteGeneralController_conversar": {
+    "metodo": "POST",
+    "ruta": "/v1/agente-general",
+    "resumen": "Le habla al Agente General, que configura el negocio conversando",
+    "permiso": "agents.use",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "turnos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "AgentsController_configuradorAplicar": {
     "metodo": "POST",
     "ruta": "/v1/agents/configurador/{pid}/aplicar",

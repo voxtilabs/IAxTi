@@ -17,6 +17,14 @@ export const TASKS = [
   // modelo se le contesta a él, aparte de con cuál se le contesta a sus
   // clientes — y porque su costo se lee separado en el consumo.
   'analizar',
+  // El Agente General (#493, ADR-0025): configura el producto conversando,
+  // con TODAS las herramientas de la API. Tarea propia por tres razones y
+  // ninguna es estética: usa el modelo que más razona (elegir mal una
+  // herramienta entre 195 es peor que responder lento), necesita un tope de
+  // salida grande porque hay varios pasos antes de la respuesta, y su costo
+  // se lee SEPARADO del de los asistentes que atienden clientes — es gasto
+  // de configuración, no de atención.
+  'configuracion_conversada',
 ] as const;
 export type AgentTask = (typeof TASKS)[number];
 
@@ -73,6 +81,7 @@ export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   resumir: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
   transcribir: { provider: 'google', model: 'gemini-flash-latest' },
   analizar: { provider: 'glm', model: 'z-ai/glm-5.3' },
+  configuracion_conversada: { provider: 'glm', model: 'z-ai/glm-5.3' },
 };
 
 /**
@@ -105,6 +114,10 @@ export const DEFAULT_TASK_OUTPUT_TOKENS: Record<AgentTask, number> = {
   // pedir el catálogo, pedir la métrica, a veces compararla. El tope se
   // reparte entre esos pasos y la respuesta final.
   analizar: 2000,
+  // Varios pasos antes de contestar: buscar entre 195 herramientas, a veces
+  // mirar un módulo, y preparar la acción. El tope se reparte entre todo
+  // eso y la respuesta final, que además explica qué va a hacer.
+  configuracion_conversada: 4000,
 };
 
 export interface IaSettings {
@@ -114,6 +127,8 @@ export interface IaSettings {
   /** El modelo MÁS BARATO configurado (#52): con la cuota al 100 %, assist
    *  sigue con este si existe; sin él, se corta con aviso claro. */
   economico: TaskModel | null;
+  /** El proveedor único que el negocio pidió, si pidió uno. */
+  soloProveedor: Provider | null;
 }
 
 /**
@@ -166,14 +181,70 @@ export function proveedorPermitidoParaTarea(provider: string, task: AgentTask): 
   return SOBREVIVE_A_LA_REDACCION.has(task);
 }
 
+/**
+ * El respaldo por proveedor, para el negocio que fija UNO solo.
+ *
+ * Dos gamas y no una lista por tarea: lo que distingue a `configurar` de
+ * `clasificar` es cuánto tiene que razonar, y eso se mantiene igual si el
+ * proveedor cambia. Una lista tarea-por-tarea habría que ampliarla cada vez
+ * que se agrega una tarea, que es exactamente el error que esto viene a
+ * arreglar.
+ */
+const RESPALDO_POR_PROVEEDOR: Record<string, { liviano: string; pesado: string }> = {
+  google: { liviano: 'gemini-flash-latest', pesado: 'gemini-pro-latest' },
+  anthropic: { liviano: 'claude-haiku-4-5-20251001', pesado: 'claude-haiku-4-5-20251001' },
+  glm: { liviano: 'z-ai/glm-5.3-flash', pesado: 'z-ai/glm-5.3' },
+};
+
+/** Las que razonan de verdad: van con el modelo de gama alta. */
+const TAREAS_PESADAS = new Set<AgentTask>(['configurar', 'analizar', 'configuracion_conversada']);
+
 export function iaSettings(settings: Record<string, unknown> | null | undefined): IaSettings {
   const raw = (settings?.ia ?? {}) as Partial<{
     tasks: Partial<Record<AgentTask, Partial<TaskModel>>>;
     redactPII: boolean;
     economico: Partial<TaskModel> | null;
+    soloProveedor: string | null;
   }>;
+  /**
+   * «Solo este proveedor», para todo (resguardo de ADR-0025 §7).
+   *
+   * Era configuración tarea por tarea, y así se rompía solo: el día que el
+   * producto agrega una tarea —pasó con `configuracion_conversada`—, el
+   * negocio que había pedido solo Gemini empezaba a mandarle datos al otro
+   * proveedor SIN QUE NADIE CAMBIARA NADA. Un cliente que pide un proveedor
+   * por escrito no puede depender de que alguien se acuerde de ampliarle la
+   * lista en el próximo despliegue.
+   *
+   * Puesto acá, cubre las tareas que existen hoy y las que se agreguen.
+   */
+  const soloProveedor =
+    raw.soloProveedor && PROVIDERS.includes(raw.soloProveedor as Provider)
+      ? (raw.soloProveedor as Provider)
+      : null;
   const tasks = {} as Record<AgentTask, TaskModel>;
   for (const task of TASKS) {
+    if (soloProveedor) {
+      // Si la tarea no la acepta —`transcribir` con un proveedor de solo
+      // texto—, cae al por defecto: es capacidad, no preferencia, y fallar
+      // en cada audio recibido sería peor que respetar la preferencia.
+      if (proveedorPermitidoParaTarea(soloProveedor, task)) {
+        const gama = RESPALDO_POR_PROVEEDOR[soloProveedor];
+        const configurado = raw.tasks?.[task];
+        tasks[task] = {
+          provider: soloProveedor,
+          // Un modelo elegido a mano se respeta si es de ESE proveedor.
+          model:
+            configurado?.provider === soloProveedor && configurado.model?.trim()
+              ? configurado.model.trim()
+              : (TAREAS_PESADAS.has(task) ? gama?.pesado : gama?.liviano) ??
+                DEFAULT_TASK_MODELS[task].model,
+        };
+        continue;
+      }
+      tasks[task] = { ...DEFAULT_TASK_MODELS[task] };
+      continue;
+    }
     const t = raw.tasks?.[task];
     tasks[task] = {
       provider:
@@ -199,10 +270,14 @@ export function iaSettings(settings: Record<string, unknown> | null | undefined)
     raw.economico &&
     PROVIDERS.includes(raw.economico.provider as Provider) &&
     !SIN_GARANTIA_DE_DATOS.has(raw.economico.provider as string) &&
-    raw.economico.model?.trim()
+    raw.economico.model?.trim() &&
+    // Con un proveedor único fijado, el económico tiene que ser de ÉL: si no,
+    // la cuota al 100 % sería la puerta de atrás para mandarle datos al que
+    // el negocio pidió no usar.
+    (!soloProveedor || raw.economico.provider === soloProveedor)
       ? { provider: raw.economico.provider as Provider, model: raw.economico.model.trim() }
       : null;
-  return { tasks, redactPII: raw.redactPII !== false, economico };
+  return { tasks, redactPII: raw.redactPII !== false, economico, soloProveedor };
 }
 
 /**

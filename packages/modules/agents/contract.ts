@@ -106,6 +106,21 @@ export type { ResultadoHerramienta, DepsHerramientas } from './application/herra
 export { herramientasExpuestas, ESQUEMAS } from './application/herramientas-expuestas';
 export type { HerramientaExpuesta } from './application/models';
 // Por qué NO contestó el proveedor, con nombre y con qué hacer (#402).
+// El Agente General (#493, ADR-0025): configura el producto conversando.
+export {
+  conversarConElAgenteGeneral,
+  aplicarPropuesta,
+  modeloDelAgenteGeneral,
+  repartirArgumentos,
+  CuotaDeIaAgotada,
+} from './application/agente-general';
+export type {
+  RespuestaDelAgente,
+  PasoDelAgente,
+  PropuestaDelAgente,
+  DepsDelAgenteGeneral,
+} from './application/agente-general';
+
 // El catálogo de herramientas del Agente General (#492, ADR-0025). La
 // mitad generada del código, la mitad curada por una persona.
 export { CATALOGO, herramientasPara, nombreDeHerramienta, tratoDe } from './application/catalogo';

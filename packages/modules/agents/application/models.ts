@@ -26,12 +26,31 @@ export interface HerramientaExpuesta {
 export interface GenerateArgs {
   system?: string;
   prompt: string;
+  /**
+   * Una CONVERSACIÓN en vez de un prompt suelto (#493).
+   *
+   * El Agente General necesita el hilo: sin los turnos anteriores, "sí,
+   * hazlo" no significa nada. Cuando vienen, manda esto y `prompt` se
+   * ignora — sigue siendo obligatorio en el tipo porque todo lo demás del
+   * producto lo usa, y volverlo opcional obligaría a tocar siete llamadas
+   * que están bien.
+   */
+  mensajes?: Array<{ role: 'user' | 'assistant'; content: string }>;
   maxOutputTokens?: number;
   /**
    * Si vienen, el modelo puede pedirlas y la respuesta se arma con lo que
    * devuelvan. Sin herramientas, una sola llamada como siempre.
    */
   tools?: HerramientaExpuesta[];
+  /**
+   * Cuántas veces puede pedir herramientas antes de tener que contestar.
+   *
+   * Cuatro alcanzan para pedir dos datos y responder, y es el default de
+   * todo el producto. El Agente General pide más: buscar entre 195
+   * herramientas, mirar un módulo y preparar la acción son tres pasos antes
+   * de escribir la primera palabra.
+   */
+  maxSteps?: number;
 }
 
 export interface GenerateResult {
@@ -118,7 +137,8 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
       const res = await generateText({
         model: languageModel(provider, model),
         system: args.system,
-        prompt: args.prompt,
+        // Un hilo si lo hay; si no, el prompt suelto de siempre.
+        ...(args.mensajes?.length ? { messages: args.mensajes } : { prompt: args.prompt }),
         maxOutputTokens: args.maxOutputTokens ?? 1024,
         ...(conHerramientas
           ? {
@@ -127,7 +147,7 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
               // se obsesiona con una herramienta pide lo mismo para
               // siempre y la conversación se queda esperando. Cuatro pasos
               // alcanzan para pedir dos datos y responder.
-              stopWhen: stepCountIs(4),
+              stopWhen: stepCountIs(args.maxSteps ?? 4),
             }
           : {}),
       });

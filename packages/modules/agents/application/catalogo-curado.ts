@@ -46,6 +46,10 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   McpController_rpc: 'Es la puerta de ENTRADA de una IA de afuera; el agente usándola se llama a sí mismo (#419).',
   AgentsController_run: 'Correr un agente desde un agente es recursión sin tope (#49).',
   AgentsController_preguntar: 'Ídem: es la conversación con el asistente, no una herramienta suya.',
+  AgenteGeneralController_conversar:
+    'Es la puerta por la que el Agente General habla: dársela como herramienta es él llamándose a sí mismo (#493).',
+  AgenteGeneralController_aplicar:
+    'Aplicar una propuesta es el acto de la PERSONA que aprueba; el agente haciéndolo se saltaría su propio visto bueno (#493).',
 
   // Las tres que solo piden SESIÓN, sin tenant ni permiso: son del acto de
   // entrar, no del negocio. Sin permiso no hay cómo filtrarlas por quien

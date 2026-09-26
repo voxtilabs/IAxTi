@@ -79,17 +79,50 @@ describe('la configuración del tenant, con GLM abierto', () => {
     }
   });
 
-  it('«solo Gemini» por tenant sigue funcionando: resguardo de ADR-0025', () => {
-    // Al cliente que lo pida se le configura task por task y se respeta.
+  it('«solo Gemini» cubre TODAS las tareas, incluidas las que no existían', () => {
+    // Era configuración tarea por tarea, y así se rompía solo: al agregar
+    // `configuracion_conversada` (#493), el negocio que había pedido solo
+    // Gemini pasaba a GLM en esa tarea SIN QUE NADIE CAMBIARA NADA. Un
+    // cliente que pide un proveedor por escrito no puede depender de que
+    // alguien se acuerde de ampliarle una lista en el próximo despliegue.
+    const s = iaSettings({ ia: { soloProveedor: 'google' } });
+    for (const [tarea, tm] of Object.entries(s.tasks)) {
+      expect(tm.provider, tarea).toBe('google');
+      // Y con un modelo DE ESE proveedor: `z-ai/glm-5.3` apuntando a Google
+      // sería un 404 en cada corrida.
+      expect(tm.model, tarea).toMatch(/gemini/);
+    }
+    expect(s.soloProveedor).toBe('google');
+  });
+
+  it('las que razonan quedan en la gama alta del proveedor pedido', () => {
+    const s = iaSettings({ ia: { soloProveedor: 'google' } });
+    expect(s.tasks.configuracion_conversada.model).toContain('pro');
+    expect(s.tasks.configurar.model).toContain('pro');
+    expect(s.tasks.clasificar.model).toContain('flash');
+  });
+
+  it('un modelo elegido a mano se respeta si es de ese proveedor', () => {
     const s = iaSettings({
       ia: {
-        tasks: Object.fromEntries(
-          ['clasificar', 'sugerir', 'responder', 'configurar', 'conocer', 'resumir', 'analizar', 'transcribir'].map(
-            (t) => [t, { provider: 'google', model: 'gemini-flash-latest' }],
-          ),
-        ),
+        soloProveedor: 'google',
+        tasks: { sugerir: { provider: 'google', model: 'gemini-2.5-flash' } },
       },
     });
-    for (const t of Object.values(s.tasks)) expect(t.provider).toBe('google');
+    expect(s.tasks.sugerir.model).toBe('gemini-2.5-flash');
+    // Y uno de OTRO proveedor se ignora: es lo que el negocio pidió no usar.
+    const otro = iaSettings({
+      ia: { soloProveedor: 'google', tasks: { sugerir: { provider: 'glm', model: 'z-ai/glm-5.3' } } },
+    });
+    expect(otro.tasks.sugerir.provider).toBe('google');
+  });
+
+  it('con proveedor único, el económico no puede ser de otro', () => {
+    // La cuota al 100 % sería la puerta de atrás para mandarle datos al que
+    // el negocio pidió no usar.
+    const s = iaSettings({
+      ia: { soloProveedor: 'google', economico: { provider: 'glm', model: 'z-ai/glm-5.3-flash' } },
+    });
+    expect(s.economico).toBeNull();
   });
 });
