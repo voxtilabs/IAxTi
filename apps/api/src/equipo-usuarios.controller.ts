@@ -25,7 +25,7 @@ import { sendNotificationEmail } from '@iaxti/module-notifications';
 import { z } from 'zod';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo } from './validar';
-import { permisosDelActor } from './authz/can';
+import { nadiePorEncimaDeSiMismo } from './authz/no-por-encima';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
@@ -66,41 +66,7 @@ const CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  * por encima de quien invita es ROLE_FORBIDDEN, los dos más abajo con su
  * propio código.
  */
-/**
- * Los permisos que deciden QUIÉN PUEDE QUÉ, o que mueven plata y configuración
- * del negocio (#556).
- *
- * Son los únicos que se comparan al invitar, y la primera versión de esto
- * comparaba el conjunto ENTERO — lo que rompía el caso que la delegación existe
- * para servir. Un rol propio angosto, «Jefe de local» con `users.invite` y poco
- * más, no podía invitar a NADIE: cualquier rol asignable tiene más permisos que
- * él, así que hasta un USER quedaba «por encima». Y una API key con scopes
- * `users.read` + `users.invite` tampoco, por lo mismo. Delegar el onboarding y
- * que el delegado no pueda incorporar a nadie es dejar la función sin sentido.
- *
- * Lo que de verdad hay que impedir es otra cosa: que alguien use la invitación
- * para crear una cuenta capaz de RE-REPARTIR poder, o de tocar el dinero y la
- * configuración del negocio. El «Jefe de local» puede incorporar un vendedor;
- * lo que no puede es incorporar a alguien que después reparta roles.
- *
- * `roles.read`, `users.read` y `tenant.read` NO están: leer quién es quién no
- * reparte nada, y meterlos volvería a romper la delegación.
- *
- * Hay una guarda que falla el PR si aparece un permiso nuevo de estas familias
- * y no se decide si manda o no: una lista curada se muere sola.
- */
-export const MANDAN = new Set([
-  'roles.manage',
-  'users.invite',
-  'users.manage',
-  'tenant.settings',
-  'tenant.billing',
-  'apikeys.manage',
-  'payments.manage_providers',
-  'agents.configure',
-  'channels.manage',
-  'webhooks.manage',
-]);
+
 
 const NuevaInvitacion = z.object({
   email: z
@@ -208,23 +174,14 @@ export class EquipoUsuariosController {
        * Para los roles base no cambia nada: un ADMIN tiene todo lo que no es
        * `platform.*`, así que cualquier rol del negocio es un subconjunto suyo.
        */
-      const mios = await permisosDelActor(c, actor);
-      // El catálogo filtra los dos lados: los permisos de un rol propio salen
-      // crudos de la base, y un permiso renombrado en un `module.yaml` dejaría
-      // en la fila un string que nadie puede tener — así ni el ADMIN podría
-      // invitar a ese rol, con un mensaje que no explica por qué (#556).
-      const catalogo = new Set(registry.permissionsCatalog().keys());
-      const deMas = destino.permissions
-        .filter((p) => catalogo.has(p))
-        .filter((p) => MANDAN.has(p) && !mios.has(p));
-      if (deMas.length > 0) {
-        throw new BadRequestException({
-          code: 'ROLE_FORBIDDEN',
-          message:
-            `El rol "${rol}" puede administrar cosas que tú no administras, así que no puedes ` +
-            'invitar a alguien con ese rol. Pídeselo a quien administra el negocio.',
-        });
-      }
+      // La regla vive en `authz/no-por-encima.ts` y no acá (#567): había tres
+      // puertas más al mismo sitio en `roles.controller.ts`, y copiarla habría
+      // dejado cuatro versiones que se separan.
+      await nadiePorEncimaDeSiMismo(c, actor, {
+        rol,
+        permisos: destino.permissions,
+        accion: 'invitar a alguien con ese rol',
+      });
 
       const yaEsta = await c.query(
         `SELECT 1 FROM invitations

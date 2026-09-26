@@ -23,6 +23,8 @@ import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
+import { nadiePorEncimaDeSiMismo } from './authz/no-por-encima';
+import type { PoolClient } from 'pg';
 
 // Roles personalizados (#73): "recepcionista", "contador" y "socio" —
 // clonar un base y editar permisos del catálogo. Los base, inmutables.
@@ -98,6 +100,18 @@ export class RolesController {
   async create(@Req() request: WithUser, @Body() body: { name?: string; cloneFrom?: string }) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
+      // Clonar ADMIN es conseguir los permisos de ADMIN, aunque el rol nuevo
+      // todavía no esté asignado a nadie: después basta un `assign` (#567).
+      // Si el origen no existe, se deja pasar: ese error lo dice createCustomRole
+      // con su propio mensaje, y adelantarlo acá diría otra cosa.
+      const origen = await rolPorNombre(c, actor.tenantId, body?.cloneFrom ?? '');
+      if (origen) {
+        await nadiePorEncimaDeSiMismo(c, actor, {
+          rol: origen.name,
+          permisos: origen.permissions,
+          accion: 'clonar ese rol',
+        });
+      }
       try {
         return await createCustomRole(c, {
           tenantId: actor.tenantId,
@@ -119,6 +133,17 @@ export class RolesController {
   async update(@Req() request: WithUser, @Param('id') id: string, @Body() body: { permissions?: string[] }) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
+      // Se comprueba el conjunto QUE SE PIDE, no el que el rol tiene hoy: el
+      // agujero era agregarse `tenant.billing` a su propio rol (#567). Y de paso
+      // esto también impide EDITAR un rol más poderoso que uno, que es correcto:
+      // si no puedes repartir eso, tampoco decides qué reparte.
+      const pedidos = body?.permissions ?? [];
+      const rol = await rolPorId(c, actor.tenantId, id);
+      await nadiePorEncimaDeSiMismo(c, actor, {
+        rol: rol?.name ?? 'ese rol',
+        permisos: [...pedidos, ...(rol?.permissions ?? [])],
+        accion: 'cambiar sus permisos',
+      });
       try {
         return await updateCustomRolePermissions(c, {
           tenantId: actor.tenantId,
@@ -143,6 +168,21 @@ export class RolesController {
   ) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
+      // Esta era la peor de las tres (#567): con solo `roles.manage` se podía
+      // asignar cualquier rol a cualquiera, incluido a uno mismo. Y a diferencia
+      // de la invitación —que necesita un correo, un enlace y que alguien
+      // acepte— acá el cambio es inmediato y no hay a quién preguntarle.
+      //
+      // Da lo mismo si el destinatario es otra persona o uno mismo: lo que se
+      // compara son los permisos del ROL contra los de quien lo reparte.
+      const destino = await rolPorId(c, actor.tenantId, body.roleId);
+      if (destino) {
+        await nadiePorEncimaDeSiMismo(c, actor, {
+          rol: destino.name,
+          permisos: destino.permissions,
+          accion: 'asignar ese rol',
+        });
+      }
       try {
         await assignRole(c, {
           tenantId: actor.tenantId,
@@ -157,4 +197,22 @@ export class RolesController {
       }
     });
   }
+}
+
+/**
+ * Los roles asignables de este negocio, por nombre y por id.
+ *
+ * Se leen con `listRoles`, que ya excluye SUPERADMIN y filtra por el catálogo:
+ * es el MISMO conjunto que se puede asignar, así que preguntarle a otra cosa
+ * abriría la diferencia entre lo que se comprueba y lo que se reparte (#567).
+ */
+async function rolPorNombre(c: PoolClient, tenantId: string, nombre: string) {
+  if (!nombre.trim()) return null;
+  const catalogo = new Set(registry.permissionsCatalog().keys());
+  return (await listRoles(c, tenantId, catalogo)).find((r) => r.name === nombre) ?? null;
+}
+
+async function rolPorId(c: PoolClient, tenantId: string, id: string) {
+  const catalogo = new Set(registry.permissionsCatalog().keys());
+  return (await listRoles(c, tenantId, catalogo)).find((r) => r.id === id) ?? null;
 }
