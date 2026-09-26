@@ -14,7 +14,7 @@ import {
   hayQueReindexar,
 } from '../application/sources';
 import { getProduct, knowledgeContext, searchKnowledge } from '../application/search';
-import type { EmbedPort, RolDelTexto } from '../application/embeddings';
+import type { EmbedPort, RolDelTexto, PdfTextPort } from '../application/embeddings';
 import { DIMENSIONES } from '../application/embeddings';
 
 const ADMIN_URL =
@@ -357,5 +357,135 @@ describe('reindexación tras cambiar de modelo (#502)', () => {
     expect(despues.find((f) => f.id === vacia.id)?.status).toBe('failed');
     for (const id of [buena.id, vacia.id])
       await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: id, actor: 'test' }));
+  });
+});
+
+describe('un PDF se reindexa desde su archivo guardado (#522)', () => {
+  const pdfFalso: PdfTextPort = {
+    async extract() {
+      return 'Corte de caballero 12.000. Barba 6.000. Atendemos de lunes a sabado.';
+    },
+  };
+
+  it('el texto sale del archivo bajado por su llave, sin volver a subirlo', async () => {
+    // `r2_key` se escribía desde el principio y NO se leía nunca: una fuente
+    // PDF no se podía reprocesar, y de hecho no se podía ni crear porque la
+    // API rechazaba `kind: 'pdf'`. Esto es lo que cierra el círculo.
+    const fuente = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'pdf',
+        name: 'Lista de precios',
+        r2Key: `${tenant}/conocimiento/abc-precios.pdf`,
+        actor: 'test',
+      }),
+    );
+    let pedida: string | null = null;
+    const r = await withTenant(admin, tenant, (c) =>
+      processSource(
+        c,
+        { tenantId: tenant, sourceId: fuente.id },
+        {
+          embed: fakeEmbed,
+          pdf: pdfFalso,
+          bajarArchivo: async (llave) => {
+            pedida = llave;
+            return new Uint8Array([1, 2, 3]);
+          },
+        },
+      ),
+    );
+    expect(r.status).toBe('active');
+    expect(pedida, 'tiene que pedir EXACTAMENTE la llave guardada').toBe(
+      `${tenant}/conocimiento/abc-precios.pdf`,
+    );
+    const hallado = await withTenant(admin, tenant, (c) =>
+      searchKnowledge(c, { tenantId: tenant, query: 'cuanto sale la barba' }, fakeEmbed),
+    );
+    expect(hallado.hits.map((h) => h.content).join(' ')).toContain('Barba');
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+    );
+  });
+
+  it('sin quien baje el archivo, lo dice en vez de quedarse esperando', async () => {
+    const fuente = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'pdf',
+        name: 'Sin puerto',
+        r2Key: `${tenant}/conocimiento/def-otro.pdf`,
+        actor: 'test',
+      }),
+    );
+    const r = await withTenant(admin, tenant, (c) =>
+      processSource(c, { tenantId: tenant, sourceId: fuente.id }, { embed: fakeEmbed }),
+    );
+    expect(r.status).toBe('failed');
+    expect(r.error).toContain('bajar el PDF guardado');
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+    );
+  });
+
+  it('un PDF escaneado sin texto lo dice con lo que hay que hacer', async () => {
+    // Un escaneo sin OCR devuelve vacío. Si no se dijera, el negocio creería
+    // que subió su lista de precios y la IA no encontraría nada — y el motivo
+    // no sería el producto.
+    const vacio: PdfTextPort = { async extract() { return '   \n  '; } };
+    const fuente = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'pdf',
+        name: 'Escaneo',
+        r2Key: `${tenant}/conocimiento/ghi-escaneo.pdf`,
+        actor: 'test',
+      }),
+    );
+    const r = await withTenant(admin, tenant, (c) =>
+      processSource(
+        c,
+        { tenantId: tenant, sourceId: fuente.id },
+        { embed: fakeEmbed, pdf: vacio, bajarArchivo: async () => new Uint8Array([1]) },
+      ),
+    );
+    expect(r.status).toBe('failed');
+    expect(r.error).toContain('escaneo');
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+    );
+  });
+
+  it('el barrido de reindexación toma los PDF solo si sabe bajarlos', async () => {
+    // Sin el puerto, reintentar un PDF es gasto puro: no hay de dónde sacar
+    // su texto. Con el puerto, sí se reindexa.
+    const fuente = await withTenant(admin, tenant, (c) =>
+      addSource(c, {
+        tenantId: tenant,
+        kind: 'pdf',
+        name: 'Por reindexar',
+        r2Key: `${tenant}/conocimiento/jkl-otro.pdf`,
+        actor: 'test',
+      }),
+    );
+    expect(await withTenant(admin, tenant, (c) => hayQueReindexar(c, tenant))).toBe(false);
+    expect(await withTenant(admin, tenant, (c) => hayQueReindexar(c, tenant, true))).toBe(true);
+
+    const sinPuerto = await withTenant(admin, tenant, (c) =>
+      reindexarPendientes(c, tenant, { embed: fakeEmbed }),
+    );
+    expect(sinPuerto.listas + sinPuerto.fallidas).toBe(0);
+
+    const conPuerto = await withTenant(admin, tenant, (c) =>
+      reindexarPendientes(c, tenant, {
+        embed: fakeEmbed,
+        pdf: pdfFalso,
+        bajarArchivo: async () => new Uint8Array([1]),
+      }),
+    );
+    expect(conPuerto.listas).toBe(1);
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+    );
   });
 });

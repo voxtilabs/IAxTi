@@ -131,6 +131,17 @@ export interface ProcessPorts {
   embed?: EmbedPort;
   pdf?: PdfTextPort;
   urlFetch?: UrlTextPort;
+  /**
+   * Baja el PDF de donde esté guardado, por su `r2_key` (#522).
+   *
+   * Lo inyecta quien llama porque este módulo no conoce R2 ni firma nada: la
+   * llave y la firma son de `core`, y el módulo solo pide «tráeme esto».
+   *
+   * Hasta ahora `r2_key` se escribía y NO se leía nunca, así que una fuente
+   * PDF no se podía reprocesar sin volver a subir el archivo — y de hecho no
+   * se podía ni crear, porque la API rechazaba `kind: 'pdf'`.
+   */
+  bajarArchivo?: (r2Key: string) => Promise<Uint8Array>;
 }
 
 /**
@@ -173,8 +184,30 @@ export async function processSource(
         : await (await fetch(source.url)).text();
       piezas = splitIntoChunks(stripHtml(html)).map((content) => ({ content }));
     } else if (source.kind === 'pdf') {
-      if (!input.pdfBytes) throw new Error('Falta el contenido del PDF para procesar.');
-      const texto = await (ports.pdf ?? geminiPdfTextPort()).extract({ bytes: input.pdfBytes });
+      // Los bytes vienen del caller (recién subido) o se bajan por su llave.
+      // Esto último es lo que permite REINDEXAR un PDF sin volver a subirlo,
+      // que es lo que faltaba: el archivo ya estaba guardado y nadie lo leía.
+      const bytes =
+        input.pdfBytes ??
+        (source.r2_key && ports.bajarArchivo
+          ? await ports.bajarArchivo(source.r2_key as string)
+          : null);
+      if (!bytes) {
+        throw new Error(
+          source.r2_key
+            ? 'No pudimos bajar el PDF guardado para volver a leerlo.'
+            : 'Falta el archivo del PDF para procesar.',
+        );
+      }
+      const texto = await (ports.pdf ?? geminiPdfTextPort()).extract({ bytes });
+      if (!texto.trim()) {
+        // Un PDF escaneado sin OCR devuelve vacío. Decirlo así importa: el
+        // negocio cree que subió su lista de precios y la IA no encuentra
+        // nada, y el motivo no es el producto.
+        throw new Error(
+          'De ese PDF no salió texto. Si es un escaneo o una foto, pega el contenido como texto.',
+        );
+      }
       piezas = splitIntoChunks(texto).map((content) => ({ content }));
     } else if (source.kind === 'faq') {
       const faqs = JSON.parse(source.content ?? '[]') as Array<{ q?: string; a?: string }>;
@@ -358,11 +391,10 @@ export interface Reindexacion {
  * bucle sobre todos los negocios en un solo job es la forma de que un
  * reintento salga carísimo. `quedanMas` le dice a quien lo llama que vuelva.
  *
- * Las fuentes PDF se quedan afuera a propósito: su texto se extrae del
- * archivo en el momento de subirlo y no se guarda, así que no hay de dónde
- * reindexarlas sin volver a subir el PDF. Hoy no existen —la API rechaza
- * `kind: 'pdf'`— y cuando existan, esto tiene que leer el archivo de R2 por
- * `r2_key`.
+ * Las fuentes PDF entran solo si se inyecta `bajarArchivo` (#522): su texto
+ * se extrae del archivo, no se guarda, y sin poder bajarlo de nuevo un
+ * reintento es gasto puro. Con el puerto puesto sí se reindexan, que es lo
+ * que antes era imposible — `r2_key` se escribía y no se leía nunca.
  */
 export async function reindexarPendientes(
   client: PoolClient,
@@ -370,12 +402,15 @@ export async function reindexarPendientes(
   ports: ProcessPorts = {},
   porTanda = 5,
 ): Promise<Reindexacion> {
+  // Los PDF entran solo si quien llama sabe bajarlos (#522): sin eso, su
+  // texto no se puede volver a extraer y reintentar sería gastar por nada.
   const pendientes = await client.query(
     `SELECT id FROM sources
-      WHERE tenant_id = $1 AND status = 'processing' AND kind <> 'pdf'
+      WHERE tenant_id = $1 AND status = 'processing'
+        AND (kind <> 'pdf' OR ($2 AND r2_key IS NOT NULL))
       ORDER BY created_at
-      LIMIT $2`,
-    [tenantId, porTanda + 1],
+      LIMIT $3`,
+    [tenantId, Boolean(ports.bajarArchivo), porTanda + 1],
   );
   const ids = pendientes.rows.slice(0, porTanda).map((r) => r.id as string);
   let listas = 0;
@@ -412,11 +447,17 @@ export async function reindexarPendientes(
  * barrido se hace como el de vigencias: los negocios salen de `tenants`, que
  * no filtra por tenant, y el trabajo se hace adentro.
  */
-export async function hayQueReindexar(client: PoolClient, tenantId: string): Promise<boolean> {
+export async function hayQueReindexar(
+  client: PoolClient,
+  tenantId: string,
+  conArchivos = false,
+): Promise<boolean> {
   const r = await client.query(
     `SELECT 1 FROM sources
-      WHERE tenant_id = $1 AND status = 'processing' AND kind <> 'pdf' LIMIT 1`,
-    [tenantId],
+      WHERE tenant_id = $1 AND status = 'processing'
+        AND (kind <> 'pdf' OR ($2 AND r2_key IS NOT NULL))
+      LIMIT 1`,
+    [tenantId, conArchivos],
   );
   return (r.rowCount ?? 0) > 0;
 }

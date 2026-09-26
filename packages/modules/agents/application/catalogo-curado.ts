@@ -32,6 +32,12 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PaymentWebhooksController_recibir:
     'Webhook de pagos: el agente podría dar por pagado un cobro que nadie pagó (#61).',
   WebchatController_config: 'La llama el widget del sitio del cliente, no una persona (#46).',
+
+  // Subir un archivo es de las manos de una persona, no de un agente (#522).
+  KnowledgeController_destinoDelPdf:
+    'Devuelve dónde poner un archivo que el agente no tiene: no puede elegir un PDF del computador de nadie (#522).',
+  KnowledgeController_crearDesdePdf:
+    'Registra un PDF YA subido; sin el paso de subir, el agente solo podría apuntar a archivos que no puso él (#522).',
   WebchatController_session: 'Ídem: abre la sesión del visitante anónimo (#46).',
   WebchatController_message: 'Ídem: entra un mensaje del visitante; fabricarlo sería lo mismo que el webhook (#46).',
   WebchatController_replies: 'Ídem: el sondeo del widget (#46).',

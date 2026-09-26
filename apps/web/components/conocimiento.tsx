@@ -18,6 +18,7 @@ import {
 } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
+import { SubirPdf } from './conocimiento-pdf';
 
 // Conocimiento (#51, SPEC §14): que la IA responda con lo que el negocio
 // DICE. Fuentes con vigencia, catálogo con precio/stock como campos, y la
@@ -76,7 +77,7 @@ export function Conocimiento() {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
   const [fuentes, setFuentes] = useState<FuenteDto[] | null>(null);
-  const [kind, setKind] = useState<'texto' | 'url' | 'faq' | 'catalogo'>('texto');
+  const [kind, setKind] = useState<FuenteDto['kind']>('texto');
   const [nombre, setNombre] = useState('');
   const [contenido, setContenido] = useState('');
   const [url, setUrl] = useState('');
@@ -215,6 +216,7 @@ export function Conocimiento() {
               <SelectItem value="faq">Preguntas frecuentes</SelectItem>
               <SelectItem value="catalogo">Catálogo (CSV)</SelectItem>
               <SelectItem value="url">Página web</SelectItem>
+              <SelectItem value="pdf">PDF (una lista, un menú, tus políticas)</SelectItem>
             </SelectContent>
           </Select>
           <Input
@@ -235,7 +237,11 @@ export function Conocimiento() {
             />
           </label>
         </div>
-        {kind === 'url' ? (
+        {kind === 'pdf' ? (
+          <div className="mt-3">
+            <SubirPdf alTerminar={() => void cargar()} />
+          </div>
+        ) : kind === 'url' ? (
           <Input
             aria-label="URL"
             className="mt-3"
@@ -253,18 +259,20 @@ export function Conocimiento() {
             onChange={(e) => setContenido(e.target.value)}
           />
         )}
-        <Button
-          className="mt-3"
-          disabled={guardando || !nombre.trim() || (kind === 'url' ? !url.trim() : !contenido.trim())}
-          onClick={() => void agregar()}
-          data-testid="agregar-fuente"
-        >
-          {guardando ? 'Indexando…' : 'Agregar e indexar'}
-        </Button>
-        <p className="mt-2 text-sm text-muted">
-          ¿Tienes un PDF? Por ahora pega su contenido como texto — la subida directa viene con el
-          onboarding.
-        </p>
+        {/* El PDF tiene su propio botón: se sube y se indexa en un paso, así
+            que un «Agregar e indexar» al lado sería un botón que no hace nada
+            (#522). Antes acá había un texto que decía que la subida directa
+            venía «con el onboarding» — ya llegó. */}
+        {kind !== 'pdf' && (
+          <Button
+            className="mt-3"
+            disabled={guardando || !nombre.trim() || (kind === 'url' ? !url.trim() : !contenido.trim())}
+            onClick={() => void agregar()}
+            data-testid="agregar-fuente"
+          >
+            {guardando ? 'Indexando…' : 'Agregar e indexar'}
+          </Button>
+        )}
       </div>
 
       <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
