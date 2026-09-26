@@ -32,9 +32,7 @@ import {
   updateStage,
 } from '@iaxti/module-crm';
 import type { DealFilters } from '@iaxti/module-crm';
-import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
-import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { actorCan } from './authz/can';
 import { apiPool } from './db';
@@ -51,50 +49,6 @@ function pool() {
 }
 
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
-
-/**
- * Los esquemas de entrada (#524), arriba y al lado de sus rutas.
- *
- * El mensaje va copiado tal cual estaba en el `if` que reemplazan: lo lee
- * alguien que está atendiendo a un cliente, no quien programa, y hay pruebas
- * que lo afirman.
- */
-
-/** El cuerpo de POST /deals. */
-const NuevaOportunidad = z.object({
-  // El MISMO mensaje en los dos campos porque antes eran un solo `if` con un
-  // solo texto, y el texto es el contrato. Cuál de los dos falta lo dice el
-  // `details`, que es lo que pinta el formulario.
-  //
-  // `contactId` va como texto y no como uuid a propósito: un id con forma
-  // rara hoy llega a la consulta y vuelve como DEAL_INVALID. Validarlo acá lo
-  // convertiría en VALIDATION_ERROR, y eso es mover el contrato.
-  contactId: textoRequerido('La oportunidad necesita contacto y título.'),
-  title: textoRequerido('La oportunidad necesita contacto y título.'),
-  // Sin pipeline, la ruta toma el primero del negocio (y si no hay, avisa con
-  // su propio código).
-  pipelineId: z.string().optional(),
-  value: z.number('El monto va en número.').optional(),
-});
-
-/** El cuerpo de POST /deals/:id/stage. */
-const CambioDeEtapa = z.object({
-  stageId: textoRequerido('Indica la etapa de destino.'),
-  // El motivo NO se exige acá: cuándo hace falta —retroceder, perder— lo sabe
-  // el módulo mirando el tipo de la etapa de destino, que el esquema no ve.
-  // Sigue saliendo como INVALID_MOVE.
-  reason: z.string().optional(),
-  lostReasonId: z.string().optional(),
-});
-
-/** El cuerpo de POST /saved-filters. */
-const FiltroGuardado = z.object({
-  name: textoRequerido('Ponle nombre al filtro para guardarlo.'),
-  // `view` queda como texto libre: la ruta normaliza a 'deals' cualquier cosa
-  // que no sea 'contacts', y una lista cerrada acá rechazaría lo que hoy pasa.
-  view: z.string().optional(),
-  filters: z.record(z.string(), z.unknown()).optional(),
-});
 
 /** Tablero y lista de oportunidades (#33, SPEC §10/§29). */
 @ApiTags('crm')
@@ -178,9 +132,16 @@ export class DealsController {
   @ApiOperation({ summary: 'Crea una oportunidad (el copiloto la sugiere, el humano decide)' })
   async create(
     @Req() request: WithUser,
-    @Cuerpo(NuevaOportunidad) body: z.infer<typeof NuevaOportunidad>,
+    @Body() body: { contactId?: string; pipelineId?: string; title?: string; value?: number },
   ) {
     const actor = actorOf(request);
+    if (!body?.contactId || !body?.title?.trim()) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La oportunidad necesita contacto y título.',
+        details: [{ field: !body?.contactId ? 'contactId' : 'title' }],
+      });
+    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       let pipelineId = body.pipelineId;
       if (!pipelineId) {
@@ -196,9 +157,9 @@ export class DealsController {
       try {
         return await createDeal(c, {
           tenantId: actor.tenantId,
-          contactId: body.contactId,
+          contactId: body.contactId!,
           pipelineId,
-          title: body.title,
+          title: body.title!.trim(),
           value: body.value,
           ownerId: actor.userId,
           actor: actor.userId,
@@ -216,15 +177,22 @@ export class DealsController {
   async move(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Cuerpo(CambioDeEtapa) body: z.infer<typeof CambioDeEtapa>,
+    @Body() body: { stageId?: string; reason?: string; lostReasonId?: string },
   ) {
     const actor = actorOf(request);
+    if (!body?.stageId) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Indica la etapa de destino.',
+        details: [{ field: 'stageId' }],
+      });
+    }
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         moveDealStage(c, {
           tenantId: actor.tenantId,
           dealId: id,
-          stageId: body.stageId,
+          stageId: body.stageId!,
           reason: body.reason,
           lostReasonId: body.lostReasonId,
           actor: actor.userId,
@@ -268,14 +236,6 @@ export class DealsController {
    * Borrar una etapa con oportunidades adentro se rechaza a propósito:
    * moverlas —¿se ganaron?, ¿se perdieron?, ¿siguen abiertas en otra?— es
    * una decisión del negocio, y tomarla por él le mentiría a sus números.
-   *
-   * Estas cuatro rutas se quedan con `@Body()` y sin esquema (#524): su
-   * VALIDATION_ERROR no es una comprobación escrita acá, es el mensaje del
-   * módulo tal como viene —«La etapa necesita un nombre.», «El nombre de la
-   * etapa es muy largo (máximo 40).», «Ese pipeline no existe en este
-   * negocio.»—. Un esquema tendría que repetir esos textos, la comprobación
-   * del módulo seguiría estando igual, y el primer cambio en una de las dos
-   * copias movería el contrato sin que nadie lo note.
    */
   @Put('pipelines/:id')
   @RequirePermission('crm.pipelines.manage')
@@ -384,15 +344,22 @@ export class DealsController {
   @ApiOperation({ summary: 'Guarda (o actualiza) un filtro con nombre' })
   async save(
     @Req() request: WithUser,
-    @Cuerpo(FiltroGuardado) body: z.infer<typeof FiltroGuardado>,
+    @Body() body: { name?: string; view?: string; filters?: Record<string, unknown> },
   ) {
     const actor = actorOf(request);
+    if (!body?.name?.trim()) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Ponle nombre al filtro para guardarlo.',
+        details: [{ field: 'name' }],
+      });
+    }
     return withTenant(pool(), actor.tenantId, (c) =>
       saveFilter(c, {
         tenantId: actor.tenantId,
         userId: actor.userId,
         view: body.view === 'contacts' ? 'contacts' : 'deals',
-        name: body.name,
+        name: body.name!,
         filters: body.filters ?? {},
       }),
     );

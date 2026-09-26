@@ -26,9 +26,7 @@ import {
 } from '@iaxti/module-calendar';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
 import { listTemplates } from '@iaxti/module-whatsapp';
-import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
-import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -52,26 +50,6 @@ function actorOf(request: WithUser): Actor {
 function seVeMal(err: unknown): never {
   throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
 }
-
-/**
- * El cuerpo de agendar (#524).
- *
- * El mismo mensaje en los tres campos, y a propósito: la pantalla los manda
- * juntos, así que a quien está dando la hora no le sirve saber cuál de los
- * tres falta. Va copiado tal cual estaba en el `if` que reemplaza, porque es
- * el texto que lee alguien con el cliente esperando en el chat.
- */
-const FALTA_LO_MINIMO = 'La cita necesita contacto, inicio y fin.';
-
-const NuevaCita = z.object({
-  contactId: textoRequerido(FALTA_LO_MINIMO),
-  inicio: textoRequerido(FALTA_LO_MINIMO),
-  fin: textoRequerido(FALTA_LO_MINIMO),
-  ownerId: z.string().optional(),
-  title: z.string().optional(),
-  conversationId: z.string().optional(),
-  confirmada: z.boolean().optional(),
-});
 
 @ApiTags('calendar')
 @Controller('agenda')
@@ -268,23 +246,35 @@ export class AgendaController {
   @ApiOperation({ summary: 'Agenda una cita' })
   async agendar(
     @Req() request: WithUser,
-    @Cuerpo(NuevaCita) body: z.infer<typeof NuevaCita>,
+    @Body()
+    body: {
+      contactId?: string;
+      ownerId?: string;
+      inicio?: string;
+      fin?: string;
+      title?: string;
+      conversationId?: string;
+      confirmada?: boolean;
+    },
   ) {
     const actor = actorOf(request);
+    if (!body?.contactId || !body?.inicio || !body?.fin) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La cita necesita contacto, inicio y fin.',
+      });
+    }
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         agendar(c, {
           tenantId: actor.tenantId,
-          contactId: body.contactId,
-          ownerId: body.ownerId ?? actor.userId,
-          // La fecha se sigue armando acá y no en el esquema: si viene una
-          // hora que no se entiende, el que avisa es el módulo con su propio
-          // mensaje, y ese texto ya está probado.
-          inicio: new Date(body.inicio),
-          fin: new Date(body.fin),
-          title: body.title,
-          conversationId: body.conversationId,
-          confirmada: body.confirmada,
+          contactId: body.contactId!,
+          ownerId: body?.ownerId ?? actor.userId,
+          inicio: new Date(body.inicio!),
+          fin: new Date(body.fin!),
+          title: body?.title,
+          conversationId: body?.conversationId,
+          confirmada: body?.confirmada,
           actor: actor.userId,
           actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
           requestId: (request as { requestId?: string }).requestId,
