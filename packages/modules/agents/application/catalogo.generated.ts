@@ -2777,7 +2777,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "kind": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "texto",
+            "url",
+            "faq",
+            "catalogo"
+          ]
         },
         "name": {
           "type": "string"
@@ -2792,6 +2798,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string"
         }
       },
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false
     }
   },
@@ -2806,7 +2815,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "key": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "name": {
           "type": "string"
@@ -2815,6 +2825,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string"
         }
       },
+      "required": [
+        "key"
+      ],
       "additionalProperties": false
     }
   },
@@ -2829,12 +2842,18 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "filename": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "sizeBytes": {
-          "type": "number"
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
         }
       },
+      "required": [
+        "filename"
+      ],
       "additionalProperties": false
     }
   },
