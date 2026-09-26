@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { QueueEvents } from 'bullmq';
@@ -16,6 +16,24 @@ import { conTrazaDelJob } from '@iaxti/telemetry';
 import { publishEvent } from '../src/events';
 
 /**
+ * Los directorios temporales se borran al terminar.
+ *
+ * Sin esto cada corrida deja uno —esta prueba, varios— y el tmpfs se llena: llegué
+ * a 2168 directorios `iaxti-*` y más de 600 MB, y lo que rompió no fue una prueba
+ * sino la máquina, a mitad de otra cosa. Una prueba que deja basura es una prueba
+ * que a la larga hace fallar a las demás, y el fallo aparece lejísimos de acá.
+ */
+const temporales: string[] = [];
+function registrarTemporal(dir: string): string {
+  temporales.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of temporales) rmSync(dir, { recursive: true, force: true });
+});
+
+
+/**
  * UN solo proveedor para todo el archivo. OpenTelemetry registra uno global
  * y el segundo `register()` es un no-op **silencioso**: el segundo test se
  * quedaba mirando un exportador que ya nadie alimentaba y fallaba diciendo
@@ -25,7 +43,7 @@ const memoria = new InMemorySpanExporter();
 new NodeTracerProvider({ spanProcessors: [new SimpleSpanProcessor(memoria)] }).register();
 
 function fixtureRegistry(): ModuleRegistry {
-  const dir = mkdtempSync(join(tmpdir(), 'iaxti-queues-'));
+  const dir = registrarTemporal(mkdtempSync(join(tmpdir(), 'iaxti-queues-')));
   const mods: Record<string, string> = {
     identity: `module: { id: identity, version: 0.1.0, core: true }\n`,
     organizations: `module: { id: organizations, version: 0.1.0, core: true }\ndepends_on: { required: [identity] }\n`,

@@ -1,8 +1,26 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+
+/**
+ * Los directorios temporales se borran al terminar.
+ *
+ * Sin esto cada corrida deja uno —esta prueba, varios— y el tmpfs se llena: llegué
+ * a 2168 directorios `iaxti-*` y más de 600 MB, y lo que rompió no fue una prueba
+ * sino la máquina, a mitad de otra cosa. Una prueba que deja basura es una prueba
+ * que a la larga hace fallar a las demás, y el fallo aparece lejísimos de acá.
+ */
+const temporales: string[] = [];
+function registrarTemporal(dir: string): string {
+  temporales.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of temporales) rmSync(dir, { recursive: true, force: true });
+});
+
 
 /**
  * Ninguna clase de utilidad que Tailwind no emita (#548).
@@ -66,7 +84,7 @@ function clasesUsadas(): Set<string> {
 /** Lo que Tailwind emite de verdad para esas clases, con el preset real. */
 function emitidas(clases: string[]): Set<string> {
   if (clases.length === 0) return new Set();
-  const dir = mkdtempSync(join(tmpdir(), 'pulso-clases-'));
+  const dir = registrarTemporal(mkdtempSync(join(tmpdir(), 'pulso-clases-')));
   const html = join(dir, 'p.html');
   const css = join(dir, 'o.css');
   writeFileSync(html, `<div class="${clases.join(' ')}"></div>`);
