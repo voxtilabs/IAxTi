@@ -216,7 +216,8 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     return (
       <EstadoVacio titulo="Prepara las etapas de tus ventas"
         descripcion="Aquí verás tus oportunidades, ordenadas por etapa. Configura el negocio para crear el primer embudo."
-        accion={{ etiqueta: 'Configurar mi negocio', href: '/ajustes/ia' }} />
+        accion={{ etiqueta: 'Configurar mi negocio', href: '/ajustes/ia' }}
+        pideleAIAxTi="Arma el embudo de mis ventas con las etapas que uso" />
     );
   }
 

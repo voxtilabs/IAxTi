@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, EstadoVacio } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -275,13 +275,16 @@ export function Canales() {
       {canales === null ? (
         <div className="mt-6 flex flex-col gap-3"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>
       ) : canales.length === 0 ? (
-        <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-8">
-          <h2 className="text-lg font-bold text-ink">Todavía no hay canales</h2>
-          <p className="mt-2 max-w-prose text-body">
-            Al conectar tu número de WhatsApp aparecerá aquí con su estado y la calidad que Meta le
-            asigna. La conexión guiada llega con el onboarding.
-          </p>
-        </div>
+        // Antes esta pantalla remitía a la conexión guiada y no ofrecía
+        // ninguna acción: un negocio sin canales es un negocio que no recibe
+        // mensajes, y acá era donde se quedaba parado (#509).
+        <EstadoVacio
+          className="mt-6"
+          titulo="Todavía no hay canales"
+          descripcion="Al conectar tu número de WhatsApp aparecerá aquí con su estado y la calidad que Meta le asigna. La puesta en marcha te va guiando paso a paso."
+          accion={{ etiqueta: 'Ir a la puesta en marcha', href: '/' }}
+          pideleAIAxTi="Quiero conectar mi WhatsApp, ¿qué necesito?"
+        />
       ) : (
         <ul className="mt-6 flex flex-col gap-4">
           {canales.map((canal) => {

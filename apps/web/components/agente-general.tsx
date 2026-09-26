@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import {
   AvisoResultado,
@@ -21,6 +22,7 @@ import {
 } from '@iaxti/ui/react';
 import { apiFetch } from '../lib/api';
 import { selectedTenant } from './tenant-switcher';
+import { pantallaDe } from '../lib/donde-estoy';
 
 /**
  * El Agente General, presente en toda la app (#493, ADR-0025).
@@ -71,12 +73,6 @@ interface Turno {
   resuelta?: 'aplicada' | 'descartada';
 }
 
-const EJEMPLOS = [
-  '¿Qué me falta para empezar a vender?',
-  'Avísame si una cotización lleva 2 días parada',
-  'Quiero atender los sábados en la mañana',
-  '¿Cuánto gasté en IA este mes?',
-];
 
 /** Lo que el dueño ve de una acción: sus datos, no la ruta. */
 function Propuesta({
@@ -141,6 +137,17 @@ export function AgenteGeneral() {
   const [aviso, setAviso] = useState<string | null>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
 
+  // El listener del evento se suscribe una vez y llama SIEMPRE a la última
+  // versión de `preguntar`: sin este ref, la suscripción se quedaría con el
+  // hilo de conversación de cuando se montó y la pregunta entraría a una
+  // conversación vieja.
+  const preguntarRef = useRef<((p: string) => Promise<void>) | null>(null);
+
+  // Desde dónde se abrió (#509). Es la ruta y nada más: nada de lo que haya
+  // EN la pantalla entra en el contexto por estar a la vista.
+  const ruta = usePathname() ?? '/';
+  const pantalla = useMemo(() => pantallaDe(ruta), [ruta]);
+
   // Ctrl+I / ⌘I lo abre desde cualquier pantalla: es la misma tecla en toda
   // la app y por eso está acá y no en cada página.
   useEffect(() => {
@@ -152,6 +159,22 @@ export function AgenteGeneral() {
     };
     window.addEventListener('keydown', tecla);
     return () => window.removeEventListener('keydown', tecla);
+  }, []);
+
+  // Las pantallas vacías abren el popup con la pregunta ya escrita (#509):
+  // `EstadoVacio` vive en packages/ui y no puede saber de este componente, así
+  // que el puente es un evento. La pregunta se manda sola: si solo abriéramos
+  // el popup con el texto puesto, la persona tendría que apretar enviar sin
+  // saber por qué, y el botón ya dijo lo que iba a pasar.
+  useEffect(() => {
+    const pedido = (e: Event) => {
+      const pregunta = (e as CustomEvent<{ pregunta?: string }>).detail?.pregunta;
+      if (!pregunta) return;
+      setAbierto(true);
+      void preguntarRef.current?.(pregunta);
+    };
+    window.addEventListener('iaxti-preguntale', pedido);
+    return () => window.removeEventListener('iaxti-preguntale', pedido);
   }, []);
 
   // Cambiar de negocio corta la conversación: lo que se habló era de ESE
@@ -185,7 +208,14 @@ export function AgenteGeneral() {
           // Solo el hilo, sin los pasos ni las propuestas: eso es para la
           // pantalla, y mandárselo de vuelta al modelo sería pagar tokens
           // por algo que él mismo generó.
-          body: JSON.stringify({ turnos: mios.map(({ role, content }) => ({ role, content })) }),
+          body: JSON.stringify({
+            turnos: mios.map(({ role, content }) => ({ role, content })),
+            // El ID, no la frase: el servidor tiene la lista y la traduce.
+            // Este valor termina en el system prompt, así que dejarlo libre
+            // sería una puerta para escribirle instrucciones al agente. Y no
+            // lo limita: tiene las mismas herramientas desde cualquier lado.
+            pantalla: pantalla.id,
+          }),
         });
         setTurnos([
           ...mios,
@@ -201,8 +231,9 @@ export function AgenteGeneral() {
         campo.current?.focus();
       }
     },
-    [config, session, turnos, pensando],
+    [config, session, turnos, pensando, pantalla],
   );
+  preguntarRef.current = preguntar;
 
   /** Aplica —o descarta— la acción que quedó esperando. */
   const resolver = useCallback(
@@ -269,7 +300,7 @@ export function AgenteGeneral() {
                   reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.
                 </p>
                 <ul className="flex flex-col gap-2">
-                  {EJEMPLOS.map((e) => (
+                  {pantalla.ejemplos.map((e) => (
                     <li key={e}>
                       <Button variant="secundario" size="chico" onClick={() => void preguntar(e)}>
                         {e}

@@ -18,6 +18,7 @@ import {
   type LoQueFalta,
   conversarConElAgenteGeneral,
   modeloDelAgenteGeneral,
+  nombreDePantalla,
   motivoDelProveedor,
   providerAvailable,
   type Provider,
@@ -359,7 +360,7 @@ export class AgenteGeneralController {
   @ApiOperation({ summary: 'Le habla al Agente General, que configura el negocio conversando' })
   async conversar(
     @Req() request: WithUser,
-    @Body() body: { turnos?: Array<{ role?: string; content?: string }> },
+    @Body() body: { turnos?: Array<{ role?: string; content?: string }>; pantalla?: string },
   ) {
     const actor = actorOf(request);
     const turnos = (body?.turnos ?? [])
@@ -399,6 +400,12 @@ export class AgenteGeneralController {
             permisos: await permisosDelActor(c, actor),
             modulosActivos: modulosActivos(),
             actorUserId: actor.userId,
+            // El cliente manda un ID y el módulo tiene la frase: este texto
+            // entra en el system prompt, y aceptar lo que venga del navegador
+            // sería dejar que cualquiera con sesión le escriba instrucciones
+            // al agente que tiene las 195 herramientas. Un id desconocido
+            // queda en null y el agente trabaja sin contexto de pantalla.
+            pantalla: nombreDePantalla(body?.pantalla) ?? undefined,
             requestId: request.requestId,
           },
           {
