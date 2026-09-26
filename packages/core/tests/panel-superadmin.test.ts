@@ -59,6 +59,33 @@ describe('el panel de SuperAdmin usa lo que la API ofrece', () => {
     expect(PANEL).toContain('nace en prueba');
   });
 
+  it('el Agente General se puede APAGAR desde el panel (#496)', () => {
+    // Es la pieza más crítica: configura negocios ajenos conversando. Poder
+    // verlo no alcanza — hay que poder apagarlo sin desplegar, y a las 2 de
+    // la mañana nadie va a buscar un flag en un YAML.
+    expect(PANEL).toContain('/platform/agente-general/');
+    expect(PANEL).toContain('Apagar para todos');
+    // Y por negocio, sin tener que apagarlo para todos.
+    expect(PANEL).toContain('Apagar en este negocio');
+  });
+
+  it('el motivo del apagado es obligatorio en la pantalla', () => {
+    // Un interruptor sin motivo, a los tres días, nadie sabe si se puede
+    // volver a encender: termina en un producto apagado "por si acaso".
+    expect(PANEL).toContain('!motivo.trim()');
+  });
+
+  it('muestra qué hizo, cuánto costó y qué falló', () => {
+    for (const columna of ['Qué le pidieron', 'Herramientas', 'Latencia p95', 'Fallidas']) {
+      expect(PANEL, columna).toContain(columna);
+    }
+  });
+
+  it('el Agente General va ANTES del centro de IA', () => {
+    // Su interruptor es lo primero que alguien busca cuando algo va mal.
+    expect(PANEL.indexOf('<AgenteGeneralPanel />')).toBeLessThan(PANEL.indexOf('<CentroIA />'));
+  });
+
   it('deja fijar la retención de un negocio, y muestra qué se llevaría (#460)', () => {
     // La retención sale del plan; el override por tenant —lo que se le
     // promete a un cliente que pide guardar más, o menos— había que

@@ -8,6 +8,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { PoolClient } from 'pg';
 import { withTenant } from '@iaxti/db';
 import { enteroDeEntorno } from '@iaxti/core';
 import {
@@ -19,6 +20,7 @@ import {
   providerAvailable,
   type Provider,
 } from '@iaxti/module-agents';
+import { agenteGeneralApagado } from '@iaxti/module-platform';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { permisosDelActor } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
@@ -100,6 +102,27 @@ function llamarLaPropiaApi(request: WithUser) {
   };
 }
 
+/**
+ * El interruptor del panel (#496).
+ *
+ * Se mira en CADA vuelta y no al arrancar: apagarlo tiene que hacer efecto
+ * ya, no en el próximo despliegue. Es una consulta de dos filas como máximo.
+ *
+ * Y responde 409 con el motivo, no 503: no es que el servicio esté caído —
+ * alguien lo apagó a propósito, y quien pregunta merece saber eso.
+ */
+async function verificarQueEsteEncendido(client: PoolClient, tenantId: string): Promise<void> {
+  const estado = await agenteGeneralApagado(client, tenantId);
+  if (!estado.apagado) return;
+  throw new ConflictException({
+    code: 'AGENTE_GENERAL_APAGADO',
+    message:
+      estado.alcance === 'global'
+        ? 'La configuración por conversación está pausada por mantención. Las pantallas siguen funcionando igual.'
+        : 'La configuración por conversación está desactivada en esta cuenta. Escríbenos si la necesitas.',
+  });
+}
+
 const modulosActivos = () =>
   new Set(
     registry
@@ -145,6 +168,7 @@ export class AgenteGeneralController {
     }
 
     return withTenant(pool(), actor.tenantId, async (c) => {
+      await verificarQueEsteEncendido(c, actor.tenantId);
       const { modelo, provider, model } = await modeloDelAgenteGeneral(c, actor.tenantId);
       if (!providerAvailable(provider as Provider)) {
         throw new ServiceUnavailableException({
@@ -209,6 +233,9 @@ export class AgenteGeneralController {
       });
     }
     return withTenant(pool(), actor.tenantId, async (c) => {
+      // También acá: apagarlo con una propuesta en pantalla no puede dejar
+      // un botón que igual funciona.
+      await verificarQueEsteEncendido(c, actor.tenantId);
       try {
         const r = await aplicarPropuesta(
           {

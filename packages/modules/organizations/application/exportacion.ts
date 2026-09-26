@@ -39,6 +39,8 @@ export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
   idempotency_keys: 'Llaves de reintento con vida de 24 h; fuera de ese momento no significan nada.',
   knowledge_query_cache: 'Caché: se reconstruye sola y no es información nueva.',
   platform_support_sessions: 'Registro NUESTRO de cuándo miramos su cuenta; no es dato suyo.',
+  agente_general_apagado:
+    'Interruptor NUESTRO: dice si le pausamos la configuración por conversación y por qué. Es una decisión de operación de la plataforma, no información del negocio.',
   push_subscriptions: 'Llaves del navegador de cada persona: no sirven fuera de ese navegador.',
   api_keys: 'De la credencial solo guardamos el hash, y un hash no se exporta.',
   eval_cases: 'Nuestras pruebas de calidad del copiloto.',

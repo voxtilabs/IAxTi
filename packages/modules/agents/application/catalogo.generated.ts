@@ -3382,6 +3382,55 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "PlatformController_agenteGeneral": {
+    "metodo": "GET",
+    "ruta": "/v1/platform/agente-general",
+    "resumen": "El Agente General: corridas, costo, errores y su interruptor",
+    "permiso": "platform.ai",
+    "modulo": "platform",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        },
+        "limite": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "PlatformController_apagarAgente": {
+    "metodo": "POST",
+    "ruta": "/v1/platform/agente-general/apagar",
+    "resumen": "Apaga la configuración por conversación (global o de un negocio)",
+    "permiso": "platform.ai",
+    "modulo": "platform",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "motivo": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "PlatformController_apiQuota": {
     "metodo": "PUT",
     "ruta": "/v1/platform/tenants/{id}/api-quota",
@@ -3444,6 +3493,30 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         },
         "rubro": {
           "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "PlatformController_encenderAgente": {
+    "metodo": "POST",
+    "ruta": "/v1/platform/agente-general/encender",
+    "resumen": "Lo vuelve a encender (global o de un negocio)",
+    "permiso": "platform.ai",
+    "modulo": "platform",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false

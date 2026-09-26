@@ -1070,6 +1070,272 @@ function PromptsVivos() {
   );
 }
 
+interface CorridaAgenteDto {
+  id: string;
+  tenantId: string;
+  tenant: string;
+  pidio: string;
+  herramientas: string[];
+  costUsd: number | null;
+  latencyMs: number | null;
+  traceId: string | null;
+  status: string;
+  error: string | null;
+  createdAt: string;
+}
+
+interface ResumenAgenteDto {
+  corridasDelMes: number;
+  costoDelMesUsd: number;
+  tasaDeError: number;
+  negocios: number;
+  latenciaP95Ms: number | null;
+  apagadoGlobal: { apagado: boolean; motivo: string | null; apagadoEl: string | null };
+  apagadosPorNegocio: Array<{ tenantId: string; tenant: string; motivo: string; apagadoEl: string }>;
+}
+
+/**
+ * El centro de control del Agente General (#496, ADR-0025).
+ *
+ * Es la pieza más crítica del producto —configura negocios ajenos
+ * conversando— y por eso acá hay dos cosas y no una: qué está haciendo, y
+ * cómo se apaga.
+ *
+ * El interruptor es SUYO, no el del módulo `agents`: apagar `agents` se
+ * llevaría también al copiloto de la bandeja, que es lo que atiende
+ * clientes. Apagar esto deja el producto como antes —pantallas y
+ * configurador—, no a oscuras. Esa diferencia es la que permite usarlo a las
+ * 2 de la mañana sin pensarlo dos veces.
+ */
+function AgenteGeneralPanel() {
+  const { session, config } = useSession();
+  const [datos, setDatos] = useState<{ resumen: ResumenAgenteDto; corridas: CorridaAgenteDto[] } | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+
+  const cargar = useCallback(async () => {
+    if (!session) return;
+    try {
+      const res = await fetch(`${config.apiUrl}/v1/platform/agente-general`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.status === 403) return;
+      if (!res.ok) throw new Error(`No pudimos consultar el Agente General (HTTP ${res.status}).`);
+      setDatos(await res.json());
+      setAviso(null);
+    } catch (err) {
+      setAviso((err as Error).message);
+    }
+  }, [session, config.apiUrl]);
+  useEffect(() => void cargar(), [cargar]);
+
+  const interruptor = async (apagar: boolean, tenantId: string | null) => {
+    if (!session || ocupado) return;
+    setOcupado(true);
+    try {
+      const res = await fetch(
+        `${config.apiUrl}/v1/platform/agente-general/${apagar ? 'apagar' : 'encender'}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(apagar ? { tenantId, motivo } : { tenantId }),
+        },
+      );
+      if (!res.ok) {
+        const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(cuerpo?.message ?? `Error ${res.status}`);
+      }
+      setMotivo('');
+      await cargar();
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  if (!datos) return null;
+  const { resumen, corridas } = datos;
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-xl font-bold text-ink">Agente General</h2>
+      <p className="mb-4 max-w-prose text-sm text-muted">
+        Configura los negocios conversando, con las herramientas de cada persona. Apagarlo deja el
+        producto como antes —pantallas y configurador—, no a oscuras.
+      </p>
+
+      {aviso && <AvisoResultado>{aviso}</AvisoResultado>}
+
+      {/* El interruptor va PRIMERO: cuando se necesita, se necesita rápido. */}
+      <div
+        className={`mb-4 rounded-tarjeta border p-5 ${
+          resumen.apagadoGlobal.apagado
+            ? 'border-bad-soft-br bg-bad-soft'
+            : 'border-line bg-raised'
+        }`}
+      >
+        {resumen.apagadoGlobal.apagado ? (
+          <>
+            <p className="rotulo text-bad-text">Apagado para todos los negocios</p>
+            <p className="mt-2 text-sm text-ink">{resumen.apagadoGlobal.motivo}</p>
+            <p className="dato mt-1 text-xs text-muted">
+              desde {new Date(resumen.apagadoGlobal.apagadoEl!).toLocaleString('es-CL')}
+            </p>
+            <button
+              type="button"
+              disabled={ocupado}
+              className="mt-3 rounded-boton border border-good-soft-br bg-good-soft px-3 py-1.5 text-sm text-good-text disabled:opacity-40"
+              onClick={() => void interruptor(false, null)}
+            >
+              Volver a encenderlo
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="rotulo">Encendido</p>
+            <p className="mt-2 text-sm text-body">
+              Si algo se desmadra, apágalo acá: hace efecto en la próxima pregunta de cualquiera, sin
+              desplegar.
+            </p>
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <label className="text-xs text-muted">
+                Por qué lo apagas
+                <input
+                  className="mt-1 block w-72 rounded-boton border border-line bg-bg px-2 py-1 text-sm text-ink"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Está proponiendo cosas raras en varios negocios"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={ocupado || !motivo.trim()}
+                className="rounded-boton border border-bad-soft-br bg-bad-soft px-3 py-1.5 text-sm text-bad-text disabled:opacity-40"
+                onClick={() => void interruptor(true, null)}
+              >
+                Apagar para todos
+              </button>
+            </div>
+            {/* El motivo es obligatorio: un interruptor sin motivo, a los tres
+                días, nadie sabe si se puede volver a encender. */}
+          </>
+        )}
+      </div>
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {[
+          ['Corridas del mes', String(resumen.corridasDelMes)],
+          ['Costo del mes', `USD ${resumen.costoDelMesUsd.toFixed(4)}`],
+          ['Negocios que lo usan', String(resumen.negocios)],
+          ['Fallidas', pct(resumen.tasaDeError)],
+          ['Latencia p95', resumen.latenciaP95Ms === null ? '—' : `${(resumen.latenciaP95Ms / 1000).toFixed(1)} s`],
+        ].map(([rotulo, valor]) => (
+          <div key={rotulo} className="rounded-tarjeta border border-line bg-raised p-4">
+            <span className="rotulo">{rotulo}</span>
+            <p className="dato mt-1 text-2xl font-bold text-ink">{valor}</p>
+          </div>
+        ))}
+      </div>
+
+      {resumen.apagadosPorNegocio.length > 0 && (
+        <div className="mb-4 rounded-tarjeta border border-warn-soft-br bg-warn-soft p-4">
+          <span className="rotulo text-warn-text">Apagado en estos negocios</span>
+          <ul className="mt-2 flex flex-col gap-2">
+            {resumen.apagadosPorNegocio.map((a) => (
+              <li key={a.tenantId} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span className="font-medium text-ink">{a.tenant}</span>
+                <span className="text-warn-text">{a.motivo}</span>
+                <button
+                  type="button"
+                  disabled={ocupado}
+                  className="ml-auto rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body disabled:opacity-40"
+                  onClick={() => void interruptor(false, a.tenantId)}
+                >
+                  Encender
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-rest text-left">
+              {['Cuándo', 'Negocio', 'Qué le pidieron', 'Herramientas', 'Demoró', 'USD', ''].map((h) => (
+                <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {corridas.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-sm text-muted">
+                  Todavía nadie le ha pedido nada este mes.
+                </td>
+              </tr>
+            )}
+            {corridas.map((c) => (
+              <tr key={c.id} className="border-t border-line">
+                <td className="dato px-4 py-3 text-xs text-muted">
+                  {new Date(c.createdAt).toLocaleString('es-CL', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </td>
+                <td className="px-4 py-3 font-medium text-ink">{c.tenant}</td>
+                <td className="max-w-xs px-4 py-3 text-body">{c.pidio}</td>
+                <td className="px-4 py-3">
+                  {c.herramientas.length === 0 ? (
+                    <span className="text-xs text-muted">ninguna</span>
+                  ) : (
+                    <span className="dato text-xs text-action-text">{c.herramientas.join(' · ')}</span>
+                  )}
+                </td>
+                <td className="dato px-4 py-3 text-right text-ink">
+                  {c.latencyMs === null ? '—' : `${(c.latencyMs / 1000).toFixed(1)} s`}
+                </td>
+                <td className="dato px-4 py-3 text-right text-ink">
+                  {c.costUsd === null ? '—' : c.costUsd.toFixed(4)}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {c.status !== 'ok' && (
+                      <span className="rounded-boton border border-bad-soft-br bg-bad-soft px-2 py-0.5 text-xs text-bad-text">
+                        {c.status}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={ocupado}
+                      className="rounded-boton border border-line bg-bg px-2 py-1 text-xs text-body disabled:opacity-40"
+                      onClick={() => {
+                        setMotivo(`Revisando lo que hizo en ${c.tenant}`);
+                        void interruptor(true, c.tenantId);
+                      }}
+                    >
+                      Apagar en este negocio
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function CentroIA() {
   const { session, config } = useSession();
   const [groupBy, setGroupBy] = useState<string>('modelo');
@@ -1259,6 +1525,10 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
             <TablaModulos />
             <TablaConsumoApi />
             <AuditGlobal />
+            {/* El Agente General va ANTES del centro de IA: es la pieza más
+                crítica, y su interruptor es lo primero que alguien busca
+                cuando algo va mal (#496). */}
+            <AgenteGeneralPanel />
             <CentroIA />
             <PromptsVivos />
             <ColaDeBorrado />

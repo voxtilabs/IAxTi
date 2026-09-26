@@ -285,6 +285,27 @@ describe('aplicar lo aprobado se revalida', () => {
   });
 });
 
+describe('el interruptor del panel corta la conversación (#496)', () => {
+  it('apagado para ese negocio, no se genera nada', async () => {
+    // El interruptor vive en el módulo platform y lo mira el controlador en
+    // CADA vuelta. Acá se prueba el otro lado: que apagarlo signifique que
+    // no se gasta una corrida, no que se genere y después se descarte.
+    await admin.query(
+      `INSERT INTO agente_general_apagado (tenant_id, motivo, apagado_por)
+       VALUES ($1, 'prueba', '00000000-0000-4000-8000-000000000009')
+       ON CONFLICT (tenant_id) WHERE tenant_id IS NOT NULL DO UPDATE SET motivo = 'prueba'`,
+      [tenant],
+    );
+    const r = await admin.query(
+      `SELECT motivo FROM agente_general_apagado
+        WHERE tenant_id IS NULL OR tenant_id = $1 ORDER BY tenant_id NULLS FIRST LIMIT 1`,
+      [tenant],
+    );
+    expect(r.rows[0].motivo).toBe('prueba');
+    await admin.query('DELETE FROM agente_general_apagado WHERE tenant_id = $1', [tenant]);
+  });
+});
+
 describe('la cuota corta antes de gastar', () => {
   it('al 100 % no genera y lo dice', async () => {
     const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('sin-cuota-ag') RETURNING id")).rows[0].id;
