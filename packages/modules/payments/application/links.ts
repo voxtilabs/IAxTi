@@ -314,16 +314,48 @@ export async function listLinks(
   return r.rows.map(rowToLink);
 }
 
+/**
+ * Cancela un link que todavía no se pagó (#513).
+ *
+ * Pedía el `actor` y lo tiraba: era la única operación de dinero del módulo
+ * sin rastro. Emitir un link audita, marcarlo enviado audita y publica, y
+ * `expireLinks` —treinta líneas más abajo— publica por cada uno que vence.
+ * Cancelar, que es el único de esos que hace una PERSONA a propósito, no
+ * dejaba nada: un link por $450.000 aparecía cancelado y con varias personas
+ * atendiendo eso no se reconstruye.
+ *
+ * Las tres escrituras van en la MISMA transacción que el UPDATE (§27): la
+ * auditoría no puede quedar de un lado del commit y el hecho del otro.
+ */
 export async function cancelLink(
   client: PoolClient,
-  input: { tenantId: string; linkId: string; actor: string },
+  input: { tenantId: string; linkId: string; actor: string; requestId?: string },
 ): Promise<void> {
   const r = await client.query(
     `UPDATE payment_links SET status = 'cancelled', updated_at = now()
-      WHERE tenant_id = $1 AND id = $2 AND status IN ('created','sent')`,
+      WHERE tenant_id = $1 AND id = $2 AND status IN ('created','sent')
+      RETURNING amount_clp, status`,
     [input.tenantId, input.linkId],
   );
   if (r.rowCount === 0) throw new Error('Ese link ya no se puede cancelar.');
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor,
+    actorKind: 'user',
+    action: 'payments.link.cancel',
+    resource: 'payment_link',
+    resourceId: input.linkId,
+    result: 'ok',
+    metadata: { amountClp: Number(r.rows[0].amount_clp) },
+    requestId: input.requestId,
+  });
+  await publishEvent(client, {
+    name: 'payment_link.cancelled',
+    tenantId: input.tenantId,
+    payload: { linkId: input.linkId, amountClp: Number(r.rows[0].amount_clp) },
+    actor: input.actor,
+    requestId: input.requestId,
+  });
 }
 
 /** Vencimientos (job scheduled): created/sent con la fecha pasada. */

@@ -238,7 +238,12 @@ export class PaymentsController {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
       try {
-        await cancelLink(c, { tenantId: actor.tenantId, linkId: id, actor: actor.userId });
+        await cancelLink(c, {
+          tenantId: actor.tenantId,
+          linkId: id,
+          actor: actor.userId,
+          requestId: request.requestId,
+        });
         return { cancelled: true };
       } catch (err) {
         throw new BadRequestException({ code: 'LINK_INVALID', message: (err as Error).message });

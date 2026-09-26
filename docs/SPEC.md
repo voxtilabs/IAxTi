@@ -838,6 +838,7 @@ automations     automation.ran · automation.failed · automation.paused
 calendar        appointment.created · appointment.reminder_sent · appointment.attended
                 appointment.no_show · appointment.cancelled
 payments        payment_link.sent · payment.received · payment.failed · payment_link.expired
+                payment_link.cancelled
 integrations    integration.connected · integration.revoked · webhook.failed
 billing         invoice.issued · invoice.paid · invoice.overdue · subscription.changed
 ```
