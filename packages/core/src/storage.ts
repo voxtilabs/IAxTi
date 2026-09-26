@@ -27,8 +27,29 @@ export function storageFromEnv(): StorageConfig | null {
 
 /** La llave SIEMPRE nace bajo el tenant: nadie firma fuera de su prefijo. */
 export function attachmentKey(tenantId: string, conversationId: string, filename: string): string {
-  const limpio = filename.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
-  return `${tenantId}/${conversationId}/${Date.now().toString(36)}-${limpio}`;
+  return `${tenantId}/${conversationId}/${Date.now().toString(36)}-${nombreSeguro(filename)}`;
+}
+
+/**
+ * La llave de un documento del conocimiento (#522).
+ *
+ * Mismo prefijo por tenant que los adjuntos —de ahí cuelga el aislamiento: la
+ * ruta de bajada solo firma llaves que empiecen con el tenant de quien pide— y
+ * una carpeta propia para no mezclar el conocimiento del negocio con los
+ * archivos de una conversación.
+ */
+export function knowledgeKey(tenantId: string, filename: string): string {
+  return `${tenantId}/conocimiento/${Date.now().toString(36)}-${nombreSeguro(filename)}`;
+}
+
+/**
+ * El nombre que llega del navegador no se usa tal cual: se le sacan los
+ * acentos, se reemplaza todo lo que no sea seguro en una ruta, y se recorta.
+ * Sin esto, un archivo llamado `../../otro-tenant/algo.pdf` sería una llave
+ * fuera del prefijo del negocio.
+ */
+function nombreSeguro(filename: string): string {
+  return filename.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
 }
 
 function hmac(key: Buffer | string, data: string): Buffer {

@@ -11,9 +11,28 @@ import {
   redisConnection,
   consumerReadiness,
   storageFromEnv,
+  presignUrl,
   enteroDeEntorno,
 } from '@iaxti/core';
 import { processInbound, type InboundJob } from './inbound';
+
+/**
+ * Baja un archivo del negocio por su llave, para reindexar un PDF (#522).
+ *
+ * Igual que en la API, y por la misma razón: el módulo `knowledge` no conoce
+ * R2 ni firma nada. Y vuelve a comprobar el prefijo del tenant antes de
+ * firmar, porque una llave que viene de la base sigue siendo un dato.
+ */
+function bajarDelNegocio(tenantId: string) {
+  return async (r2Key: string): Promise<Uint8Array> => {
+    if (!r2Key.startsWith(`${tenantId}/`)) throw new Error('Esa llave no es de este negocio.');
+    const storage = storageFromEnv();
+    if (!storage) throw new Error('El almacenamiento no está configurado.');
+    const res = await fetch(presignUrl(storage, 'GET', r2Key));
+    if (!res.ok) throw new Error(`No pudimos bajar el archivo guardado (${res.status}).`);
+    return new Uint8Array(await res.arrayBuffer());
+  };
+}
 import { DelayUntilError, processOutbound } from './outbound';
 import { createOutboundPublisher, outboundRequestConsumers } from './outbound-dispatch';
 import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
@@ -375,7 +394,12 @@ function start(): void {
             let fallidas = 0;
             let quedanMas = false;
             for (const tenantId of negocios) {
-              const r = await withTenant(pool, tenantId, (c) => reindexarPendientes(c, tenantId));
+              const r = await withTenant(pool, tenantId, (c) =>
+                // Con `bajarArchivo`, un PDF también se reindexa: su archivo
+                // sigue guardado y hasta #522 nadie lo leía, así que una
+                // fuente PDF se quedaba en 'processing' para siempre.
+                reindexarPendientes(c, tenantId, { bajarArchivo: bajarDelNegocio(tenantId) }),
+              );
               listas += r.listas;
               fallidas += r.fallidas;
               quedanMas = quedanMas || r.quedanMas;

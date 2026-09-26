@@ -141,3 +141,88 @@ describe('/v1/knowledge (#51)', () => {
     expect((await pedir(duena, `/knowledge/sources/${fuente.id}`, { method: 'DELETE' })).status).toBe(404);
   });
 });
+
+describe('subir un PDF al conocimiento (#522)', () => {
+  it('pide dónde ponerlo, y la llave nace con el prefijo del negocio', async () => {
+    const r = await pedir(duena, '/knowledge/sources/pdf/destino', {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'Lista de precios.pdf', sizeBytes: 120_000 }),
+    });
+    // Sin almacenamiento configurado en el ambiente de prueba se avisa claro,
+    // que es el contrato: nunca adivinar un destino.
+    if (r.status === 503) {
+      expect((await r.json()).code).toBe('STORAGE_NOT_CONFIGURED');
+      return;
+    }
+    expect(r.status).toBe(201);
+    const cuerpo = await r.json();
+    // El prefijo es de donde cuelga el aislamiento: la ruta que firma la
+    // bajada solo acepta llaves que empiecen con el tenant de quien pide.
+    expect(cuerpo.key.startsWith(`${tenant}/conocimiento/`)).toBe(true);
+    expect(cuerpo.uploadUrl).toContain('X-Amz-Signature');
+  });
+
+  it('el nombre del archivo se limpia: no se puede salir del prefijo', async () => {
+    const r = await pedir(duena, '/knowledge/sources/pdf/destino', {
+      method: 'POST',
+      body: JSON.stringify({ filename: '../../otro-negocio/secreto.pdf' }),
+    });
+    if (r.status === 503) return;
+    const cuerpo = await r.json();
+    expect(cuerpo.key.startsWith(`${tenant}/conocimiento/`)).toBe(true);
+    expect(cuerpo.key).not.toContain('..');
+    expect(cuerpo.key).not.toContain('otro-negocio/');
+  });
+
+  it('solo PDF, y con tope de tamaño comprobado en el servidor', async () => {
+    const hoja = await pedir(duena, '/knowledge/sources/pdf/destino', {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'precios.xlsx' }),
+    });
+    expect(hoja.status).toBe(400);
+
+    // El tope se comprueba ACÁ y no solo en el navegador: una URL firmada
+    // aceptaría lo que le manden, y el navegador es de quien sube.
+    const gordo = await pedir(duena, '/knowledge/sources/pdf/destino', {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'catalogo.pdf', sizeBytes: 50 * 1024 * 1024 }),
+    });
+    expect(gordo.status).toBe(400);
+    expect((await gordo.json()).code).toBe('ARCHIVO_MUY_GRANDE');
+  });
+
+  it('una llave de OTRO negocio no registra nada', async () => {
+    // La llave la devolvió esta API, pero vuelve por el navegador: si se
+    // aceptara tal cual, un negocio podría indexar el documento de otro.
+    const r = await pedir(duena, '/knowledge/sources/pdf', {
+      method: 'POST',
+      body: JSON.stringify({ key: 'otro-tenant/conocimiento/abc-precios.pdf', name: 'Ajeno' }),
+    });
+    expect(r.status).toBe(400);
+    expect((await r.json()).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('sin la llave del proveedor multimodal avisa, no deja la fuente colgada', async () => {
+    // Leer un PDF necesita Gemini: el catálogo de NVIDIA que sirve GLM no
+    // tiene modelo multimodal (ADR-0025 §7). En este ambiente no hay llaves.
+    const r = await pedir(duena, '/knowledge/sources/pdf', {
+      method: 'POST',
+      body: JSON.stringify({ key: `${tenant}/conocimiento/abc-precios.pdf`, name: 'Precios' }),
+    });
+    expect(r.status).toBe(503);
+    expect((await r.json()).code).toBe('PROVIDER_UNAVAILABLE');
+
+    // Y no quedó una fuente a medias: si la creara antes de comprobar, el
+    // negocio vería un PDF "cargado" que la IA no puede leer.
+    const fuentes = await (await pedir(duena, '/knowledge/sources')).json();
+    expect(fuentes.filter((f: { kind: string }) => f.kind === 'pdf')).toEqual([]);
+  });
+
+  it('el vendedor no sube conocimiento', async () => {
+    const r = await pedir(vendedor, '/knowledge/sources/pdf/destino', {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'x.pdf' }),
+    });
+    expect(r.status).toBe(403);
+  });
+});
