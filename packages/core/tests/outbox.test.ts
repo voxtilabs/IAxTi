@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Pool } from 'pg';
@@ -9,6 +9,24 @@ import { OutboxDispatcher, type Consumer } from '../src/dispatcher';
 import { ModuleRegistry } from '../src/registry';
 import type { EventEnvelope } from '../src/events';
 
+/**
+ * Los directorios temporales se borran al terminar.
+ *
+ * Sin esto cada corrida deja uno —esta prueba, varios— y el tmpfs se llena: llegué
+ * a 2168 directorios `iaxti-*` y más de 600 MB, y lo que rompió no fue una prueba
+ * sino la máquina, a mitad de otra cosa. Una prueba que deja basura es una prueba
+ * que a la larga hace fallar a las demás, y el fallo aparece lejísimos de acá.
+ */
+const temporales: string[] = [];
+function registrarTemporal(dir: string): string {
+  temporales.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of temporales) rmSync(dir, { recursive: true, force: true });
+});
+
+
 const ADMIN_URL =
   process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 
@@ -17,7 +35,7 @@ let tenant: string;
 let registry: ModuleRegistry;
 
 function fixtureRegistry(): ModuleRegistry {
-  const dir = mkdtempSync(join(tmpdir(), 'iaxti-outbox-'));
+  const dir = registrarTemporal(mkdtempSync(join(tmpdir(), 'iaxti-outbox-')));
   const mods: Record<string, string> = {
     identity: `module: { id: identity, version: 0.1.0, core: true }\n`,
     organizations: `module: { id: organizations, version: 0.1.0, core: true }\ndepends_on: { required: [identity] }\n`,

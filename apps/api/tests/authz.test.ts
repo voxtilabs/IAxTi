@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { INestApplication, ExecutionContext } from '@nestjs/common';
@@ -8,6 +8,24 @@ import { ModuleRegistry } from '@iaxti/core';
 import { createApp } from '../src/main';
 import { AuthzGuard } from '../src/authz/authz.guard';
 import { RequireModule, RequirePermission } from '../src/authz/decorators';
+
+/**
+ * Los directorios temporales se borran al terminar.
+ *
+ * Sin esto cada corrida deja uno —esta prueba, varios— y el tmpfs se llena: llegué
+ * a 2168 directorios `iaxti-*` y más de 600 MB, y lo que rompió no fue una prueba
+ * sino la máquina, a mitad de otra cosa. Una prueba que deja basura es una prueba
+ * que a la larga hace fallar a las demás, y el fallo aparece lejísimos de acá.
+ */
+const temporales: string[] = [];
+function registrarTemporal(dir: string): string {
+  temporales.push(dir);
+  return dir;
+}
+afterAll(() => {
+  for (const dir of temporales) rmSync(dir, { recursive: true, force: true });
+});
+
 
 let app: INestApplication;
 let base: string;
@@ -62,7 +80,7 @@ describe('guard de autorización (e2e)', () => {
 
 describe('guard de autorización (unidad, módulo apagado)', () => {
   function fixtureRegistry(): ModuleRegistry {
-    const dir = mkdtempSync(join(tmpdir(), 'iaxti-authz-'));
+    const dir = registrarTemporal(mkdtempSync(join(tmpdir(), 'iaxti-authz-')));
     const mods: Record<string, string> = {
       identity: `module: { id: identity, version: 0.1.0, core: true }\n`,
       organizations: `module: { id: organizations, version: 0.1.0, core: true }\ndepends_on: { required: [identity] }\n`,
