@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Badge, Button, MarcaJelly, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { getOnboarding, type OnboardingProgress } from '@iaxti/sdk';
+import { WidgetsDelInicio } from './inicio/widgets';
+import type { WidgetItem } from '../lib/nav';
 
 // La puesta en marcha (#56, SPEC §7).
 //
@@ -34,8 +36,9 @@ function etiquetaDe(p: PasoDto): { texto: string; rol: BadgeRole } {
  * 403 en la portada sería recibirlo con un error por entrar a su propia
  * casa: para él la portada es la bandeja y punto.
  */
-function Bienvenida() {
+function Bienvenida({ widgets = [] }: { widgets?: WidgetItem[] }) {
   return (
+    <div className="flex flex-col gap-6">
     <div className="pulso-hero">
       <div>
       <p className="rotulo">Bandeja</p>
@@ -52,15 +55,24 @@ function Bienvenida() {
       </div>
       <MarcaJelly />
     </div>
+    {/* También para quien no puede mirar el estado del negocio: sus widgets
+        salen de lo que su rol SÍ puede pedir, y los que no, no se dibujan
+        (#517). Antes esta portada era un texto fijo. */}
+    <WidgetsDelInicio widgets={widgets} />
+    </div>
   );
 }
 
-export function PuestaEnMarcha() {
+export function PuestaEnMarcha({ widgets = [] }: { widgets?: WidgetItem[] }) {
   const tenant = useSelectedTenant();
-  return tenant ? <AvanceDelNegocio key={tenant} tenant={tenant} /> : <Bienvenida />;
+  return tenant ? (
+    <AvanceDelNegocio key={tenant} tenant={tenant} widgets={widgets} />
+  ) : (
+    <Bienvenida widgets={widgets} />
+  );
 }
 
-function AvanceDelNegocio({ tenant }: { tenant: string }) {
+function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: WidgetItem[] }) {
   const { config, session } = useSession();
   const [estado, setEstado] = useState<OnboardingProgress | null | undefined>();
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +96,7 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
     return () => { controller.abort(); ultima.current++; window.removeEventListener('focus', actualizar); };
   }, [cargar]);
 
-  if (estado === null) return <Bienvenida />;
+  if (estado === null) return <Bienvenida widgets={widgets} />;
   if (error) return <section aria-label="Actualizar puesta en marcha" className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
     <p role="status" className="text-body">{error}</p>
     <Button variant="secundario" className="mt-4" onClick={() => void cargar()}>Actualizar avance</Button>
@@ -119,6 +131,11 @@ function AvanceDelNegocio({ tenant }: { tenant: string }) {
         </div>
         <MarcaJelly />
       </header>
+
+      {/* En marcha: lo primero que se ve es cómo va el negocio HOY, no el
+          checklist de lo que ya hizo (#517). La lista se queda abajo, porque
+          un negocio que conecta un segundo canal quiere volver a mirarla. */}
+      {estado.completo && <WidgetsDelInicio widgets={widgets} />}
 
       {estado.desfase.length > 0 && (
         <div
