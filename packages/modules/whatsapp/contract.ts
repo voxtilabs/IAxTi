@@ -14,6 +14,11 @@ export {
   checkNumberRateLimit,
   causaLegible,
   RateLimitedError,
+  ErrorPermanente,
+  codigoDelProveedor,
+  esPermanente,
+  rechazoPermanente,
+  mensajeDeRechazo,
   CAUSAS_META,
 } from './application/outbound';
 export type { OutboundJobData } from './application/outbound';

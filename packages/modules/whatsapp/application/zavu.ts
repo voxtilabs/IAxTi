@@ -22,6 +22,13 @@ import {
   type PlantillaEnZavu,
 } from './zavu-plantillas';
 import type { CategoriaPlantilla } from '../domain/plantillas';
+import {
+  causaLegible,
+  codigoDelProveedor,
+  ErrorPermanente,
+  mensajeDeRechazo,
+  rechazoPermanente,
+} from './outbound';
 
 /**
  * De la forma de Zavu a la NUESTRA (#159).
@@ -214,9 +221,15 @@ export function createZavuProvider(
    */
   const configDeLaCuenta = (account: ChannelAccountRef) => {
     const apiKey = account.credentialRef ? process.env[account.credentialRef] : undefined;
-    if (!apiKey) throw new Error('La cuenta de canal no tiene credencial configurada.');
+    if (!apiKey) throw new ErrorPermanente(
+      'Este canal no tiene su credencial configurada. Un administrador tiene que reconectarlo en Canales.',
+      `Falta la variable ${account.credentialRef ?? '(sin referencia)'} en el entorno.`,
+    );
     const senderId = account.config.senderId as string | undefined;
-    if (!senderId) throw new Error('La cuenta de canal no tiene senderId.');
+    if (!senderId) throw new ErrorPermanente(
+      'Este canal no tiene un emisor asignado. Reconéctalo en Canales para elegir el número que envía.',
+      `La cuenta ${account.id} no trae config.senderId (ADR-0014).`,
+    );
     return { cfg: { apiKey, apiBase, fetchImpl }, senderId };
   };
 
@@ -267,9 +280,15 @@ export function createZavuProvider(
 
     async send(account: ChannelAccountRef, message: OutboundMessage) {
       const apiKey = account.credentialRef ? process.env[account.credentialRef] : undefined;
-      if (!apiKey) throw new Error('La cuenta de canal no tiene credencial configurada.');
+      if (!apiKey) throw new ErrorPermanente(
+        'Este canal no tiene su credencial configurada. Un administrador tiene que reconectarlo en Canales.',
+        `Falta la variable ${account.credentialRef ?? '(sin referencia)'} en el entorno.`,
+      );
       const senderId = account.config.senderId as string | undefined;
-      if (!senderId) throw new Error('La cuenta de canal no tiene senderId.');
+      if (!senderId) throw new ErrorPermanente(
+        'Este canal no tiene un emisor asignado. Reconéctalo en Canales para elegir el número que envía.',
+        `La cuenta ${account.id} no trae config.senderId (ADR-0014).`,
+      );
 
       const res = await fetchImpl(`${apiBase}/messages`, {
         method: 'POST',
@@ -303,6 +322,18 @@ export function createZavuProvider(
         // El motivo viene en el cuerpo: ventana cerrada, plantilla sin aprobar,
         // destinatario no verificado, tope diario. Sin él, depurar es adivinar.
         const motivo = (await res.text().catch(() => '')).slice(0, 300);
+        // Un 401 o un 400 no cambian por volver a mandarlos: la credencial
+        // seguirá mala y el número seguirá inválido. Solo 429 y 5xx merecen
+        // los cinco intentos con backoff.
+        if (rechazoPermanente(res.status)) {
+          // Si el proveedor dijo POR QUÉ y esa causa ya está traducida, se usa
+          // la traducción: «Pasaron más de 24 horas…» le sirve a quien está
+          // atendiendo; `{"error":{"code":"whatsapp_window_closed"}}`, no.
+          throw new ErrorPermanente(
+            causaLegible(codigoDelProveedor(motivo), mensajeDeRechazo(res.status)),
+            `HTTP ${res.status} ${motivo}`.trim(),
+          );
+        }
         throw new Error(`El canal no aceptó el envío: HTTP ${res.status} ${motivo}`.trim());
       }
       const data = (await res.json()) as {

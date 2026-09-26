@@ -37,7 +37,9 @@ let modo: 'ok' | 'fallo' = 'ok';
 const fakeProvider: ChannelProvider = {
   kind: 'whatsapp',
   async send() {
-    if (modo === 'fallo') throw new Error('WhatsApp no aceptó el envío: HTTP 400');
+    // 503 y no 400 a propósito (#556): este caso prueba el camino
+    // TRANSITORIO, y un 400 hoy es permanente — lo clasifica el adaptador.
+    if (modo === 'fallo') throw new Error('WhatsApp no aceptó el envío: HTTP 503');
     return { providerMessageId: `wamid.fake-${Math.random().toString(36).slice(2, 8)}` };
   },
   verifyWebhook: () => true,
@@ -151,7 +153,7 @@ describe('processOutbound (#43)', () => {
     const messageId = await nuevoSaliente();
     await expect(
       processOutbound(admin, redis, jobPara(messageId, { initiatedByBusiness: false }, 0)),
-    ).rejects.toThrow(/HTTP 400/);
+    ).rejects.toThrow(/HTTP 503/);
 
     const final = await processOutbound(admin, redis, jobPara(messageId, { initiatedByBusiness: false }, 4));
     expect(final.failed).toBeTruthy();
