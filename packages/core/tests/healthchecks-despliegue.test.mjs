@@ -40,6 +40,17 @@ describe('healthchecks de Dokploy raw (#396)', () => {
       expect(updated.services[service].healthcheck).toEqual(expected.services[service].healthcheck);
       delete updated.services[service].healthcheck;
     }
+    // Y desde #573 también se completa IAXTI_IMAGE. Se quita para que esta prueba
+    // siga afirmando lo suyo: que NADA MÁS cambia.
+    for (const service of Object.keys(updated.services)) {
+      expect(updated.services[service].environment.IAXTI_IMAGE, service).toBe('${IMAGE}');
+      delete updated.services[service].environment.IAXTI_IMAGE;
+      // El servicio que no tenía `environment` queda con un mapa vacío; el que
+      // tenía conserva lo suyo, que es lo que comprueba la comparación de abajo.
+      if (Object.keys(updated.services[service].environment).length === 0) {
+        delete updated.services[service].environment;
+      }
+    }
     expect(updated).toEqual(decode(raw));
     expect(patch.composeFile).toContain('# Configuración del operador');
     expect(patch.composeFile).toContain('&hc');
@@ -130,5 +141,93 @@ describe('los healthchecks le dan tiempo a arrancar (#254)', () => {
         expect(Number(String(margen).replace('s', '')), `${nombre}/${servicio}`).toBeGreaterThanOrEqual(30);
       }
     }
+  });
+});
+
+/**
+ * La versión de la imagen llega al contenedor (#573).
+ *
+ * `IAXTI_IMAGE` estaba declarado en el compose del repo desde #392 y NUNCA llegaba:
+ * el compose de Dokploy es raw, y este script solo sincronizaba healthchecks. El
+ * síntoma visible fue `/health` devolviendo `sha: null`; el invisible, y peor, que
+ * el `release` de Sentry venía vacío — que era todo el motivo de esa variable.
+ */
+describe('la versión de la imagen llega al contenedor (#573)', () => {
+  const sinVersion = `x-app: &app
+  image: \${IMAGE}
+services:
+  api:
+    <<: *app
+    environment: {DATABASE_URL: credencial-privada-de-prueba}
+  workers:
+    <<: *app
+  agents:
+    <<: *app
+  web:
+    <<: *app
+  admin:
+    <<: *app
+`;
+
+  it('completa IAXTI_IMAGE en los cinco servicios y no toca lo del operador', () => {
+    const patch = parcheHealthchecks({ sourceType: 'raw', composeFile: sinVersion }, canonical);
+    const updated = decode(patch.composeFile);
+    for (const service of ['api', 'workers', 'agents', 'web', 'admin']) {
+      expect(updated.services[service].environment.IAXTI_IMAGE, service).toBe('${IMAGE}');
+    }
+    // Lo que el operador tenía sigue igual, con su valor y no con el del repo.
+    expect(updated.services.api.environment.DATABASE_URL).toBe('credencial-privada-de-prueba');
+  });
+
+  it('no pisa un IAXTI_IMAGE que el operador ya puso', () => {
+    // Este parche completa, no manda: si alguien lo fijó a mano tendrá un motivo,
+    // y sobrescribirlo desde el deploy es la forma de perder una hora buscando.
+    const conSuyo = sinVersion.replace(
+      'environment: {DATABASE_URL: credencial-privada-de-prueba}',
+      'environment: {DATABASE_URL: privada, IAXTI_IMAGE: mia}',
+    );
+    const patch = parcheHealthchecks({ sourceType: 'raw', composeFile: conSuyo }, canonical);
+    const updated = decode(patch.composeFile);
+    expect(updated.services.api.environment.IAXTI_IMAGE).toBe('mia');
+  });
+
+  it('NO completa las claves donde la cadena vacía haría daño', () => {
+    // Esta es la decisión de #573, y la guarda existe para que no se relaje sin
+    // pensarlo. Si la variable del proyecto no está puesta, Compose sustituye
+    // cadena vacía, y `??` no la atrapa: la clave pasaría de `undefined` —que cae
+    // a su por-defecto— a `''`, que no cae.
+    //
+    //   IAXTI_ENV           `?? 'development'` en rls.ts (aislamiento por tenant)
+    //   AUDIT_EXPORT_SECRET `?? null` al firmar la exportación de auditoría
+    //   PUBLIC_API_URL      `?? 'https://api-staging…'` en los LINKS DE PAGO
+    //
+    // Generalizar esto antes de arreglar esa familia sería cambiar un fallo
+    // visible por tres invisibles, dos de ellos en plata y auditoría.
+    const patch = parcheHealthchecks({ sourceType: 'raw', composeFile: sinVersion }, canonical);
+    const updated = decode(patch.composeFile);
+    for (const clave of ['IAXTI_ENV', 'AUDIT_EXPORT_SECRET', 'PUBLIC_API_URL', 'DATABASE_URL']) {
+      expect(updated.services.workers.environment[clave], clave).toBeUndefined();
+    }
+  });
+
+  it('es idempotente: aplicado dos veces no cambia nada', () => {
+    const primero = parcheHealthchecks({ sourceType: 'raw', composeFile: sinVersion }, canonical);
+    const segundo = parcheHealthchecks(
+      { sourceType: 'raw', composeFile: primero.composeFile },
+      canonical,
+    );
+    expect(segundo).toEqual({});
+  });
+
+  it('con environment en forma de lista no se mezcla nada', () => {
+    // `- CLAVE=valor` es otra forma válida de Compose, y mezclarla con la de mapa
+    // a mano es cómo se rompen las dos. Se prefiere no tocar y decirlo.
+    const enLista = sinVersion.replace(
+      'environment: {DATABASE_URL: credencial-privada-de-prueba}',
+      'environment: [DATABASE_URL=privada]',
+    );
+    expect(() => parcheHealthchecks({ sourceType: 'raw', composeFile: enLista }, canonical)).toThrow(
+      /no se pudieron validar/i,
+    );
   });
 });
