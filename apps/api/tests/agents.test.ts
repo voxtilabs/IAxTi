@@ -5,6 +5,7 @@ import type { Pool } from 'pg';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
+import { DEFAULT_TASK_MODELS } from '@iaxti/module-agents';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 
@@ -98,7 +99,9 @@ describe('/v1/agents (#47)', () => {
     });
     expect(creado.status).toBe(201);
     const agente = await creado.json();
-    expect(agente.provider).toBe('google'); // default de la spec
+    // Nace en el proveedor que el producto usa para sugerir, no en uno fijo en
+    // el SQL: desde ADR-0025 eso es GLM y el Agente General crea asistentes.
+    expect(agente.provider).toBe(DEFAULT_TASK_MODELS.sugerir.provider);
 
     const lista = await (await pedir(vendedor, '/agents')).json();
     expect(lista.map((a: { name: string }) => a.name)).toContain('Sofía');

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import { AvisoResultado, Badge, Button, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
 import { apiFetch } from '../lib/api';
 
 /**
@@ -54,28 +54,25 @@ function Diferencia({ corrida, previa }: { corrida: CorridaDto; previa?: Corrida
 
 export function Evaluaciones() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
-  const [agente, setAgente] = useState<AgenteDto | null>(null);
+  // Las corridas son DEL asistente elegido, no del primero de la lista: dos
+  // asistentes con modelos distintos tienen scores distintos, y mostrar los
+  // de uno bajo el nombre del otro es peor que no mostrar nada (#494).
+  const { tenant, asistentes, elegido: agente, elegir } = useAsistenteElegido<AgenteDto>();
   const [corridas, setCorridas] = useState<CorridaDto[] | null>(null);
   const [corriendo, setCorriendo] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
+    if (!session || !tenant || !agente) {
+      if (asistentes !== null) setCorridas([]);
+      return;
+    }
     try {
-      const agentes = await apiFetch<AgenteDto[]>(config, session, tenant, '/agents');
-      const primero = agentes[0] ?? null;
-      setAgente(primero);
-      setCorridas(
-        primero
-          ? await apiFetch<CorridaDto[]>(config, session, tenant, `/agents/${primero.id}/evals`)
-          : [],
-      );
+      setCorridas(await apiFetch<CorridaDto[]>(config, session, tenant, `/agents/${agente.id}/evals`));
     } catch {
       /* sin permiso para ver el consumo del asistente: la sección no aparece */
     }
-  }, [config, session, tenant]);
+  }, [config, session, tenant, agente, asistentes]);
   useEffect(() => void cargar(), [cargar]);
 
   if (!tenant || !agente || corridas === null) return null;
@@ -105,6 +102,9 @@ export function Evaluaciones() {
       <div className="flex flex-wrap items-center gap-2">
         <FlaskConical aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">¿Mejoró o empeoró?</h2>
+        <span className="ml-auto">
+          <SelectorDeAsistente asistentes={asistentes ?? []} elegidoId={agente.id} onElegir={elegir} />
+        </span>
       </div>
       <p className="mt-1 max-w-prose text-dato text-body">
         Cada pulgar arriba o abajo de la bandeja se guarda como un caso. Correr la evaluación mide

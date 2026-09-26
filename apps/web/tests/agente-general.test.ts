@@ -77,3 +77,49 @@ describe('el hilo', () => {
     expect(AGENTE).toContain('r.truncada');
   });
 });
+
+/**
+ * Varios asistentes por negocio (#494).
+ *
+ * Tres pantallas tomaban `agentes[0]`: el modo autónomo, las evaluaciones y
+ * el logro del objetivo. Quien tenía dos configuraba siempre el primero
+ * creyendo que configuraba el que estaba mirando — y el modo autónomo es el
+ * ajuste donde equivocarse se nota en la cara de un cliente.
+ */
+const SELECTOR = readFileSync(join(__dirname, '..', 'components', 'selector-de-asistente.tsx'), 'utf8');
+const MODO = readFileSync(join(__dirname, '..', 'components', 'modo-autonomo.tsx'), 'utf8');
+const EVALS = readFileSync(join(__dirname, '..', 'components', 'evaluaciones.tsx'), 'utf8');
+const LOGRO_MULTI = readFileSync(join(__dirname, '..', 'components', 'logro-del-objetivo.tsx'), 'utf8');
+
+describe('varios asistentes', () => {
+  it('ninguna pantalla toma el primero de la lista', () => {
+    for (const [nombre, fuente] of [['modo', MODO], ['evals', EVALS], ['logro', LOGRO_MULTI]] as const) {
+      expect(fuente, nombre).not.toContain('agentes[0]');
+      expect(fuente, nombre).not.toContain('lista[0]');
+      expect(fuente, nombre).toContain('useAsistenteElegido');
+    }
+  });
+
+  it('con UNO solo el selector no se dibuja', () => {
+    // Un desplegable de una opción es ruido, y ocupa el lugar donde debería
+    // estar el nombre.
+    expect(SELECTOR).toContain('asistentes.length < 2) return null');
+  });
+
+  it('recargar no te devuelve al primero', () => {
+    // Guardar el modo autónomo y volver al asistente de arriba sería el
+    // mismo bug con otro disfraz.
+    expect(SELECTOR).toContain('lista.some((a) => a.id === actual)');
+  });
+
+  it('el Agente General sabe que puede crear varios, y de dónde saca los objetivos', () => {
+    // Un objetivo inventado deja al asistente sin herramientas: nace y no
+    // sirve para nada.
+    const AG = readFileSync(
+      join(__dirname, '..', '..', '..', 'packages', 'modules', 'agents', 'application', 'agente-general.ts'),
+      'utf8',
+    );
+    expect(AG).toContain('pide la lista de objetivos y elige de ahí');
+    expect(AG).toContain('No pidas el');
+  });
+});

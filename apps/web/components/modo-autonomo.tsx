@@ -4,9 +4,9 @@ import { AvisoResultado } from '@iaxti/ui/react';
 
 import { Bot } from 'lucide-react';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
 import { apiFetch } from '../lib/api';
 
 // Modo autónomo (#49): la IA responde sola SOLO por horario o marca manual
@@ -27,28 +27,16 @@ interface AgenteDto {
 const DIAS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
 export function ModoAutonomo() {
-  const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
-  const [agente, setAgente] = useState<AgenteDto | null>(null);
-  const [cargado, setCargado] = useState(false);
+  const { config, session } = useSession();
+  // Tomaba el primero de la lista: con dos asistentes, quien configuraba el
+  // modo autónomo tocaba siempre ese creyendo que tocaba el que estaba
+  // mirando — y este es el ajuste donde equivocarse se nota en la cara de
+  // un cliente (#494).
+  const { tenant, asistentes, elegido: agente, elegir, reemplazar } = useAsistenteElegido<AgenteDto>();
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
 
-  useEffect(() => setTenant(selectedTenant()), []);
-  const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
-    try {
-      const lista = await apiFetch<AgenteDto[]>(config, session, tenant, '/agents');
-      setAgente(lista[0] ?? null);
-    } catch {
-      setAgente(null);
-    } finally {
-      setCargado(true);
-    }
-  }, [config, session, tenant]);
-  useEffect(() => void cargar(), [cargar]);
-
-  if (!tenant || !cargado) return <div className="mt-4 max-w-xl"><Skeleton className="h-24" /></div>;
+  if (!tenant || asistentes === null) return <div className="mt-4 max-w-xl"><Skeleton className="h-24" /></div>;
   if (!agente) return null;
 
   const hours = agente.autonomousHours ?? {};
@@ -63,7 +51,7 @@ export function ModoAutonomo() {
         method: 'PUT',
         body: JSON.stringify(cambios),
       });
-      setAgente(actualizado);
+      reemplazar(actualizado);
       setGuardado(true);
     } catch (err) {
       setAviso((err as Error).message);
@@ -72,8 +60,9 @@ export function ModoAutonomo() {
 
   return (
     <div className="mt-4 max-w-xl pulso-panel rounded-tarjeta border border-line bg-raised p-6">
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
         <span className="rotulo">Modo autónomo</span>
+        <SelectorDeAsistente asistentes={asistentes} elegidoId={agente.id} onElegir={elegir} />
         {agente.defaultMode === 'autonomous' ? (
           <Badge role="warn"><Bot className="mr-1 inline-block size-3 align-[-0.1em]" aria-hidden />Por horario</Badge>
         ) : (
