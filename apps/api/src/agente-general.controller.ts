@@ -127,6 +127,10 @@ function llamarLaPropiaApi(request: WithUser) {
 async function verificarQueEsteEncendido(client: PoolClient, tenantId: string): Promise<void> {
   const estado = await agenteGeneralApagado(client, tenantId);
   if (!estado.apagado) return;
+  // El `motivo` que escribió el SuperAdmin NO viaja, a propósito: es una nota
+  // interna de un incidente y puede nombrar al proveedor, una cuenta o una
+  // deuda. Lo que va es qué pasó desde donde está la persona y qué puede
+  // hacer. Hay una prueba que lo sostiene, porque esto se lee como un olvido.
   throw new ConflictException({
     code: 'AGENTE_GENERAL_APAGADO',
     message:
