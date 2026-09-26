@@ -128,33 +128,11 @@ jobs:
           curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
             -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.deploy" >/dev/null
 
-          echo "Esperando al deploy..."
-          for i in $(seq 1 90); do
-            sleep 10
-            st=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.composeStatus')
-            echo "[$i] $st"
-            if [ "$st" = "done" ]; then exit 0; fi
-            if [ "$st" = "error" ]; then
-              # Antes esto era la última línea del log: «Deploy falló en
-              # Dokploy» y nada más (#565). Un fallo transitorio y uno real se
-              # veían idénticos, así que había que entrar al panel para saber
-              # cuál era — y eso enseña a reintentar sin mirar.
-              echo "Deploy falló en Dokploy. Lo que informa del último despliegue:"
-              # Solo los campos ESTRUCTURADOS del despliegue, no el log crudo:
-              # la salida de un `compose up` puede arrastrar nombres y valores
-              # del entorno, y este log de Actions lo lee cualquiera con acceso
-              # al repo. Con el estado y el mensaje de error alcanza para
-              # distinguir «la imagen no estaba» de «el contenedor no arrancó».
-              curl -fsS "${auth[@]}" \
-                "${DOKPLOY_URL}/api/deployment.all?composeId=${COMPOSE_ID}" 2>/dev/null \
-                | jq -r 'if type == "array" then .[0:3] else . end
-                         | if type == "array" then .[] else . end
-                         | "  \(.createdAt // "?") · \(.status // "?") · \(.title // "sin título")\n  \(.errorMessage // .description // "sin detalle" | tostring | .[0:400])"' \
-                || echo "  (no se pudo leer el detalle del despliegue; queda el panel de Dokploy)"
-              exit 1
-            fi
-          done
-          echo "Timeout esperando el deploy"; exit 1
+          # La espera vive en un script porque hay que poder probarla (#571):
+          # dentro de un `run:` de cuarenta líneas no se puede, y la primera
+          # versión de esto tenía una rama sin cubrir — la del timeout, que es
+          # justo la que se estrenó.
+          ESPERA_DEPLOY_SEG=${ESPERA_DEPLOY_SEG:-900} bash scripts/esperar-deploy.sh
 
       - name: Smoke
         env:
