@@ -33,6 +33,10 @@ import {
   aiExecutions,
   promptsActivos,
   alertasCosto,
+  apagarAgenteGeneral,
+  encenderAgenteGeneral,
+  corridasDelAgenteGeneral,
+  resumenDelAgenteGeneral,
   startSupportSession,
   supportStatus,
   tenantDetail,
@@ -480,6 +484,69 @@ class PlatformController {
       redis: process.env.REDIS_URL ? redisPlataforma() : null,
       dias: dias ? Math.min(Math.max(Number(dias), 1), 90) : undefined,
     });
+  }
+
+  /**
+   * El centro de control del Agente General (#496, ADR-0025).
+   *
+   * Pide `platform.ai` y no `platform.modules`: es un tablero de IA, y quien
+   * mira el gasto de IA es quien tiene que poder apagarlo cuando algo se
+   * desmadra — pedirle además el permiso de módulos sería obligar a dos
+   * personas para una emergencia.
+   */
+  @Get('agente-general')
+  @RequireModule('platform')
+  @RequirePermission('platform.ai')
+  @ApiOperation({ summary: 'El Agente General: corridas, costo, errores y su interruptor' })
+  async agenteGeneral(@Query('tenantId') tenantId?: string, @Query('limite') limite?: string) {
+    const client = await platformPool().connect();
+    try {
+      const [resumen, corridas] = await Promise.all([
+        resumenDelAgenteGeneral(client),
+        corridasDelAgenteGeneral(client, {
+          tenantId: tenantId || undefined,
+          limite: limite ? Number(limite) : undefined,
+        }),
+      ]);
+      return { resumen, corridas };
+    } finally {
+      client.release();
+    }
+  }
+
+  @Post('agente-general/apagar')
+  @RequireModule('platform')
+  @RequirePermission('platform.ai')
+  @ApiOperation({ summary: 'Apaga la configuración por conversación (global o de un negocio)' })
+  async apagarAgente(
+    @Req() request: WithUser,
+    @Body() body: { tenantId?: string | null; motivo?: string },
+  ) {
+    try {
+      await apagarAgenteGeneral(platformPool(), {
+        // Sin tenant es GLOBAL, y por eso el cuerpo tiene que decirlo
+        // explícitamente: un `tenantId` que llega vacío por un bug del
+        // frontend apagaría el producto para todos.
+        tenantId: body?.tenantId ?? null,
+        motivo: body?.motivo ?? '',
+        adminUser: request.user!.userId,
+      });
+      return { apagado: true };
+    } catch (err) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
+    }
+  }
+
+  @Post('agente-general/encender')
+  @RequireModule('platform')
+  @RequirePermission('platform.ai')
+  @ApiOperation({ summary: 'Lo vuelve a encender (global o de un negocio)' })
+  async encenderAgente(@Req() request: WithUser, @Body() body: { tenantId?: string | null }) {
+    await encenderAgenteGeneral(platformPool(), {
+      tenantId: body?.tenantId ?? null,
+      adminUser: request.user!.userId,
+    });
+    return { encendido: true };
   }
 
   @Get('ia')

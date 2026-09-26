@@ -28,6 +28,8 @@ const CROSS_TENANT: Record<string, string> = {
     'El despachador la lee cross-tenant con el rol de workers; el rol de aplicación solo INSERTa (packages/db/migrations/0001_outbox.sql).',
   platform_support_sessions:
     'Sesiones de soporte del SuperAdmin: existen para mirar OTROS tenants, y el acceso lo controla el permiso platform.tenants (#68).',
+  agente_general_apagado:
+    'El interruptor del Agente General es de PLATAFORMA: lo escribe el SuperAdmin y su fila global no tiene tenant. La API solo lo LEE para saber si esta cuenta lo tiene apagado, y el acceso lo controla platform.ai (#496).',
 };
 
 let admin: Pool;

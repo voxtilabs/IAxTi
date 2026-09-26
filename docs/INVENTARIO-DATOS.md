@@ -92,6 +92,7 @@ contenido es responsabilidad suya y la retención la fija su plan.
 | `idempotency_keys` | llaves de reintento con vida de 24 h |
 | `knowledge_query_cache` | caché: se reconstruye sola |
 | `platform_support_sessions` | registro NUESTRO de cuándo miramos la cuenta |
+| `agente_general_apagado` | interruptor NUESTRO: si la configuración por conversación está pausada para esta cuenta, y por qué |
 | `eval_cases`, `eval_runs` | nuestras pruebas de calidad del copiloto |
 | `agent_quota_alerts` | marcas internas para no avisar dos veces |
 | `agent_proposals` | propuestas de configuración del copiloto |

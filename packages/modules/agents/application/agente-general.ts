@@ -6,7 +6,7 @@ import { DEFAULT_TASK_OUTPUT_TOKENS, estimateCostUsd, iaSettings, redactPII } fr
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { CATALOGO, herramientasPara, type Herramienta } from './catalogo';
 import { aiSdkModelPort, type HerramientaExpuesta, type ModelPort } from './models';
-import { traceGeneration } from './langfuse';
+import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 
 /**
@@ -86,6 +86,16 @@ export interface DepsDelAgenteGeneral {
     cuerpo: Record<string, unknown> | null;
   }) => Promise<{ ok: boolean; estado: number; datos: unknown }>;
 }
+
+/**
+ * El nombre del prompt en Langfuse (#496, ADR-0025 §5).
+ *
+ * El prompt del Agente General se cambia como el de cualquier asistente:
+ * versionado afuera, y una versión nueva pasa por la evaluación antes de
+ * promoverse. La constante de abajo es el RESPALDO — lo que corre si
+ * Langfuse no está configurado, que es el caso en desarrollo.
+ */
+export const PROMPT_DEL_AGENTE_GENERAL = 'iaxti/agente-general';
 
 const INSTRUCCION = [
   'Eres IAxTi, el Agente General de la plataforma IAxTi: un CRM conversacional para pymes',
@@ -293,7 +303,7 @@ export async function conversarConElAgenteGeneral(
   };
 
   const res = await deps.modelo.generate({
-    system: INSTRUCCION,
+    system: (await getVersionedPrompt(PROMPT_DEL_AGENTE_GENERAL).catch(() => null)) ?? INSTRUCCION,
     prompt: '',
     mensajes: input.turnos,
     tools: [buscar, preparar],

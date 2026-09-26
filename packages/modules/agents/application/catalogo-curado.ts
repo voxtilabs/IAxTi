@@ -50,6 +50,12 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
     'Es la puerta por la que el Agente General habla: dársela como herramienta es él llamándose a sí mismo (#493).',
   AgenteGeneralController_aplicar:
     'Aplicar una propuesta es el acto de la PERSONA que aprueba; el agente haciéndolo se saltaría su propio visto bueno (#493).',
+  PlatformController_agenteGeneral:
+    'El tablero de la plataforma sobre él mismo: mirarse en el espejo no es una función del negocio (#496).',
+  PlatformController_apagarAgente:
+    'Su propio interruptor: un agente que puede apagarse —o volver a encenderse— no tiene interruptor (#496).',
+  PlatformController_encenderAgente:
+    'Ídem: encenderse solo después de que alguien lo apagó es exactamente lo que el interruptor viene a evitar (#496).',
 
   // Las tres que solo piden SESIÓN, sin tenant ni permiso: son del acto de
   // entrar, no del negocio. Sin permiso no hay cómo filtrarlas por quien

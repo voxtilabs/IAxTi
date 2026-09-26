@@ -24,6 +24,20 @@ export {
   setRetentionOverridePlatform,
 } from './application/planes';
 export type { PlanRow, ModuleAdminRow } from './application/planes';
+// El centro de control del Agente General (#496, ADR-0025): verlo y poder
+// apagarlo desde afuera, sin desplegar.
+export {
+  agenteGeneralApagado,
+  apagarAgenteGeneral,
+  encenderAgenteGeneral,
+  corridasDelAgenteGeneral,
+  resumenDelAgenteGeneral,
+} from './application/agente-general-panel';
+export type {
+  EstadoDelApagado,
+  CorridaDelAgente,
+  ResumenDelAgente,
+} from './application/agente-general-panel';
 export {
   healthSnapshot,
   securitySnapshot,

@@ -31,7 +31,12 @@ function rowToPlan(row: Record<string, unknown>): PlanRow {
   };
 }
 
-async function platformAudit(
+/**
+ * El libro del SuperAdmin. Se exporta (#496) porque el panel del Agente
+ * General audita con el MISMO libro: dos INSERT iguales en dos archivos es
+ * como una de las dos copias se queda sin una columna.
+ */
+export async function platformAudit(
   client: Pick<Pool, 'query'>,
   adminUser: string,
   action: string,
