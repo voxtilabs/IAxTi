@@ -41,7 +41,10 @@ beforeAll(async () => {
   worker = createModuleWorker(
     'inbound',
     registry,
-    async (job) => processInbound(admin, job.data as InboundJob),
+    // `as unknown as`, igual que el worker de verdad (main.ts:501): la cola es
+    // genérica a propósito (`moduleId?: string`) y el handler conoce su forma.
+    // El cast directo no compila y así la prueba usa el mismo camino.
+    async (job) => processInbound(admin, job.data as unknown as InboundJob),
     redisConnection(),
   );
 }, 60_000);

@@ -74,7 +74,11 @@ beforeAll(async () => {
         );
         return (r.rows[0]?.name as string) ?? null;
       }),
-    resolveCustomPermissions: (tenantId, roleName) =>
+    // Sin cache, y ahora de verdad: `CreateAppOptions` no declaraba esta
+    // opción, así que la app se quedaba con el resolver de la base —que
+    // cachea 60 s— y este test comprobaba un cambio de permisos contra una
+    // respuesta vieja. Pasaba según qué lectura hubiera calentado la cache.
+    resolveCustomPermissions: (tenantId: string, roleName: string) =>
       withTenant(admin, tenantId, (c) => customRolePermissions(c, tenantId, roleName)),
   });
   void dbRoleResolver;

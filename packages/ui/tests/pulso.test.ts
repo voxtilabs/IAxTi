@@ -75,7 +75,12 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
       conHex,
       `Hex suelto prohibido por Pulso:\n${conHex.join('\n')}\nUsa las variables de pulso-tokens.css.`,
     ).toEqual([]);
-  });
+    // Plazo explícito: recorre apps/ y packages/ enteros leyendo cada .ts,
+    // .tsx, .css y .cjs. Solo tarda 100 ms, pero con la suite completa en
+    // paralelo pasaba de los 5 s por omisión y fallaba por TIEMPO diciendo
+    // "hex suelto" — el peor fallo posible, porque manda a buscar un color
+    // que no existe. Mismo plazo que las otras guardas que recorren el árbol.
+  }, 30_000);
 
   it('NINGÚN emoji en la interfaz (regla Pulso)', () => {
     // La regla lo prohíbe con todas sus letras y no lo miraba nadie: había
@@ -103,7 +108,8 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
       conEmoji,
       `Emoji en la interfaz (Pulso los prohíbe). Usa un icono:\n  ${conEmoji.join('\n  ')}`,
     ).toEqual([]);
-  });
+    // El mismo recorrido y el mismo motivo que la guarda de hex.
+  }, 30_000);
 
   it('el script de modo aplica prefers-color-scheme y respeta la elección guardada', () => {
     expect(MODE_INIT_SCRIPT).toContain('prefers-color-scheme: dark');
@@ -142,8 +148,11 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
   });
 
   it('el preset de Tailwind prohíbe dark: (selector por data-mode) y mapea los 8 nombres del documento', async () => {
-    const modulo = (await import('../tailwind-preset.cjs')) as { default?: Record<string, never> };
-    const preset = (modulo.default ?? modulo) as {
+    // Sin castear la importación: con `allowJs` en el typecheck (#507) el .cjs
+    // ya tiene tipos inferidos, y forzarlo a `Record<string, never>` era decirle
+    // al compilador que el preset está vacío.
+    const modulo = await import('../tailwind-preset.cjs');
+    const preset = (modulo.default ?? modulo) as unknown as {
       darkMode: unknown;
       theme: { extend: { colors: Record<string, unknown>; borderRadius: Record<string, string> } };
     };

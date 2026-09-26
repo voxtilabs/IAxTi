@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { agendar } from '../application/agenda';
 import {
@@ -25,7 +25,10 @@ let contacto: string;
 const duena = randomUUID();
 const AHORA = new Date('2027-03-01T12:00:00Z');
 
-const en = <T>(fn: (c: never) => Promise<T>) => withTenant(admin, tenant, fn as never);
+// Tipado de verdad y no con `as never` (#507): el casteo era para callar al
+// compilador, y callaba TODO el archivo — cada resultado salía `unknown`, así
+// que ningún `expect` sobre una propiedad estaba comprobando nada.
+const en = <T>(fn: (c: PoolClient) => Promise<T>) => withTenant(admin, tenant, fn);
 
 async function citaEn(horasDesdeAhora: number) {
   const inicio = new Date(AHORA.getTime() + horasDesdeAhora * 3600_000);

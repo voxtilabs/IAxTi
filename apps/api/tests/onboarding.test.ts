@@ -100,7 +100,14 @@ describe('GET /v1/onboarding', () => {
     // Es lo que uno hace para probar sin número. Si contara, el flujo
     // guiado dejaría de pedir el número y el negocio nunca lo conecta.
     const cuenta = await withTenant(admin, tenant, (c) =>
-      createChannelAccount(c, { tenantId: tenant, kind: 'simulador', name: 'Simulador', externalId: `sim-${randomUUID()}` }),
+      createChannelAccount(c, {
+        tenantId: tenant,
+        kind: 'simulador',
+        // El id único va en el `name`, no en un `externalId`: ese campo no
+        // existe en `createChannelAccount` y se caía, así que las cuentas de
+        // simulador de dos pruebas quedaban idénticas.
+        name: `Simulador sim-${randomUUID()}`,
+      }),
     );
     await withTenant(admin, tenant, (c) =>
       setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }),
@@ -124,7 +131,13 @@ describe('GET /v1/onboarding', () => {
       }),
     );
     const cuenta = await withTenant(admin, tenant, (c) =>
-      createChannelAccount(c, { tenantId: tenant, kind: 'whatsapp', name: '+56 9 1111 1111', externalId: `wa-${randomUUID()}` }),
+      createChannelAccount(c, {
+        tenantId: tenant,
+        kind: 'whatsapp',
+        // Igual que arriba: el id único va en el nombre, porque `externalId`
+        // no existe en esta función y se caía sin avisar.
+        name: `+56 9 1111 1111 wa-${randomUUID()}`,
+      }),
     );
     await withTenant(admin, tenant, (c) =>
       setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }),

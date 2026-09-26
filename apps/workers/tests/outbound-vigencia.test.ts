@@ -69,7 +69,7 @@ async function plantilla(j: Awaited<ReturnType<typeof job>>) {
 describe('reglas vigentes al consumir la cola (#372)', () => {
   it.each([true, false])('STOP posterior al encolado bloquea el envío (negocio=%s)', async initiatedByBusiness => {
     const j = await job({ initiatedByBusiness, transaccional: true });
-    await en(c => optOut(c, { tenantId, contactId }));
+    await en(c => optOut(c, { tenantId, contactId, reason: 'el contacto escribió STOP' }));
     await assertRechazado(j, /consentimiento|no recibir/i);
   });
   it.each(['whatsapp', 'instagram', 'messenger'])('la ventana de %s vencida antes de entregar bloquea texto', async channel => {
@@ -151,7 +151,7 @@ describe('reglas vigentes al consumir la cola (#372)', () => {
   });
   it('un fallo al persistir el rechazo no se oculta ni confirma el job', async () => {
     const j = await job();
-    await en(c => optOut(c, { tenantId, contactId }));
+    await en(c => optOut(c, { tenantId, contactId, reason: 'el contacto escribió STOP' }));
     await pool.query(`CREATE OR REPLACE FUNCTION test_outbound_rechazo() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN IF NEW.tenant_id = '${tenantId}'::uuid THEN RAISE EXCEPTION 'persistencia no disponible'; END IF; RETURN NEW; END $$`);
     await pool.query('CREATE TRIGGER test_outbound_rechazo BEFORE UPDATE ON messages FOR EACH ROW EXECUTE FUNCTION test_outbound_rechazo()');

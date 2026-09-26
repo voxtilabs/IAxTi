@@ -13,7 +13,6 @@ import {
 } from '../application/copilot';
 import { createAgent } from '../application/agents';
 import type { ModelPortFactory } from '../application/models';
-import { parseSuggestion } from '../domain/parser';
 
 const ADMIN_URL =
   process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';

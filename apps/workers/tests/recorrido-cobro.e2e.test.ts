@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { receiveInbound, sendMessage } from '@iaxti/module-conversations';
 import { createPipeline, createDeal } from '@iaxti/module-crm';
@@ -31,7 +31,10 @@ let trato: string;
 const duena = randomUUID();
 const vendedora = randomUUID();
 
-const en = <T>(fn: (c: never) => Promise<T>) => withTenant(admin, tenant, fn as never);
+// Tipado de verdad y no con `as never` (#507): el casteo era para callar al
+// compilador, y callaba TODO el archivo — cada resultado salía `unknown`, así
+// que ningún `expect` sobre una propiedad estaba comprobando nada.
+const en = <T>(fn: (c: PoolClient) => Promise<T>) => withTenant(admin, tenant, fn);
 
 beforeAll(async () => {
   process.env.PAGOS_RECORRIDO_CRED = 'sandbox';
@@ -101,7 +104,9 @@ describe('cobrar desde el chat, de punta a punta', () => {
         conversationId: conversacion,
         dealId: trato,
         concept: 'Dos sillas Eames',
-        actor: vendedora,
+        // `actorUserId`, que es como se llama: con `actor` el campo se caía y el
+        // link quedaba sin quién lo emitió, justo lo que esta prueba dice medir.
+        actorUserId: vendedora,
       }),
     );
     link = l.id;
@@ -120,7 +125,9 @@ describe('cobrar desde el chat, de punta a punta', () => {
           concept: 'Juego de comedor',
           amountClp: 800000,
           maxAmountClp: 100000,
-          actor: vendedora,
+          // `actorUserId`, que es como se llama: con `actor` el campo se caía y el
+        // link quedaba sin quién lo emitió, justo lo que esta prueba dice medir.
+        actorUserId: vendedora,
         }),
       ),
     ).rejects.toThrow(/supera tu tope/);
@@ -150,7 +157,9 @@ describe('cobrar desde el chat, de punta a punta', () => {
         tenantId: tenant,
         linkId: link,
         status: 'paid',
-        externalId: 'sim-0001',
+        // `providerPaymentId`: con `externalId` el id del proveedor no llegaba,
+        // y la prueba de idempotencia no estaba mandando ningún id.
+        providerPaymentId: 'sim-0001',
         amountClp: 120000,
       }),
     );
@@ -162,7 +171,9 @@ describe('cobrar desde el chat, de punta a punta', () => {
         tenantId: tenant,
         linkId: link,
         status: 'paid',
-        externalId: 'sim-0001',
+        // `providerPaymentId`: con `externalId` el id del proveedor no llegaba,
+        // y la prueba de idempotencia no estaba mandando ningún id.
+        providerPaymentId: 'sim-0001',
         amountClp: 120000,
       }),
     );
@@ -197,7 +208,9 @@ describe('cobrar desde el chat, de punta a punta', () => {
         conversationId: conversacion,
         concept: 'Mesa de centro',
         amountClp: 45000,
-        actor: vendedora,
+        // `actorUserId`, que es como se llama: con `actor` el campo se caía y el
+        // link quedaba sin quién lo emitió, justo lo que esta prueba dice medir.
+        actorUserId: vendedora,
       }),
     );
     await admin.query("UPDATE payment_links SET expires_at = now() - interval '1 day' WHERE id = $1", [
