@@ -400,7 +400,12 @@ export async function updateDeal(
 /**
  * Marca estancadas las oportunidades abiertas que llevan en su etapa más días
  * de los esperados y publica `deal.stalled` una sola vez por episodio
- * (moverse de etapa limpia la marca). Lo llama el job programado de workers.
+ * (moverse de etapa limpia la marca).
+ *
+ * La llama el job `crm.stalled` de workers, una vez al día a las 07:00 de
+ * Santiago. Ese job NO existía hasta #529: este comentario decía que la
+ * llamaba y no la llamaba nadie más que su test, así que la bandera nunca se
+ * ponía en true y todo lo que cuelga de ella estaba apagado en silencio.
  */
 export async function markStalledDeals(
   client: PoolClient,

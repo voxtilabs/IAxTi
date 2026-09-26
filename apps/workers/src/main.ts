@@ -65,7 +65,7 @@ import {
 import { sincronizarPlantillas } from './plantillas-sync';
 import { createZavuProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
-import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
+import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
   expireSources,
   tenantsWithExpirable,
@@ -177,6 +177,33 @@ function start(): void {
             const res = await sweepDueActivities(pool);
             if (res.due) console.log(`scheduled: ${res.due} actividades vencidas avisadas`);
             return res;
+          }
+          /**
+           * Oportunidades estancadas (#529).
+           *
+           * `markStalledDeals` existía, su comentario decía «lo llama el job
+           * programado de workers», y este job no existía. Así que
+           * `deals.stalled` nunca se ponía en true: la insignia «Estancada»
+           * no aparecía nunca en el tablero, el widget del inicio mostraba
+           * siempre cero detenidas, y el evento `deal.stalled` —declarado en
+           * el manifiesto de crm— no se publicaba jamás.
+           *
+           * Una vez al día y no cada minuto: «lleva más días de los
+           * esperados en su etapa» cambia de estado una vez por día, y el
+           * UPDATE recorre las oportunidades abiertas de cada negocio. A las
+           * 07:00 de Santiago, para que quien abre la mañana ya lo vea.
+           */
+          case 'crm.stalled': {
+            const negocios = await tenantsWithExpirable(pool);
+            let marcadas = 0;
+            for (const tenantId of negocios) {
+              const ids = await withTenant(pool, tenantId, (c) =>
+                markStalledDeals(c, tenantId, 'scheduled'),
+              );
+              marcadas += ids.length;
+            }
+            if (marcadas > 0) console.log(`scheduled: ${marcadas} oportunidades estancadas`);
+            return { marcadas };
           }
           // Patrón §39: padre encola un hijo por tenant.
           case 'conversations.auto_resolve':
@@ -424,6 +451,11 @@ function start(): void {
     void Promise.all([
       scheduled.add('conversations.checks', { moduleId: 'conversations' }, { repeat: { every: 60_000 } }),
       scheduled.add('crm.activities_due', { moduleId: 'crm' }, { repeat: { every: 60_000 } }),
+      scheduled.add(
+        'crm.stalled',
+        { moduleId: 'crm' },
+        { repeat: { pattern: '0 7 * * *', tz: 'America/Santiago' } },
+      ),
       scheduled.add(
         'conversations.auto_resolve',
         { moduleId: 'conversations' },
