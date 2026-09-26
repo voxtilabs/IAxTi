@@ -5,6 +5,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Badge,
+  Checkbox,
   EstadoVacio,
   Button,
   Select,
@@ -84,6 +85,11 @@ export function Automatizaciones() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ ruleId: string; items: Array<{ label: string }> } | null>(null);
   const [creando, setCreando] = useState(false);
+  const [creandoSec, setCreandoSec] = useState(false);
+  const [secuencia, setSecuencia] = useState({
+    name: '',
+    pasos: [{ horas: '24', accion: 'send_message', texto: '', soloSinRespuesta: true }],
+  });
   const [nueva, setNueva] = useState({
     name: '',
     tipo: 'time' as 'event' | 'time',
@@ -126,6 +132,51 @@ export function Automatizaciones() {
       return null;
     }
   };
+
+  /** Cambia un paso de la secuencia que se está armando. */
+  function cambiarPaso(i: number, cambio: Partial<(typeof secuencia)['pasos'][number]>) {
+    setSecuencia({
+      ...secuencia,
+      pasos: secuencia.pasos.map((p, n) => (n === i ? { ...p, ...cambio } : p)),
+    });
+  }
+
+  /**
+   * Crea la secuencia. Las horas de cada paso se cuentan DESDE EL ANTERIOR,
+   * no desde el inicio: es lo que espera el dominio, y decirlo en la
+   * etiqueta evita secuencias que se disparan todas juntas.
+   */
+  async function crearSecuencia() {
+    if (creandoSec) return;
+    setCreandoSec(true);
+    try {
+      const creada = await llamar('/automations/sequences', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: secuencia.name.trim(),
+          steps: secuencia.pasos.map((p) => ({
+            afterHours: Number(p.horas),
+            onlyIfNoReply: p.soloSinRespuesta,
+            action: {
+              kind: p.accion,
+              params:
+                p.accion === 'create_activity'
+                  ? { type: 'llamada', title: p.texto.trim(), dueHours: 4 }
+                  : { body: p.texto.trim() },
+            },
+          })),
+        }),
+      });
+      if (creada) {
+        setSecuencia({
+          name: '',
+          pasos: [{ horas: '24', accion: 'send_message', texto: '', soloSinRespuesta: true }],
+        });
+      }
+    } finally {
+      setCreandoSec(false);
+    }
+  }
 
   /** Arma la forma que el dominio espera y deja que él valide el resto. */
   async function crearRegla() {
@@ -317,6 +368,115 @@ export function Automatizaciones() {
         <span>
           <Button type="submit" disabled={creando || !nueva.name.trim() || !nueva.texto.trim()}>
             {creando ? 'Creando…' : 'Crear la regla (nace apagada)'}
+          </Button>
+        </span>
+      </form>
+
+      {/* Secuencias (#480). `POST /automations/sequences` existe desde
+          #63 y no la llamaba nadie: la bandeja deja METER una conversación
+          a una secuencia y no había forma de crear ninguna, así que el
+          selector de la ficha estaba siempre vacío. */}
+      <form
+        className="mt-4 flex flex-col gap-3 pulso-panel rounded-tarjeta border border-line bg-raised p-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void crearSecuencia();
+        }}
+      >
+        <span className="rotulo">Una secuencia de seguimiento</span>
+        <p className="text-sm text-muted">
+          Varios pasos con espera entre medio. Se corta sola cuando el cliente responde, si el paso
+          lo pide.
+        </p>
+        <label className="text-sm">
+          Nombre
+          <Input
+            className="mt-1"
+            value={secuencia.name}
+            onChange={(e) => setSecuencia({ ...secuencia, name: e.target.value })}
+            placeholder="Recuperar cotización sin respuesta"
+          />
+        </label>
+
+        <ul className="flex flex-col gap-2">
+          {secuencia.pasos.map((paso, i) => (
+            <li key={i} className="flex flex-wrap items-end gap-2 rounded-campo border border-line bg-bg p-3">
+              <label className="text-sm">
+                {i === 0 ? 'Al empezar, esperar' : 'Después del anterior, esperar'}
+                <span className="mt-1 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    className="dato w-20"
+                    value={paso.horas}
+                    onChange={(e) => cambiarPaso(i, { horas: e.target.value })}
+                  />
+                  <span className="text-body">h</span>
+                </span>
+              </label>
+              <label className="min-w-[12rem] flex-1 text-sm">
+                Y entonces
+                <Select value={paso.accion} onValueChange={(v) => cambiarPaso(i, { accion: v })}>
+                  <SelectTrigger aria-label={`Qué hace el paso ${i + 1}`} className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="send_message">mandarle un mensaje</SelectItem>
+                    <SelectItem value="add_note">dejar una nota interna</SelectItem>
+                    <SelectItem value="create_activity">crear una tarea</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="min-w-[14rem] flex-1 text-sm">
+                Texto
+                <Input
+                  className="mt-1"
+                  value={paso.texto}
+                  onChange={(e) => cambiarPaso(i, { texto: e.target.value })}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-body">
+                <Checkbox
+                  checked={paso.soloSinRespuesta}
+                  onCheckedChange={(v) => cambiarPaso(i, { soloSinRespuesta: v === true })}
+                />
+                Solo si no respondió
+              </label>
+              {secuencia.pasos.length > 1 && (
+                <Button
+                  type="button"
+                  variant="fantasma"
+                  size="chico"
+                  onClick={() =>
+                    setSecuencia({
+                      ...secuencia,
+                      pasos: secuencia.pasos.filter((_, n) => n !== i),
+                    })
+                  }
+                >
+                  Quitar
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        <span className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secundario"
+            size="chico"
+            onClick={() =>
+              setSecuencia({
+                ...secuencia,
+                pasos: [...secuencia.pasos, { horas: '24', accion: 'send_message', texto: '', soloSinRespuesta: true }],
+              })
+            }
+          >
+            Agregar un paso
+          </Button>
+          <Button type="submit" disabled={creandoSec || !secuencia.name.trim()}>
+            {creandoSec ? 'Creando…' : 'Crear la secuencia'}
           </Button>
         </span>
       </form>
