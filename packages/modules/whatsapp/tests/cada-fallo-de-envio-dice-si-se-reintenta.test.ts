@@ -6,6 +6,7 @@ import {
   causaLegible,
   codigoDelProveedor,
   mensajeDeRechazo,
+  rechazoPermanente,
 } from '../application/outbound';
 import { createZavuProvider } from '../application/zavu';
 
@@ -241,5 +242,61 @@ describe('el proveedor no puede saltarse nuestras reglas (#589)', () => {
     const cuerpo = await cuerpoDeUnEnvio();
     expect(Object.keys(cuerpo)).toContain('fallbackEnabled');
     expect(cuerpo.channel).toBe('whatsapp');
+  });
+});
+
+describe('un 403 no es una credencial mala (#596)', () => {
+  /**
+   * El cuerpo de abajo es TEXTUAL: lo que Zavu respondió cuando Lino intentó
+   * escribirle a su propio número desde staging. Tres días buscando por qué no
+   * se podían enviar mensajes, y el producto decía que había que reconectar el
+   * canal.
+   *
+   * 401 y 403 estaban juntos en `mensajeDeRechazo`, y no son lo mismo:
+   *   401 = «no sé quién eres» → la credencial está mala, hay que reconectar.
+   *   403 = «sé quién eres y esto no lo puedes hacer» → la credencial está
+   *          PERFECTA y el problema es el destino.
+   *
+   * Confundirlos no solo no ayuda: manda en la dirección contraria, y
+   * reconectar no arregla nada, así que se hace otra vez.
+   */
+  const CUERPO_REAL = JSON.stringify({
+    code: 'forbidden',
+    message:
+      'Sandbox mode: a test key only reaches the phone numbers of people on your team. ' +
+      'Send to one of those, or use a live API key.',
+  });
+
+  it('el rechazo de sandbox se explica por lo que ES, no como credencial mala', () => {
+    const frase = causaLegible(codigoDelProveedor(CUERPO_REAL), mensajeDeRechazo(403));
+    expect(frase).toMatch(/llave de prueba/);
+    expect(frase).toMatch(/números del equipo/);
+    // Y NO manda a reconectar, que es lo que hacía y no arreglaba nada.
+    expect(frase).not.toMatch(/reconect/i);
+    expect(frase).not.toMatch(/credenciales/);
+  });
+
+  it('un 403 sin cuerpo reconocible tampoco culpa a la credencial', () => {
+    const frase = causaLegible(codigoDelProveedor('{"code":"forbidden"}'), mensajeDeRechazo(403));
+    expect(frase).toMatch(/no tiene permitido/);
+    expect(frase).toMatch(/La credencial está bien/);
+  });
+
+  it('el 401 SÍ es la credencial, y sigue mandando a reconectar', () => {
+    // La otra mitad: si se arreglara el 403 rompiendo el 401, el producto
+    // dejaría de avisar cuando de verdad hay que reconectar.
+    const frase = mensajeDeRechazo(401);
+    expect(frase).toMatch(/credenciales/);
+    expect(frase).toMatch(/reconectarlo en Canales/);
+  });
+
+  it('el rechazo de sandbox es PERMANENTE: reintentar no lo arregla', () => {
+    // Un 403 no cambia por volver a mandarlo. Sin esto quedaría cinco intentos
+    // con backoff antes de contar lo que ya se sabía al primero.
+    expect(rechazoPermanente(403)).toBe(true);
+    expect(rechazoPermanente(401)).toBe(true);
+    // Y lo que sí se arregla esperando sigue reintentando.
+    expect(rechazoPermanente(429)).toBe(false);
+    expect(rechazoPermanente(503)).toBe(false);
   });
 });
