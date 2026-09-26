@@ -157,3 +157,57 @@ describe('conectar de punta a punta', () => {
     expect(res.avisos.join(' ')).toMatch(/se rechaza por firma inválida/);
   });
 });
+
+describe('probar con un número real sin mentirle al ambiente (#593)', () => {
+  const prueba = { project: { id: 'p1', name: 'VoxTi Labs' }, isTestMode: true };
+  const produccion = { project: { id: 'p1', name: 'VoxTi Labs' }, isTestMode: false };
+
+  /**
+   * Usar el número de producción como sandbox es una decisión del negocio, y
+   * defendible: un WhatsApp de verdad se comporta distinto que un simulador.
+   *
+   * El problema era la SALIDA que ofrecía el guard. La única forma de conectarlo
+   * era declarar `IAXTI_ENV=production`, y `IAXTI_ENV` no es solo para esto: lo
+   * lee la comprobación de aislamiento por tenant en `rls.ts`, el `environment`
+   * de Sentry y la generación de links de pago. Para hacer algo legítimo había
+   * que mentirle al resto del sistema.
+   */
+  it('con la declaración explícita, una llave de producción entra a staging', () => {
+    const r = llaveSirveParaAmbiente(produccion, 'staging', true);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.reales).toBe(true);
+  });
+
+  it('sin la declaración sigue cortando, y manda a la salida CORRECTA', () => {
+    const r = llaveSirveParaAmbiente(produccion, 'staging', false);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.motivo).toMatch(/ZAVU_ENVIOS_REALES/);
+      // Y dice explícitamente qué NO hacer, porque era el consejo de antes.
+      expect(r.motivo).toMatch(/NO hay que hacer es declarar/);
+      expect(r.motivo).toMatch(/IAXTI_ENV=production/);
+    }
+  });
+
+  it('la declaración NO vuelve aceptable una llave de prueba en producción', () => {
+    // Ese lado no se negocia: en producción una llave de prueba significa que los
+    // clientes del negocio no reciben nada y nadie se enteraría hasta el reclamo.
+    const r = llaveSirveParaAmbiente(prueba, 'production', true);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.motivo).toMatch(/no saldrían de verdad/);
+  });
+
+  it('en producción, mandar de verdad es lo normal y no hace falta declararlo', () => {
+    const r = llaveSirveParaAmbiente(produccion, 'production');
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.reales).toBe(true);
+  });
+
+  it('una llave de prueba en staging no manda de verdad', () => {
+    const r = llaveSirveParaAmbiente(prueba, 'staging');
+    expect(r.ok).toBe(true);
+    // Esto es lo que decide si el canal queda marcado: una llave de prueba no
+    // manda a nadie, así que no hay nada que avisar.
+    if (r.ok) expect(r.reales).toBe(false);
+  });
+});

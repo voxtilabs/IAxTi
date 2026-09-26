@@ -23,9 +23,18 @@
 - PII: minimizar en logs; redactar antes de Langfuse o cualquier proveedor
   LLM; proveedores en **tier pago allí donde pasan datos de clientes** —
   producción siempre. En staging se admite el tier gratis mientras ahí solo
-  haya datos de prueba (ADR-0011, enmienda). OJO: hoy staging está conectado
-  al número real de VoxTi porque Zavu no ofrece sandbox, así que ese "solo
-  datos de prueba" es una condición aceptada a sabiendas y se revisa con el
-  primer cliente real.
+  haya datos de prueba (ADR-0011, enmienda). OJO: staging está conectado al
+  número real de VoxTi, así que ese "solo datos de prueba" es una condición
+  aceptada a sabiendas y se revisa con el primer cliente real.
+- **Corrección (#593):** esta nota decía antes "porque Zavu no ofrece sandbox".
+  Es falso: Zavu tiene llaves `zv_test_` de sandbox y una pantalla de números
+  verificados. La decisión de usar el número real es DELIBERADA —un WhatsApp de
+  verdad se comporta distinto que un simulador, y el producto se prueba contra
+  lo que va a pasar—, no una limitación del proveedor. Se sostenía un riesgo
+  aceptado con un motivo equivocado, y un motivo equivocado no se puede revisar.
+- Mandar de verdad fuera de producción se declara con `ZAVU_ENVIOS_REALES=1`, y
+  NUNCA falseando `IAXTI_ENV`: esa variable la leen el aislamiento por tenant
+  (`rls.ts`), el `environment` de Sentry y los links de pago. El canal queda
+  marcado y el diagnóstico lo muestra primero.
 - Si el PR toca auth, datos personales, tools o webhooks: `/security-review`
   antes de pedir merge, y actualizar la fila en COMPLIANCE_BASELINE.md.
