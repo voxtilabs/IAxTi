@@ -31,6 +31,8 @@ export function Empresas() {
   const [form, setForm] = useState({ name: '', rut: '' });
   const [guardando, setGuardando] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [editando, setEditando] = useState<string | null>(null);
+  const [edicion, setEdicion] = useState({ name: '', rut: '' });
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
@@ -84,6 +86,28 @@ export function Empresas() {
       setAbierta(d);
     } catch (err) {
       setError((err as Error).message);
+    }
+  }
+
+  /**
+   * Guarda los datos corregidos. El RUT vacío viaja como `null` y eso lo
+   * BORRA; el servidor lo valida y lo normaliza, y si está malo lo dice.
+   */
+  async function guardarEdicion(e: EmpresaDto) {
+    if (!session || !tenant || ocupado) return;
+    setOcupado(e.id);
+    try {
+      await apiFetch(config, session, tenant, `/empresas/${e.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: edicion.name.trim(), rut: edicion.rut.trim() || null }),
+      });
+      setError(null);
+      setEditando(null);
+      await cargar();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setOcupado(null);
     }
   }
 
@@ -188,16 +212,66 @@ export function Empresas() {
                 </button>
                 {e.archivedAt && <Badge role="neutral">Archivada</Badge>}
                 {!e.archivedAt && (
-                  <Button
-                    variant="fantasma"
-                    size="chico"
-                    disabled={ocupado === e.id}
-                    onClick={() => void archivar(e)}
-                  >
-                    Archivar
-                  </Button>
+                  <>
+                    {/* Editar una empresa (#480). `PUT /empresas/:id`
+                        existe desde #217 y no la llamaba nadie: un nombre
+                        mal escrito o un RUT que faltaba solo se arreglaban
+                        archivándola y creando otra — y con ella se iban
+                        los contactos colgados. */}
+                    <Button
+                      variant="fantasma"
+                      size="chico"
+                      onClick={() => {
+                        setEditando(e.id);
+                        setEdicion({ name: e.name, rut: e.rut ?? '' });
+                      }}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      variant="fantasma"
+                      size="chico"
+                      disabled={ocupado === e.id}
+                      onClick={() => void archivar(e)}
+                    >
+                      Archivar
+                    </Button>
+                  </>
                 )}
               </div>
+
+              {editando === e.id && (
+                <form
+                  className="flex flex-wrap items-end gap-3 border-t border-line px-4 py-3"
+                  onSubmit={(ev) => {
+                    ev.preventDefault();
+                    void guardarEdicion(e);
+                  }}
+                >
+                  <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm text-body">
+                    Nombre
+                    <Input
+                      required
+                      value={edicion.name}
+                      onChange={(ev) => setEdicion({ ...edicion, name: ev.target.value })}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm text-body">
+                    RUT
+                    <Input
+                      className="dato"
+                      value={edicion.rut}
+                      onChange={(ev) => setEdicion({ ...edicion, rut: ev.target.value })}
+                    />
+                  </label>
+                  <Button type="submit" disabled={ocupado === e.id}>
+                    {ocupado === e.id ? 'Guardando…' : 'Guardar'}
+                  </Button>
+                  <Button type="button" variant="secundario" onClick={() => setEditando(null)}>
+                    Dejar como estaba
+                  </Button>
+                </form>
+              )}
 
               {abierta?.empresa.id === e.id && (
                 <div className="border-t border-line px-4 py-3">
