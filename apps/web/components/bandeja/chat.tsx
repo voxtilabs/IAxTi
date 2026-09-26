@@ -157,6 +157,21 @@ export function Chat({
     if (historial) historial.scrollTop = historial.scrollHeight;
   }, [mensajes]);
 
+  /**
+   * La ventana de 24 h, y arrastrar y pegar (#561).
+   *
+   * Van ARRIBA del `return` de «elige una conversación», y esa posición es la
+   * corrección: abajo, `useArrastre` quedaba después de un return condicional,
+   * así que al elegir la primera conversación React pasaba de N a N+1 hooks y
+   * reventaba el panel entero — en blanco, sin mensajes ni campo de texto. La
+   * suite E2E lo cazó; ninguna de mis guardas de fuente puede verlo.
+   *
+   * Fuera de la ventana queda apagado: ahí solo salen plantillas, y aceptar que
+   * sueltes una foto que no va a salir es prometer algo que el canal no permite.
+   */
+  const enVentana = detalle ? enVentana24h(detalle.lastInboundAt) : false;
+  const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana });
+
   if (!detalle) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -169,17 +184,10 @@ export function Chat({
     );
   }
 
-  const enVentana = enVentana24h(detalle.lastInboundAt);
   // Ni un tipo MIME escrito a mano acá: si la ruta no contestó, no se pone
   // `accept` y el selector deja elegir cualquier cosa — que es como estaba
   // antes y sigue teniendo su rechazo del lado del servidor.
   const aceptados = limitesDeAdjunto?.limites.flatMap((l) => l.tipos).join(',') ?? null;
-  /**
-   * Arrastrar y pegar (#561). Fuera de la ventana de 24 h queda apagado: ahí
-   * solo salen plantillas, y aceptar que sueltes una foto que no va a salir es
-   * prometer algo que el canal no permite.
-   */
-  const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana });
   const aprobadas = (plantillas ?? []).filter((p) => p.status === 'approved');
   const cronologicos = mensajes ? [...mensajes].reverse() : [];
 

@@ -119,3 +119,25 @@ describe('sin hex suelto ni tamaños arbitrarios en lo nuevo (#561)', () => {
     expect(codigo).not.toMatch(/rounded-(?:xl|2xl|3xl|md|lg)/);
   });
 });
+
+describe('el hook va antes del return temprano (#561)', () => {
+  it('useArrastre se llama sin condición, arriba del «elige una conversación»', () => {
+    // Lo puse abajo y reventó el panel entero: al elegir la primera
+    // conversación React pasaba de N a N+1 hooks. En blanco, sin mensajes ni
+    // campo de texto. Lo cazó la suite E2E —dos minutos— y ninguna guarda de
+    // fuente podía verlo.
+    const hook = CHAT.indexOf('useArrastre({');
+    const retornoTemprano = CHAT.indexOf('if (!detalle) {');
+    expect(hook).toBeGreaterThan(0);
+    expect(retornoTemprano).toBeGreaterThan(0);
+    expect(hook).toBeLessThan(retornoTemprano);
+  });
+
+  it('la regla de lint que lo caza está encendida como error', () => {
+    // Faltaba `eslint-plugin-react-hooks` en un repo con cincuenta
+    // componentes. Es la guarda más barata que existe para esto y caza en el
+    // editor lo que el E2E caza en dos minutos.
+    const config = readFileSync(join(RAIZ, '..', '..', 'eslint.config.mjs'), 'utf8');
+    expect(config).toMatch(/'react-hooks\/rules-of-hooks': 'error'/);
+  });
+});
