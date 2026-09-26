@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState, type DragEvent } from 'react';
+import { useRef, useState } from 'react';
 import { FileText, Upload } from 'lucide-react';
-import { AvisoResultado, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, cn, useArrastre, useSession } from '@iaxti/ui/react';
 import { apiFetch } from '../lib/api';
 import { selectedTenant } from './tenant-switcher';
 
@@ -12,6 +12,8 @@ import { selectedTenant } from './tenant-switcher';
  * La zona de arrastre viene del bloque `file-upload-04` de blocks.so (MIT,
  * github.com/ephraimduncan/blocks) y lo que se conserva es la FORMA: el
  * recuadro punteado, el «arrastra o elige», el archivo con su peso y la barra.
+ * El gesto en sí salió de acá a `useArrastre` (#561) para que la bandeja lo
+ * use también: dos copias del mismo `onDrop` se separan en el primer arreglo.
  * Lo que se cambió, y por qué:
  *
  * - Pulso en vez de shadcn crudo: `rounded-campo` y `border-line-strong` en
@@ -75,6 +77,7 @@ export function SubirPdf({ alTerminar }: { alTerminar: () => void }) {
   const { config, session } = useSession();
   const [estado, setEstado] = useState<Estado>({ fase: 'vacio' });
   const campo = useRef<HTMLInputElement>(null);
+  const arrastre = useArrastre({ alRecibir: (archivo) => void recibir(archivo) });
 
   async function recibir(archivo: File | undefined) {
     if (!archivo || !session) return;
@@ -121,10 +124,6 @@ export function SubirPdf({ alTerminar }: { alTerminar: () => void }) {
     }
   }
 
-  function soltar(e: DragEvent<HTMLDivElement>) {
-    e.preventDefault();
-    void recibir(e.dataTransfer.files?.[0]);
-  }
 
   if (estado.fase === 'subiendo' || estado.fase === 'indexando') {
     return (
@@ -156,9 +155,13 @@ export function SubirPdf({ alTerminar }: { alTerminar: () => void }) {
   return (
     <div className="flex flex-col gap-2">
       <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={soltar}
-        className="flex justify-center rounded-campo border border-dashed border-line-strong bg-field px-6 py-8"
+        {...arrastre.props}
+        className={cn(
+          'flex justify-center rounded-campo border border-dashed bg-field px-6 py-8',
+          // Resaltar mientras hay algo encima: antes no había ninguna señal, así
+          // que no se sabía si el recuadro estaba recibiendo o no (#561).
+          arrastre.arrastrando ? 'border-action bg-action-soft' : 'border-line-strong',
+        )}
       >
         <div className="flex flex-col items-center gap-2 text-center">
           <Upload aria-hidden className="size-8 text-muted" />

@@ -31,6 +31,7 @@ import {
   Input,
   Textarea,
   cn,
+  useArrastre,
 } from '@iaxti/ui/react';
 import {
   enVentana24h,
@@ -156,6 +157,21 @@ export function Chat({
     if (historial) historial.scrollTop = historial.scrollHeight;
   }, [mensajes]);
 
+  /**
+   * La ventana de 24 h, y arrastrar y pegar (#561).
+   *
+   * Van ARRIBA del `return` de «elige una conversación», y esa posición es la
+   * corrección: abajo, `useArrastre` quedaba después de un return condicional,
+   * así que al elegir la primera conversación React pasaba de N a N+1 hooks y
+   * reventaba el panel entero — en blanco, sin mensajes ni campo de texto. La
+   * suite E2E lo cazó; ninguna de mis guardas de fuente puede verlo.
+   *
+   * Fuera de la ventana queda apagado: ahí solo salen plantillas, y aceptar que
+   * sueltes una foto que no va a salir es prometer algo que el canal no permite.
+   */
+  const enVentana = detalle ? enVentana24h(detalle.lastInboundAt) : false;
+  const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana });
+
   if (!detalle) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -168,7 +184,6 @@ export function Chat({
     );
   }
 
-  const enVentana = enVentana24h(detalle.lastInboundAt);
   // Ni un tipo MIME escrito a mano acá: si la ruta no contestó, no se pone
   // `accept` y el selector deja elegir cualquier cosa — que es como estaba
   // antes y sigue teniendo su rechazo del lado del servidor.
@@ -196,6 +211,28 @@ export function Chat({
 
   return (
     <>
+      {/* El panel entero recibe lo que se suelte (#561): apuntar a un recuadro
+          chico obliga a mirar dónde se suelta, que es justo lo que el gesto
+          viene a evitar. `relative` es para el aviso de acá abajo. */}
+      <div className="relative flex min-h-0 flex-1 flex-col" {...arrastre.props}>
+        {arrastre.arrastrando && (
+          <div
+            // `pointer-events-none` es lo que hace que esto funcione: un
+            // overlay que recibe eventos se come el `drop` del contenedor y el
+            // archivo nunca llega.
+            //
+            // El velo va con `color-mix` sobre el token y no con `bg-bg/85`:
+            // los colores de Pulso no están definidos por canales, así que el
+            // modificador de opacidad NO emite nada y el aviso habría quedado
+            // sin fondo, con el texto encima de los mensajes. Lo cazó la guarda
+            // de #548 — el mismo patrón que usa el velo del diálogo.
+            className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-bloque border-2 border-dashed border-action bg-[color-mix(in_srgb,var(--bg)_88%,transparent)]"
+          >
+            <p className="font-display text-seccion font-bold text-action-text">
+              Suéltalo acá para adjuntarlo
+            </p>
+          </div>
+        )}
       <header className="pulso-chat-header flex shrink-0 flex-wrap items-center gap-3 border-b border-line px-4 py-3">
         <Button variant="fantasma" size="icono" className="lg:hidden" aria-label="Volver a la lista" onClick={onVolver}>
           <IconoVolver className="h-4 w-4" />
@@ -516,6 +553,9 @@ export function Chat({
             rows={1}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
+            // Pegar una captura la adjunta (#561); pegar texto sigue pegando
+            // texto, que es lo que pasa el 99 % de las veces.
+            onPaste={arrastre.alPegar}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -760,6 +800,7 @@ export function Chat({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </>
   );
 }
