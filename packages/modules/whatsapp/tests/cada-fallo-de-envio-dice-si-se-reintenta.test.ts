@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   CAUSAS_META,
   causaLegible,
   codigoDelProveedor,
   mensajeDeRechazo,
 } from '../application/outbound';
+import { createZavuProvider } from '../application/zavu';
 
 /**
  * Guarda: en el camino de envío, todo fallo dice si se reintenta o no (#556).
@@ -117,5 +118,75 @@ describe('el motivo del proveedor se traduce (#556)', () => {
       expect(frase, `causa ${clave}`).not.toMatch(/HTTP|[a-z]+_[a-z]+|senderId|null|undefined/);
       expect(frase.trim(), `causa ${clave}`).not.toBe('');
     }
+  });
+});
+
+describe('un reintento no manda el mensaje dos veces (#585)', () => {
+  /**
+   * El bloqueo de fila impide que dos consumidores manden el mismo mensaje. Lo que
+   * NO cubre es el caso que de verdad pasa: el primer intento llega al proveedor,
+   * el proveedor lo acepta, y la respuesta se pierde. Nosotros lanzamos, BullMQ
+   * reintenta, y el cliente recibe el mismo mensaje dos veces — la fila sigue en
+   * `queued` porque nunca nos llegó el id del proveedor.
+   *
+   * Zavu tiene `idempotencyKey` en su API y no lo estábamos usando. Lo comprobé en
+   * su OpenAPI, no en su blog: `docs.zavu.dev/openapi.json`.
+   */
+  it('el envío manda idempotencyKey con NUESTRO id del mensaje', async () => {
+    const llamadas: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchMock = vi.fn(async (url: string, init: { body: string }) => {
+      llamadas.push({ url: String(url), body: JSON.parse(init.body) });
+      return { ok: true, status: 200, json: async () => ({ id: 'wamid.1' }) };
+    });
+    process.env.ZAVU_KEY_IDEM = 'zv_test';
+    const p = createZavuProvider('whatsapp', {
+      apiBase: 'https://zavu.test/v1',
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    await p.send(
+      {
+        id: 'cuenta-1',
+        tenantId: 'tenant-1',
+        kind: 'whatsapp',
+        name: 'n',
+        state: 'active',
+        credentialRef: 'ZAVU_KEY_IDEM',
+        config: { senderId: 'snd_1' },
+      },
+      { to: '+56987654321', type: 'texto', body: 'Hola', messageId: 'msg-abc-123' },
+    );
+    delete process.env.ZAVU_KEY_IDEM;
+
+    expect(llamadas).toHaveLength(1);
+    // La llave es nuestro id: único, estable entre reintentos, y no cambia si el
+    // job se reencola. Cualquier otra cosa (un random, la hora) no serviría.
+    expect(llamadas[0]!.body.idempotencyKey).toBe('msg-abc-123');
+  });
+
+  it('el mismo mensaje reintentado manda la MISMA llave', async () => {
+    const llaves: unknown[] = [];
+    const fetchMock = vi.fn(async (_url: string, init: { body: string }) => {
+      llaves.push(JSON.parse(init.body).idempotencyKey);
+      return { ok: true, status: 200, json: async () => ({ id: 'wamid.1' }) };
+    });
+    process.env.ZAVU_KEY_IDEM2 = 'zv_test';
+    const p = createZavuProvider('whatsapp', {
+      apiBase: 'https://zavu.test/v1',
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const cuenta = {
+      id: 'cuenta-1',
+      tenantId: 'tenant-1',
+      kind: 'whatsapp' as const,
+      name: 'n',
+      state: 'active' as const,
+      credentialRef: 'ZAVU_KEY_IDEM2',
+      config: { senderId: 'snd_1' },
+    };
+    const mensaje = { to: '+56987654321', type: 'texto', body: 'Hola', messageId: 'msg-xyz' };
+    await p.send(cuenta, mensaje);
+    await p.send(cuenta, mensaje);
+    delete process.env.ZAVU_KEY_IDEM2;
+    expect(llaves).toEqual(['msg-xyz', 'msg-xyz']);
   });
 });
