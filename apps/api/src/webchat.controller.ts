@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { z } from 'zod';
 import {
   domainAllowed,
   findWidgetById,
@@ -21,6 +22,7 @@ import {
 } from '@iaxti/module-webchat';
 import type { Widget } from '@iaxti/module-webchat';
 import { createQueue, redisConnection } from '@iaxti/core';
+import { textoRequerido, validar } from './validar';
 import { apiPool } from './db';
 import { registry } from './registry';
 import type { WithRequestId } from './request-id';
@@ -96,6 +98,42 @@ async function widgetValido(widgetId: string, pageUrl: string | undefined): Prom
   return widget;
 }
 
+/** El mismo texto que respondía la ruta cuando faltaba uno de los dos (#524). */
+const FALTA_SESION_O_MENSAJE = 'Falta la sesión o el mensaje.';
+
+/**
+ * El mensaje del visitante (#524).
+ *
+ * Los dos campos obligatorios comparten el mensaje porque es el que la ruta ya
+ * respondía, y lo lee el visitante con el chat abierto. `sessionId` va PRIMERO
+ * a propósito: si no viene ninguno de los dos, el primer `details` sigue siendo
+ * el suyo, como cuando era un `if` con ternario.
+ *
+ * `page` y `visitor` quedan opcionales porque lo eran: sin `page` la respuesta
+ * no es un 400 sino el 404 mudo del dominio, y la identidad llega recién con el
+ * segundo mensaje (#46).
+ */
+const MensajeDelVisitante = z.object({
+  page: z.string().optional(),
+  // A mano y SIN `.trim()`, al contrario que el texto: hoy un id con espacios
+  // pasa esta comprobación y lo rechaza la consulta de la sesión con su propio
+  // código (WEBCHAT_ERROR, «La sesión del chat expiró. Recarga la página.»). El
+  // atajo lo recortaría y lo volvería VALIDATION_ERROR, que es mover el
+  // contrato. El mensaje va en el tipo y en el largo: sin el campo falla el
+  // tipo, no el largo.
+  sessionId: z.string({ error: FALTA_SESION_O_MENSAJE }).min(1, FALTA_SESION_O_MENSAJE),
+  // El texto sí se recorta, porque la comprobación de hoy es `body.trim()`: un
+  // mensaje de puros espacios no es un mensaje.
+  body: textoRequerido(FALTA_SESION_O_MENSAJE),
+  visitor: z
+    .object({
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+    })
+    .optional(),
+});
+
 @ApiTags('webchat')
 @Controller('webchat/:widgetId')
 export class WebchatController {
@@ -106,6 +144,13 @@ export class WebchatController {
     return { name: widget.name, welcomeMessage: widget.welcomeMessage };
   }
 
+  /**
+   * Esta ruta se queda con `@Body()` y sin esquema (#524): no tiene ningún
+   * VALIDATION_ERROR que convertir. `page` es lo único que llega y quien decide
+   * si se responde es el dominio del widget, con su 404 mudo; exigirlo acá
+   * sería agregar una validación que hoy no existe, y eso también mueve el
+   * contrato.
+   */
   @Post('sessions')
   @ApiOperation({ summary: 'Abre una sesión de visitante' })
   async session(@Param('widgetId') widgetId: string, @Body() body: { page?: string }) {
@@ -121,29 +166,26 @@ export class WebchatController {
   async message(
     @Req() request: WithRequestId,
     @Param('widgetId') widgetId: string,
-    @Body()
-    body: {
-      page?: string;
-      sessionId?: string;
-      body?: string;
-      visitor?: { name?: string; phone?: string; email?: string };
-    },
+    // `Partial` porque en este punto el cuerpo todavía no pasó por el esquema:
+    // lo único que se lee antes de validarlo es `page`.
+    @Body() body: Partial<z.input<typeof MensajeDelVisitante>>,
   ) {
+    // El esquema se aplica con `validar` y no con `@Cuerpo` por el ORDEN: un
+    // pipe corre ANTES del método, y acá el dominio va primero. El dominio es
+    // la autenticación de esta ruta pública y fuera de él la respuesta es 404
+    // mudo: validando antes, un sitio que no tiene permiso para incrustar el
+    // widget dejaría de recibir silencio y pasaría a recibir un 400 con los
+    // campos que le faltan. Un cuerpo vacío —sin `page` ni `sessionId`— es
+    // justo ese caso.
     const widget = await widgetValido(widgetId, body?.page);
-    if (!body?.sessionId || !body?.body?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta la sesión o el mensaje.',
-        details: [{ field: !body?.sessionId ? 'sessionId' : 'body' }],
-      });
-    }
+    const datos = validar(MensajeDelVisitante, body ?? {});
     try {
       const res = await withTenant(pool(), widget.tenantId, (c) =>
         postVisitorMessage(c, {
           widget,
-          sessionId: body.sessionId!,
-          body: body.body!,
-          visitor: body.visitor,
+          sessionId: datos.sessionId,
+          body: datos.body,
+          visitor: datos.visitor,
           requestId: request.requestId,
         }),
       );

@@ -34,6 +34,7 @@ import {
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { catalogoDeMetricas, metricaEnRango } from '@iaxti/module-analytics';
 import { enteroDeEntorno } from '@iaxti/core';
+import { z } from 'zod';
 import {
   agenteQueConfigura,
   applyProposal,
@@ -49,8 +50,9 @@ import {
   runEvaluation,
 } from '@iaxti/module-agents';
 import { ConflictException } from '@nestjs/common';
-import type { AgentInput, AgentTask, Provider } from '@iaxti/module-agents';
+import type { AgentInput, Provider } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -87,6 +89,35 @@ function comoExcepcionDelProveedor(error: unknown): never {
   if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
   throw new ConflictException(cuerpo);
 }
+
+/**
+ * Los esquemas de entrada (#524), al lado de sus rutas.
+ *
+ * El mensaje va escrito acá porque lo lee quien está usando el asistente
+ * —muchas veces con un cliente esperando— y no quien programa.
+ *
+ * Y el orden de las claves no es decorativo: zod informa los problemas en ese
+ * orden y el puente usa el mensaje del PRIMERO, así que `task` va antes que
+ * `prompt` — igual que los dos `if` que esto reemplazó, donde la tarea
+ * inválida ganaba al texto que faltaba.
+ */
+const TareaDelAsistente = z.object({
+  // El enum sale de la MISMA lista que usa el runtime: una tarea nueva en
+  // `TASKS` queda aceptada acá sin tocar esta ruta, y el mensaje se arma con
+  // esa lista como antes.
+  task: z.enum(TASKS, { error: `La tarea es una de: ${TASKS.join(', ')}.` }),
+  prompt: textoRequerido('Falta el texto de entrada.'),
+  context: z.string().optional(),
+});
+
+const PreguntaAlAsistente = z.object({
+  pregunta: textoRequerido('Falta la pregunta.'),
+});
+
+const DescripcionDelNegocio = z.object({
+  description: textoRequerido('Cuéntanos primero de qué se trata el negocio.'),
+  vertical: z.string().optional(),
+});
 
 @ApiTags('agents')
 @Controller('agents')
@@ -238,23 +269,9 @@ export class AgentsController {
   async run(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { task?: string; prompt?: string; context?: string },
+    @Cuerpo(TareaDelAsistente) body: z.infer<typeof TareaDelAsistente>,
   ) {
     const actor = actorOf(request);
-    if (!TASKS.includes(body?.task as AgentTask)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: `La tarea es una de: ${TASKS.join(', ')}.`,
-        details: [{ field: 'task' }],
-      });
-    }
-    if (!body?.prompt?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta el texto de entrada.',
-        details: [{ field: 'prompt' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       const agent = await getAgent(c, actor.tenantId, id).catch(() => {
         throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message: 'No encontramos ese asistente.' });
@@ -272,8 +289,8 @@ export class AgentsController {
       const res = await runAgentTask(c, {
         tenantId: actor.tenantId,
         agent,
-        task: body.task as AgentTask,
-        prompt: body.prompt!,
+        task: body.task,
+        prompt: body.prompt,
         context: body.context,
         requestId: request.requestId,
         actorUserId: actor.userId,
@@ -326,17 +343,9 @@ export class AgentsController {
   async preguntar(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { pregunta?: string },
+    @Cuerpo(PreguntaAlAsistente) body: z.infer<typeof PreguntaAlAsistente>,
   ) {
     const actor = actorOf(request);
-    const pregunta = body?.pregunta?.trim();
-    if (!pregunta) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta la pregunta.',
-        details: [{ field: 'pregunta' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       const agent = await getAgent(c, actor.tenantId, id).catch(() => {
         throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message: 'No encontramos ese asistente.' });
@@ -425,7 +434,8 @@ export class AgentsController {
         tenantId: actor.tenantId,
         agent,
         task: 'analizar',
-        prompt: pregunta,
+        // Llega sin espacios de sobra: el `.trim()` es parte del esquema.
+        prompt: body.pregunta,
         tools,
         requestId: request.requestId,
         actorUserId: actor.userId,
@@ -556,16 +566,9 @@ export class AgentsController {
   @ApiOperation({ summary: 'Arma la propuesta del CRM a partir de la descripción del negocio' })
   async configuradorProponer(
     @Req() request: WithUser,
-    @Body() body: { description?: string; vertical?: string },
+    @Cuerpo(DescripcionDelNegocio) body: z.infer<typeof DescripcionDelNegocio>,
   ) {
     const actor = actorOf(request);
-    if (!body?.description?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Cuéntanos primero de qué se trata el negocio.',
-        details: [{ field: 'description' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       const agentes = await listAgents(c, actor.tenantId);
       const agente = agentes.find((a) => a.active);
@@ -582,7 +585,7 @@ export class AgentsController {
           .filter((m) => m.active)
           .map((m) => m.id),
         tenantId: actor.tenantId,
-        description: body.description!,
+        description: body.description,
         vertical: body.vertical,
         actorUserId: actor.userId,
         requestId: request.requestId,

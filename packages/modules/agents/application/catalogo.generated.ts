@@ -30,15 +30,18 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "contactId": {
-          "type": "string"
-        },
-        "ownerId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "inicio": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "fin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ownerId": {
           "type": "string"
         },
         "title": {
@@ -51,6 +54,11 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "boolean"
         }
       },
+      "required": [
+        "contactId",
+        "inicio",
+        "fin"
+      ],
       "additionalProperties": false
     }
   },
@@ -268,13 +276,20 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "herramienta": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "argumentos": {
           "type": "object",
-          "additionalProperties": true
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
         }
       },
+      "required": [
+        "herramienta"
+      ],
       "additionalProperties": false
     }
   },
@@ -290,21 +305,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "properties": {
         "turnos": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "role": {
-                "type": "string"
-              },
-              "content": {
-                "type": "string"
-              }
-            }
-          }
+          "items": {}
         },
-        "pantalla": {
-          "type": "string"
-        }
+        "pantalla": {}
       },
       "additionalProperties": false
     }
@@ -375,12 +378,16 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "description": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "vertical": {
           "type": "string"
         }
       },
+      "required": [
+        "description"
+      ],
       "additionalProperties": false
     }
   },
@@ -527,11 +534,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "pregunta": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
-        "id"
+        "id",
+        "pregunta"
       ],
       "additionalProperties": false
     }
@@ -551,17 +560,31 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "task": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "clasificar",
+            "sugerir",
+            "responder",
+            "configurar",
+            "conocer",
+            "resumir",
+            "transcribir",
+            "analizar",
+            "configuracion_conversada"
+          ]
         },
         "prompt": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "context": {
           "type": "string"
         }
       },
       "required": [
-        "id"
+        "id",
+        "task",
+        "prompt"
       ],
       "additionalProperties": false
     }
@@ -813,14 +836,16 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "conversationId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "dealId": {
           "type": "string"
         }
       },
       "required": [
-        "sid"
+        "sid",
+        "conversationId"
       ],
       "additionalProperties": false
     }
@@ -1031,10 +1056,11 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "argumentos": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
         "templateId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
           "type": "string"
         },
         "filtros": {},
@@ -1045,6 +1071,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           }
         }
       },
+      "required": [
+        "templateId"
+      ],
       "additionalProperties": false
     }
   },
@@ -1373,20 +1402,32 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "name": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "email": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "rut": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "ownerId": {
           "type": "string"
         },
         "custom": {
           "type": "object",
-          "additionalProperties": true
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
         }
       },
       "required": [
@@ -1410,10 +1451,17 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "type": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "llamada",
+            "reunion",
+            "tarea",
+            "nota"
+          ]
         },
         "title": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "body": {
           "type": "string"
@@ -1426,7 +1474,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         }
       },
       "required": [
-        "id"
+        "id",
+        "type",
+        "title"
       ],
       "additionalProperties": false
     }
@@ -1497,13 +1547,22 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "csv": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "mapping": {
           "type": "object",
-          "additionalProperties": true
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
+      "required": [
+        "csv"
+      ],
       "additionalProperties": false
     }
   },
@@ -1518,13 +1577,22 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "csv": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "mapping": {
           "type": "object",
-          "additionalProperties": true
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
+      "required": [
+        "csv"
+      ],
       "additionalProperties": false
     }
   },
@@ -1598,11 +1666,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "duplicateId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
-        "id"
+        "id",
+        "duplicateId"
       ],
       "additionalProperties": false
     }
@@ -1646,11 +1716,17 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "mode": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "assist",
+            "autonomous",
+            "off"
+          ]
         }
       },
       "required": [
-        "id"
+        "id",
+        "mode"
       ],
       "additionalProperties": false
     }
@@ -1691,14 +1767,16 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "toOwnerId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "reason": {
           "type": "string"
         }
       },
       "required": [
-        "id"
+        "id",
+        "toOwnerId"
       ],
       "additionalProperties": false
     }
@@ -1924,14 +2002,16 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "state": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "snoozedUntil": {
           "type": "string"
         }
       },
       "required": [
-        "id"
+        "id",
+        "state"
       ],
       "additionalProperties": false
     }
@@ -1976,6 +2056,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "feedback": {
+          "type": "string",
           "enum": [
             "up",
             "down"
@@ -1987,7 +2068,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       },
       "required": [
         "id",
-        "sid"
+        "sid",
+        "feedback"
       ],
       "additionalProperties": false
     }
@@ -2051,18 +2133,24 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "contactId": {
-          "type": "string"
-        },
-        "pipelineId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pipelineId": {
           "type": "string"
         },
         "value": {
           "type": "number"
         }
       },
+      "required": [
+        "contactId",
+        "title"
+      ],
       "additionalProperties": false
     }
   },
@@ -2222,7 +2310,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "stageId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "reason": {
           "type": "string"
@@ -2232,7 +2321,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         }
       },
       "required": [
-        "id"
+        "id",
+        "stageId"
       ],
       "additionalProperties": false
     }
@@ -2333,16 +2423,23 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "view": {
           "type": "string"
         },
         "filters": {
           "type": "object",
-          "additionalProperties": true
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
         }
       },
+      "required": [
+        "name"
+      ],
       "additionalProperties": false
     }
   },
@@ -2531,7 +2628,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "body": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "mentions": {
           "type": "array",
@@ -2541,7 +2639,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         }
       },
       "required": [
-        "id"
+        "id",
+        "body"
       ],
       "additionalProperties": false
     }
@@ -2600,11 +2699,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "filename": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
-        "id"
+        "id",
+        "filename"
       ],
       "additionalProperties": false
     }
@@ -2676,12 +2777,16 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "email": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
         },
         "rol": {
           "type": "string"
         }
       },
+      "required": [
+        "email"
+      ],
       "additionalProperties": false
     }
   },
@@ -2777,7 +2882,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "kind": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "texto",
+            "url",
+            "faq",
+            "catalogo"
+          ]
         },
         "name": {
           "type": "string"
@@ -2792,6 +2903,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string"
         }
       },
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false
     }
   },
@@ -2806,7 +2920,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "key": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "name": {
           "type": "string"
@@ -2815,6 +2930,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string"
         }
       },
+      "required": [
+        "key"
+      ],
       "additionalProperties": false
     }
   },
@@ -2829,12 +2947,18 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "filename": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "sizeBytes": {
-          "type": "number"
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
         }
       },
+      "required": [
+        "filename"
+      ],
       "additionalProperties": false
     }
   },
@@ -3018,9 +3142,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "endpoint": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
+      "required": [
+        "endpoint"
+      ],
       "additionalProperties": false
     }
   },
@@ -3081,7 +3209,17 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "type": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "conversacion_sin_dueno",
+            "sla_vencido",
+            "mencion",
+            "tarea_vencida",
+            "cuota_ia",
+            "calidad_numero",
+            "pago_recibido",
+            "estado_cuenta"
+          ]
         },
         "campana": {
           "type": "boolean"
@@ -3096,6 +3234,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "boolean"
         }
       },
+      "required": [
+        "type"
+      ],
       "additionalProperties": false
     }
   },
@@ -3110,20 +3251,31 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "endpoint": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "keys": {
           "type": "object",
           "properties": {
             "p256dh": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "auth": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
-          }
+          },
+          "required": [
+            "p256dh",
+            "auth"
+          ]
         }
       },
+      "required": [
+        "endpoint",
+        "keys"
+      ],
       "additionalProperties": false
     }
   },
@@ -3151,7 +3303,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "kind": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "flow",
+            "webpay",
+            "mercadopago",
+            "simulado"
+          ]
         },
         "name": {
           "type": "string"
@@ -3166,6 +3324,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string"
         }
       },
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false
     }
   },
@@ -3306,7 +3467,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "conversationId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "valores": {
           "type": "array",
@@ -3316,7 +3478,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         }
       },
       "required": [
-        "id"
+        "id",
+        "conversationId"
       ],
       "additionalProperties": false
     }
@@ -3970,18 +4133,25 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "shortcut": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "body": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "scope": {
+          "type": "string",
           "enum": [
             "negocio",
             "mio"
           ]
         }
       },
+      "required": [
+        "shortcut",
+        "body"
+      ],
       "additionalProperties": false
     }
   },
@@ -4030,12 +4200,18 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "userId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "roleId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
+      "required": [
+        "userId",
+        "roleId"
+      ],
       "additionalProperties": false
     }
   },
@@ -4184,7 +4360,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "phone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "providerMessageId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "phone"
+      ],
       "additionalProperties": false
     }
   },
@@ -4364,7 +4560,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "type": "object",
       "properties": {
         "allowedDomain": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "name": {
           "type": "string"
@@ -4373,6 +4570,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string"
         }
       },
+      "required": [
+        "allowedDomain"
+      ],
       "additionalProperties": false
     }
   },
@@ -4451,29 +4651,6 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "widgetId": {
           "type": "string",
           "x-iaxti-en": "ruta"
-        },
-        "page": {
-          "type": "string"
-        },
-        "sessionId": {
-          "type": "string"
-        },
-        "body": {
-          "type": "string"
-        },
-        "visitor": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "phone": {
-              "type": "string"
-            },
-            "email": {
-              "type": "string"
-            }
-          }
         }
       },
       "required": [

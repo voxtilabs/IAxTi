@@ -157,9 +157,38 @@ export function argumentosDeLosControladores() {
   return salida;
 }
 
+/**
+ * Junta lo del AST (ruta y query) con el esquema del cuerpo, si lo hay.
+ *
+ * El cuerpo se APLANA en los argumentos de la herramienta: para el modelo es
+ * más simple un objeto plano que `{body:{...}}`. Es lo mismo que hacía el
+ * extractor del AST, para que el cambio a zod no mueva la forma que el agente
+ * ya sabe llamar.
+ */
+function conElCuerpo(delAst, delEsquema) {
+  const base = delAst ?? { type: 'object', properties: {}, additionalProperties: false };
+  if (!delEsquema) return base;
+  const properties = { ...(base.properties ?? {}) };
+  const required = new Set(base.required ?? []);
+  for (const [nombre, esquema] of Object.entries(delEsquema.properties ?? {})) {
+    properties[nombre] = esquema;
+  }
+  for (const nombre of delEsquema.required ?? []) required.add(nombre);
+  return {
+    type: 'object',
+    properties,
+    ...(required.size ? { required: [...required] } : {}),
+    additionalProperties: false,
+  };
+}
+
 /** El catálogo entero a partir del documento OpenAPI ya volcado. */
 export function construirCatalogo(documento) {
   const argumentos = argumentosDeLosControladores();
+  // Los cuerpos con esquema zod (#524) mandan sobre lo que el AST adivinó: es
+  // JSON Schema de verdad, derivado del MISMO esquema que valida la ruta. El
+  // AST sigue aportando los `@Param` y `@Query`, que no pasan por zod.
+  const cuerpos = documento['x-iaxti-cuerpos'] ?? {};
   const operaciones = {};
   for (const [ruta, metodos] of Object.entries(documento.paths)) {
     for (const [metodo, op] of Object.entries(metodos)) {
@@ -173,11 +202,7 @@ export function construirCatalogo(documento) {
         permiso: op['x-iaxti-permission'] ?? null,
         modulo: op['x-iaxti-module'] ?? null,
         soloSesion: Boolean(op['x-iaxti-auth']),
-        argumentos: argumentos[op.operationId] ?? {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
+        argumentos: conElCuerpo(argumentos[op.operationId], cuerpos[op.operationId]),
       };
     }
   }

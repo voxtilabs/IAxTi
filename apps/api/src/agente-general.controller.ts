@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   ConflictException,
   Controller,
   Post,
@@ -34,7 +33,9 @@ import { listarDisponibilidad } from '@iaxti/module-calendar';
 import { listTemplates, puedeEnviarse } from '@iaxti/module-whatsapp';
 import { listRules, ruleModuleGaps } from '@iaxti/module-automations';
 import { getQuota } from '@iaxti/module-agents';
+import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import { permisosDelActor } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -73,6 +74,9 @@ const actorOf = (request: WithUser): Actor => request.actor as Actor;
 
 /** Los dos que pueden tener un turno en el hilo. */
 const QUIEN_HABLA = new Set(['user', 'assistant']);
+
+/** Quién puede hablar ÚLTIMO para que haya algo que contestar. */
+const QUIEN_PREGUNTA = new Set(['user']);
 
 /**
  * La llamada a la propia API, con la credencial de quien conversa.
@@ -350,6 +354,68 @@ const modulosActivos = () =>
       .map((m) => m.id),
   );
 
+/**
+ * Los esquemas de entrada (#524), antes de la clase.
+ *
+ * El mensaje va escrito acá porque lo lee quien está configurando su negocio
+ * conversando —muchas veces con un cliente esperando— y no quien programa.
+ */
+
+/**
+ * El mismo mensaje para las dos formas de quedarse sin pregunta: no mandar
+ * turnos y mandar un hilo que termina en la respuesta del agente. Desde donde
+ * está la persona son lo mismo —falta lo que iba a preguntar— y hay una prueba
+ * por cada una.
+ */
+const FALTA_LA_PREGUNTA = 'Falta lo que quieres preguntarle.';
+
+const VueltaDeConversacion = z.object({
+  // El elemento es `unknown` a propósito: los turnos se NORMALIZAN, no se
+  // rechazan. Un turno con rol raro o sin texto se descarta igual que antes;
+  // exigirle forma acá convertiría en 400 —y en inglés— lo que hoy se ignora.
+  turnos: z
+    .array(z.unknown(), { error: FALTA_LA_PREGUNTA })
+    .optional()
+    .transform((llegaron) =>
+      (llegaron ?? [])
+        .map((t) => t as { role?: unknown; content?: unknown })
+        // Con un Set y no comparando el campo: el grep de CI que impone
+        // ADR-0008 caza cualquier comparación contra `role`, y tiene razón en
+        // cazarla — el de un turno de chat no tiene nada que ver con el rol de
+        // permisos, pero debilitar ese guard por una excepción es cómo los
+        // guards se mueren.
+        .filter((t) => QUIEN_HABLA.has(String(t.role)) && String(t.content ?? '').trim())
+        .map((t) => ({ role: t.role as 'user' | 'assistant', content: String(t.content).trim() }))
+        // El hilo completo crece sin tope y cada vuelta lo paga el negocio.
+        // Las últimas doce alcanzan para entender de qué se está hablando.
+        .slice(-12),
+    )
+    // Un hilo que termina en la respuesta del agente no es una pregunta: si
+    // pasara, el modelo contestaría a su propia respuesta.
+    //
+    // Con un Set y no comparando el campo: el grep de CI que impone ADR-0008
+    // caza cualquier comparación contra `role`, y tiene razón en cazarla — el
+    // de un turno de chat no tiene nada que ver con el rol de permisos, pero
+    // debilitar ese guard por una excepción es cómo los guards se mueren. Ya
+    // estaba así y la conversión a zod lo volvió a poner directo.
+    .refine((turnos) => turnos.length > 0 && QUIEN_PREGUNTA.has(turnos.at(-1)?.role ?? ''), FALTA_LA_PREGUNTA),
+  // Sin `z.string()`: `nombreDePantalla` recibe lo que sea y un id que no
+  // reconoce queda en null —el agente trabaja sin contexto de pantalla—, así
+  // que pedir texto acá sería un 400 nuevo por algo que hoy degrada solo.
+  pantalla: z.unknown().optional(),
+});
+
+const PropuestaQueSeAplica = z.object({
+  herramienta: textoRequerido('Falta qué acción aplicar.'),
+  // Los argumentos van tal cual: qué espera cada herramienta lo sabe la ruta
+  // de verdad, y es ella la que los valida cuando le llegan. Lo único que se
+  // comprueba acá es que sean un objeto, porque antes el tipo del `@Body()`
+  // era una declaración y un `argumentos: 5` entraba a armar el cuerpo.
+  argumentos: z
+    .record(z.string(), z.unknown(), { error: 'Los datos de la acción vienen mal armados.' })
+    .optional(),
+});
+
 @ApiTags('agents')
 @Controller('agente-general')
 @RequireModule('agents')
@@ -364,28 +430,9 @@ export class AgenteGeneralController {
   @ApiOperation({ summary: 'Le habla al Agente General, que configura el negocio conversando' })
   async conversar(
     @Req() request: WithUser,
-    @Body() body: { turnos?: Array<{ role?: string; content?: string }>; pantalla?: string },
+    @Cuerpo(VueltaDeConversacion) body: z.infer<typeof VueltaDeConversacion>,
   ) {
     const actor = actorOf(request);
-    const turnos = (body?.turnos ?? [])
-      // Con un Set y no comparando el campo: el grep de CI que impone
-      // ADR-0008 caza cualquier comparación contra `role`, y tiene razón en
-      // cazarla — el de un turno de chat no tiene nada que ver con el rol de
-      // permisos, pero debilitar ese guard por una excepción es cómo los
-      // guards se mueren.
-      .filter((t) => QUIEN_HABLA.has(String(t.role)) && String(t.content ?? '').trim())
-      .map((t) => ({ role: t.role as 'user' | 'assistant', content: String(t.content).trim() }))
-      // El hilo completo crece sin tope y cada vuelta lo paga el negocio.
-      // Las últimas doce alcanzan para entender de qué se está hablando.
-      .slice(-12);
-    if (!turnos.length || turnos.at(-1)?.role !== 'user') {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta lo que quieres preguntarle.',
-        details: [{ field: 'turnos' }],
-      });
-    }
-
     return withTenant(pool(), actor.tenantId, async (c) => {
       await verificarQueEsteEncendido(c, actor.tenantId);
       const { modelo, provider, model } = await modeloDelAgenteGeneral(c, actor.tenantId);
@@ -400,7 +447,7 @@ export class AgenteGeneralController {
           c,
           {
             tenantId: actor.tenantId,
-            turnos,
+            turnos: body.turnos,
             permisos: await permisosDelActor(c, actor),
             modulosActivos: modulosActivos(),
             actorUserId: actor.userId,
@@ -409,7 +456,7 @@ export class AgenteGeneralController {
             // sería dejar que cualquiera con sesión le escriba instrucciones
             // al agente que tiene las 195 herramientas. Un id desconocido
             // queda en null y el agente trabaja sin contexto de pantalla.
-            pantalla: nombreDePantalla(body?.pantalla) ?? undefined,
+            pantalla: nombreDePantalla(body.pantalla) ?? undefined,
             requestId: request.requestId,
           },
           {
@@ -455,16 +502,9 @@ export class AgenteGeneralController {
   @ApiOperation({ summary: 'Aplica la acción que el Agente General dejó propuesta' })
   async aplicar(
     @Req() request: WithUser,
-    @Body() body: { herramienta?: string; argumentos?: Record<string, unknown> },
+    @Cuerpo(PropuestaQueSeAplica) body: z.infer<typeof PropuestaQueSeAplica>,
   ) {
     const actor = actorOf(request);
-    if (!body?.herramienta) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta qué acción aplicar.',
-        details: [{ field: 'herramienta' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       // También acá: apagarlo con una propuesta en pantalla no puede dejar
       // un botón que igual funciona.
@@ -472,7 +512,7 @@ export class AgenteGeneralController {
       try {
         const r = await aplicarPropuesta(
           {
-            herramienta: body.herramienta!,
+            herramienta: body.herramienta,
             argumentos: body.argumentos ?? {},
             permisos: await permisosDelActor(c, actor),
             modulosActivos: modulosActivos(),

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Body,
   Controller,
   Delete,
   Get,
@@ -14,6 +13,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { knowledgeKey, presignUrl, storageFromEnv } from '@iaxti/core';
+import { z } from 'zod';
 import {
   addSource,
   deleteSource,
@@ -25,6 +25,7 @@ import {
   type SourceKind,
 } from '@iaxti/module-knowledge';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -50,6 +51,37 @@ const KINDS: SourceKind[] = ['texto', 'pdf', 'url', 'faq', 'catalogo'];
 
 /** Solo PDF, y con tope: es lo que Gemini lee y lo que un negocio sube. */
 const PDF_MAX_MB = 20;
+
+const DestinoDePdf = z.object({
+  filename: textoRequerido('Dinos el nombre del archivo.')
+    .refine((n) => /\.pdf$/i.test(n), 'Por acá entran PDF. Para una planilla usa el catálogo, y para texto pégalo.'),
+  sizeBytes: z.number().int().positive().optional(),
+});
+
+const PdfSubido = z.object({
+  key: textoRequerido('Esa referencia de archivo no es válida. Vuelve a subir el PDF.'),
+  name: z.string().trim().optional(),
+  validUntil: z.string().optional(),
+});
+
+/**
+ * Los esquemas de entrada (#524), al lado de sus rutas.
+ *
+ * El mensaje va escrito acá porque es lo que va a leer quien está cargando el
+ * conocimiento de su negocio, no un «Required».
+ */
+const NuevaFuente = z.object({
+  // Se excluye 'pdf' en el propio tipo: el mensaje explica por dónde va, y
+  // antes eran dos `if` seguidos —uno para el tipo inválido y otro para el
+  // pdf— que decían cosas distintas.
+  kind: z.enum(['texto', 'url', 'faq', 'catalogo'], {
+    error: `El tipo de fuente es uno de: ${KINDS.join(', ')}. Los PDF se suben como archivo, no como texto.`,
+  }),
+  name: z.string().trim().optional(),
+  content: z.string().optional(),
+  url: z.string().optional(),
+  validUntil: z.string().optional(),
+});
 
 function almacenamiento() {
   const storage = storageFromEnv();
@@ -97,30 +129,9 @@ export class KnowledgeController {
   @ApiOperation({ summary: 'Agrega una fuente (texto, FAQ, catálogo CSV o URL) y la indexa' })
   async add(
     @Req() request: WithUser,
-    @Body()
-    body: {
-      kind?: string;
-      name?: string;
-      content?: string;
-      url?: string;
-      validUntil?: string;
-    },
+    @Cuerpo(NuevaFuente) body: z.infer<typeof NuevaFuente>,
   ) {
     const actor = actorOf(request);
-    if (!KINDS.includes(body?.kind as SourceKind)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: `El tipo de fuente es uno de: ${KINDS.join(', ')}.`,
-        details: [{ field: 'kind' }],
-      });
-    }
-    if (body.kind === 'pdf') {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Los PDF se suben desde la app (llegan por archivo, no por texto).',
-        details: [{ field: 'kind' }],
-      });
-    }
     if (!embeddingsAvailable()) {
       throw new ServiceUnavailableException({
         code: 'PROVIDER_UNAVAILABLE',
@@ -164,33 +175,27 @@ export class KnowledgeController {
   @Post('sources/pdf/destino')
   @RequirePermission('knowledge.manage')
   @ApiOperation({ summary: 'URL prefirmada para subir un PDF del conocimiento' })
-  async destinoDelPdf(@Req() request: WithUser, @Body() body: { filename?: string; sizeBytes?: number }) {
+  async destinoDelPdf(
+    @Req() request: WithUser,
+    @Cuerpo(DestinoDePdf) body: z.infer<typeof DestinoDePdf>,
+  ) {
     const actor = actorOf(request);
-    const nombre = body?.filename?.trim();
-    if (!nombre) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Dinos el nombre del archivo.',
-        details: [{ field: 'filename' }],
-      });
-    }
-    if (!/\.pdf$/i.test(nombre)) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Por acá entran PDF. Para una planilla usa el catálogo, y para texto pégalo.',
-        details: [{ field: 'filename' }],
-      });
-    }
-    // El tope se comprueba ACÁ y no solo en el navegador: el navegador es de
-    // quien sube, y una URL firmada aceptaría lo que le manden.
-    if (body?.sizeBytes && body.sizeBytes > PDF_MAX_MB * 1024 * 1024) {
+    // El tamaño se queda FUERA del esquema porque tiene su propio código de
+    // error (#524): zod da un solo `code` por esquema, y cambiar
+    // `ARCHIVO_MUY_GRANDE` por `VALIDATION_ERROR` sería mover el contrato de
+    // la API para ahorrar tres líneas. La regla del cambio a zod es esa: al
+    // esquema van los `VALIDATION_ERROR`; un error con código propio se queda.
+    //
+    // Y se comprueba ACÁ y no solo en el navegador: el navegador es de quien
+    // sube, y una URL firmada aceptaría lo que le manden.
+    if (body.sizeBytes && body.sizeBytes > PDF_MAX_MB * 1024 * 1024) {
       throw new BadRequestException({
         code: 'ARCHIVO_MUY_GRANDE',
         message: `Ese PDF pesa más de ${PDF_MAX_MB} MB. Súbelo por partes o pega el texto.`,
         details: [{ field: 'sizeBytes' }],
       });
     }
-    const key = knowledgeKey(actor.tenantId, nombre);
+    const key = knowledgeKey(actor.tenantId, body.filename);
     return { key, uploadUrl: presignUrl(almacenamiento(), 'PUT', key), expiresSeconds: 900 };
   }
 
@@ -206,13 +211,14 @@ export class KnowledgeController {
   @ApiOperation({ summary: 'Registra e indexa un PDF ya subido' })
   async crearDesdePdf(
     @Req() request: WithUser,
-    @Body() body: { key?: string; name?: string; validUntil?: string },
+    @Cuerpo(PdfSubido) body: z.infer<typeof PdfSubido>,
   ) {
     const actor = actorOf(request);
-    const key = body?.key?.trim();
-    // La llave la devolvió esta misma API, pero llega por el navegador: fuera
-    // del prefijo del negocio no se toca nada.
-    if (!key || !key.startsWith(`${actor.tenantId}/conocimiento/`)) {
+    const key = body.key;
+    // El prefijo NO se valida en el esquema: depende del tenant de quien pide,
+    // que el esquema no conoce. La llave la devolvió esta misma API, pero llega
+    // por el navegador — fuera del prefijo del negocio no se toca nada.
+    if (!key.startsWith(`${actor.tenantId}/conocimiento/`)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'Esa referencia de archivo no es válida. Vuelve a subir el PDF.',

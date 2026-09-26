@@ -33,7 +33,9 @@ import {
   type SequenceStep,
   type Trigger,
 } from '@iaxti/module-automations';
+import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
@@ -63,6 +65,26 @@ function activeModules(): string[] {
     .filter((m, i, arr) => arr.indexOf(m) === i)
     .filter((m) => registry.isActive(m));
 }
+
+/**
+ * El cuerpo de POST /automations/sequences/:sid/enroll (#524).
+ *
+ * Es el único VALIDATION_ERROR de este controlador. Las otras rutas le pasan
+ * el cuerpo al módulo, que lo revisa y responde con su propio código
+ * (RULE_INVALID, SEQUENCE_INVALID, ENROLL_INVALID): ponerles un esquema con
+ * restricciones volvería esos códigos VALIDATION_ERROR, y eso es mover el
+ * contrato para ahorrar líneas.
+ *
+ * El mensaje va copiado tal cual estaba en el `if` que reemplaza: lo lee
+ * alguien que está atendiendo a un cliente, no quien programa.
+ */
+const NuevaInscripcion = z.object({
+  // Texto y no uuid a propósito: un id con forma rara hoy llega a `enroll` y
+  // vuelve como ENROLL_INVALID. Exigirle uuid acá lo convertiría en
+  // VALIDATION_ERROR.
+  conversationId: textoRequerido('Falta la conversación.'),
+  dealId: z.string().optional(),
+});
 
 @ApiTags('automations')
 @Controller('automations')
@@ -174,22 +196,15 @@ export class AutomationsController {
   async enrollConv(
     @Req() request: WithUser,
     @Param('sid') sid: string,
-    @Body() body: { conversationId?: string; dealId?: string },
+    @Cuerpo(NuevaInscripcion) body: z.infer<typeof NuevaInscripcion>,
   ) {
     const actor = actorOf(request);
-    if (!body?.conversationId) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Falta la conversación.',
-        details: [{ field: 'conversationId' }],
-      });
-    }
     return withTenant(pool(), actor.tenantId, async (c) => {
       try {
         return await enroll(c, {
           tenantId: actor.tenantId,
           sequenceId: sid,
-          conversationId: body.conversationId!,
+          conversationId: body.conversationId,
           dealId: body.dealId,
           actor: actor.userId,
           requestId: request.requestId,

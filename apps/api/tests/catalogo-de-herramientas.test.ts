@@ -37,6 +37,13 @@ beforeAll(async () => {
   app = await createApp();
   await app.listen(0);
   documento = await (await fetch(`${await app.getUrl()}/docs-json`)).json();
+  // Los esquemas de cuerpo (#524) no salen del OpenAPI: Nest no publica la
+  // forma del cuerpo, así que el decorador `@Cuerpo` los registra al
+  // declararse y el volcado los agrega como extensión. Acá se agregan igual
+  // que en `dump-openapi.mjs` — si no, el test compararía el catálogo real
+  // contra uno sin argumentos y diría que está viejo cuando no lo está.
+  const { ESQUEMAS_DE_CUERPO } = await import('../src/validar');
+  (documento as Record<string, unknown>)['x-iaxti-cuerpos'] = Object.fromEntries(ESQUEMAS_DE_CUERPO);
   operacionesReales = Object.entries(documento.paths).flatMap(([ruta, metodos]) =>
     Object.entries(metodos)
       .filter(([, op]) => op.operationId)
