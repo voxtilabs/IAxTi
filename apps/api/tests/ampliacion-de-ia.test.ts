@@ -82,8 +82,19 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  for (const tabla of ['audit_log', 'invoices', 'subscriptions', 'user_roles', 'invitations', 'outbox']) {
-    await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]).catch(() => {});
+  // `audit_log` es append-only y tiene un trigger que lo impone: se desactiva y se
+  // vuelve a activar, como hace `audit-explorer.test.ts`.
+  //
+  // Mi primera versión de esto hacía `.catch(() => {})` sobre el DELETE, y el error
+  // que se tragó reapareció como una violación de clave ajena al borrar el tenant.
+  // En local pasó igual porque el rol es superusuario; en CI, que es como debe ser,
+  // no. Un catch vacío es exactamente el defecto que llevo toda la noche sacando del
+  // producto, y me lo hice a mí mismo en la limpieza de una prueba.
+  await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
+  await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+  await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+  for (const tabla of ['invoices', 'subscriptions', 'user_roles', 'invitations', 'outbox']) {
+    await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
