@@ -177,6 +177,14 @@ export class PlantillasController {
         // Primero el viaje al proveedor, después la marca. Al revés, un fallo
         // de red dejaría la plantilla diciendo "en revisión" sin que nadie la
         // haya mandado, y la espera sería eterna.
+        //
+        // Este `if` descansa en un invariante de `updateTemplate`: tener
+        // `providerId` significa que el proveedor tiene REGISTRADO este mismo
+        // contenido. `enviarARevision` manda solo el id y la categoría —el
+        // texto no viaja por ahí—, así que reusar un registro viejo es pedirle
+        // a Meta que revise otra vez el texto que ya rechazó. Corregir la
+        // plantilla suelta el enlace justamente para que esto caiga en `crear`
+        // y el proveedor registre el texto nuevo.
         const enElProveedor = plantilla.providerId
           ? await plantillas.enviarARevision(cuenta, {
               templateId: plantilla.providerId,

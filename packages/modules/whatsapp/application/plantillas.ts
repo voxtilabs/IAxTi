@@ -100,6 +100,35 @@ export async function createTemplate(
 }
 
 /**
+ * ¿La corrección cambió algo de lo que el proveedor tiene REGISTRADO?
+ *
+ * Importa porque `enviarARevision` del puerto manda solo `{templateId,
+ * category}`: el contenido no viaja en ese paso, se quedó en el registro que
+ * se creó con `crear`. O sea que cualquier cambio de nombre, idioma,
+ * encabezado, cuerpo, pie o botones deja ese registro describiendo otra
+ * plantilla, y hay que crear uno nuevo.
+ *
+ * La categoría NO cuenta a propósito: es lo único que `enviarARevision` sí
+ * manda en cada envío, así que cambiarla llega al proveedor sin re-registrar
+ * nada. Soltar `provider_id` por un cambio de categoría obligaría a crear un
+ * duplicado en el proveedor —mismo nombre e idioma— y eso el proveedor lo
+ * rechaza.
+ */
+function cambiaLoRegistradoEnElProveedor(
+  actual: Plantilla,
+  nuevo: PlantillaBorrador,
+): boolean {
+  return (
+    nuevo.name !== actual.name ||
+    nuevo.language !== actual.language ||
+    (nuevo.header ?? null) !== actual.header ||
+    nuevo.body.trim() !== actual.body ||
+    (nuevo.footer ?? null) !== actual.footer ||
+    JSON.stringify(nuevo.buttons ?? []) !== JSON.stringify(actual.buttons)
+  );
+}
+
+/**
  * Editar solo se puede en borrador o rechazada. Una aprobada que se toca
  * deja de ser la que Meta aprobó, y mandarla igual es mandar otra cosa con
  * el mismo nombre.
@@ -125,10 +154,29 @@ export async function updateTemplate(
   };
   validarPlantilla(borrador);
 
+  /**
+   * Corregir el texto tiene que DESENLAZAR la plantilla del proveedor.
+   *
+   * Lo que pasaba: esto dejaba `status = 'draft'` pero conservaba
+   * `provider_id`. Después `POST /plantillas/:id/revision` veía el
+   * `providerId` y entraba por la rama `enviarARevision`, que manda solo el
+   * id y la categoría — sin contenido. O sea que Meta volvía a revisar el
+   * TEXTO VIEJO, el que ya había rechazado: la dueña corregía, reenviaba y la
+   * rechazaban por lo mismo, sin manera de entender por qué. La corrección
+   * nunca llegaba al proveedor.
+   *
+   * Soltando el enlace, la próxima revisión pasa por `crear` y el proveedor
+   * registra el texto nuevo. Es aditivo: la fila se queda sin `provider_id`
+   * hasta que alguien la mande a revisión otra vez, y hasta ahí una plantilla
+   * en borrador no se envía igual.
+   */
+  const desenlazar = cambiaLoRegistradoEnElProveedor(actual, borrador);
+
   const r = await client.query(
     `UPDATE whatsapp_templates
         SET name = $3, language = $4, category = $5, header = $6, body = $7,
             footer = $8, buttons = $9::jsonb, status = 'draft',
+            provider_id = CASE WHEN $10::boolean THEN NULL ELSE provider_id END,
             rejection_reason = NULL, updated_at = now()
       WHERE tenant_id = $1 AND id = $2 RETURNING *`,
     [
@@ -141,6 +189,7 @@ export async function updateTemplate(
       borrador.body.trim(),
       borrador.footer ?? null,
       JSON.stringify(borrador.buttons ?? []),
+      desenlazar,
     ],
   );
   return aPlantilla(r.rows[0]);
@@ -311,6 +360,30 @@ export async function enviarPlantilla(
     throw new Error('SIN_CONSENTIMIENTO');
   }
 
+  /**
+   * Sin el id del proveedor no hay envío posible, y conviene decirlo ACÁ.
+   *
+   * El adaptador manda la plantilla por el id que le dio el proveedor, no por
+   * nuestro uuid ni por el nombre. Si falta, `envioDePlantilla` revienta
+   * cuando el mensaje ya está en la cola: cinco reintentos, 'failed', y el
+   * vendedor leyendo «mándala a revisión primero» de una plantilla que Meta
+   * aprobó. Rechazar antes de crear el mensaje convierte eso en una frase que
+   * dice qué hacer, mientras la persona todavía está mirando la pantalla.
+   *
+   * Va DESPUÉS del consentimiento a propósito: si la persona no quiere recibir
+   * mensajes del negocio, eso es lo que hay que contestar — un problema de
+   * nuestro registro interno no es la respuesta a esa pregunta.
+   *
+   * Una aprobada sin enlace no es normal: pasa cuando el estado de Meta llegó
+   * por webhook antes de que el registro del proveedor quedara guardado. Se
+   * arregla mandándola a revisión de nuevo, que la re-enlaza.
+   */
+  if (!plantilla.providerId) {
+    throw new Error(
+      `La plantilla "${plantilla.name}" no quedó enlazada con el proveedor, así que no se puede enviar. Mándala a revisión de nuevo desde Ajustes → Plantillas.`,
+    );
+  }
+
   const mensaje = await deps.crearMensaje({
     tenantId: input.tenantId,
     conversationId: input.conversationId,
@@ -322,6 +395,16 @@ export async function enviarPlantilla(
   // La plantilla queda pegada al MENSAJE: el adaptador la necesita para
   // mandarla como plantilla y no como texto, y un reintento de la cola tiene
   // que mandar exactamente la misma.
+  //
+  // `providerId` va en el snapshot y NO es opcional: es el id con el que el
+  // proveedor conoce la plantilla, y es lo único que `envioDePlantilla` mira
+  // para armar el `content.templateId`. Faltaba —el snapshot llevaba nuestro
+  // uuid en `id` y nada más—, así que TODA plantilla reventaba en el
+  // adaptador: ni un envío manual ni un recordatorio de cita salían nunca, y
+  // como fuera de la ventana de 24 h la plantilla es la única vía, cualquier
+  // reactivación se caía en silencio. Se copia acá, en el momento del envío,
+  // para que un reintento mande exactamente el mismo registro aunque la
+  // plantilla se re-enlace después.
   await client.query(
     `UPDATE messages
         SET type = 'plantilla',
@@ -332,6 +415,7 @@ export async function enviarPlantilla(
       mensaje.id,
       JSON.stringify({
         id: plantilla.id,
+        providerId: plantilla.providerId,
         name: plantilla.name,
         language: plantilla.language,
         category: plantilla.category,

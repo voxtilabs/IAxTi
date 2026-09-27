@@ -214,7 +214,13 @@ describe('enviar una plantilla: se salta la ventana, nada más', () => {
       }),
     );
     aprobada = p.id;
-    await en((c2) => marcarEnviadaARevision(c2, { tenantId: tenant, templateId: aprobada }));
+    // Con el id del proveedor, que es como queda en la vida real: la revisión
+    // la registra allá y guarda ese id. Sin él, `enviarPlantilla` ahora se
+    // niega —el adaptador no tendría con qué mandarla— y eso lo prueba
+    // `plantillas-enlazadas-con-el-proveedor.test.ts`.
+    await en((c2) =>
+      marcarEnviadaARevision(c2, { tenantId: tenant, templateId: aprobada, providerId: 'tpl_prov_44' }),
+    );
     await en((c2) =>
       aplicarEstadoDelProveedor(c2, {
         tenantId: tenant,
