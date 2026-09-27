@@ -23,6 +23,23 @@ export default defineConfig({
    */
   expect: { timeout: 10_000 },
   retries: process.env.CI ? 1 : 0,
+  /**
+   * Dos workers, no los que quepan (#654).
+   *
+   * Playwright usa la mitad de los núcleos por omisión. Acá eso son cuatro
+   * procesos de navegador contra UN proceso de API, UN Postgres y UN Next, todos
+   * en el mismo equipo: la suite no se estaba midiendo a sí misma, se estaba
+   * midiendo contra su propia competencia.
+   *
+   * Se veía en la forma del rojo: las dos pruebas que caían eran la #1 y la #2
+   * —las que arrancan con todo frío y todos pidiendo a la vez— y siempre en la
+   * PRIMERA aserción, la de la lista de conversaciones. Aisladas pasan siempre.
+   *
+   * El costo es tiempo de pared: de ~1,8 a ~3 minutos. Vale la pena. Un rojo
+   * intermitente en la prueba que es criterio de salida de la Fase 2 enseña a
+   * reintentar sin mirar, y eso es lo caro el día que se rompa de verdad.
+   */
+  workers: 2,
   reporter: process.env.CI ? 'line' : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4011',

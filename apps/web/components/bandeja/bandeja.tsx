@@ -264,7 +264,29 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         method: 'POST',
         body: JSON.stringify(body),
       });
-      await Promise.all([cargarConversacion(seleccion), cargarLista()]);
+      // Un cambio de ESTADO refresca solo el detalle y la lista (#654).
+      //
+      // `cargarConversacion` pide SEIS cosas en paralelo: detalle, mensajes,
+      // notas, sugerencia del copiloto, análisis y límites de adjunto. Resolver,
+      // asignar o posponer no cambia ninguna de las cinco últimas, y sin embargo
+      // el encabezado no mostraba el estado nuevo hasta que volvía la más lenta
+      // —que puede ser la sugerencia, que la calcula un modelo—. Una acción ya
+      // confirmada por el servidor se veía colgada esperando a la IA.
+      //
+      // Para todo lo demás se recarga el paquete entero, y eso NO es por las
+      // dudas: al responder, el mensaje nuevo aparece porque se recargan los
+      // mensajes. La primera versión de este arreglo lo aplicó a todas las
+      // acciones y el mensaje enviado dejó de aparecer en el chat — lo cazó la
+      // prueba de la bandeja, fallando en otro punto.
+      if (path === '/state') {
+        const [d] = await Promise.all([
+          apiFetch<ConversacionDetalle>(config, session, tenant, `/conversations/${seleccion}`),
+          cargarLista(),
+        ]);
+        if (seleccionRef.current === seleccion) setDetalle(d);
+      } else {
+        await Promise.all([cargarConversacion(seleccion), cargarLista()]);
+      }
       toast.success(path === '/state' && (body as { state?: string }).state === 'resolved' ? 'Conversación resuelta' : 'Conversación actualizada');
       return true;
     } catch (err) {
