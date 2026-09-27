@@ -27,6 +27,11 @@ const FLOTAN = new Set([
   'tooltip.tsx',
   'sheet.tsx',
   'command.tsx',
+  // Un aviso flota por definición: aparece ENCIMA de lo que la persona estaba
+  // mirando, sin empujar nada, y se va solo (#650). Sin sombra no se leía como
+  // algo pasajero —parecía pegado al contenido, como si fuera parte de la
+  // pantalla—, y `ui-pulso.md` pide `shadow-flotante` justo para los overlays.
+  'avisos.tsx',
 ]);
 
 function fuentes(dir: string, acc: string[] = []): string[] {

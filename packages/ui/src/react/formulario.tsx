@@ -1,7 +1,7 @@
 'use client';
 
 import { type FormHTMLAttributes, forwardRef } from 'react';
-import { AvisoResultado } from './ui/avisos';
+import { toast } from './ui/avisos';
 import { validarEnPulso } from './validar-en-pulso';
 
 /**
@@ -41,7 +41,22 @@ export const Formulario = forwardRef<HTMLFormElement, FormHTMLAttributes<HTMLFor
           const falta = validarEnPulso(e.currentTarget);
           if (falta) {
             e.preventDefault();
-            AvisoResultado({ tono: 'error', children: falta });
+            // `toast.error` y NO `AvisoResultado(...)` (#650).
+            //
+            // `AvisoResultado` es un COMPONENTE: todo lo que hace vive en un
+            // `useEffect`. Llamarlo como función desde un manejador de eventos
+            // no lo renderiza —React no registra el hook, el efecto nunca corre,
+            // el aviso nunca sale— y además LANZA: «Invalid hook call» (React
+            // #321), medido con Playwright en las diez pantallas que #618
+            // convirtió.
+            //
+            // Lo que se veía: apretabas el botón, el cursor saltaba a un campo,
+            // ningún mensaje, y una excepción en la consola. O sea que #618
+            // cambió una burbuja fea por ningún aviso y un error.
+            //
+            // El aviso imperativo es la forma correcta acá: esto ocurre en
+            // respuesta a un evento, no durante un render.
+            toast.error(falta);
             return;
           }
           onSubmit?.(e);
