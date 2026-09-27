@@ -108,6 +108,11 @@ jobs:
           COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_STAGING }}
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
           SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          # Para comprobar QUÉ imagen quedó viva antes de dar el deploy por bueno
+          # (#652). El Smoke la usa por su cuenta; acá hace falta porque forzar la
+          # recreación necesita las dos cosas a la vez: la URL pública y las
+          # credenciales de Dokploy, y el Smoke a propósito no tiene las segundas.
+          STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
           auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
@@ -172,6 +177,12 @@ jobs:
           # versión de esto tenía una rama sin cubrir — la del timeout, que es
           # justo la que se estrenó.
           ESPERA_DEPLOY_SEG=${ESPERA_DEPLOY_SEG:-900} bash scripts/esperar-deploy.sh
+
+          # Y si aun así el contenedor no tomó la imagen, se fuerza (#652).
+          # Dokploy dice «done» en 11 s y con sourceType raw no recrea nada.
+          # Va acá y no en el Smoke porque necesita las credenciales de Dokploy,
+          # y el Smoke a propósito no las tiene.
+          BASE="${STAGING_BASE_URL}" bash scripts/forzar-recreacion.sh
 
       - name: Smoke
         env:
