@@ -202,11 +202,34 @@ jobs:
           echo "Esperando a que la API y sus dependencias estén listas..."
           inicio=$(date +%s)
           listo=no
+          # Se espera al BUILD NUEVO, no a «un 200» (#643).
+          #
+          # Esperar un 200 no sirve: el contenedor VIEJO lo contesta
+          # perfectamente hasta que el nuevo lo reemplaza. El 27/09 la espera
+          # terminó en 1 s, el smoke comparó el SHA contra la imagen anterior y
+          # el despliegue quedó rojo — estando bien. Un rojo en un deploy sano
+          # es peor que no tener la comprobación: enseña a ignorar los rojos, y
+          # justamente esta caza el caso de #573.
+          #
+          # Y de paso arregla la medición de #254: la «ventana sin atender»
+          # decía 1 s siempre, porque medía hasta que alguien contestaba y no
+          # hasta que contestaba el build desplegado. Un número que siempre da
+          # lo mismo no está midiendo.
           for i in $(seq 1 72); do
             # /health puede responder mientras la base todavía conecta (#17,
             # #254). Esperar readiness; una caída persistente sigue fallando.
             codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/ready" || true)
-            if [ "$codigo" = "200" ]; then listo=si; break; fi
+            if [ "$codigo" = "200" ]; then
+              # Sin SHA en el entorno este paso corre de verdad en una prueba y
+              # no hay commit desplegado contra el cual comparar: ahí vale el
+              # comportamiento viejo, o la espera no terminaría nunca.
+              if [ -z "${SHA:-}" ]; then listo=si; break; fi
+              atiende=$(curl -sS -m 10 "${BASE}/health" | jq -r '.sha // empty')
+              # Prefijo, no igualdad: /health informa el SHA corto.
+              if [ -n "$atiende" ] && [ "${SHA#"$atiende"}" != "${SHA}" ]; then
+                listo=si; break
+              fi
+            fi
             sleep 10
           done
           espera=$(( $(date +%s) - inicio ))

@@ -36,8 +36,20 @@ estado=$([ "$code" = 200 ] && echo ok || echo degraded)
 cuerpo=$(printf '{%sstatus%s:%s%s%s' '"' '"' '"' "$estado" '"')
 # El SHA solo cuando la prueba lo pide: así se simula tanto un /health que no lo
 # informa (el de antes de #565) como uno que informa otro build.
+#
+# Con FAKE_SHA_DESPUES se simula lo que pasa de verdad en un despliegue (#643):
+# el contenedor VIEJO sigue contestando con su SHA hasta que el nuevo lo
+# reemplaza. Se cuentan las llamadas a /health para saber cuándo cambiar.
 if [ -n "\${FAKE_SHA:-}" ] && [[ "$url" == */health ]]; then
-  cuerpo=$(printf '%s,%ssha%s:%s%s%s' "$cuerpo" '"' '"' '"' "$FAKE_SHA" '"')
+  h=0
+  [ ! -f "$COUNTER.h" ] || read -r h < "$COUNTER.h"
+  h=$((h+1))
+  echo "$h" > "$COUNTER.h"
+  sha="$FAKE_SHA"
+  if [ -n "\${FAKE_SHA_DESPUES:-}" ] && [ "$h" -gt "\${CAMBIA_EN:-1}" ]; then
+    sha="$FAKE_SHA_DESPUES"
+  fi
+  cuerpo=$(printf '%s,%ssha%s:%s%s%s' "$cuerpo" '"' '"' '"' "$sha" '"')
 fi
 cuerpo="$cuerpo}"
 if [[ "$format" == *'\\n'* ]]; then
@@ -53,7 +65,8 @@ fi
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
 
 function run(mode, extra = {}) {
-  const counter = join(directory, mode + (extra.FAKE_SHA ?? '') + (extra.SHA ?? ''));
+  const counter = join(directory, mode + (extra.FAKE_SHA ?? '') + (extra.SHA ?? '') + (extra.FAKE_SHA_DESPUES ?? ''));
+  rmSync(`${counter}.h`, { force: true });
   const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', smoke], {
     env: {
       ...process.env,
@@ -134,6 +147,35 @@ describe('el smoke verifica QUÉ build quedó vivo (#565)', () => {
     const result = run('recover', { SHA, FAKE_SHA: '999999999999' });
     expect(result.status).toBe(1);
     expect(result.stdout).toContain('está corriendo otra imagen');
+  });
+
+  /**
+   * Lo que pasa de verdad en un despliegue: el contenedor viejo sigue vivo y
+   * contesta 200 con SU sha hasta que el nuevo lo reemplaza (#643).
+   *
+   * La espera pedía «un 200» y el viejo se lo daba, así que terminaba en el
+   * primer intento —1 s medido el 27/09— y el smoke comparaba contra la imagen
+   * anterior. Deploy rojo, despliegue sano. Un rojo así enseña a ignorar los
+   * rojos, y justo esta comprobación es la que caza el caso de #573.
+   */
+  it('el contenedor viejo contesta 200: la espera sigue hasta que atiende el build nuevo', () => {
+    const res = run('flaky', {
+      SHA: 'nuevo1234567890',
+      FAKE_SHA: 'viejo0000000',
+      FAKE_SHA_DESPUES: 'nuevo1234567',
+      CAMBIA_EN: '2',
+    });
+    expect(res.status, res.stdout + res.stderr).toBe(0);
+    expect(res.stdout).toContain('Build vivo: nuevo1234567');
+    // Y no dice que la ventana fue de un suspiro: esperó al build nuevo, que es
+    // el número que #254 quiere vigilar.
+    expect(res.stdout).not.toContain('El deploy dijo que salió bien pero está corriendo otra imagen');
+  });
+
+  it('si el build nuevo nunca llega, sigue fallando con los dos SHA', () => {
+    const res = run('flaky', { SHA: 'nuevo1234567890', FAKE_SHA: 'viejo0000000' });
+    expect(res.status).not.toBe(0);
+    expect(res.stdout).toContain('Lo que atiende es viejo0000000');
   });
 
   it('sin SHA en el entorno no se verifica nada y no se inventa un rojo', () => {
