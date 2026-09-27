@@ -64,6 +64,14 @@ x-env: &app-env
   # indexar avisa y el job de reindexación se queda esperando.
   GLM_API_KEY: ${GLM_API_KEY}
   GLM_API_BASE: ${GLM_API_BASE:-https://integrate.api.nvidia.com/v1}
+  # Anthropic: el tercer proveedor que `ENV_KEYS` declara y el ÚNICO que no
+  # estaba acá. La lectura es `process.env[ENV_KEYS[provider]]` —dinámica—, y el
+  # escáner de `variables-del-despliegue` solo ve `process.env.X`: las otras dos
+  # aparecen porque están escritas literales en otra parte, esta no. Así que se
+  # cayó del compose sin que nada avisara, y elegir Anthropic dejaba al asistente
+  # sin contestar con un error genérico. Su guarda ahora vive en el módulo que
+  # hace la lectura (#633).
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
 
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
