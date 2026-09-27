@@ -109,16 +109,24 @@ export interface ConversacionDetalle extends ConversacionItem {
  * ofrecía el selector de plantillas, para un canal donde no hay plantillas que
  * mandar. La API decía que sí y la pantalla decía que no.
  *
- * Ahora viene en el detalle. El respaldo cuando el campo no está —una API más
- * vieja durante un despliegue— es **cerrada**: ofrecer una plantilla de más es
- * molesto; dejar escribir un mensaje que WhatsApp va a rechazar le gasta el
- * intento a quien atiende y lo deja sin saber por qué.
+ * Ahora viene en el detalle. El respaldo cuando el campo NO está —una API más
+ * vieja que el front durante un despliegue— es **abierta**, y eso costó una
+ * corrección: primero lo dejé cerrado, razonando que ofrecer una plantilla de
+ * más es más barato que gastar un intento. El e2e mostró lo que eso significa de
+ * verdad: sin el campo, la bandeja **esconde el cuadro de respuesta en TODAS las
+ * conversaciones** y nadie puede contestarle a nadie. Un silencio total por un
+ * campo ausente es mucho peor que un rechazo explicado.
+ *
+ * Y abierto no afloja ninguna regla, porque esta no es la cerradura: la ventana
+ * la hace cumplir la API (`OUTSIDE_WINDOW`) y el worker antes de despachar. El
+ * SPEC §11 lo dice en ese orden — «la bandeja lo muestra y bloquea; la API lo
+ * rechaza aunque la UI falle». Acá se muestra; quien manda es la API.
  */
 export function ventanaAbierta(detalle: {
   ventanaAbierta?: boolean;
   lastInboundAt: string | null;
 }): boolean {
-  return detalle.ventanaAbierta ?? false;
+  return detalle.ventanaAbierta ?? true;
 }
 
 export interface Mensaje {
