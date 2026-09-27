@@ -16,6 +16,7 @@ import {
   enteroDeEntorno,
   versionDelBuild,
 } from '@iaxti/core';
+import { sinSolaparse, candadoEnRedis } from './sin-solaparse';
 import { processInbound, type InboundJob } from './inbound';
 
 /**
@@ -181,7 +182,6 @@ function start(): void {
      * sentido del patrón padre/hijo del §39. Los repetibles no traen tenant, así
      * que su llave es el nombre solo y nunca se solapan consigo mismos.
      */
-    const enCurso = new Set<string>();
     const correrProgramado = async (job: { name: string; data: unknown }): Promise<unknown> => {
       switch (job.name) {
         case 'conversations.checks': {
@@ -475,27 +475,14 @@ function start(): void {
           return { ok: true };
       }
     };
+    // El guardián vive en `sin-solaparse.ts` y no acá: así se puede llamar dos
+    // veces a la vez en una prueba y ver qué pasa, que es la única forma de
+    // saber si sirve. Su primera prueba hacía grep de ESTE archivo y pasaba con
+    // el mecanismo vaciado.
     const scheduledWorker = createModuleWorker(
       'scheduled',
       registry,
-      async (job) => {
-        const llave = `${job.name}:${(job.data as { tenantId?: string }).tenantId ?? ''}`;
-        if (enCurso.has(llave)) {
-          // Se salta, no se reencola: estos barridos son idempotentes y la
-          // próxima pasada agarra lo que quedó. Reencolarlo acumularía pasadas
-          // de un trabajo que ya va atrasado.
-          console.warn(`scheduled: ${job.name} todavía corre de la pasada anterior; esta se salta`);
-          // Mismo sobre que usa `createModuleWorker` para el módulo apagado:
-          // el job no se ejecutó, y quien lea el resultado lo lee igual.
-          return { skipped: true, reason: 'la pasada anterior no ha terminado' };
-        }
-        enCurso.add(llave);
-        try {
-          return await correrProgramado(job);
-        } finally {
-          enCurso.delete(llave);
-        }
-      },
+      sinSolaparse(correrProgramado, candadoEnRedis(redisScheduled)),
       redisConnection(),
     );
     /**

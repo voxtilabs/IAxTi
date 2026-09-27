@@ -50,7 +50,15 @@ process.on('exit', (codigo) => {
   );
 });
 
-process.emit('SIGTERM');
+// Señal DE VERDAD, no `process.emit('SIGTERM')`.
+//
+// `emit` llama a los listeners directamente y se salta la máquina de señales:
+// pasa aunque el manejador se registre tarde, aunque libuv no lo haya
+// enganchado, aunque en el proceso real la acción por omisión mate el proceso
+// antes de que alguien lo escuche. O sea: probaba que la función existe, no que
+// el apagado ordenado ocurre. `process.kill` sobre el propio pid entrega la
+// señal por el sistema operativo, que es lo que hace Docker al desplegar.
+process.kill(process.pid, 'SIGTERM');
 
 // Si nadie tomó la señal, el proceso se queda acá hasta este plazo. Sale con 0
 // igual para que la prueba pueda contar QUÉ pasó —el job no terminó, los pasos

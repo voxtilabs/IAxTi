@@ -78,15 +78,23 @@ describe('el saliente abandonado y los barridos', () => {
     expect(MAIN).toMatch(/cerrarEnvioAbandonado\(pool, job, err\)/);
   });
 
-  it('la cola scheduled corre en paralelo, y una pasada no se pisa con la anterior', () => {
-    expect(MAIN).toMatch(/scheduledWorker\.concurrency = enteroDeEntorno\('WORKERS_SCHEDULED_CONCURRENCY', [2-9]/);
+  // Acá se asegura solo que la cola está EN PARALELO y que pasa por el
+  // guardián. Que el guardián SIRVA se prueba en `sin-solaparse.test.ts`,
+  // llamándolo dos veces a la vez.
+  //
+  // La versión anterior de esta prueba aseguraba el texto fuente del guardián
+  // entero —`expect(MAIN).toContain('enCurso.has(llave)')` y la línea literal de
+  // la llave— y tenía los dos defectos que tiene medir por proxy: pasaba con el
+  // cuerpo del `if` vacío, y se ponía roja cuando alguien reformateaba main.ts
+  // sin tocar ningún archivo en común. Lo segundo es un generador de conflictos
+  // para toda rama futura.
+  it('la cola scheduled corre en paralelo y su trabajo pasa por el guardián', () => {
+    expect(MAIN).toMatch(
+      /scheduledWorker\.concurrency = enteroDeEntorno\('WORKERS_SCHEDULED_CONCURRENCY', [2-9]/,
+    );
     // Con concurrencia > 1, BullMQ puede arrancar la pasada siguiente de un
     // repetible antes de que termine la anterior. Dos `calendar.reminders` a la
     // vez mandan el mismo recordatorio dos veces.
-    expect(MAIN).toContain('enCurso.has(llave)');
-    expect(MAIN).toMatch(/enCurso\.delete\(llave\)/);
-    // La llave lleva el tenant: los hijos por negocio comparten nombre y SÍ
-    // deben correr en paralelo — para eso existe el patrón padre/hijo.
-    expect(MAIN).toMatch(/const llave = `\$\{job\.name\}:\$\{\(job\.data as \{ tenantId\?: string \}\)\.tenantId \?\? ''\}`/);
+    expect(MAIN).toMatch(/sinSolaparse\(correrProgramado, candadoEnRedis\(/);
   });
 });
