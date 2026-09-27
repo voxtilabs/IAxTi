@@ -102,11 +102,157 @@ export function initObservability(serviceName: string): void {
     });
     sdk.start();
 
-    const shutdown = () => {
-      void sdk.shutdown().finally(() => process.exit(0));
-    };
-    process.once('SIGTERM', shutdown);
-    process.once('SIGINT', shutdown);
+    // El SDK se vacía al FINAL del apagado, cuando cada pieza del proceso ya
+    // cerró: las trazas del drenaje son justamente las que interesan cuando un
+    // despliegue tarda en soltar.
+    //
+    // Antes esto era un manejador propio que hacía `sdk.shutdown()` y
+    // `process.exit(0)` sin avisarle a nadie más. Ese exit era el que mataba a
+    // los workers a mitad de job (el por qué está en `apagarOrdenado`).
+    cerrarOtel = () => sdk.shutdown();
+    instalarApagadoOrdenado();
+  }
+}
+
+// ── El apagado ordenado, y por qué existe ───────────────────────────────
+
+/**
+ * Lo que hay que cerrar antes de que el proceso muera, en el orden en que se
+ * registró.
+ *
+ * El defecto que esto viene a tapar: al desplegar, el orquestador manda
+ * SIGTERM y el proceso se iba al suelo en el acto. Los workers de BullMQ
+ * morían a mitad de job, y BullMQ garantiza at-least-once: el job que muere
+ * en ejecución se vuelve a tomar. O sea que un saliente que ya se había
+ * entregado al proveedor salía DE NUEVO en el reintento — el cliente recibía
+ * el mismo WhatsApp dos veces y se pagaba dos veces. En CADA despliegue.
+ *
+ * La `idempotencyKey` del proveedor (#585) tapa el caso de morir DESPUÉS de
+ * que el proveedor aceptó. No tapa el de morir ANTES de llamarlo: ahí el
+ * reintento es un envío nuevo y legítimo, indistinguible del primero. La
+ * única forma de no duplicar es dejar que el job en vuelo TERMINE, y para eso
+ * hay que esperarlo: `worker.close()`.
+ *
+ * Por eso un registro y no un manejador de señales por pieza: quien crea un
+ * worker, un pool o un servidor sabe cómo cerrarlo, y el proceso necesita
+ * cerrarlos todos en un orden que tenga sentido.
+ */
+interface Cierre {
+  nombre: string;
+  cerrar: () => Promise<void> | void;
+}
+
+const cierres: Cierre[] = [];
+/** Vaciar el SDK de OTel, si está activo. Va al final, no en la lista. */
+let cerrarOtel: (() => Promise<void>) | null = null;
+let apagado: Promise<void> | null = null;
+let señalesTomadas = false;
+
+/**
+ * Registra algo que DEBE cerrarse antes de salir. Se cierran en el orden en
+ * que se registraron: primero lo que produce trabajo, después lo que lo
+ * consume, y al final aquello de lo que los dos dependen.
+ */
+export function alApagar(nombre: string, cerrar: () => Promise<void> | void): void {
+  cierres.push({ nombre, cerrar });
+}
+
+/**
+ * Cuánto se espera el drenaje antes de rendirse.
+ *
+ * El valor por omisión está por DEBAJO de los 10 s que Docker espera entre su
+ * SIGTERM y su SIGKILL: un plazo más largo que el del orquestador es una
+ * promesa que no se puede cumplir — llega el SIGKILL igual y el drenaje queda
+ * a medias sin que nadie lo cuente. Si se sube acá, hay que subir también el
+ * `stop_grace_period` del compose (o el `terminationGracePeriodSeconds`).
+ */
+export function plazoDeApagado(env: NodeJS.ProcessEnv = process.env): number {
+  const crudo = env.SHUTDOWN_TIMEOUT_MS;
+  if (crudo === undefined || crudo.trim() === '') return 8_000;
+  const n = Number(crudo);
+  if (!Number.isFinite(n) || n < 1) {
+    console.warn(
+      `apagado: SHUTDOWN_TIMEOUT_MS="${crudo}" no sirve (se esperaba un número de ms). Se usan 8000.`,
+    );
+    return 8_000;
+  }
+  return n;
+}
+
+/**
+ * Cierra todo lo registrado y vacía la telemetría. Idempotente: dos señales
+ * seguidas no arrancan dos drenajes.
+ *
+ * Un cierre que falla no detiene a los demás —la mitad cerrada es mejor que
+ * ninguna— y el plazo acota el total: lo que quede a medias lo reintenta la
+ * cola cuando el proceso vuelva, que es exactamente para lo que BullMQ
+ * reintenta.
+ *
+ * Los avisos van por stderr a propósito: hay procesos cuya salida estándar es
+ * su resultado, y un aviso de apagado no tiene por qué ensuciarla.
+ */
+export async function apagarOrdenado(motivo: string): Promise<void> {
+  if (apagado) return apagado;
+  apagado = (async () => {
+    const plazo = plazoDeApagado();
+    const desde = Date.now();
+    console.warn(`apagado: ${motivo}; se cierran ${cierres.length} piezas (plazo ${plazo} ms)`);
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    const vencido = new Promise<'vencido'>((listo) => {
+      temporizador = setTimeout(() => listo('vencido'), plazo);
+      temporizador.unref?.();
+    });
+    const enOrden = (async () => {
+      for (const { nombre, cerrar } of cierres) {
+        try {
+          await cerrar();
+        } catch (err) {
+          console.error(`apagado: ${nombre} no cerró limpio — ${(err as Error).message}`);
+        }
+      }
+      return 'listo' as const;
+    })();
+    try {
+      if ((await Promise.race([enOrden, vencido])) === 'vencido') {
+        console.error(
+          `apagado: se agotó el plazo de ${plazo} ms con piezas sin cerrar. ` +
+            'Lo que quedó a medias lo reintenta la cola al volver.',
+        );
+      }
+    } finally {
+      if (temporizador) clearTimeout(temporizador);
+    }
+    if (cerrarOtel) await cerrarOtel().catch(() => {});
+    await flushTelemetry().catch(() => {});
+    console.warn(`apagado: listo en ${Date.now() - desde} ms`);
+  })();
+  return apagado;
+}
+
+/** ¿Ya empezó el apagado? Para no tomar trabajo nuevo mientras se drena. */
+export function apagadoEnCurso(): boolean {
+  return apagado !== null;
+}
+
+/**
+ * Toma SIGTERM y SIGINT para drenar antes de salir. Idempotente.
+ *
+ * Se llama desde el entrypoint de todo proceso que tenga algo que drenar
+ * —los consumidores de colas, sobre todo— y desde `initObservability` cuando
+ * OTel está activo, porque ahí además hay que vaciar el SDK.
+ *
+ * Deliberadamente NO se instala siempre: registrar un manejador de señales
+ * cambia el comportamiento por omisión de Node (sin manejador, SIGTERM mata el
+ * proceso), y los servidores que ya traen su propio apagado —Next.js en web y
+ * admin— no tienen por qué pasar por acá.
+ */
+export function instalarApagadoOrdenado(): void {
+  if (señalesTomadas) return;
+  señalesTomadas = true;
+  for (const señal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(señal, () => {
+      void apagarOrdenado(`señal ${señal}`).finally(() => process.exit(0));
+    });
   }
 }
 

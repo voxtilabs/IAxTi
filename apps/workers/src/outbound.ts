@@ -211,3 +211,98 @@ export async function processOutbound(
     return { providerMessageId: res.providerMessageId };
   });
 }
+
+/**
+ * Lo poco que hace falta del job para cerrar el mensaje que quedó colgado.
+ *
+ * Suelto a propósito: el evento `failed` de la cola entrega cualquier job de la
+ * cola outbound, y su `data` es un dato que viene de Redis, no algo que este
+ * proceso acabe de escribir. Se valida abajo antes de tocar la base.
+ */
+export interface JobDeSalidaAbandonado {
+  data: Record<string, unknown>;
+  attemptsMade: number;
+  opts: { attempts?: number };
+  /** BullMQ lo pone SOLO cuando ya decidió que no reintenta más. */
+  finishedOn?: number;
+}
+
+/**
+ * ¿La cola se dio por vencida con este job, o todavía va a reintentar?
+ *
+ * `finishedOn` es la señal directa: BullMQ lo escribe únicamente cuando mueve
+ * el job a `failed` de verdad. El contador es el respaldo, porque el evento
+ * `failed` se emite en CADA intento y marcar el mensaje en el primero sería
+ * mentir — la cola todavía lo va a mandar.
+ */
+export function seDioPorVencida(job: JobDeSalidaAbandonado): boolean {
+  const maxIntentos = job.opts.attempts ?? 1;
+  return job.finishedOn !== undefined || job.attemptsMade >= maxIntentos;
+}
+
+/**
+ * El mensaje que la cola abandonó deja de decir «enviando».
+ *
+ * `processOutbound` marca `failed` en los caminos que conoce —el proveedor
+ * rechazó, la causa es permanente, se agotaron los intentos contra el
+ * proveedor—, pero nadie marcaba nada cuando el job se caía POR FUERA de ese
+ * `try`: un `RateLimitedError` en el último intento (se relanza siempre), la
+ * base que no responde, R2 que no firma la URL del adjunto, la plantilla que no
+ * se pudo leer. La fila se quedaba en `queued`, y «para siempre» es literal:
+ * nada más vuelve a mirarla.
+ *
+ * El vendedor ve el mensaje «enviando» meses después, no sabe si el cliente lo
+ * recibió, y lo único que puede hacer es escribirlo de nuevo — que duplica si
+ * en realidad sí había salido.
+ *
+ * Idempotente y sin pisar nada: se relee la fila con el mismo bloqueo que usa
+ * el despacho y solo se marca si sigue en `queued`. Un job que falló DESPUÉS de
+ * que el proveedor aceptó ya está en `sent` y se deja como está.
+ *
+ * El motivo que lee la persona NO lleva el texto crudo del sistema: un
+ * «ECONNREFUSED» no le dice a nadie qué hacer. El detalle va al log.
+ */
+export async function cerrarEnvioAbandonado(
+  pool: Pool,
+  job: JobDeSalidaAbandonado | undefined,
+  err: unknown,
+): Promise<{ marcado: boolean; motivo?: string }> {
+  if (!job || !seDioPorVencida(job)) return { marcado: false };
+  const { tenantId, messageId, requestId } = job.data;
+  if (typeof tenantId !== 'string' || typeof messageId !== 'string') return { marcado: false };
+
+  const causa =
+    err instanceof RateLimitedError
+      ? 'El canal estuvo con demasiados envíos en todos los intentos y no alcanzamos a mandarlo. Vuelve a intentarlo en un rato.'
+      : 'No pudimos enviarlo después de varios intentos. Vuelve a intentarlo; si sigue igual, revisa la conexión del canal.';
+
+  // El detalle sirve para depurar y va al log, nunca a la bandeja.
+  console.error(
+    `outbound ${messageId}: la cola se dio por vencida tras ${job.attemptsMade} intentos — ` +
+      `${(err as Error | undefined)?.message ?? 'sin mensaje'}`,
+  );
+
+  try {
+    return await withTenant(pool, tenantId, async (client) => {
+      const ctx = await getOutboundContext(client, tenantId, messageId);
+      // Ya terminó en otro estado (o el mensaje no existe): no hay nada que
+      // cerrar, y forzarlo sería inventar un fallo sobre algo que sí salió.
+      if (!ctx || ctx.deliveryStatus !== 'queued') return { marcado: false };
+      await updateDeliveryStatus(client, {
+        tenantId,
+        messageId,
+        status: 'failed',
+        error: causa,
+        ...(typeof requestId === 'string' ? { requestId } : {}),
+      });
+      return { marcado: true, motivo: causa };
+    });
+  } catch (fallo) {
+    // Si ni esto se puede escribir, el mensaje sigue colgado — pero el proceso
+    // no se cae por intentar avisar de otro fallo.
+    console.error(
+      `outbound ${messageId}: no pudimos marcar el envío abandonado — ${(fallo as Error).message}`,
+    );
+    return { marcado: false };
+  }
+}
