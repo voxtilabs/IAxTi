@@ -107,12 +107,18 @@ function emitidas(clases: string[]): Set<string> {
 describe('todas las clases que usamos existen (#548)', () => {
   const usadas = [...clasesUsadas()];
 
+  // 30 s como sus hermanas que recorren el árbol: estas dos corren Tailwind DE
+  // VERDAD y tardan diez o veinte segundos según la máquina. Con el timeout por
+  // defecto de 5 s la prueba se pone roja por lenta y el mensaje dice «el escáner
+  // no reconoce nada», que es una falla de TIEMPO disfrazada de hallazgo — y una
+  // guarda que miente sobre por qué falló se apaga igual de rápido que una que no
+  // falla nunca.
   it('el escáner funciona: reconoce una clase de estas familias', () => {
     // Sin este test, cero clases encontradas se leería como «todo bien».
     expect(emitidas(['bg-action/50', 'animate-in']).size).toBeGreaterThanOrEqual(0);
     // Y comprueba que Tailwind corre: una clase que SÍ existe tiene que salir.
     expect(emitidas(['text-muted']).has('text-muted')).toBe(true);
-  });
+  }, 60_000);
 
   it('ninguna clase de animación ni con opacidad queda sin emitir', () => {
     if (usadas.length === 0) return;

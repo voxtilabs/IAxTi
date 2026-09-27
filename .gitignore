@@ -12,3 +12,8 @@ apps/web/e2e/.auth.json
 apps/web/e2e/capturas/
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Worktrees de los workflows (#601): los crea `isolation: worktree` y son
+# repos embebidos. Un `git add -A` se los come, y ya me pasó dos veces esta
+# noche — la primera se llevó diez controllers a un commit que no era suyo.
+.claude/worktrees/

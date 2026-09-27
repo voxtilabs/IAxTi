@@ -152,3 +152,78 @@ a { color: var(--action-text); }
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ── La barra de scroll, en Pulso (#601) ───────────────────────────────────────
+ *
+ * No la tocábamos, así que el navegador ponía la del sistema operativo. En modo
+ * noche eso significa una barra GRIS CLARA sobre un panel oscuro: era la única
+ * pieza de la interfaz que no sabía en qué modo estaba, y se ve especialmente en
+ * este producto porque la bandeja tiene tres paneles con scroll y las tablas
+ * scrollean en horizontal — diez componentes en total.
+ *
+ * Dos capas a propósito:
+ *   · `scrollbar-color` y `scrollbar-width` son el estándar. Los entienden
+ *     Firefox y Chrome desde la 121.
+ *   · `::-webkit-scrollbar` cubre Safari, que todavía no aplica `scrollbar-color`.
+ * Los dos leen los MISMOS tokens, así que no hay dos verdades que mantener.
+ *
+ * Lo que NO se hizo, y es una decisión:
+ *
+ * **No se esconde.** La tentación de `width: 0` o de una barra de 4 px que
+ * aparece al pasar el mouse es real y queda "limpia" en una captura. Pero la
+ * barra es lo único que dice que hay MÁS contenido abajo, y para alguien con
+ * dificultad motora una barra de 4 px es imposible de agarrar. Queda delgada
+ * (10 px) y con contraste suficiente para verse sin buscarla.
+ *
+ * **No se anima.** Pulso no tiene animación continua y una barra que crece al
+ * acercarse el puntero es justo eso. El pulgar cambia de color en hover, que se
+ * nota igual y no se mueve.
+ */
+
+* {
+  scrollbar-width: thin;
+  /* Pulgar y riel. `--border-strong` es el borde legible de campo: el mismo
+     contraste que ya decidimos que se ve en los dos modos. */
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Safari: mismos tokens, otra sintaxis. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  /* Transparente y no `--bg`: el riel toma el color del panel que scrollea, así
+     sirve igual sobre `bg`, `raised` y `rest` sin una regla por superficie. */
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  /* El borde transparente adelgaza el pulgar SIN adelgazar el área de click:
+     el gesto sigue teniendo 10 px para agarrar y el dibujo se ve de 6. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  background-clip: padding-box;
+}
+
+/* Las dos barras cruzándose dejan un cuadrito que hereda el color del sistema. */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Sin salto de layout cuando el contenido pasa a ser scrolleable (#588).
+ *
+ * Sin esto, abrir una conversación larga corre el contenido ~10 px hacia la
+ * izquierda cuando aparece la barra. Es chico y es exactamente lo que se siente
+ * como "no terminado": el producto se mueve solo mientras lo mirás. */
+html,
+body {
+  scrollbar-gutter: stable;
+}
