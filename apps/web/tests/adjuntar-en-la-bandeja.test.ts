@@ -123,10 +123,20 @@ describe('qué se puede adjuntar, y qué se ve cuando no (#560)', () => {
 
   it('un adjunto rechazado muestra el aviso en vez de perderse en silencio', () => {
     // El catch tiene que estar alrededor de la subida, no solo del envío.
+    //
+    // Se busca `setAviso(...)` seguido de `return false`, sin exigir CÓMO se
+    // arma el aviso: antes esta guarda aseguraba la línea literal
+    // `setAviso((err as Error).message)` y se puso roja cuando el aviso pasó a
+    // llevar el identificador del error (#659) — un cambio que no toca en nada
+    // lo que esta prueba protege. Una guarda que se rompe con un refactor que
+    // no la afecta enseña a editarla sin leerla.
     const i = BANDEJA.indexOf("/attachments`");
-    const j = BANDEJA.indexOf('setAviso((err as Error).message);\n                return false;');
     expect(i).toBeGreaterThan(0);
-    expect(j).toBeGreaterThan(i);
+    // Se busca DESDE la subida en adelante: hay otros `setAviso(...); return
+    // false;` antes en el archivo, y encontrar uno de esos diría que el catch
+    // está puesto cuando no lo está.
+    const j = BANDEJA.slice(i).search(/setAviso\(.+\);\s*\n\s*return false;/);
+    expect(j, 'no hay aviso + return false después de pedir la URL de subida').toBeGreaterThan(0);
   });
 
   it('un envío que falló NO borra lo que se escribió', () => {
