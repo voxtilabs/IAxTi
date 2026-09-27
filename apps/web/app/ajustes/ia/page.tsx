@@ -7,6 +7,7 @@ import { Evaluaciones } from '../../../components/evaluaciones';
 import { LogroDelObjetivo } from '../../../components/logro-del-objetivo';
 import { Configurador } from '../../../components/configurador';
 import { AjustesDeIa } from '../../../components/ajustes-de-ia';
+import { PorQueLaIaNoTrabaja } from '../../../components/por-que-la-ia-no-trabaja';
 import { internalApiUrl, publicConfig } from '../../../lib/config';
 import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
@@ -17,6 +18,10 @@ export default async function PaginaConsumoIA() {
   const nav = await navDesdeLaApi(internalApiUrl());
   return (
     <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
+      {/* Antes del consumo (#614): un gráfico en cero es el síntoma y la causa
+          se lee primero. Si falta una credencial, todo lo demás de esta página
+          es configuración de algo que no va a correr. */}
+      <PorQueLaIaNoTrabaja />
       <ConsumoIA />
       {/* El proveedor único va arriba del configurador (#536): decide DÓNDE
           corre todo lo demás, así que elegirlo después de armar el asistente

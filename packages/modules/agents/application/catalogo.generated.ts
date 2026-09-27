@@ -430,6 +430,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgentsController_diagnostico": {
+    "metodo": "GET",
+    "ruta": "/v1/agents/diagnostico",
+    "resumen": "Por qué la IA no está trabajando, paso a paso",
+    "permiso": "tenant.read",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "AgentsController_evals": {
     "metodo": "GET",
     "ruta": "/v1/agents/{id}/evals",
