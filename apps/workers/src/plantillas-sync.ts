@@ -46,13 +46,14 @@ async function cuentaConPlantillas(
 
 export async function sincronizarPlantillas(
   pool: Pool,
-): Promise<{ tenants: number; revisadas: number; cambiadas: number }> {
+): Promise<{ tenants: number; revisadas: number; cambiadas: number; conErrores: number }> {
   // Los tenants se sacan de `tenants`, no de `whatsapp_templates` (#286):
   // esa tabla tiene RLS y una consulta suelta devuelve cero filas con el rol
   // de producción. Era mío, de este mismo día.
   let revisadas = 0;
   let cambiadas = 0;
   let conPendientes = 0;
+  let conErrores = 0;
 
   for (const tenantId of await idsDeTenants(pool)) {
     try {
@@ -75,7 +76,30 @@ export async function sincronizarPlantillas(
         // demás una obligación que no les corresponde; el día que Zavu se
         // vaya, esta línea se va con él y el resto queda igual.
         const apiKey = process.env[conexion.cuenta.credentialRef!]!;
-        await sincronizarConZavu({ apiKey }, conexion.senderId);
+        /**
+         * El resultado del sync SE MIRA.
+         *
+         * Esto era `await sincronizarConZavu(...)` a secas, con el retorno al
+         * tacho. Zavu contesta 200 con un `errors` por cuenta: cuando el token
+         * de la WABA está vencido, la respuesta es un 200 con el error dentro,
+         * el barrido seguía como si nada y leía la copia VIEJA del proveedor.
+         * Resultado: Meta aprueba la plantilla, acá se queda «en revisión»
+         * para siempre y nadie se entera — exactamente lo que este barrido
+         * existe para evitar, fallando en silencio.
+         *
+         * No se corta la pasada: la lista que sigue puede traer novedades de
+         * otras cuentas y algo es mejor que nada. Pero queda gritado en el log
+         * y contado en el resultado, que es lo que hace que alguien renueve el
+         * token en vez de esperar un webhook que no viene.
+         */
+        const sync = await sincronizarConZavu({ apiKey }, conexion.senderId);
+        if (sync.errores.length > 0) {
+          conErrores += 1;
+          console.error(
+            `plantillas.sync: ${tenantId} — el proveedor devolvió ${sync.errores.length} error(es) al ponerse al día con Meta; ` +
+              `revisa la credencial del número en Ajustes → Canales: ${JSON.stringify(sync.errores).slice(0, 300)}`,
+          );
+        }
 
         const enProveedor = await conexion.plantillas.listar(conexion.cuenta);
         const porNombre = new Map(
@@ -114,5 +138,5 @@ export async function sincronizarPlantillas(
     }
   }
 
-  return { tenants: conPendientes, revisadas, cambiadas };
+  return { tenants: conPendientes, revisadas, cambiadas, conErrores };
 }

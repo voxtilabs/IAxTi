@@ -189,7 +189,12 @@ describe('el recorrido de una clienta, de punta a punta', () => {
       ),
     ).rejects.toThrow(/no se manda a revisión/);
 
-    await en((c) => marcarEnviadaARevision(c, { tenantId: tenant, templateId: plantilla }));
+    // Con el id del proveedor, como queda en la vida real: la revisión la
+    // registra allá y ese id es lo único con lo que el adaptador puede
+    // mandarla. Sin él `enviarPlantilla` se niega antes de encolar nada.
+    await en((c) =>
+      marcarEnviadaARevision(c, { tenantId: tenant, templateId: plantilla, providerId: 'tpl_prov_e2e' }),
+    );
     await en((c) =>
       aplicarEstadoDelProveedor(c, {
         tenantId: tenant,
