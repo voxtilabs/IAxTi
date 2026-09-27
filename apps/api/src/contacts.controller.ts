@@ -303,6 +303,45 @@ export class ContactsController {
     return { merged: true };
   }
 
+  /**
+   * Lo que hay que hacer, junto (#454).
+   *
+   * Las actividades se creaban —desde la ficha y desde el asistente— y la
+   * única forma de verlas era abrir la ficha del contacto exacto. «¿Qué
+   * tengo que hacer hoy?» no tenía respuesta en el producto.
+   *
+   * Va en el controlador de contactos y no en uno nuevo porque una
+   * actividad no existe sin su contacto: es su ficha, vista de otro lado.
+   */
+  @Get('activities')
+  @RequirePermission('crm.contacts.read')
+  @ApiOperation({ summary: 'Actividades pendientes del negocio, lo vencido primero' })
+  async actividades(
+    @Req() request: WithUser,
+    @Query('todas') todas?: string,
+    @Query('incluirHechas') incluirHechas?: string,
+  ) {
+    const actor = actorOf(request);
+    // Quien no puede ver lo del equipo ve lo SUYO, igual que el tablero de
+    // oportunidades (ADR-0008: el permiso decide, no el rol).
+    const soloMias = todas !== 'true' || !actorCan(actor, 'crm.read_all');
+    return withTenant(pool(), actor.tenantId, (c) =>
+      listActivities(c, {
+        tenantId: actor.tenantId,
+        ...(soloMias ? { ownerId: actor.userId } : {}),
+        incluirHechas: incluirHechas === 'true',
+      }),
+    );
+  }
+  // OJO CON EL ORDEN (#657): esto va ANTES de `@Get(':id')`, y no es estilo.
+  //
+  // NestJS resuelve las rutas en ORDEN DE DECLARACIÓN. Con `:id` declarado
+  // primero, `GET /contacts/activities` entraba por la ficha con
+  // `id = 'activities'`, no encontraba nada, y el `catch` lo convertía en un 404
+  // `CONTACT_NOT_FOUND`. La pantalla de Pendientes mostraba su estado vacío —o
+  // sea, decía que estabas al día— y nunca pudo mostrar una sola actividad.
+  //
+  // Toda ruta LITERAL de este controlador va arriba de la que lleva parámetro.
   @Get(':id')
   @RequirePermission('crm.contacts.read')
   @ApiOperation({ summary: 'Ficha: contacto, oportunidades y actividades' })
@@ -412,36 +451,6 @@ export class ContactsController {
     });
   }
 
-  /**
-   * Lo que hay que hacer, junto (#454).
-   *
-   * Las actividades se creaban —desde la ficha y desde el asistente— y la
-   * única forma de verlas era abrir la ficha del contacto exacto. «¿Qué
-   * tengo que hacer hoy?» no tenía respuesta en el producto.
-   *
-   * Va en el controlador de contactos y no en uno nuevo porque una
-   * actividad no existe sin su contacto: es su ficha, vista de otro lado.
-   */
-  @Get('activities')
-  @RequirePermission('crm.contacts.read')
-  @ApiOperation({ summary: 'Actividades pendientes del negocio, lo vencido primero' })
-  async actividades(
-    @Req() request: WithUser,
-    @Query('todas') todas?: string,
-    @Query('incluirHechas') incluirHechas?: string,
-  ) {
-    const actor = actorOf(request);
-    // Quien no puede ver lo del equipo ve lo SUYO, igual que el tablero de
-    // oportunidades (ADR-0008: el permiso decide, no el rol).
-    const soloMias = todas !== 'true' || !actorCan(actor, 'crm.read_all');
-    return withTenant(pool(), actor.tenantId, (c) =>
-      listActivities(c, {
-        tenantId: actor.tenantId,
-        ...(soloMias ? { ownerId: actor.userId } : {}),
-        incluirHechas: incluirHechas === 'true',
-      }),
-    );
-  }
 
   @Post('activities/:activityId/done')
   @RequirePermission('crm.activities.manage')
