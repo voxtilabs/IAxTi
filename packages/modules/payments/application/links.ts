@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
+import { getContactEmail } from '@iaxti/module-crm';
 import { flowConfig } from '../domain/flow-config';
 import {
   paymentProviderFor,
@@ -191,9 +192,13 @@ const EMAIL_SIN_PAGADOR = 'pagos@iaxti.cl';
 
 /**
  * El email del pagador lo resuelve el caso de uso, que es el único que sabe a
- * quién se le está cobrando; el adaptador del proveedor no inventa
- * direcciones. Mismo criterio que el monto de la oportunidad acá al lado: el
- * dato del contacto se lee donde se arma el cobro.
+ * quién se le está cobrando; el adaptador del proveedor no inventa direcciones.
+ *
+ * El correo sale del CONTRATO de crm y no de un `SELECT email FROM contacts`:
+ * consultar la tabla de otro módulo es lo que la regla de arquitectura prohíbe,
+ * y `depcruise` no lo caza porque no hay import que cazar — es SQL. `crm` es
+ * dependencia opcional de este módulo, y esto lo respeta: si el contacto no
+ * está, o no tiene correo, se degrada al último recurso en vez de reventar.
  */
 async function emailDelPagador(
   client: PoolClient,
@@ -203,11 +208,7 @@ async function emailDelPagador(
 ): Promise<string> {
   if (escrito?.trim()) return escrito.trim();
   if (contactId) {
-    const r = await client.query('SELECT email FROM contacts WHERE tenant_id = $1 AND id = $2', [
-      tenantId,
-      contactId,
-    ]);
-    const email = ((r.rows[0]?.email as string | null) ?? '').trim();
+    const email = await getContactEmail(client, tenantId, contactId);
     if (email) return email;
   }
   return EMAIL_SIN_PAGADOR;

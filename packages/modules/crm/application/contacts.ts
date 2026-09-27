@@ -567,3 +567,32 @@ export async function ensureWebContact(
   });
   return { contact, created: true };
 }
+
+/**
+ * El correo de un contacto, y nada más.
+ *
+ * Existe porque `payments` lo necesita para crear la orden en Flow —que exige
+ * el email del pagador— y lo estaba leyendo con un `SELECT email FROM contacts`
+ * desde dentro de su propio módulo. Eso es justo lo que la regla de
+ * arquitectura prohíbe: consultar la tabla de otro módulo. `depcruise` no lo
+ * caza porque no hay import que cazar; es SQL, y el SQL no tiene tipos que
+ * revisar.
+ *
+ * Angosta a propósito, y no `getContactFicha`: la ficha trae el contacto, sus
+ * oportunidades y sus actividades en tres consultas, y **lanza** si el contacto
+ * no existe. Para resolver un correo eso es caro y además cambia el
+ * comportamiento — un cobro no se cae porque el contacto se borró. Acá un
+ * contacto que no está devuelve null, que es lo que quien cobra puede manejar.
+ */
+export async function getContactEmail(
+  client: PoolClient,
+  tenantId: string,
+  contactId: string,
+): Promise<string | null> {
+  const r = await client.query('SELECT email FROM contacts WHERE tenant_id = $1 AND id = $2', [
+    tenantId,
+    contactId,
+  ]);
+  const email = ((r.rows[0]?.email as string | null) ?? '').trim();
+  return email === '' ? null : email;
+}

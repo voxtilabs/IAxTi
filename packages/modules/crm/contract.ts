@@ -11,6 +11,7 @@ export {
   optOut,
   handleInboundForConsent,
   canReceiveBusinessInitiated,
+  getContactEmail,
   ORIGENES_DE_CANAL,
 } from './application/contacts';
 export type { IdentityChannel } from './application/contacts';

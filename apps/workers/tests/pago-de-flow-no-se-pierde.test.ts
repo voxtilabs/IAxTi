@@ -111,11 +111,40 @@ describe('la confirmación de Flow no se puede perder (#61)', () => {
   });
 
   it('un token que Flow no reconoce SÍ se da por terminado: no hay nada que reintentar', async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ code: 1, message: 'token inválido' }, { status: 404 }));
+    // Flow contesta BIEN y no trae orden. Es el único camino definitivo que
+    // queda, y es el que de verdad significa «ese token no es una orden mía».
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({}, { status: 200 }));
     const res = await processPaymentWebhook(admin, job('tok-inventado'), fetcher);
     expect(res.outcome).toBe('flow_token_desconocido');
+  });
+
+  // Esta es la prueba que faltaba, y la que separa los dos casos que la versión
+  // anterior confundía. Comprobado contra el proveedor de verdad:
+  //
+  //     GET https://sandbox.flow.cl/api/payment/getStatus  (apiKey inválida)
+  //     → HTTP 400 {"code":109,"message":"Invalid ApiKey"}
+  //
+  // Decidir por el status HTTP —«4xx es que Flow no conoce este token»— hace
+  // que un secreto rotado en el panel de Flow, o credenciales de prueba pegadas
+  // en la fila `live`, terminen el job BIEN. El cliente pagó, el comercio tiene
+  // la plata, y en IAxTi no queda nada. `flow-config.ts` valida la FORMA de las
+  // credenciales, no que sirvan, así que nada antes de acá lo agarra.
+  it('una credencial que Flow rechaza LANZA: 400 con código no es "no conozco este token"', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ code: 109, message: 'Invalid ApiKey' }, { status: 400 }));
+    await expect(processPaymentWebhook(admin, job('tok-cred-mala'), fetcher)).rejects.toThrow(
+      /109/,
+    );
+  });
+
+  it('un cuerpo que no se puede leer tampoco termina el job', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response('<html>502 Bad Gateway</html>', { status: 400 }));
+    await expect(processPaymentWebhook(admin, job('tok-ilegible'), fetcher)).rejects.toThrow(
+      /reintentar/,
+    );
   });
 
   it('el pago confirmado por getStatus queda registrado con su monto y su medio', async () => {
