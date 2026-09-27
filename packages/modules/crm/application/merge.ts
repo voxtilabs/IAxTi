@@ -12,6 +12,10 @@ import { createContact } from './contacts';
  * los identificadores. El duplicado queda apuntando al principal
  * (merged_into) — no se borra ni se deshace automáticamente. Las tablas de
  * otros módulos (conversaciones) se re-apuntan consumiendo contact.merged.
+ *
+ * Regla que no se negocia: el consentimiento se fusiona hacia el lado
+ * seguro. El opt-in se absorbe si falta, pero el opt-out de cualquiera de
+ * las dos fichas se queda con la fusionada.
  */
 export async function mergeContacts(
   client: PoolClient,
@@ -38,12 +42,26 @@ export async function mergeContacts(
   }
 
   // El principal absorbe lo que le falta y GUARDA el identificador del otro.
+  //
+  // `opted_out_at` va con LEAST y no con COALESCE, y es lo más importante de
+  // esta consulta: el opt-out es la señal más fuerte que tiene el producto y
+  // GANA siempre. Si cualquiera de las dos fichas dijo "BASTA", la fusionada
+  // dijo "BASTA". Antes esta columna no estaba en el UPDATE ni en ninguna otra
+  // consulta de la fusión: se absorbía el opt-in del duplicado (el COALESCE de
+  // arriba) y se dejaba caer su opt-out, así que quien pidió que no le
+  // escribieran desde su segundo número volvía a la campaña siguiente en
+  // cuanto un vendedor fusionaba esa ficha dentro de la que tenía más
+  // historia. LEAST ignora los NULL: si ninguna se dio de baja queda NULL, y
+  // si las dos, queda la fecha más antigua — la primera vez que lo pidió, que
+  // es la que hay que poder mostrar cuando alguien pregunte desde cuándo.
+  const optOutAbsorbido = Boolean(duplicado.opted_out_at) && !principal.opted_out_at;
   await client.query(
     `UPDATE contacts SET
        name = COALESCE(name, $3),
        email = COALESCE(email, $4),
        rut = COALESCE(rut, $5),
        opt_in_at = COALESCE(opt_in_at, $6),
+       opted_out_at = LEAST(opted_out_at, $9::timestamptz),
        channels = channels || $7::jsonb,
        custom = $8::jsonb || custom,
        updated_at = now(), last_activity_at = now()
@@ -57,7 +75,37 @@ export async function mergeContacts(
       duplicado.opt_in_at,
       JSON.stringify([{ type: 'phone', value: duplicado.phone, mergedFrom: input.duplicateId }]),
       JSON.stringify(duplicado.custom ?? {}),
+      duplicado.opted_out_at,
     ],
+  );
+
+  // Las identidades de canal del duplicado pasan al principal. `channels` (más
+  // arriba) es el rastro de la fusión y nada más: lo que de verdad leen los
+  // envíos es contact_identities, de ahí sale a quién se le responde en cada
+  // canal. Sin este paso, fusionar la ficha de Instagram dentro de la de
+  // WhatsApp dejaba al principal sin identidad de Instagram y la respuesta
+  // salía al teléfono haciéndolo pasar por id de chat: no llega a nadie.
+  //
+  // Se mueven SOLO los canales donde el principal todavía no tiene identidad, y
+  // una por canal: los lectores de conversaciones asumen a lo más una identidad
+  // por (contacto, canal) —hacen JOIN sin LIMIT— y dejar dos volvería no
+  // determinista a quién se le escribe. Cuál de los dos números manda cuando
+  // AMBAS fichas tienen WhatsApp es una decisión de producto, no algo que la
+  // fusión pueda adivinar: esa identidad se queda en el duplicado, que en la
+  // entrada sigue resolviendo al principal por merged_into.
+  const movidas = await client.query(
+    `UPDATE contact_identities SET contact_id = $3
+      WHERE tenant_id = $1 AND id IN (
+        SELECT DISTINCT ON (d.channel) d.id
+          FROM contact_identities d
+         WHERE d.tenant_id = $1 AND d.contact_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM contact_identities p
+              WHERE p.tenant_id = $1 AND p.contact_id = $3 AND p.channel = d.channel)
+         ORDER BY d.channel, d.created_at, d.id
+      )
+      RETURNING channel`,
+    [input.tenantId, input.duplicateId, input.primaryId],
   );
 
   // Lo del propio módulo se re-apunta aquí; conversaciones, por el evento.
@@ -89,7 +137,15 @@ export async function mergeContacts(
     resourceId: input.primaryId,
     result: 'ok',
     requestId: input.requestId,
-    metadata: { primaryId: input.primaryId, duplicateId: input.duplicateId, duplicatePhone: duplicado.phone },
+    // El opt-out heredado queda escrito: si mañana alguien pregunta por qué
+    // este contacto dejó de recibir campañas, la respuesta está acá.
+    metadata: {
+      primaryId: input.primaryId,
+      duplicateId: input.duplicateId,
+      duplicatePhone: duplicado.phone,
+      optOutAbsorbed: optOutAbsorbido,
+      identitiesMoved: movidas.rows.map((row) => row.channel as string),
+    },
   });
   await publishEvent(client, {
     name: 'contact.merged',
