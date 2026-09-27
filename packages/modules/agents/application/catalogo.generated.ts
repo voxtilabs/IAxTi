@@ -2045,6 +2045,10 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "limit": {
           "type": "string",
           "x-iaxti-en": "query"
+        },
+        "antesDe": {
+          "type": "string",
+          "x-iaxti-en": "query"
         }
       },
       "required": [
