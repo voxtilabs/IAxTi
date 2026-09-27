@@ -82,6 +82,10 @@ export interface ConversacionItem {
   state: 'new' | 'open' | 'pending' | 'resolved' | 'snoozed';
   ownerId: string | null;
   lastInboundAt: string | null;
+  /** Lo decide la API por canal (#639); ausente en una API vieja. */
+  ventanaAbierta?: boolean;
+  /** Cuándo se cierra, para la etiqueta de «menos de 2 h». */
+  cierraA?: string | null;
   lastMessageAt: string | null;
   unansweredSeconds: number | null;
   snoozedUntil: string | null;
@@ -95,9 +99,26 @@ export interface ConversacionDetalle extends ConversacionItem {
 }
 
 /** Ventana de 24 h de WhatsApp desde el último mensaje ENTRANTE (SPEC §11). */
-export function enVentana24h(lastInboundAt: string | null): boolean {
-  if (!lastInboundAt) return false;
-  return Date.now() - new Date(lastInboundAt).getTime() < 24 * 60 * 60 * 1000;
+/**
+ * Si se puede responder libre lo decide la API (#639).
+ *
+ * Esto antes era `Date.now() - lastInboundAt < 24 h` acá mismo, **sin mirar el
+ * canal**. Dos implementaciones de la misma regla de negocio, en dos lenguajes,
+ * y ya se habían separado: en webchat y en el simulador —que no tienen ventana
+ * porque el canal es nuestro— la bandeja escondía el campo de respuesta y
+ * ofrecía el selector de plantillas, para un canal donde no hay plantillas que
+ * mandar. La API decía que sí y la pantalla decía que no.
+ *
+ * Ahora viene en el detalle. El respaldo cuando el campo no está —una API más
+ * vieja durante un despliegue— es **cerrada**: ofrecer una plantilla de más es
+ * molesto; dejar escribir un mensaje que WhatsApp va a rechazar le gasta el
+ * intento a quien atiende y lo deja sin saber por qué.
+ */
+export function ventanaAbierta(detalle: {
+  ventanaAbierta?: boolean;
+  lastInboundAt: string | null;
+}): boolean {
+  return detalle.ventanaAbierta ?? false;
 }
 
 export interface Mensaje {
