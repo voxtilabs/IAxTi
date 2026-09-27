@@ -196,6 +196,25 @@ describe('bandeja (rol de aplicación, RLS activa)', () => {
       }),
     );
     expect(await eventos('message.failed', tenantA)).toBe(1);
+
+    // Y el motivo SALE del módulo, no se queda en la base (#645). Se guardaba
+    // en `meta.error` desde siempre y `rowToMessage` no lo proyectaba, así que
+    // la bandeja recibía «falló» y nada más: dibujaba «No llegó» y un botón de
+    // reintentar, mientras la frase que lo explicaba esperaba en la fila.
+    expect(
+      (await withTenant(app, tenantA, (c) =>
+        updateDeliveryStatus(c, { tenantId: tenantA, messageId: fallido.id, status: 'failed' }),
+      ).catch(() => null)) ?? null,
+    ).toBeNull(); // repetir el terminal no avanza; lo que importa es lo de abajo
+    const listados = await withTenant(app, tenantA, (c) =>
+      listMessages(c, tenantA, conversationId),
+    );
+    const enLaLista = listados.find((m) => m.id === fallido.id)!;
+    expect(enLaLista.deliveryStatus).toBe('failed');
+    expect(enLaLista.error).toBe('ventana de 24 h vencida');
+
+    // Y un mensaje que salió bien no inventa un motivo.
+    expect(listados.find((m) => m.deliveryStatus === 'read')?.error ?? null).toBeNull();
   });
 
   it('resolved que recibe mensaje vuelve a open con el mismo dueño; sin dueño, a new', async () => {
