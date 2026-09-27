@@ -58,6 +58,17 @@ interface RespuestaDeSugerencia {
   motivo: SinSugerenciaDto | null;
 }
 
+/**
+ * Cuántos mensajes trae cada página (#581).
+ *
+ * Es el mismo número que el servidor usa por omisión, y va explícito acá por un
+ * motivo: la pantalla decide «puede haber anteriores» comparando cuántos vinieron
+ * contra cuántos pidió. Si el número vive solo en el servidor, esa comparación se
+ * hace contra una suposición y el botón de «ver lo anterior» aparece o desaparece
+ * por su cuenta el día que alguien cambie el defecto.
+ */
+const PAGINA_MENSAJES = 50;
+
 export function Bandeja() {
   const tenant = useSelectedTenant();
   const negocioDeEntrada = useRef<string | null>(null);
@@ -77,6 +88,12 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [detalle, setDetalle] = useState<ConversacionDetalle | null>(null);
   const [limites, setLimites] = useState<LimitesDeAdjunto | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[] | null>(null);
+  // Cuántos trae cada página y si puede haber más. Si la página vino COMPLETA
+  // puede haber anteriores; si vino corta, se llegó al principio del hilo. No se
+  // cuenta cuántos quedan: sería una consulta sobre meses de mensajes para
+  // responder algo que no se muestra en ningún lado (#581).
+  const [hayAnteriores, setHayAnteriores] = useState(false);
+  const [trayendoAnteriores, setTrayendoAnteriores] = useState(false);
   const [pane, setPane] = useState<Pane>('lista');
   const [aviso, setAviso] = useState<string | null>(null);
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
@@ -116,13 +133,52 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
     }
   }, [config, session, tenant, vista]);
 
+  /**
+   * Traer los mensajes ANTERIORES a los que ya están (#581).
+   *
+   * El cursor es el `seq` del más viejo que tenemos, y no su fecha: `seq` es
+   * estrictamente creciente por conversación, así que no se puede saltar ni
+   * repetir un mensaje aunque dos lleguen en el mismo milisegundo — y en
+   * WhatsApp llegan ráfagas.
+   *
+   * Los anteriores se pegan al FINAL del arreglo porque la lista viaja del más
+   * nuevo al más viejo; la pantalla la da vuelta para dibujar.
+   */
+  const traerAnteriores = useCallback(async () => {
+    if (!session || !tenant || !seleccion || trayendoAnteriores) return;
+    const actuales = mensajes;
+    if (!actuales || actuales.length === 0) return;
+    const masViejo = actuales[actuales.length - 1];
+    if (!masViejo?.seq) return;
+    setTrayendoAnteriores(true);
+    try {
+      const anteriores = await apiFetch<Mensaje[]>(
+        config,
+        session,
+        tenant,
+        `/conversations/${seleccion}/messages?limit=${PAGINA_MENSAJES}&antesDe=${masViejo.seq}`,
+      );
+      setMensajes((previos) => [...(previos ?? []), ...anteriores]);
+      setHayAnteriores(anteriores.length >= PAGINA_MENSAJES);
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setTrayendoAnteriores(false);
+    }
+  }, [config, session, tenant, seleccion, mensajes, trayendoAnteriores]);
+
   const cargarConversacion = useCallback(
     async (id: string) => {
       if (!session || !tenant) return;
       try {
         const [d, m, n, sug, ana, lim] = await Promise.all([
           apiFetch<ConversacionDetalle>(config, session, tenant, `/conversations/${id}`),
-          apiFetch<Mensaje[]>(config, session, tenant, `/conversations/${id}/messages`),
+          apiFetch<Mensaje[]>(
+            config,
+            session,
+            tenant,
+            `/conversations/${id}/messages?limit=${PAGINA_MENSAJES}`,
+          ),
           apiFetch<NotaDto[]>(config, session, tenant, `/conversations/${id}/notes`),
           // agents puede estar apagado: el copiloto simplemente no aparece.
           apiFetch<RespuestaDeSugerencia | null>(
@@ -146,6 +202,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         if (seleccionRef.current !== id) return;
         setDetalle(d);
         setMensajes(m);
+        setHayAnteriores(m.length >= PAGINA_MENSAJES);
         setNotas(n);
         setSugerencia(sug?.sugerencia ?? null);
         setSinSugerencia(sug?.motivo ?? null);
@@ -167,7 +224,13 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       .catch(() => setAtajos([]));
   }, [config, session, tenant]);
   useEffect(() => {
-    if (seleccion) { setDetalle(null); setMensajes(null); setLimites(null); void cargarConversacion(seleccion); }
+    if (seleccion) {
+      setDetalle(null);
+      setMensajes(null);
+      setLimites(null);
+      setHayAnteriores(false);
+      void cargarConversacion(seleccion);
+    }
   }, [seleccion, cargarConversacion]);
 
   // Realtime por broadcast (SPEC §40): canal privado del tenant; cualquier
@@ -398,6 +461,9 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         <Chat
           detalle={detalle}
           mensajes={mensajes}
+          hayAnteriores={hayAnteriores}
+          trayendoAnteriores={trayendoAnteriores}
+          onVerAnteriores={traerAnteriores}
           atajos={atajos}
           plantillas={plantillas}
           onCargarPlantillas={async () => {

@@ -47,6 +47,13 @@ export interface Message {
   body: string | null;
   deliveryStatus: DeliveryStatus | null;
   /**
+   * El orden dentro de la conversación, y el cursor para pedir lo anterior
+   * (#581). Viaja porque sin él quien lee no puede pedir la página siguiente:
+   * tendría que adivinar por fecha, y dos mensajes del mismo milisegundo se
+   * saltan o se repiten.
+   */
+  seq: number;
+  /**
    * Por qué NO salió, en la voz de Pulso (#645).
    *
    * Se guardaba en `meta.error` desde siempre —lo escribe
@@ -135,6 +142,7 @@ function rowToMessage(row: Record<string, unknown>): Message {
     type: row.type as MessageType,
     body: (row.body as string) ?? null,
     deliveryStatus: (row.delivery_status as DeliveryStatus) ?? null,
+    seq: Number(row.seq),
     error: errorDeLaFila(row.meta),
     authorKind: row.author_kind as AuthorKind,
     authorId: (row.author_id as string) ?? null,
@@ -662,16 +670,38 @@ export async function changeConversationState(
 }
 
 /** Los últimos mensajes de la conversación, más nuevo primero. */
+/**
+ * Los mensajes de una conversación, con cursor para leer hacia atrás (#581).
+ *
+ * Antes devolvía los últimos 50 y ahí se terminaba: **no había forma de pedir
+ * los anteriores**. Una conversación de tres meses mostraba su último pedazo y
+ * el resto no estaba al alcance de nadie — ni de quien toma una conversación
+ * que atendía otra persona y necesita ver qué se le prometió al cliente, ni del
+ * copiloto, que arma su contexto con lo que hay.
+ *
+ * El cursor es `seq` y no la fecha, y eso importa: `seq` es estrictamente
+ * creciente por conversación, así que paginar por él no puede saltarse ni
+ * repetir un mensaje aunque dos lleguen en el mismo milisegundo. Con
+ * `created_at` sí puede, y en WhatsApp llegan ráfagas.
+ *
+ * `antesDe` es EXCLUSIVO: se pide «lo anterior a este», con el `seq` del mensaje
+ * más viejo que ya se tiene. Es la forma que no necesita que quien llama sepa
+ * cuántos trajo la página anterior.
+ */
 export async function listMessages(
   client: PoolClient,
   tenantId: string,
   conversationId: string,
   limit = 50,
+  antesDe?: number | null,
 ): Promise<Message[]> {
+  const tope = Math.min(Math.max(limit, 1), 100);
   const r = await client.query(
-    `SELECT * FROM messages WHERE tenant_id = $1 AND conversation_id = $2
-     ORDER BY seq DESC LIMIT $3`,
-    [tenantId, conversationId, Math.min(limit, 100)],
+    `SELECT * FROM messages
+      WHERE tenant_id = $1 AND conversation_id = $2
+        AND ($4::bigint IS NULL OR seq < $4::bigint)
+      ORDER BY seq DESC LIMIT $3`,
+    [tenantId, conversationId, tope, antesDe ?? null],
   );
   return r.rows.map(rowToMessage);
 }
