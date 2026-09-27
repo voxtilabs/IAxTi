@@ -3151,7 +3151,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         }
       },
       "required": [
-        "filename"
+        "filename",
+        "sizeBytes"
       ],
       "additionalProperties": false
     }

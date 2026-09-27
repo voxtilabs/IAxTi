@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { almacenR2 } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import { z } from 'zod';
 import {
@@ -265,6 +266,11 @@ export class ContactsController {
           actor: actor.userId,
           motivo: body.motivo ?? '',
           requestId: request.requestId,
+          // Explícito y no ambiental: una supresión legal que se comporta
+          // distinto según qué variables haya en el proceso no se puede declarar
+          // cumplida. Quien sabe si este ambiente tiene almacén es el
+          // controlador.
+          almacen: almacenR2(),
         }),
       );
     } catch (err) {

@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { publishEvent } from '@iaxti/core';
+import { publishEvent, type AlmacenObjetos } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { parseCsv } from '@iaxti/module-crm';
 import { splitIntoChunks, stripHtml, toVectorLiteral } from '../domain/chunking';
@@ -303,16 +303,113 @@ export async function listSources(client: PoolClient, tenantId: string): Promise
   return r.rows.map(rowToSource);
 }
 
+/**
+ * Saca una fuente del conocimiento: la fila, su índice y —si era un archivo—
+ * el archivo mismo.
+ *
+ * Lo último es el arreglo: antes se borraba la fila y el PDF se quedaba en el
+ * bucket, todavía bajable con una URL firmada por cualquiera con permiso de
+ * lectura del tenant. El negocio veía la fuente desaparecer de la lista y
+ * entendía —con razón— que había sacado el documento, cuando en realidad solo
+ * se había sacado el índice. Una lista de precios vieja, un contrato, una
+ * tabla de comisiones: seguían ahí.
+ *
+ * Si el archivo no se puede borrar, esto LANZA y la transacción se deshace: la
+ * fuente sigue en la lista, que es la verdad, en vez de desaparecer de la
+ * pantalla mientras el documento sigue en pie. Borrar en R2 es idempotente, así
+ * que reintentar es seguro.
+ *
+ * ## Por qué acá se borra DENTRO de la transacción y en `retention.ts` DESPUÉS
+ *
+ * Son las dos formas opuestas de resolver lo mismo y el repo tiene las dos.
+ * `conversations/application/retention.ts` comparte la intención en la base,
+ * hace commit y borra después («idempotente: un 404 es éxito»). Acá se borra
+ * primero y se deshace la base si el bucket falla. Un revisor con razón
+ * pregunta cuál es la buena, porque sin respuesta escrita el próximo tira una
+ * moneda — y eso ya pasó una vez esta noche.
+ *
+ * La regla, y explica los dos casos que ya existen:
+ *
+ * - **Alguien está esperando y es UN objeto** (esto): se borra primero. Si
+ *   falla, la fila vuelve y la persona recibe «no pudimos borrarla, intenta de
+ *   nuevo». Eso es honesto y se reintenta apretando otra vez. Después del
+ *   commit no habría a quién contarle, y quedaría un huérfano silencioso.
+ * - **Nadie está esperando y son MILES de objetos** (`retention.ts`): se
+ *   comparte la intención, se hace commit y se borra después. No se puede tener
+ *   una transacción abierta durante miles de llamadas de red, y un barrido no
+ *   tiene pantalla donde avisar: lo que necesita es poder reconciliar en la
+ *   pasada siguiente.
+ *
+ * O sea: no es inconsistencia, es quién puede recibir la mala noticia.
+ *
+ * Queda un hueco chico y hay que decirlo: si el borrado en R2 sale bien y el
+ * COMMIT falla después, la fila vuelve y los bytes ya no están — «fuente viva,
+ * archivo destruido». La búsqueda del conocimiento no puede ver ese estado y
+ * seguiría citando un PDF que nadie puede bajar. Necesita marca en la fila para
+ * que el criterio de vigencia la excluya, y eso pide su migración: está pedido
+ * aparte, no tapado.
+ */
 export async function deleteSource(
   client: PoolClient,
-  input: { tenantId: string; sourceId: string; actor: string; requestId?: string },
+  input: {
+    tenantId: string;
+    sourceId: string;
+    actor: string;
+    requestId?: string;
+    /**
+     * El bucket. OBLIGATORIO, y no con un `undefined` que significa «tomá el
+     * del ambiente»: `almacenR2()` lee las `R2_*` en el momento de la llamada, y
+     * `apps/api/tests/equipo.test.ts` las escribe a nivel de PROCESO. Vitest
+     * corre varios archivos en hilos que comparten `process.env` —está escrito
+     * en `apps/api/src/db.ts`—, así que con el defecto ambiental esta función
+     * cambiaba de comportamiento según qué archivo estuviera corriendo al lado.
+     * Un `null` explícito es «este ambiente no tiene almacén»; el que decide es
+     * quien llama, que es el único que lo sabe.
+     */
+    almacen: AlmacenObjetos | null;
+  },
 ): Promise<void> {
-  const r = await client.query('DELETE FROM sources WHERE tenant_id = $1 AND id = $2', [
-    input.tenantId,
-    input.sourceId,
-  ]);
+  // RETURNING porque la llave del archivo se necesita DESPUÉS de borrar la
+  // fila y después ya no hay dónde leerla.
+  const r = await client.query(
+    'DELETE FROM sources WHERE tenant_id = $1 AND id = $2 RETURNING kind, r2_key',
+    [input.tenantId, input.sourceId],
+  );
   if (r.rowCount === 0) throw new Error('No encontramos esa fuente.');
   await client.query('DELETE FROM knowledge_query_cache WHERE tenant_id = $1', [input.tenantId]);
+
+  const r2Key = (r.rows[0].r2_key as string | null) ?? null;
+  let archivoBorrado = false;
+  let archivoCompartido = false;
+  if (r2Key) {
+    // Otra fuente puede apuntar al mismo archivo (se subió una vez y se creó
+    // la fuente dos). Si queda alguna, el archivo NO se toca: borrarlo dejaría
+    // a esa otra fuente sin su documento, y eso no se deshace.
+    const otras = await client.query(
+      'SELECT 1 FROM sources WHERE tenant_id = $1 AND r2_key = $2 LIMIT 1',
+      [input.tenantId, r2Key],
+    );
+    archivoCompartido = (otras.rowCount ?? 0) > 0;
+    if (!archivoCompartido) {
+      const almacen = input.almacen;
+      if (!almacen) {
+        throw new Error(
+          'Esta fuente tiene un archivo guardado y este ambiente no tiene el almacenamiento ' +
+            'configurado (revisa R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY y ' +
+            'R2_BUCKET_ADJUNTOS). No la eliminamos: borrar la fila dejaría el archivo bajable.',
+        );
+      }
+      const { fallidas } = await almacen.borrar([r2Key]);
+      if (fallidas.length > 0) {
+        throw new Error(
+          'No pudimos borrar el archivo de esta fuente del almacenamiento, así que no la ' +
+            'eliminamos: la fuente seguiría bajable. Vuelve a intentarlo en unos minutos.',
+        );
+      }
+      archivoBorrado = true;
+    }
+  }
+
   await writeAudit(client, {
     tenantId: input.tenantId,
     actor: input.actor,
@@ -322,6 +419,14 @@ export async function deleteSource(
     resourceId: input.sourceId,
     result: 'ok',
     requestId: input.requestId,
+    metadata: {
+      kind: r.rows[0].kind,
+      teniaArchivo: Boolean(r2Key),
+      archivoBorrado,
+      // Queda escrito cuando el archivo se conserva a propósito: sin esto, la
+      // auditoría de dos fuentes idénticas se vería igual y una mentiría.
+      archivoCompartido,
+    },
   });
 }
 

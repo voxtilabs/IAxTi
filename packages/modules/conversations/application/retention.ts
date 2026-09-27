@@ -257,7 +257,16 @@ export async function purgeTenantRetention(
   return { purged, cutoff: corte.cutoff.toISOString(), oldest, r2Keys };
 }
 
-/** Borra los objetos R2 TRAS el commit — idempotente: un 404 es éxito. */
+/**
+ * Borra los objetos R2 TRAS el commit — idempotente: un 404 es éxito.
+ *
+ * Acá es después del commit y en `knowledge.deleteSource` es dentro de la
+ * transacción, y la diferencia es deliberada: este es un barrido de MILES de
+ * llaves sin nadie esperando —no se puede tener una transacción abierta durante
+ * miles de llamadas de red, y no hay pantalla donde avisar—, mientras que borrar
+ * una fuente es UN objeto con alguien mirando, que sí puede recibir la mala
+ * noticia y volver a apretar. El motivo largo está escrito en `deleteSource`.
+ */
 export async function deleteR2Keys(
   storage: StorageConfig,
   keys: string[],

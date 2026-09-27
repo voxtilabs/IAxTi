@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
-import { knowledgeKey, presignUrl, storageFromEnv } from '@iaxti/core';
+import { almacenR2, knowledgeKey, presignPutUrl, presignUrl, storageFromEnv } from '@iaxti/core';
 import { z } from 'zod';
 import {
   addSource,
@@ -55,7 +55,16 @@ const PDF_MAX_MB = 20;
 const DestinoDePdf = z.object({
   filename: textoRequerido('Dinos el nombre del archivo.')
     .refine((n) => /\.pdf$/i.test(n), 'Por acá entran PDF. Para una planilla usa el catálogo, y para texto pégalo.'),
-  sizeBytes: z.number().int().positive().optional(),
+  // Obligatorio, y es un cambio de contrato a propósito — el mismo que #560
+  // hizo en los adjuntos de la bandeja y por el mismo motivo: sin el peso no se
+  // puede amarrar la firma de la subida, y una URL de PUT sin tamaño firmado es
+  // un permiso en blanco sobre esa llave. Era opcional y el `if (body.sizeBytes
+  // && ...)` de abajo lo delata: quien no lo mandaba se saltaba el tope de 20 MB
+  // completo y conseguía su URL igual.
+  sizeBytes: z
+    .number({ error: 'Dinos cuánto pesa el PDF.' })
+    .int('El peso va en bytes enteros.')
+    .positive('Un archivo vacío no se puede subir.'),
 });
 
 const PdfSubido = z.object({
@@ -188,7 +197,7 @@ export class KnowledgeController {
     //
     // Y se comprueba ACÁ y no solo en el navegador: el navegador es de quien
     // sube, y una URL firmada aceptaría lo que le manden.
-    if (body.sizeBytes && body.sizeBytes > PDF_MAX_MB * 1024 * 1024) {
+    if (body.sizeBytes > PDF_MAX_MB * 1024 * 1024) {
       throw new BadRequestException({
         code: 'ARCHIVO_MUY_GRANDE',
         message: `Ese PDF pesa más de ${PDF_MAX_MB} MB. Súbelo por partes o pega el texto.`,
@@ -196,7 +205,29 @@ export class KnowledgeController {
       });
     }
     const key = knowledgeKey(actor.tenantId, body.filename);
-    return { key, uploadUrl: presignUrl(almacenamiento(), 'PUT', key), expiresSeconds: 900 };
+    // La firma amarra tipo y tamaño: sin eso, el tope de 20 MB de arriba vive en
+    // este proceso y muere acá, y con la URL en la mano se sube un archivo de 5
+    // GB que paga la cuenta del negocio. Acá el tipo no se pregunta porque por
+    // esta puerta entran PDF y nada más — lo garantiza el `refine` del nombre.
+    return {
+      key,
+      uploadUrl: presignPutUrl(almacenamiento(), key, {
+        contentType: 'application/pdf',
+        contentLength: body.sizeBytes,
+      }),
+      expiresSeconds: 900,
+      // La firma amarra `content-type` y `content-length`: mandar otra cosa
+      // cambia la firma canónica y R2 responde 403 sin explicar nada. Va
+      // explícito para que quien integra no tenga que adivinarlo.
+      //
+      // `Content-Length` NO está acá y es a propósito: es una cabecera
+      // prohibida para `fetch` y `XMLHttpRequest`, así que el navegador la pone
+      // solo, con el tamaño del archivo. Pedirla sería pedir algo que el
+      // cliente no puede hacer; lo que sí tiene que cumplir es que el archivo
+      // pese exactamente los bytes que declaró acá arriba.
+      debeMandar: { 'Content-Type': 'application/pdf' },
+      bytesFirmados: body.sizeBytes,
+    };
   }
 
   /**
@@ -313,12 +344,26 @@ export class KnowledgeController {
           sourceId: id,
           actor: actor.userId,
           requestId: request.requestId,
+          // Explícito: quien decide si este ambiente tiene almacén es el
+          // controlador, que lo sabe. Dejarlo al defecto ambiental hacía que el
+          // borrado dependiera de qué test corrió al lado.
+          almacen: almacenR2(),
         });
-      } catch {
-        throw new NotFoundException({
-          code: 'SOURCE_NOT_FOUND',
-          message: 'No encontramos esa fuente.',
-        });
+      } catch (err) {
+        // Solo el «no existe» es un 404. Este `catch` se tragaba CUALQUIER cosa
+        // —el bucket mal configurado, el borrado que falló, la base— y le
+        // contestaba «No encontramos esa fuente» mientras la fuente estaba ahí.
+        // O sea: el arreglo que hace que `deleteSource` explique por qué no
+        // pudo, y el mensaje se tiraba a la basura acá mismo. Es el mismo
+        // arreglo que ya tiene `reprocess` unas líneas más arriba, y por el
+        // mismo motivo.
+        if ((err as Error).message === 'No encontramos esa fuente.') {
+          throw new NotFoundException({
+            code: 'SOURCE_NOT_FOUND',
+            message: 'No encontramos esa fuente.',
+          });
+        }
+        throw err;
       }
       return { deleted: true };
     });
