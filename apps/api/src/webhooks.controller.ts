@@ -191,10 +191,25 @@ export class WebhooksController {
       ));
     }
     // Calidad del número (#45): rating y límite de Meta.
+    //
+    // Acá se le pasa el cuerpo TAL CUAL, y el módulo decide por forma si es el
+    // sobre de Zavu o el webhook crudo de Meta. Antes esto alimentaba un parser
+    // que solo entendía el formato de Meta, así que con Zavu en medio devolvía
+    // siempre vacío y el freno del #45 no se activaba nunca (ver el comentario
+    // largo en `normalizeQualityUpdates`). Zavu todavía no publica un evento de
+    // calidad: hoy esta rama no dispara, y queda porque el día del proveedor
+    // propio (#82) —o el día que Zavu lo publique— es el único lugar donde hay
+    // que enchufarlo.
     const quality = account.kind === 'whatsapp'
       ? normalizeQualityUpdates((request as unknown as { body: unknown }).body)
       : [];
     if (quality.length > 0) {
+      // La identidad del número manda en el jobId, y con Zavu es el senderId:
+      // interpolar solo `phoneNumberId` metía un "undefined" en la llave y dos
+      // avisos de números distintos colapsaban en el mismo job — BullMQ ignora
+      // el segundo y ese cambio de calidad se perdía sin dejar rastro.
+      const primer = quality[0];
+      const identidad = primer.senderId ?? primer.phoneNumberId;
       await encolar(() => queue.add(
         'quality-update',
         {
@@ -203,7 +218,7 @@ export class WebhooksController {
           updates: quality,
           requestId: request.requestId,
         },
-        { jobId: `q-${account.id}-${quality[0].phoneNumberId}-${quality[0].quality ?? quality[0].messagingLimit}` },
+        { jobId: `q-${account.id}-${identidad}-${primer.quality ?? primer.messagingLimit}` },
       ));
     }
     let queued = 0;
