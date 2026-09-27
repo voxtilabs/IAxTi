@@ -176,6 +176,15 @@ jobs:
       - name: Smoke
         env:
           BASE: ${{ secrets.STAGING_BASE_URL }}
+          # SHA va acá también (#613). Estaba SOLO en el env del paso Deploy, y
+          # este es otro paso: la comprobación de «qué build quedó vivo» que
+          # agregué en #566 nunca corrió. Imprimía «Sin SHA en el entorno» en
+          # cada despliegue y nadie lo leyó, porque la rama que salta cuando no
+          # hay SHA la puse yo para que las pruebas no dieran un rojo sin
+          # sentido — y se tragó la comprobación entera en producción.
+          #
+          # Declarado en un lado, aplicado en ninguno, otra vez, y esta vez mío.
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           if [ -z "${BASE}" ]; then echo "Sin STAGING_BASE_URL aún; se salta"; exit 0; fi
 
