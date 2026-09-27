@@ -84,17 +84,43 @@ function pool() {
   return p;
 }
 
+/** El 404 mudo de todo este controller: quién pregunta no sabe qué no existe. */
+function nadaPorAqui(): never {
+  throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
+}
+
+/** El id del widget viaja en la URL de un sitio ajeno: puede ser cualquier cosa. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * El widget, leído CON el tenant de su dueño (#370).
+ *
+ * Antes se leía con una conexión suelta del pool, y `webchat_widgets` tiene
+ * RLS FORCE. Con el rol de desarrollo —superusuario— eso funciona porque
+ * Postgres ni mira las políticas: el aislamiento por tenant quedaba sostenido
+ * solo por el `WHERE tenant_id = $1` de cada consulta, sin su segunda
+ * cerradura. Y con un rol que SÍ respete RLS, que es a dónde vamos y lo que
+ * producción exige, la política evalúa `tenant_id = NULL`, devuelve cero filas
+ * y el chat del sitio de cada cliente empieza a responder "Nada por aquí" —
+ * config, sesión y sondeo, los tres.
+ *
+ * El tenant no se puede fijar antes porque es justamente lo que falta saber:
+ * del sitio del visitante llega el id del widget y nada más. Así que son dos
+ * pasos, como los webhooks de canal y las API keys (#286): una función
+ * SECURITY DEFINER que del id devuelve SOLO el tenant, y después la lectura
+ * completa dentro de `withTenant`. Quién puede incrustar el widget lo sigue
+ * decidiendo `domainAllowed` sobre la fila leída bajo RLS.
+ */
 async function widgetValido(widgetId: string, pageUrl: string | undefined): Promise<Widget> {
-  const client = await pool().connect();
-  let widget: Widget | null;
-  try {
-    widget = await findWidgetById(client, widgetId);
-  } finally {
-    client.release();
-  }
-  if (!widget || !widget.active || !domainAllowed(widget, pageUrl)) {
-    throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
-  }
+  // Sin esto, un id con cualquier forma llega al `uuid` de la consulta y
+  // revienta con el error crudo de Postgres: un 500 donde esta ruta promete
+  // silencio. No es una validación nueva, es el mismo 404 de siempre.
+  if (!UUID.test(widgetId)) nadaPorAqui();
+  const r = await pool().query('SELECT tenant_de_widget_de_webchat($1) AS tenant', [widgetId]);
+  const tenantId = r.rows[0]?.tenant as string | null | undefined;
+  if (!tenantId) nadaPorAqui();
+  const widget = await withTenant(pool(), tenantId, (c) => findWidgetById(c, widgetId));
+  if (!widget || !widget.active || !domainAllowed(widget, pageUrl)) nadaPorAqui();
   return widget;
 }
 
