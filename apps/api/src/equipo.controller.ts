@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
-import { attachmentKey, presignUrl, storageFromEnv } from '@iaxti/core';
+import { attachmentKey, presignPutUrl, presignUrl, storageFromEnv } from '@iaxti/core';
 import { limitesDelCanal, revisarAdjunto } from '@iaxti/module-channels';
 import {
   addInternalNote,
@@ -231,10 +231,31 @@ export class EquipoController {
       throw new BadRequestException({ code: revision.code, message: revision.message });
     }
     const key = attachmentKey(actor.tenantId, id, body.filename);
+    // `presignPutUrl` y no `presignUrl`: una URL de PUT que solo firma `host` es
+    // un permiso en blanco sobre esa llave. La revisión de arriba vive en este
+    // proceso y muere acá — R2 no sabe nada del tope ni del tipo aceptado, así
+    // que con la URL en la mano se sube un archivo de 5 GB de cualquier tipo y
+    // el almacenamiento y el egreso los paga la cuenta del negocio. Firmando
+    // `content-type` y `content-length`, mandar otra cosa cambia la firma y R2
+    // responde 403: el límite deja de ser un adorno del servidor.
     return {
       key,
-      uploadUrl: presignUrl(storage, 'PUT', key),
+      uploadUrl: presignPutUrl(storage, key, {
+        contentType: body.contentType,
+        contentLength: body.sizeBytes,
+      }),
       expiresSeconds: 900,
+      // La firma amarra `content-type` y `content-length`: mandar otra cosa
+      // cambia la firma canónica y R2 responde 403 sin explicar nada. Va
+      // explícito para que quien integra no tenga que adivinarlo.
+      //
+      // `Content-Length` NO está acá y es a propósito: es una cabecera
+      // prohibida para `fetch` y `XMLHttpRequest`, así que el navegador la pone
+      // solo, con el tamaño del archivo. Pedirla sería pedir algo que el
+      // cliente no puede hacer; lo que sí tiene que cumplir es que el archivo
+      // pese exactamente los bytes que declaró acá arriba.
+      debeMandar: { 'Content-Type': body.contentType },
+      bytesFirmados: body.sizeBytes,
     };
   }
 

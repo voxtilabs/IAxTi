@@ -165,7 +165,7 @@ describe('subir un PDF al conocimiento (#522)', () => {
   it('el nombre del archivo se limpia: no se puede salir del prefijo', async () => {
     const r = await pedir(duena, '/knowledge/sources/pdf/destino', {
       method: 'POST',
-      body: JSON.stringify({ filename: '../../otro-negocio/secreto.pdf' }),
+      body: JSON.stringify({ filename: '../../otro-negocio/secreto.pdf', sizeBytes: 1024 }),
     });
     if (r.status === 503) return;
     const cuerpo = await r.json();
@@ -174,10 +174,43 @@ describe('subir un PDF al conocimiento (#522)', () => {
     expect(cuerpo.key).not.toContain('otro-negocio/');
   });
 
+  // Mismo criterio que #560 en los adjuntos de la bandeja, y el mismo motivo:
+  // sin el peso no se puede amarrar la firma de la subida, así que quien no lo
+  // manda no consigue su URL. Antes era opcional y quien lo omitía se saltaba el
+  // tope de 20 MB completo — y conseguía la URL igual.
+  it('sin el peso no hay URL firmada: una subida sin tamaño es un permiso en blanco', async () => {
+    const r = await pedir(duena, '/knowledge/sources/pdf/destino', {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'precios.pdf' }),
+    });
+    if (r.status === 503) return;
+    expect(r.status).toBe(400);
+    expect((await r.json()).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('la URL firma tipo y tamaño, no solo el host: si no, el tope es un adorno', async () => {
+    const r = await pedir(duena, '/knowledge/sources/pdf/destino', {
+      method: 'POST',
+      body: JSON.stringify({ filename: 'precios.pdf', sizeBytes: 2048 }),
+    });
+    if (r.status === 503) return;
+    const cuerpo = await r.json();
+    // Las dos cabeceras DENTRO de la firma: mandar otra cosa cambia la firma
+    // canónica y R2 responde 403. Sin esto, con la URL en la mano se sube un
+    // archivo de 5 GB de cualquier tipo y lo paga la cuenta del negocio.
+    const firmadas = decodeURIComponent(
+      new URL(cuerpo.uploadUrl).searchParams.get('X-Amz-SignedHeaders') ?? '',
+    );
+    expect(firmadas).toContain('content-type');
+    expect(firmadas).toContain('content-length');
+    expect(cuerpo.debeMandar['Content-Type']).toBe('application/pdf');
+    expect(cuerpo.bytesFirmados).toBe(2048);
+  });
+
   it('solo PDF, y con tope de tamaño comprobado en el servidor', async () => {
     const hoja = await pedir(duena, '/knowledge/sources/pdf/destino', {
       method: 'POST',
-      body: JSON.stringify({ filename: 'precios.xlsx' }),
+      body: JSON.stringify({ filename: 'precios.xlsx', sizeBytes: 1024 }),
     });
     expect(hoja.status).toBe(400);
 

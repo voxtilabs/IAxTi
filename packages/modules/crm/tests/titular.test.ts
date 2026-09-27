@@ -112,7 +112,7 @@ describe('derecho de supresión (#81)', () => {
   it('exige el motivo: es parte de la evidencia', async () => {
     await expect(
       withTenant(admin, tenant, (c) =>
-        suprimirTitular(c, { tenantId: tenant, contactId, actor: duena, motivo: '  ' }),
+        suprimirTitular(c, { tenantId: tenant, contactId, actor: duena, motivo: '  ', almacen: null }),
       ),
     ).rejects.toThrow(/motivo/);
   });
@@ -280,6 +280,7 @@ describe('la supresión no deja copias (issue 235)', () => {
         contactId: otroContacto,
         actor: duena,
         motivo: 'solicitud del titular por correo',
+        almacen: null,
       }),
     );
     expect(res.ejecucionesVaciadas).toBe(1);

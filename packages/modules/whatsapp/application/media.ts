@@ -1,4 +1,4 @@
-import { attachmentKey, presignUrl } from '@iaxti/core';
+import { attachmentKey, presignPutUrl } from '@iaxti/core';
 import type { StorageConfig } from '@iaxti/core';
 import { fetchMediaBytes, type ZavuConfig } from './zavu';
 
@@ -34,13 +34,23 @@ export async function downloadAttachmentsToR2(
     const { bytes, contentType } = await fetchMediaBytes(adjunto.url, input.apiKey, config);
     const name = adjunto.name ?? adjunto.url.split('/').pop() ?? 'adjunto';
     const key = attachmentKey(input.tenantId, input.conversationId, name);
-    const subida = await fetchImpl(presignUrl(input.storage, 'PUT', key), {
-      method: 'PUT',
-      headers: { 'Content-Type': adjunto.contentType ?? contentType },
-      body: bytes,
-    });
+    const tipo = adjunto.contentType ?? contentType;
+    // Acá la URL no sale de este proceso —bajamos los bytes y los subimos
+    // nosotros—, así que el riesgo del permiso en blanco es bajo. Se firma tipo
+    // y tamaño igual, por dos razones: tenemos los bytes en la mano, así que el
+    // largo exacto es gratis; y que las TRES puertas que firman un PUT lo hagan
+    // del mismo modo es lo que evita que la próxima se escriba con la insegura,
+    // copiando de la que quedó.
+    const subida = await fetchImpl(
+      presignPutUrl(input.storage, key, { contentType: tipo, contentLength: bytes.byteLength }),
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': tipo, 'Content-Length': String(bytes.byteLength) },
+        body: bytes,
+      },
+    );
     if (!subida.ok) throw new Error(`No pudimos guardar el adjunto en el almacenamiento: HTTP ${subida.status}`);
-    guardados.push({ key, contentType: adjunto.contentType ?? contentType, name });
+    guardados.push({ key, contentType: tipo, name });
   }
   return guardados;
 }

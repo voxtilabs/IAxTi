@@ -213,7 +213,7 @@ describe('fuentes e índice (#51)', () => {
     const fuentes = await withTenant(admin, tenant, (c) => listSources(c, tenant));
     const catalogo = fuentes.find((f) => f.kind === 'catalogo')!;
     await withTenant(admin, tenant, (c) =>
-      deleteSource(c, { tenantId: tenant, sourceId: catalogo.id, actor: 'test' }),
+      deleteSource(c, { tenantId: tenant, sourceId: catalogo.id, actor: 'test', almacen: null }),
     );
     const productos = await admin.query('SELECT count(*)::int AS n FROM products WHERE tenant_id = $1', [tenant]);
     expect(productos.rows[0].n).toBe(0);
@@ -249,7 +249,7 @@ describe('el modelo es asimétrico: el rol tiene que llegar bien (#502)', () => 
     );
     expect(roles, 'buscar embebe una PREGUNTA').toEqual(['pregunta']);
 
-    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }));
+    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test', almacen: null }));
   });
 
   it('un vector del largo equivocado lo rechaza la base, no lo guarda callado', async () => {
@@ -277,7 +277,7 @@ describe('el modelo es asimétrico: el rol tiene que llegar bien (#502)', () => 
     expect(r.error).toContain('dimensiones');
     const despues = await withTenant(admin, tenant, (c) => listSources(c, tenant));
     expect(despues.find((f) => f.id === fuente.id)?.status).toBe('failed');
-    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }));
+    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test', almacen: null }));
   });
 });
 
@@ -318,7 +318,7 @@ describe('reindexación tras cambiar de modelo (#502)', () => {
       searchKnowledge(c, { tenantId: tenant, query: 'estacionamiento' }, fakeEmbed),
     );
     expect(hallado.hits.map((h) => h.content).join(' ')).toContain('cupos');
-    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }));
+    await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test', almacen: null }));
   });
 
   it('avisa que quedan más en vez de hacerlas todas de una', async () => {
@@ -342,7 +342,7 @@ describe('reindexación tras cambiar de modelo (#502)', () => {
     );
     expect(r.listas).toBe(2);
     expect(r.quedanMas).toBe(true);
-    for (const id of ids) await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: id, actor: 'test' }));
+    for (const id of ids) await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: id, actor: 'test', almacen: null }));
   });
 
   it('una fuente rota no deja a las otras sin indexar', async () => {
@@ -377,7 +377,7 @@ describe('reindexación tras cambiar de modelo (#502)', () => {
     expect(despues.find((f) => f.id === buena.id)?.status).toBe('active');
     expect(despues.find((f) => f.id === vacia.id)?.status).toBe('failed');
     for (const id of [buena.id, vacia.id])
-      await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: id, actor: 'test' }));
+      await withTenant(admin, tenant, (c) => deleteSource(c, { tenantId: tenant, sourceId: id, actor: 'test', almacen: null }));
   });
 });
 

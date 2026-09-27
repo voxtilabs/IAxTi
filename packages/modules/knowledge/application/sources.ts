@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { almacenR2, publishEvent, type AlmacenObjetos } from '@iaxti/core';
+import { publishEvent, type AlmacenObjetos } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { parseCsv } from '@iaxti/module-crm';
 import { splitIntoChunks, stripHtml, toVectorLiteral } from '../domain/chunking';
@@ -318,6 +318,36 @@ export async function listSources(client: PoolClient, tenantId: string): Promise
  * fuente sigue en la lista, que es la verdad, en vez de desaparecer de la
  * pantalla mientras el documento sigue en pie. Borrar en R2 es idempotente, así
  * que reintentar es seguro.
+ *
+ * ## Por qué acá se borra DENTRO de la transacción y en `retention.ts` DESPUÉS
+ *
+ * Son las dos formas opuestas de resolver lo mismo y el repo tiene las dos.
+ * `conversations/application/retention.ts` comparte la intención en la base,
+ * hace commit y borra después («idempotente: un 404 es éxito»). Acá se borra
+ * primero y se deshace la base si el bucket falla. Un revisor con razón
+ * pregunta cuál es la buena, porque sin respuesta escrita el próximo tira una
+ * moneda — y eso ya pasó una vez esta noche.
+ *
+ * La regla, y explica los dos casos que ya existen:
+ *
+ * - **Alguien está esperando y es UN objeto** (esto): se borra primero. Si
+ *   falla, la fila vuelve y la persona recibe «no pudimos borrarla, intenta de
+ *   nuevo». Eso es honesto y se reintenta apretando otra vez. Después del
+ *   commit no habría a quién contarle, y quedaría un huérfano silencioso.
+ * - **Nadie está esperando y son MILES de objetos** (`retention.ts`): se
+ *   comparte la intención, se hace commit y se borra después. No se puede tener
+ *   una transacción abierta durante miles de llamadas de red, y un barrido no
+ *   tiene pantalla donde avisar: lo que necesita es poder reconciliar en la
+ *   pasada siguiente.
+ *
+ * O sea: no es inconsistencia, es quién puede recibir la mala noticia.
+ *
+ * Queda un hueco chico y hay que decirlo: si el borrado en R2 sale bien y el
+ * COMMIT falla después, la fila vuelve y los bytes ya no están — «fuente viva,
+ * archivo destruido». La búsqueda del conocimiento no puede ver ese estado y
+ * seguiría citando un PDF que nadie puede bajar. Necesita marca en la fila para
+ * que el criterio de vigencia la excluya, y eso pide su migración: está pedido
+ * aparte, no tapado.
  */
 export async function deleteSource(
   client: PoolClient,
@@ -326,8 +356,17 @@ export async function deleteSource(
     sourceId: string;
     actor: string;
     requestId?: string;
-    /** El bucket. Se inyecta en tests; en producción sale del ambiente. */
-    almacen?: AlmacenObjetos | null;
+    /**
+     * El bucket. OBLIGATORIO, y no con un `undefined` que significa «tomá el
+     * del ambiente»: `almacenR2()` lee las `R2_*` en el momento de la llamada, y
+     * `apps/api/tests/equipo.test.ts` las escribe a nivel de PROCESO. Vitest
+     * corre varios archivos en hilos que comparten `process.env` —está escrito
+     * en `apps/api/src/db.ts`—, así que con el defecto ambiental esta función
+     * cambiaba de comportamiento según qué archivo estuviera corriendo al lado.
+     * Un `null` explícito es «este ambiente no tiene almacén»; el que decide es
+     * quien llama, que es el único que lo sabe.
+     */
+    almacen: AlmacenObjetos | null;
   },
 ): Promise<void> {
   // RETURNING porque la llave del archivo se necesita DESPUÉS de borrar la
@@ -352,8 +391,7 @@ export async function deleteSource(
     );
     archivoCompartido = (otras.rowCount ?? 0) > 0;
     if (!archivoCompartido) {
-      // `undefined` = tomá el del ambiente; `null` explícito = no hay almacén.
-      const almacen = input.almacen === undefined ? almacenR2() : input.almacen;
+      const almacen = input.almacen;
       if (!almacen) {
         throw new Error(
           'Esta fuente tiene un archivo guardado y este ambiente no tiene el almacenamiento ' +

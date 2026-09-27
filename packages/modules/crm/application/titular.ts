@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { almacenR2, type AlmacenObjetos } from '@iaxti/core';
+import type { AlmacenObjetos } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 
 // Derechos del titular, Ley 21.719 (#81, SPEC §19). Dos derechos que el
@@ -160,7 +160,14 @@ export async function suprimirTitular(
     motivo: string;
     requestId?: string;
     /** El bucket. Se inyecta en tests; en producción sale del ambiente. */
-    almacen?: AlmacenObjetos | null;
+    /**
+     * El bucket. OBLIGATORIO y no ambiental: `almacenR2()` lee las `R2_*` al
+     * llamarse, y los tests de otros archivos las escriben a nivel de proceso
+     * (vitest comparte `process.env` entre archivos del mismo hilo). Una
+     * supresión legal que cambia de comportamiento según qué test corrió al lado
+     * no es una supresión que se pueda declarar cumplida.
+     */
+    almacen: AlmacenObjetos | null;
   },
 ): Promise<ResultadoSupresion> {
   if (!input.motivo?.trim()) {
@@ -299,7 +306,7 @@ export async function suprimirTitular(
   const adjuntosBorrados: string[] = [];
   if (adjuntosPorBorrar.length > 0) {
     // `undefined` = tomá el del ambiente; `null` explícito = no hay almacén.
-    const almacen = input.almacen === undefined ? almacenR2() : input.almacen;
+    const almacen = input.almacen;
     if (!almacen) {
       throw new Error(
         'Esta persona envió archivos y este ambiente no tiene el almacenamiento configurado ' +
