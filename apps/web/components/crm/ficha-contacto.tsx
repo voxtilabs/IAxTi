@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, Formulario } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
@@ -378,7 +378,7 @@ export function FichaContacto({
           solo se arreglaban volviendo a importar la planilla, y los campos
           propios del negocio solo se podían llenar en la importación. */}
       {editando ? (
-        <form
+        <Formulario
           className="mt-6 flex flex-col gap-3 rounded-tarjeta border border-line bg-raised p-4"
           onSubmit={(e) => {
             e.preventDefault();
@@ -470,7 +470,7 @@ export function FichaContacto({
               Dejar como estaba
             </Button>
           </span>
-        </form>
+        </Formulario>
       ) : (
         <>
           <CamposPropios valores={contact.custom} definiciones={campos} />
@@ -537,7 +537,7 @@ export function FichaContacto({
             </li>
           ))}
         </ul>
-        <form onSubmit={agregarActividad} className="mt-3 flex flex-wrap items-center gap-2">
+        <Formulario onSubmit={agregarActividad} className="mt-3 flex flex-wrap items-center gap-2">
           <Select value={tipo} onValueChange={(valor) => setTipo(valor as typeof tipo)}>
             <SelectTrigger className="h-9 bg-field text-sm" aria-label="Tipo de actividad">
               <SelectValue />
@@ -565,7 +565,7 @@ export function FichaContacto({
           <Button type="submit" variant="secundario" size="chico" disabled={!titulo.trim()}>
             Agregar
           </Button>
-        </form>
+        </Formulario>
       </section>
 
       {/* Los derechos de la persona, en su ficha y no escondidos en un

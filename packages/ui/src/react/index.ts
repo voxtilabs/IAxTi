@@ -8,6 +8,10 @@ export { MARCA_LOCKUP_SVG, IAXTI_LOCKUP_SVG, IAXTI_ISOTIPO_SVG } from './marca-s
 export { useMarcaSvg } from './use-marca-svg';
 // Arrastrar y pegar un archivo (#561): el gesto, sin decidir cómo se ve.
 export { useArrastre } from './use-arrastre';
+// La validación del formulario en voz de Pulso (#618): la burbuja nativa del
+// navegador es la única pieza que no se puede estilar.
+export { validarEnPulso } from './validar-en-pulso';
+export { Formulario } from './formulario';
 export type { Arrastre, OpcionesDeArrastre } from './use-arrastre';
 
 // Componentes shadcn-style tematizados con Pulso (sin hex, sin dark:).

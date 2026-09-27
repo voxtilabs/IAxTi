@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, Checkbox, EncabezadoDePagina } from '@iaxti/ui/react';
+import { AvisoResultado, Checkbox, EncabezadoDePagina, Formulario } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -144,7 +144,7 @@ export function Empresas() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={crear} className="flex flex-wrap items-end gap-3 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+      <Formulario onSubmit={crear} className="flex flex-wrap items-end gap-3 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
           Nombre de la empresa
           <Input
@@ -166,7 +166,7 @@ export function Empresas() {
         <Button type="submit" disabled={guardando}>
           {guardando ? 'Creando…' : 'Crear empresa'}
         </Button>
-      </form>
+      </Formulario>
 
       <div className="flex flex-wrap items-center gap-3">
         <Input
@@ -241,7 +241,7 @@ export function Empresas() {
               </div>
 
               {editando === e.id && (
-                <form
+                <Formulario
                   className="flex flex-wrap items-end gap-3 border-t border-line px-4 py-3"
                   onSubmit={(ev) => {
                     ev.preventDefault();
@@ -270,7 +270,7 @@ export function Empresas() {
                   <Button type="button" variant="secundario" onClick={() => setEditando(null)}>
                     Dejar como estaba
                   </Button>
-                </form>
+                </Formulario>
               )}
 
               {abierta?.empresa.id === e.id && (

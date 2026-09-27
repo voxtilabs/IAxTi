@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, Formulario } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, EstadoVacio, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
@@ -138,7 +138,7 @@ export function Plantillas() {
         </AvisoResultado>
       )}
 
-      <form id="nueva-plantilla" onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+      <Formulario id="nueva-plantilla" onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">
           {editando ? 'Corregir la plantilla' : 'Nueva plantilla'}
         </h2>
@@ -220,7 +220,7 @@ export function Plantillas() {
             </Button>
           )}
         </span>
-      </form>
+      </Formulario>
 
       {items.length === 0 ? (
         <EstadoVacio titulo="Prepara tu primera plantilla"

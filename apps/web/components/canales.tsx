@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina, EstadoVacio } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, EstadoVacio, Formulario } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -98,7 +98,7 @@ function ProbarSinNumero() {
         conectar un número.
       </p>
 
-      <form onSubmit={enviar} className="mt-4 flex flex-col gap-3">
+      <Formulario onSubmit={enviar} className="mt-4 flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           Desde qué teléfono
           <Input
@@ -117,7 +117,7 @@ function ProbarSinNumero() {
             {estado === 'enviando' ? 'Enviando…' : 'Simular mensaje'}
           </Button>
         </span>
-      </form>
+      </Formulario>
 
       {estado === 'listo' && (
         <AvisoResultado tono="success">
@@ -346,7 +346,7 @@ export function Canales() {
           Un chat en tu página que cae en la misma bandeja. Sin número, sin fricción: ideal para
           partir hoy.
         </p>
-        <form
+        <Formulario
           className="mt-4 flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
@@ -372,7 +372,7 @@ export function Canales() {
           <Button type="submit" variant="secundario" size="chico" disabled={!dominio.trim()}>
             Crear widget
           </Button>
-        </form>
+        </Formulario>
         <ul className="mt-4 flex flex-col gap-3">
           {widgets.map((w) => (
             <li key={w.id} className="rounded-campo border border-line bg-raised p-4">

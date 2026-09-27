@@ -5,7 +5,7 @@ import {
   campaignClient, type Campaign, type CampaignChannel, type CampaignFilters,
   type CampaignListItem, type CampaignPreview, type CampaignResults, type CampaignTemplate,
 } from '@iaxti/sdk';
-import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
@@ -209,7 +209,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
         <Button variant="fantasma" disabled={ocupado} onClick={() => void ejecutar(cargar)}>Actualizar listado</Button>
       </>}
 
-      {vista === 'nueva' && <form onSubmit={(e) => void crear(e)} className="max-w-2xl space-y-5">
+      {vista === 'nueva' && <Formulario onSubmit={(e) => void crear(e)} className="max-w-2xl space-y-5">
         <label className="block text-sm font-medium">Nombre de la campaña<Input required maxLength={150} className="mt-1" value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
         <label className="block text-sm font-medium">Plantilla aprobada<Select value={plantillaId} onValueChange={(valor) => {
           setPlantillaId(valor); setValores(Array.from({ length: plantillas.find((p) => p.id === valor)?.variables ?? 0 }, () => ''));
@@ -288,7 +288,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           )}
         </fieldset>
         <Button type="submit" disabled={ocupado || !plantilla || !nombre.trim()}>{ocupado ? 'Preparando…' : 'Crear borrador y ver destinatarios'}</Button>
-      </form>}
+      </Formulario>}
 
       {vista === 'previa' && campana && <section className="space-y-5" aria-label="Vista previa de la campaña">
         <h2 className="break-words text-xl font-bold text-ink">{campana.name}</h2>
