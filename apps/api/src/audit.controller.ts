@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Post,
   Query,
   Req,
@@ -120,6 +121,9 @@ function ConFormato(): MethodDecorator {
   }) as MethodDecorator;
 }
 
+/** El tenant del libro global llega en la consulta: puede ser cualquier cosa. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function formatoDe(valor: string | undefined): 'csv' | 'json' {
   if (valor && valor !== 'csv' && valor !== 'json') {
     throw new BadRequestException({
@@ -184,6 +188,24 @@ export class PlatformAuditController {
     }
   }
 
+  /**
+   * Verificar la cadena de UN tenant, con ese tenant en contexto (#370).
+   *
+   * Corría con una conexión suelta del pool, y `audit_log` tiene RLS FORCE.
+   * Con el rol de desarrollo —superusuario— Postgres ni mira las políticas y
+   * parecía funcionar; con un rol que las respete, que es lo que producción
+   * exige, la política evalúa `tenant_id = NULL`, `verifyChain` recorre cero
+   * filas y devuelve **`{ valid: true, entries: 0 }`**.
+   *
+   * Ese es el peor resultado posible de los tres. Un libro append-only cuya
+   * verificación contesta "válido" sin haber podido leer una sola fila no es
+   * una verificación débil: es una garantía que nadie comprobó, entregada
+   * justo a quien vino a comprobarla. Y no hay nada en la respuesta que lo
+   * delate — un libro vacío y un libro ilegible se ven idénticos.
+   *
+   * Acá SÍ hay tenant (llega en la consulta), así que no hace falta ninguna
+   * puerta especial: se entra por `withTenant` como en todo el resto.
+   */
   @Post('verify')
   @RequirePermission('platform.audit')
   @ApiOperation({ summary: 'Verifica la cadena de hash de un tenant cualquiera' })
@@ -194,12 +216,24 @@ export class PlatformAuditController {
         message: 'La cadena se verifica de a un tenant: dime cuál.',
       });
     }
-    const client = await pool().connect();
-    try {
-      return await verifyChain(client, tenantId);
-    } finally {
-      client.release();
+    // Un tenant que no existe tiene el mismo libro que un tenant ilegible:
+    // ninguno. Contestar "válido" ahí es la misma mentira con otra causa, así
+    // que se dice que no existe. `tenants` no tiene RLS a propósito: es el
+    // registro de quiénes existen (packages/db/src/tenant.ts).
+    //
+    // El id llega de la consulta, así que puede no ser un uuid; un `= $1` con
+    // cualquier texto revienta con el error crudo de Postgres. Un id mal
+    // escrito es un negocio que no encontramos, no un 500.
+    const existe = UUID.test(tenantId)
+      ? await pool().query('SELECT 1 FROM tenants WHERE id = $1', [tenantId])
+      : { rowCount: 0 };
+    if ((existe.rowCount ?? 0) === 0) {
+      throw new NotFoundException({
+        code: 'TENANT_NOT_FOUND',
+        message: 'No encontramos ese negocio. Revisa el id antes de verificar su libro.',
+      });
     }
+    return withTenant(pool(), tenantId, (c) => verifyChain(c, tenantId));
   }
 
   @Get('export')

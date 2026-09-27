@@ -281,23 +281,41 @@ export class EquipoUsuariosController {
  * podía terminar aunque se mandara la invitación.
  */
 /**
- * `acceptInvitation` sin `withTenant`, a propósito.
- *
- * Quien acepta no pertenece todavía a ningún tenant, así que no hay
- * `app.tenant_id` que fijar. La función resuelve el tenant desde el token y
- * escribe con `tenant_id` explícito — que es la regla del proyecto igual:
- * RLS es la segunda cerradura, no la primera.
+ * El mismo texto que ya daba `acceptInvitation` cuando el token no existe:
+ * quien recibe un enlace viejo no debería poder distinguir "no existe" de "no
+ * la pude leer".
  */
-async function aceptarInvitacionConPool(
-  p: ReturnType<typeof apiPool> extends null | infer T ? T : never,
+const INVITACION_INEXISTENTE = 'Esa invitación no existe. Pide que te inviten de nuevo.';
+
+/**
+ * Canjear el token, con el tenant de la invitación en contexto (#370).
+ *
+ * Esto corría con una conexión SUELTA del pool, y el comentario que lo
+ * justificaba estaba a medias: es verdad que quien acepta no pertenece todavía
+ * a ningún tenant, y por eso no hay `X-Tenant-Id` que pedirle. Lo que no se
+ * sigue de ahí es que la transacción pueda correr sin `app.tenant_id`.
+ * `invitations` tiene RLS FORCE, así que con un rol que respete las políticas
+ * —producción, y a donde va el resto— el SELECT devuelve cero filas y la
+ * respuesta es «Esa invitación no existe. Pide que te inviten de nuevo.»: el
+ * primer momento de un empleado en el producto, roto, sin nada que se pueda
+ * arreglar del otro lado. Si esa lectura pasara, el INSERT en `user_roles`
+ * chocaría igual con su WITH CHECK. Con el rol de hoy (superusuario) funciona
+ * porque Postgres ni mira las políticas: la segunda cerradura no está puesta.
+ *
+ * El tenant NO se puede exigir desde afuera: el token es quien lo dice. Así
+ * que son dos pasos, como los webhooks de canal y las API keys (#286): una
+ * función SECURITY DEFINER que del token devuelve SOLO el tenant —ni el rol,
+ * ni el correo, ni si está vencida— y después el canje completo dentro de
+ * `withTenant`. Que la invitación sirva de verdad lo sigue decidiendo
+ * `acceptInvitation` leyendo la fila bajo RLS.
+ */
+async function aceptarInvitacion(
   input: { token: string; userId: string; requestId?: string },
 ): Promise<{ tenantId: string; roleName: string }> {
-  const client = await (p as { connect: () => Promise<import('pg').PoolClient> }).connect();
-  try {
-    return await acceptInvitation(client, input);
-  } finally {
-    client.release();
-  }
+  const r = await pool().query('SELECT tenant_de_invitacion($1) AS tenant', [input.token]);
+  const tenantId = r.rows[0]?.tenant as string | null | undefined;
+  if (!tenantId) throw new Error(INVITACION_INEXISTENTE);
+  return withTenant(pool(), tenantId, (c) => acceptInvitation(c, input));
 }
 
 @ApiTags('equipo')
@@ -315,10 +333,10 @@ export class InvitacionesController {
       });
     }
     try {
-      // Sin `withTenant`: el tenant lo dice el token, y el usuario todavía
-      // no pertenece a ninguno. `acceptInvitation` lo resuelve y escribe con
-      // `tenant_id` explícito.
-      const r = await aceptarInvitacionConPool(pool(), {
+      // El tenant lo dice el token —el usuario todavía no pertenece a
+      // ninguno—, y con él se entra por `withTenant`: sin `app.tenant_id`
+      // `invitations` no se deja leer.
+      const r = await aceptarInvitacion({
         token,
         userId: user.userId,
         requestId: (request as { requestId?: string }).requestId,
