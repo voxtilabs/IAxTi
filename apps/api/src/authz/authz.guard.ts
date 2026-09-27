@@ -283,7 +283,7 @@ export class AuthzGuard implements CanActivate {
         });
       }
     }
-    const userId = request.headers['x-user-id'];
+    const userId = this.fallbackPermitido() ? request.headers['x-user-id'] : undefined;
     if (typeof userId !== 'string') {
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
@@ -291,6 +291,42 @@ export class AuthzGuard implements CanActivate {
       });
     }
     return { userId };
+  }
+
+  /**
+   * ¿Se permite el fallback por cabeceras? (#611)
+   *
+   * UNA sola decisión, porque había DOS copias del fallback —la de `@RequireAuth()`,
+   * que solo necesita un userId, y la completa— y arreglar una dejaba la otra
+   * abierta. La auditoría encontró la segunda; la primera la encontré buscando por
+   * qué mi arreglo no hacía nada.
+   *
+   * Decía «se retira en hardening» y no se retiró. Lo comprobé CONTRA STAGING, en
+   * vivo: sin ningún token, con solo
+   *
+   *     X-User-Id: <cualquiera>   X-Tenant-Id: <uuid de un negocio>   X-Role: ADMIN
+   *
+   * la API contestaba 200. Cualquiera que supiera un uuid de tenant era ADMIN de
+   * ese negocio: leer sus conversaciones, escribirle a sus clientes desde su
+   * número, crear links de cobro. Y staging está conectado al número real, así que
+   * no era teórico.
+   *
+   * Dos cerraduras, porque una sola se abre por olvido:
+   *
+   *  1. **Si el servidor PUEDE verificar tokens, este camino no existe.** Es la
+   *     regla de fondo y no depende de que alguien configure algo bien.
+   *  2. El ambiente. Si por un error faltara `SUPABASE_JWKS_URL` en staging o
+   *     producción, la cerradura 1 se abriría sola; ésta no. Acá `IAXTI_ENV` es la
+   *     variable correcta —la pregunta es literalmente «en qué ambiente corro»— a
+   *     diferencia de #593, donde se la usaba para preguntar otra cosa.
+   *
+   * El fallback se queda para desarrollo local sin Supabase cableado: cerrarlo del
+   * todo rompería eso, y entonces alguien lo reabriría de la peor forma posible.
+   */
+  private fallbackPermitido(): boolean {
+    if (this.options.jwtVerify) return false;
+    const ambiente = process.env.IAXTI_ENV;
+    return ambiente !== 'production' && ambiente !== 'staging';
   }
 
   private async actorFrom(context: ExecutionContext): Promise<Actor> {
@@ -385,7 +421,13 @@ export class AuthzGuard implements CanActivate {
       return { userId, tenantId, role };
     }
 
-    // Fallback de desarrollo (se retira en hardening).
+    if (!this.fallbackPermitido()) {
+      throw new UnauthorizedException({
+        code: 'UNAUTHORIZED',
+        message: 'Necesitas iniciar sesión para hacer esto.',
+      });
+    }
+
     const userId = request.headers['x-user-id'];
     const tenantId = request.headers['x-tenant-id'];
     const role = request.headers['x-role'];
