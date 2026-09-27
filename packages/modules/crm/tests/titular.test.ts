@@ -59,6 +59,26 @@ afterAll(async () => {
   await admin.end();
 });
 
+/**
+ * El bucket, de mentira. `borrar` guarda lo que le pidieron: así el test puede
+ * afirmar que la supresión PIDIÓ el borrado de los objetos, que es justo lo que
+ * antes no pasaba — las llaves se juntaban en una lista y ahí morían.
+ */
+function almacenFalso(modo: 'borra' | 'falla' = 'borra') {
+  const pedidas: string[] = [];
+  return {
+    pedidas,
+    almacen: {
+      async borrar(keys: string[]) {
+        pedidas.push(...keys);
+        return modo === 'borra'
+          ? { borradas: [...keys], fallidas: [] }
+          : { borradas: [], fallidas: [...keys] };
+      },
+    },
+  };
+}
+
 describe('derecho de acceso y portabilidad (#81)', () => {
   it('entrega todo lo que tenemos de la persona, mensajes incluidos', async () => {
     const doc = await withTenant(admin, tenant, (c) =>
@@ -97,18 +117,64 @@ describe('derecho de supresión (#81)', () => {
     ).rejects.toThrow(/motivo/);
   });
 
+  it('con el bucket caído NO se suprime nada: la respuesta no puede mentir', async () => {
+    const bucket = almacenFalso('falla');
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        suprimirTitular(c, {
+          tenantId: tenant,
+          contactId,
+          actor: duena,
+          motivo: 'La clienta pidió que borráramos sus datos',
+          almacen: bucket.almacen,
+        }),
+      ),
+    ).rejects.toThrow(/no pudimos borrar/i);
+    // Lo intentó con el adjunto que estaba.
+    expect(bucket.pedidas).toEqual(['t/whatsapp/boleta.jpg']);
+    // Y la transacción se deshizo completa: la persona sigue entera, porque
+    // una supresión a medias declarada como completa es una declaración falsa.
+    const contacto = await admin.query('SELECT name FROM contacts WHERE id = $1', [contactId]);
+    expect(contacto.rows[0].name).toBe('María Paz');
+    const mensajes = await admin.query(
+      'SELECT count(*)::int AS n FROM messages WHERE conversation_id = $1',
+      [conversationId],
+    );
+    expect(mensajes.rows[0].n).toBe(2);
+  });
+
+  it('sin almacenamiento configurado tampoco: se avisa qué variable falta', async () => {
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        suprimirTitular(c, {
+          tenantId: tenant,
+          contactId,
+          actor: duena,
+          motivo: 'La clienta pidió que borráramos sus datos',
+          almacen: null,
+        }),
+      ),
+    ).rejects.toThrow(/R2_BUCKET_ADJUNTOS/);
+    const contacto = await admin.query('SELECT name FROM contacts WHERE id = $1', [contactId]);
+    expect(contacto.rows[0].name).toBe('María Paz');
+  });
+
   it('borra a la persona y su contenido, pero conserva el rastro del trato', async () => {
+    const bucket = almacenFalso();
     const res = await withTenant(admin, tenant, (c) =>
       suprimirTitular(c, {
         tenantId: tenant,
         contactId,
         actor: duena,
         motivo: 'La clienta pidió que borráramos sus datos',
+        almacen: bucket.almacen,
       }),
     );
     expect(res.mensajesBorrados).toBe(2);
     expect(res.identidadesBorradas).toBe(1);
-    // Los adjuntos se devuelven para borrarlos de R2 DESPUÉS del commit.
+    // Los adjuntos se borran DE VERDAD del bucket: los bytes de la foto que
+    // mandó no viven en Postgres, y borrar la fila del mensaje no los saca.
+    expect(bucket.pedidas).toEqual(['t/whatsapp/boleta.jpg']);
     expect(res.adjuntosR2).toEqual(['t/whatsapp/boleta.jpg']);
 
     const contacto = await admin.query('SELECT * FROM contacts WHERE id = $1', [contactId]);
@@ -145,6 +211,8 @@ describe('derecho de supresión (#81)', () => {
     );
     expect(rastro.rowCount).toBe(1);
     expect(rastro.rows[0].metadata.motivo).toMatch(/pidió que borráramos/);
+    // El libro dice "1 adjunto" porque se borró uno, no porque se encontró uno.
+    expect(rastro.rows[0].metadata.adjuntos).toBe(1);
   });
 });
 

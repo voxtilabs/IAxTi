@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { publishEvent } from '@iaxti/core';
+import { almacenR2, publishEvent, type AlmacenObjetos } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { parseCsv } from '@iaxti/module-crm';
 import { splitIntoChunks, stripHtml, toVectorLiteral } from '../domain/chunking';
@@ -303,16 +303,75 @@ export async function listSources(client: PoolClient, tenantId: string): Promise
   return r.rows.map(rowToSource);
 }
 
+/**
+ * Saca una fuente del conocimiento: la fila, su índice y —si era un archivo—
+ * el archivo mismo.
+ *
+ * Lo último es el arreglo: antes se borraba la fila y el PDF se quedaba en el
+ * bucket, todavía bajable con una URL firmada por cualquiera con permiso de
+ * lectura del tenant. El negocio veía la fuente desaparecer de la lista y
+ * entendía —con razón— que había sacado el documento, cuando en realidad solo
+ * se había sacado el índice. Una lista de precios vieja, un contrato, una
+ * tabla de comisiones: seguían ahí.
+ *
+ * Si el archivo no se puede borrar, esto LANZA y la transacción se deshace: la
+ * fuente sigue en la lista, que es la verdad, en vez de desaparecer de la
+ * pantalla mientras el documento sigue en pie. Borrar en R2 es idempotente, así
+ * que reintentar es seguro.
+ */
 export async function deleteSource(
   client: PoolClient,
-  input: { tenantId: string; sourceId: string; actor: string; requestId?: string },
+  input: {
+    tenantId: string;
+    sourceId: string;
+    actor: string;
+    requestId?: string;
+    /** El bucket. Se inyecta en tests; en producción sale del ambiente. */
+    almacen?: AlmacenObjetos | null;
+  },
 ): Promise<void> {
-  const r = await client.query('DELETE FROM sources WHERE tenant_id = $1 AND id = $2', [
-    input.tenantId,
-    input.sourceId,
-  ]);
+  // RETURNING porque la llave del archivo se necesita DESPUÉS de borrar la
+  // fila y después ya no hay dónde leerla.
+  const r = await client.query(
+    'DELETE FROM sources WHERE tenant_id = $1 AND id = $2 RETURNING kind, r2_key',
+    [input.tenantId, input.sourceId],
+  );
   if (r.rowCount === 0) throw new Error('No encontramos esa fuente.');
   await client.query('DELETE FROM knowledge_query_cache WHERE tenant_id = $1', [input.tenantId]);
+
+  const r2Key = (r.rows[0].r2_key as string | null) ?? null;
+  let archivoBorrado = false;
+  let archivoCompartido = false;
+  if (r2Key) {
+    // Otra fuente puede apuntar al mismo archivo (se subió una vez y se creó
+    // la fuente dos). Si queda alguna, el archivo NO se toca: borrarlo dejaría
+    // a esa otra fuente sin su documento, y eso no se deshace.
+    const otras = await client.query(
+      'SELECT 1 FROM sources WHERE tenant_id = $1 AND r2_key = $2 LIMIT 1',
+      [input.tenantId, r2Key],
+    );
+    archivoCompartido = (otras.rowCount ?? 0) > 0;
+    if (!archivoCompartido) {
+      // `undefined` = tomá el del ambiente; `null` explícito = no hay almacén.
+      const almacen = input.almacen === undefined ? almacenR2() : input.almacen;
+      if (!almacen) {
+        throw new Error(
+          'Esta fuente tiene un archivo guardado y este ambiente no tiene el almacenamiento ' +
+            'configurado (revisa R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY y ' +
+            'R2_BUCKET_ADJUNTOS). No la eliminamos: borrar la fila dejaría el archivo bajable.',
+        );
+      }
+      const { fallidas } = await almacen.borrar([r2Key]);
+      if (fallidas.length > 0) {
+        throw new Error(
+          'No pudimos borrar el archivo de esta fuente del almacenamiento, así que no la ' +
+            'eliminamos: la fuente seguiría bajable. Vuelve a intentarlo en unos minutos.',
+        );
+      }
+      archivoBorrado = true;
+    }
+  }
+
   await writeAudit(client, {
     tenantId: input.tenantId,
     actor: input.actor,
@@ -322,6 +381,14 @@ export async function deleteSource(
     resourceId: input.sourceId,
     result: 'ok',
     requestId: input.requestId,
+    metadata: {
+      kind: r.rows[0].kind,
+      teniaArchivo: Boolean(r2Key),
+      archivoBorrado,
+      // Queda escrito cuando el archivo se conserva a propósito: sin esto, la
+      // auditoría de dos fuentes idénticas se vería igual y una mentiría.
+      archivoCompartido,
+    },
   });
 }
 

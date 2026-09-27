@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { almacenR2, type AlmacenObjetos } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 
 // Derechos del titular, Ley 21.719 (#81, SPEC §19). Dos derechos que el
@@ -10,6 +11,10 @@ import { writeAudit } from '@iaxti/module-audit';
 // oportunidad, la factura y la trazabilidad contable, que el negocio está
 // obligado a conservar. Lo que desaparece es la persona: nombre, teléfono,
 // correo, RUT, identidades de canal y el contenido de sus mensajes.
+//
+// Y los archivos que mandó: los bytes viven en R2, no en Postgres, así que
+// borrar la fila del mensaje no borra la foto. Eso hay que pedírselo al bucket
+// explícitamente, y es parte de la supresión, no un pendiente para después.
 //
 // El libro de auditoría NO se toca: es la evidencia de que la supresión
 // ocurrió, y sin ella no hay cómo demostrarlo ante quien lo pregunte.
@@ -108,6 +113,16 @@ export interface ResultadoSupresion {
   contactId: string;
   mensajesBorrados: number;
   identidadesBorradas: number;
+  /**
+   * Llaves de R2 que se borraron DE VERDAD. Antes traía las llaves
+   * ENCONTRADAS —nadie las borraba— y la app las mostraba como "N adjuntos"
+   * en la lista de lo que se borró. Si acá viene una llave, ese objeto ya no
+   * está en el bucket.
+   *
+   * El nombre se mantiene a propósito: lo lee el panel de derechos del
+   * titular en la web. Renombrarlo a `adjuntosBorrados`, que es lo que es,
+   * pide el mismo PR que ese componente.
+   */
   adjuntosR2: string[];
   /** Ejecuciones de IA a las que se les vació el contenido (issue 235). */
   ejecucionesVaciadas: number;
@@ -126,6 +141,15 @@ export interface ResultadoSupresion {
  *
  * Se corre DENTRO de la transacción de quien llama para que la auditoría y
  * el borrado caigan juntos: o pasó todo, o no pasó nada.
+ *
+ * Los adjuntos del bucket se borran ACÁ, antes de escribir la auditoría, y si
+ * alguno no se puede borrar la función lanza y la transacción se deshace
+ * completa. Es a propósito: la alternativa es contestarle a un titular que sus
+ * datos se borraron mientras las fotos y los PDF que mandó siguen bajables con
+ * una URL firmada. Deshacer y pedir reintento es incómodo; declarar una
+ * supresión que no ocurrió es una declaración falsa con consecuencia legal.
+ * El borrado en R2 es idempotente (un 404 cuenta como borrado), así que
+ * reintentar una supresión que quedó a medio camino es seguro.
  */
 export async function suprimirTitular(
   client: PoolClient,
@@ -135,6 +159,8 @@ export async function suprimirTitular(
     actor: string;
     motivo: string;
     requestId?: string;
+    /** El bucket. Se inyecta en tests; en producción sale del ambiente. */
+    almacen?: AlmacenObjetos | null;
   },
 ): Promise<ResultadoSupresion> {
   if (!input.motivo?.trim()) {
@@ -154,7 +180,7 @@ export async function suprimirTitular(
 
   // Las llaves de R2 ANTES de borrar los mensajes: después ya no se sabe
   // cuáles eran, y los adjuntos quedarían huérfanos para siempre.
-  const adjuntosR2: string[] = [];
+  const adjuntosPorBorrar: string[] = [];
   if (ids.length > 0) {
     const adjuntos = await client.query(
       `SELECT jsonb_array_elements(attachments)->>'key' AS key FROM messages
@@ -162,7 +188,7 @@ export async function suprimirTitular(
           AND jsonb_array_length(attachments) > 0`,
       [input.tenantId, ids],
     );
-    for (const fila of adjuntos.rows) if (fila.key) adjuntosR2.push(fila.key as string);
+    for (const fila of adjuntos.rows) if (fila.key) adjuntosPorBorrar.push(fila.key as string);
   }
 
   // Los ids de ejecución de IA ANTES de borrar las sugerencias: la sugerencia
@@ -267,6 +293,31 @@ export async function suprimirTitular(
     [input.tenantId, input.contactId],
   );
 
+  // Los archivos del bucket, ahora sí. Va acá, después de la base y ANTES de
+  // la auditoría, porque la auditoría es la declaración de lo que pasó: si se
+  // escribiera antes, diría "adjuntos borrados" sin saber si se borraron.
+  const adjuntosBorrados: string[] = [];
+  if (adjuntosPorBorrar.length > 0) {
+    // `undefined` = tomá el del ambiente; `null` explícito = no hay almacén.
+    const almacen = input.almacen === undefined ? almacenR2() : input.almacen;
+    if (!almacen) {
+      throw new Error(
+        'Esta persona envió archivos y este ambiente no tiene el almacenamiento configurado ' +
+          '(revisa R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY y R2_BUCKET_ADJUNTOS). ' +
+          'Deshicimos la supresión para no darla por hecha: configúralo y vuelve a pedirla.',
+      );
+    }
+    const { borradas, fallidas } = await almacen.borrar(adjuntosPorBorrar);
+    adjuntosBorrados.push(...borradas);
+    if (fallidas.length > 0) {
+      throw new Error(
+        `No pudimos borrar ${fallidas.length} de ${adjuntosPorBorrar.length} archivos del ` +
+          'almacenamiento, así que deshicimos la supresión completa: no podemos declarar ' +
+          'borrado algo que sigue ahí. Vuelve a pedirla en unos minutos; reintentar es seguro.',
+      );
+    }
+  }
+
   await writeAudit(client, {
     tenantId: input.tenantId,
     actor: input.actor,
@@ -280,7 +331,7 @@ export async function suprimirTitular(
       motivo: input.motivo,
       mensajesBorrados,
       identidadesBorradas: identidades.rowCount ?? 0,
-      adjuntos: adjuntosR2.length,
+      adjuntos: adjuntosBorrados.length,
       ejecucionesVaciadas,
       actividadesBorradas: actividades.rowCount ?? 0,
       conservado: CONSERVADO,
@@ -291,7 +342,7 @@ export async function suprimirTitular(
     contactId: input.contactId,
     mensajesBorrados,
     identidadesBorradas: identidades.rowCount ?? 0,
-    adjuntosR2,
+    adjuntosR2: adjuntosBorrados,
     ejecucionesVaciadas,
     actividadesBorradas: actividades.rowCount ?? 0,
     conservado: CONSERVADO,

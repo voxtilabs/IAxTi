@@ -61,6 +61,27 @@ async function fuente(input: Parameters<typeof addSource>[1] extends infer T ? O
   );
 }
 
+/**
+ * El bucket, de mentira. Guarda lo que le pidieron borrar: así el test puede
+ * afirmar que sacar una fuente PIDE el borrado del archivo, que es justo lo que
+ * antes no pasaba — se borraba la fila y el PDF se quedaba en R2, bajable con
+ * una URL firmada.
+ */
+function bucketFalso(modo: 'borra' | 'falla' = 'borra') {
+  const pedidas: string[] = [];
+  return {
+    pedidas,
+    almacen: {
+      async borrar(keys: string[]) {
+        pedidas.push(...keys);
+        return modo === 'borra'
+          ? { borradas: [...keys], fallidas: [] }
+          : { borradas: [], fallidas: [...keys] };
+      },
+    },
+  };
+}
+
 function buscar(query: string) {
   return withTenant(admin, tenant, (c) => searchKnowledge(c, { tenantId: tenant, query }, fakeEmbed));
 }
@@ -404,7 +425,12 @@ describe('un PDF se reindexa desde su archivo guardado (#522)', () => {
     );
     expect(hallado.hits.map((h) => h.content).join(' ')).toContain('Barba');
     await withTenant(admin, tenant, (c) =>
-      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+      deleteSource(c, {
+        tenantId: tenant,
+        sourceId: fuente.id,
+        actor: 'test',
+        almacen: bucketFalso().almacen,
+      }),
     );
   });
 
@@ -424,7 +450,12 @@ describe('un PDF se reindexa desde su archivo guardado (#522)', () => {
     expect(r.status).toBe('failed');
     expect(r.error).toContain('bajar el PDF guardado');
     await withTenant(admin, tenant, (c) =>
-      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+      deleteSource(c, {
+        tenantId: tenant,
+        sourceId: fuente.id,
+        actor: 'test',
+        almacen: bucketFalso().almacen,
+      }),
     );
   });
 
@@ -452,7 +483,12 @@ describe('un PDF se reindexa desde su archivo guardado (#522)', () => {
     expect(r.status).toBe('failed');
     expect(r.error).toContain('escaneo');
     await withTenant(admin, tenant, (c) =>
-      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+      deleteSource(c, {
+        tenantId: tenant,
+        sourceId: fuente.id,
+        actor: 'test',
+        almacen: bucketFalso().almacen,
+      }),
     );
   });
 
@@ -485,7 +521,119 @@ describe('un PDF se reindexa desde su archivo guardado (#522)', () => {
     );
     expect(conPuerto.listas).toBe(1);
     await withTenant(admin, tenant, (c) =>
-      deleteSource(c, { tenantId: tenant, sourceId: fuente.id, actor: 'test' }),
+      deleteSource(c, {
+        tenantId: tenant,
+        sourceId: fuente.id,
+        actor: 'test',
+        almacen: bucketFalso().almacen,
+      }),
     );
+  });
+});
+
+describe('sacar una fuente del conocimiento la saca TAMBIÉN del bucket', () => {
+  /**
+   * El defecto: `deleteSource` borraba la fila y nada más. El PDF seguía en R2
+   * y seguía bajable con una URL firmada, así que el negocio veía la fuente
+   * desaparecer de la lista creyendo que había sacado el documento —una lista
+   * de precios vieja, un contrato, una tabla de comisiones— y el documento
+   * seguía ahí.
+   */
+  const llaveDe = (n: string) => `${tenant}/conocimiento/${n}.pdf`;
+
+  async function pdf(nombre: string, llave: string) {
+    return withTenant(admin, tenant, (c) =>
+      addSource(c, { tenantId: tenant, kind: 'pdf', name: nombre, r2Key: llave, actor: 'test' }),
+    );
+  }
+
+  it('borra el archivo, no solo la fila', async () => {
+    const bucket = bucketFalso();
+    const llave = llaveDe('contrato-marco');
+    const f = await pdf('Contrato marco', llave);
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, { tenantId: tenant, sourceId: f.id, actor: 'test', almacen: bucket.almacen }),
+    );
+    expect(bucket.pedidas).toEqual([llave]);
+
+    const fuentes = await withTenant(admin, tenant, (c) => listSources(c, tenant));
+    expect(fuentes.find((x) => x.id === f.id)).toBeUndefined();
+
+    const rastro = await admin.query(
+      `SELECT metadata FROM audit_log
+        WHERE tenant_id = $1 AND resource_id = $2 AND action = 'knowledge.source.delete'`,
+      [tenant, f.id],
+    );
+    expect(rastro.rows[0].metadata.archivoBorrado).toBe(true);
+  });
+
+  it('si el bucket falla, la fuente NO desaparece de la lista', async () => {
+    const bucket = bucketFalso('falla');
+    const f = await pdf('Comisiones', llaveDe('comisiones'));
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        deleteSource(c, { tenantId: tenant, sourceId: f.id, actor: 'test', almacen: bucket.almacen }),
+      ),
+    ).rejects.toThrow(/no pudimos borrar el archivo/i);
+    // Sigue en la lista, que es la verdad: desaparecer de la pantalla mientras
+    // el documento sigue bajable es peor que un error.
+    const fuentes = await withTenant(admin, tenant, (c) => listSources(c, tenant));
+    expect(fuentes.find((x) => x.id === f.id)?.name).toBe('Comisiones');
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, {
+        tenantId: tenant,
+        sourceId: f.id,
+        actor: 'test',
+        almacen: bucketFalso().almacen,
+      }),
+    );
+  });
+
+  it('sin almacenamiento configurado avisa qué variable falta y no borra', async () => {
+    const f = await pdf('Sin bucket', llaveDe('sin-bucket'));
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        deleteSource(c, { tenantId: tenant, sourceId: f.id, actor: 'test', almacen: null }),
+      ),
+    ).rejects.toThrow(/R2_BUCKET_ADJUNTOS/);
+    const fuentes = await withTenant(admin, tenant, (c) => listSources(c, tenant));
+    expect(fuentes.find((x) => x.id === f.id)).toBeDefined();
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, {
+        tenantId: tenant,
+        sourceId: f.id,
+        actor: 'test',
+        almacen: bucketFalso().almacen,
+      }),
+    );
+  });
+
+  it('si otra fuente usa el mismo archivo, el archivo se conserva', async () => {
+    // El mismo PDF subido una vez y usado por dos fuentes: borrar el objeto al
+    // sacar la primera dejaría a la segunda sin su documento, y eso no se
+    // deshace. Se conserva, y queda escrito por qué.
+    const llave = llaveDe('compartida');
+    const a = await pdf('Compartida A', llave);
+    const b = await pdf('Compartida B', llave);
+
+    const primero = bucketFalso();
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, { tenantId: tenant, sourceId: a.id, actor: 'test', almacen: primero.almacen }),
+    );
+    expect(primero.pedidas).toEqual([]);
+    const rastro = await admin.query(
+      `SELECT metadata FROM audit_log
+        WHERE tenant_id = $1 AND resource_id = $2 AND action = 'knowledge.source.delete'`,
+      [tenant, a.id],
+    );
+    expect(rastro.rows[0].metadata.archivoCompartido).toBe(true);
+    expect(rastro.rows[0].metadata.archivoBorrado).toBe(false);
+
+    // Al sacar la última que lo usaba, ahí sí se borra.
+    const segundo = bucketFalso();
+    await withTenant(admin, tenant, (c) =>
+      deleteSource(c, { tenantId: tenant, sourceId: b.id, actor: 'test', almacen: segundo.almacen }),
+    );
+    expect(segundo.pedidas).toEqual([llave]);
   });
 });
