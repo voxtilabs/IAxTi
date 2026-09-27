@@ -112,6 +112,34 @@ export async function linkIdentity(
  * normalizando con las mismas reglas de siempre; lo único que cambia es que
  * una identidad que no es un teléfono deja de ir por ese camino.
  */
+/**
+ * Las formas que SÍ puede tener una identidad de WhatsApp (#615).
+ *
+ * #604 arregló que un BSUID se validara como teléfono chileno —el mensaje se
+ * perdía después del 200— pero lo arregló de más: pasó a aceptar **cualquier
+ * cosa** como identidad opaca. Y eso tiene un costo que se ve con un ejemplo:
+ * `ig_17841400000009` es un id de Instagram llegando por el canal `whatsapp`.
+ * Aceptarlo crea un contacto con una identidad que ningún envío va a poder usar,
+ * y el problema se descubre el día que alguien le quiera contestar.
+ *
+ * La documentación de Zavu enumera las formas: «un E.164, un BSUID de WhatsApp
+ * (`US.13491208655302741918`), un id numérico de chat, o un JID de grupo
+ * (`...@g.us`)». Son tres formas concretas, no «lo que venga».
+ *
+ * Así que se aceptan esas y se rechaza el resto — que es lo que #606 pedía con
+ * su `INBOUND_IDENTIDAD_NO_RESUELTA`: un mensaje que no se puede resolver no
+ * puede desaparecer en silencio, pero tampoco puede entrar como un contacto que
+ * no sirve. Los dos hallazgos eran ciertos y se resolvían juntos.
+ */
+function formaConocidaDeWhatsApp(identity: string): boolean {
+  // BSUID: el identificador de quien adoptó nombre de usuario y escondió su
+  // número. El prefijo es `US.` y el resto son dígitos.
+  if (/^US\.\d{6,}$/.test(identity)) return true;
+  // JID de grupo.
+  if (/^\d{6,}@g\.us$/.test(identity)) return true;
+  return false;
+}
+
 function telefonoDeLaIdentidad(identity: string): string | null {
   try {
     return normalizePhone(identity);
@@ -150,6 +178,12 @@ export async function ensureContactByIdentity(
   // este desvío.
   if (input.channel === 'whatsapp' || input.channel === 'simulador') {
     const phone = telefonoDeLaIdentidad(input.identity);
+    // No es teléfono Y no es una forma conocida del canal: no se inventa un
+    // contacto con una identidad que ningún envío podrá usar. Se lanza, y quien
+    // procesa el job lo convierte en el error del formato único (#606, #615).
+    if (!phone && !formaConocidaDeWhatsApp(input.identity)) {
+      throw new Error('IDENTIDAD_DESCONOCIDA');
+    }
     if (phone) {
       const res = await ensureContactByPhone(client, {
         tenantId: input.tenantId,

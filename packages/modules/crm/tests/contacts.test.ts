@@ -330,3 +330,84 @@ describe('no se borra el ÚLTIMO identificador del contacto', () => {
     expect(sinCorreo.email).toBeNull();
   });
 });
+
+describe('opaca no es «cualquier cosa» (#615)', () => {
+  /**
+   * #604 arregló que un BSUID se validara como teléfono chileno —el mensaje se
+   * perdía después del 200— y lo arregló DE MÁS: pasó a aceptar cualquier cosa.
+   *
+   * Los dos hallazgos del ultracode eran ciertos y estaban en tensión: uno decía
+   * «tratá la identidad como opaca», el otro «una identidad que no se resuelve no
+   * puede desaparecer en silencio». La resolución no era elegir uno: es que hay
+   * TRES formas documentadas, y lo que no es ninguna se rechaza.
+   */
+  it('un BSUID entra: es una forma documentada', async () => {
+    const r = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: 'US.13491208655302741918',
+        origin: 'whatsapp',
+      }),
+    );
+    expect(r.contact.id).toBeTruthy();
+    // Y no se le inventa un teléfono a partir de la identidad.
+    expect(r.contact.phone).toBeNull();
+  });
+
+  it('un JID de grupo también', async () => {
+    const r = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: '120363000000000000@g.us',
+        origin: 'whatsapp',
+      }),
+    );
+    expect(r.contact.id).toBeTruthy();
+  });
+
+  it('un teléfono sigue resolviéndose como teléfono', async () => {
+    // Lo que NO cambia: el dedupe histórico de WhatsApp vive en el teléfono.
+    const r = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: '+56912340001',
+        origin: 'whatsapp',
+      }),
+    );
+    expect(r.contact.phone).toBe('+56912340001');
+  });
+
+  it('un id de Instagram por el canal de WhatsApp se RECHAZA', async () => {
+    // Aceptarlo crearía un contacto con una identidad que ningún envío puede
+    // usar, y el problema se descubriría el día que alguien le quiera contestar.
+    await expect(
+      withTenant(app, tenantA, (c) =>
+        ensureContactByIdentity(c, {
+          tenantId: tenantA,
+          channel: 'whatsapp',
+          identity: 'ig_17841400000009',
+          origin: 'whatsapp',
+        }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('y una cadena cualquiera también', async () => {
+    for (const basura of ['hola', '', 'US.', '@g.us', 'javascript:alert(1)']) {
+      await expect(
+        withTenant(app, tenantA, (c) =>
+          ensureContactByIdentity(c, {
+            tenantId: tenantA,
+            channel: 'whatsapp',
+            identity: basura,
+            origin: 'whatsapp',
+          }),
+        ),
+        `identidad ${JSON.stringify(basura)}`,
+      ).rejects.toThrow();
+    }
+  });
+});
