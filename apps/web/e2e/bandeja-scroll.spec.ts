@@ -5,13 +5,18 @@ import { join } from 'node:path';
 const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
 
 async function documentoAjustado(page: Page) {
-  // Se intenta desplazar el DOCUMENTO, no solo comprobar un contenedor.
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await expect.poll(() => page.evaluate(() => ({
-    y: window.scrollY,
-    extraY: document.documentElement.scrollHeight - window.innerHeight,
-    extraX: document.documentElement.scrollWidth - window.innerWidth,
-  }))).toEqual({ y: 0, extraY: 0, extraX: 0 });
+  // Se intenta desplazar el DOCUMENTO, no solo comprobar un contenedor. Y el
+  // intento va DENTRO del sondeo (#636): desplazar una vez y después sondear
+  // deja pasar el contenido que crece tarde —el que llega por `next/dynamic`—,
+  // porque el empujón ocurrió cuando la página todavía era corta.
+  await expect.poll(() => page.evaluate(() => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    return {
+      y: window.scrollY,
+      extraY: document.documentElement.scrollHeight - window.innerHeight,
+      extraX: document.documentElement.scrollWidth - window.innerWidth,
+    };
+  })).toEqual({ y: 0, extraY: 0, extraX: 0 });
 }
 
 for (const viewport of [{ width: 1366, height: 768 }, { width: 768, height: 768 }, { width: 360, height: 640 }]) {
@@ -104,7 +109,21 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 768, height: 768 
     // Salir de Bandeja no deja un bloqueo global de scroll en otras rutas.
     await page.goto('/reportes');
     await expect(page.getByRole('heading', { name: 'Cómo va el negocio' })).toBeVisible();
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    // Se desplaza DENTRO del poll, y esa es la corrección (#636).
+    //
+    // Antes desplazaba una vez y después sondeaba `window.scrollY`, que no
+    // puede cambiar solo: si el contenido todavía era corto en ese instante
+    // —los gráficos entran por `next/dynamic` y con cuatro workers en paralelo
+    // llegan tarde—, el `scrollTo` no movía nada y el sondeo repetía un cero
+    // que nadie iba a volver a tocar. Cinco segundos después, rojo. El viewport
+    // que caía cambiaba en cada corrida, que es la firma de una carrera.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          window.scrollTo(0, document.documentElement.scrollHeight);
+          return window.scrollY;
+        }),
+      )
+      .toBeGreaterThan(0);
   });
 }
