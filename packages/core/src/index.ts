@@ -35,3 +35,7 @@ export {
   variablesQueLeeElCodigo,
   type LecturaDeVariable,
 } from './variables-del-despliegue';
+
+// Qué publica cada módulo y quién lo usa (#664). Se exporta para que la guarda
+// pueda leerlo; no lo usa nada en producción, y eso está escrito en su lista.
+export { exportsSinConsumidor, valoresQuePublica } from './exports-sin-consumidor';
