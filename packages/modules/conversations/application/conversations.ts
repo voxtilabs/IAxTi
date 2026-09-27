@@ -167,6 +167,39 @@ export interface InboundResult {
 }
 
 /**
+ * Fallo del camino de entrada en el formato único de la plataforma
+ * ({code, message, requestId, details}). Existe porque el inbound NO entra
+ * por un controller: entra por un job de la cola, y ahí no hay filtro de
+ * errores que le ponga código ni requestId. Un `new Error(...)` suelto se
+ * convertía en una línea de log sin código, sin requestId y con el mensaje
+ * crudo del sistema; con esto el fallo se puede buscar, contar y explicar.
+ */
+export class InboundError extends Error {
+  readonly code: string;
+  readonly requestId: string;
+  readonly details: unknown[];
+
+  constructor(code: string, message: string, requestId?: string, details: unknown[] = []) {
+    super(message);
+    this.name = 'InboundError';
+    this.code = code;
+    this.requestId = requestId ?? '';
+    this.details = details;
+  }
+}
+
+/**
+ * La identidad de quien escribe es PII y la regla de seguridad manda
+ * minimizarla en logs: se deja lo justo para cruzarla con el registro del
+ * proveedor (los últimos 4) y nada más.
+ */
+function identidadEnmascarada(identidad: string): string {
+  const limpia = identidad.trim();
+  if (limpia.length <= 4) return '*'.repeat(limpia.length);
+  return `${'*'.repeat(limpia.length - 4)}${limpia.slice(-4)}`;
+}
+
+/**
  * El camino de entrada (SPEC §10/§11): un mensaje de un teléfono desconocido
  * crea el contacto y la conversación; la oportunidad NO se crea sola. Una
  * conversación `resolved` que recibe mensaje vuelve a `open` con el mismo
@@ -182,13 +215,62 @@ export async function receiveInbound(client: PoolClient, input: InboundInput): P
     channel === 'webchat' || channel === 'instagram' || channel === 'messenger'
       ? channel
       : 'whatsapp';
-  const { contact, created: contactCreated } = await ensureContactByIdentity(client, {
-    tenantId: input.tenantId,
-    channel: channel === 'simulador' ? 'simulador' : channel,
-    identity: input.phone,
-    origin,
-    requestId: input.requestId,
-  });
+  // Sin identidad no hay a quién responderle: `phone` vacío (o solo espacios)
+  // le pedía a crm crear un contacto con identidad en blanco, y ese contacto
+  // se lo quedaba el SIGUIENTE que llegara igual de vacío. Se corta acá.
+  if (!input.phone || input.phone.trim() === '') {
+    throw new InboundError(
+      'INBOUND_IDENTIDAD_NO_RESUELTA',
+      `Llegó un mensaje por ${channel} sin la identidad de quien escribe, así que no entró a la bandeja. ` +
+        'Revisa qué nos está mandando el canal en ese campo y reintenta el job con este requestId: ' +
+        'el mensaje no se perdió, quedó en la cola de fallidos.',
+      input.requestId,
+      [{ campo: 'phone', canal: channel, identidad: null }],
+    );
+  }
+  let resuelto: Awaited<ReturnType<typeof ensureContactByIdentity>>;
+  try {
+    resuelto = await ensureContactByIdentity(client, {
+      tenantId: input.tenantId,
+      channel: channel === 'simulador' ? 'simulador' : channel,
+      identity: input.phone,
+      origin,
+      requestId: input.requestId,
+    });
+  } catch (err) {
+    // POR QUÉ este catch: `phone` es "la identidad en su canal", pero para
+    // whatsapp y el simulador crm la trata como teléfono y la pasa por
+    // normalizePhone, que revienta con el mensaje crudo del sistema
+    // ("Teléfono inválido: ..."). Ese error subía tal cual hasta el worker
+    // después de que el webhook ya había respondido 200, sin código, sin
+    // requestId y sin dejar rastro de qué mensaje se quedó afuera: el cliente
+    // escribía y nadie en la pyme se enteraba nunca.
+    //
+    // Acá se decide FALLAR RUIDOSO y DEJAR RASTRO, no tragárselo: el job
+    // revienta (BullMQ lo reintenta y lo deja en la cola de fallidos, así que
+    // el mensaje es recuperable), la causa cruda queda en el log con el
+    // requestId para quien diagnostica, y hacia afuera va el formato único.
+    // Inventarle un contacto sería peor: dejaría el hilo pegado a una
+    // identidad falsa y no se podría responder.
+    //
+    // El arreglo DE FONDO —resolver la identidad por canal en vez de parsearla
+    // siempre como teléfono chileno— vive en crm (`ensureContactByIdentity`) y
+    // no acá. Lo único que este lado no puede hacer es ENCUBRIRLO.
+    console.error(
+      `[${input.requestId ?? 'sin-request-id'}] inbound: identidad sin resolver —` +
+        ` tenant=${input.tenantId} canal=${channel} identidad=${identidadEnmascarada(input.phone)}:` +
+        ` ${(err as Error).message}`,
+    );
+    throw new InboundError(
+      'INBOUND_IDENTIDAD_NO_RESUELTA',
+      `No pudimos identificar a quien escribió por ${channel}, así que el mensaje no entró a la bandeja. ` +
+        'Revisa cómo el canal manda la identidad de quien escribe y reintenta el job con este requestId: ' +
+        'el mensaje no se perdió, quedó en la cola de fallidos.',
+      input.requestId,
+      [{ campo: 'phone', canal: channel, identidad: identidadEnmascarada(input.phone) }],
+    );
+  }
+  const { contact, created: contactCreated } = resuelto;
   const nucleo = await ingestInbound(client, { ...input, channel, contactId: contact.id });
   return { contact, contactCreated, ...nucleo };
 }
@@ -241,6 +323,41 @@ async function ingestInbound(
     });
   } else {
     conversation = rowToConversation(existing.rows[0]);
+    // El emisor del hilo es el de la ÚLTIMA vez, no el de la primera. La regla
+    // del canal es explícita: el `senderId` que se devuelve al responder es el
+    // sender que atendió el hilo por última vez. Pero `channel_account_id` se
+    // escribía SOLO en el INSERT de más arriba y no se tocaba nunca más, y así
+    // se veía el desastre en una pyme con dos números: el cliente ya tenía hilo
+    // vivo por VENTAS, escribía al de SOPORTE, el mensaje caía en el hilo viejo
+    // —la búsqueda de arriba ni mira por qué cuenta entró— y la respuesta salía
+    // por VENTAS, porque getOutboundContext despacha por la cuenta de la
+    // conversación. El cliente veía contestar a un número al que nunca escribió.
+    //
+    // El hilo NO se parte (misma historia, mismo dueño, misma ventana de 24 h):
+    // se muda al emisor por el que entró el mensaje. Si el adaptador no nos dice
+    // por qué cuenta entró, se deja la que había — borrarla dejaría el hilo sin
+    // por dónde responder.
+    const cuentaAnterior = (existing.rows[0].channel_account_id as string | null) ?? null;
+    if (input.channelAccountId && input.channelAccountId !== cuentaAnterior) {
+      await client.query(
+        `UPDATE conversations SET channel_account_id = $3, updated_at = now()
+          WHERE tenant_id = $1 AND id = $2`,
+        [input.tenantId, conversation.id, input.channelAccountId],
+      );
+      // Cambia POR DÓNDE le hablamos al cliente: mutación importante, así que
+      // queda en audit_log en la MISMA transacción que el mensaje que la causó.
+      await writeAudit(client, {
+        tenantId: input.tenantId,
+        actor: 'system',
+        actorKind: 'system',
+        action: 'conversation.sender_changed',
+        resource: 'conversation',
+        resourceId: conversation.id,
+        result: 'success',
+        requestId: input.requestId,
+        metadata: { channel, from: cuentaAnterior, to: input.channelAccountId },
+      });
+    }
     if (conversation.state === 'resolved' || conversation.state === 'snoozed') {
       // Con dueño vuelve a sus manos; sin dueño, a la cola. La disponibilidad
       // real del dueño (horarios) llega con la asignación automática (#38).
