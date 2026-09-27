@@ -1,4 +1,4 @@
-import type { PoolClient } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
 import { hashQuery, toVectorLiteral } from '../domain/chunking';
 import type { EmbedPort } from './embeddings';
 import { nvidiaEmbedPort } from './embeddings';
@@ -80,10 +80,16 @@ const SQL_PASAJES = `SELECT c.content, c.question, s.id AS source_id, s.name AS 
  * negocio y no a la tabla, y es precisamente el caso del negocio chico: el que
  * menos pasajes tiene y el que más se estaba quedando sin ellos.
  *
- * Los `SET LOCAL` mueren con la transacción, y acá siempre hay una: todo
- * llamador entra por `withTenant`, que es de donde sale `app.tenant_id` para
- * RLS. Un pgvector anterior a 0.8 no conoce el parámetro y lo deja como
- * marcador sin efecto; la red de seguridad sigue devolviendo lo correcto.
+ * Los dos parámetros se devuelven a su valor al salir, y eso NO es adorno: el
+ * `SET LOCAL` muere con la transacción, pero la transacción no es de esta
+ * función — es la del llamador (`withTenant`, compartida con toda la corrida
+ * del agente). Sin el `RESET`, cualquier consulta vectorial posterior de esa
+ * misma corrida hereda `relaxed_order` sin haberlo pedido, y ahí el
+ * comportamiento de un módulo pasa a depender de si otro buscó antes. Es la
+ * clase de fuga que este repo ya paga en otros lados; acá se cierra.
+ *
+ * Un pgvector anterior a 0.8 no conoce el parámetro y lo deja como marcador sin
+ * efecto; la red de seguridad sigue devolviendo lo correcto.
  */
 async function pasajesDelTenant(
   client: PoolClient,
@@ -92,16 +98,22 @@ async function pasajesDelTenant(
   k: number,
 ): Promise<KnowledgeHit[]> {
   await client.query("SET LOCAL hnsw.iterative_scan = 'relaxed_order'");
-  let filas = (await client.query(SQL_PASAJES, [tenantId, vector, k])).rows;
-  if (filas.length < k) {
-    await client.query('SET LOCAL enable_indexscan = off');
-    try {
-      filas = (await client.query(SQL_PASAJES, [tenantId, vector, k])).rows;
-    } finally {
-      // Solo para esta consulta: la transacción sigue y el resto del trabajo
-      // del copiloto necesita sus índices.
-      await client.query('RESET enable_indexscan');
+  let filas: QueryResultRow[];
+  try {
+    filas = (await client.query(SQL_PASAJES, [tenantId, vector, k])).rows;
+    if (filas.length < k) {
+      await client.query('SET LOCAL enable_indexscan = off');
+      try {
+        filas = (await client.query(SQL_PASAJES, [tenantId, vector, k])).rows;
+      } finally {
+        // Solo para esta consulta: la transacción sigue y el resto del trabajo
+        // del copiloto necesita sus índices.
+        await client.query('RESET enable_indexscan');
+      }
     }
+  } finally {
+    // Lo mismo, y por el mismo motivo: la transacción es del llamador.
+    await client.query('RESET hnsw.iterative_scan');
   }
   return filas
     .map((row) => ({
