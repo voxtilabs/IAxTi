@@ -1,7 +1,8 @@
 import './instrument';
 import { createServer } from 'node:http';
 import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
-import { DelayedError } from 'bullmq';
+import { DelayedError, type Worker } from 'bullmq';
+import { alApagar, instalarApagadoOrdenado } from '@iaxti/telemetry';
 import {
   ModuleRegistry,
   OutboxDispatcher,
@@ -15,6 +16,7 @@ import {
   enteroDeEntorno,
   versionDelBuild,
 } from '@iaxti/core';
+import { sinSolaparse, candadoEnRedis } from './sin-solaparse';
 import { processInbound, type InboundJob } from './inbound';
 
 /**
@@ -34,7 +36,7 @@ function bajarDelNegocio(tenantId: string) {
     return new Uint8Array(await res.arrayBuffer());
   };
 }
-import { DelayUntilError, processOutbound } from './outbound';
+import { DelayUntilError, cerrarEnvioAbandonado, processOutbound } from './outbound';
 import { createOutboundPublisher, outboundRequestConsumers } from './outbound-dispatch';
 import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
@@ -157,307 +159,348 @@ function start(): void {
   void applyModuleFlags(pool, registry).catch(() => {});
   setInterval(() => void applyModuleFlags(pool, registry).catch(() => {}), 60_000).unref?.();
 
+  // Los workers que hay que drenar al recibir SIGTERM. Se registran todos al
+  // final de esta función, en el orden en que deben cerrarse.
+  const trabajadores: Array<{ nombre: string; worker: Worker }> = [];
+
   if (process.env.REDIS_URL) {
     const scheduled = createQueue('scheduled', redisConnection());
     const redisScheduled = redisConnection();
-    createModuleWorker(
-      'scheduled',
-      registry,
-      async (job) => {
-        switch (job.name) {
-          case 'conversations.checks': {
-            const res = await sweepConversationAlerts(pool);
-            if (res.unattended || res.breached) {
-              console.log(
-                `scheduled: alertas de bandeja — ${res.unattended} sin dueño, ${res.breached} SLA vencido (${res.tenants} tenants)`,
-              );
-            }
-            return res;
+    /**
+     * Lo que ya está corriendo, por job y por negocio.
+     *
+     * La concurrencia de abajo es lo que arregla que un barrido lento atrase a
+     * todos los demás, pero abre una puerta que con concurrencia 1 estaba
+     * cerrada: BullMQ programa la siguiente pasada de un repetible cuando la
+     * anterior ARRANCA, así que una pasada que tarda más que su intervalo se
+     * pisaría con la siguiente. Dos `calendar.reminders` a la vez mandan el
+     * mismo recordatorio dos veces, que es exactamente lo que esta rama viene
+     * a evitar.
+     *
+     * La llave incluye el tenant porque los hijos por negocio (`*.tenant`)
+     * comparten nombre y SÍ deben correr en paralelo: ese paralelismo es el
+     * sentido del patrón padre/hijo del §39. Los repetibles no traen tenant, así
+     * que su llave es el nombre solo y nunca se solapan consigo mismos.
+     */
+    const correrProgramado = async (job: { name: string; data: unknown }): Promise<unknown> => {
+      switch (job.name) {
+        case 'conversations.checks': {
+          const res = await sweepConversationAlerts(pool);
+          if (res.unattended || res.breached) {
+            console.log(
+              `scheduled: alertas de bandeja — ${res.unattended} sin dueño, ${res.breached} SLA vencido (${res.tenants} tenants)`,
+            );
           }
-          case 'crm.activities_due': {
-            const res = await sweepDueActivities(pool);
-            if (res.due) console.log(`scheduled: ${res.due} actividades vencidas avisadas`);
-            return res;
+          return res;
+        }
+        case 'crm.activities_due': {
+          const res = await sweepDueActivities(pool);
+          if (res.due) console.log(`scheduled: ${res.due} actividades vencidas avisadas`);
+          return res;
+        }
+        /**
+         * Oportunidades estancadas (#529).
+         *
+         * `markStalledDeals` existía, su comentario decía «lo llama el job
+         * programado de workers», y este job no existía. Así que
+         * `deals.stalled` nunca se ponía en true: la insignia «Estancada»
+         * no aparecía nunca en el tablero, el widget del inicio mostraba
+         * siempre cero detenidas, y el evento `deal.stalled` —declarado en
+         * el manifiesto de crm— no se publicaba jamás.
+         *
+         * Una vez al día y no cada minuto: «lleva más días de los
+         * esperados en su etapa» cambia de estado una vez por día, y el
+         * UPDATE recorre las oportunidades abiertas de cada negocio. A las
+         * 07:00 de Santiago, para que quien abre la mañana ya lo vea.
+         */
+        case 'crm.stalled': {
+          const negocios = await tenantsWithExpirable(pool);
+          let marcadas = 0;
+          for (const tenantId of negocios) {
+            const ids = await withTenant(pool, tenantId, (c) =>
+              markStalledDeals(c, tenantId, 'scheduled'),
+            );
+            marcadas += ids.length;
+          }
+          if (marcadas > 0) console.log(`scheduled: ${marcadas} oportunidades estancadas`);
+          return { marcadas };
+        }
+        // Patrón §39: padre encola un hijo por tenant.
+        case 'conversations.auto_resolve':
+          return { tenants: await enqueueTenantChildren(pool, scheduled, 'conversations.auto_resolve') };
+        case 'conversations.archive':
+          return { tenants: await enqueueTenantChildren(pool, scheduled, 'conversations.archive') };
+        case 'conversations.auto_resolve.tenant':
+          return runAutoResolveTenant(pool, (job.data as { tenantId: string }).tenantId);
+        case 'conversations.archive.tenant':
+          return runArchiveTenant(pool, (job.data as { tenantId: string }).tenantId);
+        // Retención por plan (#77): padre → hijo por tenant activo con
+        // retención finita; R2 se borra TRAS el commit, idempotente.
+        case 'conversations.retention': {
+          const ids = await tenantsWithRetention(pool);
+          for (const tenantId of ids) {
+            await scheduled.add('conversations.retention.tenant', { moduleId: 'conversations', tenantId });
+          }
+          return { tenants: ids.length };
+        }
+        case 'conversations.retention.tenant': {
+          const res = await purgeTenantRetention(pool, (job.data as { tenantId: string }).tenantId);
+          if (!res) return { purged: 0 };
+          const storage = storageFromEnv();
+          const r2 = storage ? await deleteR2Keys(storage, res.r2Keys) : { deleted: 0, failed: res.r2Keys.length };
+          console.log(`retention: ${res.purged} conversaciones purgadas (corte ${res.cutoff}, ${r2.deleted} adjuntos R2)`);
+          return { purged: res.purged, r2 };
+        }
+        // El barrido de tiempo del motor (#62): "2 días en etapa",
+        // "sin respuesta hace 24 h" — dedupe por objeto y día.
+        case 'automations.sweep': {
+          const n = await sweepTimeRules(pool, automationDeps);
+          const pasos = await sweepSequences(pool, automationDeps);
+          if (n + pasos > 0) console.log(`scheduled: ${n} reglas y ${pasos} pasos de secuencia`);
+          return { ran: n, steps: pasos };
+        }
+        // Plantillas colgadas (#44): si se perdió el webhook de Meta, la
+        // plantilla se queda "en revisión" para siempre. Se pregunta.
+        case 'whatsapp.templates.sync': {
+          const r = await sincronizarPlantillas(pool);
+          if (r.cambiadas > 0) console.log(`plantillas: ${r.cambiadas} resueltas de ${r.revisadas} en revisión`);
+          return r;
+        }
+        // Muestras de primera respuesta (#66): mediana/p90 sin barrer en vivo.
+        case 'analytics.response_samples': {
+          const n = await sweepResponseSamples(pool);
+          if (n > 0) console.log(`scheduled: ${n} muestras de primera respuesta`);
+          return { sampled: n };
+        }
+        // El consumo de API (#26): de Redis a usage_meters/daily_metrics.
+        // Las llaves de idempotencia viven 24 h (SPEC §28): pasado eso,
+        // el mismo pedido vuelve a ser un pedido nuevo.
+        case 'idempotency.sweep': {
+          const tenants = await pool.query("SELECT id FROM tenants WHERE state <> 'deleted'");
+          let borradas = 0;
+          for (const fila of tenants.rows) {
+            borradas += await withTenant(pool, fila.id as string, (c) => limpiarLlavesVencidas(c));
+          }
+          if (borradas > 0) console.log(`scheduled: ${borradas} llaves de idempotencia vencidas`);
+          return { borradas };
+        }
+        // Recordatorios de cita (#59): 24 h y 2 h antes, por plantilla.
+        // El horario de silencio lo aplica la cola, no esto.
+        //
+        // Esto estuvo cableado con `disponible: () => false` desde que se
+        // escribió: el barrido corría cada vez y no mandaba nada. El
+        // motivo era cierto cuando se escribió —hacía falta la plantilla
+        // aprobada (#44) y el número conectado— y dejó de serlo sin que
+        // nadie volviera a mirar.
+        case 'calendar.reminders': {
+          const res = await barrerRecordatorios(pool, {
+            // Del AMBIENTE: sin llave del proveedor no sale nada de nada.
+            disponible: () => Boolean(process.env.ZAVU_API_KEY),
+            // Del NEGOCIO: la plantilla del recordatorio es suya. Sin
+            // ella, sus citas no se tocan — marcarlas `reminded` sin
+            // mandar nada es peor que no marcarlas, porque `reminded` se
+            // lee como "al cliente ya se le avisó".
+            disponibleParaTenant: (tenantId) =>
+              withTenant(pool, tenantId, async (c) => {
+                const cfg = configuracionDeAvisos(await getTenantSettings(c, tenantId));
+                if (!cfg.activo) return false;
+                // `connectedAt` es lo que dice que el número está: el
+                // registro existe desde que se empieza a conectar.
+                const numeros = await listWhatsAppNumbers(c, tenantId);
+                return numeros.some((n) => n.connectedAt !== null);
+              }),
+            enviar: (cita) =>
+              withTenant(pool, cita.tenantId, async (c) => {
+                const cfg = configuracionDeAvisos(await getTenantSettings(c, cita.tenantId));
+                const templateId = cfg.plantillas[cita.aviso];
+                // Un negocio puede querer solo el de 2 h. No es un fallo.
+                if (!templateId) return { enviado: false, motivo: `sin plantilla para el aviso de ${cita.aviso}` };
+                if (!cita.conversationId) {
+                  return { enviado: false, motivo: 'la cita no tiene conversación por dónde avisar' };
+                }
+                const plantilla = await getTemplate(c, cita.tenantId, templateId).catch(() => null);
+                if (!plantilla) return { enviado: false, motivo: 'la plantilla configurada ya no existe' };
+                if (plantilla.status !== 'approved') {
+                  return { enviado: false, motivo: `la plantilla está ${plantilla.status}` };
+                }
+                const persona = await c.query(
+                  'SELECT name FROM contacts WHERE tenant_id = $1 AND id = $2',
+                  [cita.tenantId, cita.contactId],
+                );
+                await enviarPlantilla(
+                  c,
+                  {
+                    tenantId: cita.tenantId,
+                    conversationId: cita.conversationId,
+                    templateId,
+                    valores: valoresDelAviso({
+                      nombre: persona.rows[0]?.name ?? null,
+                      cuando: cita.startsAt,
+                      zona: cfg.zona,
+                      variables: plantilla.variables,
+                    }),
+                    requestId: `recordatorio-${cita.appointmentId}-${cita.aviso}`,
+                  },
+                  {
+                    contactoDe: async () => cita.contactId,
+                    puedeIniciar: () =>
+                      canReceiveBusinessInitiated(c, cita.tenantId, cita.contactId),
+                    crearMensaje: (m) =>
+                      sendMessage(c, {
+                        tenantId: m.tenantId,
+                        conversationId: m.conversationId,
+                        authorKind: 'system',
+                        type: 'texto',
+                        body: m.body,
+                        // `business`: la cola le aplica el horario de
+                        // silencio y la ventana. Acá no se repite.
+                        delivery: 'business',
+                        requestId: m.requestId,
+                      }),
+                  },
+                );
+                return { enviado: true };
+              }).catch((error: Error) => ({ enviado: false, motivo: error.message })),
+          });
+          if (res.enviados + res.saltados + res.sinConfigurar > 0) {
+            console.log(
+              `scheduled: recordatorios ${res.enviados} enviados, ${res.saltados} sin salir, ` +
+                `${res.sinConfigurar} de negocios sin recordatorio configurado`,
+            );
+          }
+          return res;
+        }
+        case 'api_usage.flush': {
+          const n = await flushApiUsage(pool, redisScheduled);
+          if (n > 0) console.log(`scheduled: ${n} contadores de API volcados`);
+          return { flushed: n };
+        }
+        // Entregas de webhooks (#76): firma, backoff y apagado con aviso.
+        case 'webhooks.deliver': {
+          const res = await deliverWebhooks(pool);
+          if (res.delivered + res.failed > 0) {
+            console.log(`scheduled: webhooks — ${res.delivered} entregados, ${res.failed} con reintento`);
+          }
+          return res;
+        }
+        // El ciclo de cobro (#67): facturas, impagos y estados del tenant.
+        case 'billing.sweep': {
+          const res = await sweepBilling(pool);
+          if (res.issued + res.overdue + res.readOnly > 0) {
+            console.log(`scheduled: billing — ${res.issued} facturas, ${res.overdue} impagas, ${res.readOnly} read_only`);
           }
           /**
-           * Oportunidades estancadas (#529).
+           * El final del ciclo (#218): el sistema avisa, una persona borra.
+           * Nunca se borra solo — es irreversible y se lleva datos de los
+           * clientes de nuestro cliente.
            *
-           * `markStalledDeals` existía, su comentario decía «lo llama el job
-           * programado de workers», y este job no existía. Así que
-           * `deals.stalled` nunca se ponía en true: la insignia «Estancada»
-           * no aparecía nunca en el tablero, el widget del inicio mostraba
-           * siempre cero detenidas, y el evento `deal.stalled` —declarado en
-           * el manifiesto de crm— no se publicaba jamás.
+           * Esto vivía DENTRO del `if` del log de arriba (#542), o sea que
+           * solo corría los días en que algún negocio facturó, cayó en mora o
+           * pasó a solo lectura. En un despliegue chico —el primer año— hay
+           * días enteros en que esos tres contadores son cero, y entonces el
+           * aviso no salía: `deletion_warned_at` se quedaba en NULL para
+           * siempre. La cola del SuperAdmin mostraba la fila como «sin
+           * avisar» y a los 90 días igual la marcaba «cumple el plazo».
            *
-           * Una vez al día y no cada minuto: «lleva más días de los
-           * esperados en su etapa» cambia de estado una vez por día, y el
-           * UPDATE recorre las oportunidades abiertas de cada negocio. A las
-           * 07:00 de Santiago, para que quien abre la mañana ya lo vea.
+           * El aviso es un PASO del barrido, no un detalle del log.
            */
-          case 'crm.stalled': {
-            const negocios = await tenantsWithExpirable(pool);
-            let marcadas = 0;
-            for (const tenantId of negocios) {
-              const ids = await withTenant(pool, tenantId, (c) =>
-                markStalledDeals(c, tenantId, 'scheduled'),
-              );
-              marcadas += ids.length;
-            }
-            if (marcadas > 0) console.log(`scheduled: ${marcadas} oportunidades estancadas`);
-            return { marcadas };
+          const cola = await avisarBorradoPendiente(pool);
+          if (cola.avisados > 0 || cola.enCola > 0) {
+            console.log(
+              `scheduled: borrado — ${cola.avisados} avisados, ${cola.enCola} esperando decisión del SuperAdmin`,
+            );
           }
-          // Patrón §39: padre encola un hijo por tenant.
-          case 'conversations.auto_resolve':
-            return { tenants: await enqueueTenantChildren(pool, scheduled, 'conversations.auto_resolve') };
-          case 'conversations.archive':
-            return { tenants: await enqueueTenantChildren(pool, scheduled, 'conversations.archive') };
-          case 'conversations.auto_resolve.tenant':
-            return runAutoResolveTenant(pool, (job.data as { tenantId: string }).tenantId);
-          case 'conversations.archive.tenant':
-            return runArchiveTenant(pool, (job.data as { tenantId: string }).tenantId);
-          // Retención por plan (#77): padre → hijo por tenant activo con
-          // retención finita; R2 se borra TRAS el commit, idempotente.
-          case 'conversations.retention': {
-            const ids = await tenantsWithRetention(pool);
-            for (const tenantId of ids) {
-              await scheduled.add('conversations.retention.tenant', { moduleId: 'conversations', tenantId });
-            }
-            return { tenants: ids.length };
-          }
-          case 'conversations.retention.tenant': {
-            const res = await purgeTenantRetention(pool, (job.data as { tenantId: string }).tenantId);
-            if (!res) return { purged: 0 };
-            const storage = storageFromEnv();
-            const r2 = storage ? await deleteR2Keys(storage, res.r2Keys) : { deleted: 0, failed: res.r2Keys.length };
-            console.log(`retention: ${res.purged} conversaciones purgadas (corte ${res.cutoff}, ${r2.deleted} adjuntos R2)`);
-            return { purged: res.purged, r2 };
-          }
-          // El barrido de tiempo del motor (#62): "2 días en etapa",
-          // "sin respuesta hace 24 h" — dedupe por objeto y día.
-          case 'automations.sweep': {
-            const n = await sweepTimeRules(pool, automationDeps);
-            const pasos = await sweepSequences(pool, automationDeps);
-            if (n + pasos > 0) console.log(`scheduled: ${n} reglas y ${pasos} pasos de secuencia`);
-            return { ran: n, steps: pasos };
-          }
-          // Plantillas colgadas (#44): si se perdió el webhook de Meta, la
-          // plantilla se queda "en revisión" para siempre. Se pregunta.
-          case 'whatsapp.templates.sync': {
-            const r = await sincronizarPlantillas(pool);
-            if (r.cambiadas > 0) console.log(`plantillas: ${r.cambiadas} resueltas de ${r.revisadas} en revisión`);
-            return r;
-          }
-          // Muestras de primera respuesta (#66): mediana/p90 sin barrer en vivo.
-          case 'analytics.response_samples': {
-            const n = await sweepResponseSamples(pool);
-            if (n > 0) console.log(`scheduled: ${n} muestras de primera respuesta`);
-            return { sampled: n };
-          }
-          // El consumo de API (#26): de Redis a usage_meters/daily_metrics.
-          // Las llaves de idempotencia viven 24 h (SPEC §28): pasado eso,
-          // el mismo pedido vuelve a ser un pedido nuevo.
-          case 'idempotency.sweep': {
-            const tenants = await pool.query("SELECT id FROM tenants WHERE state <> 'deleted'");
-            let borradas = 0;
-            for (const fila of tenants.rows) {
-              borradas += await withTenant(pool, fila.id as string, (c) => limpiarLlavesVencidas(c));
-            }
-            if (borradas > 0) console.log(`scheduled: ${borradas} llaves de idempotencia vencidas`);
-            return { borradas };
-          }
-          // Recordatorios de cita (#59): 24 h y 2 h antes, por plantilla.
-          // El horario de silencio lo aplica la cola, no esto.
-          //
-          // Esto estuvo cableado con `disponible: () => false` desde que se
-          // escribió: el barrido corría cada vez y no mandaba nada. El
-          // motivo era cierto cuando se escribió —hacía falta la plantilla
-          // aprobada (#44) y el número conectado— y dejó de serlo sin que
-          // nadie volviera a mirar.
-          case 'calendar.reminders': {
-            const res = await barrerRecordatorios(pool, {
-              // Del AMBIENTE: sin llave del proveedor no sale nada de nada.
-              disponible: () => Boolean(process.env.ZAVU_API_KEY),
-              // Del NEGOCIO: la plantilla del recordatorio es suya. Sin
-              // ella, sus citas no se tocan — marcarlas `reminded` sin
-              // mandar nada es peor que no marcarlas, porque `reminded` se
-              // lee como "al cliente ya se le avisó".
-              disponibleParaTenant: (tenantId) =>
-                withTenant(pool, tenantId, async (c) => {
-                  const cfg = configuracionDeAvisos(await getTenantSettings(c, tenantId));
-                  if (!cfg.activo) return false;
-                  // `connectedAt` es lo que dice que el número está: el
-                  // registro existe desde que se empieza a conectar.
-                  const numeros = await listWhatsAppNumbers(c, tenantId);
-                  return numeros.some((n) => n.connectedAt !== null);
-                }),
-              enviar: (cita) =>
-                withTenant(pool, cita.tenantId, async (c) => {
-                  const cfg = configuracionDeAvisos(await getTenantSettings(c, cita.tenantId));
-                  const templateId = cfg.plantillas[cita.aviso];
-                  // Un negocio puede querer solo el de 2 h. No es un fallo.
-                  if (!templateId) return { enviado: false, motivo: `sin plantilla para el aviso de ${cita.aviso}` };
-                  if (!cita.conversationId) {
-                    return { enviado: false, motivo: 'la cita no tiene conversación por dónde avisar' };
-                  }
-                  const plantilla = await getTemplate(c, cita.tenantId, templateId).catch(() => null);
-                  if (!plantilla) return { enviado: false, motivo: 'la plantilla configurada ya no existe' };
-                  if (plantilla.status !== 'approved') {
-                    return { enviado: false, motivo: `la plantilla está ${plantilla.status}` };
-                  }
-                  const persona = await c.query(
-                    'SELECT name FROM contacts WHERE tenant_id = $1 AND id = $2',
-                    [cita.tenantId, cita.contactId],
-                  );
-                  await enviarPlantilla(
-                    c,
-                    {
-                      tenantId: cita.tenantId,
-                      conversationId: cita.conversationId,
-                      templateId,
-                      valores: valoresDelAviso({
-                        nombre: persona.rows[0]?.name ?? null,
-                        cuando: cita.startsAt,
-                        zona: cfg.zona,
-                        variables: plantilla.variables,
-                      }),
-                      requestId: `recordatorio-${cita.appointmentId}-${cita.aviso}`,
-                    },
-                    {
-                      contactoDe: async () => cita.contactId,
-                      puedeIniciar: () =>
-                        canReceiveBusinessInitiated(c, cita.tenantId, cita.contactId),
-                      crearMensaje: (m) =>
-                        sendMessage(c, {
-                          tenantId: m.tenantId,
-                          conversationId: m.conversationId,
-                          authorKind: 'system',
-                          type: 'texto',
-                          body: m.body,
-                          // `business`: la cola le aplica el horario de
-                          // silencio y la ventana. Acá no se repite.
-                          delivery: 'business',
-                          requestId: m.requestId,
-                        }),
-                    },
-                  );
-                  return { enviado: true };
-                }).catch((error: Error) => ({ enviado: false, motivo: error.message })),
-            });
-            if (res.enviados + res.saltados + res.sinConfigurar > 0) {
-              console.log(
-                `scheduled: recordatorios ${res.enviados} enviados, ${res.saltados} sin salir, ` +
-                  `${res.sinConfigurar} de negocios sin recordatorio configurado`,
-              );
-            }
-            return res;
-          }
-          case 'api_usage.flush': {
-            const n = await flushApiUsage(pool, redisScheduled);
-            if (n > 0) console.log(`scheduled: ${n} contadores de API volcados`);
-            return { flushed: n };
-          }
-          // Entregas de webhooks (#76): firma, backoff y apagado con aviso.
-          case 'webhooks.deliver': {
-            const res = await deliverWebhooks(pool);
-            if (res.delivered + res.failed > 0) {
-              console.log(`scheduled: webhooks — ${res.delivered} entregados, ${res.failed} con reintento`);
-            }
-            return res;
-          }
-          // El ciclo de cobro (#67): facturas, impagos y estados del tenant.
-          case 'billing.sweep': {
-            const res = await sweepBilling(pool);
-            if (res.issued + res.overdue + res.readOnly > 0) {
-              console.log(`scheduled: billing — ${res.issued} facturas, ${res.overdue} impagas, ${res.readOnly} read_only`);
-            }
-            /**
-             * El final del ciclo (#218): el sistema avisa, una persona borra.
-             * Nunca se borra solo — es irreversible y se lleva datos de los
-             * clientes de nuestro cliente.
-             *
-             * Esto vivía DENTRO del `if` del log de arriba (#542), o sea que
-             * solo corría los días en que algún negocio facturó, cayó en mora o
-             * pasó a solo lectura. En un despliegue chico —el primer año— hay
-             * días enteros en que esos tres contadores son cero, y entonces el
-             * aviso no salía: `deletion_warned_at` se quedaba en NULL para
-             * siempre. La cola del SuperAdmin mostraba la fila como «sin
-             * avisar» y a los 90 días igual la marcaba «cumple el plazo».
-             *
-             * El aviso es un PASO del barrido, no un detalle del log.
-             */
-            const cola = await avisarBorradoPendiente(pool);
-            if (cola.avisados > 0 || cola.enCola > 0) {
-              console.log(
-                `scheduled: borrado — ${cola.avisados} avisados, ${cola.enCola} esperando decisión del SuperAdmin`,
-              );
-            }
-            return res;
-          }
-          // Links vencidos (#60): created/sent con la fecha pasada.
-          case 'payments.expire': {
-            const conVencibles = await tenantsWithExpirableLinks(pool);
-            let total = 0;
-            for (const tenantId of conVencibles) {
-              total += await withTenant(pool, tenantId, (c) => expireLinks(c, tenantId));
-            }
-            if (total > 0) console.log(`scheduled: ${total} links de pago vencidos`);
-            return { expired: total };
-          }
-          // Vigencias del conocimiento (#51): vencida, la IA la ignora y avisa.
-          case 'knowledge.expire': {
-            const conVencibles = await tenantsWithExpirable(pool);
-            let total = 0;
-            for (const tenantId of conVencibles) {
-              total += await withTenant(pool, tenantId, (c) => expireSources(c, tenantId));
-            }
-            if (total > 0) console.log(`scheduled: ${total} fuentes de conocimiento vencidas`);
-            return { expired: total };
-          }
-          // Reindexación del conocimiento (#502): al cambiar de modelo de
-          // embeddings los vectores viejos no sirven, y las fuentes quedan en
-          // 'processing'. Esto es lo que las vuelve a dejar contestando.
-          case 'knowledge.reindex': {
-            if (!embeddingsAvailable()) {
-              // Sin llave no hay nada que reintentar y las fuentes se quedan
-              // en 'processing', que es la verdad. Lo decimos una vez por
-              // pasada en vez de llenar el log de intentos.
-              console.log('scheduled: reindexación en espera — falta GLM_API_KEY');
-              return { skipped: true };
-            }
-            // Los negocios salen de `tenants`, que no filtra por tenant; lo
-            // que toca `sources` corre adentro de withTenant. Barrerlos todos
-            // de una consulta suelta funcionaría hoy sólo porque el rol es
-            // superusuario, y se quedaría en cero el día que deje de serlo
-            // (#370). Mismo patrón que el barrido de vigencias.
-            const negocios = await tenantsWithExpirable(pool);
-            let listas = 0;
-            let fallidas = 0;
-            let quedanMas = false;
-            for (const tenantId of negocios) {
-              const r = await withTenant(pool, tenantId, (c) =>
-                // Con `bajarArchivo`, un PDF también se reindexa: su archivo
-                // sigue guardado y hasta #522 nadie lo leía, así que una
-                // fuente PDF se quedaba en 'processing' para siempre.
-                reindexarPendientes(c, tenantId, { bajarArchivo: bajarDelNegocio(tenantId) }),
-              );
-              listas += r.listas;
-              fallidas += r.fallidas;
-              quedanMas = quedanMas || r.quedanMas;
-            }
-            if (listas + fallidas > 0) {
-              console.log(
-                `scheduled: reindexación — ${listas} fuentes listas, ${fallidas} fallidas${quedanMas ? ', quedan más' : ''}`,
-              );
-            }
-            return { listas, fallidas, quedanMas };
-          }
-          default:
-            console.log(`scheduled: job ${job.name} procesado`);
-            return { ok: true };
+          return res;
         }
-      },
+        // Links vencidos (#60): created/sent con la fecha pasada.
+        case 'payments.expire': {
+          const conVencibles = await tenantsWithExpirableLinks(pool);
+          let total = 0;
+          for (const tenantId of conVencibles) {
+            total += await withTenant(pool, tenantId, (c) => expireLinks(c, tenantId));
+          }
+          if (total > 0) console.log(`scheduled: ${total} links de pago vencidos`);
+          return { expired: total };
+        }
+        // Vigencias del conocimiento (#51): vencida, la IA la ignora y avisa.
+        case 'knowledge.expire': {
+          const conVencibles = await tenantsWithExpirable(pool);
+          let total = 0;
+          for (const tenantId of conVencibles) {
+            total += await withTenant(pool, tenantId, (c) => expireSources(c, tenantId));
+          }
+          if (total > 0) console.log(`scheduled: ${total} fuentes de conocimiento vencidas`);
+          return { expired: total };
+        }
+        // Reindexación del conocimiento (#502): al cambiar de modelo de
+        // embeddings los vectores viejos no sirven, y las fuentes quedan en
+        // 'processing'. Esto es lo que las vuelve a dejar contestando.
+        case 'knowledge.reindex': {
+          if (!embeddingsAvailable()) {
+            // Sin llave no hay nada que reintentar y las fuentes se quedan
+            // en 'processing', que es la verdad. Lo decimos una vez por
+            // pasada en vez de llenar el log de intentos.
+            console.log('scheduled: reindexación en espera — falta GLM_API_KEY');
+            return { skipped: true };
+          }
+          // Los negocios salen de `tenants`, que no filtra por tenant; lo
+          // que toca `sources` corre adentro de withTenant. Barrerlos todos
+          // de una consulta suelta funcionaría hoy sólo porque el rol es
+          // superusuario, y se quedaría en cero el día que deje de serlo
+          // (#370). Mismo patrón que el barrido de vigencias.
+          const negocios = await tenantsWithExpirable(pool);
+          let listas = 0;
+          let fallidas = 0;
+          let quedanMas = false;
+          for (const tenantId of negocios) {
+            const r = await withTenant(pool, tenantId, (c) =>
+              // Con `bajarArchivo`, un PDF también se reindexa: su archivo
+              // sigue guardado y hasta #522 nadie lo leía, así que una
+              // fuente PDF se quedaba en 'processing' para siempre.
+              reindexarPendientes(c, tenantId, { bajarArchivo: bajarDelNegocio(tenantId) }),
+            );
+            listas += r.listas;
+            fallidas += r.fallidas;
+            quedanMas = quedanMas || r.quedanMas;
+          }
+          if (listas + fallidas > 0) {
+            console.log(
+              `scheduled: reindexación — ${listas} fuentes listas, ${fallidas} fallidas${quedanMas ? ', quedan más' : ''}`,
+            );
+          }
+          return { listas, fallidas, quedanMas };
+        }
+        default:
+          console.log(`scheduled: job ${job.name} procesado`);
+          return { ok: true };
+      }
+    };
+    // El guardián vive en `sin-solaparse.ts` y no acá: así se puede llamar dos
+    // veces a la vez en una prueba y ver qué pasa, que es la única forma de
+    // saber si sirve. Su primera prueba hacía grep de ESTE archivo y pasaba con
+    // el mecanismo vaciado.
+    const scheduledWorker = createModuleWorker(
+      'scheduled',
+      registry,
+      sinSolaparse(correrProgramado, candadoEnRedis(redisScheduled)),
       redisConnection(),
     );
+    /**
+     * Los barridos corren en paralelo.
+     *
+     * El worker de BullMQ nace con concurrencia 1, así que la cola `scheduled`
+     * era una fila india: los repetibles «cada minuto» —las alertas de bandeja,
+     * las actividades vencidas, las entregas de webhooks— no eran cada minuto,
+     * porque uno solo lento los atrasaba a TODOS. Y los lentos existen y son
+     * los de siempre: `knowledge.reindex` llama al proveedor de embeddings una
+     * vez por fuente, `conversations.retention` recorre negocio por negocio.
+     *
+     * Se pone acá y no en `createModuleWorker` porque es una decisión de ESTA
+     * cola: `outbound` tiene su propio criterio, y ahí el paralelismo cambiaría
+     * el orden en que llegan los mensajes de una conversación.
+     */
+    scheduledWorker.concurrency = enteroDeEntorno('WORKERS_SCHEDULED_CONCURRENCY', 5);
+    trabajadores.push({ nombre: 'cola scheduled', worker: scheduledWorker });
     // Repetibles (§39, zona America/Santiago): avisos cada minuto, cierre
     // automático cada hora, archivo diario a las 03:00. add repetido con la
     // misma pauta es idempotente entre reinicios.
@@ -553,7 +596,7 @@ function start(): void {
     // El camino de entrada de mensajes (#35/#36): simulador y WhatsApp por
     // la misma cola. Los estados de entrega del webhook llegan aquí también.
     const agentsQueue = createQueue('agents', redisConnection());
-    createModuleWorker(
+    const inboundWorker = createModuleWorker(
       'inbound',
       registry,
       async (job) => {
@@ -593,6 +636,7 @@ function start(): void {
       },
       redisConnection(),
     );
+    trabajadores.push({ nombre: 'cola inbound', worker: inboundWorker });
     console.log('workers: worker de cola inbound activo');
 
     // La cola `agents` (#48/#49) la consume el PROCESO de agents (#443).
@@ -604,7 +648,7 @@ function start(): void {
     // La salida de WhatsApp (#43): rate limit por número, backoff de BullMQ,
     // silencio del tenant para lo iniciado por el negocio.
     const redisOutbound = redisConnection();
-    createModuleWorker(
+    const outboundWorker = createModuleWorker(
       'outbound',
       registry,
       async (job, token) => {
@@ -622,10 +666,49 @@ function start(): void {
       redisConnection(),
       { disabled: 'delay' },
     );
+    /**
+     * Cuando la cola se da por vencida, el mensaje deja de decir «enviando».
+     *
+     * `processOutbound` cierra la fila en los caminos que conoce, pero el job
+     * puede morir por fuera de ellos —la base que no responde, R2 que no firma
+     * el adjunto, un rate limit en el último intento— y ahí nadie tocaba nada:
+     * la fila se quedaba en `queued` para siempre y el vendedor veía «enviando»
+     * meses después.
+     *
+     * Acá y no dentro del procesador porque este evento es el ÚNICO lugar donde
+     * se sabe que la cola no va a reintentar más. Un `DelayUntilError` no llega
+     * hasta acá: BullMQ lo convierte en `DelayedError` y no emite `failed`, así
+     * que el horario de silencio sigue difiriendo sin marcar nada.
+     */
+    outboundWorker.on('failed', (job, err) => {
+      void cerrarEnvioAbandonado(pool, job, err);
+    });
+    trabajadores.push({ nombre: 'cola outbound', worker: outboundWorker });
     console.log('workers: worker de cola outbound activo');
   } else {
     console.log('workers: sin REDIS_URL; colas BullMQ esperan configuración');
   }
+
+  /**
+   * El apagado ordenado (SIGTERM), en el orden en que hay que cerrar.
+   *
+   * Primero se deja de PRODUCIR trabajo (el despachador del outbox), después se
+   * drena lo que ya está en vuelo (`worker.close()` espera a que el job en
+   * ejecución termine), y al final se cierra aquello de lo que ambos dependen.
+   *
+   * Sin esto, cada despliegue mataba los workers a mitad de job. BullMQ es
+   * at-least-once: el job que muere en ejecución se vuelve a tomar, así que un
+   * WhatsApp que ya se había entregado al proveedor salía DE NUEVO —el cliente
+   * lo recibía dos veces y se pagaba dos veces— cada vez que desplegábamos.
+   */
+  alApagar('despachador de outbox', () => dispatcher.stop());
+  for (const { nombre, worker } of trabajadores) {
+    alApagar(nombre, () => worker.close());
+  }
+  alApagar('publicador de salientes', () => outboundPublisher.close());
+  // La base al final: los workers y el despachador la usan mientras drenan.
+  alApagar('base de datos', () => pool.end());
+
   consumersStarted = true;
 }
 
@@ -649,4 +732,23 @@ const server = createServer((req, res) => {
   res.end(JSON.stringify({ code: 'NOT_FOUND', message: 'Nada por aquí todavía.', requestId: '', details: [] }));
 });
 
-server.listen(port, () => start());
+// Las señales se toman ANTES de arrancar nada: un SIGTERM que llega durante el
+// arranque tiene que encontrar quién lo atienda, no matar el proceso a medias.
+// `initObservability` también lo instala cuando OTel está activo, y es
+// idempotente — acá se hace siempre porque este proceso consume colas, y
+// drenarlas no depende de que la telemetría esté configurada.
+instalarApagadoOrdenado();
+
+server.listen(port, () => {
+  start();
+  // El servidor de sondas se cierra AL FINAL, después de los workers: mientras
+  // se drena, `/health` sigue contestando y el orquestador no lo mata antes de
+  // tiempo. `closeAllConnections` porque una sonda con keep-alive abierto
+  // dejaría `close()` esperando para siempre.
+  alApagar('servidor de sondas', () =>
+    new Promise<void>((listo) => {
+      server.closeAllConnections();
+      server.close(() => listo());
+    }),
+  );
+});
