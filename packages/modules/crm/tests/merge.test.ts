@@ -3,7 +3,15 @@ import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { guessMapping, parseCsv, sniffDelimiter } from '../domain/csv';
 import { confirmImport, mergeContacts, previewImport } from '../application/merge';
-import { createContact, ensureContactByPhone } from '../application/contacts';
+import {
+  canReceiveBusinessInitiated,
+  createContact,
+  ensureContactByIdentity,
+  ensureContactByPhone,
+  handleInboundForConsent,
+  identityFor,
+  registerOptIn,
+} from '../application/contacts';
 import { createActivity } from '../application/activities';
 import { createDeal, createPipeline } from '../application/deals';
 
@@ -186,5 +194,208 @@ describe('fusión (rol de aplicación)', () => {
         mergeContacts(c, { tenantId: tenant, primaryId: principal.id, duplicateId: duplicado.id }),
       ),
     ).rejects.toThrow(/ya fue fusionado/);
+  });
+});
+
+describe('fusión y consentimiento', () => {
+  it('el opt-out del duplicado se queda con la ficha fusionada', async () => {
+    // La historia real: el cliente escribió "BASTA" desde su segundo número y
+    // días después un vendedor fusionó esa ficha dentro de la que tenía más
+    // historia. Si la fusión deja caer el opt-out, el principal vuelve a la
+    // próxima campaña.
+    const principal = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955550011', name: 'Con historia' }),
+    );
+    await withTenant(app, tenant, (c) =>
+      registerOptIn(c, {
+        tenantId: tenant,
+        contactId: principal.id,
+        channel: 'whatsapp',
+        evidence: 'respondió al formulario',
+      }),
+    );
+    const duplicado = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955550012', name: 'Segundo número' }),
+    );
+    await withTenant(app, tenant, (c) =>
+      registerOptIn(c, {
+        tenantId: tenant,
+        contactId: duplicado.id,
+        channel: 'whatsapp',
+        evidence: 'escribió primero',
+      }),
+    );
+    const basta = await withTenant(app, tenant, (c) =>
+      handleInboundForConsent(c, { tenantId: tenant, contactId: duplicado.id, text: 'BASTA' }),
+    );
+    expect(basta.optedOut).toBe(true);
+    const antes = await admin.query('SELECT opted_out_at FROM contacts WHERE id = $1', [
+      duplicado.id,
+    ]);
+
+    await withTenant(app, tenant, (c) =>
+      mergeContacts(c, {
+        tenantId: tenant,
+        primaryId: principal.id,
+        duplicateId: duplicado.id,
+        actor: 'sup',
+      }),
+    );
+
+    const p = await admin.query('SELECT opt_in_at, opted_out_at FROM contacts WHERE id = $1', [
+      principal.id,
+    ]);
+    // Gana el opt-out, con la fecha en que lo pidió: no se inventa un now().
+    expect(p.rows[0].opted_out_at).toEqual(antes.rows[0].opted_out_at);
+    expect(p.rows[0].opt_in_at).not.toBeNull(); // el opt-in se absorbe igual
+    // Lo que importa de verdad: ya no se le puede escribir.
+    const puede = await withTenant(app, tenant, (c) =>
+      canReceiveBusinessInitiated(c, tenant, principal.id),
+    );
+    expect(puede).toBe(false);
+
+    const audit = await admin.query(
+      `SELECT metadata FROM audit_log
+        WHERE tenant_id = $1 AND action = 'contacts.merge' AND resource_id = $2`,
+      [tenant, principal.id],
+    );
+    expect(audit.rows[0].metadata.optOutAbsorbed).toBe(true);
+  });
+
+  it('el opt-out del principal tampoco se pierde si el duplicado no lo tiene', async () => {
+    const principal = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955550013', name: 'Se dio de baja' }),
+    );
+    await withTenant(app, tenant, (c) =>
+      handleInboundForConsent(c, {
+        tenantId: tenant,
+        contactId: principal.id,
+        text: 'no me escriban',
+      }),
+    );
+    const antes = await admin.query('SELECT opted_out_at FROM contacts WHERE id = $1', [
+      principal.id,
+    ]);
+    const duplicado = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955550014', name: 'Otro número' }),
+    );
+
+    await withTenant(app, tenant, (c) =>
+      mergeContacts(c, { tenantId: tenant, primaryId: principal.id, duplicateId: duplicado.id }),
+    );
+
+    const p = await admin.query('SELECT opted_out_at FROM contacts WHERE id = $1', [principal.id]);
+    expect(p.rows[0].opted_out_at).toEqual(antes.rows[0].opted_out_at);
+  });
+});
+
+describe('fusión e identidades de canal', () => {
+  it('la identidad del duplicado queda utilizable en el principal', async () => {
+    // Ficha de WhatsApp (con teléfono) y ficha de Instagram (solo id de chat):
+    // el mismo cliente por dos canales distintos.
+    const principal = await withTenant(app, tenant, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenant,
+        channel: 'whatsapp',
+        identity: '+56955550021',
+        origin: 'whatsapp',
+      }),
+    );
+    const duplicado = await withTenant(app, tenant, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenant,
+        channel: 'instagram',
+        identity: 'ig-77',
+        origin: 'instagram',
+        name: 'Carmen por Instagram',
+      }),
+    );
+
+    await withTenant(app, tenant, (c) =>
+      mergeContacts(c, {
+        tenantId: tenant,
+        primaryId: principal.contact.id,
+        duplicateId: duplicado.contact.id,
+        actor: 'sup',
+      }),
+    );
+
+    // "Se mueve" significa que se puede RESPONDER por ahí, no que quedó
+    // archivado en un jsonb que ningún envío mira.
+    const porInstagram = await withTenant(app, tenant, (c) =>
+      identityFor(c, { tenantId: tenant, contactId: principal.contact.id, channel: 'instagram' }),
+    );
+    expect(porInstagram).toBe('ig-77');
+    const porWhatsapp = await withTenant(app, tenant, (c) =>
+      identityFor(c, { tenantId: tenant, contactId: principal.contact.id, channel: 'whatsapp' }),
+    );
+    expect(porWhatsapp).toBe('+56955550021'); // la propia no se toca
+
+    const quedan = await admin.query(
+      'SELECT count(*)::int AS n FROM contact_identities WHERE contact_id = $1',
+      [duplicado.contact.id],
+    );
+    expect(quedan.rows[0].n).toBe(0);
+
+    const audit = await admin.query(
+      `SELECT metadata FROM audit_log
+        WHERE tenant_id = $1 AND action = 'contacts.merge' AND resource_id = $2`,
+      [tenant, principal.contact.id],
+    );
+    expect(audit.rows[0].metadata.identitiesMoved).toEqual(['instagram']);
+  });
+
+  it('no deja dos identidades del mismo canal en el principal', async () => {
+    // Invariante que los lectores de conversaciones dan por cierta (hacen JOIN
+    // sin LIMIT): a lo más una identidad por contacto y canal. Cuál de los dos
+    // números de WhatsApp manda es una decisión de producto pendiente; hasta
+    // que exista, la identidad del duplicado NO se mueve y la entrada sigue
+    // resolviendo al principal por merged_into.
+    const principal = await withTenant(app, tenant, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenant,
+        channel: 'whatsapp',
+        identity: '+56955550031',
+        origin: 'whatsapp',
+      }),
+    );
+    const duplicado = await withTenant(app, tenant, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenant,
+        channel: 'whatsapp',
+        identity: '+56955550032',
+        origin: 'whatsapp',
+      }),
+    );
+
+    await withTenant(app, tenant, (c) =>
+      mergeContacts(c, {
+        tenantId: tenant,
+        primaryId: principal.contact.id,
+        duplicateId: duplicado.contact.id,
+      }),
+    );
+
+    const porCanal = await admin.query(
+      `SELECT channel, count(*)::int AS n FROM contact_identities
+        WHERE contact_id = $1 GROUP BY channel`,
+      [principal.contact.id],
+    );
+    expect(porCanal.rows).toEqual([{ channel: 'whatsapp', n: 1 }]);
+    const porWhatsapp = await withTenant(app, tenant, (c) =>
+      identityFor(c, { tenantId: tenant, contactId: principal.contact.id, channel: 'whatsapp' }),
+    );
+    expect(porWhatsapp).toBe('+56955550031');
+
+    // El segundo número sigue llevando al principal al entrar (merged_into).
+    const entra = await withTenant(app, tenant, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenant,
+        channel: 'whatsapp',
+        identity: '+56955550032',
+        origin: 'whatsapp',
+      }),
+    );
+    expect(entra.contact.id).toBe(principal.contact.id);
   });
 });
