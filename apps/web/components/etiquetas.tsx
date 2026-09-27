@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, Formulario, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
@@ -113,7 +113,7 @@ export function Etiquetas() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+      <Formulario onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Nueva etiqueta</h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
@@ -149,7 +149,7 @@ export function Etiquetas() {
         <span className="flex items-center gap-2 text-xs text-muted">
           Se va a ver así: <Badge role={form.role as BadgeRole}>{form.name || 'Tu etiqueta'}</Badge>
         </span>
-      </form>
+      </Formulario>
 
       {items.length === 0 ? (
         <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">

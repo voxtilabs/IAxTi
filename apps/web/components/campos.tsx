@@ -1,21 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import {
-  AvisoResultado,
-  Badge,
-  Button,
-  Checkbox,
-  EncabezadoDePagina,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Skeleton,
-  useSession,
-} from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, type CampoDto } from '../lib/api';
 
@@ -134,7 +120,7 @@ export function Campos() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+      <Formulario onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Agregar un campo</h2>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -215,7 +201,7 @@ export function Campos() {
             {guardando ? 'Agregando…' : 'Agregar campo'}
           </Button>
         </span>
-      </form>
+      </Formulario>
 
       {campos.length === 0 ? (
         <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">

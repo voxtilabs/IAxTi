@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { AvisoResultado, Badge, Button, Input, Skeleton, Textarea, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Formulario, Input, Skeleton, Textarea, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, renderQuickReply, type QuickReplyDto } from '../lib/api';
 
@@ -86,7 +86,7 @@ export function AtajosDeRespuesta() {
 
       {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
 
-      <form onSubmit={crear} className="mt-4 flex flex-col gap-3 rounded-tarjeta border border-line bg-raised p-4">
+      <Formulario onSubmit={crear} className="mt-4 flex flex-col gap-3 rounded-tarjeta border border-line bg-raised p-4">
         <div className="flex flex-wrap gap-3">
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
             Nombre del atajo
@@ -134,7 +134,7 @@ export function AtajosDeRespuesta() {
             {creando ? 'Guardando…' : 'Guardar atajo'}
           </Button>
         </span>
-      </form>
+      </Formulario>
 
       {items.length === 0 ? (
         <p className="mt-4 text-sm text-muted">Todavía no hay atajos. El primero suele ser el horario.</p>

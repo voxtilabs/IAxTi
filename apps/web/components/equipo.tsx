@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, Formulario, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -192,7 +192,7 @@ export function Equipo() {
         </AvisoResultado>
       )}
 
-      <form onSubmit={invitar} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+      <Formulario onSubmit={invitar} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
         <h2 className="text-base font-bold text-ink">Invitar a alguien</h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
@@ -224,7 +224,7 @@ export function Equipo() {
             {enviando ? 'Enviando…' : 'Invitar'}
           </Button>
         </div>
-      </form>
+      </Formulario>
 
       <div className="flex flex-col gap-3">
         <h2 className="text-base font-bold text-ink">Con acceso ({datos.miembros.length})</h2>

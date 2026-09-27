@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
+import { Badge, Button, Formulario, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
@@ -203,7 +203,7 @@ export function Asistente() {
       )}
 
       {mostrarFormulario && (
-        <form onSubmit={crear} className="flex flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+        <Formulario onSubmit={crear} className="flex flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
           <div>
             <h3 className="text-sm font-bold text-ink">¿Qué tiene que lograr?</h3>
             <p className="mt-1 text-sm text-muted">
@@ -327,7 +327,7 @@ export function Asistente() {
               </Button>
             )}
           </div>
-        </form>
+        </Formulario>
       )}
     </section>
   );
