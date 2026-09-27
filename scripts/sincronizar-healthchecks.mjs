@@ -35,8 +35,17 @@ const { parse, parseDocument } = require('yaml');
  * La familia de `??` contra la cadena vacía va en su propio issue. Arreglarla
  * primero y después generalizar esto es el orden correcto; hacerlo al revés es
  * cambiar un fallo visible por tres invisibles en rutas de plata y de auditoría.
+ *
+ * `ANTHROPIC_API_KEY` entra por la misma prueba que dejó pasar a `IAXTI_IMAGE`
+ * (#633): está declarada en el compose del repo y no llegaba al contenedor, y
+ * nadie la lee con `??` para decidir nada — `providerAvailable` hace
+ * `Boolean(process.env[...])`, así que la cadena vacía es falsa y el resultado es
+ * el honesto: proveedor sin credencial, que es lo que el diagnóstico de la IA
+ * muestra nombrando la variable. Se completa acá porque el Compose raw de Dokploy
+ * no relee el archivo del repo sin detener el stack: sin este parche, agregar el
+ * renglón al repo no cambia nada en el contenedor que está corriendo.
  */
-const CLAVES_QUE_SE_COMPLETAN = new Set(['IAXTI_IMAGE']);
+const CLAVES_QUE_SE_COMPLETAN = new Set(['IAXTI_IMAGE', 'ANTHROPIC_API_KEY']);
 
 /**
  * Parche mínimo para Compose raw; nunca reemplaza configuración del operador.

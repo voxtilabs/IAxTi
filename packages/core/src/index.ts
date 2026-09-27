@@ -26,3 +26,12 @@ export { consumerReadiness } from './consumer-readiness';
 // Qué build está corriendo (#565): el SHA sale del tag de IAXTI_IMAGE.
 export { versionDelBuild } from './version';
 export type { VersionDelBuild } from './version';
+
+// El lector del compose. Se exporta para que un módulo con lecturas DINÁMICAS de
+// `process.env` pueda traer su propia guarda (#633): el escáner general solo ve
+// `process.env.X`, así que el dueño de la lectura es el dueño de su guarda.
+export {
+  variablesQueEntregaElCompose,
+  variablesQueLeeElCodigo,
+  type LecturaDeVariable,
+} from './variables-del-despliegue';

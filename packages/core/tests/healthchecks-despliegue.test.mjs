@@ -40,11 +40,16 @@ describe('healthchecks de Dokploy raw (#396)', () => {
       expect(updated.services[service].healthcheck).toEqual(expected.services[service].healthcheck);
       delete updated.services[service].healthcheck;
     }
-    // Y desde #573 también se completa IAXTI_IMAGE. Se quita para que esta prueba
-    // siga afirmando lo suyo: que NADA MÁS cambia.
+    // Y desde #573 también se completa IAXTI_IMAGE, y desde #633
+    // ANTHROPIC_API_KEY. Se quitan para que esta prueba siga afirmando lo suyo:
+    // que NADA MÁS cambia. Que se completen es lo que prueban las suyas.
     for (const service of Object.keys(updated.services)) {
       expect(updated.services[service].environment.IAXTI_IMAGE, service).toBe('${IMAGE}');
       delete updated.services[service].environment.IAXTI_IMAGE;
+      expect(updated.services[service].environment.ANTHROPIC_API_KEY, service).toBe(
+        '${ANTHROPIC_API_KEY}',
+      );
+      delete updated.services[service].environment.ANTHROPIC_API_KEY;
       // El servicio que no tenía `environment` queda con un mapa vacío; el que
       // tenía conserva lo suyo, que es lo que comprueba la comparación de abajo.
       if (Object.keys(updated.services[service].environment).length === 0) {
@@ -177,6 +182,24 @@ services:
     }
     // Lo que el operador tenía sigue igual, con su valor y no con el del repo.
     expect(updated.services.api.environment.DATABASE_URL).toBe('credencial-privada-de-prueba');
+  });
+
+  /**
+   * Anthropic era el tercer proveedor declarado en `ENV_KEYS` y el único que el
+   * compose no pasaba (#633): la llave podía estar cargada en Dokploy y no
+   * llegaba, así que elegir Anthropic dejaba al asistente sin contestar con un
+   * error genérico. Se completa acá porque el Compose raw no relee el archivo del
+   * repo sin detener el stack: agregar el renglón al repo, solo, no cambia nada
+   * en el contenedor que ya está corriendo.
+   */
+  it('completa ANTHROPIC_API_KEY en los cinco servicios', () => {
+    const patch = parcheHealthchecks({ sourceType: 'raw', composeFile: sinVersion }, canonical);
+    const updated = decode(patch.composeFile);
+    for (const service of ['api', 'workers', 'agents', 'web', 'admin']) {
+      expect(updated.services[service].environment.ANTHROPIC_API_KEY, service).toBe(
+        '${ANTHROPIC_API_KEY}',
+      );
+    }
   });
 
   it('no pisa un IAXTI_IMAGE que el operador ya puso', () => {
