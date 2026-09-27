@@ -183,9 +183,28 @@ async function main() {
     throw new Error('e2e: falta el build de web (pnpm turbo build)');
   }
   const staticDst = join(standalone, '.next/static');
-  if (!existsSync(staticDst)) {
+  // SIEMPRE, no solo la primera vez (#635).
+  //
+  // Esto decía `if (!existsSync(staticDst))`, y el efecto era brutal: el build
+  // regenera `server/chunks`, pero los estáticos quedaban los de la PRIMERA
+  // corrida. Entonces el servidor pedía `chunks/9863-<hash nuevo>.js` y el disco
+  // solo tenía el hash viejo → 404 → `ChunkLoadError` → «Application error: a
+  // client-side exception has occurred» y TODA la suite en rojo.
+  //
+  // O sea: cualquiera que tocara el front y volviera a correr el e2e veía 70
+  // pruebas rojas que parecían culpa de su cambio, y no lo eran. La primera
+  // corrida de un checkout limpio pasaba; la segunda, nunca. Costó media hora
+  // de esta sesión creyendo que un cambio en la barra lateral había roto la
+  // aplicación entera.
+  {
     mkdirSync(dirname(staticDst), { recursive: true });
-    cpSync(join(webDir, '.next/static'), staticDst, { recursive: true });
+    cpSync(join(webDir, '.next/static'), staticDst, { recursive: true, force: true });
+    // Igual que el Dockerfile (infra/docker/Dockerfile:15), para que el e2e
+    // corra sobre lo mismo que producción.
+    const publicSrc = join(webDir, 'public');
+    if (existsSync(publicSrc)) {
+      cpSync(publicSrc, join(standalone, 'public'), { recursive: true, force: true });
+    }
   }
   lanzar('web', 'node', ['server.js'], {
     NODE_ENV: 'production',
@@ -199,7 +218,10 @@ async function main() {
   await esperar(`http://127.0.0.1:${WEB_PORT}/login`);
 
   // 6 · Playwright.
-  const pw = lanzar('playwright', 'npx', ['playwright', 'test'], {}, webDir);
+  // Los argumentos extra pasan a Playwright: `node e2e/run-e2e.mjs barra-lateral`
+  // corre un solo spec en vez de la suite entera. Sin esto, revisar UNA pantalla
+  // obliga a levantar todo y esperar dos minutos.
+  const pw = lanzar('playwright', 'npx', ['playwright', 'test', ...process.argv.slice(2)], {}, webDir);
   pw.on('exit', (code) => {
     jwks.close();
     // En local la base persiste entre corridas: los eventos del e2e quedan

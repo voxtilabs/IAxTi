@@ -51,6 +51,7 @@ import {
   Webhook,
   Workflow,
   type LucideIcon,
+  ChevronDown,
 } from 'lucide-react';
 import { SoporteAviso } from './soporte-aviso';
 import { PaletaComandos } from './paleta-comandos';
@@ -91,7 +92,23 @@ interface ShellProps {
  * exactamente el problema que el `grupo` en el manifiesto viene a evitar.
  */
 const ORDEN = ['Trabajo', 'Clientes', 'Configuración'];
-const PLEGADOS = new Set(['Configuración']);
+
+/**
+ * Qué grupos se PUEDEN plegar. Ojo: se pueden, no arrancan plegados (#635).
+ *
+ * Configuración arrancaba plegada desde #387, y el motivo era bueno: «dieciséis
+ * destinos sueltos en el menú, dieciséis decisiones para alguien que solo quería
+ * cambiar una cosa». Pero ese problema ya lo resolvió el agrupado por sección —
+ * de 16 entradas quedaron 5— y el plegado se quedó encima de un arreglo que ya
+ * funcionaba. Con el grupo abierto la barra tiene 13 entradas, que es una barra
+ * lateral normal.
+ *
+ * Lo que costaba tenerlo plegado: las 17 pantallas de configuración quedaban
+ * detrás de un rótulo idéntico a «TRABAJO» y «CLIENTES», que no se pueden tocar.
+ * Ahí viven conectar WhatsApp y prender la IA, o sea lo primero que alguien
+ * necesita hacer. Reportado tal cual: «no veo los botones en la izquierda».
+ */
+const PLEGABLES = new Set(['Configuración']);
 
 /**
  * Las secciones de ajustes, en orden (#387).
@@ -199,6 +216,9 @@ function useModulosConCandado(): Set<string> {
     ? resultado.rutas : new Set();
 }
 
+/** Dónde se recuerda si esta persona plegó un grupo. Por navegador, nada más. */
+const recuerdo = (titulo: string) => `iaxti-menu-${titulo.toLowerCase()}`;
+
 function Grupo({
   titulo,
   items,
@@ -213,22 +233,54 @@ function Grupo({
   // Un grupo plegado que contiene la página actual se abre solo: si no, el
   // menú no sabría decir dónde estás.
   const contieneActiva = items.some((i) => i.path === activa);
-  const [abierto, setAbierto] = useState(!PLEGADOS.has(titulo) || contieneActiva);
+  const plegable = PLEGABLES.has(titulo);
+  // Abierto salvo que ESTA persona lo haya plegado. Antes era `useState` a
+  // secas, así que volvía a plegarse en cada navegación: abrirlo no servía de
+  // nada dos clics después. Se lee en un efecto y no en el inicializador porque
+  // esto se renderiza primero en el servidor, donde no hay `localStorage`, y
+  // leerlo ahí sería un desajuste de hidratación.
+  const [abierto, setAbierto] = useState(true);
+  useEffect(() => {
+    if (!plegable) return;
+    try {
+      if (window.localStorage.getItem(recuerdo(titulo)) === 'plegado') setAbierto(false);
+    } catch {
+      // Navegador con el almacenamiento bloqueado: se queda abierto, que es el
+      // estado que no esconde nada.
+    }
+  }, [plegable, titulo]);
   useEffect(() => {
     if (contieneActiva) setAbierto(true);
   }, [contieneActiva]);
 
-  const plegable = PLEGADOS.has(titulo);
+  const alternar = () => {
+    setAbierto((v) => {
+      try {
+        window.localStorage.setItem(recuerdo(titulo), v ? 'plegado' : 'abierto');
+      } catch {
+        // Igual que arriba: no recordarlo es peor que fallar, pero no es fallar.
+      }
+      return !v;
+    });
+  };
   return (
     <SidebarGroup>
       {plegable ? (
         <SidebarGroupLabel asChild>
+          {/* Con flecha, y que gira con el estado: sin eso se ve IGUAL que
+              «TRABAJO» y «CLIENTES», que son rótulos y no hacen nada. El `(5)`
+              solo no alcanza — se lee como «hay cinco cosas en algún lado», no
+              como «apriétame». */}
           <button
             type="button"
             aria-expanded={abierto}
-            onClick={() => setAbierto((v) => !v)}
-            className="w-full text-left"
+            onClick={alternar}
+            className="flex w-full items-center gap-1.5 text-left hover:text-ink"
           >
+            <ChevronDown
+              className={`size-3.5 shrink-0 transition-transform ${abierto ? '' : '-rotate-90'}`}
+              aria-hidden
+            />
             {titulo} ({titulo === 'Configuración' ? porSeccion(items).length : items.length})
           </button>
         </SidebarGroupLabel>
