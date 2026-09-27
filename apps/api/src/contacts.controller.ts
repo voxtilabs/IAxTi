@@ -353,6 +353,13 @@ export class ContactsController {
       if (/No encontramos/.test(message)) {
         throw new NotFoundException({ code: 'CONTACT_NOT_FOUND', message });
       }
+      // El caso de uso rechaza el cambio con su propio código cuando dejaría
+      // al contacto sin NINGUNA forma de reconocerlo. Se lee del error y no
+      // del texto del mensaje: la interfaz necesita distinguir este rechazo
+      // —tiene otra salida que ofrecer— de un dato mal escrito.
+      if ((err as { code?: unknown }).code === 'ULTIMO_IDENTIFICADOR') {
+        throw new BadRequestException({ code: 'ULTIMO_IDENTIFICADOR', message });
+      }
       // Lo que no calza con lo declarado: tipo, opción fuera de la lista,
       // obligatorio vacío. El mensaje del dominio ya explica cuál.
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message });
