@@ -434,17 +434,25 @@ export class PaymentWebhooksController {
     if (!provider || !provider.active) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
-    const secret = provider.webhookSecretRef ? process.env[provider.webhookSecretRef] : undefined;
     const rawBody = request.rawBody?.toString('utf8') ?? '';
     const port = paymentProviderFor(provider.kind);
-    if (
-      !secret ||
-      !port.verifyWebhook(rawBody, request.headers as Record<string, string>, secret)
-    ) {
-      throw new UnauthorizedException({
-        code: 'INVALID_SIGNATURE',
-        message: 'La firma del webhook no calza.',
-      });
+    // La firma se exige SOLO a los proveedores que firman. Flow no firma la
+    // confirmación —manda un POST urlencoded con el token y nada más— y este
+    // guard le exigía un secreto igual: sin secreto configurado (y es opcional
+    // en todas partes, incluida nuestra guía) Flow recibía 401 en cada pago.
+    // Según su doc, "la transacción se mantendrá exitosa": la tarjeta cobrada,
+    // la plata abonada al comercio, y en IAxTi el link quedaba 'sent' hasta
+    // que el barrido lo marcaba 'expired'. El vendedor seguía cobrándole a
+    // alguien que ya había pagado. Para Flow la autenticidad no está acá: la
+    // resuelve el worker con getStatus FIRMADO antes de registrar nada.
+    if (port.webhookAuth === 'firma-en-el-cuerpo') {
+      const secret = provider.webhookSecretRef ? process.env[provider.webhookSecretRef] : undefined;
+      if (!secret || !port.verifyWebhook(rawBody, request.headers as Record<string, string>, secret)) {
+        throw new UnauthorizedException({
+          code: 'INVALID_SIGNATURE',
+          message: 'La firma del webhook no calza.',
+        });
+      }
     }
     const pago = port.parseWebhook(rawBody);
     if (!pago) {
@@ -462,7 +470,18 @@ export class PaymentWebhooksController {
         pago,
         requestId: request.requestId,
       },
-      { jobId: `pay-${provider.id}-${pago.linkId || pago.providerPaymentId}` },
+      {
+        jobId: `pay-${provider.id}-${pago.linkId || pago.providerPaymentId}`,
+        // Flow avisa UNA sola vez. Si la consulta de estado falla —una caída
+        // de Flow, la variable de credenciales todavía sin poner— el pago se
+        // pierde para siempre, porque nadie vuelve a preguntar. Los 5
+        // intentos por omisión se agotan en 15 segundos; con estos, el último
+        // cae cerca de una hora después, que alcanza para que un incidente
+        // pase o para que alguien corrija la configuración. Agotados, el job
+        // queda en `failed` —visible y reencolable—, no en silencio.
+        attempts: 8,
+        backoff: { type: 'exponential', delay: 30_000 },
+      },
     );
     return { queued: true };
   }

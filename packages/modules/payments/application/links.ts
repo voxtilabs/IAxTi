@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
+import { getContactEmail } from '@iaxti/module-crm';
 import { flowConfig } from '../domain/flow-config';
 import {
   paymentProviderFor,
@@ -172,9 +173,45 @@ export interface CreateLinkInput {
   /** El tope del USER (matriz §23); null = sin tope (SUPERVISOR/ADMIN). */
   maxAmountClp?: number | null;
   publicBaseUrl?: string;
+  /** Si viene, manda: el email de quien paga, escrito por quien cobra. */
+  payerEmail?: string;
   /** null cuando lo crea el sistema (facturas de billing, #67). */
   actorUserId: string | null;
   requestId?: string;
+}
+
+/**
+ * Último recurso cuando no hay a quién cobrarle un correo: las facturas de
+ * billing (#67) cobran al TENANT y nacen sin contacto. NO es el email del
+ * pagador y no debería usarse para un cobro a un cliente — antes iba en TODAS
+ * las órdenes de TODOS los tenants, así que el comprobante de Flow le llegaba
+ * a IAxTi en vez de a quien pagó, y en el panel de Flow ninguna orden se podía
+ * atribuir a nadie.
+ */
+const EMAIL_SIN_PAGADOR = 'pagos@iaxti.cl';
+
+/**
+ * El email del pagador lo resuelve el caso de uso, que es el único que sabe a
+ * quién se le está cobrando; el adaptador del proveedor no inventa direcciones.
+ *
+ * El correo sale del CONTRATO de crm y no de un `SELECT email FROM contacts`:
+ * consultar la tabla de otro módulo es lo que la regla de arquitectura prohíbe,
+ * y `depcruise` no lo caza porque no hay import que cazar — es SQL. `crm` es
+ * dependencia opcional de este módulo, y esto lo respeta: si el contacto no
+ * está, o no tiene correo, se degrada al último recurso en vez de reventar.
+ */
+async function emailDelPagador(
+  client: PoolClient,
+  tenantId: string,
+  contactId: string | null,
+  escrito?: string,
+): Promise<string> {
+  if (escrito?.trim()) return escrito.trim();
+  if (contactId) {
+    const email = await getContactEmail(client, tenantId, contactId);
+    if (email) return email;
+  }
+  return EMAIL_SIN_PAGADOR;
 }
 
 /**
@@ -243,6 +280,13 @@ export async function createPaymentLink(
     ],
   );
   const base = input.publicBaseUrl ?? process.env.PUBLIC_API_URL ?? 'https://api-staging.iaxti.cl';
+  // El vencimiento viaja al proveedor. Guardarlo solo en nuestra tabla dejaba
+  // la orden vigente para siempre del otro lado: 'expired' o 'cancelled' acá
+  // no impide que el cliente pague allá.
+  const expiresAt = r.rows[0].expires_at as Date | null;
+  if (!expiresAt) {
+    throw new Error('El link necesita vencimiento: sin fecha, la orden queda pagable para siempre.');
+  }
   const creado = await portFor(provider.kind).createLink(
     {
       mode: provider.mode,
@@ -251,6 +295,8 @@ export async function createPaymentLink(
       linkId: r.rows[0].id,
       returnUrl: `${base}/pagos/gracias`,
       confirmUrl: `${base}/webhooks/payments/${provider.id}`,
+      expiresAt,
+      payerEmail: await emailDelPagador(client, input.tenantId, input.contactId, input.payerEmail),
     },
     credentials,
   );
