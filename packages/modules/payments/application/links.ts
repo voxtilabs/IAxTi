@@ -172,9 +172,45 @@ export interface CreateLinkInput {
   /** El tope del USER (matriz §23); null = sin tope (SUPERVISOR/ADMIN). */
   maxAmountClp?: number | null;
   publicBaseUrl?: string;
+  /** Si viene, manda: el email de quien paga, escrito por quien cobra. */
+  payerEmail?: string;
   /** null cuando lo crea el sistema (facturas de billing, #67). */
   actorUserId: string | null;
   requestId?: string;
+}
+
+/**
+ * Último recurso cuando no hay a quién cobrarle un correo: las facturas de
+ * billing (#67) cobran al TENANT y nacen sin contacto. NO es el email del
+ * pagador y no debería usarse para un cobro a un cliente — antes iba en TODAS
+ * las órdenes de TODOS los tenants, así que el comprobante de Flow le llegaba
+ * a IAxTi en vez de a quien pagó, y en el panel de Flow ninguna orden se podía
+ * atribuir a nadie.
+ */
+const EMAIL_SIN_PAGADOR = 'pagos@iaxti.cl';
+
+/**
+ * El email del pagador lo resuelve el caso de uso, que es el único que sabe a
+ * quién se le está cobrando; el adaptador del proveedor no inventa
+ * direcciones. Mismo criterio que el monto de la oportunidad acá al lado: el
+ * dato del contacto se lee donde se arma el cobro.
+ */
+async function emailDelPagador(
+  client: PoolClient,
+  tenantId: string,
+  contactId: string | null,
+  escrito?: string,
+): Promise<string> {
+  if (escrito?.trim()) return escrito.trim();
+  if (contactId) {
+    const r = await client.query('SELECT email FROM contacts WHERE tenant_id = $1 AND id = $2', [
+      tenantId,
+      contactId,
+    ]);
+    const email = ((r.rows[0]?.email as string | null) ?? '').trim();
+    if (email) return email;
+  }
+  return EMAIL_SIN_PAGADOR;
 }
 
 /**
@@ -243,6 +279,13 @@ export async function createPaymentLink(
     ],
   );
   const base = input.publicBaseUrl ?? process.env.PUBLIC_API_URL ?? 'https://api-staging.iaxti.cl';
+  // El vencimiento viaja al proveedor. Guardarlo solo en nuestra tabla dejaba
+  // la orden vigente para siempre del otro lado: 'expired' o 'cancelled' acá
+  // no impide que el cliente pague allá.
+  const expiresAt = r.rows[0].expires_at as Date | null;
+  if (!expiresAt) {
+    throw new Error('El link necesita vencimiento: sin fecha, la orden queda pagable para siempre.');
+  }
   const creado = await portFor(provider.kind).createLink(
     {
       mode: provider.mode,
@@ -251,6 +294,8 @@ export async function createPaymentLink(
       linkId: r.rows[0].id,
       returnUrl: `${base}/pagos/gracias`,
       confirmUrl: `${base}/webhooks/payments/${provider.id}`,
+      expiresAt,
+      payerEmail: await emailDelPagador(client, input.tenantId, input.contactId, input.payerEmail),
     },
     credentials,
   );

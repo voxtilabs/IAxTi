@@ -3,7 +3,9 @@ import { createFlowProvider } from '../domain/providers';
 import { flowConfig } from '../domain/flow-config';
 
 const cred = 'synthetic-key-366:synthetic-secret-366';
-const input = { amountClp: 1000, concept: 'Prueba local', linkId: 'local-366', returnUrl: 'https://app.example.invalid', confirmUrl: 'https://api.example.invalid' };
+// `payerEmail` y `expiresAt` son obligatorios en el puerto: Flow exige el
+// email del pagador, y sin `timeout` la orden queda pagable para siempre.
+const input = { amountClp: 1000, concept: 'Prueba local', linkId: 'local-366', returnUrl: 'https://app.example.invalid', confirmUrl: 'https://api.example.invalid', payerEmail: 'cliente@example.invalid', expiresAt: new Date(Date.now() + 72 * 3_600_000) };
 afterEach(() => vi.unstubAllEnvs());
 
 describe('Flow solo usa el destino correspondiente al modo del proveedor', () => {
