@@ -191,6 +191,24 @@ describe('GET /v1/contacts/:id y actividades', () => {
     expect((await done.json()).doneAt).not.toBeNull();
   });
 
+  /**
+   * La pantalla de Pendientes se alimenta de acá, y durante un tiempo no pudo
+   * mostrar nada (#657): `@Get(':id')` estaba declarada ANTES que
+   * `@Get('activities')`, y NestJS resuelve en orden de declaración. Así que
+   * esta llamada entraba por la ficha con `id = 'activities'`, no encontraba
+   * contacto, y salía como 404 `CONTACT_NOT_FOUND`.
+   *
+   * La pantalla mostraba su estado vacío — o sea, decía que estabas al día.
+   */
+  it('la lista de pendientes RESPONDE: no la tapa la ruta de la ficha', async () => {
+    const res = await pedir('/contacts/activities');
+    expect(res.status, 'la lista de pendientes no contesta 200').toBe(200);
+    const cuerpo = await res.json();
+    // Lo que delataba el defecto: contestaba el error de OTRA ruta.
+    expect(cuerpo.code).not.toBe('CONTACT_NOT_FOUND');
+    expect(Array.isArray(cuerpo), 'esperaba una lista de actividades').toBe(true);
+  });
+
   it('?contactId trae la historia COMPLETA: resueltas y archivadas incluidas', async () => {
     const res = await pedir(`/conversations?contactId=${contacto}`);
     expect(res.status).toBe(200);
