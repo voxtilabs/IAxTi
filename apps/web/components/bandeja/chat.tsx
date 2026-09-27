@@ -195,12 +195,39 @@ export function Chat({
     // historial recién pintado arriba del todo esa anotación dice «no estabas
     // abajo». Sin esta rama, abrir una conversación te dejaba arriba de todo.
     const abriendo = conversacionPintada.current !== detalle?.id;
-    conversacionPintada.current = detalle?.id ?? null;
     if (abriendo || estabaAbajo.current) {
       historial.scrollTop = historial.scrollHeight;
       estabaAbajo.current = true;
     }
+    // Solo se da por dibujada cuando TENÍA alto. En celular los tres paneles
+    // están apilados y el del chat llega oculto: mientras lo está, su
+    // `scrollHeight` es 0 y bajar no hace nada. Si se marcara igual, el efecto
+    // no volvería a intentarlo y la conversación quedaría abierta arriba de
+    // todo — que es lo que pasaba a 360 px.
+    if (historial.scrollHeight > 0) conversacionPintada.current = detalle?.id ?? null;
   }, [mensajes, detalle?.id]);
+
+  /**
+   * Y cuando el panel PASA a ser visible, bajar (#581).
+   *
+   * El efecto de arriba corre cuando cambian los mensajes, no cuando el panel
+   * aparece. En celular eso son dos momentos distintos: se toca la conversación,
+   * el panel se muestra, y para entonces los mensajes ya estaban. Sin esto, abrir
+   * una conversación desde el teléfono te deja en el primer mensaje del hilo.
+   */
+  useEffect(() => {
+    const historial = historialRef.current;
+    if (!historial || typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(() => {
+      if (historial.scrollHeight === 0) return;
+      if (conversacionPintada.current === (detalle?.id ?? null)) return;
+      conversacionPintada.current = detalle?.id ?? null;
+      historial.scrollTop = historial.scrollHeight;
+      estabaAbajo.current = true;
+    });
+    observador.observe(historial);
+    return () => observador.disconnect();
+  }, [detalle?.id]);
 
   /**
    * La ventana de 24 h, y arrastrar y pegar (#561).
