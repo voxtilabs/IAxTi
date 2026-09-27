@@ -324,6 +324,15 @@ jobs:
             false) echo "IA SIN CREDENCIAL: ${ia#*|}" ;;
             *)     echo "IA: esta imagen todavía no informa el estado de la IA en /ready." ;;
           esac
+
+          # ¿Con qué llave quedó el canal? (#669)
+          #
+          # Una `zv_test_` solo alcanza a los números del equipo en el proveedor,
+          # así que el producto parece roto —«no llegó»— cuando el ambiente solo
+          # está en sandbox. Dos veces en un día se perdieron horas adivinando si
+          # el cambio de variable había entrado; acá queda dicho en cada deploy.
+          canal=$(curl -sS -m 15 "${BASE}/ready" | jq -r '.dependencias[]? | select(.nombre=="canal") | .detalle' 2>/dev/null || true)
+          if [ -n "$canal" ]; then echo "Canal: ${canal}"; fi
           # `/ready` SÍ mira las dependencias: una API viva sin base contesta
           # /health en 200 y no sirve para nada. Sin esto, un despliegue con
           # la base inalcanzable se declaraba bueno — y así estuvo staging.

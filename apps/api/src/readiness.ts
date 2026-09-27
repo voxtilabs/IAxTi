@@ -202,6 +202,7 @@ export async function checkReadiness(pool: Pool | null, service = 'api'): Promis
   }
 
   dependencias.push(credencialesDeIa());
+  dependencias.push(credencialDelCanal());
 
   return {
     // Solo las que bloquean deciden si se sale de rotación.
@@ -228,6 +229,65 @@ export async function checkReadiness(pool: Pool | null, service = 'api'): Promis
  *
  * `bloquea: false` a propósito: esto NO saca la instancia de rotación.
  */
+/**
+ * ¿Con qué clase de llave quedó el canal? (#669)
+ *
+ * Una llave `zv_test_` **solo alcanza a los números del equipo en el
+ * proveedor**. Con ella el producto parece roto —«no llegó»— cuando lo único que
+ * pasa es que el ambiente está en sandbox. Y no había forma de verlo: se cambiaba
+ * la variable, se desplegaba, y después había que adivinar si entró. La única
+ * señal era mandar un mensaje y ver si fallaba — gastar un intento contra un
+ * cliente real para averiguar una cosa de configuración.
+ *
+ * Dos veces en un día se perdieron horas exactamente ahí.
+ *
+ * Es la misma forma que #641: el arreglo no faltaba, faltaba el LUGAR donde se
+ * vería.
+ *
+ * No publica la llave, ni un pedazo, ni el nombre de la variable: solo de qué
+ * clase es, que es lo único accionable. Y NO decide el estado — una llave de
+ * prueba es una decisión legítima en un ambiente de pruebas.
+ */
+function credencialDelCanal(): Dependencia {
+  const llave = (process.env.ZAVU_API_KEY ?? '').trim();
+  if (llave === '') {
+    return {
+      nombre: 'canal',
+      ok: false,
+      ms: 0,
+      bloquea: false,
+      detalle:
+        'Sin credencial de canal en este ambiente: no se puede enviar ni recibir por ' +
+        'WhatsApp. El detalle está en el diagnóstico del canal, con sesión.',
+    };
+  }
+  // Las de sandbox se distinguen por su prefijo, que es del proveedor y no un
+  // invento nuestro. Cualquier otra forma se informa como desconocida en vez de
+  // afirmar que es de producción: decir «producción» de algo que no se reconoce
+  // sería justamente la clase de mentira que esto viene a evitar.
+  if (llave.startsWith('zv_test_')) {
+    return {
+      nombre: 'canal',
+      ok: true,
+      ms: 0,
+      bloquea: false,
+      detalle:
+        'Credencial de PRUEBA. Solo alcanza a los números del equipo en el proveedor: ' +
+        'a cualquier otro número el envío falla y la bandeja lo muestra como «no llegó».',
+    };
+  }
+  if (llave.startsWith('zv_live_')) {
+    return { nombre: 'canal', ok: true, ms: 0, bloquea: false, detalle: 'Credencial de producción.' };
+  }
+  return {
+    nombre: 'canal',
+    ok: true,
+    ms: 0,
+    bloquea: false,
+    detalle: 'Credencial de una forma que no reconocemos: ni de prueba ni de producción.',
+  };
+}
+
 function credencialesDeIa(): Dependencia {
   const con = PROVIDERS.filter((p) => providerAvailable(p)).length;
   return {

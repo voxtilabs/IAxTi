@@ -42,6 +42,11 @@ describe('salud y disponibilidad', () => {
       // trabajar es grave, y aun así responder 503 dejaría al negocio sin
       // atender a sus clientes para castigar una variable de entorno.
       'ia',
+      // Y con qué clase de llave quedó el canal (#669): una de prueba solo
+      // alcanza a los números del equipo, y sin poder verlo eso se confunde con
+      // «el producto está roto». Tampoco bloquea: en un ambiente de pruebas una
+      // llave de prueba es la decisión correcta.
+      'canal',
     ]);
     for (const dep of cuerpo.dependencias) {
       expect(typeof dep.ms).toBe('number');
