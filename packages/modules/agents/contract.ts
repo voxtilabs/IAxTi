@@ -136,3 +136,7 @@ export type { MotivoDelProveedor, DiagnosticoDelProveedor } from './application/
 // Por qué esta conversación no tiene sugerencia (#436).
 export { porQueNoHaySugerencia, describirSinSugerencia } from './application/por-que-no-sugirio';
 export type { SinSugerencia, CodigoSinSugerencia } from './application/por-que-no-sugirio';
+
+// Por qué la IA no hace nada (#614): el mismo diagnóstico que tiene el canal.
+export { diagnosticarLaIa } from './application/diagnostico-ia';
+export type { DiagnosticoDeLaIa, PasoDeLaIa } from './application/diagnostico-ia';

@@ -77,7 +77,7 @@ export interface ModelPort {
   generate(args: GenerateArgs): Promise<GenerateResult>;
 }
 
-const ENV_KEYS: Record<Provider, string> = {
+export const ENV_KEYS: Record<Provider, string> = {
   google: 'GOOGLE_GENERATIVE_AI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
   glm: 'GLM_API_KEY',

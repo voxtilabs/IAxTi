@@ -1,3 +1,4 @@
+import { diagnosticarLaIa } from '@iaxti/module-agents';
 import {
   BadRequestException,
   Body,
@@ -153,6 +154,34 @@ const AjustesDeIa = z.object({
 @Controller('agents')
 @RequireModule('agents')
 export class AgentsController {
+  /**
+   * ¿Por qué la IA no hace nada? (#614)
+   *
+   * El canal tiene su diagnóstico desde #526 y ha servido cada vez. La IA no
+   * tenía nada: si falta una llave, el modelo lanza, el error sube como «Algo
+   * falló de nuestro lado» y nadie puede saber que el problema es una variable
+   * de entorno ausente. Eso es lo que hace que alguien diga «nunca pude probar
+   * nada» — no que no funcione, sino que no se puede ver por qué no.
+   *
+   * `channels.read` no sirve acá y `agents.configure` es demasiado: esto lo
+   * tiene que poder mirar quien administra el negocio para saber si pedir ayuda,
+   * sin poder cambiar con qué modelo se le contesta a sus clientes.
+   */
+  @Get('diagnostico')
+  @RequireModule('agents')
+  @RequirePermission('tenant.read')
+  @ApiOperation({ summary: 'Por qué la IA no está trabajando, paso a paso' })
+  async diagnostico(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const settings = await getTenantSettings(c, actor.tenantId);
+      // El valor de ninguna llave sale de acá: `diagnosticarLaIa` solo pregunta
+      // si la variable EXISTE. Un diagnóstico es una pantalla que alguien va a
+      // compartir para pedir ayuda.
+      return diagnosticarLaIa({ settings });
+    });
+  }
+
   @Get('ajustes')
   @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'Los ajustes de IA del negocio: proveedor único y datos personales' })
