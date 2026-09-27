@@ -5,8 +5,12 @@ import { isOptOutMessage, normalizePhone, normalizeRut } from '../domain/validat
 import {
   canReceiveBusinessInitiated,
   createContact,
+  ensureContactByIdentity,
   ensureContactByPhone,
+  ensureWebContact,
   handleInboundForConsent,
+  identityFor,
+  linkIdentity,
   registerOptIn,
   updateContact,
 } from '../application/contacts';
@@ -194,5 +198,135 @@ describe('contactos (rol de aplicación, RLS activa)', () => {
       updateContact(c, { tenantId: tenantA, contactId: contact.id, name: null }),
     );
     expect(sinNombre.name).toBeNull();
+  });
+});
+
+describe('la identidad de WhatsApp es OPACA, no un teléfono', () => {
+  // Quien adoptó nombre de usuario y escondió su número llega con un BSUID, y
+  // un grupo llega con un JID. Antes los dos se forzaban por `normalizePhone`,
+  // que lanzaba; y como el webhook ya respondió 200, el canal daba el mensaje
+  // por entregado y no reintentaba nunca: se perdía para siempre y en la
+  // bandeja no aparecía nada.
+  const BSUID = 'US.13491208655302741918';
+  const JID_DE_GRUPO = '120363001122334455@g.us';
+
+  it('un BSUID de WhatsApp crea el contacto sin teléfono y queda como su identidad', async () => {
+    const primero = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: BSUID,
+        origin: 'whatsapp',
+        name: 'Quien esconde su número',
+      }),
+    );
+    expect(primero.created).toBe(true);
+    // No se le inventa un teléfono: no lo tenemos.
+    expect(primero.contact.phone).toBeNull();
+    expect(primero.contact.name).toBe('Quien esconde su número');
+
+    // Y se le puede responder: la identidad del canal es por donde escribió.
+    expect(
+      await withTenant(app, tenantA, (c) =>
+        identityFor(c, { tenantId: tenantA, contactId: primero.contact.id, channel: 'whatsapp' }),
+      ),
+    ).toBe(BSUID);
+
+    // Idempotente: el segundo mensaje del mismo no abre otra ficha.
+    const segundo = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: BSUID,
+        origin: 'whatsapp',
+      }),
+    );
+    expect(segundo.created).toBe(false);
+    expect(segundo.contact.id).toBe(primero.contact.id);
+  });
+
+  it('un JID de grupo tampoco se fuerza por el teléfono', async () => {
+    const grupo = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: JID_DE_GRUPO,
+        origin: 'whatsapp',
+      }),
+    );
+    expect(grupo.created).toBe(true);
+    expect(grupo.contact.phone).toBeNull();
+  });
+
+  it('cuando la identidad SÍ es un teléfono se sigue normalizando a E.164', async () => {
+    // Esto es lo que no se puede perder al arreglar lo de arriba: el dedupe
+    // histórico de WhatsApp vive en el teléfono normalizado.
+    const suelto = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: '9 8765 1111',
+        origin: 'whatsapp',
+      }),
+    );
+    expect(suelto.contact.phone).toBe('+56987651111');
+
+    const mismo = await withTenant(app, tenantA, (c) =>
+      ensureContactByIdentity(c, {
+        tenantId: tenantA,
+        channel: 'whatsapp',
+        identity: '+56 9 8765-1111',
+        origin: 'whatsapp',
+      }),
+    );
+    expect(mismo.created).toBe(false);
+    expect(mismo.contact.id).toBe(suelto.contact.id);
+  });
+});
+
+describe('no se borra el ÚLTIMO identificador del contacto', () => {
+  it('el del webchat que solo dejó su correo no se queda sin nada', async () => {
+    const { contact } = await withTenant(app, tenantA, (c) =>
+      ensureWebContact(c, {
+        tenantId: tenantA,
+        name: 'Visitante',
+        email: 'visitante@ejemplo.cl',
+      }),
+    );
+    expect(contact.phone).toBeNull();
+    expect(contact.email).toBe('visitante@ejemplo.cl');
+
+    const rechazo = withTenant(app, tenantA, (c) =>
+      updateContact(c, { tenantId: tenantA, contactId: contact.id, email: null }),
+    );
+    await expect(rechazo).rejects.toThrow(/lo único con que reconocemos/);
+    await expect(rechazo).rejects.toMatchObject({ code: 'ULTIMO_IDENTIFICADOR' });
+
+    // Y el correo sigue ahí: la ficha no quedó huérfana a medias.
+    const despues = await admin.query('SELECT email FROM contacts WHERE id = $1', [contact.id]);
+    expect(despues.rows[0].email).toBe('visitante@ejemplo.cl');
+  });
+
+  it('con otra identidad viva el correo sí se puede borrar', async () => {
+    const { contact } = await withTenant(app, tenantA, (c) =>
+      ensureWebContact(c, {
+        tenantId: tenantA,
+        name: 'Visitante con canal',
+        email: 'con-canal@ejemplo.cl',
+      }),
+    );
+    await withTenant(app, tenantA, (c) =>
+      linkIdentity(c, {
+        tenantId: tenantA,
+        contactId: contact.id,
+        channel: 'webchat',
+        identity: 'sesion-web-abc',
+      }),
+    );
+
+    const sinCorreo = await withTenant(app, tenantA, (c) =>
+      updateContact(c, { tenantId: tenantA, contactId: contact.id, email: null }),
+    );
+    expect(sinCorreo.email).toBeNull();
   });
 });

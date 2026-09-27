@@ -99,13 +99,36 @@ export async function linkIdentity(
 }
 
 /**
+ * ¿Es un teléfono la identidad que llavea el hilo, o es opaca?
+ *
+ * El `contactIdentifier` de un canal NO es un teléfono: es el identificador
+ * con que el canal llavea la conversación. En WhatsApp casi siempre ES un
+ * E.164, pero quien adoptó nombre de usuario y escondió su número llega como
+ * BSUID (`US.13491208655302741918`) y un grupo llega como JID (`...@g.us`).
+ * Devuelve el E.164 normalizado cuando de verdad es un teléfono y `null`
+ * cuando no lo es.
+ *
+ * Ojo con lo que esto NO hace: no relaja la validación. El teléfono se sigue
+ * normalizando con las mismas reglas de siempre; lo único que cambia es que
+ * una identidad que no es un teléfono deja de ir por ese camino.
+ */
+function telefonoDeLaIdentidad(identity: string): string | null {
+  try {
+    return normalizePhone(identity);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * El camino de los canales (SPEC §10, #74): al llegar un mensaje de alguien
  * desconocido se crea el contacto, lo identifique un teléfono o un id de chat.
  * Idempotente por (tenant, canal, identidad).
  *
- * WhatsApp y el simulador siguen resolviéndose por teléfono —es la identidad
- * de ese canal y el dedupe histórico vive ahí—; Instagram y Messenger, por la
- * tabla de identidades, porque no traen teléfono que valga.
+ * WhatsApp y el simulador se resuelven por teléfono CUANDO la identidad es un
+ * teléfono —es la identidad de ese canal y el dedupe histórico vive ahí—; si
+ * es opaca (BSUID, JID de grupo) siguen por la tabla de identidades, igual que
+ * Instagram y Messenger, que no traen teléfono que valga.
  */
 export async function ensureContactByIdentity(
   client: PoolClient,
@@ -118,20 +141,35 @@ export async function ensureContactByIdentity(
     requestId?: string;
   },
 ): Promise<{ contact: Contact; created: boolean }> {
+  // Por qué esto no es un `if` cualquiera: antes TODA identidad de WhatsApp se
+  // desviaba por acá y `normalizePhone` lanzaba con lo que no fuera un número.
+  // El webhook ya había respondido 200, así que Zavu daba el mensaje por
+  // entregado y no reintentaba NUNCA: el mensaje se perdía para siempre y en la
+  // bandeja no aparecía nada. El adaptador hacía bien su parte dejando
+  // `phone: data.from` opaco; el que rompía la regla —«trátalo como opaco»— era
+  // este desvío.
   if (input.channel === 'whatsapp' || input.channel === 'simulador') {
-    const res = await ensureContactByPhone(client, {
-      tenantId: input.tenantId,
-      phone: input.identity,
-      origin: input.origin,
-      requestId: input.requestId,
-    });
-    await linkIdentity(client, {
-      tenantId: input.tenantId,
-      contactId: res.contact.id,
-      channel: 'whatsapp',
-      identity: res.contact.phone ?? normalizePhone(input.identity),
-    });
-    return res;
+    const phone = telefonoDeLaIdentidad(input.identity);
+    if (phone) {
+      const res = await ensureContactByPhone(client, {
+        tenantId: input.tenantId,
+        phone,
+        origin: input.origin,
+        requestId: input.requestId,
+      });
+      await linkIdentity(client, {
+        tenantId: input.tenantId,
+        contactId: res.contact.id,
+        channel: 'whatsapp',
+        identity: res.contact.phone ?? phone,
+      });
+      return res;
+    }
+    // Identidad opaca: cae al camino de la tabla de identidades, abajo. Se
+    // guarda bajo SU canal (`whatsapp` o `simulador`) y no siempre bajo
+    // `whatsapp`, porque la respuesta sale buscando la identidad del canal de
+    // la conversación; guardarla bajo otro canal la dejaría sin destino, y sin
+    // teléfono al que caer de respaldo.
   }
 
   const existing = await client.query(
@@ -233,6 +271,26 @@ export async function ensureContactByPhone(
   return { contact, created: true };
 }
 
+/** Lo mismo que respondía el UPDATE cuando no encontraba la ficha. */
+const CONTACTO_NO_EXISTE = 'No encontramos ese contacto. Puede que se haya eliminado.';
+
+/**
+ * Cambio rechazado porque dejaría la ficha sin forma de reconocer a nadie.
+ *
+ * Lleva `code` para que la API responda con el formato único sin adivinar por
+ * el texto del mensaje: el mensaje es para la persona, el código para la
+ * interfaz.
+ */
+export class CambioDeContactoRechazado extends Error {
+  constructor(
+    readonly code: 'ULTIMO_IDENTIFICADOR',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'CambioDeContactoRechazado';
+  }
+}
+
 export async function updateContact(
   client: PoolClient,
   input: {
@@ -257,6 +315,41 @@ export async function updateContact(
   if (custom && Object.keys(custom).length > 0) {
     const declarados = await listCustomFields(client, input.tenantId, 'contact').catch(() => []);
     custom = validarCustom(declarados, custom);
+  }
+
+  // No se borra el ÚLTIMO identificador. A un contacto lo reconocemos por su
+  // teléfono, por su correo o por su identidad en algún canal; sin ninguna de
+  // las tres queda un registro huérfano —con conversaciones, actividades y
+  // oportunidades colgando— que nadie puede volver a amarrar a una persona, y
+  // que el próximo mensaje de esa misma persona no encuentra: se abre otra
+  // ficha en blanco al lado. El caso real es el visitante del webchat que solo
+  // dejó su correo (#46) y después pide que se lo saquen: #480 hizo que el
+  // borrado por fin funcionara, y con eso destrabó también este camino.
+  // Borrar de verdad los datos del titular tiene su propia puerta, auditada
+  // (`suprimirTitular`, SPEC §39); esta pantalla no es esa puerta.
+  if (input.email !== undefined && !input.email) {
+    // `FOR NO KEY UPDATE` porque esto es leer para decidir si se escribe: sin
+    // el candado, dos ediciones en paralelo ven cada una el identificador que
+    // la otra está borrando y las dos pasan.
+    const ficha = await client.query(
+      'SELECT phone, email FROM contacts WHERE tenant_id = $1 AND id = $2 FOR NO KEY UPDATE',
+      [input.tenantId, input.contactId],
+    );
+    if (ficha.rowCount === 0) throw new Error(CONTACTO_NO_EXISTE);
+    // Si ya venía sin correo no se está borrando nada: no hay por qué rechazar
+    // algo que no cambia la ficha.
+    if (!ficha.rows[0].phone && ficha.rows[0].email) {
+      const enCanales = await client.query(
+        'SELECT 1 FROM contact_identities WHERE tenant_id = $1 AND contact_id = $2 LIMIT 1',
+        [input.tenantId, input.contactId],
+      );
+      if (enCanales.rowCount === 0) {
+        throw new CambioDeContactoRechazado(
+          'ULTIMO_IDENTIFICADOR',
+          'No podemos sacarle el correo: es lo único con que reconocemos a este contacto. Agrégale un teléfono primero, o si te lo pidió el titular, usa la supresión de datos de su ficha.',
+        );
+      }
+    }
   }
 
   // Mandar `null` BORRA; no mandar el campo lo deja como estaba. Antes
@@ -288,7 +381,7 @@ export async function updateContact(
       custom ? JSON.stringify(custom) : null,
     ],
   );
-  if (result.rowCount === 0) throw new Error('No encontramos ese contacto. Puede que se haya eliminado.');
+  if (result.rowCount === 0) throw new Error(CONTACTO_NO_EXISTE);
   const contact = rowToContact(result.rows[0]);
   await publishEvent(client, {
     name: 'contact.updated',
