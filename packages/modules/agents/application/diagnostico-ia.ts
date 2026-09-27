@@ -140,6 +140,40 @@ export function diagnosticarLaIa(input: {
         }),
   });
 
+  // 4. ¿A qué proveedor apunta lo que el negocio TIENE GUARDADO? (#665)
+  //
+  // Los tres pasos de arriba miran la configuración efectiva, que desde #665 ya
+  // cae a un proveedor con credencial. Este mira lo GUARDADO, que es lo que
+  // alguien eligió alguna vez — y es donde estuvo el problema: los ajustes
+  // apuntaban a un proveedor de antes de que ADR-0025 moviera el texto a GLM, el
+  // ambiente tenía GLM, y este diagnóstico decía que todo estaba bien mientras
+  // la IA no contestaba nunca.
+  //
+  // Ya no impide trabajar —por eso es 'atencion' y no 'mal'—, pero se dice:
+  // alguien eligió un proveedor y está usando otro, y enterarse por una pantalla
+  // es mejor que no enterarse.
+  const guardados = TASKS.filter((t) => {
+    const g = (input.settings as { ia?: { tasks?: Record<string, { provider?: string }> } })?.ia
+      ?.tasks?.[t]?.provider;
+    return g && PROVIDERS.includes(g as Provider) && !hayLlave(g as Provider);
+  });
+  if (guardados.length > 0) {
+    pasos.push({
+      id: 'proveedor_guardado',
+      titulo: 'Lo que este negocio tenía elegido',
+      estado: 'atencion',
+      detalle:
+        `${guardados.length} ${guardados.length === 1 ? 'tarea tiene' : 'tareas tienen'} ` +
+        'elegido a mano un proveedor que este ambiente no tiene: ' +
+        guardados.map((t) => EN_CASTELLANO[t] ?? t).join('; ') + '.',
+      queHacer:
+        'Se están atendiendo con un proveedor que sí tiene credencial, así que la IA ' +
+        'funciona. Si la elección era a propósito, configura su credencial; si no, ' +
+        'vuelve a elegir el proveedor en los ajustes de IA para que quede escrito lo ' +
+        'que de verdad está pasando.',
+    });
+  }
+
   const roto = pasos.find((p) => p.estado === 'mal');
   return { problema: roto?.id ?? null, pasos };
 }

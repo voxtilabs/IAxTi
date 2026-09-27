@@ -5,7 +5,7 @@ import { incrementUsage } from '@iaxti/module-organizations';
 import { DEFAULT_TASK_OUTPUT_TOKENS, estimateCostUsd, iaSettings, redactPII } from '../domain/config';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { CATALOGO, herramientasPara, type Herramienta } from './catalogo';
-import { aiSdkModelPort, type HerramientaExpuesta, type ModelPort } from './models';
+import { aiSdkModelPort, type HerramientaExpuesta, type ModelPort, providerAvailable } from './models';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 
@@ -581,7 +581,7 @@ async function registrarCorrida(
     requestId: datos.traceId,
   });
   // A Langfuse va REDACTADO según la política del tenant (SPEC §13).
-  const settings = iaSettings(await getTenantSettings(client, datos.tenantId));
+  const settings = iaSettings(await getTenantSettings(client, datos.tenantId), providerAvailable);
   traceGeneration({
     traceId: datos.traceId,
     tenantId: datos.tenantId,
@@ -639,7 +639,7 @@ export async function modeloDelAgenteGeneral(
   client: PoolClient,
   tenantId: string,
 ): Promise<{ modelo: ModelPort; provider: string; model: string }> {
-  const settings = iaSettings(await getTenantSettings(client, tenantId));
+  const settings = iaSettings(await getTenantSettings(client, tenantId), providerAvailable);
   const { provider, model } = settings.tasks.configuracion_conversada;
   return { modelo: aiSdkModelPort(provider, model), provider, model };
 }

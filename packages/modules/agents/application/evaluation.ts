@@ -4,7 +4,7 @@ import { iaSettings, redactPII, type Provider } from '../domain/config';
 import { formatoJuez, parseJudge, type EvalCase, type JudgeScores } from '../domain/judge';
 import { FORMATO_SUGERENCIA, parseSuggestion } from '../domain/parser';
 import type { ModelPortFactory } from './models';
-import { aiSdkModelPort } from './models';
+import { aiSdkModelPort, providerAvailable } from './models';
 import type { Agent } from './agents';
 import { traceGeneration } from './langfuse';
 
@@ -149,7 +149,7 @@ export async function runEvaluation(
   judgeFactory: ModelPortFactory = aiSdkModelPort,
 ): Promise<EvalRun> {
   if (input.cases.length === 0) throw new Error('No hay casos que evaluar todavía.');
-  const settings = iaSettings(await getTenantSettings(client, input.tenantId));
+  const settings = iaSettings(await getTenantSettings(client, input.tenantId), providerAvailable);
   const juezModelo = settings.tasks.configurar;
   const candidato = candidateFactory(input.agent.provider, input.agent.model);
   const juez = judgeFactory(juezModelo.provider, juezModelo.model);
