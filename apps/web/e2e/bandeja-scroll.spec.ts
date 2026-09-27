@@ -41,7 +41,13 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 768, height: 768 
         contactName: `Contacto de prueba ${String(i + 1).padStart(2, '0')}`,
       })) } });
     });
-    await page.route('**/v1/conversations/*/messages', (route) => route.fulfill({ json:
+    // `messages*` y no `messages`: desde #581 la bandeja pide `?limit=` y, al
+    // leer hacia atrás, `&antesDe=`. Un glob sin la cola deja de calzar en
+    // cuanto la ruta gana un parámetro, y entonces el intercepto no intercepta:
+    // la prueba llama a la API de verdad, el panel queda con un mensaje, no
+    // desborda, y falla en `scrollTop > 0` — por un motivo que no tiene nada que
+    // ver con el scroll.
+    await page.route('**/v1/conversations/*/messages*', (route) => route.fulfill({ json:
       Array.from({ length: 80 }, (_, i) => ({
         id: `mensaje-scroll-${i}`, direction: 'in', type: 'text', deliveryStatus: null,
         authorKind: 'contact', createdAt: new Date(Date.now() - i * 60_000).toISOString(),

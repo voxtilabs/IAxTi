@@ -13,7 +13,7 @@ import {
   Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { z } from 'zod';
 import {
@@ -270,10 +270,17 @@ export class ConversationsController {
   @Get(':id/messages')
   @RequirePermission('conversations.read')
   @ApiOperation({ summary: 'Mensajes de la conversación, más nuevos primero' })
+  @ApiQuery({
+    name: 'antesDe',
+    required: false,
+    description:
+      'El `seq` del mensaje más viejo que ya tienes: devuelve los ANTERIORES a ese (#581).',
+  })
   async messages(
     @Req() request: WithUser,
     @Param('id') id: string,
     @Query('limit') limit?: string,
+    @Query('antesDe') antesDe?: string,
   ) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
@@ -285,7 +292,24 @@ export class ConversationsController {
       ) {
         notFound();
       }
-      return listMessages(c, actor.tenantId, id, limit ? Number(limit) : 50);
+      const tope = limit ? Number(limit) : 50;
+      // Un `antesDe` que no es un número se ignora en vez de reventar: es un
+      // cursor, y quien lo manda mal pide la primera página. Tratarlo como un
+      // error dejaría la conversación sin abrir por un parámetro de más.
+      const cursor = Number(antesDe);
+      const mensajes = await listMessages(
+        c,
+        actor.tenantId,
+        id,
+        tope,
+        Number.isSafeInteger(cursor) && cursor > 0 ? cursor : null,
+      );
+      // Se devuelve la lista y nada más. Si vino completa, quien lee sabe que
+      // PUEDE haber más y pide otra página con el `seq` del más viejo; si vino
+      // corta, llegó al principio. Contar cuántos quedan costaría una consulta
+      // sobre una tabla de mensajes de meses para responder algo que nadie
+      // muestra.
+      return mensajes;
     });
   }
 

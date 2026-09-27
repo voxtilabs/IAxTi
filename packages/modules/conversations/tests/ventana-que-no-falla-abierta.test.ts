@@ -1,5 +1,32 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cierreDeLaVentana, isWithinWindow, VENTANA_HORAS } from '../domain/state';
+
+/**
+ * La lista de canales se LEE del archivo de `channels`, no se importa.
+ *
+ * Importarla obligaría a que `conversations` dependa de `channels`, y eso es
+ * mover la arquitectura para tener una prueba — la regla dice que un módulo
+ * entra a otro solo por su contrato, y este dato no es algo que `conversations`
+ * necesite en producción. Leer el archivo es lo que ya hacen las otras guardas
+ * de este repo, y falla igual de fuerte si la lista cambia.
+ *
+ * Se quitan los comentarios antes de buscar: los comentarios de este repo
+ * mencionan canales todo el tiempo y ya hicieron pasar por verde a cuatro
+ * guardas distintas.
+ */
+function canalesQueExisten(): string[] {
+  const ruta = join(__dirname, '..', '..', 'channels', 'domain', 'port.ts');
+  const fuente = readFileSync(ruta, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('//'))
+    .join('\n');
+  const m = /export const CHANNEL_KINDS = \[([^\]]+)\]/.exec(fuente);
+  if (!m) throw new Error('No se pudo leer CHANNEL_KINDS de channels/domain/port.ts');
+  return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+}
 
 /**
  * La ventana de 24 h es la única puerta entre quien atiende y un mensaje que
@@ -34,6 +61,37 @@ describe('ante la duda, cerrada (#639)', () => {
     // plantilla aprobada y la conversación se reabre; el camino de vuelta
     // existe. El otro camino gasta el intento y no avisa.
     expect(isWithinWindow('canal-que-no-existe', HACE(0.01))).toBe(false);
+  });
+});
+
+describe('la tabla cubre TODOS los canales que existen', () => {
+  /**
+   * Esta es la contracara de fallar cerrada, y hay que decirla: desde que un
+   * canal desconocido se niega, **olvidarse de agregar uno a la tabla ya no es
+   * un descuido, es un canal que no puede enviar**. Y en silencio, que es lo
+   * peor: la pantalla ofrece plantillas, la API rechaza, y nadie relaciona eso
+   * con un renglón que falta.
+   *
+   * Antes de #639 el olvido no se notaba —el canal nuevo pasaba como «sin
+   * ventana»—, así que esta guarda no hacía falta. Ahora sí.
+   */
+  it('cada ChannelKind tiene su entrada, o ese canal no puede enviar nada', () => {
+    const faltan = canalesQueExisten().filter((k) => !(k in VENTANA_HORAS));
+    expect(
+      faltan,
+      'Estos canales existen y no están en VENTANA_HORAS. Desde #639 eso NO es ' +
+        'un defecto cosmético: isWithinWindow los trata como cerrados, la API ' +
+        'rechaza todo envío y quien atiende no puede escribir por ese canal:\n  ' +
+        faltan.join('\n  '),
+    ).toEqual([]);
+  });
+
+  it('y la tabla no inventa canales que no existen', () => {
+    // Un canal de más es un renglón que nadie mantiene y que miente sobre qué
+    // soporta el producto.
+    const existen = canalesQueExisten();
+    const sobran = Object.keys(VENTANA_HORAS).filter((k) => !existen.includes(k));
+    expect(sobran).toEqual([]);
   });
 });
 

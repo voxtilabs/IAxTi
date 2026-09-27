@@ -136,6 +136,12 @@ export interface Mensaje {
   body: string | null;
   deliveryStatus: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | null;
   /**
+   * El orden dentro de la conversación, y el cursor para pedir lo anterior
+   * (#581). Opcional porque una API vieja no lo manda, y ahí simplemente no se
+   * puede paginar: se ve lo último, que es lo de antes.
+   */
+  seq?: number;
+  /**
    * Por qué no salió, ya traducido (#645). Ausente en una API vieja, y ahí la
    * bandeja vuelve a decir solo «No llegó» — que es lo de antes, no algo peor.
    */

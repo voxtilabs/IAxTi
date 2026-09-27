@@ -94,6 +94,11 @@ export interface ChatProps {
   aviso: string | null;
   /** Qué acepta este canal; null mientras carga o si la ruta falló. */
   limitesDeAdjunto: LimitesDeAdjunto | null;
+  /** Si puede haber mensajes anteriores a los que ya están (#581). */
+  hayAnteriores?: boolean;
+  trayendoAnteriores?: boolean;
+  /** Trae la página anterior. Ausente = la bandeja no lo soporta todavía. */
+  onVerAnteriores?: () => void | Promise<void>;
   onVolver: () => void;
   onVerFicha: () => void;
   /**
@@ -130,6 +135,7 @@ export interface ChatProps {
 
 export function Chat({
   detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
+  hayAnteriores, trayendoAnteriores, onVerAnteriores,
   onReintentar, reintentando,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
   plantillas, onCargarPlantillas, onEnviarPlantilla, onAbrirAdjunto, limitesDeAdjunto,
@@ -151,11 +157,50 @@ export function Chat({
   const [mandandoPlantilla, setMandandoPlantilla] = useState(false);
   const [motivo, setMotivo] = useState('');
   const historialRef = useRef<HTMLDivElement>(null);
+  const estabaAbajo = useRef(true);
+  /** Alto del historial antes de pegar los anteriores, para no perder el lugar. */
+  const altoAntes = useRef<number | null>(null);
+  /** Qué conversación está dibujada, para saber cuándo se está ABRIENDO otra. */
+  const conversacionPintada = useRef<string | null>(null);
 
+  /**
+   * Bajar al último mensaje SOLO si ya estabas abajo (#581).
+   *
+   * Antes esto era `scrollTop = scrollHeight` en cada cambio de `mensajes`. Con
+   * realtime encendido eso significa que si subís a leer algo que se le prometió
+   * al cliente y entra un mensaje nuevo, te tira abajo de un tirón — justo
+   * mientras estás leyendo, y justo en la conversación que más te importa.
+   *
+   * Y si lo que cambió son los mensajes ANTERIORES, bajar sería peor todavía:
+   * pediste ver lo de antes y te manda al final. En ese caso se conserva el
+   * lugar sumando lo que creció el contenido, que es lo que hace cualquier chat.
+   */
   useEffect(() => {
     const historial = historialRef.current;
-    if (historial) historial.scrollTop = historial.scrollHeight;
-  }, [mensajes]);
+    if (!historial) return;
+    if (altoAntes.current !== null) {
+      // Llegaron los anteriores: el contenido creció hacia ARRIBA, así que se
+      // empuja el scroll lo mismo que creció y la vista no se mueve un píxel.
+      historial.scrollTop += historial.scrollHeight - altoAntes.current;
+      altoAntes.current = null;
+      return;
+    }
+    // Al ABRIR una conversación se baja siempre, sin preguntar. Lo primero que
+    // alguien quiere ver es lo último que dijo el cliente, y el estado de «venía
+    // mirando arriba» es de la conversación anterior, no de esta.
+    //
+    // Y no es solo lo correcto: es lo que hace falta. `estabaAbajo` se anota
+    // desde el evento de scroll, que puede llegar ANTES de que corra este efecto
+    // —React pinta y recién después ejecuta los efectos pasivos—, y con el
+    // historial recién pintado arriba del todo esa anotación dice «no estabas
+    // abajo». Sin esta rama, abrir una conversación te dejaba arriba de todo.
+    const abriendo = conversacionPintada.current !== detalle?.id;
+    conversacionPintada.current = detalle?.id ?? null;
+    if (abriendo || estabaAbajo.current) {
+      historial.scrollTop = historial.scrollHeight;
+      estabaAbajo.current = true;
+    }
+  }, [mensajes, detalle?.id]);
 
   /**
    * La ventana de 24 h, y arrastrar y pegar (#561).
@@ -298,7 +343,40 @@ export function Chat({
         </DropdownMenu>
       </header>
 
-      <div ref={historialRef} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6">
+      <div
+        ref={historialRef}
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6"
+        // Se anota si estás abajo en CADA scroll, no al llegar el mensaje: para
+        // cuando llega ya es tarde —el contenido creció y la cuenta da que no
+        // estabas—. 120 px de margen porque «abajo» no es el píxel exacto.
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          estabaAbajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+      >
+        {/* Leer hacia atrás (#581). Antes se veían los últimos 50 y ahí se
+            terminaba: una conversación de tres meses mostraba su último pedazo
+            y el resto no estaba al alcance de nadie —ni de quien toma una
+            conversación que atendía otra persona y necesita ver qué se le
+            prometió al cliente, ni del copiloto, que arma su contexto con lo
+            que hay—. */}
+        {hayAnteriores && (
+          <div className="mb-4 flex justify-center">
+            <Button
+              variant="secundario"
+              size="chico"
+              disabled={trayendoAnteriores}
+              onClick={() => {
+                // Se anota el alto ANTES de pedir: cuando lleguen, el efecto
+                // empuja el scroll lo mismo que creció y no se pierde el lugar.
+                altoAntes.current = historialRef.current?.scrollHeight ?? null;
+                void onVerAnteriores?.();
+              }}
+            >
+              {trayendoAnteriores ? 'Trayendo…' : 'Ver mensajes anteriores'}
+            </Button>
+          </div>
+        )}
         <ol className="mx-auto flex max-w-2xl flex-col gap-3">
           {cronologicos.map((m) => (
             <li
