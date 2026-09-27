@@ -1,8 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { claseDeAdjunto } from '@iaxti/module-channels';
 import type {
   ChannelAccountRef,
   ChannelKind,
   ChannelProvider,
+  ClaseDeAdjunto,
   NormalizedInbound,
   OutboundMessage,
 } from '@iaxti/module-channels';
@@ -31,6 +33,21 @@ import {
 } from './outbound';
 
 /**
+ * De la clase de adjunto que declara el canal al `messageType` de Zavu.
+ *
+ * La tabla de clases vive en `channels` y es la que ya decide si un archivo se
+ * puede subir (`revisarAdjunto`). Acá solo se la traduce: así no hay dos
+ * opiniones sobre qué es un webp, que es justo lo que se rompía.
+ */
+const MESSAGE_TYPE_POR_CLASE: Record<ClaseDeAdjunto, string> = {
+  imagen: 'image',
+  sticker: 'sticker',
+  video: 'video',
+  audio: 'audio',
+  documento: 'document',
+};
+
+/**
  * De la forma de Zavu a la NUESTRA (#159).
  *
  * Un campo con el nombre del proveedor en el puerto sería la misma
@@ -46,20 +63,30 @@ import {
  *
  * Solo el PRIMERO. WhatsApp manda un medio por mensaje, y pasar el resto en
  * silencio sería prometer que salieron.
+ *
+ * El tipo lo decide la TABLA del canal (`claseDeAdjunto`), no un
+ * `startsWith('image/')`. Eso último mandaba un `image/webp` como `image`, y
+ * era la contradicción más cara que tenía este archivo: nuestra propia tabla
+ * declara el webp en la clase `sticker` y deja `imagen` en jpeg y png, o sea
+ * que ya sabíamos que un webp NO es una imagen válida para WhatsApp — y el
+ * adaptador lo mandaba como imagen igual. Resultado: el archivo se subía a R2
+ * (que se paga), el proveedor lo rechazaba, y al cliente no le llegaba nada.
+ * `sticker` es un `messageType` propio de la API; pedirlo por su nombre es
+ * todo lo que faltaba.
+ *
+ * Lo que la tabla no reconoce cae a `document`, que es el único envío que no
+ * le exige un formato al archivo. No debería llegar acá nada así —
+ * `revisarAdjunto` corta antes de firmar la subida—, pero si llega, el
+ * cliente recibe el archivo en vez de nada.
  */
 function envioDeAdjunto(
   adjuntos?: Array<{ url: string; filename?: string; contentType?: string }>,
+  canal = 'whatsapp',
 ): Record<string, unknown> {
   const a = adjuntos?.[0];
   if (!a) return {};
-  const tipo = (a.contentType ?? '').toLowerCase();
-  const messageType = tipo.startsWith('image/')
-    ? 'image'
-    : tipo.startsWith('video/')
-      ? 'video'
-      : tipo.startsWith('audio/')
-        ? 'audio'
-        : 'document';
+  const clase = claseDeAdjunto(a.contentType ?? '', canal);
+  const messageType = clase ? MESSAGE_TYPE_POR_CLASE[clase.clase] : 'document';
   return {
     messageType,
     content: {
@@ -107,6 +134,40 @@ const TIPOS: Record<string, string> = {
   interactive: 'interactivo',
   reaction: 'reaccion',
 };
+
+/**
+ * Los eventos de Zavu que SON un mensaje del cliente.
+ *
+ * `message.unsupported` faltaba, y era el único evento de categoría Inbound que
+ * dejábamos fuera. Zavu lo manda cuando el cliente escribe algo que su modelo
+ * no representa —una encuesta, un carrito, una ubicación en vivo—, y no
+ * suscribirlo costaba dos cosas a la vez:
+ *
+ *  1. No lo veíamos. Para quien atiende, el cliente nunca escribió: la bandeja
+ *     se queda en el mensaje anterior y parece que no pasó nada.
+ *  2. Y la VENTANA DE 24 h no se renovaba. `receiveInbound` es lo que mueve
+ *     `last_inbound_at`; sin mensaje no hay renovación, así que después no se le
+ *     podía contestar libre y había que gastar una plantilla — o no contestarle.
+ *     El cliente escribió, la regla dice que la ventana está abierta, y el
+ *     producto decía que no.
+ *
+ * Un mensaje que no podemos representar sigue siendo un mensaje que el cliente
+ * mandó, así que entra igual.
+ */
+const EVENTOS_ENTRANTES = new Set(['message.inbound', 'message.unsupported']);
+
+/**
+ * Lo que se ve en la bandeja cuando el mensaje no se puede representar.
+ *
+ * No se inventa el contenido (no lo tenemos) y no se deja vacío: se dice qué
+ * pasó y qué hacer, que es lo mismo que pide cualquier aviso del producto. El
+ * `type` va como `texto` porque es el único que la tabla de mensajes acepta
+ * hoy; darle un tipo propio es una migración de otro módulo.
+ */
+const CUERPO_NO_REPRESENTABLE =
+  'El cliente mandó algo que no podemos mostrar acá (una encuesta, un carrito, ' +
+  'una ubicación en vivo o similar). Ábrelo en WhatsApp para verlo; desde acá le ' +
+  'puedes responder igual.';
 
 /** El envelope de Zavu: `{id,type,timestamp,senderId,projectId,data}`. */
 interface ZavuEvent {
@@ -349,7 +410,10 @@ export function createZavuProvider(
           // `messageType` + `content.mediaUrl`, y el cuerpo pasa a ser el
           // pie de foto. Uno por mensaje, que es lo que WhatsApp permite:
           // mandar el segundo como si nada sería perderlo en silencio.
-          ...envioDeAdjunto(message.attachments),
+          // El canal va en el llamado porque la tabla de clases es del canal:
+          // quien decide qué es un webp es el mismo que decidió si se podía
+          // subir, y no dos listas que se separan en el primer cambio.
+          ...envioDeAdjunto(message.attachments, kind),
           // Una plantilla no viaja como texto: Zavu la quiere como
           // `messageType: 'template'` con el id del proveedor y las
           // variables por posición. La traducción vive acá y no en el
@@ -400,14 +464,17 @@ export function createZavuProvider(
       // Un envelope, un evento. Solo los entrantes se convierten en mensaje:
       // `direction` no sirve para filtrar acá porque `status` no distingue
       // dirección — el tipo de evento sí.
-      if (evento.type !== 'message.inbound') return [];
+      if (!EVENTOS_ENTRANTES.has(evento.type ?? '')) return [];
       const data = evento.data;
       if (!data?.messageId || !data.from) return [];
+      const noRepresentable = evento.type === 'message.unsupported';
       return [
         {
           phone: data.from,
-          type: TIPOS[data.messageType ?? 'text'] ?? 'texto',
-          body: data.text,
+          type: noRepresentable ? 'texto' : (TIPOS[data.messageType ?? 'text'] ?? 'texto'),
+          // Si Zavu alcanzó a sacarle algo de texto, eso vale más que nuestra
+          // explicación: es lo que el cliente de verdad escribió.
+          body: noRepresentable ? (data.text ?? CUERPO_NO_REPRESENTABLE) : data.text,
           attachments: adjuntosDe(data),
           providerMessageId: data.messageId,
           timestamp: String(
@@ -447,10 +514,16 @@ export function normalizeStatuses(payload: unknown): DeliveryStatusUpdate[] {
   ];
 }
 
-/** La atribución click-to-WhatsApp llega SOLO en el primer mensaje del hilo. */
+/**
+ * La atribución click-to-WhatsApp llega SOLO en el primer mensaje del hilo.
+ *
+ * Y por eso se lee de los dos eventos entrantes: si ese primer mensaje resulta
+ * ser uno que Zavu no representa, la atribución venía ahí y no vuelve nunca.
+ * Mirar solo `message.inbound` perdía la venta del aviso en silencio.
+ */
 export function referralDe(payload: unknown): Record<string, unknown> | null {
   const evento = payload as ZavuEvent;
-  return evento.type === 'message.inbound' ? (evento.data?.referral ?? null) : null;
+  return EVENTOS_ENTRANTES.has(evento.type ?? '') ? (evento.data?.referral ?? null) : null;
 }
 
 /** Los adjuntos de Zavu vienen por URL firmada y de vida corta: se bajan al llegar. */

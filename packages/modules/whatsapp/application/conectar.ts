@@ -13,7 +13,14 @@ import type { ChannelAccountRef, ChannelKind } from '@iaxti/module-channels';
 
 export interface SenderZavu {
   id: string;
+  /**
+   * El nombre del emisor: el nombre verificado del negocio («Ferretería El
+   * Sol»), el nombre de la Página o el @usuario. NO es el teléfono, aunque a
+   * veces se le parezca — quien lo configuró pudo escribir el número ahí.
+   */
   name: string;
+  /** El teléfono del emisor, en E.164. Es el dato duro; `name` no lo es. */
+  phoneNumber?: string | null;
   channels: string[];
   isDefault?: boolean;
   webhook?: { url?: string | null; signatureVersion?: string | null; active?: boolean };
@@ -161,9 +168,22 @@ export function urlWebhook(baseUrl: string, accountId: string): string {
   return `${baseUrl.replace(/\/$/, '')}/webhooks/channels/${accountId}`;
 }
 
-/** Los eventos que el producto necesita. Pedir de más es ruido que igual se descarta. */
+/**
+ * Los eventos que el producto necesita. Pedir de más es ruido que igual se
+ * descarta; pedir de menos es no enterarse, y eso no se descubre mirando el
+ * código: se descubre cuando un cliente reclama que nadie le contestó.
+ *
+ * Esta lista es lo que viaja en el `PATCH /senders/{id}` al conectar, así que
+ * lo que no esté acá NO LLEGA. Faltaba `message.unsupported` —el único evento
+ * de categoría Inbound que dejábamos fuera—, que es lo que Zavu manda cuando el
+ * cliente escribe algo que su modelo no representa (una encuesta, un carrito,
+ * una ubicación en vivo). Sin suscribirlo pasaban dos cosas: no lo veíamos, y
+ * la ventana de 24 h no se renovaba, así que después no se le podía contestar
+ * libre aunque el cliente hubiera escrito hace un minuto.
+ */
 export const EVENTOS_WEBHOOK = [
   'message.inbound',
+  'message.unsupported',
   'conversation.new',
   'message.sent',
   'message.delivered',
@@ -203,11 +223,29 @@ export async function conectarSender(
   },
 ): Promise<ResultadoConexion> {
   const avisos: string[] = [];
+  /**
+   * `display_phone` guarda el TELÉFONO, no el nombre del emisor.
+   *
+   * Acá iba `input.sender.name`, o sea el nombre verificado del negocio
+   * («Ferretería El Sol»), y quedaba guardado en una columna que se llama
+   * `display_phone` y que la interfaz muestra en mono, donde mono significa
+   * «este es el dato duro». Dos consecuencias: el dueño no podía ver desde qué
+   * número sale su campaña —es el único lugar donde ese número aparece— y lo que
+   * veía en su lugar se leía como si lo fuera.
+   *
+   * El dato SÍ venía: el emisor de Zavu trae su `phoneNumber` en E.164. Lo
+   * estábamos ignorando y poniendo otro encima, que es peor que no tenerlo.
+   *
+   * Si el emisor no lo trae (un canal sin número detrás, o una respuesta más
+   * pobre de la que esperamos), la columna queda en NULL a propósito. Un nulo se
+   * ve y se arregla; un nombre metido en la columna del teléfono se cree.
+   */
+  const telefono = input.sender.phoneNumber?.trim() || null;
   const { number, account } = await connectWhatsAppNumber(client, {
     tenantId: input.tenantId,
     name: input.nombre,
     senderId: input.sender.id,
-    displayPhone: input.sender.name,
+    ...(telefono ? { displayPhone: telefono } : {}),
     credentialRef: input.credentialRef,
     webhookSecretRef: input.webhookSecretRef,
     ...(input.enviosReales ? { enviosReales: true } : {}),
