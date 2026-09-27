@@ -21,6 +21,7 @@ import {
   changeConversationState,
   getConversation,
   getConversationDetail,
+  cierreDeLaVentana,
   isWithinWindow,
   listInbox,
   listMessages,
@@ -249,7 +250,21 @@ export class ConversationsController {
     ) {
       notFound(); // no filtramos "existe pero no es tuya": misma respuesta
     }
-    return detail;
+    // Si se puede responder libre lo decide la API, no la pantalla (#639).
+    //
+    // La bandeja lo calculaba por su cuenta con `Date.now() - lastInboundAt <
+    // 24 h`, sin mirar el canal. Dos implementaciones de la misma regla de
+    // negocio, en dos lenguajes, y ya se habían separado: en webchat y en el
+    // simulador —que no tienen ventana— la pantalla escondía el campo de
+    // respuesta y ofrecía plantillas, para un canal donde no hay plantillas.
+    //
+    // `cierraA` va aparte del booleano porque la etiqueta de «menos de 2 h»
+    // (ui-pulso.md) tiene que salir del MISMO dato y no de una tercera cuenta.
+    return {
+      ...detail,
+      ventanaAbierta: isWithinWindow(detail.channel, detail.lastInboundAt),
+      cierraA: cierreDeLaVentana(detail.channel, detail.lastInboundAt),
+    };
   }
 
   @Get(':id/messages')

@@ -34,7 +34,7 @@ import {
   useArrastre,
 } from '@iaxti/ui/react';
 import {
-  enVentana24h,
+  ventanaAbierta,
   renderPlantilla,
   renderQuickReply,
   variablesDePlantilla,
@@ -169,7 +169,7 @@ export function Chat({
    * Fuera de la ventana queda apagado: ahí solo salen plantillas, y aceptar que
    * sueltes una foto que no va a salir es prometer algo que el canal no permite.
    */
-  const enVentana = detalle ? enVentana24h(detalle.lastInboundAt) : false;
+  const enVentana = detalle ? ventanaAbierta(detalle) : false;
   const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana });
 
   if (!detalle) {

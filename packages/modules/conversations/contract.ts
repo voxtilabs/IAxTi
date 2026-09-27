@@ -55,6 +55,7 @@ export {
   assertConversationTransition,
   assertDeliveryAdvance,
   isWithin24hWindow,
+  cierreDeLaVentana,
   isWithinWindow,
   salePorProveedor,
   CANALES_POR_PROVEEDOR,

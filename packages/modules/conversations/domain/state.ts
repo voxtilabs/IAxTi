@@ -81,13 +81,52 @@ export function salePorProveedor(canal: string): boolean {
   return (CANALES_POR_PROVEEDOR as readonly string[]).includes(canal);
 }
 
+/**
+ * ¿Se puede responder libre por este canal ahora mismo?
+ *
+ * Ojo con la diferencia entre `null` y `undefined` en la tabla, porque acá se
+ * confundían y el costo era real (#639):
+ *
+ * - `null` = **este canal no tiene ventana**. El webchat y el simulador son
+ *   nuestros; no hay Meta que refuse nada. Responder siempre se puede.
+ * - `undefined` = **no conozco este canal**. Eso no es lo mismo, y tratarlo
+ *   igual dejaba pasar cualquier nombre que no estuviera en la tabla.
+ *
+ * Esta función es la única puerta entre quien atiende y un mensaje que WhatsApp
+ * va a rechazar: la llaman la API al responder, el worker antes de despachar y
+ * el motor de automatizaciones. Ante la duda tiene que NEGARSE, no dejar pasar.
+ * Negarse es recuperable —se manda una plantilla aprobada y la conversación se
+ * reabre—; dejar pasar gasta el intento, le cuesta a quien atiende el tiempo de
+ * escribirlo y deja el mensaje en `failed` con un código de Meta.
+ *
+ * Lo que motivó el cambio: once mensajes escritos a mano salieron a WhatsApp con
+ * la ventana cerrada y volvieron con el 131047. El SPEC §11 promete que «la
+ * bandeja lo muestra y bloquea; la API lo rechaza aunque la UI falle», y no pasó
+ * ninguna de las dos.
+ */
 export function isWithinWindow(
   channel: string,
   lastInboundAt: Date | null,
   now: Date = new Date(),
 ): boolean {
+  if (!(channel in VENTANA_HORAS)) return false;
   const horas = VENTANA_HORAS[channel];
-  if (horas === null || horas === undefined) return true;
+  // Declarado sin ventana: el canal es nuestro.
+  if (horas === null) return true;
   if (!lastInboundAt) return false;
   return now.getTime() - lastInboundAt.getTime() < horas * 60 * 60 * 1000;
+}
+
+/**
+ * Cuándo se cierra la ventana, para que la pantalla no tenga que volver a
+ * calcularla.
+ *
+ * `null` = no hay nada que contar: o el canal no tiene ventana, o nunca
+ * escribió, o el canal no se conoce. La bandeja distingue esos casos por
+ * `isWithinWindow`; esto es solo el reloj.
+ */
+export function cierreDeLaVentana(channel: string, lastInboundAt: Date | null): Date | null {
+  const horas = VENTANA_HORAS[channel];
+  if (horas === null || horas === undefined || !lastInboundAt) return null;
+  return new Date(lastInboundAt.getTime() + horas * 60 * 60 * 1000);
 }
