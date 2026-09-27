@@ -155,3 +155,53 @@ describe('el smoke verifica QUÉ build quedó vivo (#565)', () => {
     expect(result.stdout).toContain('#573');
   });
 });
+
+/**
+ * El paso Smoke tiene las variables que USA (#613).
+ *
+ * Esta guarda existe por un error mío que estuvo activo y callado varios
+ * despliegues: `SHA` estaba en el `env:` del paso **Deploy** y no en el de
+ * **Smoke**, que es otro paso. Así que la comprobación de «qué build quedó vivo»
+ * de #566 nunca se ejecutó: imprimía «Sin SHA en el entorno» en cada despliegue
+ * y nadie lo leyó.
+ *
+ * Y lo que lo hizo invisible fue una decisión mía: agregué la rama que salta
+ * cuando no hay SHA para que la prueba de este archivo no diera un rojo sin
+ * sentido. Esa rama se tragó la comprobación entera en producción — el mismo
+ * defecto que llevo toda la noche sacando del producto, cometido acá.
+ *
+ * Una prueba de comportamiento no alcanzaba: el shell del paso corre igual sin
+ * la variable. Lo que hay que comprobar es el CABLEADO del workflow.
+ */
+describe('el paso Smoke recibe lo que usa (#613)', () => {
+  const smokeStep = parse(
+    readFileSync(new URL('../../../.github/workflows/deploy-staging.yml', import.meta.url), 'utf8'),
+  ).jobs.deploy.steps.find((s) => s.name === 'Smoke');
+
+  it('toda variable que el script lee está declarada en su env', () => {
+    const declaradas = new Set(Object.keys(smokeStep.env ?? {}));
+    // Las que el shell del paso lee de verdad, sacadas del propio script.
+    const usadas = new Set(
+      [...smokeStep.run.matchAll(/\$\{([A-Z][A-Z0-9_]*)(:-[^}]*)?\}/g)].map((m) => m[1]),
+    );
+    // Las que GitHub pone solas no hacen falta declararlas.
+    const deGitHub = new Set(['GITHUB_OUTPUT', 'GITHUB_ENV', 'GITHUB_STEP_SUMMARY', 'RUNNER_OS']);
+    // Y las que el propio script define antes de usar.
+    const propias = new Set(
+      [...smokeStep.run.matchAll(/^\s*([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]),
+    );
+    const faltan = [...usadas].filter((v) => !declaradas.has(v) && !deGitHub.has(v) && !propias.has(v));
+    expect(
+      faltan,
+      'El paso Smoke lee estas variables y no las tiene en su `env:`. Un paso no hereda el ' +
+        'env de otro, así que valen vacío y la comprobación que dependa de ellas se salta en ' +
+        'silencio.',
+    ).toEqual([]);
+  });
+
+  it('SHA está, porque es de lo que depende verificar qué build quedó vivo', () => {
+    // Explícita y por nombre: es la que se perdió, y la genérica de arriba podría
+    // volverse permisiva si alguien cambia el patrón del script.
+    expect(Object.keys(smokeStep.env ?? {})).toContain('SHA');
+  });
+});
