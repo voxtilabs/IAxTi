@@ -130,3 +130,80 @@ describe('guard de autorización (unidad, módulo apagado)', () => {
     }
   });
 });
+
+/**
+ * El fallback por cabeceras no existe donde hay tokens (#611).
+ *
+ * Decía «se retira en hardening» y no se retiró. Lo comprobé CONTRA STAGING, en
+ * vivo: sin ningún token, mandando solo
+ *
+ *     X-User-Id: <cualquiera>   X-Tenant-Id: <uuid de un negocio>   X-Role: ADMIN
+ *
+ * la API contestaba 200. Cualquiera que supiera un uuid de tenant era ADMIN de
+ * ese negocio: leer sus conversaciones, escribirle a sus clientes desde su
+ * número, crear links de cobro. Y staging está conectado al número real de
+ * VoxTi, así que no era un riesgo teórico.
+ *
+ * Dos cerraduras, porque una sola se abre por olvido:
+ *  1. Si el servidor PUEDE verificar tokens, este camino no existe. Es la regla
+ *     de fondo y no depende de configuración.
+ *  2. Y si por error faltara `SUPABASE_JWKS_URL` en staging o producción —lo que
+ *     abriría la cerradura 1 sola—, el ambiente lo impide igual.
+ */
+describe('el fallback por cabeceras no existe donde hay tokens (#611)', () => {
+  const HEADERS_FALSOS = {
+    'X-User-Id': '11111111-1111-4111-8111-111111111111',
+    'X-Tenant-Id': '22222222-2222-4222-8222-222222222222',
+    'X-Role': 'ADMIN',
+  };
+
+  it('con verificador de JWT configurado, las cabeceras NO entran', async () => {
+    // Es el caso de staging y de producción: hay jwtVerify, así que mandar
+    // cabeceras tiene que dar 401 y no una sesión de ADMIN.
+    const app = await createApp({
+      jwtVerify: async () => ({ userId: 'no-deberia-usarse' }),
+      resolveRole: async () => 'ADMIN',
+    });
+    await app.listen(0);
+    try {
+      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      expect(r.status, 'sin token, las cabeceras no pueden dar acceso').toBe(401);
+      expect((await r.json()).code).toBe('UNAUTHORIZED');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('sin verificador pero en un ambiente de verdad, tampoco', async () => {
+    // La segunda cerradura: si faltara SUPABASE_JWKS_URL por error de
+    // configuración, la primera se abriría sola. Esta no.
+    const antes = process.env.IAXTI_ENV;
+    process.env.IAXTI_ENV = 'staging';
+    const app = await createApp({ jwtVerify: null, resolveRole: async () => 'ADMIN' });
+    await app.listen(0);
+    try {
+      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      expect(r.status).toBe(401);
+    } finally {
+      await app.close();
+      if (antes === undefined) delete process.env.IAXTI_ENV;
+      else process.env.IAXTI_ENV = antes;
+    }
+  });
+
+  it('en desarrollo local sin verificador, sigue sirviendo', async () => {
+    // El fallback existe para trabajar sin Supabase cableado. Cerrarlo del todo
+    // rompería eso, y entonces alguien lo reabriría de la peor forma posible.
+    const antes = process.env.IAXTI_ENV;
+    delete process.env.IAXTI_ENV;
+    const app = await createApp({ jwtVerify: null, resolveRole: async () => 'ADMIN' });
+    await app.listen(0);
+    try {
+      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      expect(r.status, 'en local sin Supabase el fallback tiene que funcionar').toBe(200);
+    } finally {
+      await app.close();
+      if (antes !== undefined) process.env.IAXTI_ENV = antes;
+    }
+  });
+});

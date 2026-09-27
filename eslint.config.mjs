@@ -14,6 +14,11 @@ export default tseslint.config(
       '**/*.cjs',
       '**/*.mjs', // scripts de configuración y orquestación (corren en node)
       '**/public/**', // assets estáticos del navegador (snippet del webchat)
+      // Copias completas del repo que crea `isolation: worktree` de los
+      // workflows (#611). `eslint .` se mete y lintea todo dos veces: 190
+      // errores que no son de nadie, en el comando que de verdad cuenta. Ya
+      // están en .gitignore; esto es su otra mitad.
+      '**/.claude/worktrees/**',
     ],
   },
   eslint.configs.recommended,
