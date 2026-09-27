@@ -273,6 +273,23 @@ jobs:
             echo "Build vivo: ${vivo} (coincide con el commit desplegado)."
           fi
           mirar /health/modules || fallo=1
+
+          # ¿Quedó este despliegue con IA? (#641)
+          #
+          # No falla el deploy: que falte una credencial de IA no es motivo para
+          # marcar el despliegue en rojo —la bandeja, el CRM y los webhooks
+          # siguen sirviendo—, pero SÍ tiene que quedar dicho acá. La pregunta
+          # «¿llegó la llave al contenedor?» se volvió una conversación repetida
+          # porque no había dónde mirarla: `/ready` decía «ok» con las tres
+          # ausentes. `/ready` no publica nombres ni llaves, solo cuántas hay;
+          # el detalle con el nombre de cada variable pide sesión y vive en
+          # /agents/diagnostico.
+          ia=$(curl -sS -m 15 "${BASE}/ready" | jq -r '.dependencias[]? | select(.nombre=="ia") | "\(.ok)|\(.detalle)"')
+          case "${ia%%|*}" in
+            true)  echo "IA: ${ia#*|}" ;;
+            false) echo "IA SIN CREDENCIAL: ${ia#*|}" ;;
+            *)     echo "IA: esta imagen todavía no informa el estado de la IA en /ready." ;;
+          esac
           # `/ready` SÍ mira las dependencias: una API viva sin base contesta
           # /health en 200 y no sirve para nada. Sin esto, un despliegue con
           # la base inalcanzable se declaraba bueno — y así estuvo staging.

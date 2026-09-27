@@ -38,6 +38,10 @@ describe('salud y disponibilidad', () => {
     expect(cuerpo.dependencias.map((d: { nombre: string }) => d.nombre)).toEqual([
       'postgres',
       'redis',
+      // La IA se reporta pero NO bloquea (#641): que el asistente no pueda
+      // trabajar es grave, y aun así responder 503 dejaría al negocio sin
+      // atender a sus clientes para castigar una variable de entorno.
+      'ia',
     ]);
     for (const dep of cuerpo.dependencias) {
       expect(typeof dep.ms).toBe('number');

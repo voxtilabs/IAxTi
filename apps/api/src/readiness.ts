@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import { redisConnection } from '@iaxti/core';
+import { PROVIDERS, providerAvailable } from '@iaxti/module-agents';
 
 // Readiness de verdad (#17). `/health` y `/ready` NO son lo mismo y
 // confundirlos es peor que no tener ninguno:
@@ -22,6 +23,16 @@ export interface Dependencia {
   ok: boolean;
   ms: number;
   detalle?: string;
+  /**
+   * Si esta dependencia en rojo saca la instancia de rotación.
+   *
+   * Por omisión sí: sin base no se puede contestar nada. La IA es la
+   * excepción y va con `false` — que el asistente no pueda trabajar es grave,
+   * pero la bandeja, el CRM y los webhooks siguen sirviendo, y responder 503
+   * por eso dejaría al negocio sin atender a sus clientes para castigar una
+   * variable de entorno. Se reporta, no se castiga.
+   */
+  bloquea?: boolean;
 }
 
 export interface Readiness {
@@ -190,9 +201,44 @@ export async function checkReadiness(pool: Pool | null, service = 'api'): Promis
     });
   }
 
+  dependencias.push(credencialesDeIa());
+
   return {
-    status: dependencias.every((d) => d.ok) ? 'ok' : 'degraded',
+    // Solo las que bloquean deciden si se sale de rotación.
+    status: dependencias.every((d) => d.ok || d.bloquea === false) ? 'ok' : 'degraded',
     service,
     dependencias,
+  };
+}
+
+/**
+ * ¿Tiene este ambiente con qué hacer funcionar la IA? (#641)
+ *
+ * Existe porque la pregunta «¿llegó la llave al contenedor?» se volvió una
+ * conversación, repetida, y nadie podía contestarla mirando: `/ready` decía
+ * «ok» con las tres credenciales ausentes, porque solo miraba postgres y
+ * redis. El diagnóstico completo (#614) vive en `/agents/diagnostico` y pide
+ * sesión —está bien que la pida, ahí se nombran las variables—, así que para
+ * saber si el despliegue quedó con IA había que entrar al producto.
+ *
+ * Acá va lo mínimo que responde la pregunta y **nada más**: cuántos
+ * proveedores tienen credencial. Ni sus nombres, ni qué variable falta, ni un
+ * pedazo de ninguna llave. Un número no le sirve a nadie de afuera y le
+ * ahorra a quien opera tener que entrar a preguntar.
+ *
+ * `bloquea: false` a propósito: esto NO saca la instancia de rotación.
+ */
+function credencialesDeIa(): Dependencia {
+  const con = PROVIDERS.filter((p) => providerAvailable(p)).length;
+  return {
+    nombre: 'ia',
+    ok: con > 0,
+    ms: 0,
+    bloquea: false,
+    detalle:
+      con > 0
+        ? `${con} de ${PROVIDERS.length} proveedores con credencial.`
+        : 'Ningún proveedor de IA tiene credencial en este ambiente: el asistente no puede ' +
+          'trabajar. El detalle, con el nombre de cada variable, está en /agents/diagnostico.',
   };
 }
