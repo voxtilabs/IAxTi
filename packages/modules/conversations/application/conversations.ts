@@ -46,6 +46,17 @@ export interface Message {
   type: MessageType;
   body: string | null;
   deliveryStatus: DeliveryStatus | null;
+  /**
+   * Por qué NO salió, en la voz de Pulso (#645).
+   *
+   * Se guardaba en `meta.error` desde siempre —lo escribe
+   * `updateDeliveryStatus` con la traducción de `causaLegible`, que convierte
+   * el código de Meta en una frase que se puede leer— y esta función no lo
+   * proyectaba. La bandeja recibía `deliveryStatus: 'failed'` y nada más, así
+   * que dibujaba «No llegó» y un botón de reintentar, once veces seguidas,
+   * mientras la explicación estaba escrita en la base esperando.
+   */
+  error: string | null;
   authorKind: AuthorKind;
   authorId: string | null;
   providerMessageId: string | null;
@@ -108,6 +119,13 @@ function rowToConversation(row: Record<string, unknown>): Conversation {
   };
 }
 
+/** El motivo del fallo, que vive en `meta.error` desde #43. */
+function errorDeLaFila(meta: unknown): string | null {
+  if (!meta || typeof meta !== 'object') return null;
+  const e = (meta as { error?: unknown }).error;
+  return typeof e === 'string' && e.trim() !== '' ? e : null;
+}
+
 function rowToMessage(row: Record<string, unknown>): Message {
   return {
     id: row.id as string,
@@ -117,6 +135,7 @@ function rowToMessage(row: Record<string, unknown>): Message {
     type: row.type as MessageType,
     body: (row.body as string) ?? null,
     deliveryStatus: (row.delivery_status as DeliveryStatus) ?? null,
+    error: errorDeLaFila(row.meta),
     authorKind: row.author_kind as AuthorKind,
     authorId: (row.author_id as string) ?? null,
     providerMessageId: (row.provider_message_id as string) ?? null,

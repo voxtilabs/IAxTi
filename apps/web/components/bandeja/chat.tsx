@@ -359,17 +359,34 @@ export function Chat({
                     si en realidad sí había salido— y no la llamaba nadie:
                     la bandeja mostraba el ícono rojo y ninguna acción. */}
                 {m.direction === 'out' && m.deliveryStatus === 'failed' && (
-                  <p className="mt-1 flex flex-wrap items-center justify-end gap-2">
-                    <span className="text-rotulo text-bad-text">No llegó.</span>
-                    <Button
-                      size="chico"
-                      variant="secundario"
-                      disabled={reintentando === m.id}
-                      onClick={() => void onReintentar(m.id)}
-                    >
-                      {reintentando === m.id ? 'Reintentando…' : 'Reintentar'}
-                    </Button>
-                  </p>
+                  <div className="mt-1 flex flex-col items-end gap-1">
+                    {/* El motivo, que estaba escrito en la base desde siempre y
+                        no se mostraba (#645): la bandeja decía «No llegó» y
+                        ofrecía reintentar, once veces, mientras la frase que lo
+                        explicaba esperaba en `meta.error`. */}
+                    <span className="text-rotulo text-bad-text">
+                      {m.error ? `No llegó. ${m.error}` : 'No llegó.'}
+                    </span>
+                    {enVentana ? (
+                      <Button
+                        size="chico"
+                        variant="secundario"
+                        disabled={reintentando === m.id}
+                        onClick={() => void onReintentar(m.id)}
+                      >
+                        {reintentando === m.id ? 'Reintentando…' : 'Reintentar'}
+                      </Button>
+                    ) : (
+                      /* Con la ventana cerrada, reintentar un mensaje libre
+                         falla SIEMPRE, por definición. Un botón que garantiza
+                         fallar es peor que no tener botón: invita a gastar el
+                         intento de nuevo. Lo que sí sirve es la plantilla, y
+                         el selector ya está abajo reemplazando al campo. */
+                      <span className="text-rotulo text-muted">
+                        Reintentar no va a servir hasta que te escriba: mándale una plantilla.
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </li>
