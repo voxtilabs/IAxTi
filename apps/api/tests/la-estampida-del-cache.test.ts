@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { Pool, PoolClient } from 'pg';
 import { dbPlatformAdminResolver, dbRoleResolver } from '../src/auth/role-resolver';
 
