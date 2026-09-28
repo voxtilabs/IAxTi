@@ -256,9 +256,51 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
    * la llamaba no podía distinguir un envío bueno de uno rechazado, así que la
    * bandeja mostraba el aviso y al mismo tiempo borraba el borrador (#560).
    */
+  /**
+   * El mensaje que se dibuja ANTES de que el servidor conteste (#671).
+   *
+   * Al apretar Enviar, el mensaje no aparecía hasta que volvían el POST, las
+   * seis llamadas de `cargarConversacion` y la de la lista. Y la caja ya se
+   * había limpiado, así que por un momento lo escrito no estaba en ningún lado
+   * —ni en el campo ni en el hilo—. Eso es lo que se siente como «no se mandó».
+   *
+   * El estado es `queued`, y no es una invención para esto: `Entrega` ya lo
+   * dibuja con su reloj desde siempre, y no se veía nunca porque el mensaje
+   * aparecía recién después de estar encolado.
+   *
+   * El `seq` va por encima del último para que quede al final del hilo. Cuando
+   * llega la recarga, esta fila se reemplaza por la de verdad — no se duplica,
+   * porque `setMensajes` recibe la lista entera del servidor.
+   */
+  function mensajeOptimista(body: unknown, previos: Mensaje[] | null): Mensaje | null {
+    const texto = (body as { body?: unknown })?.body;
+    const adjuntos = (
+      body as { adjuntos?: Array<{ key: string; filename: string; contentType: string }> }
+    )?.adjuntos;
+    if (typeof texto !== 'string' && !adjuntos?.length) return null;
+    return {
+      id: `optimista-${Date.now()}`,
+      direction: 'out',
+      type: 'texto',
+      body: typeof texto === 'string' ? texto : null,
+      deliveryStatus: 'queued',
+      authorKind: 'user',
+      authorId: miId,
+      seq: Math.max(0, ...(previos ?? []).map((m) => m.seq ?? 0)) + 1,
+      createdAt: new Date().toISOString(),
+      attachments: (adjuntos ?? []).map((a) => ({
+        key: a.key,
+        name: a.filename,
+        contentType: a.contentType,
+      })),
+    } as Mensaje;
+  }
+
   async function accion(path: string, body: unknown): Promise<boolean> {
     if (!session || !tenant || !seleccion) return false;
     setAviso(null);
+    const optimista = path === '/messages' ? mensajeOptimista(body, mensajes) : null;
+    if (optimista) setMensajes((previos) => [optimista, ...(previos ?? [])]);
     try {
       await apiFetch(config, session, tenant, `/conversations/${seleccion}${path}`, {
         method: 'POST',
@@ -287,9 +329,24 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       } else {
         await Promise.all([cargarConversacion(seleccion), cargarLista()]);
       }
-      toast.success(path === '/state' && (body as { state?: string }).state === 'resolved' ? 'Conversación resuelta' : 'Conversación actualizada');
+      // Sin aviso para el envío: el mensaje ya se ve en el hilo con su estado,
+      // que es mejor confirmación que un cartel — y uno por mensaje enviado
+      // sería ruido en la pantalla donde más se escribe.
+      if (path !== '/messages') {
+        toast.success(
+          path === '/state' && (body as { state?: string }).state === 'resolved'
+            ? 'Conversación resuelta'
+            : 'Conversación actualizada',
+        );
+      }
       return true;
     } catch (err) {
+      // Se saca el optimista: dejarlo con cara de enviado sería peor que no
+      // haberlo mostrado. Lo escrito NO se pierde —`enviar` limpia la caja solo
+      // cuando esto devuelve true (#560)—, así que se puede reintentar.
+      if (optimista) {
+        setMensajes((previos) => (previos ?? []).filter((m) => m.id !== optimista.id));
+      }
       setAviso((err as Error).message);
       return false;
     }

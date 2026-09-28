@@ -269,12 +269,24 @@ export function Chat({
     // completo, y exigir un pie obliga a escribir "mira" para poder mandarla.
     if ((!texto.trim() && !archivo) || enviando) return;
     setEnviando(true);
+    const enviado = texto.trim();
+    const adjunto = archivo;
+    // La caja se vacía AL INSTANTE, junto con el mensaje que aparece en el hilo
+    // (#671). Antes se limpiaba recién al volver el servidor, y con el mensaje
+    // ya dibujado el mismo texto quedaba en dos lugares a la vez: en la
+    // conversación y en el campo. Se ve como si se hubiera escrito dos veces.
+    setTexto('');
+    setArchivo(null);
     try {
-      // Solo se limpia si SALIÓ. Perder lo escrito porque WhatsApp cerró la
-      // ventana obliga a redactarlo de nuevo, y eso pasa a diario (#560).
-      if (await onResponder(texto.trim(), archivo ?? undefined)) {
-        setTexto('');
-        setArchivo(null);
+      if (!(await onResponder(enviado, adjunto ?? undefined))) {
+        // No salió: se devuelve lo escrito. Perder el borrador porque WhatsApp
+        // cerró la ventana obliga a redactarlo de nuevo, y eso pasa a diario
+        // (#560) — la promesa sigue siendo la misma, cambia cuándo se cumple.
+        //
+        // Solo si la caja sigue vacía: quien no se quedó mirando y empezó a
+        // escribir otra cosa no merece que se la pisemos.
+        setTexto((actual) => (actual === '' ? enviado : actual));
+        setArchivo((actual) => actual ?? adjunto);
       }
     } finally {
       setEnviando(false);
