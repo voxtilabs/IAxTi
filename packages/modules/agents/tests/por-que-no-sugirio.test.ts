@@ -57,12 +57,30 @@ const preguntar = (hayLlave = true) =>
   );
 
 /** Una ejecución de sugerencia como la que deja el runtime. */
-async function ejecucion(campos: { status: string; error?: string; output?: unknown; agentId: string }) {
+async function ejecucion(campos: {
+  status: string;
+  error?: string;
+  output?: unknown;
+  agentId: string;
+  /**
+   * De quién fue el error (#684). Lo escribe el runtime porque es el único que
+   * tiene el error en la mano con su marca; en la columna ya es texto. `undefined`
+   * queda NULL, que es «no se sabe» — y no saberlo impide afirmar.
+   */
+  delProveedor?: boolean;
+}) {
   await pool.query(
     `INSERT INTO agent_executions
-       (tenant_id, agent_id, task, provider, model, input, output, status, error, trace_id, latency_ms)
-     VALUES ($1, $2, 'sugerir', 'google', 'gemini-flash-latest', '{}'::jsonb, $3, $4, $5, 'trace', 10)`,
-    [tenant, campos.agentId, JSON.stringify(campos.output ?? {}), campos.status, campos.error ?? null],
+       (tenant_id, agent_id, task, provider, model, input, output, status, error, trace_id, latency_ms, error_del_proveedor)
+     VALUES ($1, $2, 'sugerir', 'google', 'gemini-flash-latest', '{}'::jsonb, $3, $4, $5, 'trace', 10, $6)`,
+    [
+      tenant,
+      campos.agentId,
+      JSON.stringify(campos.output ?? {}),
+      campos.status,
+      campos.error ?? null,
+      campos.delProveedor ?? null,
+    ],
   );
 }
 
@@ -100,6 +118,7 @@ describe('por qué no hay sugerencia', () => {
       agentId: agente,
       status: 'failed',
       error: 'Your prepayment credits are depleted. Please recharge.',
+      delProveedor: true,
     });
     const r = await preguntar();
     expect(r.codigo).toBe('sin_saldo');
@@ -125,6 +144,35 @@ describe('por qué no hay sugerencia', () => {
       expect(r.texto).not.toContain('El que falló fue');
       expect(r.texto).not.toContain('glm');
     }
+  });
+
+  it('un error NUESTRO no se cuenta como problema del proveedor (#684)', async () => {
+    // El caso que tuvo a Lino revisando su cuenta de NVIDIA de madrugada: el
+    // error es un permiso de un módulo que se llama billing, y la bandeja le
+    // decía «tu proveedor se quedó sin saldo. Carga crédito en su panel».
+    const agente = (await en((c) => createAgent(c, { tenantId: tenant, name: 'Permiso' }))).id;
+    await ejecucion({
+      agentId: agente,
+      status: 'failed',
+      error: 'No tienes permiso para billing.read',
+      delProveedor: false,
+    });
+    const r = await preguntar();
+    expect(r.codigo).not.toBe('sin_saldo');
+    expect(r.texto).not.toMatch(/saldo/i);
+    expect(r.queHacer ?? '').not.toMatch(/recarg|crédito|credito/i);
+  });
+
+  it('si la fila no dice de quién fue, tampoco se afirma', async () => {
+    // NULL son las filas anteriores a la migración. No saber de quién fue el
+    // error es una razón para no acusar a nadie, no para acusar al proveedor.
+    const agente = (await en((c) => createAgent(c, { tenantId: tenant, name: 'Vieja' }))).id;
+    await ejecucion({
+      agentId: agente,
+      status: 'failed',
+      error: 'Your prepayment credits are depleted.',
+    });
+    expect((await preguntar()).codigo).not.toBe('sin_saldo');
   });
 
   it('la cuota del PRODUCTO tampoco nombra al proveedor', async () => {

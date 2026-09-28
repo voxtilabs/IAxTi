@@ -1,3 +1,4 @@
+import { esDelProveedor, estadoDelProveedor } from './fallo-del-proveedor';
 /**
  * Por qué NO contestó el proveedor de IA (#402).
  *
@@ -35,6 +36,18 @@ export type MotivoDelProveedor =
 export interface QuienFallo {
   provider?: string | null;
   model?: string | null;
+  /**
+   * Si consta que el error vino del proveedor (#684).
+   *
+   * Sin esto solo se clasifica lo que trae la marca que pone el puerto del
+   * modelo. Lo necesita el camino que lee de `agent_executions`: ahí el error es
+   * una columna de texto y la marca no sobrevive a la base, así que quien lee la
+   * fila tiene que decir lo que la fila sabe.
+   *
+   * `false` y `undefined` no son lo mismo: `false` es «consta que NO», y
+   * `undefined` es «no se sabe». No saberlo también impide afirmar.
+   */
+  delProveedor?: boolean;
 }
 
 export interface DiagnosticoDelProveedor {
@@ -48,23 +61,6 @@ export interface DiagnosticoDelProveedor {
   reintentable: boolean;
 }
 
-/** El código HTTP del proveedor, venga como venga en el error. */
-function estadoDe(error: unknown): number | null {
-  const e = error as Record<string, unknown> | null;
-  for (const campo of ['statusCode', 'status', 'code']) {
-    const v = e?.[campo];
-    if (typeof v === 'number' && v >= 100 && v < 600) return v;
-  }
-  // Algunos SDK anidan la respuesta.
-  const anidado = (e?.response ?? e?.cause) as Record<string, unknown> | undefined;
-  if (anidado) {
-    for (const campo of ['statusCode', 'status']) {
-      const v = anidado[campo];
-      if (typeof v === 'number' && v >= 100 && v < 600) return v;
-    }
-  }
-  return null;
-}
 
 /**
  * Le pega al mensaje con quién falló.
@@ -106,8 +102,37 @@ function textoDe(error: unknown): string {
  * otra pagando.
  */
 export function motivoDelProveedor(error: unknown, quien?: QuienFallo): DiagnosticoDelProveedor {
+  // De quién es el error, ANTES de mirar su texto (#684).
+  //
+  // Éste es el arreglo, y es una línea. Esta función traduce el error DEL
+  // PROVEEDOR y se estaba usando como clasificador de errores en general: un
+  // permiso denegado salía como «el proveedor rechazó la llave», un contacto que
+  // no existe como «el modelo ya no está disponible», y cualquier cosa que
+  // mencionara `billing` —un módulo, una ruta y un permiso NUESTROS, presentes en
+  // las 195 herramientas del agente general— como «tu proveedor se quedó sin
+  // saldo».
+  //
+  // Con una instrucción concreta encima: «carga crédito en su panel». Mandaba a
+  // arreglar una cuenta sana mientras el problema real quedaba invisible, y se
+  // fueron horas de madrugada en eso con la llave contestando 200.
+  //
+  // Quien no puede probar que el error es del proveedor, no afirma que lo sea.
+  if (!(quien?.delProveedor ?? esDelProveedor(error))) {
+    return {
+      motivo: 'desconocido',
+      message: conQuien(
+        'No pudimos completar esto. Quedó registrado con su identificador; si sigue pasando, ' +
+          'míralo en las corridas del asistente.',
+        quien,
+      ),
+      // Sin saber de quién fue, reintentar es lo razonable. Lo que no se hace es
+      // inventar una causa para poder sonar seguro.
+      reintentable: true,
+    };
+  }
+
   const texto = textoDe(error);
-  const estado = estadoDe(error);
+  const estado = estadoDelProveedor(error);
 
   if (/no tiene llave configurada/.test(texto)) {
     return {
@@ -120,7 +145,15 @@ export function motivoDelProveedor(error: unknown, quien?: QuienFallo): Diagnost
     };
   }
 
-  if (/credits? (are )?depleted|prepayment|insufficient (balance|funds|credit)|billing/.test(texto)) {
+  // `billing` a secas NO (#684): es un módulo, una ruta y un permiso nuestros. Si
+  // un proveedor habla de facturación se lo reconoce por una frase suya —OpenAI
+  // dice «check your plan and billing details»— y no por una palabra que además
+  // usamos en 195 herramientas.
+  if (
+    /credits? (are )?depleted|prepayment|insufficient (balance|funds|credit)|billing (details|issue|problem)|plan and billing|add (a )?payment method|payment required/.test(
+      texto,
+    )
+  ) {
     return {
       motivo: 'sin_saldo',
       message: conQuien(

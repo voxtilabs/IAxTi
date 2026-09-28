@@ -428,7 +428,14 @@ export class AgentsController {
         // al lado del error y acá se estaban tirando. Desde #666 el asistente
         // puede caer a un proveedor distinto al que el negocio tiene elegido,
         // así que «el proveedor de IA» sin nombre puede señalar al equivocado.
-        const d = motivoDelProveedor(res.error, { provider: res.provider, model: res.model });
+        const d = motivoDelProveedor(res.error, {
+          provider: res.provider,
+          model: res.model,
+          // De quién fue lo dice el runtime, que tenía el error en la mano (#684).
+          // Clasificar por palabras acá convertía un permiso denegado en «el
+          // proveedor rechazó la llave».
+          delProveedor: res.errorDelProveedor === true,
+        });
         if (d.motivo !== 'desconocido') {
           const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
           if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
