@@ -27,6 +27,61 @@ function sinIa() {
   vi.stubEnv('GLM_API_KEY', '');
 }
 
+/**
+ * Y con qué llave quedó el canal (#669).
+ *
+ * Una `zv_test_` solo alcanza a los números del equipo en el proveedor, así que
+ * el producto parece roto —«no llegó»— cuando el ambiente solo está en sandbox.
+ * Antes no había forma de verlo: se cambiaba la variable, se desplegaba, y
+ * después se adivinaba. La única señal era mandar un mensaje de verdad y ver si
+ * fallaba.
+ */
+describe('con qué llave quedó el canal (#669)', () => {
+  const canal = async () =>
+    (await checkReadiness(poolFalso, 'api')).dependencias.find((d) => d.nombre === 'canal')!;
+
+  it('una llave de PRUEBA se dice, y se dice qué significa', async () => {
+    vi.stubEnv('ZAVU_API_KEY', 'zv_test_abc123');
+    const c = await canal();
+    expect(c.detalle).toContain('PRUEBA');
+    expect(c.detalle).toContain('números del equipo');
+  });
+
+  it('una de producción también', async () => {
+    vi.stubEnv('ZAVU_API_KEY', 'zv_live_abc123');
+    expect((await canal()).detalle).toBe('Credencial de producción.');
+  });
+
+  it('sin credencial lo dice: ese canal no puede enviar ni recibir', async () => {
+    vi.stubEnv('ZAVU_API_KEY', '');
+    const c = await canal();
+    expect(c.ok).toBe(false);
+    expect(c.detalle).toContain('Sin credencial');
+  });
+
+  it('una forma desconocida NO se declara de producción', async () => {
+    // Decir «producción» de algo que no se reconoce es la clase de mentira que
+    // esto viene a evitar.
+    vi.stubEnv('ZAVU_API_KEY', 'algo-raro');
+    expect((await canal()).detalle).toContain('no reconocemos');
+  });
+
+  it('no publica la llave, ni un pedazo, ni el nombre de la variable', async () => {
+    vi.stubEnv('ZAVU_API_KEY', 'zv_live_secretoquenodebesalir');
+    const r = await checkReadiness(poolFalso, 'api');
+    const texto = JSON.stringify(r);
+    expect(texto).not.toContain('secretoquenodebesalir');
+    expect(texto).not.toContain('ZAVU_API_KEY');
+  });
+
+  it('y NO saca la instancia de rotación: una llave de prueba es legítima en pruebas', async () => {
+    vi.stubEnv('ZAVU_API_KEY', '');
+    const r = await checkReadiness(poolFalso, 'api');
+    expect(r.status).toBe('ok');
+    expect(r.dependencias.find((d) => d.nombre === 'canal')!.bloquea).toBe(false);
+  });
+});
+
 describe('la IA se reporta en /ready (#641)', () => {
   it('sin ninguna credencial lo dice, y dice dónde está el detalle', async () => {
     sinIa();
