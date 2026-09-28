@@ -25,33 +25,61 @@ export function esTenantPlausible(tenantId: string): boolean {
  * request-path caliente. Cambiar el rol de alguien tarda a lo más un minuto
  * en notarse — aceptable y documentado.
  */
-/** SUPERADMIN de plataforma desde platform_admins, con cache de 60 s. */
-export function dbPlatformAdminResolver(pool: Pool): (userId: string) => Promise<boolean> {
-  const cache = new Map<string, { admin: boolean; at: number }>();
-  return async (userId) => {
-    const hit = cache.get(userId);
-    if (hit && Date.now() - hit.at < TTL_MS) return hit.admin;
-    const client = await pool.connect();
-    try {
-      const admin = await isPlatformAdmin(client, userId);
-      cache.set(userId, { admin, at: Date.now() });
-      return admin;
-    } finally {
-      client.release();
-    }
+
+/**
+ * Un cache que además junta las llamadas simultáneas (#673).
+ *
+ * Los tres resolutores cacheaban el RESULTADO, y eso deja un agujero: con el
+ * cache frío, N llamadas concurrentes —del mismo usuario, pidiendo lo mismo—
+ * fallan el cache a la vez y las N van a la base.
+ *
+ * Lo que costó, medido en Sentry: abrir el panel de SuperAdmin dispara siete
+ * pedidos a la vez, cada uno toma una conexión para su guard y otra para su
+ * trabajo, y el pool tiene seis. Siete errores en el mismo segundo, todos
+ * «timeout exceeded when trying to connect».
+ *
+ * Guardando la PROMESA antes de esperarla, las otras seis se cuelgan de la
+ * primera: una conexión, una consulta, siete respuestas.
+ *
+ * Si falla, la entrada se borra: un error cacheado sesenta segundos sería peor
+ * que la estampida que vino a arreglar.
+ */
+function cacheQueJunta<T>(ttlMs: number, traer: (clave: string) => Promise<T>) {
+  const cache = new Map<string, { valor: Promise<T>; at: number }>();
+  return (clave: string): Promise<T> => {
+    const hit = cache.get(clave);
+    if (hit && Date.now() - hit.at < ttlMs) return hit.valor;
+    const valor = traer(clave);
+    cache.set(clave, { valor, at: Date.now() });
+    void valor.catch(() => {
+      // Solo si sigue siendo ESTA: si alguien ya puso una nueva, borrarla
+      // perdería un resultado bueno.
+      if (cache.get(clave)?.valor === valor) cache.delete(clave);
+    });
+    return valor;
   };
 }
 
+/** SUPERADMIN de plataforma desde platform_admins, con cache de 60 s. */
+export function dbPlatformAdminResolver(pool: Pool): (userId: string) => Promise<boolean> {
+  return cacheQueJunta(TTL_MS, async (userId) => {
+    const client = await pool.connect();
+    try {
+      return await isPlatformAdmin(client, userId);
+    } finally {
+      client.release();
+    }
+  });
+}
+
 export function dbRoleResolver(pool: Pool): RoleResolver {
-  const cache = new Map<string, { role: string | null; at: number }>();
+  const traer = cacheQueJunta(TTL_MS, (clave: string) => {
+    const [tenantId, userId] = clave.split(':');
+    return withTenant(pool, tenantId, (c) => roleOf(c, tenantId, userId));
+  });
   return async (tenantId, userId) => {
     if (!esTenantPlausible(tenantId)) return null;
-    const key = `${tenantId}:${userId}`;
-    const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < TTL_MS) return hit.role;
-    const role = await withTenant(pool, tenantId, (c) => roleOf(c, tenantId, userId));
-    cache.set(key, { role, at: Date.now() });
-    return role;
+    return traer(`${tenantId}:${userId}`);
   };
 }
 
@@ -59,16 +87,12 @@ export function dbRoleResolver(pool: Pool): RoleResolver {
 export function dbCustomPermissionsResolver(
   pool: Pool,
 ): (tenantId: string, roleName: string) => Promise<string[] | null> {
-  const cache = new Map<string, { perms: string[] | null; at: number }>();
+  const traer = cacheQueJunta(TTL_MS, (clave: string) => {
+    const [tenantId, roleName] = clave.split(':');
+    return withTenant(pool, tenantId, (c) => customRolePermissions(c, tenantId, roleName));
+  });
   return async (tenantId, roleName) => {
     if (!esTenantPlausible(tenantId)) return null;
-    const key = `${tenantId}:${roleName}`;
-    const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < TTL_MS) return hit.perms;
-    const perms = await withTenant(pool, tenantId, (c) =>
-      customRolePermissions(c, tenantId, roleName),
-    );
-    cache.set(key, { perms, at: Date.now() });
-    return perms;
+    return traer(`${tenantId}:${roleName}`);
   };
 }
