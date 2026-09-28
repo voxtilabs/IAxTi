@@ -173,6 +173,20 @@ async function main() {
     REDIS_URL,
     SUPABASE_JWKS_URL: `${ISSUER}/.well-known/jwks.json`,
     IAXTI_ENV: 'e2e',
+    // El limitador propio no es lo que mide esta suite (#686).
+    //
+    // Es el mismo criterio que `apps/api/load-local.mjs`, y acá se pagó caro por
+    // no tenerlo: el cupo es por TENANT, la suite entera trabaja con uno, y una
+    // sola prueba —abrir una conversación y responder— hace 31 llamadas a /v1.
+    // Con 72 pruebas y dos workers en dos minutos, el cupo de 120 por minuto se
+    // agota y la API empieza a contestar 429 a cualquiera.
+    //
+    // Eso se veía como pruebas que fallaban en CI y pasaban localmente, en un
+    // punto distinto cada corrida: bandeja.spec.ts caía en «Resuelta» porque el
+    // POST del mensaje volvió 429, y bandeja-scroll caía porque la página quedaba
+    // corta. Lo confirmó la traza de #682: 429 en el envío Y en el cambio de
+    // estado. Cuatro PR bloqueados por un rojo que no hablaba de ellos.
+    RATE_LIMIT_PER_MINUTE: '100000',
   }, raiz);
   await esperar(`http://127.0.0.1:${API_PORT}/health`);
 
