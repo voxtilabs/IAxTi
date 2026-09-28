@@ -25,25 +25,39 @@ beforeAll(() => {
   writeFileSync(join(directorio, 'curl'), `#!/bin/bash
 set -eu
 url="\${!#}"
+visto=no
 if [[ "$url" == *compose.stop* ]]; then echo "STOP" >> "$LLAMADAS"; exit 0; fi
 if [[ "$url" == *compose.deploy* ]]; then echo "DEPLOY" >> "$LLAMADAS"; exit 0; fi
 if [[ "$url" == */health ]]; then
+  # Desde #675 la lectura pasa por scripts/sha-de-health.sh, que pide el código
+  # HTTP con -w. El curl de mentira tiene que contestar como el de verdad: si se
+  # come el -w, el cuerpo se lee como si fuera el código y todo el archivo mide
+  # otra cosa.
+  formato=''
+  for a in "$@"; do
+    if [ "$visto" = si ]; then formato="$a"; break; fi
+    [ "$a" = -w ] && visto=si
+  done
   n=0
   [ ! -f "$CONTADOR" ] || read -r n < "$CONTADOR"
   n=$((n+1)); echo "$n" > "$CONTADOR"
   # Respuestas malas a pedido (#667): son las que tumbaban el paso entero.
   if [ -n "\${SALUD_MALA:-}" ]; then
     case "$SALUD_MALA" in
-      html)   printf '%s' '<html>502 Bad Gateway</html>' ;;
-      vacia)  printf '' ;;
-      numero) printf '%s' '200' ;;
+      html)   malo='<html>502 Bad Gateway</html>'; codigo=502 ;;
+      vacia)  malo=''; codigo=200 ;;
+      numero) malo='200'; codigo=200 ;;
       caida)  exit 7 ;;
     esac
+    # Con -w, curl imprime el código igual cuando el cuerpo es basura: es
+    # justamente el caso donde el código es el único dato que sirve.
+    if [[ "$formato" == *'\\n'* ]]; then printf '%s\\n%s' "$malo" "$codigo"; else printf '%s' "$malo"; fi
     exit 0
   fi
   sha="$SHA_VIVO"
   if [ -n "\${SHA_DESPUES:-}" ] && [ "$n" -gt "\${CAMBIA_EN:-1}" ]; then sha="$SHA_DESPUES"; fi
-  if [ -z "$sha" ]; then printf '%s' '{"status":"ok"}'; else printf '{"sha":"%s"}' "$sha"; fi
+  if [ -z "$sha" ]; then cuerpo='{"status":"ok"}'; else cuerpo=$(printf '{"sha":"%s"}' "$sha"); fi
+  if [[ "$formato" == *'\\n'* ]]; then printf '%s\\n200' "$cuerpo"; else printf '%s' "$cuerpo"; fi
   exit 0
 fi
 exit 0

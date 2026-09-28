@@ -1,12 +1,23 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parse } from 'yaml';
 
+// Estas pruebas ejecutan el shell DE VERDAD del paso Smoke, con su bucle de 72
+// vueltas, y desde #675 cada lectura de /health llama a un script aparte: son
+// decenas de procesos por prueba. Con el timeout de 5 s por omisión una de ellas
+// pasaba sola y se caía en el suite completo —el peor rojo que hay, porque
+// culpa al cambio equivocado—. La espera es del arnés, no de lo que se mide.
+vi.setConfig({ testTimeout: 30_000 });
+
 let directory;
 let smoke;
+// El paso Smoke llama a scripts/sha-de-health.sh por ruta absoluta desde
+// GITHUB_WORKSPACE (#675). En Actions siempre está; acá se apunta al repo de
+// verdad, porque el script que se prueba tiene que ser el que se despliega.
+const REPO = new URL('../../../', import.meta.url).pathname;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), 'iaxti-smoke-ready-'));
   const workflow = parse(readFileSync(new URL('../../../.github/workflows/deploy-staging.yml', import.meta.url), 'utf8'));
@@ -52,6 +63,11 @@ if [ -n "\${FAKE_SHA:-}" ] && [[ "$url" == */health ]]; then
   cuerpo=$(printf '%s,%ssha%s:%s%s%s' "$cuerpo" '"' '"' '"' "$sha" '"')
 fi
 cuerpo="$cuerpo}"
+# El cuerpo que tumbó el despliegue de ed072a2 (#675): /health contestó algo que
+# no es un objeto JSON y jq salió con código 5. Sin esta perilla no había
+# forma de reproducir el rojo de verdad; con ella, el arreglo se puede probar
+# al revés.
+if [ -n "\${CUERPO_MALO:-}" ] && [[ "$url" == */health ]]; then cuerpo="$CUERPO_MALO"; fi
 if [[ "$format" == *'\\n'* ]]; then
   printf '%s\\n%s' "$cuerpo" "$code"
 elif [ -n "$format" ]; then
@@ -71,6 +87,7 @@ function run(mode, extra = {}) {
     env: {
       ...process.env,
       BASE: 'http://prueba.invalid',
+      GITHUB_WORKSPACE: REPO,
       PATH: `${directory}:${process.env.PATH}`,
       COUNTER: counter,
       MODE: mode,
@@ -111,6 +128,7 @@ describe('smoke espera dependencias reales (#17, #254)', () => {
       env: {
         ...process.env,
         BASE: 'http://prueba.invalid',
+        GITHUB_WORKSPACE: REPO,
         PATH: `${directory}:${process.env.PATH}`,
         COUNTER: join(directory, 'presupuesto'),
         MODE: 'recover',
@@ -245,5 +263,98 @@ describe('el paso Smoke recibe lo que usa (#613)', () => {
     // Explícita y por nombre: es la que se perdió, y la genérica de arriba podría
     // volverse permisiva si alguien cambia el patrón del script.
     expect(Object.keys(smokeStep.env ?? {})).toContain('SHA');
+  });
+});
+
+/**
+ * Un /health ilegible no puede tumbar el paso por un error de parseo (#675).
+ *
+ * El despliegue de ed072a2 se aplicó bien —Dokploy dijo `done` a los 448 s— y
+ * el workflow quedó rojo con `jq: Cannot index number with string "sha"` y
+ * código 5. El rojo no hablaba del despliegue: hablaba del parseo.
+ *
+ * Lo grave no es el rojo feo. Es que el camino que `jq` cortaba es justo el que
+ * #573 escribió para que se viera una imagen vieja sirviendo: «está corriendo
+ * una imagen anterior a #566». Ese mensaje nunca se leyó.
+ */
+describe('un /health ilegible se explica, no se cae (#675)', () => {
+  // FAKE_SHA vacío deja el cuerpo sin `.sha`: es un /health que contesta 200 y
+  // no informa el build, el caso real de #573.
+  const sinSha = { SHA: 'abc1234567890', FAKE_SHA: '' };
+
+  it('falla por la vía de #573, con su mensaje, y no por jq', () => {
+    const result = run('recover', sinSha);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('no informa el SHA');
+    // Lo que se veía antes en su lugar. Un código 5 de jq no le dice a nadie
+    // qué mirar; el mensaje de #573 sí.
+    expect(result.stderr).not.toContain('Cannot index number');
+    expect(result.status).not.toBe(5);
+  });
+
+  it('cuando no puede leer el SHA, imprime el cuerpo y el código', () => {
+    // Sin esto el diagnóstico era un `jq: parse error` a secas. El 404 pelado
+    // de Traefik y el de la aplicación no se parecen en nada, y distinguirlos
+    // es la diferencia entre «la app no arrancó» y «el proxy no la encontró»:
+    // el 15/09 esa distinción costó una hora de apuestas a ciegas.
+    const result = run('recover', sinSha);
+    expect(result.stderr).toMatch(/sha-de-health: \/health contestó 200 sin un \.sha legible/);
+    expect(result.stderr).toContain('status');
+  });
+
+  it('un cuerpo que no es JSON no sale con el código 5 de jq (#675)', () => {
+    // El fallo tal cual pasó: `jq: error (at <stdin>:1): Cannot index number
+    // with string "sha"`, código 5, después de un deploy aplicado en 448s.
+    // Ese 5 con `set -e` mata el paso antes de que corra cualquier
+    // comprobación que sí sepa explicarse.
+    const result = run('recover', { SHA: 'abc1234567890', FAKE_SHA: '', CUERPO_MALO: '200' });
+    expect(result.status).toBe(1); // falla, sí: por #573.
+    expect(result.status).not.toBe(5); // pero no por el parseo.
+    expect(result.stdout).toContain('no informa el SHA');
+    expect(result.stderr).toContain('sin un .sha legible');
+    expect(result.stderr).toContain('200');
+  });
+
+  it('un 404 del proxy se distingue de un 404 de la aplicación', () => {
+    // El 15/09 esto costó una hora: `curl -f` solo dice el código, y el 404
+    // pelado de Traefik no explica que la API nunca arrancó. El cuerpo es el
+    // dato que distingue los dos casos, así que tiene que quedar escrito.
+    const result = run('recover', { SHA: 'abc1234567890', FAKE_SHA: '', CUERPO_MALO: '404 page not found' });
+    expect(result.stderr).toContain('404 page not found');
+  });
+});
+
+
+/**
+ * Una regla, una implementación (#675).
+ *
+ * Este es el defecto de fondo, y el que más veces se repitió: #668 arregló la
+ * lectura del SHA en forzar-recreacion.sh y la del workflow —la que corre en
+ * CI— siguió cayéndose. Dos copias de la misma regla, arreglada en la que no
+ * importaba.
+ *
+ * La prueba no comprueba el arreglo: comprueba que no puedan volver a
+ * divergir.
+ */
+describe('la lectura del SHA está escrita una sola vez (#675)', () => {
+  const fuentes = ['.github/workflows/deploy-staging.yml', 'scripts/forzar-recreacion.sh'];
+
+  it('nadie vuelve a leer .sha a mano', () => {
+    for (const ruta of fuentes) {
+      const texto = readFileSync(join(REPO, ruta), 'utf8');
+      // Las menciones en comentarios están bien —explican por qué— así que se
+      // mira solo lo que el shell ejecuta: un jq contra .sha.
+      const aMano = texto
+        .split('\n')
+        .filter((linea) => !linea.trimStart().startsWith('#'))
+        .filter((linea) => /jq\s+(-r\s+)?['"]\s*\.sha/.test(linea));
+      expect(aMano, `${ruta} lee el .sha por su cuenta en vez de usar scripts/sha-de-health.sh`).toEqual([]);
+    }
+  });
+
+  it('los dos usan el mismo script', () => {
+    for (const ruta of fuentes) {
+      expect(readFileSync(join(REPO, ruta), 'utf8')).toContain('sha-de-health.sh');
+    }
   });
 });

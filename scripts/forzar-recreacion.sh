@@ -57,12 +57,11 @@ ESPERA_RECREAR_SEG=${ESPERA_RECREAR_SEG:-600}
 # Y va contra lo que ya estaba decidido acá: «no pude leer qué build está vivo»
 # es un estado que este script maneja —lo imprime como `<no informa el SHA>` y
 # sigue—. Tumbar el paso era lo contrario.
+# La lectura vive en su propio script porque el workflow de despliegue la
+# necesita igual, y tenerla dos veces fue el defecto de #675: #668 arregló esta
+# copia y la del workflow siguió cayéndose. Una regla, una implementación.
 que_atiende() {
-  local cuerpo
-  # `${BASE%/}` quita la barra final: con ella la ruta queda `//health`.
-  cuerpo=$(curl -sS -m 15 "${BASE%/}/health" 2>/dev/null) || return 0
-  [ -n "$cuerpo" ] || return 0
-  printf '%s' "$cuerpo" | jq -r '.sha // empty' 2>/dev/null || true
+  "$(dirname "$0")/sha-de-health.sh"
 }
 
 # El SHA de `/health` es CORTO; el del commit, largo. Se compara por prefijo.

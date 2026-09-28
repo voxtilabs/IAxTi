@@ -196,6 +196,11 @@ jobs:
           #
           # Declarado en un lado, aplicado en ninguno, otra vez, y esta vez mío.
           SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          # Actions la define igual, pero este paso la USA para llamar a
+          # scripts/sha-de-health.sh (#675) y la regla de #613 es que lo que el
+          # script lee esté escrito en su env. Una variable heredada por
+          # costumbre vale vacío el día que la costumbre cambia.
+          GITHUB_WORKSPACE: ${{ github.workspace }}
         run: |
           if [ -z "${BASE}" ]; then echo "Sin STAGING_BASE_URL aún; se salta"; exit 0; fi
 
@@ -235,7 +240,11 @@ jobs:
               # no hay commit desplegado contra el cual comparar: ahí vale el
               # comportamiento viejo, o la espera no terminaría nunca.
               if [ -z "${SHA:-}" ]; then listo=si; break; fi
-              atiende=$(curl -sS -m 10 "${BASE}/health" | jq -r '.sha // empty')
+              # La lectura del SHA vive en scripts/sha-de-health.sh (#675). Acá
+              # estaba escrita a mano y `jq` salía con código 5 ante un cuerpo
+              # que no fuera JSON: con `set -e` eso abortaba el bucle entero, y
+              # el despliegue de ed072a2 quedó rojo DESPUÉS de aplicarse bien.
+              atiende=$("${GITHUB_WORKSPACE}/scripts/sha-de-health.sh")
               # Prefijo, no igualdad: /health informa el SHA corto.
               if [ -n "$atiende" ] && [ "${SHA#"$atiende"}" != "${SHA}" ]; then
                 listo=si; break
@@ -283,7 +292,7 @@ jobs:
           # Sin SHA no hay nada contra qué comparar: este mismo paso se ejecuta
           # de verdad en una prueba, y ahí no hay commit desplegado. Comparar
           # contra la nada y fallar sería un rojo que no significa nada.
-          vivo=$(curl -sS -m 15 "${BASE}/health" | jq -r '.sha // empty')
+          vivo=$("${GITHUB_WORKSPACE}/scripts/sha-de-health.sh")
           if [ -z "${SHA:-}" ]; then
             echo "Sin SHA en el entorno: no se verifica qué build quedó vivo."
           elif [ -z "$vivo" ]; then
