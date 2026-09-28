@@ -31,6 +31,16 @@ if [[ "$url" == */health ]]; then
   n=0
   [ ! -f "$CONTADOR" ] || read -r n < "$CONTADOR"
   n=$((n+1)); echo "$n" > "$CONTADOR"
+  # Respuestas malas a pedido (#667): son las que tumbaban el paso entero.
+  if [ -n "\${SALUD_MALA:-}" ]; then
+    case "$SALUD_MALA" in
+      html)   printf '%s' '<html>502 Bad Gateway</html>' ;;
+      vacia)  printf '' ;;
+      numero) printf '%s' '200' ;;
+      caida)  exit 7 ;;
+    esac
+    exit 0
+  fi
   sha="$SHA_VIVO"
   if [ -n "\${SHA_DESPUES:-}" ] && [ "$n" -gt "\${CAMBIA_EN:-1}" ]; then sha="$SHA_DESPUES"; fi
   if [ -z "$sha" ]; then printf '%s' '{"status":"ok"}'; else printf '{"sha":"%s"}' "$sha"; fi
@@ -109,6 +119,34 @@ describe('forzar la recreación (#652)', () => {
     expect(r.status).toBe(0);
     expect(r.llamadas).toEqual(['STOP', 'DEPLOY']);
     expect(r.stdout).toContain('<no informa el SHA>');
+  });
+
+  /**
+   * Un `/health` ilegible NO tumba el paso (#667).
+   *
+   * La versión anterior hacía `curl … | jq -r '.sha // empty'` con
+   * `set -euo pipefail`: cualquier respuesta que `jq` no supiera leer mataba el
+   * despliegue entero. Pasó de verdad — un deploy que terminó bien, con la
+   * imagen ya rotada, quedó en rojo por esto. Y va contra lo que este mismo
+   * script decidió: «no pude leer qué build está vivo» es un estado que sabe
+   * manejar, no un motivo para abortar.
+   */
+  describe('un /health que no se puede leer (#667)', () => {
+    for (const [forma, como] of [
+      ['html', 'una página de error del proxy'],
+      ['vacia', 'un cuerpo vacío'],
+      ['numero', 'algo que no es JSON'],
+      ['caida', 'curl que ni contesta'],
+    ]) {
+      it(`${como} se trata como «no informa el SHA», y se fuerza igual`, () => {
+        const r = correr(`mala-${forma}`, { SHA_VIVO: '', SALUD_MALA: forma, ESPERA_RECREAR_SEG: '3' });
+        // Falla al final porque nunca aparece el build nuevo, que es correcto.
+        // Lo que NO puede pasar es morir en el primer `jq`.
+        expect(r.stdout, r.stderr).toContain('<no informa el SHA>');
+        expect(r.llamadas).toEqual(['STOP', 'DEPLOY']);
+        expect(r.stderr).not.toContain('jq');
+      });
+    }
   });
 
   it('sin SHA en el entorno no hace NADA: el script corre de verdad en esta prueba', () => {

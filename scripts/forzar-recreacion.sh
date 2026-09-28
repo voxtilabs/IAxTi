@@ -46,8 +46,23 @@ PASO_SEG=${PASO_SEG:-10}
 # estuvo abajo y hay que bajar la imagen entera.
 ESPERA_RECREAR_SEG=${ESPERA_RECREAR_SEG:-600}
 
+# Qué SHA está atendiendo, o vacío si no se pudo saber.
+#
+# NUNCA falla (#667). Con `set -euo pipefail`, la versión anterior
+# —`curl … | jq -r '.sha // empty'`— tumbaba el paso entero ante cualquier
+# respuesta que `jq` no supiera leer: una página de error del proxy, un cuerpo
+# vacío, una `BASE` con barra final. Eso convirtió un despliegue EXITOSO en uno
+# rojo, en el script cuyo trabajo es justamente que el despliegue diga la verdad.
+#
+# Y va contra lo que ya estaba decidido acá: «no pude leer qué build está vivo»
+# es un estado que este script maneja —lo imprime como `<no informa el SHA>` y
+# sigue—. Tumbar el paso era lo contrario.
 que_atiende() {
-  curl -sS -m 15 "${BASE}/health" 2>/dev/null | jq -r '.sha // empty'
+  local cuerpo
+  # `${BASE%/}` quita la barra final: con ella la ruta queda `//health`.
+  cuerpo=$(curl -sS -m 15 "${BASE%/}/health" 2>/dev/null) || return 0
+  [ -n "$cuerpo" ] || return 0
+  printf '%s' "$cuerpo" | jq -r '.sha // empty' 2>/dev/null || true
 }
 
 # El SHA de `/health` es CORTO; el del commit, largo. Se compara por prefijo.
