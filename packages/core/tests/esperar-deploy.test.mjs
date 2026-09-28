@@ -27,7 +27,14 @@ url="\${!#}"
 if [[ "$url" == *deployment.all* ]]; then
   # Los campos estructurados que devuelve Dokploy, con uno de sobra para
   # comprobar que se recortan a tres.
-  printf '%s' '[{"createdAt":"2026-09-26T15:00:00Z","status":"error","title":"docker compose up","errorMessage":"no such image: ghcr.io/voxtilabs/iaxti:abc"},{"createdAt":"2026-09-26T14:00:00Z","status":"done","title":"ok"},{"createdAt":"2026-09-26T13:00:00Z","status":"done","title":"ok"},{"createdAt":"2026-09-26T12:00:00Z","status":"done","title":"NO DEBERIA SALIR"}]'
+  cuerpo='[{"createdAt":"2026-09-26T15:00:00Z","status":"error","title":"docker compose up","errorMessage":"no such image: ghcr.io/voxtilabs/iaxti:abc"},{"createdAt":"2026-09-26T14:00:00Z","status":"done","title":"ok"},{"createdAt":"2026-09-26T13:00:00Z","status":"done","title":"ok"},{"createdAt":"2026-09-26T12:00:00Z","status":"done","title":"NO DEBERIA SALIR"}]'
+  # Desde #661 el script pide el código HTTP con -w, porque «no se pudo leer el
+  # detalle» tapaba cuatro causas distintas. CODIGO_DETALLE deja que cada
+  # prueba elija cuál simular; sin él, 200 y el cuerpo de siempre.
+  codigo="\${CODIGO_DETALLE:-200}"
+  if [ "$codigo" != 200 ]; then cuerpo=''; fi
+  if [ -n "\${CUERPO_NO_JSON:-}" ]; then cuerpo='<html>Cloudflare Access</html>'; fi
+  printf '%s\n%s' "$cuerpo" "$codigo"
   exit 0
 fi
 n=0
@@ -101,6 +108,48 @@ describe('esperar-deploy.sh (#571)', () => {
     // entorno, y este log lo lee cualquiera con acceso al repo.
     const r = correr('falla');
     expect(r.stdout).not.toMatch(/deployment\.all\?|x-api-key|CF-Access/);
+  });
+
+  /**
+   * Cuando el detalle NO se puede leer, decir por qué (#661).
+   *
+   * Antes las cuatro causas terminaban en la misma frase —«no se pudo leer el
+   * detalle; queda el panel de Dokploy»— y eso apareció de verdad el 27/09, dos
+   * veces seguidas, en el único momento en que ese texto tenía que servir: el
+   * deploy ya había fallado y esto era lo que quedaba para saber por qué.
+   */
+  describe('cuando el detalle no se puede leer, dice por qué', () => {
+    it('404 es «esa ruta no existe en esta versión de Dokploy»', () => {
+      const r = correr('falla', { CODIGO_DETALLE: '404' });
+      expect(r.stdout).toContain('404');
+      expect(r.stdout).toContain('esa ruta no existe');
+      expect(r.stdout).not.toContain('queda el panel');
+    });
+
+    it('401 y 403 son un permiso, y lo dicen', () => {
+      for (const codigo of ['401', '403']) {
+        const r = correr('falla', { CODIGO_DETALLE: codigo });
+        expect(r.stdout, codigo).toContain('no alcanza para deployment.all');
+      }
+    });
+
+    it('sin respuesta se distingue de una respuesta mala', () => {
+      const r = correr('falla', { CODIGO_DETALLE: '000' });
+      expect(r.stdout).toContain('sin respuesta');
+      expect(r.stdout).toContain('Cloudflare Access');
+    });
+
+    it('un 200 que no es JSON se nombra: suele ser una pantalla de Access', () => {
+      const r = correr('falla', { CUERPO_NO_JSON: '1' });
+      expect(r.stdout).toContain('no es JSON');
+      // Y no se publica el cuerpo, que es la regla de toda esta función.
+      expect(r.stdout).not.toContain('<html>');
+    });
+
+    it('y el 200 bueno sigue mostrando el detalle de siempre', () => {
+      const r = correr('falla');
+      expect(r.stdout).toContain('no such image');
+    });
   });
 
   it('falta la configuración: se queja en vez de esperar quince minutos', () => {
