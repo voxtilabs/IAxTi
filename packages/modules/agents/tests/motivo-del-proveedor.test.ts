@@ -81,3 +81,65 @@ describe('el motivo del proveedor', () => {
     expect(d.reintentable).toBe(false);
   });
 });
+
+/**
+ * Con quién falló (#677).
+ *
+ * El 27/09 la plataforma dijo «El proveedor de IA rechazó la petición por falta
+ * de saldo» mientras la llave que estaba puesta —GLM_API_KEY con una `nvapi-` de
+ * NVIDIA— contestaba 200, con tool-calling incluido. El mensaje no nombraba a
+ * nadie, así que no había forma de saber si era una clasificación equivocada,
+ * otra llave, u otro proveedor. Costó una hora.
+ *
+ * Y duele desde #666 y no antes: ese arreglo hace que un asistente cuyo
+ * proveedor no tiene credencial caiga al que sí la tenga. «El proveedor de IA»,
+ * en singular y sin nombre, puede estar señalando al que no falló — y quien lee
+ * el mensaje va a ir a revisar la cuenta equivocada.
+ */
+describe('el mensaje dice con quién falló (#677)', () => {
+  const casos: Array<[string, unknown]> = [
+    ['sin saldo', new Error('insufficient balance')],
+    ['cuota agotada', Object.assign(new Error('rate limit exceeded'), { status: 429 })],
+    ['llave inválida', Object.assign(new Error('invalid api key'), { status: 401 })],
+    ['modelo no disponible', Object.assign(new Error('model not found'), { status: 404 })],
+    ['sin llave', new Error('El proveedor glm no tiene llave configurada (GLM_API_KEY).')],
+    ['desconocido', new Error('socket hang up')],
+  ];
+
+  for (const [nombre, error] of casos) {
+    it(`${nombre}: nombra el proveedor y el modelo`, () => {
+      const d = motivoDelProveedor(error, { provider: 'glm', model: 'z-ai/glm-5.3-flash' });
+      expect(d.message).toContain('glm');
+      expect(d.message).toContain('z-ai/glm-5.3-flash');
+    });
+  }
+
+  it('sin el dato, el mensaje queda como estaba: el nombre es opcional', () => {
+    // Hay call sites que solo tienen el error —el configurador es uno— y tienen
+    // que seguir funcionando. Adivinar el proveedor ahí sería peor que callarse:
+    // un nombre equivocado manda a revisar la cuenta que no falló.
+    const d = motivoDelProveedor(new Error('insufficient balance'));
+    expect(d.message).toContain('sin saldo');
+    expect(d.message).not.toContain('El que falló fue');
+  });
+
+  it('con proveedor y sin modelo, nombra solo el proveedor', () => {
+    const d = motivoDelProveedor(new Error('insufficient balance'), { provider: 'glm' });
+    expect(d.message).toContain('El que falló fue glm.');
+  });
+
+  it('no cambia el motivo ni si conviene reintentar', () => {
+    // El nombre es información, no una decisión: si cambiara el motivo, un
+    // mensaje más claro cambiaría el código HTTP y eso ya es otra cosa.
+    const sin = motivoDelProveedor(new Error('insufficient balance'));
+    const con = motivoDelProveedor(new Error('insufficient balance'), { provider: 'glm' });
+    expect(con.motivo).toBe(sin.motivo);
+    expect(con.reintentable).toBe(sin.reintentable);
+  });
+
+  it('no publica la llave aunque venga en el error del proveedor', () => {
+    const error = new Error('insufficient balance for key nvapi-secretoquenodebesalir');
+    const d = motivoDelProveedor(error, { provider: 'glm', model: 'z-ai/glm-5.3' });
+    expect(d.message).not.toContain('nvapi-secretoquenodebesalir');
+  });
+});

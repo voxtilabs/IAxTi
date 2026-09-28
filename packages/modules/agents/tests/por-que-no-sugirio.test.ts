@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createAgent, updateAgent } from '../application/agents';
-import { porQueNoHaySugerencia } from '../application/por-que-no-sugirio';
+import { describirSinSugerencia, porQueNoHaySugerencia } from '../application/por-que-no-sugirio';
 
 /**
  * Por qué esta conversación no tiene sugerencia (#436).
@@ -105,6 +105,40 @@ describe('por qué no hay sugerencia', () => {
     expect(r.codigo).toBe('sin_saldo');
     expect(r.loArreglaElNegocio).toBe(false);
     expect(r.queHacer).toContain('cosa nuestra');
+    // Y CON QUIÉN fue (#677). La fila tenía el proveedor y el modelo desde
+    // siempre y la consulta no los pedía. Sin el nombre, «el proveedor de IA»
+    // puede señalar al que no falló: desde #666 el asistente cae al que tenga
+    // credencial, no necesariamente al que el negocio eligió.
+    expect(r.texto).toContain('google');
+    expect(r.texto).toContain('gemini-flash-latest');
+  });
+
+  it('a «no hay asistente» o «apagado» no les pega un nombre de proveedor', () => {
+    // Ahí no falló ningún proveedor. Nombrar a uno sugeriría que sí, y manda a
+    // revisar una cuenta que está bien.
+    //
+    // Directo sobre la función y no por la base: estas pruebas comparten tenant,
+    // así que «no hay asistente» solo se da antes de crear el primero y armarlo
+    // con estado dejaría la prueba a merced del orden.
+    for (const codigo of ['sin_asistente', 'asistente_apagado'] as const) {
+      const r = describirSinSugerencia(codigo, { provider: 'glm', model: 'z-ai/glm-5.3' });
+      expect(r.texto).not.toContain('El que falló fue');
+      expect(r.texto).not.toContain('glm');
+    }
+  });
+
+  it('la cuota del PRODUCTO tampoco nombra al proveedor', async () => {
+    // El tope lo pusimos nosotros: señalar a GLM acá manda a cargarle saldo a
+    // una cuenta que no tiene nada que ver.
+    const agente = (await en((c) => createAgent(c, { tenantId: tenant, name: 'Tope' }))).id;
+    await ejecucion({
+      agentId: agente,
+      status: 'failed',
+      error: 'Se agotó la cuota de IA de este mes.',
+    });
+    const r = await preguntar();
+    expect(r.codigo).toBe('cuota_agotada');
+    expect(r.texto).not.toContain('El que falló fue');
   });
 
   it('la cuota del MES es del negocio, y se distingue del saldo del proveedor', async () => {
