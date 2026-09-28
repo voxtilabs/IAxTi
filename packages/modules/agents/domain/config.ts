@@ -199,7 +199,50 @@ const RESPALDO_POR_PROVEEDOR: Record<string, { liviano: string; pesado: string }
 /** Las que razonan de verdad: van con el modelo de gama alta. */
 const TAREAS_PESADAS = new Set<AgentTask>(['configurar', 'analizar', 'configuracion_conversada']);
 
-export function iaSettings(settings: Record<string, unknown> | null | undefined): IaSettings {
+/**
+ * Un proveedor que este ambiente SÍ puede usar para esta tarea (#665).
+ *
+ * Existe por el reverso de una decisión que ya estaba tomada acá abajo: cuando
+ * el proveedor elegido no puede HACER la tarea, se cae al por defecto, «es
+ * capacidad, no preferencia, y fallar en cada audio recibido sería peor que
+ * respetar la preferencia». Faltaba la otra mitad: un proveedor **sin
+ * credencial en este ambiente** tampoco puede hacer nada, y hasta hoy eso no
+ * caía — devolvía `PROVIDER_UNAVAILABLE` en cada mensaje.
+ *
+ * Lo que costó: los ajustes guardados de un negocio apuntaban a un proveedor de
+ * antes de que ADR-0025 moviera el texto a GLM. El ambiente tenía GLM. La IA no
+ * contestó nunca, y el mensaje culpaba al ambiente en vez de decir que había que
+ * cambiar un ajuste.
+ *
+ * Se prefiere el por defecto de la tarea antes que «el primero que haya»: es el
+ * que el producto eligió y con el que están afinados los prompts.
+ */
+function conCredencial(
+  task: AgentTask,
+  elegido: Provider,
+  hayLlave: (p: Provider) => boolean,
+): Provider {
+  if (hayLlave(elegido)) return elegido;
+  const porDefecto = DEFAULT_TASK_MODELS[task].provider;
+  if (hayLlave(porDefecto) && proveedorPermitidoParaTarea(porDefecto, task)) return porDefecto;
+  const otro = PROVIDERS.find((p) => hayLlave(p) && proveedorPermitidoParaTarea(p, task));
+  // Sin ninguno, se devuelve el elegido: que falle con su mensaje, que nombra el
+  // proveedor. Inventar uno sin llave sería cambiar un error claro por otro.
+  return otro ?? elegido;
+}
+
+export function iaSettings(
+  settings: Record<string, unknown> | null | undefined,
+  /**
+   * Qué proveedores tienen credencial AQUÍ. Se inyecta porque `domain/` no lee
+   * el ambiente, y porque sin poder falsearlo esto no se puede probar.
+   *
+   * Sin el argumento, nada cambia: es el comportamiento de antes, para que los
+   * llamadores que no deciden sobre credenciales —guardar ajustes, por ejemplo—
+   * sigan viendo lo que el negocio eligió y no lo que este ambiente puede.
+   */
+  hayLlave?: (p: Provider) => boolean,
+): IaSettings {
   const raw = (settings?.ia ?? {}) as Partial<{
     tasks: Partial<Record<AgentTask, Partial<TaskModel>>>;
     redactPII: boolean;
@@ -246,19 +289,28 @@ export function iaSettings(settings: Record<string, unknown> | null | undefined)
       continue;
     }
     const t = raw.tasks?.[task];
+    const pedido =
+      PROVIDERS.includes(t?.provider as Provider) &&
+      proveedorPermitidoParaTarea(t!.provider as Provider, task)
+        ? (t!.provider as Provider)
+        : DEFAULT_TASK_MODELS[task].provider;
+    // Sin credencial en este ambiente, cae a uno que la tenga (#665). Con
+    // `soloProveedor` NO se cae nunca —esa rama está arriba—: es un compromiso
+    // escrito sobre por dónde pasan los datos del cliente, y cambiarlo en
+    // silencio sería romperlo sin que nadie se entere.
+    const elegido = hayLlave ? conCredencial(task, pedido, hayLlave) : pedido;
     tasks[task] = {
-      provider:
-        PROVIDERS.includes(t?.provider as Provider) &&
-        proveedorPermitidoParaTarea(t!.provider as Provider, task)
-          ? (t!.provider as Provider)
-          : DEFAULT_TASK_MODELS[task].provider,
+      provider: elegido,
       // El modelo acompaña al proveedor: si el proveedor cayó al por
       // defecto, quedarse con `glm-4.6` apuntando a Google sería un 404 en
       // cada mensaje entrante.
+      // El modelo acompaña al proveedor: si el proveedor cambió, quedarse con
+      // `glm-4.6` apuntando a Google sería un 404 en cada mensaje entrante.
       model:
-        PROVIDERS.includes(t?.provider as Provider) &&
-        !proveedorPermitidoParaTarea(t!.provider as Provider, task)
-          ? DEFAULT_TASK_MODELS[task].model
+        elegido !== (t?.provider as Provider)
+          ? (TAREAS_PESADAS.has(task)
+              ? RESPALDO_POR_PROVEEDOR[elegido]?.pesado
+              : RESPALDO_POR_PROVEEDOR[elegido]?.liviano) ?? DEFAULT_TASK_MODELS[task].model
           : t?.model?.trim() || DEFAULT_TASK_MODELS[task].model,
     };
   }

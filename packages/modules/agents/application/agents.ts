@@ -3,6 +3,7 @@ import { writeAudit } from '@iaxti/module-audit';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { PROVIDERS, iaSettings, type Provider } from '../domain/config';
 import { esObjetivo, type Objetivo } from '../domain/objetivo';
+import { providerAvailable } from './models';
 
 // Agent (#47): el asistente del tenant, con TODO configurable.
 
@@ -92,7 +93,10 @@ export async function createAgent(
    * atención hace todo el día. Así hereda también el «solo este proveedor»
    * del negocio: quien pidió solo Gemini no recibe un asistente en GLM.
    */
-  const porDefecto = iaSettings(await getTenantSettings(client, input.tenantId)).tasks.sugerir;
+  const porDefecto = iaSettings(
+    await getTenantSettings(client, input.tenantId),
+    providerAvailable,
+  ).tasks.sugerir;
   const r = await client.query(
     `INSERT INTO agents
        (tenant_id, name, personality, language, provider, model, prompt_name,

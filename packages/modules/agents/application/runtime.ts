@@ -13,7 +13,7 @@ import {
 } from '../domain/config';
 import type { AgentTask, Provider } from '../domain/config';
 import { componerPrompt, resolverObjetivo } from '../domain/objetivo';
-import { aiSdkModelPort, type HerramientaExpuesta, type ModelPortFactory } from './models';
+import { aiSdkModelPort, type HerramientaExpuesta, type ModelPortFactory, providerAvailable } from './models';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 import type { Agent } from './agents';
@@ -115,7 +115,7 @@ export async function runAgentTask(
   input: RunInput,
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
 ): Promise<RunResult> {
-  const settings = iaSettings(await getTenantSettings(client, input.tenantId));
+  const settings = iaSettings(await getTenantSettings(client, input.tenantId), providerAvailable);
   // Por tarea manda la configuración del tenant; el agente es el fallback.
   const porTarea = settings.tasks[input.task];
   let provider = (porTarea?.provider ?? input.agent.provider) as Provider;
