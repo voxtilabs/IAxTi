@@ -163,7 +163,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       setMensajes((previos) => [...(previos ?? []), ...anteriores]);
       setHayAnteriores(anteriores.length >= PAGINA_MENSAJES);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(avisoDe(err));
     } finally {
       setTrayendoAnteriores(false);
     }
