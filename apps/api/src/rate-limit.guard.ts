@@ -23,7 +23,26 @@ import { enteroDeEntorno } from '@iaxti/core';
 export class RateLimitGuard implements CanActivate {
   constructor(
     private readonly redis: IORedis,
-    private readonly limitPerMinute = enteroDeEntorno('RATE_LIMIT_PER_MINUTE', 120),
+    /**
+     * Por minuto y por tenant (SPEC §28, `.claude/rules/api.md`).
+     *
+     * Estaba en 120 y es demasiado bajo, medido y no estimado (#686). Una sola
+     * prueba de la bandeja —un usuario abre una conversación y responde un
+     * mensaje— hace **31 llamadas a /v1**, contadas en la traza de red:
+     * detalle, mensajes, notas, sugerencia, análisis, límites de adjuntos, la
+     * lista, y las que repite al refrescar después de actuar.
+     *
+     * Con 120 el negocio ENTERO tenía cuatro de esos flujos por minuto, entre
+     * todos sus usuarios: el cupo es por tenant, no por persona. Tres personas
+     * trabajando la bandeja a ritmo normal lo agotan, y a partir de ahí el
+     * producto contesta «Espera un momento» a gente que solo está trabajando.
+     * Eso ya se vio: el mensaje que no se enviaba.
+     *
+     * 1200 es 20 por segundo sostenidos para un negocio completo. Sigue
+     * acotando el abuso —que es para lo que existe esto— y deja de castigar el
+     * uso normal. Sube por variable si algún tenant grande lo necesita.
+     */
+    private readonly limitPerMinute = enteroDeEntorno('RATE_LIMIT_PER_MINUTE', 1200),
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
