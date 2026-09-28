@@ -67,7 +67,14 @@ describe('el menú se pide una vez y se cachea', () => {
       .filter((l) => !l.trim().startsWith('//'))
       .join('\n');
     expect(nav).toMatch(/next:\s*\{\s*revalidate:\s*\d+/);
-    expect(nav).not.toContain("'no-store'");
+    // Antes acá decía `not.toContain("'no-store'")`, y estaba bien mientras el
+    // helper tenía un solo camino. Desde #679 tiene dos: el feliz cachea, y el
+    // de recuperación NO —porque `revalidate` guarda también lo que no es 200, y
+    // el reintento leería justo la respuesta que acabamos de descartar—. Que el
+    // `no-store` esté solo ahí lo comprueban las pruebas de comportamiento en
+    // `la-barra-que-desaparece.test.ts`, que miran el init de cada llamada; una
+    // regla sobre el texto del archivo no sabe distinguir los dos caminos.
+    expect(nav).toContain('sinCache');
     // Cachear para siempre sería peor que no cachear: un módulo recién
     // encendido no aparecería nunca en el menú.
     const segundos = Number(/revalidate:\s*(\d+)/.exec(nav)?.[1]);
@@ -75,7 +82,17 @@ describe('el menú se pide una vez y se cachea', () => {
     expect(segundos).toBeLessThanOrEqual(300);
   });
 
-  it('si la API no responde, el menú degrada en vez de romper la página', () => {
-    expect(readFileSync(NAV, 'utf8')).toMatch(/catch\s*\{[\s\S]*?return \[\];/);
+  it('si la API no responde, NO degrada a un menú vacío en silencio (#679)', () => {
+    // Esta prueba decía lo contrario: comprobaba que el catch hiciera
+    // `return []`. Era la decisión de entonces —«la API puede no estar en un
+    // build local»— y en producción se traducía en que la barra entera
+    // desaparecía sin una palabra. Por comprobar el texto del código y no lo que
+    // le pasa a quien mira la pantalla, no notó nada cuando eso se volvió el bug.
+    //
+    // Ahora el fallo se distingue de la lista vacía, y quién dibuja qué se prueba
+    // en `la-barra-que-desaparece.test.ts`.
+    const nav = readFileSync(NAV, 'utf8');
+    expect(nav).not.toMatch(/catch\s*\{[\s\S]{0,200}?return \[\];/);
+    expect(nav).toMatch(/Promise<NavItem\[\] \| null>/);
   });
 });

@@ -53,13 +53,14 @@ import {
   type LucideIcon,
   ChevronDown,
 } from 'lucide-react';
+import { AvisoResultado } from '@iaxti/ui/react';
 import { SoporteAviso } from './soporte-aviso';
 import { PaletaComandos } from './paleta-comandos';
 import { AgenteGeneral } from './agente-general';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
-import type { NavItem } from '../lib/nav';
+import { queBarraMostrar, type NavItem } from '../lib/nav';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 import { rutasConCandado } from '../lib/candados';
@@ -72,7 +73,15 @@ export type { NavItem } from '../lib/nav';
 interface ShellProps {
   config: PublicConfig;
   marcaSvg: string;
-  nav: NavItem[];
+  /**
+   * El menú que trajo el servidor, o `null` si no pudo preguntarle a la API
+   * (#679).
+   *
+   * `null` no es lo mismo que `[]`. Antes eran el mismo valor y la pantalla los
+   * dibujaba igual: sin barra y sin una palabra. Con `null` el navegador lo pide
+   * por su cuenta —ahí hay sesión— y si tampoco se puede, se dice.
+   */
+  nav: NavItem[] | null;
   /** Pantallas a ancho completo (la bandeja): sin contenedor ni padding. */
   sinMargen?: boolean;
   children: ReactNode;
@@ -452,9 +461,59 @@ export function AppShell(props: ShellProps) {
   </RequireSession></SessionProvider>;
 }
 
-function ContenidoShell({ marcaSvg, nav, sinMargen, children }: ShellProps) {
+/**
+ * El menú, pedido desde el navegador cuando el servidor no pudo (#679).
+ *
+ * El servidor del web pregunta por la red interna y a veces no le contestan
+ * —justo después de un despliegue, mientras la API arranca—. El navegador llega
+ * por la URL pública, que es otro camino: si uno falla, el otro suele andar.
+ *
+ * Solo corre cuando hace falta (`hace`), así que el camino feliz queda exacto
+ * como estaba: ni una petición más.
+ */
+function useNavDeRespaldo(hace: boolean): {
+  nav: NavItem[] | null;
+  fallo: boolean;
+  reintentar: () => void;
+} {
+  const { config } = useSession();
+  const [nav, setNav] = useState<NavItem[] | null>(null);
+  const [fallo, setFallo] = useState(false);
+  const [intento, setIntento] = useState(0);
+  useEffect(() => {
+    if (!hace) return;
+    const controller = new AbortController();
+    setFallo(false);
+    fetch(`${config.apiUrl}/v1/me/modules`, { cache: 'no-store', signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`contestó ${r.status}`);
+        return r.json() as Promise<Array<{ nav: NavItem[] }>>;
+      })
+      .then((modulos) => {
+        if (!controller.signal.aborted) setNav(modulos.flatMap((m) => m.nav));
+      })
+      .catch(() => {
+        // `abort` también pasa por acá y no es un fallo: si se abortó, esta
+        // pantalla ya no está mirando.
+        if (!controller.signal.aborted) setFallo(true);
+      });
+    return () => controller.abort();
+  }, [hace, config.apiUrl, intento]);
+  return { nav, fallo, reintentar: () => setIntento((n) => n + 1) };
+}
+
+function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: ShellProps) {
   // Menú y pestañas comparten la misma lectura; no duplicar módulos/acceso.
   const candados = useModulosConCandado();
+  const respaldo = useNavDeRespaldo(navDelServidor === null);
+  // La decisión de qué mostrar y cuándo avisar vive en `lib/nav.ts` y está
+  // probada ahí (#679): las pruebas del web corren sin DOM, y una regla de tres
+  // ramas escondida en este archivo no se probaría nunca.
+  const { items: nav, avisar: sinPoderPreguntar } = queBarraMostrar({
+    delServidor: navDelServidor,
+    delNavegador: respaldo.nav,
+    falloElNavegador: respaldo.fallo,
+  });
   const ruta = usePathname();
   const pagina = nav.find((item) => item.path === ruta || ruta?.startsWith(`${item.path}/`));
   return (
@@ -483,6 +542,24 @@ function ContenidoShell({ marcaSvg, nav, sinMargen, children }: ShellProps) {
                 <ModeToggle />
               </div>
             </header>
+            {/* Un menú vacío no puede ser el mensaje de error (#679). Antes
+                la barra desaparecía y la pantalla no decía nada: quien la miraba
+                concluía que el producto se rompió, que es lo que pasó el 27/09.
+                Va acá, debajo de la cabecera y dentro del alto completo, para
+                que también se vea en la bandeja —que va a ancho completo y sin
+                contenedor—. */}
+            {sinPoderPreguntar ? (
+              <div className={sinMargen ? 'shrink-0 px-6 pt-3' : 'pulso-content mx-auto w-full max-w-contenido pt-3'}>
+                <AvisoResultado persistente tono="warning">
+                  No pudimos cargar el menú: ni desde el servidor ni desde este navegador. Lo que
+                  estás viendo funciona igual, pero la barra va a estar vacía hasta que la API
+                  vuelva a contestar.{' '}
+                  <button type="button" className="underline" onClick={respaldo.reintentar}>
+                    Reintentar
+                  </button>
+                </AvisoResultado>
+              </div>
+            ) : null}
             <div className={sinMargen ? 'min-h-0 min-w-0 flex-1' : 'pulso-content mx-auto w-full max-w-contenido'}>
               {/* Las pestañas de la sección van DENTRO del contenido y las pone
                   el shell, no cada página (#387). Como layout de
