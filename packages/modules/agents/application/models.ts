@@ -4,6 +4,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { Provider } from '../domain/config';
+import { FalloDeHerramienta, FalloDelProveedor, esDeHerramienta } from './fallo-del-proveedor';
 
 // El puerto de modelos (#47): Vercel AI SDK debajo, y una interfaz chica
 // arriba para que el runtime se pruebe sin red. Las llaves SIEMPRE por
@@ -127,14 +128,29 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
             inputSchema: jsonSchema(h.parameters as Parameters<typeof jsonSchema>[0]),
             execute: async (entrada: unknown) => {
               usadas.push(h.name);
-              return h.ejecutar((entrada ?? {}) as Record<string, unknown>);
+              // Marcado como NUESTRO (#684). El SDK ejecuta las tools dentro de
+              // la llamada al modelo, así que este error sale por el mismo
+              // `await` que uno del proveedor. Sin la marca, envolver abajo
+              // convertiría «no tienes permiso para billing.read» en «tu
+              // proveedor se quedó sin saldo», que es exactamente lo que pasó.
+              try {
+                return await h.ejecutar((entrada ?? {}) as Record<string, unknown>);
+              } catch (err) {
+                throw new FalloDeHerramienta(h.name, err);
+              }
             },
           }),
         ]),
       );
       const conHerramientas = Object.keys(herramientas).length > 0;
 
-      const res = await generateText({
+      // La única puerta al proveedor, y por eso el único lugar donde se pone la
+      // marca (#684). Lo que no pasa por acá no es del proveedor y no se
+      // clasifica como suyo. `languageModel` también entra: su «no tiene llave
+      // configurada» ES del proveedor —no hay con qué hablarle— y esa
+      // clasificación es la correcta.
+      const res = await conLaMarcaDelProveedor(() =>
+        generateText({
         model: languageModel(provider, model),
         system: args.system,
         // Un hilo si lo hay; si no, el prompt suelto de siempre.
@@ -150,7 +166,8 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
               stopWhen: stepCountIs(args.maxSteps ?? 4),
             }
           : {}),
-      });
+        }),
+      );
       return {
         text: res.text,
         // Con herramientas hay varios pasos: `usage` ya viene sumado, pero
@@ -164,6 +181,21 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
       };
     },
   };
+}
+
+/**
+ * Corre algo contra el proveedor y marca lo que salga mal como suyo (#684).
+ *
+ * Un fallo de herramienta pasa tal cual: ya viene marcado como nuestro desde el
+ * `execute`, y volver a envolverlo lo convertiría en lo contrario de lo que es.
+ */
+async function conLaMarcaDelProveedor<T>(hacer: () => Promise<T>): Promise<T> {
+  try {
+    return await hacer();
+  } catch (err) {
+    if (esDeHerramienta(err)) throw err;
+    throw FalloDelProveedor.de(err);
+  }
 }
 
 export type ModelPortFactory = (provider: Provider, model: string) => ModelPort;
