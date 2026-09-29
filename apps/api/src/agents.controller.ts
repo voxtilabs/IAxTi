@@ -27,6 +27,7 @@ import {
   listAgents,
   listExecutions,
   motivoDelProveedor,
+  type QuienFallo,
   PROVIDERS,
   providerAvailable,
   resolverObjetivo,
@@ -85,8 +86,8 @@ const actorOf = (request: WithUser): Actor => request.actor as Actor;
  * al cliente HTTP "vuelve a intentar", y con saldo cero eso es hacerle
  * perder el tiempo.
  */
-function comoExcepcionDelProveedor(error: unknown): never {
-  const d = motivoDelProveedor(error);
+function comoExcepcionDelProveedor(error: unknown, quien?: QuienFallo): never {
+  const d = motivoDelProveedor(error, quien);
   const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
   if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
   throw new ConflictException(cuerpo);
@@ -423,7 +424,11 @@ export class AgentsController {
         // y con una URL de su panel, que no es un mensaje para el dueño de
         // una pyme. Si NO lo reconocemos como del proveedor, se respeta el
         // original: puede venir de una tool y perderlo sería peor.
-        const d = motivoDelProveedor(res.error);
+        // Con quién falló (#677): `runAgentTask` devuelve `provider` y `model`
+        // al lado del error y acá se estaban tirando. Desde #666 el asistente
+        // puede caer a un proveedor distinto al que el negocio tiene elegido,
+        // así que «el proveedor de IA» sin nombre puede señalar al equivocado.
+        const d = motivoDelProveedor(res.error, { provider: res.provider, model: res.model });
         if (d.motivo !== 'desconocido') {
           const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
           if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
@@ -622,7 +627,8 @@ export class AgentsController {
         }
         // Sin saldo, cuota agotada o llave vencida: se dice con nombre
         // (#402) en vez de caer en el genérico.
-        if (motivoDelProveedor(err).motivo !== 'desconocido') comoExcepcionDelProveedor(err);
+        const quien = { provider: agente.provider, model: agente.model };
+        if (motivoDelProveedor(err, quien).motivo !== 'desconocido') comoExcepcionDelProveedor(err, quien);
         throw err;
       }
     });
@@ -711,6 +717,10 @@ export class AgentsController {
       if (res.status === 'failed') {
         // Mismo criterio que la corrida (#402): si el fallo es del
         // proveedor se dice con nombre; si no, se respeta el original.
+        // Acá NO se nombra (#677): el resultado del configurador no trae
+        // `provider` ni `model`, y adivinarlos —poniendo el de los modelos por
+        // omisión— sería peor que no decir nada: un nombre equivocado en un
+        // mensaje de error manda a revisar la cuenta que no falló.
         if (motivoDelProveedor(res.error).motivo !== 'desconocido') comoExcepcionDelProveedor(res.error);
         throw new BadRequestException({ code: 'CONFIGURATOR_FAILED', message: res.error });
       }
