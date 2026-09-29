@@ -1,3 +1,4 @@
+import { esDelProveedor } from './fallo-del-proveedor';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { ModuleRegistry } from '@iaxti/core';
@@ -59,6 +60,8 @@ export interface RunResult {
   executionId: string;
   text: string | null;
   error: string | null;
+  /** Si el fallo vino del proveedor de IA y no de una tool nuestra (#684). */
+  errorDelProveedor?: boolean;
   tokensIn: number;
   tokensOut: number;
   costUsd: number | null;
@@ -291,10 +294,14 @@ export async function runAgentTask(
     };
   } catch (err) {
     const latencyMs = Date.now() - inicio;
+    // De quién fue (#684). Se decide acá, donde el error todavía es un objeto con
+    // su marca, porque en la columna es texto y ahí ya no se puede saber. Y se
+    // guarda para que la bandeja no tenga que adivinarlo leyendo palabras.
+    const delProveedor = esDelProveedor(err);
     const fila = await client.query(
       `INSERT INTO agent_executions
-         (tenant_id, agent_id, task, provider, model, input, latency_ms, trace_id, status, error, explanation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'failed',$9,$10) RETURNING id`,
+         (tenant_id, agent_id, task, provider, model, input, latency_ms, trace_id, status, error, explanation, error_del_proveedor)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'failed',$9,$10,$11) RETURNING id`,
       [
         input.tenantId,
         input.agent.id,
@@ -305,13 +312,16 @@ export async function runAgentTask(
         latencyMs,
         traceId,
         (err as Error).message,
-        `La tarea "${input.task}" falló con ${provider}/${model}.`,
+        delProveedor
+          ? `La tarea "${input.task}" falló en ${provider}/${model}: el error vino del proveedor.`
+          : `La tarea "${input.task}" falló con ${provider}/${model}, y el error NO fue del proveedor.`,
+        delProveedor,
       ],
     );
     await publishEvent(client, {
       name: 'agent.failed',
       tenantId: input.tenantId,
-      payload: { task: input.task, provider, model, error: (err as Error).message },
+      payload: { task: input.task, provider, model, error: (err as Error).message, delProveedor },
       actor: 'system',
       requestId: traceId,
     });
@@ -320,6 +330,10 @@ export async function runAgentTask(
       executionId: fila.rows[0].id,
       text: null,
       error: (err as Error).message,
+      // Quien atiende la petición recibe el texto y no el objeto, así que la
+      // marca se le pasa al lado: sin esto el controlador vuelve a clasificar por
+      // palabras, que es el defecto de #684.
+      errorDelProveedor: delProveedor,
       tokensIn: 0,
       tokensOut: 0,
       costUsd: null,

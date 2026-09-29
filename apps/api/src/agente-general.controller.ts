@@ -475,7 +475,10 @@ export class AgenteGeneralController {
         }
         // Sin saldo, llave vencida o el proveedor caído: se dice con nombre
         // (#402) en vez de caer en un genérico que no ayuda a nadie.
-        const d = motivoDelProveedor(err);
+        // Con quién falló (#677): acá `provider` y `model` están a la vista y el
+        // mensaje decía «el proveedor de IA» sin nombre. Desde #666 ese
+        // proveedor puede no ser el que el negocio tiene elegido.
+        const d = motivoDelProveedor(err, { provider, model });
         if (d.motivo !== 'desconocido') {
           const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
           if (d.reintentable) throw new ServiceUnavailableException(cuerpo);

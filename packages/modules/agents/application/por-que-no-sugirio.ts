@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import { providerAvailable } from './models';
 import { PROVIDERS, type Provider } from '../domain/config';
 import { activeAgent } from './copilot';
-import { motivoDelProveedor } from './motivo-del-proveedor';
+import { motivoDelProveedor, type QuienFallo } from './motivo-del-proveedor';
 
 /**
  * Por qué esta conversación no tiene sugerencia (#436).
@@ -95,9 +95,42 @@ const CATALOGO: Record<CodigoSinSugerencia, Omit<SinSugerencia, 'codigo'>> = {
   },
 };
 
-export function describirSinSugerencia(codigo: CodigoSinSugerencia): SinSugerencia {
-  return { codigo, ...CATALOGO[codigo] };
+/**
+ * El motivo, y con quién pasó cuando se sabe (#677).
+ *
+ * Los textos del catálogo dicen «el proveedor de IA» en singular, que era
+ * verdad mientras había uno: el que el negocio tenía elegido. Desde #666 el
+ * asistente cae al que tenga credencial, así que la frase puede estar
+ * señalando al proveedor equivocado — y quien la lee va a revisar la cuenta
+ * que no falló.
+ *
+ * El dato estaba en la misma fila que el error y no se seleccionaba.
+ */
+export function describirSinSugerencia(codigo: CodigoSinSugerencia, quien?: QuienFallo): SinSugerencia {
+  const base = CATALOGO[codigo];
+  const proveedor = quien?.provider?.trim();
+  if (!proveedor || !HABLAN_DEL_PROVEEDOR.has(codigo)) return { codigo, ...base };
+  const modelo = quien?.model?.trim();
+  return {
+    codigo,
+    ...base,
+    texto: `${base.texto} El que falló fue ${proveedor}${modelo ? ` con el modelo ${modelo}` : ''}.`,
+  };
 }
+
+/**
+ * Cuáles de estos motivos hablan del proveedor.
+ *
+ * A «no hay asistente» o «está apagado» no le pega nombrar a nadie: no falló
+ * ningún proveedor, y agregarle un nombre sugeriría que sí.
+ */
+const HABLAN_DEL_PROVEEDOR = new Set<CodigoSinSugerencia>([
+  'sin_llave',
+  'sin_saldo',
+  'cuota_agotada',
+  'llave_invalida',
+  'modelo_no_disponible',
+]);
 
 /**
  * La respuesta, mirando lo registrado y en el orden en que importa.
@@ -142,7 +175,7 @@ export async function porQueNoHaySugerencia(
   // pasó en los últimos minutos es lo que explica esta conversación.
   const desde = input.desde ?? new Date(Date.now() - 15 * 60_000);
   const ultima = await client.query(
-    `SELECT status, error, output, created_at
+    `SELECT status, error, output, provider, model, error_del_proveedor, created_at
        FROM agent_executions
       WHERE tenant_id = $1 AND task = 'sugerir' AND created_at >= $2
       ORDER BY created_at DESC LIMIT 1`,
@@ -154,10 +187,26 @@ export async function porQueNoHaySugerencia(
     return describirSinSugerencia('todavia_trabajando');
   }
 
-  const fila = ultima.rows[0] as { status: string; error: string | null; output: unknown };
+  const fila = ultima.rows[0] as {
+    status: string;
+    error: string | null;
+    output: unknown;
+    provider: string | null;
+    model: string | null;
+    error_del_proveedor: boolean | null;
+  };
+  // De quién fue, desde la columna y no desde el texto (#684). NULL es «no se
+  // sabe» —filas anteriores a esa migración— y no saberlo también impide
+  // afirmar: `delProveedor: false` deja el motivo en genérico en vez de inventar
+  // que el proveedor se quedó sin saldo.
+  const quien: QuienFallo = {
+    provider: fila.provider,
+    model: fila.model,
+    delProveedor: fila.error_del_proveedor === true,
+  };
   const salida = (fila.output ?? {}) as { text?: string | null; truncada?: boolean };
   if (fila.error) {
-    const diagnostico = motivoDelProveedor(new Error(fila.error));
+    const diagnostico = motivoDelProveedor(new Error(fila.error), quien);
     const codigo: CodigoSinSugerencia =
       diagnostico.motivo === 'sin_saldo'
         ? 'sin_saldo'
@@ -170,8 +219,11 @@ export async function porQueNoHaySugerencia(
               : 'no_se_entendio';
     // La cuota del producto no es un error del proveedor: se reconoce por
     // el texto que escribe el propio runtime al rechazar.
+    // La cuota del PRODUCTO no es del proveedor: acá no se nombra a nadie,
+    // porque el tope lo pusimos nosotros y señalar a GLM mandaría a cargarle
+    // saldo a una cuenta que está bien.
     if (/cuota de IA/i.test(fila.error)) return describirSinSugerencia('cuota_agotada');
-    return describirSinSugerencia(codigo);
+    return describirSinSugerencia(codigo, quien);
   }
   if (salida.truncada) return describirSinSugerencia('respuesta_cortada');
   return describirSinSugerencia('no_se_entendio');
