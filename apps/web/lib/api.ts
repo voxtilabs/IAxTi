@@ -8,9 +8,49 @@ export class ApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly status: number,
+    /**
+     * El identificador de la petición (#659).
+     *
+     * La API lo manda en TODA respuesta de error y `apiFetch` lo descartaba, así
+     * que la pantalla decía «ya quedó registrado» sin dar con qué. Quien atiende
+     * quedaba sin nada que pasarle a quien puede mirar los registros — y desde
+     * el celular, que es donde se usa la bandeja, no hay consola del navegador
+     * donde ir a buscarlo.
+     */
+    public readonly requestId: string = '',
   ) {
     super(message);
   }
+}
+
+/**
+ * Lo que la pantalla muestra cuando algo falla: la frase y, si la hay, la pista
+ * técnica para pedir ayuda (#659).
+ */
+export interface Aviso {
+  texto: string;
+  /** `code · requestId`, o null cuando no hay nada que copiar. */
+  rastro: string | null;
+}
+
+/** Arma el aviso a partir de lo que sea que se haya lanzado. */
+export function avisoDe(err: unknown): Aviso {
+  return {
+    texto: err instanceof Error ? err.message : 'Algo salió mal. Intenta de nuevo.',
+    rastro: rastroDelError(err),
+  };
+}
+
+/**
+ * El rastro técnico de un error, para pegar en un mensaje pidiendo ayuda.
+ *
+ * `null` cuando no hay nada que mostrar: un error de red no trae identificador,
+ * y un renglón vacío en mono debajo del aviso es ruido.
+ */
+export function rastroDelError(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const partes = [err.code, err.requestId].filter((p) => p && p !== 'ERROR');
+  return partes.length > 0 ? partes.join(' · ') : null;
 }
 
 export async function apiFetch<T>(
@@ -30,11 +70,16 @@ export async function apiFetch<T>(
     },
   });
   if (!res.ok) {
-    const cuerpo = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+    const cuerpo = (await res.json().catch(() => null)) as {
+      code?: string;
+      message?: string;
+      requestId?: string;
+    } | null;
     throw new ApiError(
       cuerpo?.code ?? 'ERROR',
       cuerpo?.message ?? 'Algo salió mal. Intenta de nuevo.',
       res.status,
+      cuerpo?.requestId ?? '',
     );
   }
   return res.json() as Promise<T>;
@@ -55,11 +100,16 @@ export async function apiDescargar(
     headers: { Authorization: `Bearer ${session.access_token}`, 'X-Tenant-Id': tenantId },
   });
   if (!res.ok) {
-    const cuerpo = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+    const cuerpo = (await res.json().catch(() => null)) as {
+      code?: string;
+      message?: string;
+      requestId?: string;
+    } | null;
     throw new ApiError(
       cuerpo?.code ?? 'ERROR',
       cuerpo?.message ?? 'Algo salió mal. Intenta de nuevo.',
       res.status,
+      cuerpo?.requestId ?? '',
     );
   }
   const disposicion = res.headers.get('Content-Disposition') ?? '';

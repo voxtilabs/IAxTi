@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, toast } from '@iaxti/ui/react';
 
 import { Bot, Paperclip, ThumbsDown, ThumbsUp } from 'lucide-react';
 
@@ -43,6 +43,7 @@ import {
   type PlantillaDto,
   type QuickReplyDto,
   type SugerenciaDto,
+  type Aviso,
 } from '../../lib/api';
 import { ESTADOS } from './estado';
 
@@ -91,7 +92,7 @@ export interface ChatProps {
   /** Modo efectivo del copiloto; null = módulo agents apagado. */
   modo: 'assist' | 'autonomous' | 'off' | null;
   miId: string;
-  aviso: string | null;
+  aviso: Aviso | null;
   /** Qué acepta este canal; null mientras carga o si la ruta falló. */
   limitesDeAdjunto: LimitesDeAdjunto | null;
   /** Si puede haber mensajes anteriores a los que ya están (#581). */
@@ -501,7 +502,30 @@ export function Chat({
 
       {aviso && (
         <AvisoResultado>
-          {aviso}
+          {aviso.texto}
+          {aviso.rastro && (
+            /* El identificador, para pedir ayuda (#659). La API lo manda en
+               toda respuesta de error y se descartaba, así que la pantalla
+               decía «ya quedó registrado» sin dar con qué. Va en mono porque
+               es un identificador (ui-pulso.md), discreto porque quien atiende
+               lee la frase, y CON su botón: desde un teléfono seleccionar texto
+               chico es imposible, y la bandeja se usa desde el teléfono. */
+            <span className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="dato text-rotulo text-muted">{aviso.rastro}</span>
+              <button
+                type="button"
+                className="text-rotulo text-action-text underline"
+                onClick={() => {
+                  void navigator.clipboard
+                    ?.writeText(aviso.rastro ?? '')
+                    .then(() => toast.success('Copiado. Pásalo para que puedan buscarlo.'))
+                    .catch(() => toast.error('Tu navegador no dejó copiar. Selecciónalo a mano.'));
+                }}
+              >
+                Copiar
+              </button>
+            </span>
+          )}
         </AvisoResultado>
       )}
 
