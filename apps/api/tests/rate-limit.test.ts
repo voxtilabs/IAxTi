@@ -20,7 +20,26 @@ afterAll(async () => {
 });
 
 describe('rate limiting', () => {
+  /**
+   * Esperar al borde del minuto (#692).
+   *
+   * La ventana del contador es el minuto de reloj: `Math.floor(Date.now()/60_000)`.
+   * Si el bucle de abajo lo cruza, el contador se reinicia a mitad de la prueba y
+   * `remaining` SUBE en vez de bajar. Eso puso en rojo el PR #674 —que no tocaba
+   * nada de esto— con «expected 2 to be +0», y es un rojo que no habla del cambio
+   * que lo recibe.
+   *
+   * Nada de reintentos ni de timeouts más grandes: se arranca al principio de una
+   * ventana y las cuatro peticiones caben de sobra. Si quedan menos de cinco
+   * segundos, se espera el resto.
+   */
+  async function conLaVentanaFresca(): Promise<void> {
+    const faltan = 60_000 - (Date.now() % 60_000);
+    if (faltan < 5_000) await new Promise((listo) => setTimeout(listo, faltan + 50));
+  }
+
   it('cuenta por tenant, expone RateLimit-* y corta con 429 en formato único', async () => {
+    await conLaVentanaFresca();
     const tenant = `t-${Date.now()}`;
     const headers = { 'X-Tenant-Id': tenant };
 
@@ -28,7 +47,9 @@ describe('rate limiting', () => {
       const res = await fetch(`${base}/v1/me/modules`, { headers });
       expect(res.status).toBe(200);
       expect(res.headers.get('ratelimit-limit')).toBe(String(LIMITE));
-      expect(Number(res.headers.get('ratelimit-remaining'))).toBe(LIMITE - i);
+      expect(Number(res.headers.get('ratelimit-remaining')), `petición ${i} de ${LIMITE}`).toBe(
+        LIMITE - i,
+      );
     }
 
     const bloqueada = await fetch(`${base}/v1/me/modules`, { headers });
@@ -41,6 +62,7 @@ describe('rate limiting', () => {
   });
 
   it('cada API key tiene su propio contador (claves separadas)', async () => {
+    await conLaVentanaFresca();
     const conKey = await fetch(`${base}/v1/me/modules`, {
       headers: { 'X-Api-Key': `key-${Date.now()}` },
     });
