@@ -33,6 +33,8 @@ import {
   type PlantillaDto,
   type QuickReplyDto,
   type SugerenciaDto,
+  avisoDe,
+  type Aviso,
 } from '../../lib/api';
 import { Chat, type LimitesDeAdjunto } from './chat';
 import { Ficha } from './ficha';
@@ -95,7 +97,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [hayAnteriores, setHayAnteriores] = useState(false);
   const [trayendoAnteriores, setTrayendoAnteriores] = useState(false);
   const [pane, setPane] = useState<Pane>('lista');
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
   /** Plantillas del negocio; null hasta que alguien abra el selector (#460). */
   const [plantillas, setPlantillas] = useState<PlantillaDto[] | null>(null);
@@ -129,7 +131,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       );
       setItems(res.items);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(avisoDe(err));
     }
   }, [config, session, tenant, vista]);
 
@@ -161,7 +163,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       setMensajes((previos) => [...(previos ?? []), ...anteriores]);
       setHayAnteriores(anteriores.length >= PAGINA_MENSAJES);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(avisoDe(err));
     } finally {
       setTrayendoAnteriores(false);
     }
@@ -223,7 +225,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         // Solo se espera lo urgente: si ESO falla, la pantalla lo dice.
         await loUrgente;
       } catch (err) {
-        setAviso((err as Error).message);
+        setAviso(avisoDe(err));
       }
     },
     [config, session, tenant],
@@ -304,7 +306,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       toast.success(path === '/state' && (body as { state?: string }).state === 'resolved' ? 'Conversación resuelta' : 'Conversación actualizada');
       return true;
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(avisoDe(err));
       return false;
     }
   }
@@ -318,7 +320,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
     try {
       setHits(await apiFetch<BusquedaHit[]>(config, session, tenant, `/search?q=${encodeURIComponent(q)}`));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(avisoDe(err));
     }
   }
 
@@ -428,7 +430,8 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         )}
         {aviso && !detalle && (
           <AvisoResultado>
-            {aviso}
+            {aviso.texto}
+            {aviso.rastro && <span className="dato mt-1 block text-rotulo text-muted">{aviso.rastro}</span>}
           </AvisoResultado>
         )}
         {items === null ? (
@@ -510,7 +513,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               // Sin plantillas no hay selector, pero sí hay que decir por qué:
               // el módulo whatsapp puede estar apagado en este plan.
               setPlantillas([]);
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
             }
           }}
           onAbrirAdjunto={(key) => {
@@ -531,7 +534,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                 else window.location.href = url;
               } catch (err) {
                 ventana?.close();
-                setAviso((err as Error).message);
+                setAviso(avisoDe(err));
               }
             })();
           }}
@@ -545,7 +548,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               });
               await cargarConversacion(seleccion);
             } catch (err) {
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
               throw err;
             }
           }}
@@ -568,7 +571,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               // recarga para mostrar lo que de verdad quedó.
               await cargarConversacion(seleccion);
             } catch (err) {
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
             } finally {
               setReintentando(null);
             }
@@ -588,7 +591,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               if (accion !== 'feedback') setSugerencia(null);
               if (accion === 'send') await Promise.all([cargarConversacion(seleccion), cargarLista()]);
             } catch (err) {
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
             }
           }}
           onCobrar={async (montoClp, concepto) => {
@@ -601,7 +604,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               });
               await cargarConversacion(seleccion);
             } catch (err) {
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
             }
           }}
           onModo={async (modo) => {
@@ -614,7 +617,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               });
               setAnalisis((a) => (a ? { ...a, mode: modo } : a));
             } catch (err) {
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
             }
           }}
           onCrearOportunidad={async (titulo) => {
@@ -627,7 +630,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               });
               setSugerencia((s) => (s ? { ...s, suggestDeal: false } : s));
             } catch (err) {
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
             }
           }}
           limitesDeAdjunto={limites}
@@ -671,7 +674,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                 // rechazada sin dueño, el clip puesto y NINGÚN aviso en
                 // pantalla. Con el rechazo por tamaño de #560 eso habría hecho
                 // invisible justamente lo que se agregó.
-                setAviso((err as Error).message);
+                setAviso(avisoDe(err));
                 return false;
               }
             }
@@ -704,7 +707,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               });
               await cargarConversacion(seleccion);
             } catch (err) {
-              setAviso((err as Error).message);
+              setAviso(avisoDe(err));
             }
           }}
         />
