@@ -94,6 +94,8 @@ export interface ConversacionItem {
 export interface ConversacionDetalle extends ConversacionItem {
   contactEmail: string | null;
   contactOptInAt: string | null;
+  contactOptInChannel: string | null;
+  contactOptInEvidence: string | null;
   contactOptedOutAt: string | null;
   firstResponseAt: string | null;
 }

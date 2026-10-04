@@ -47,6 +47,15 @@ export function Ficha({
   if (!detalle) {
     return <p className="p-6 text-sm text-muted">La ficha del contacto aparece al elegir una conversación.</p>;
   }
+  // El consentimiento, con sus tres partes (#696).
+  //
+  // La regla pide fecha, CANAL y evidencia, y las tres se guardaban desde el
+  // principio: la consulta de la ficha pedía solo la fecha. Así que decía «dio su
+  // consentimiento» sin poder decir a qué consintió — y no son equivalentes: quien
+  // lo dio por el formulario del sitio no autorizó recibir WhatsApp.
+  //
+  // El día que alguien reclame, la evidencia para contestarle estaba escrita y sin
+  // forma de mostrarla. Una evidencia que no se puede mostrar no es evidencia.
   const consentimiento = detalle.contactOptedOutAt
     ? { role: 'bad' as const, label: 'Pidió no recibir mensajes' }
     : detalle.contactOptInAt
@@ -72,6 +81,17 @@ export function Ficha({
         <Fila rotulo="Consentimiento">
           <Badge role={consentimiento.role}>{consentimiento.label}</Badge>
         </Fila>
+        {detalle.contactOptInAt && (
+          <Fila rotulo="Lo dio">
+            <span className="dato">
+              {new Date(detalle.contactOptInAt).toLocaleString('es-CL')}
+              {detalle.contactOptInChannel ? ` · por ${detalle.contactOptInChannel}` : ''}
+            </span>
+          </Fila>
+        )}
+        {detalle.contactOptInAt && detalle.contactOptInEvidence && (
+          <Fila rotulo="Con qué evidencia">{detalle.contactOptInEvidence}</Fila>
+        )}
         <Fila rotulo="Estado">
           <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
         </Fila>

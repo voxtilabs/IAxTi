@@ -238,9 +238,17 @@ export async function getContactFicha(
   // La empresa viaja con la ficha (#460): `contacts.company_id` existía
   // desde #217 y la ficha no lo proyectaba, así que la pantalla no podía
   // mostrar de qué empresa es alguien ni ofrecerse a cambiarlo.
+  //
+  // Y el consentimiento viaja COMPLETO (#696). La regla pide fecha, canal y
+  // evidencia; acá se pedía solo la fecha, así que la ficha afirmaba «dio su
+  // consentimiento» sin poder decir a qué. No son equivalentes: quien lo dio por
+  // el formulario del sitio no autorizó recibir WhatsApp. Es el mismo defecto que
+  // #460 —columna escrita, consulta que no la proyecta— en un campo que además
+  // es la evidencia con la que se contesta una reclamación.
   const contacto = await client.query(
     `SELECT c.id, c.phone, c.name, c.email, c.rut, c.origin, c.owner_id, c.custom,
-            c.opt_in_at, c.opted_out_at, c.last_activity_at, c.created_at,
+            c.opt_in_at, c.opt_in_channel, c.opt_in_evidence,
+            c.opted_out_at, c.last_activity_at, c.created_at,
             c.company_id, e.name AS company_name
        FROM contacts c
        LEFT JOIN companies e ON e.id = c.company_id AND e.tenant_id = c.tenant_id

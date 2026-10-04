@@ -30,6 +30,21 @@ export interface Contact {
   ownerId: string | null;
   origin: ContactOrigin;
   optInAt: Date | null;
+  /**
+   * Por qué canal dio el consentimiento, y con qué evidencia (#696).
+   *
+   * La regla pide las tres cosas —fecha, canal, evidencia— y se guardaban las
+   * tres desde el principio. `rowToContact` mapeaba solo la fecha, así que el
+   * canal y la evidencia estaban en la base y no salían por ninguna parte: ni
+   * en la ficha, ni en el export del titular.
+   *
+   * Importa porque no son equivalentes. Quien dio opt-in por el formulario del
+   * sitio no consintió recibir WhatsApp, y el día que alguien reclame —«yo nunca
+   * autoricé que me escribieran»— la evidencia para contestarle estaba escrita y
+   * sin forma de mostrarla. Una evidencia que no se puede mostrar no es evidencia.
+   */
+  optInChannel: string | null;
+  optInEvidence: string | null;
   optedOutAt: Date | null;
   custom: Record<string, unknown>;
 }
@@ -45,6 +60,8 @@ function rowToContact(row: Record<string, unknown>): Contact {
     ownerId: (row.owner_id as string) ?? null,
     origin: row.origin as ContactOrigin,
     optInAt: (row.opt_in_at as Date) ?? null,
+    optInChannel: (row.opt_in_channel as string) ?? null,
+    optInEvidence: (row.opt_in_evidence as string) ?? null,
     optedOutAt: (row.opted_out_at as Date) ?? null,
     custom: (row.custom as Record<string, unknown>) ?? {},
   };
