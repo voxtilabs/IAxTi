@@ -132,6 +132,9 @@ export type { Herramienta, TratoDeLaHerramienta } from './application/catalogo';
 export { NO_SON_HERRAMIENTA, SIN_CONFIRMACION } from './application/catalogo-curado';
 
 export { motivoDelProveedor } from './application/motivo-del-proveedor';
+// De quién fue el error (#684): la marca la pone el puerto del modelo y la leen
+// el runtime y quien traduzca el fallo.
+export { FalloDelProveedor, FalloDeHerramienta, esDelProveedor, esDeHerramienta } from './application/fallo-del-proveedor';
 export type { QuienFallo } from './application/motivo-del-proveedor';
 export type { MotivoDelProveedor, DiagnosticoDelProveedor } from './application/motivo-del-proveedor';
 // Por qué esta conversación no tiene sugerencia (#436).

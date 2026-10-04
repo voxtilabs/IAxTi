@@ -175,7 +175,7 @@ export async function porQueNoHaySugerencia(
   // pasó en los últimos minutos es lo que explica esta conversación.
   const desde = input.desde ?? new Date(Date.now() - 15 * 60_000);
   const ultima = await client.query(
-    `SELECT status, error, output, provider, model, created_at
+    `SELECT status, error, output, provider, model, error_del_proveedor, created_at
        FROM agent_executions
       WHERE tenant_id = $1 AND task = 'sugerir' AND created_at >= $2
       ORDER BY created_at DESC LIMIT 1`,
@@ -193,8 +193,17 @@ export async function porQueNoHaySugerencia(
     output: unknown;
     provider: string | null;
     model: string | null;
+    error_del_proveedor: boolean | null;
   };
-  const quien: QuienFallo = { provider: fila.provider, model: fila.model };
+  // De quién fue, desde la columna y no desde el texto (#684). NULL es «no se
+  // sabe» —filas anteriores a esa migración— y no saberlo también impide
+  // afirmar: `delProveedor: false` deja el motivo en genérico en vez de inventar
+  // que el proveedor se quedó sin saldo.
+  const quien: QuienFallo = {
+    provider: fila.provider,
+    model: fila.model,
+    delProveedor: fila.error_del_proveedor === true,
+  };
   const salida = (fila.output ?? {}) as { text?: string | null; truncada?: boolean };
   if (fila.error) {
     const diagnostico = motivoDelProveedor(new Error(fila.error), quien);
