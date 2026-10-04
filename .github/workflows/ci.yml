@@ -163,6 +163,28 @@ jobs:
           pnpm --filter @iaxti/web exec playwright install --with-deps chromium
           node apps/web/e2e/run-e2e.mjs
 
+      # La traza del fallo, que hasta ahora moría con el runner (#682).
+      #
+      # El log del paso de arriba nombra el archivo —`trace.zip`— y hasta imprime
+      # el comando para abrirlo, y el archivo no existía en ninguna parte:
+      # `gh run download` contestaba «no valid artifacts found». Un e2e que solo
+      # falla en CI y no deja evidencia se «arregla» adivinando, que es la peor
+      # forma de trabajar: se toca código que probablemente esté bien y se
+      # vuelven a esperar ocho minutos.
+      #
+      # Solo si falló: en verde son decenas de MB por corrida que nadie va a
+      # mirar. Y con retención corta, porque una traza sirve el mismo día.
+      - name: Traza del e2e cuando falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-traza-${{ github.run_attempt }}
+          path: |
+            apps/web/test-results/
+            apps/web/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
       # El dataset de regresión de agentes (#53): con el secret presente
       # corre de verdad y BLOQUEA si el score baja del baseline versionado;
       # sin secret avisa y se salta — jamás inventa un score.
