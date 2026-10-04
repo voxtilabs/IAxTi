@@ -80,14 +80,29 @@ async function main() {
     createInvitation(c, { tenantId: tenant, email: `sup-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }),
   );
   await withTenant(pool, tenant, (c) => acceptInvitation(c, { token: inv.token, userId: supervisora }));
-  const { conversation } = await withTenant(pool, tenant, (c) =>
-    receiveInbound(c, {
-      tenantId: tenant,
-      phone: `+5698${`${Date.now()}`.slice(-7)}`,
-      channel: 'simulador',
-      body: 'Hola, ¿me pueden ayudar con una cotización?',
-    }),
-  );
+  // TRES conversaciones, no una (#694).
+  //
+  // Con una sola, `bandeja.spec.ts` la RESUELVE —es su criterio de salida— y una
+  // conversación resuelta sale del filtro por omisión de la lista. Cualquier otra
+  // prueba que corra después se queda sin nada que abrir y falla con «waiting for
+  // getByRole('button', { name: /\+56 ?9/ })», que no dice nada del cambio que la
+  // recibe. Eso puso en rojo el PR #660.
+  //
+  // Mismo texto en las tres a propósito: las pruebas abren `.first()` y comprueban
+  // ese texto, así que cualquiera de ellas sirve y el orden deja de importar.
+  const conversaciones = [];
+  for (let i = 0; i < 3; i++) {
+    const r = await withTenant(pool, tenant, (c) =>
+      receiveInbound(c, {
+        tenantId: tenant,
+        phone: `+5698${`${Date.now() + i}`.slice(-7)}`,
+        channel: 'simulador',
+        body: 'Hola, ¿me pueden ayudar con una cotización?',
+      }),
+    );
+    conversaciones.push(r.conversation);
+  }
+  const conversation = conversaciones[0];
   const keyTenant = (await pool.query("INSERT INTO tenants(name) VALUES ('E2E Teclado') RETURNING id")).rows[0].id;
   const keyInvitation = await withTenant(pool, keyTenant, (c) => createInvitation(c, { tenantId: keyTenant, email: `teclado-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }));
   await withTenant(pool, keyTenant, (c) => acceptInvitation(c, { token: keyInvitation.token, userId: supervisora }));
