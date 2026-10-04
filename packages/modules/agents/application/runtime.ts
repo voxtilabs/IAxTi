@@ -221,8 +221,8 @@ export async function runAgentTask(
     const fila = await client.query(
       `INSERT INTO agent_executions
          (tenant_id, agent_id, task, provider, model, input, output,
-          tokens_in, tokens_out, cost_usd, latency_ms, trace_id, explanation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+          tokens_in, tokens_out, cost_usd, latency_ms, trace_id, explanation, tools_called)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [
         input.tenantId,
         input.agent.id,
@@ -231,10 +231,13 @@ export async function runAgentTask(
         model,
         JSON.stringify({ prompt: input.prompt }),
         JSON.stringify({
+          // Qué herramientas se usaron vive en su columna, `tools_called`, y no
+          // acá (#699). Estaba metido en el jsonb de `output` y la columna
+          // —declarada en 0001_agents.sql con DEFAULT '[]'— no la tocaba nadie:
+          // guardaba `[]` en cada corrida desde el primer día, y ninguna consulta
+          // devolvía ni la una ni la otra. Un dato en dos casas y leído en
+          // ninguna.
           text: res.text,
-          // Qué herramientas se usaron queda en la ejecución: sin esto,
-          // una respuesta con precio real y una inventada se ven igual.
-          ...(res.herramientasUsadas?.length ? { herramientas: res.herramientasUsadas } : {}),
           // Que la respuesta viniera cortada también (#436): el copiloto la
           // descarta —media frase no se le muestra a nadie— y desde la
           // bandeja eso se veía igual que "el modelo no entendió", que es
@@ -251,6 +254,11 @@ export async function runAgentTask(
           (res.herramientasUsadas?.length
             ? ` Consultó: ${res.herramientasUsadas.join(', ')}.`
             : ''),
+        // La columna que existía desde el primer día y nadie escribía (#699).
+        // Acá y no en `output`: es lo que permite preguntarle a la base «qué
+        // corridas tocaron precios» sin abrir un jsonb, y lo que la pantalla de
+        // corridas necesita para contestar «¿de dónde sacó eso?».
+        JSON.stringify(res.herramientasUsadas ?? []),
       ],
     );
     // El medidor de §6 y los umbrales de la cuota (#52).
@@ -363,11 +371,20 @@ export async function listExecutions(
     explanation: string | null;
     status: string;
     createdAt: Date;
+    /**
+     * Qué herramientas consultó esta corrida (#699).
+     *
+     * Es lo que hace creíble al asistente: cuando contesta algo raro la pregunta
+     * es «¿de dónde sacó eso?», y la respuesta es si llamó a una herramienta o lo
+     * dijo de memoria. Una respuesta con el precio real y una inventada se veían
+     * exactamente igual en esta lista.
+     */
+    herramientas: string[];
   }>
 > {
   const r = await client.query(
     `SELECT id, task, provider, model, tokens_in, tokens_out, cost_usd,
-            latency_ms, trace_id, explanation, status, created_at
+            latency_ms, trace_id, explanation, status, created_at, tools_called
        FROM agent_executions WHERE tenant_id = $1
       ORDER BY created_at DESC LIMIT $2`,
     [tenantId, Math.min(limit, 100)],
@@ -385,5 +402,6 @@ export async function listExecutions(
     explanation: row.explanation,
     status: row.status,
     createdAt: row.created_at,
+    herramientas: Array.isArray(row.tools_called) ? (row.tools_called as string[]) : [],
   }));
 }

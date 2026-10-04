@@ -162,13 +162,20 @@ describe('la sugerencia con herramientas', () => {
       );
     });
     const r = await admin.query(
-      `SELECT output, explanation FROM agent_executions
+      `SELECT tools_called, explanation FROM agent_executions
         WHERE tenant_id = $1 AND task = 'sugerir' ORDER BY created_at DESC LIMIT 1`,
       [tenant],
     );
     // Sin esto, una respuesta con precio real y una inventada se ven igual
     // cuando alguien reclama.
-    expect(r.rows[0].output.herramientas).toEqual(['knowledge.get_product']);
+    //
+    // Antes esto miraba `output.herramientas`, dentro del jsonb. El dato ahora
+    // vive en su columna `tools_called` (#699), que existía desde
+    // 0001_agents.sql guardando `[]` y que nadie escribía: estaba en dos casas y
+    // no se leía en ninguna. Lo que cambió es dónde, no qué — y en su columna se
+    // puede consultar sin abrir el jsonb, que es lo que la pantalla de corridas
+    // necesitaba para contestar «¿de dónde sacó eso?».
+    expect(r.rows[0].tools_called).toEqual(['knowledge.get_product']);
     expect(r.rows[0].explanation).toMatch(/Consultó: knowledge.get_product/);
   });
 });
