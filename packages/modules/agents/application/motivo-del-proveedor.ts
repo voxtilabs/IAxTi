@@ -25,6 +25,18 @@ export type MotivoDelProveedor =
   | 'modelo_no_disponible'
   | 'desconocido';
 
+/**
+ * Con quién falló, cuando quien arma el mensaje lo sabe (#677).
+ *
+ * Es opcional a propósito: hay call sites que solo tienen el error en la mano y
+ * tienen que seguir funcionando igual. Los que sí lo saben —el asistente y el
+ * agente general, que reciben `provider` y `model` al lado del error— lo pasan.
+ */
+export interface QuienFallo {
+  provider?: string | null;
+  model?: string | null;
+}
+
 export interface DiagnosticoDelProveedor {
   motivo: MotivoDelProveedor;
   /** Qué pasó y qué hacer, en una frase. Nunca incluye la llave ni la URL. */
@@ -54,6 +66,27 @@ function estadoDe(error: unknown): number | null {
   return null;
 }
 
+/**
+ * Le pega al mensaje con quién falló.
+ *
+ * Suena a detalle y es lo contrario. Hasta #666, «el proveedor de IA» era una
+ * frase segura porque había uno: el que el negocio tenía elegido. Desde ese
+ * arreglo, un asistente cuyo proveedor no tiene credencial cae al que sí la
+ * tenga —que es lo que hizo que la IA volviera a contestar— y entonces «el
+ * proveedor» puede no ser el que quien lee el mensaje cree que está usando.
+ *
+ * El 27/09 costó una hora: el producto dijo «falta saldo» mientras la llave que
+ * estaba puesta contestaba 200. Con el nombre, esa hora son diez segundos.
+ *
+ * El nombre del proveedor y del modelo, nada más. Nunca la llave ni un pedazo.
+ */
+function conQuien(base: string, quien?: QuienFallo): string {
+  const proveedor = quien?.provider?.trim();
+  if (!proveedor) return base;
+  const modelo = quien?.model?.trim();
+  return `${base} El que falló fue ${proveedor}${modelo ? ` con el modelo ${modelo}` : ''}.`;
+}
+
 function textoDe(error: unknown): string {
   const e = error as Record<string, unknown> | null;
   const partes = [
@@ -72,14 +105,17 @@ function textoDe(error: unknown): string {
  * código solo, las dos se leerían igual, y una se arregla esperando y la
  * otra pagando.
  */
-export function motivoDelProveedor(error: unknown): DiagnosticoDelProveedor {
+export function motivoDelProveedor(error: unknown, quien?: QuienFallo): DiagnosticoDelProveedor {
   const texto = textoDe(error);
   const estado = estadoDe(error);
 
   if (/no tiene llave configurada/.test(texto)) {
     return {
       motivo: 'sin_llave',
-      message: 'El proveedor de IA de este asistente aún no tiene llave configurada en este ambiente.',
+      message: conQuien(
+        'El proveedor de IA de este asistente aún no tiene llave configurada en este ambiente.',
+        quien,
+      ),
       reintentable: false,
     };
   }
@@ -87,9 +123,11 @@ export function motivoDelProveedor(error: unknown): DiagnosticoDelProveedor {
   if (/credits? (are )?depleted|prepayment|insufficient (balance|funds|credit)|billing/.test(texto)) {
     return {
       motivo: 'sin_saldo',
-      message:
+      message: conQuien(
         'Tu proveedor de IA se quedó sin saldo. Carga crédito en su panel y el asistente vuelve solo; ' +
-        'no hace falta tocar nada acá.',
+          'no hace falta tocar nada acá.',
+        quien,
+      ),
       reintentable: false,
     };
   }
@@ -97,9 +135,11 @@ export function motivoDelProveedor(error: unknown): DiagnosticoDelProveedor {
   if (estado === 429 || /rate.?limit|quota|too many requests/.test(texto)) {
     return {
       motivo: 'cuota_agotada',
-      message:
+      message: conQuien(
         'El proveedor de IA está limitando por cuota. Espera un momento y vuelve a intentar; ' +
-        'si pasa seguido, revisa el plan que tienes con ellos.',
+          'si pasa seguido, revisa el plan que tienes con ellos.',
+        quien,
+      ),
       reintentable: true,
     };
   }
@@ -107,8 +147,10 @@ export function motivoDelProveedor(error: unknown): DiagnosticoDelProveedor {
   if (estado === 401 || estado === 403 || /api key|unauthorized|permission denied|invalid.*credential/.test(texto)) {
     return {
       motivo: 'llave_invalida',
-      message:
+      message: conQuien(
         'La llave del proveedor de IA no es válida o venció. Genera una nueva en su panel y cárgala de nuevo.',
+        quien,
+      ),
       reintentable: false,
     };
   }
@@ -116,17 +158,21 @@ export function motivoDelProveedor(error: unknown): DiagnosticoDelProveedor {
   if (estado === 404 || /model.*not found|is not supported|unknown model/.test(texto)) {
     return {
       motivo: 'modelo_no_disponible',
-      message:
+      message: conQuien(
         'El modelo configurado para este asistente ya no está disponible en el proveedor. ' +
-        'Elige otro en la configuración del asistente.',
+          'Elige otro en la configuración del asistente.',
+        quien,
+      ),
       reintentable: false,
     };
   }
 
   return {
     motivo: 'desconocido',
-    message:
+    message: conQuien(
       'El proveedor de IA no pudo responder. Quedó registrado; si sigue pasando, revisa su estado.',
+      quien,
+    ),
     // Un fallo que no supimos nombrar suele ser de red: reintentar es lo
     // razonable. Lo que no se hace es prometer que se va a arreglar.
     reintentable: true,
