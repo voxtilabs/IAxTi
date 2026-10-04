@@ -34,11 +34,57 @@ PASO_SEG=${PASO_SEG:-10}
 # distinguir «la imagen no estaba» de «el contenedor no arrancó».
 detalle_del_despliegue() {
   echo "Lo que informa Dokploy del último despliegue:"
-  curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/deployment.all?composeId=${COMPOSE_ID}" 2>/dev/null \
-    | jq -r 'if type == "array" then .[0:3] else . end
+
+  # Por qué esto ya no es un `curl -fsS ... || echo` (#661).
+  #
+  # Con `-f` y un `||`, CUALQUIER fallo terminaba en la misma frase: «no se pudo
+  # leer el detalle; queda el panel». Que la ruta no exista, que la credencial no
+  # alcance, que Cloudflare Access la rechace o que el cuerpo no sea lo que `jq`
+  # espera se veían idénticos. Cuatro causas, un mensaje — el mismo defecto que
+  # #565 y #598 arreglaron en las otras llamadas de este archivo.
+  #
+  # Y este camino solo corre cuando el deploy YA falló, así que un error acá
+  # deja a quien mira sin nada: pasó el 27/09, dos veces seguidas.
+  #
+  # El cuerpo crudo NO se publica: el log de Actions lo lee cualquiera con acceso
+  # al repo y la respuesta de Dokploy puede arrastrar variables del entorno. Con
+  # el código y la forma alcanza para saber a quién llamar.
+  local cuerpo codigo
+  cuerpo=$(curl -sS -m 20 -w '\n%{http_code}' "${auth[@]}" \
+    "${DOKPLOY_URL}/api/deployment.all?composeId=${COMPOSE_ID}" 2>/dev/null) || true
+  codigo=$(printf '%s' "$cuerpo" | tail -n1)
+  cuerpo=$(printf '%s' "$cuerpo" | sed '$d')
+
+  case "$codigo" in
+    200) ;;
+    000|'')
+      echo "  No se pudo hablar con Dokploy para pedir el detalle (sin respuesta)."
+      echo "  Suele ser la red o Cloudflare Access, no el despliegue."
+      return ;;
+    401|403)
+      echo "  Dokploy contestó ${codigo} al pedir el detalle: la credencial llega pero"
+      echo "  no alcanza para deployment.all. Es un permiso, no el despliegue."
+      return ;;
+    404)
+      echo "  Dokploy contestó 404 al pedir el detalle: esa ruta no existe en esta"
+      echo "  versión de Dokploy. Hay que mirar qué endpoint expone para los"
+      echo "  despliegues; el arreglo es acá, no en el deploy."
+      return ;;
+    *)
+      echo "  Dokploy contestó ${codigo} al pedir el detalle."
+      return ;;
+  esac
+
+  if ! printf '%s' "$cuerpo" | jq -e . >/dev/null 2>&1; then
+    echo "  Dokploy contestó 200 pero el cuerpo no es JSON (${#cuerpo} bytes)."
+    echo "  Suele ser una pantalla de Cloudflare Access en vez de la API."
+    return
+  fi
+
+  printf '%s' "$cuerpo" | jq -r 'if type == "array" then .[0:3] else . end
              | if type == "array" then .[] else . end
              | "  \(.createdAt // "?") · \(.status // "?") · \(.title // "sin título")\n  \(.errorMessage // .description // "sin detalle" | tostring | .[0:400])"' \
-    || echo "  (no se pudo leer el detalle; queda el panel de Dokploy)"
+    || echo "  El cuerpo es JSON pero no tiene la forma esperada."
 }
 
 sondeos=$(( ESPERA_DEPLOY_SEG / PASO_SEG ))
