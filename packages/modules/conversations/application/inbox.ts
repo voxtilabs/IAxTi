@@ -182,6 +182,8 @@ export async function listInbox(
 export interface ConversationDetail extends InboxItem {
   contactEmail: string | null;
   contactOptInAt: Date | null;
+  contactOptInChannel: string | null;
+  contactOptInEvidence: string | null;
   contactOptedOutAt: Date | null;
 }
 
@@ -197,6 +199,11 @@ export async function getConversationDetail(
               WHERE i.tenant_id = c.tenant_id AND i.contact_id = k.id AND i.channel = c.channel
               LIMIT 1) AS contact_identity,
             k.email AS contact_email, k.opt_in_at AS contact_opt_in_at,
+            -- Por qué canal consintió, y con qué evidencia (#696). Se guardaban
+            -- desde el principio y esta consulta pedía solo la fecha, así que la
+            -- ficha decía «dio su consentimiento» sin poder decir a qué.
+            k.opt_in_channel AS contact_opt_in_channel,
+            k.opt_in_evidence AS contact_opt_in_evidence,
             k.opted_out_at AS contact_opted_out_at,
             CASE WHEN c.last_inbound_at = c.last_message_at
                  THEN floor(extract(epoch FROM now() - c.last_inbound_at))
@@ -212,6 +219,8 @@ export async function getConversationDetail(
     ...rowToItem(row),
     contactEmail: (row.contact_email as string) ?? null,
     contactOptInAt: (row.contact_opt_in_at as Date) ?? null,
+    contactOptInChannel: (row.contact_opt_in_channel as string) ?? null,
+    contactOptInEvidence: (row.contact_opt_in_evidence as string) ?? null,
     contactOptedOutAt: (row.contact_opted_out_at as Date) ?? null,
   };
 }
