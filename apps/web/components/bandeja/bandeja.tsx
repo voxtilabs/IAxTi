@@ -171,43 +171,57 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
     async (id: string) => {
       if (!session || !tenant) return;
       try {
-        const [d, m, n, sug, ana, lim] = await Promise.all([
-          apiFetch<ConversacionDetalle>(config, session, tenant, `/conversations/${id}`),
-          apiFetch<Mensaje[]>(
-            config,
-            session,
-            tenant,
-            `/conversations/${id}/messages?limit=${PAGINA_MENSAJES}`,
-          ),
-          apiFetch<NotaDto[]>(config, session, tenant, `/conversations/${id}/notes`),
-          // agents puede estar apagado: el copiloto simplemente no aparece.
-          apiFetch<RespuestaDeSugerencia | null>(
-            config,
-            session,
-            tenant,
-            `/conversations/${id}/suggestion`,
-          ).catch(() => null),
-          apiFetch<AnalisisDto>(config, session, tenant, `/conversations/${id}/analisis`).catch(() => null),
-          // Qué acepta ESTE canal (#560). Se pide y no se copia: una tabla de
-          // tipos y tamaños duplicada en el front se separa de la del servidor
-          // en el primer cambio, y entonces el clip ofrece subir lo que la
-          // ruta va a rechazar.
-          apiFetch<LimitesDeAdjunto>(
-            config,
-            session,
-            tenant,
-            `/conversations/${id}/attachments/limites`,
-          ).catch(() => null),
-        ]);
-        if (seleccionRef.current !== id) return;
-        setDetalle(d);
-        setMensajes(m);
-        setHayAnteriores(m.length >= PAGINA_MENSAJES);
-        setNotas(n);
-        setSugerencia(sug?.sugerencia ?? null);
-        setSinSugerencia(sug?.motivo ?? null);
-        setAnalisis(ana);
-        setLimites(lim);
+        // Cada cosa se dibuja CUANDO LLEGA, no cuando llegaron todas (#690).
+        //
+        // Antes era un Promise.all: las seis salían juntas —eso estaba bien— y
+        // la pantalla esperaba a la ÚLTIMA. O sea, el mensaje del cliente, que
+        // ya estaba en la mano, no se veía hasta que contestara la sugerencia
+        // del copiloto. Y la sugerencia es una llamada al proveedor de IA: el
+        // 28/09 NVIDIA se puso a encolar y la misma petición pasó de 2 s a
+        // 170 s. La bandeja entera quedaba en blanco esperando a la IA.
+        //
+        // Lo urgente es leer la conversación y poder responder. La sugerencia,
+        // el análisis y los límites del clip son adornos útiles que pueden
+        // aparecer después, y hasta no aparecer: por eso ya traían `.catch`.
+        const sigueAbierta = () => seleccionRef.current === id;
+        const pedir = <T,>(ruta: string) => apiFetch<T>(config, session, tenant, ruta);
+
+        // Lo primero: el hilo y con quién se está hablando.
+        const loUrgente = Promise.all([
+          pedir<ConversacionDetalle>(`/conversations/${id}`),
+          pedir<Mensaje[]>(`/conversations/${id}/messages?limit=${PAGINA_MENSAJES}`),
+        ]).then(([d, m]) => {
+          if (!sigueAbierta()) return;
+          setDetalle(d);
+          setMensajes(m);
+          setHayAnteriores(m.length >= PAGINA_MENSAJES);
+        });
+
+        // Y el resto entra solo, cada uno a su ritmo.
+        void pedir<NotaDto[]>(`/conversations/${id}/notes`)
+          .then((n) => { if (sigueAbierta()) setNotas(n); })
+          .catch(() => {});
+        // agents puede estar apagado: el copiloto simplemente no aparece.
+        void pedir<RespuestaDeSugerencia | null>(`/conversations/${id}/suggestion`)
+          .then((sug) => {
+            if (!sigueAbierta()) return;
+            setSugerencia(sug?.sugerencia ?? null);
+            setSinSugerencia(sug?.motivo ?? null);
+          })
+          .catch(() => {});
+        void pedir<AnalisisDto>(`/conversations/${id}/analisis`)
+          .then((ana) => { if (sigueAbierta()) setAnalisis(ana); })
+          .catch(() => {});
+        // Qué acepta ESTE canal (#560). Se pide y no se copia: una tabla de
+        // tipos y tamaños duplicada en el front se separa de la del servidor
+        // en el primer cambio, y entonces el clip ofrece subir lo que la ruta
+        // va a rechazar.
+        void pedir<LimitesDeAdjunto>(`/conversations/${id}/attachments/limites`)
+          .then((lim) => { if (sigueAbierta()) setLimites(lim); })
+          .catch(() => {});
+
+        // Solo se espera lo urgente: si ESO falla, la pantalla lo dice.
+        await loUrgente;
       } catch (err) {
         setAviso((err as Error).message);
       }
