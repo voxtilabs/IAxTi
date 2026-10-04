@@ -33,6 +33,15 @@ interface CorridaDto {
   latencyMs: number | null;
   status: string;
   createdAt: string;
+  /**
+   * Qué herramientas consultó (#699).
+   *
+   * La columna existía desde el primer día guardando `[]` y nadie la escribía ni
+   * la leía. Es el dato que distingue una respuesta con el precio real de una
+   * inventada, y es exactamente lo que se busca cuando el asistente dice algo
+   * raro: si lo consultó o lo dijo de memoria.
+   */
+  herramientas: string[];
 }
 
 export function ConsumoIA() {
@@ -189,6 +198,14 @@ export function ConsumoIA() {
                         {c.status !== 'ok' && (
                           <span className="ml-2 text-rotulo text-bad-text">{c.status}</span>
                         )}
+                        {/* De dónde sacó lo que dijo (#699). Sin esto, una
+                            respuesta consultada y una inventada se ven igual en
+                            esta tabla. */}
+                        {c.herramientas?.length ? (
+                          <span className="mt-0.5 block text-rotulo text-muted">
+                            consultó {c.herramientas.join(', ')}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="py-1.5 text-muted">{c.model}</td>
                       <td className="dato py-1.5 text-right">
