@@ -24,6 +24,7 @@ export type CodigoSinSugerencia =
   | 'sin_asistente'
   | 'asistente_apagado'
   | 'sin_saldo'
+  | 'no_contesto_a_tiempo'
   | 'cuota_agotada'
   | 'llave_invalida'
   | 'modelo_no_disponible'
@@ -56,6 +57,11 @@ const CATALOGO: Record<CodigoSinSugerencia, Omit<SinSugerencia, 'codigo'>> = {
     texto: 'Tu asistente está apagado.',
     queHacer: 'Enciéndelo en Ajustes → IA cuando quieras que vuelva a sugerir.',
     loArreglaElNegocio: true,
+  },
+  no_contesto_a_tiempo: {
+    texto: 'El proveedor de IA no contestó a tiempo.',
+    queHacer: 'Suele ser congestión suya y pasa sola. Vuelve a pedírselo en un rato.',
+    loArreglaElNegocio: false,
   },
   sin_saldo: {
     texto: 'El proveedor de IA rechazó la petición por falta de saldo.',
@@ -126,6 +132,7 @@ export function describirSinSugerencia(codigo: CodigoSinSugerencia, quien?: Quie
  */
 const HABLAN_DEL_PROVEEDOR = new Set<CodigoSinSugerencia>([
   'sin_llave',
+  'no_contesto_a_tiempo',
   'sin_saldo',
   'cuota_agotada',
   'llave_invalida',
@@ -208,7 +215,9 @@ export async function porQueNoHaySugerencia(
   if (fila.error) {
     const diagnostico = motivoDelProveedor(new Error(fila.error), quien);
     const codigo: CodigoSinSugerencia =
-      diagnostico.motivo === 'sin_saldo'
+      diagnostico.motivo === 'no_contesto_a_tiempo'
+        ? 'no_contesto_a_tiempo'
+        : diagnostico.motivo === 'sin_saldo'
         ? 'sin_saldo'
         : diagnostico.motivo === 'cuota_agotada'
           ? 'cuota_agotada'

@@ -3,6 +3,7 @@ import type { LanguageModel } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { enteroDeEntorno } from '@iaxti/core';
 import type { Provider } from '../domain/config';
 import { FalloDeHerramienta, FalloDelProveedor, esDeHerramienta } from './fallo-del-proveedor';
 
@@ -38,6 +39,19 @@ export interface GenerateArgs {
    */
   mensajes?: Array<{ role: 'user' | 'assistant'; content: string }>;
   maxOutputTokens?: number;
+  /**
+   * Cuánto se espera al proveedor antes de cortar (#688).
+   *
+   * Sin esto no había ningún límite, en ninguna capa, y el 28/09 NVIDIA se puso
+   * a encolar: `curl` pelado con «di hola», sin herramientas, tardó 139 s y
+   * 178 s —la misma llamada que la noche anterior tardaba 2 s—. El panel se
+   * quedaba en «Buscando entre sus herramientas…» para siempre y el reporte fue
+   * «es como que no hay IA conectada».
+   *
+   * Que el proveedor esté lento no es nuestro. Que se vea idéntico a estar roto,
+   * sí. Y mientras tanto la petición retiene una conexión del pool.
+   */
+  esperaMaximaMs?: number;
   /**
    * Si vienen, el modelo puede pedirlas y la respuesta se arma con lo que
    * devuelvan. Sin herramientas, una sola llamada como siempre.
@@ -149,8 +163,12 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
       // clasifica como suyo. `languageModel` también entra: su «no tiene llave
       // configurada» ES del proveedor —no hay con qué hablarle— y esa
       // clasificación es la correcta.
+      // El reloj (#688). `AbortSignal.timeout` corta la petición de verdad —no
+      // solo deja de esperarla— que es lo que libera la conexión del pool.
+      const espera = args.esperaMaximaMs ?? ESPERA_MAXIMA_MS;
       const res = await conLaMarcaDelProveedor(() =>
         generateText({
+        abortSignal: AbortSignal.timeout(espera),
         model: languageModel(provider, model),
         system: args.system,
         // Un hilo si lo hay; si no, el prompt suelto de siempre.
@@ -182,6 +200,19 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
     },
   };
 }
+
+/**
+ * Cuánto se le espera al proveedor, por omisión (#688).
+ *
+ * Un minuto para una pregunta del panel es generoso: lo normal son segundos. Lo
+ * que no puede pasar es lo de hoy —tres minutos de spinner mudo—, porque nadie
+ * espera tres minutos: se cierra el panel y se concluye que el producto está
+ * roto.
+ *
+ * Por variable, porque no todas las tareas son iguales: una evaluación con
+ * muchos pasos no es una pregunta del panel, y quien la corre sí puede esperar.
+ */
+export const ESPERA_MAXIMA_MS = enteroDeEntorno('IA_ESPERA_MAXIMA_MS', 60_000);
 
 /**
  * Corre algo contra el proveedor y marca lo que salga mal como suyo (#684).
