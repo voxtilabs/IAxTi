@@ -127,6 +127,44 @@ function Propuesta({
   );
 }
 
+/**
+ * La espera, contada en voz alta (#688).
+ *
+ * Decía «Buscando entre sus herramientas…» y nada más, para siempre. El 28/09
+ * NVIDIA se puso a encolar —`curl` pelado con «di hola» tardó 139 s y 178 s,
+ * cuando la noche anterior tardaba 2— y eso se vio exactamente igual que el
+ * producto roto: «es como que no hay IA conectada».
+ *
+ * Un spinner mudo no distingue «está pensando» de «esto no va a volver nunca».
+ * El número sí: a los diez segundos se dice que está tardando más de lo normal,
+ * y de quién es el problema —del proveedor, no de tu cuenta—.
+ *
+ * El segundero es del componente y no del padre: si viviera arriba, cada tic
+ * volvería a dibujar la conversación entera.
+ */
+function Esperando() {
+  const [segundos, setSegundos] = useState(0);
+  useEffect(() => {
+    const reloj = setInterval(() => setSegundos((s) => s + 1), 1000);
+    return () => clearInterval(reloj);
+  }, []);
+  const lento = segundos >= 10;
+  return (
+    <span className="flex flex-col gap-1 text-dato text-muted">
+      <span className="flex items-center gap-2">
+        <Loader size={14} /> Buscando entre sus herramientas…
+        {segundos >= 3 ? <span className="font-mono">{segundos}s</span> : null}
+      </span>
+      {lento ? (
+        <span>
+          Está tardando más de lo normal. Suele ser congestión del proveedor de IA, no algo de tu
+          cuenta; si no vuelve, ciérralo y pídeselo de nuevo.
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function AgenteGeneral() {
   const { config, session } = useSession();
   const [abierto, setAbierto] = useState(false);
@@ -345,9 +383,7 @@ export function AgenteGeneral() {
             {pensando && (
               <Message from="assistant">
                 <MessageContent>
-                  <span className="flex items-center gap-2 text-dato text-muted">
-                    <Loader size={14} /> Buscando entre sus herramientas…
-                  </span>
+                  <Esperando />
                 </MessageContent>
               </Message>
             )}

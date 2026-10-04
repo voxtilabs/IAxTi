@@ -20,6 +20,7 @@ import { esDelProveedor, estadoDelProveedor } from './fallo-del-proveedor';
 
 export type MotivoDelProveedor =
   | 'sin_llave'
+  | 'no_contesto_a_tiempo'
   | 'sin_saldo'
   | 'cuota_agotada'
   | 'llave_invalida'
@@ -142,6 +143,24 @@ export function motivoDelProveedor(error: unknown, quien?: QuienFallo): Diagnost
         quien,
       ),
       reintentable: false,
+    };
+  }
+
+  // El reloj se venció (#688). Va PRIMERO porque un abort trae textos que
+  // parecen de otra cosa —«terminated», «aborted», a veces un código de red— y
+  // clasificarlo como «el proveedor está caído» mandaría a revisar su estado
+  // cuando lo que pasó es que tardó demasiado.
+  if (/aborted|abort|timeouterror|the operation was aborted|timed? ?out/i.test(texto)) {
+    return {
+      motivo: 'no_contesto_a_tiempo',
+      message: conQuien(
+        'El proveedor de IA no contestó a tiempo y cortamos la espera. Suele ser congestión ' +
+          'suya —no es un problema de tu cuenta ni de tu llave—: vuelve a intentar en un rato.',
+        quien,
+      ),
+      // Reintentable: la congestión pasa. Y decirlo importa, porque el mensaje
+      // de al lado —«sin saldo»— pide exactamente lo contrario.
+      reintentable: true,
     };
   }
 
