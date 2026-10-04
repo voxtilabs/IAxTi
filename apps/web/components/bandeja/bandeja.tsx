@@ -272,9 +272,41 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
    * la llamaba no podía distinguir un envío bueno de uno rechazado, así que la
    * bandeja mostraba el aviso y al mismo tiempo borraba el borrador (#560).
    */
+  /**
+   * El mensaje que se dibuja ANTES de que el servidor conteste (#671).
+   *
+   * Responder tomaba el POST más seis llamadas de recarga, y hasta que volvía la
+   * última el chat se veía igual que antes de apretar Enviar. Con el proveedor
+   * lento eso son segundos mirando una pantalla que no acusa recibo, y la reacción
+   * natural es apretar otra vez.
+   *
+   * Nace en `queued`, que es el estado real —aún no salió— y el mismo que usa la
+   * entrega: cuando vuelve el servidor, el mensaje de verdad lo reemplaza con su
+   * id y su estado. Si falla, se saca.
+   */
+  function mensajeOptimista(body: unknown, previos: Mensaje[] | null): Mensaje | null {
+    const texto = (body as { body?: unknown })?.body;
+    if (typeof texto !== 'string' || texto.trim() === '') return null;
+    const tope = (previos ?? []).reduce((max, m) => Math.max(max, m.seq ?? 0), 0);
+    return {
+      id: `optimista-${Date.now()}`,
+      direction: 'out',
+      type: 'text',
+      body: texto,
+      deliveryStatus: 'queued',
+      authorKind: 'user',
+      seq: tope + 1,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   async function accion(path: string, body: unknown): Promise<boolean> {
     if (!session || !tenant || !seleccion) return false;
     setAviso(null);
+    // Solo los mensajes: resolver o asignar no tiene nada que dibujar antes de
+    // tiempo, y adelantarse ahí sería mentir sobre un estado que no cambió.
+    const optimista = path === '/messages' ? mensajeOptimista(body, mensajes) : null;
+    if (optimista) setMensajes((previos) => [optimista, ...(previos ?? [])]);
     try {
       await apiFetch(config, session, tenant, `/conversations/${seleccion}${path}`, {
         method: 'POST',
@@ -306,6 +338,8 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       toast.success(path === '/state' && (body as { state?: string }).state === 'resolved' ? 'Conversación resuelta' : 'Conversación actualizada');
       return true;
     } catch (err) {
+      // Se saca el que se adelantó: dejarlo ahí diría que el mensaje salió.
+      if (optimista) setMensajes((previos) => (previos ?? []).filter((m) => m.id !== optimista.id));
       setAviso(avisoDe(err));
       return false;
     }
