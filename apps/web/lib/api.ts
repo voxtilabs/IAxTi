@@ -121,6 +121,44 @@ export async function apiDescargar(
   };
 }
 
+/**
+ * Lo mismo, para un archivo BINARIO (#709).
+ *
+ * `apiDescargar` hace `res.text()`, que para un xlsx —que es un zip— corrompe
+ * el archivo en silencio: llega, pesa parecido, y Excel dice que está dañado.
+ * Un binario se lee como blob o no se lee.
+ */
+export async function apiDescargarBinario(
+  config: PublicConfig,
+  session: Session,
+  tenantId: string,
+  path: string,
+): Promise<{ blob: Blob; nombre: string; filas: number | null }> {
+  const res = await fetch(`${config.apiUrl}/v1${path}`, {
+    headers: { Authorization: `Bearer ${session.access_token}`, 'X-Tenant-Id': tenantId },
+  });
+  if (!res.ok) {
+    const cuerpo = (await res.json().catch(() => null)) as {
+      code?: string;
+      message?: string;
+      requestId?: string;
+    } | null;
+    throw new ApiError(
+      cuerpo?.code ?? 'ERROR',
+      cuerpo?.message ?? 'Algo salió mal. Intenta de nuevo.',
+      res.status,
+      cuerpo?.requestId ?? '',
+    );
+  }
+  const disposicion = res.headers.get('Content-Disposition') ?? '';
+  const filas = res.headers.get('X-Filas');
+  return {
+    blob: await res.blob(),
+    nombre: /filename="([^"]+)"/.exec(disposicion)?.[1] ?? 'descarga.xlsx',
+    filas: filas === null ? null : Number(filas),
+  };
+}
+
 // Formas que devuelve la API de la bandeja (#37).
 export interface ConversacionItem {
   id: string;

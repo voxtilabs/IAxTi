@@ -21,6 +21,9 @@ export {
 export type { Reserva } from './idempotencia';
 export { crearZip, crc32 } from './zip';
 export type { ArchivoZip } from './zip';
+// Un xlsx es un zip con XML, así que vive al lado del zip (#709).
+export { crearXlsx, referencia } from './xlsx';
+export type { HojaXlsx, ColumnaXlsx, ValorCelda } from './xlsx';
 export { enteroDeEntorno } from './entorno';
 export { consumerReadiness } from './consumer-readiness';
 // Qué build está corriendo (#565): el SHA sale del tag de IAXTI_IMAGE.

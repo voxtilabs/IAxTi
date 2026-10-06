@@ -7,7 +7,7 @@ import { Badge, Button, DataTable, EstadoVacio, Input, Skeleton, useSession, typ
 import { useSelectedTenant } from '../tenant-switcher';
 import { crmClient } from '@iaxti/sdk';
 import { EtiquetarSeleccion } from './etiquetar-seleccion';
-import { apiDescargar } from '../../lib/api';
+import { apiDescargar, apiDescargarBinario } from '../../lib/api';
 
 interface ContactoItem {
   id: string;
@@ -65,6 +65,39 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
    * lista" es "llévatela cuando quieras", y sin botón esa promesa dependía
    * de escribirnos.
    */
+  /**
+   * Y la misma lista en una planilla de verdad (#709).
+   *
+   * El CSV se queda para quien lo necesita para importar a otro sistema. Pero
+   * casi siempre lo que se quiere es ABRIRLA, y ahí el CSV falla por dos cosas
+   * que el BOM no arregla: Excel con configuración de Chile espera punto y
+   * coma —así que todo llega en una columna— y no tiene tipos, así que un
+   * +56981234567 se abre como 5,6981E+10.
+   */
+  async function exportarXlsx() {
+    if (!session || exportando) return;
+    setExportando(true);
+    try {
+      const { blob, nombre } = await apiDescargarBinario(
+        config,
+        session,
+        tenant,
+        '/contacts/exportar.xlsx',
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      a.click();
+      URL.revokeObjectURL(url);
+      setAviso(null);
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setExportando(false);
+    }
+  }
+
   async function exportar() {
     if (!session || exportando) return;
     setExportando(true);
@@ -100,13 +133,23 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
     <div className="max-w-5xl" data-densidad="densa">
       <div className="flex flex-wrap items-center gap-4">
         <EncabezadoDePagina titulo="Contactos" />
+        {/* Excel primero: es lo que la gente quiere cuando dice "exportar".
+            El CSV queda al lado, en secundario, para quien lo va a importar a
+            otro sistema. */}
         <Button
           variant="secundario"
           className="ml-auto"
           disabled={exportando || items?.length === 0}
+          onClick={() => void exportarXlsx()}
+        >
+          {exportando ? 'Armando el archivo…' : 'Exportar Excel'}
+        </Button>
+        <Button
+          variant="fantasma"
+          disabled={exportando || items?.length === 0}
           onClick={() => void exportar()}
         >
-          {exportando ? 'Armando el archivo…' : 'Exportar CSV'}
+          CSV
         </Button>
         <a
           href="/contactos/importar"
