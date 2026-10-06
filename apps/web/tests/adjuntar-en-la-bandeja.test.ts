@@ -142,7 +142,19 @@ describe('qué se puede adjuntar, y qué se ve cuando no (#560)', () => {
   it('un envío que falló NO borra lo que se escribió', () => {
     // Perder el borrador porque WhatsApp cerró la ventana obliga a redactarlo
     // de nuevo, y eso pasa a diario.
-    expect(CHAT).toMatch(/if \(await onResponder\(/);
+    //
+    // Esto miraba `if (await onResponder(` — la forma de entonces: limpiar SOLO
+    // si salió. Desde #671 la caja se vacía al instante, junto con el mensaje
+    // que aparece en el hilo, y lo escrito se DEVUELVE si el envío falla. La
+    // intención que esta prueba protege es la misma; el camino es el inverso,
+    // así que lo que se comprueba es la devolución.
+    //
+    // Y se comprueba que solo repone si el campo sigue vacío: si alcanzó a
+    // escribir otra cosa mientras tanto, lo suyo manda. Sin esa condición,
+    // reponer el borrador le pisaría encima lo que está escribiendo.
+    expect(CHAT).toMatch(/if \(!\(await onResponder\(/);
+    expect(CHAT).toMatch(/setTexto\(\(actual\) => \(actual === '' \? enviado : actual\)\)/);
+    expect(CHAT).toMatch(/setArchivo\(\(actual\) => actual \?\? adjunto\)/);
     expect(CHAT).toMatch(/onResponder: \(texto: string, adjunto\?: File\) => Promise<boolean>/);
     // Y `accion` tiene que informar si salió: si devolviera void, el de arriba
     // sería siempre verdadero y estaríamos como antes.
