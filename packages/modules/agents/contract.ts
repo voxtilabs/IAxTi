@@ -132,9 +132,12 @@ export type { Herramienta, TratoDeLaHerramienta } from './application/catalogo';
 export { NO_SON_HERRAMIENTA, SIN_CONFIRMACION } from './application/catalogo-curado';
 
 export { motivoDelProveedor } from './application/motivo-del-proveedor';
-// De quién fue el error (#684): la marca la pone el puerto del modelo y la leen
-// el runtime y quien traduzca el fallo.
-export { FalloDelProveedor, FalloDeHerramienta, esDelProveedor, esDeHerramienta } from './application/fallo-del-proveedor';
+// De quién fue el error (#684) NO se exporta. La marca la pone el puerto del
+// modelo y la leen el runtime y el traductor del fallo, los dos DENTRO de este
+// módulo. Las publiqué en el contrato por costumbre y el trinquete de #664 las
+// cazó al día siguiente: un contrato que expone lo que nadie abre deja de ser
+// una decisión. Si algún día otro módulo necesita preguntar de quién fue un
+// error, se agrega entonces y con su consumidor.
 export type { QuienFallo } from './application/motivo-del-proveedor';
 export type { MotivoDelProveedor, DiagnosticoDelProveedor } from './application/motivo-del-proveedor';
 // Por qué esta conversación no tiene sugerencia (#436).
