@@ -64,18 +64,37 @@ function nombreDeHoja(nombre: string): string {
   return limpio === '' ? 'Hoja1' : limpio;
 }
 
+/**
+ * Saca los caracteres de control, que no son XML válido.
+ *
+ * Llegan de verdad: un nombre pegado desde WhatsApp puede traer un byte
+ * invisible, y con eso el archivo ENTERO deja de abrir — Excel no dice «hay un
+ * carácter raro en la fila 3», dice que está dañado.
+ *
+ * Escrito a mano y no con un regex porque un regex con caracteres de control
+ * adentro es ilegible y eslint lo rechaza, con razón: lo que uno ve en el
+ * código no es lo que el motor compila. Acá los códigos están a la vista.
+ *
+ * XML 1.0 admite tabulador, salto de línea y retorno de carro; nada más bajo
+ * 0x20. Los tres se conservan: un texto de varias líneas en una celda es
+ * legítimo.
+ */
+function sinControles(texto: string): string {
+  let salida = '';
+  for (const caracter of texto) {
+    const codigo = caracter.codePointAt(0) ?? 0;
+    if (codigo < 0x20 && codigo !== 0x09 && codigo !== 0x0a && codigo !== 0x0d) continue;
+    salida += caracter;
+  }
+  return salida;
+}
+
 function escapar(texto: string): string {
-  return (
-    texto
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      // Los caracteres de control no son XML válido y llegan de verdad: un
-      // nombre pegado desde WhatsApp puede traer un invisible, y el archivo
-      // entero deja de abrir por eso.
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
-  );
+  return sinControles(texto)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /** La referencia de una celda: columna 0 y fila 0 son "A1". */

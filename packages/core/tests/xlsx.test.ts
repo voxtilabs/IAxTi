@@ -207,3 +207,25 @@ describe('sin openpyxl no se finge la verificación', () => {
     if (!hayOpenpyxl) console.warn('openpyxl no está: el xlsx NO se verificó con un lector ajeno.');
   });
 });
+
+describe.skipIf(!hayOpenpyxl)('los caracteres de control (#709)', () => {
+  it('un byte invisible no deja el archivo sin abrir, y el texto sobrevive', () => {
+    // Llegan de verdad: un nombre pegado desde WhatsApp puede traerlos. Con uno
+    // solo, Excel no dice «hay un carácter raro en la fila 3»: dice que el
+    // archivo está dañado, y se pierde la exportación entera.
+    const conBasura = `Carla${String.fromCharCode(0x07)}Pérez${String.fromCharCode(0x1f)}`;
+    const archivo = escribir(
+      'control.xlsx',
+      crearXlsx({ nombre: 'Control', columnas: [{ titulo: 'Nombre' }], filas: [[conBasura]] }),
+    );
+    expect(comoLoVeOpenpyxl(archivo).celdas.A2.valor).toBe('CarlaPérez');
+  });
+
+  it('el salto de línea SÍ se conserva: un texto de varias líneas es legítimo', () => {
+    const archivo = escribir(
+      'saltos.xlsx',
+      crearXlsx({ nombre: 'Saltos', columnas: [{ titulo: 'Nota' }], filas: [['uno\ndos']] }),
+    );
+    expect(comoLoVeOpenpyxl(archivo).celdas.A2.valor).toBe('uno\ndos');
+  });
+});
