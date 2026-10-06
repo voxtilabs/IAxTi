@@ -137,7 +137,13 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
   // Los ayudantes del cliente que reciben la ruta en el cuarto argumento.
   // `apiDescargar` es `apiFetch` para respuestas que no son JSON (el CSV de
   // contactos): si no estuviera acá, su ruta parecería no tener consumidor.
-  const AYUDANTES = new Set(['apiFetch', 'apiDescargar']);
+  //
+  // Y `apiDescargarBinario` lo mismo para un archivo (#709). Lo aprendí
+  // agregándolo: la exportación a Excel tenía su botón y su llamada, y esta
+  // guarda igual la dio por huérfana. Un ayudante nuevo que no se registre acá
+  // hace que TODA ruta llamada por él parezca sin pantalla — y el aviso manda a
+  // construir lo que ya existe, que es la forma más cara de equivocarse.
+  const AYUDANTES = new Set(['apiFetch', 'apiDescargar', 'apiDescargarBinario']);
   for (const call of calls.filter((c) => !c.getSourceFile().fileName.includes('/api/'))) {
     const nombre = call.expression.getText();
     const api = AYUDANTES.has(nombre);

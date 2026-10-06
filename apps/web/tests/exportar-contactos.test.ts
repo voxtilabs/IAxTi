@@ -16,7 +16,20 @@ const API = readFileSync(join(__dirname, '..', 'lib', 'api.ts'), 'utf8');
 describe('exportar la cartera', () => {
   it('el botón vive junto a Importar', () => {
     expect(CONTACTOS).toContain("'/contacts/exportar'");
-    expect(CONTACTOS).toContain('Exportar CSV');
+    // Decía 'Exportar CSV'. Desde #709 el botón principal es Excel y el CSV
+    // queda al lado, en fantasma: el CSV sirve para importar a otro sistema,
+    // pero casi siempre lo que se quiere es ABRIR la lista — y ahí el CSV falla
+    // por el separador y por no tener tipos.
+    expect(CONTACTOS).toContain('Exportar Excel');
+    expect(CONTACTOS, 'el CSV sigue estando').toMatch(/onClick=\{\(\) => void exportar\(\)\}/);
+  });
+
+  it('y la planilla sale por su propia ruta, con su propio ayudante (#709)', () => {
+    // `apiDescargar` hace `res.text()`, que para un zip corrompe el archivo en
+    // silencio: llega, pesa parecido, y Excel dice que está dañado.
+    expect(CONTACTOS).toContain("'/contacts/exportar.xlsx'");
+    expect(CONTACTOS).toContain('apiDescargarBinario');
+    expect(API).toContain('res.blob()');
   });
 
   it('no se ofrece con la cartera vacía', () => {

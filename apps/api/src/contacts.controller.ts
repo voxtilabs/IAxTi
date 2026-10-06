@@ -184,6 +184,35 @@ export class ContactsController {
     return `\uFEFF${csv}`;
   }
 
+  /**
+   * La misma lista, en una planilla de verdad (#709).
+   *
+   * El CSV de arriba SE QUEDA: quien lo necesita para importar a otro sistema lo
+   * sigue teniendo. Esto es para quien la va a abrir y mirar, que es casi
+   * siempre — y ahí el CSV falla por dos cosas que el BOM no arregla: Excel con
+   * configuración de Chile espera punto y coma, así que todo llega en una
+   * columna; y no tiene tipos, así que `+56981234567` se abre como 5,6981E+10.
+   */
+  @Get('exportar.xlsx')
+  @RequirePermission('crm.contacts.export')
+  @ApiOperation({ summary: 'Exporta los contactos a una planilla de Excel' })
+  async exportarXlsx(@Req() request: WithUser, @Res() res: Response) {
+    const actor = actorOf(request);
+    const { xlsx, filas } = await withTenant(pool(), actor.tenantId, (c) =>
+      exportarContactos(c, { tenantId: actor.tenantId }),
+    );
+    const dia = new Date().toISOString().slice(0, 10);
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="contactos-${dia}.xlsx"`);
+    res.setHeader('X-Filas', String(filas));
+    // Sin `passthrough`: un Buffer que pasa por el serializador de Nest sale
+    // como JSON y el archivo llega corrupto.
+    res.end(xlsx);
+  }
+
   /** Vista previa de importación (#34): valida fila por fila, NADA se escribe. */
   @Post('import/preview')
   @RequirePermission('crm.contacts.create')

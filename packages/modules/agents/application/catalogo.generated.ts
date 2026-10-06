@@ -1677,6 +1677,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ContactsController_exportarXlsx": {
+    "metodo": "GET",
+    "ruta": "/v1/contacts/exportar.xlsx",
+    "resumen": "Exporta los contactos a una planilla de Excel",
+    "permiso": "crm.contacts.export",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "ContactsController_ficha": {
     "metodo": "GET",
     "ruta": "/v1/contacts/{id}",
