@@ -1,5 +1,7 @@
 import type { Pool } from 'pg';
+import type IORedis from 'ioredis';
 import { createPool } from '@iaxti/db';
+import { redisConnection } from '@iaxti/core';
 
 let pool: Pool | null = null;
 /**
@@ -25,4 +27,30 @@ export function apiPool(): Pool | null {
 /** Solo para tests: fija el pool que usará la API, sin tocar el entorno. */
 export function usarPool(p: Pool | null): void {
   inyectado = p;
+}
+
+/**
+ * Redis único para el caché de lecturas (#711).
+ *
+ * Misma forma que el pool y por la misma razón: `redisConnection()` abre una
+ * conexión cada vez que se la llama, y hacerlo por petición sería cambiar
+ * 64 ms de base por un saludo TCP en cada request.
+ *
+ * Devuelve `null` cuando no hay `REDIS_URL`. Quien lo use tiene que seguir
+ * funcionando sin caché —`leerConCache` lo hace— porque un ambiente sin Redis
+ * es legítimo y no puede quedarse sin lecturas.
+ */
+let redis: IORedis | null = null;
+let redisInyectado: IORedis | null = null;
+
+export function apiRedis(): IORedis | null {
+  if (redisInyectado) return redisInyectado;
+  if (!process.env.REDIS_URL) return null;
+  if (!redis) redis = redisConnection();
+  return redis;
+}
+
+/** Solo para tests, igual que `usarPool`. */
+export function usarRedis(r: IORedis | null): void {
+  redisInyectado = r;
 }
