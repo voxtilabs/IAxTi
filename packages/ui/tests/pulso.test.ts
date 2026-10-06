@@ -31,16 +31,73 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
     expect(vDia.size).toBeGreaterThanOrEqual(25);
   });
 
-  it('conserva el azul de marca y aplica la paleta de IAxTi (ADR-0022)', () => {
+  /**
+   * La paleta es la canónica de Pulso 1.1 (#706).
+   *
+   * Esta prueba fijaba la paleta cian/hielo de IAxTi. No era una decisión de
+   * marca: era una desviación, y lo que la delata no es el gusto sino los
+   * archivos de marca — `iaxti-tokens.svg` pide `var(--text, #12141C)` y
+   * `var(--text-muted, #6E7488)` como respaldo, que son los canónicos. El
+   * lockup va inline y toma los tokens de la página, así que con la paleta
+   * anterior se dibujaba con colores que su propio archivo no esperaba.
+   *
+   * La referencia vive en `voxtilabs/IAxTi-Branding/pulso/tokens.css`, y es la
+   * misma que corre en VOXIA 2.
+   */
+  it('aplica la paleta canónica de Pulso 1.1', () => {
     // El azul de acción es idéntico en los dos modos (§1).
     expect([...tokensCss.matchAll(/--action:#3D5AFE/g)]).toHaveLength(2);
-    // action-text se recalibra por modo (§1).
-    expect(dia).toContain('--action-text:#2553C6');
-    expect(noche).toContain('--action-text:#83C9FF');
+    // Las superficies del sistema, literales.
+    expect(dia).toContain('--bg:#FFFFFF');
+    expect(dia).toContain('--bg-raised:#F7F8FD');
+    expect(dia).toContain('--text:#12141C');
+    expect(noche).toContain('--bg:#0B0D14');
+    expect(noche).toContain('--bg-raised:#141826');
+    // action-text se recalibra por modo (§1): un azul oscuro sobre fondo negro
+    // no se lee, y uno saturado como texto vibra.
+    expect(dia).toContain('--action-text:#2739D6');
+    expect(noche).toContain('--action-text:#93A2FF');
     // Ni blanco puro de texto nocturno ni negro puro de fondo (§10).
     expect(noche).not.toMatch(/--text:#FFFFFF/i);
     expect(noche).not.toMatch(/--bg:#000000/i);
-    expect(noche).toContain('--bg:#102137');
+  });
+
+  /**
+   * Las tres superficies, y solo tres (#706).
+   *
+   * Pulso dice que hay `--bg`, `--bg-raised` y `--bg-rest`, y que una cuarta
+   * significa que se está anidando de más. Acá había seis: `--canvas`,
+   * `--panel`, `--chrome` y `--hero-surface` traían cada una su propio color.
+   * Los nombres siguen porque los piden 62 pantallas, pero ya no aportan un
+   * color nuevo. Si alguien vuelve a darles uno propio, esto se cae.
+   */
+  it('las superficies de más no inventan un color nuevo', () => {
+    for (const [bloque, nombre, base, elevada] of [
+      [dia, 'día', '#FFFFFF', '#F7F8FD'],
+      [noche, 'noche', '#0B0D14', '#141826'],
+    ] as const) {
+      expect(bloque, `${nombre}: --canvas`).toContain(`--canvas:${base}`);
+      expect(bloque, `${nombre}: --chrome`).toContain(`--chrome:${base}`);
+      expect(bloque, `${nombre}: --panel`).toContain(`--panel:${elevada}`);
+      expect(bloque, `${nombre}: --hero-surface`).toContain(`--hero-surface:${elevada}`);
+    }
+  });
+
+  /**
+   * Los colores del isotipo se quedan, y son de la MARCA (#706).
+   *
+   * El isotipo de IAxTi es jelly y translúcido: esos colores pertenecen al
+   * logo, no a la interfaz. Pulso hace esa misma distinción cuando dice que el
+   * isotipo es la única excepción a «el azul no decora». Borrarlos al traer la
+   * paleta canónica habría dejado el logo sin sus colores.
+   */
+  it('conserva los tokens de marca del isotipo', () => {
+    for (const token of ['--jelly-ice', '--jelly-sky', '--jelly-deep', '--jelly-shadow', '--jelly-glint', '--brand-warm']) {
+      expect(dia, token).toContain(`${token}:`);
+      expect(noche, token).toContain(`${token}:`);
+    }
+    // Y no se mudan al sistema: el azul de acción sigue siendo el de acción.
+    expect(dia).not.toContain('--action:#24D0E7');
   });
 
   it('NINGÚN hex suelto fuera de pulso-tokens.css (apps y packages)', () => {
