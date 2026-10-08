@@ -16,6 +16,7 @@ import { almacenR2, knowledgeKey, presignPutUrl, presignUrl, storageFromEnv } fr
 import { z } from 'zod';
 import {
   addSource,
+  fuenteDesdeMarkdown,
   deleteSource,
   embeddingsAvailable,
   getProduct,
@@ -79,6 +80,28 @@ const PdfSubido = z.object({
  * El mensaje va escrito acá porque es lo que va a leer quien está cargando el
  * conocimiento de su negocio, no un «Required».
  */
+/**
+ * Varios archivos markdown de una (#714).
+ *
+ * El tope de 50 y el de 200 KB por archivo no son por cautela: cada fuente se
+ * indexa —embeddings— y eso cuesta tiempo y dinero del negocio. Un vault entero
+ * de mil notas no se trae de un saque sin que nadie lo haya decidido.
+ */
+const ArchivosMarkdown = z.object({
+  archivos: z
+    .array(
+      z.object({
+        nombre: z.string().trim().min(1, { error: 'Cada archivo necesita su nombre.' }),
+        contenido: z
+          .string()
+          .max(200_000, { error: 'Un archivo de más de 200 KB es demasiado para una sola fuente: pártelo.' }),
+      }),
+    )
+    .min(1, { error: 'No llegó ningún archivo.' })
+    .max(50, { error: 'Son demasiados de una vez: hasta 50 por tanda.' }),
+  validUntil: z.string().optional(),
+});
+
 const NuevaFuente = z.object({
   // Se excluye 'pdf' en el propio tipo: el mensaje explica por dónde va, y
   // antes eran dos `if` seguidos —uno para el tipo inválido y otro para el
@@ -169,6 +192,72 @@ export class KnowledgeController {
         sourceId: source.id,
         requestId: request.requestId,
       });
+    });
+  }
+
+  /**
+   * Varios markdown de una (#714).
+   *
+   * Sale de «¿sería bueno ponerle obsidian? para ver su fuente de
+   * conocimientos». Obsidian no encaja —es de escritorio, de un usuario y sobre
+   * archivos locales, y el conocimiento ya vive acá con RLS por tenant— pero sí
+   * encaja lo que uno quiere de él: escribir en markdown, donde sea, y traerlo.
+   *
+   * Y hace falta: desde #716 el copiloto tiene `knowledge.search` incluso en
+   * conversaciones sin dueño. Sin fuentes cargadas sigue contestando de memoria
+   * — ahora lo dice (#717), pero decirlo no es resolverlo.
+   *
+   * Va archivo por archivo y NO en una transacción: si el quinto falla, los
+   * cuatro primeros ya están indexados y sirven. Devolver todo o nada obligaría
+   * a repetir una importación de cuarenta por culpa de uno mal formado.
+   */
+  @Post('sources/markdown')
+  @RequirePermission('knowledge.manage')
+  @ApiOperation({ summary: 'Importa varios archivos markdown como fuentes' })
+  async importarMarkdown(
+    @Req() request: WithUser,
+    @Cuerpo(ArchivosMarkdown) body: z.infer<typeof ArchivosMarkdown>,
+  ) {
+    const actor = actorOf(request);
+    if (!embeddingsAvailable()) {
+      throw new ServiceUnavailableException({
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'El proveedor de embeddings aún no tiene llave configurada en este ambiente.',
+      });
+    }
+    const validUntil = body.validUntil ? new Date(body.validUntil) : null;
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const importadas: Array<{ nombre: string; enlaces: string[] }> = [];
+      const fallidas: Array<{ archivo: string; motivo: string }> = [];
+      for (const archivo of body.archivos) {
+        const fuente = fuenteDesdeMarkdown(archivo);
+        if (fuente.contenido === '') {
+          fallidas.push({ archivo: archivo.nombre, motivo: 'El archivo está vacío.' });
+          continue;
+        }
+        try {
+          const creada = await addSource(c, {
+            tenantId: actor.tenantId,
+            kind: 'texto',
+            name: fuente.nombre,
+            content: fuente.contenido,
+            validUntil,
+            actor: actor.userId,
+            requestId: request.requestId,
+          });
+          await processSource(c, {
+            tenantId: actor.tenantId,
+            sourceId: creada.id,
+            requestId: request.requestId,
+          });
+          importadas.push({ nombre: fuente.nombre, enlaces: fuente.enlaces });
+        } catch (err) {
+          // El archivo que falló se nombra. «3 de 40 fallaron» sin decir
+          // cuáles obliga a revisarlos todos a mano.
+          fallidas.push({ archivo: archivo.nombre, motivo: (err as Error).message });
+        }
+      }
+      return { importadas, fallidas };
     });
   }
 

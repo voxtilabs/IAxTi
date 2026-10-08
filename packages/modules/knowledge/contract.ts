@@ -1,5 +1,13 @@
 // Única puerta pública del módulo knowledge (SPEC §26).
 export const MODULE_ID = 'knowledge' as const;
+// Leer markdown como fuente (#714): escribir donde sea y traerlo.
+//
+// `enlacesDe` NO se exporta: la usa `fuenteDesdeMarkdown` acá adentro y nadie
+// más. La publiqué por costumbre y el trinquete de #664 la cazó en el CI del
+// mismo PR —segunda vez en dos días—. Un contrato que expone lo que nadie abre
+// deja de ser una decisión.
+export { fuenteDesdeMarkdown } from './domain/markdown';
+export type { ArchivoMarkdown, FuenteDesdeMarkdown } from './domain/markdown';
 export {
   addSource,
   processSource,
