@@ -25,6 +25,18 @@ export interface Suggestion {
   expiresAt: Date;
   feedback: 'up' | 'down' | null;
   createdAt: Date;
+  /**
+   * En qué se apoyó: las herramientas que consultó la corrida (#717).
+   *
+   * `undefined` es «no se sabe» —una sugerencia anterior a #699, cuando
+   * `tools_called` no se escribía—, y `[]` es «no consultó nada». Son cosas
+   * distintas y la pantalla las muestra distinto: no saber no es lo mismo que
+   * saber que no.
+   *
+   * Solo viene cuando la consulta trae la corrida al lado; quien lee una
+   * sugerencia suelta no la necesita.
+   */
+  herramientas?: string[];
 }
 
 function rowToSuggestion(row: Record<string, unknown>): Suggestion {
@@ -41,6 +53,12 @@ function rowToSuggestion(row: Record<string, unknown>): Suggestion {
     expiresAt: row.expires_at as Date,
     feedback: (row.feedback as Suggestion['feedback']) ?? null,
     createdAt: row.created_at as Date,
+    // En qué se apoyó, si la consulta lo trajo (#717). `undefined` no es lo
+    // mismo que `[]`: lo primero es «no se sabe» —una sugerencia anterior a
+    // #699, cuando `tools_called` no se escribía— y lo segundo es «no consultó
+    // nada». La pantalla los muestra distinto, porque no saber no es lo mismo
+    // que saber que no.
+    herramientas: Array.isArray(row.tools_called) ? (row.tools_called as string[]) : undefined,
   };
 }
 
@@ -268,10 +286,24 @@ export async function pendingSuggestion(
       WHERE tenant_id = $1 AND conversation_id = $2 AND status = 'pending' AND expires_at < now()`,
     [tenantId, conversationId],
   );
+  // Con la corrida al lado: en qué se apoyó (#717).
+  //
+  // El dato ya estaba —`suggestions.execution_id` apunta a la corrida y la
+  // corrida guarda `tools_called` desde #699— y no llegaba a la pantalla. Una
+  // sugerencia respaldada por el conocimiento del negocio y una dicha de
+  // memoria se veían idénticas, y quien aprieta «Enviar» es quien se hace
+  // responsable de lo que sale.
+  //
+  // LEFT JOIN y no JOIN: una sugerencia sin corrida registrada sigue
+  // mostrándose. Perder la sugerencia por no poder decir en qué se apoyó sería
+  // peor que no decirlo.
   const r = await client.query(
-    `SELECT * FROM suggestions
-      WHERE tenant_id = $1 AND conversation_id = $2 AND status = 'pending'
-      ORDER BY created_at DESC LIMIT 1`,
+    `SELECT s.*, e.tools_called
+       FROM suggestions s
+       LEFT JOIN agent_executions e
+              ON e.id = s.execution_id AND e.tenant_id = s.tenant_id
+      WHERE s.tenant_id = $1 AND s.conversation_id = $2 AND s.status = 'pending'
+      ORDER BY s.created_at DESC LIMIT 1`,
     [tenantId, conversationId],
   );
   return r.rowCount === 0 ? null : rowToSuggestion(r.rows[0]);

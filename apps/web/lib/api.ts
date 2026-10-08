@@ -376,6 +376,15 @@ export interface SugerenciaDto {
   leadScore: 'frio' | 'tibio' | 'caliente' | null;
   suggestDeal: boolean;
   expiresAt: string;
+  /**
+   * En qué se apoyó (#717). Ausente = no se sabe, `[]` = no consultó nada.
+   *
+   * No son lo mismo: lo primero es una sugerencia anterior a #699 —cuando la
+   * corrida no registraba qué herramientas usaba— y lo segundo es que la
+   * registró y no usó ninguna. Decir «sin consultar» de la primera sería
+   * afirmar algo que no sabemos.
+   */
+  herramientas?: string[];
 }
 
 export interface AnalisisDto {

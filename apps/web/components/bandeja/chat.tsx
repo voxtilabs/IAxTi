@@ -134,6 +134,45 @@ export interface ChatProps {
   onAbrirAdjunto: (key: string) => void;
 }
 
+/**
+ * En qué se apoyó la sugerencia (#717).
+ *
+ * Una respaldada por el conocimiento del negocio y una dicha de memoria se
+ * veían idénticas, y quien aprieta «Enviar sugerencia» es quien se hace
+ * responsable de lo que sale. Darle el texto sin decirle en qué se apoya es
+ * pedirle que firme a ciegas.
+ *
+ * No es una alarma: responder de memoria a veces está bien —un saludo no
+ * necesita el CRM— y pintarlo de rojo enseñaría a ignorarlo. Es un dato, en
+ * rótulo, antes de apretar.
+ *
+ * `undefined` no se muestra: es una sugerencia anterior a #699, cuando la
+ * corrida no registraba qué usaba. Decir «sin consultar» ahí sería afirmar algo
+ * que no sabemos — exactamente el defecto que venimos sacando toda la semana.
+ */
+function EnQueSeApoyo({ herramientas }: { herramientas?: string[] }) {
+  if (herramientas === undefined) return null;
+  return (
+    <p className="mt-2 rotulo">
+      {herramientas.length === 0
+        ? 'Respondió sin consultar nada'
+        : `Consultó ${herramientas.map(enCastellano).join(' y ')}`}
+    </p>
+  );
+}
+
+/** El nombre de la herramienta, como lo diría una persona. */
+function enCastellano(herramienta: string): string {
+  const nombres: Record<string, string> = {
+    'knowledge.search': 'el conocimiento del negocio',
+    'knowledge.get_product': 'el catálogo',
+    'conversations.get_context': 'la conversación',
+    'crm.get_contact': 'la ficha del contacto',
+    'calendar.get_slots': 'la agenda',
+  };
+  return nombres[herramienta] ?? herramienta;
+}
+
 export function Chat({
   detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   hayAnteriores, trayendoAnteriores, onVerAnteriores,
@@ -588,6 +627,7 @@ export function Chat({
         <div className="mx-4 mb-2 rounded-campo border border-action-soft-br bg-action-soft p-3">
           <p className="rotulo">Sugerencia del asistente{sugerencia.confidence !== null && ` · ${Math.round(sugerencia.confidence * 100)} %`}</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{sugerencia.text}</p>
+          <EnQueSeApoyo herramientas={sugerencia.herramientas} />
           {sugerencia.suggestDeal && detalle && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-action-text">
               Parece que quiere cotizar —
