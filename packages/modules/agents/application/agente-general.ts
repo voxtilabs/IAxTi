@@ -10,6 +10,18 @@ import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 
 /**
+ * Cuántos viajes al proveedor da una vuelta de conversación, y cuánto se le
+ * espera a cada uno (#712).
+ *
+ * Buscar la herramienta, a veces mirar de nuevo, preparar la acción, y
+ * contestar. Treinta segundos por paso: generoso para una llamada normal —lo
+ * normal son segundos— y suficiente para que un proveedor lento no corte la
+ * conversación en el primer viaje.
+ */
+const PASOS = 6;
+const MS_POR_PASO = 30_000;
+
+/**
  * El Agente General (#493, ADR-0025).
  *
  * Configura el producto CONVERSANDO. Tiene las 195 herramientas del
@@ -486,7 +498,24 @@ export async function conversarConElAgenteGeneral(
     mensajes: input.turnos,
     tools: queFalta ? [buscar, preparar, queFalta] : [buscar, preparar],
     // Buscar, a veces mirar de nuevo, preparar, y contestar.
-    maxSteps: 6,
+    maxSteps: PASOS,
+    /**
+     * Su propio presupuesto, porque son seis viajes y no uno (#712).
+     *
+     * #688 le puso un reloj a toda llamada al proveedor —60 s— pensado para UNA
+     * respuesta: el copiloto sugiere mientras alguien mira la bandeja, y si
+     * tarda más de un minuto ya no sirve porque la persona contestó a mano.
+     *
+     * Acá los pasos ocurren DENTRO de una sola llamada a `generate`, así que
+     * comparten el mismo presupuesto. Con el proveedor sano sobra; con NVIDIA
+     * encolando —medido el 28/09: 139 s y 178 s para un «di hola» sin
+     * herramientas— el primer paso se comía el presupuesto entero y la
+     * conversación se cortaba antes de empezar.
+     *
+     * Subir el global en vez de esto le devolvería al copiloto el spinner mudo
+     * que #688 vino a sacar.
+     */
+    esperaMaximaMs: PASOS * MS_POR_PASO,
     maxOutputTokens: DEFAULT_TASK_OUTPUT_TOKENS.configuracion_conversada,
   });
 

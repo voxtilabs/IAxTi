@@ -148,7 +148,11 @@ function Esperando() {
     const reloj = setInterval(() => setSegundos((s) => s + 1), 1000);
     return () => clearInterval(reloj);
   }, []);
-  const lento = segundos >= 10;
+  // A los 10 s avisaba que iba lento. En ESTE camino diez segundos son
+  // normales: son hasta seis viajes al proveedor, no uno (#712). Avisar antes
+  // de tiempo enseña a ignorar el aviso, que es justo lo contrario de para qué
+  // está.
+  const lento = segundos >= 30;
   return (
     <span className="flex flex-col gap-1 text-dato text-muted">
       <span className="flex items-center gap-2">
@@ -157,8 +161,9 @@ function Esperando() {
       </span>
       {lento ? (
         <span>
-          Está tardando más de lo normal. Suele ser congestión del proveedor de IA, no algo de tu
-          cuenta; si no vuelve, ciérralo y pídeselo de nuevo.
+          Está tardando más de lo normal. Buscar la herramienta y preparar la acción son varios
+          viajes al proveedor de IA, y hoy va lento — no es algo de tu cuenta. Si no vuelve,
+          ciérralo y pídeselo de nuevo.
         </span>
       ) : null}
     </span>
