@@ -27,6 +27,35 @@ import { writeAudit } from '@iaxti/module-audit';
  *     va a poder distinguir.
  */
 
+/**
+ * Las que puede usar una conversación SIN DUEÑO (#715).
+ *
+ * El copiloto hacía `if (!dueno) return []`, y una conversación nueva nace sin
+ * dueño. O sea que el bot contestaba con CERO herramientas exactamente en el
+ * mensaje que más importa —el primero— y recién se volvía útil cuando alguien la
+ * asignaba, que es cuando ya hay una persona atendiendo y el copiloto importa
+ * menos.
+ *
+ * La regla no se toca: «las tools pasan por el mismo guard con la identidad del
+ * usuario que conversa». Lo que cambia es reconocer que **estas dos no leen datos
+ * de una persona ni de un contacto**: leen el conocimiento del NEGOCIO, que es del
+ * tenant, y la conversación ya pertenece a ese tenant. No hay nada que un dueño
+ * autorizaría y la falta de dueño deba impedir.
+ *
+ * Y son justo las que un primer contacto necesita: «¿cuánto cuesta?», «¿tienen X?».
+ *
+ * Para agregar una tercera hay que poder decir lo mismo de ella: que lo que
+ * devuelve sea del negocio y no de una persona. `conversations.get_context` NO
+ * entra —son los mensajes de un contacto—; `analytics.*` tampoco —un vendedor ve lo
+ * suyo, no lo del equipo—; nada que escriba, nunca.
+ */
+export const HERRAMIENTAS_SIN_DUENO = {
+  'knowledge.search': 'knowledge.read',
+  'knowledge.get_product': 'knowledge.read',
+} as const;
+
+export type HerramientaSinDueno = keyof typeof HERRAMIENTAS_SIN_DUENO;
+
 export const HERRAMIENTAS_DE_LECTURA = {
   'conversations.get_context': 'conversations.read',
   'knowledge.search': 'knowledge.read',

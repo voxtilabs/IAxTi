@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import type { HerramientaExpuesta } from './models';
 import {
   HERRAMIENTAS_DE_LECTURA,
+  HERRAMIENTAS_SIN_DUENO,
   HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS,
   ejecutarHerramienta,
   type DepsHerramientas,
@@ -173,10 +174,16 @@ export function herramientasExpuestas(
     /** Las que el agente tiene habilitadas Y su módulo ofrece. */
     habilitadas: string[];
     /**
-     * La persona a cuyo nombre actúa la IA. Sin persona no hay herramientas:
-     * una llamada sin identidad no se puede verificar contra ningún permiso,
-     * y "la IA no puede hacer lo que la persona no podría" dejaría de
-     * significar algo.
+     * La persona a cuyo nombre actúa la IA.
+     *
+     * Sin persona, casi no hay herramientas: una llamada sin identidad no se
+     * puede verificar contra ningún permiso, y «la IA no puede hacer lo que la
+     * persona no podría» dejaría de significar algo.
+     *
+     * Casi: quedan las de `HERRAMIENTAS_SIN_DUENO` (#715), que leen el
+     * conocimiento del NEGOCIO y no datos de nadie. Una conversación nueva nace
+     * sin dueño, y dejar al copiloto ciego en el primer mensaje —el que más
+     * importa— era peor que el riesgo que esto evitaba.
      */
     actorUserId: string | null;
     agentId?: string;
@@ -185,7 +192,10 @@ export function herramientasExpuestas(
   },
   deps: DepsHerramientas,
 ): HerramientaExpuesta[] {
-  if (!input.actorUserId) return [];
+  // Sin dueño: solo lo del negocio (#715). Antes acá iba `return []`, y como una
+  // conversación nueva nace sin dueño el bot contestaba el primer mensaje sin
+  // poder consultar nada.
+  if (!input.actorUserId) return sinDueno(client, input, deps);
 
   const disponibles = input.habilitadas.filter(
     (t) => (t in HERRAMIENTAS_DE_LECTURA || t in HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS) && t in ESQUEMAS,
@@ -231,5 +241,68 @@ export function herramientasExpuestas(
       // que saber para responder sin inventar.
       return r.ok ? r.datos : { error: r.error };
     },
+  }));
+}
+
+/**
+ * Las herramientas de una conversación que todavía no tiene dueño (#715).
+ *
+ * Solo las de `HERRAMIENTAS_SIN_DUENO`, y además filtradas por lo que el agente
+ * tiene habilitado y su módulo ofrece: que no haya dueño no agranda lo que el
+ * negocio configuró.
+ *
+ * El permiso se resuelve acá y no se le pregunta a `deps.actorPuede`, porque no
+ * hay a quién preguntarle — y porque esa función viene con los permisos de una
+ * persona que en este camino no existe. Lo que se autoriza es exactamente el
+ * permiso que esa herramienta declara, ni uno más: si alguien agrega a la lista
+ * una que pida `crm.contacts.read`, esto la deja pasar y por eso la lista lleva
+ * escrito el criterio para entrar.
+ *
+ * En el audit queda como lo que es: el agente, sin persona detrás. `actorKind`
+ * ya era 'agent'; lo que cambia es que el actor es el agente mismo y no alguien
+ * a cuyo nombre actuó.
+ */
+function sinDueno(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    habilitadas: string[];
+    agentId?: string;
+    conversationId?: string;
+    requestId?: string;
+  },
+  deps: DepsHerramientas,
+): HerramientaExpuesta[] {
+  const permitidas = input.habilitadas.filter(
+    (t) => t in HERRAMIENTAS_SIN_DUENO && t in ESQUEMAS,
+  );
+  return permitidas.map((nombre) => ({
+    name: nombre,
+    description: ESQUEMAS[nombre].description,
+    parameters: ESQUEMAS[nombre].parameters,
+    ejecutar: async (args: Record<string, unknown>) =>
+      ejecutarHerramienta(
+        client,
+        {
+          tenantId: input.tenantId,
+          tool: nombre,
+          args,
+          // El agente, sin persona detrás. Es la verdad y es lo que hay que
+          // poder distinguir después en el audit.
+          actorUserId: input.agentId ?? 'agente',
+          agentId: input.agentId,
+          conversationId: input.conversationId,
+          requestId: input.requestId,
+        },
+        {
+          ...deps,
+          habilitadas: permitidas,
+          // Exactamente el permiso que la herramienta declara.
+          actorPuede: (permiso) =>
+            Promise.resolve(
+              Object.values(HERRAMIENTAS_SIN_DUENO).includes(permiso as never),
+            ),
+        },
+      ).then((r) => (r.ok ? r.datos : { error: r.error })),
   }));
 }

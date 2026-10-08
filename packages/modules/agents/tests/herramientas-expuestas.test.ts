@@ -99,13 +99,33 @@ describe('qué se le ofrece al modelo', () => {
     expect(hs.map((h) => h.name)).toEqual(['knowledge.search']);
   });
 
-  it('sin persona identificada no se ofrece ninguna', async () => {
+  it('sin persona identificada solo se ofrecen las del NEGOCIO (#715)', async () => {
     const hs = await en(async (c) =>
       herramientasExpuestas(c, { ...base, actorUserId: null }, deps()),
     );
-    // Una llamada sin identidad no se puede verificar contra ningún
-    // permiso: mejor ninguna herramienta que una sin dueño.
-    expect(hs).toEqual([]);
+    // Esto decía `toEqual([])`, con el motivo «una llamada sin identidad no se
+    // puede verificar contra ningún permiso: mejor ninguna herramienta que una
+    // sin dueño». El razonamiento sigue siendo cierto para todo lo que lea
+    // datos de una persona o de un contacto.
+    //
+    // Lo que no vimos entonces: una conversación NUEVA nace sin dueño. Así que
+    // la regla conservadora dejaba al bot ciego en el primer mensaje —el que
+    // más importa— y lo volvía útil recién cuando alguien asignaba, que es
+    // cuando ya hay una persona atendiendo.
+    //
+    // `knowledge.search` y `knowledge.get_product` leen el conocimiento del
+    // NEGOCIO, no de nadie, y la conversación ya pertenece a ese tenant: no hay
+    // permiso de persona que verificar porque no hay dato de persona en juego.
+    expect(hs.map((h) => h.name).sort()).toEqual(['knowledge.get_product', 'knowledge.search']);
+  });
+
+  it('y sin persona NO se ofrece nada que lea datos de alguien', async () => {
+    const nombres = (
+      await en(async (c) => herramientasExpuestas(c, { ...base, actorUserId: null }, deps()))
+    ).map((h) => h.name);
+    for (const prohibida of ['conversations.get_context', 'analytics.metrica', 'calendar.get_slots']) {
+      expect(nombres, `${prohibida} no puede estar sin dueño`).not.toContain(prohibida);
+    }
   });
 });
 
