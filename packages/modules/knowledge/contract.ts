@@ -1,5 +1,8 @@
 // Única puerta pública del módulo knowledge (SPEC §26).
 export const MODULE_ID = 'knowledge' as const;
+// Leer markdown como fuente (#714): escribir donde sea y traerlo.
+export { fuenteDesdeMarkdown, enlacesDe } from './domain/markdown';
+export type { ArchivoMarkdown, FuenteDesdeMarkdown } from './domain/markdown';
 export {
   addSource,
   processSource,

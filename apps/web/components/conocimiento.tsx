@@ -73,6 +73,11 @@ const PLACEHOLDER: Record<string, string> = {
   url: '',
 };
 
+interface ResumenImportacion {
+  importadas: Array<{ nombre: string; enlaces: string[] }>;
+  fallidas: Array<{ archivo: string; motivo: string }>;
+}
+
 export function Conocimiento() {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
@@ -83,6 +88,8 @@ export function Conocimiento() {
   const [url, setUrl] = useState('');
   const [vigencia, setVigencia] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [resumen, setResumen] = useState<ResumenImportacion | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [q, setQ] = useState('');
   // Qué fuente se está reindexando (#447): reindexar dos veces la misma es
@@ -105,6 +112,35 @@ export function Conocimiento() {
   useEffect(() => void cargar(), [cargar]);
 
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
+
+  /**
+   * Trae los .md y los manda en una tanda (#714).
+   *
+   * Los lee el navegador: son archivos de texto, chicos, y mandarlos por el
+   * cuerpo evita el paso de la URL firmada que sí necesita un PDF de 20 MB.
+   */
+  const importar = async (lista: FileList | null): Promise<void> => {
+    if (!session || !lista || lista.length === 0 || importando) return;
+    setAviso(null);
+    setImportando(true);
+    setResumen(null);
+    try {
+      const archivos = await Promise.all(
+        [...lista].map(async (f) => ({ nombre: f.name, contenido: await f.text() })),
+      );
+      setResumen(
+        await apiFetch<ResumenImportacion>(config, session, tenant, '/knowledge/sources/markdown', {
+          method: 'POST',
+          body: JSON.stringify({ archivos }),
+        }),
+      );
+      await cargar();
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setImportando(false);
+    }
+  };
 
   const agregar = async () => {
     if (!session) return;
@@ -272,6 +308,44 @@ export function Conocimiento() {
           >
             {guardando ? 'Indexando…' : 'Agregar e indexar'}
           </Button>
+        )}
+      </div>
+
+      {/* Traer markdown (#714). Sale de «¿sería bueno ponerle obsidian?»:
+          Obsidian no encaja —de escritorio, de un usuario, sobre archivos
+          locales— pero escribir en markdown y traerlo, sí. */}
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+        <span className="rotulo">Traer archivos markdown</span>
+        <p className="mt-1 text-sm text-body">
+          Escribe donde quieras —Obsidian, el bloc de notas, lo que uses— y trae los{' '}
+          <code className="font-mono">.md</code> acá. El nombre sale del{' '}
+          <code className="font-mono">title</code>, del primer encabezado o del archivo, en ese
+          orden. Los enlaces <code className="font-mono">[[así]]</code> se conservan.
+        </p>
+        <input
+          type="file"
+          accept=".md,.markdown,text/markdown"
+          multiple
+          className="mt-3 block w-full text-sm"
+          disabled={importando}
+          onChange={(e) => void importar(e.target.files)}
+          aria-label="Archivos markdown"
+        />
+        {importando && <p className="ayuda mt-2">Indexando lo que llegó…</p>}
+        {resumen && (
+          <p className="mt-2 text-sm text-body">
+            {resumen.importadas.length > 0 &&
+              `Entraron ${resumen.importadas.length}: ${resumen.importadas.map((i) => i.nombre).join(', ')}.`}
+            {resumen.fallidas.length > 0 && (
+              <>
+                {' '}
+                {/* Se nombra cuál falló: «3 de 40 fallaron» obliga a revisarlos
+                    todos a mano. */}
+                No entraron {resumen.fallidas.length}:{' '}
+                {resumen.fallidas.map((f) => `${f.archivo} (${f.motivo})`).join('; ')}
+              </>
+            )}
+          </p>
         )}
       </div>
 

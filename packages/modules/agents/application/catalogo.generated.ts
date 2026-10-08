@@ -3174,6 +3174,48 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "KnowledgeController_importarMarkdown": {
+    "metodo": "POST",
+    "ruta": "/v1/knowledge/sources/markdown",
+    "resumen": "Importa varios archivos markdown como fuentes",
+    "permiso": "knowledge.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "archivos": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "nombre": {
+                "type": "string",
+                "minLength": 1
+              },
+              "contenido": {
+                "type": "string",
+                "maxLength": 200000
+              }
+            },
+            "required": [
+              "nombre",
+              "contenido"
+            ]
+          }
+        },
+        "validUntil": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "archivos"
+      ],
+      "additionalProperties": false
+    }
+  },
   "KnowledgeController_products": {
     "metodo": "GET",
     "ruta": "/v1/knowledge/products",
