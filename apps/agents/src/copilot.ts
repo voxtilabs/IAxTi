@@ -246,9 +246,39 @@ async function herramientasDeLaConversacion(
 
   const conv = await getConversation(client, data.tenantId, data.conversationId);
   const dueno = (conv as { ownerId?: string | null }).ownerId ?? null;
-  if (!dueno) return [];
 
-  const permisos = await permisosDe(client, data.tenantId, dueno, registry);
+  /**
+   * Sin dueño NO es sin herramientas (#715).
+   *
+   * Acá había un `if (!dueno) return []`, y una conversación nueva nace sin
+   * dueño: el bot contestaba el primer mensaje —el que más importa— sin poder
+   * buscar el conocimiento del negocio ni un precio. Recién se volvía útil
+   * cuando alguien la asignaba, que es cuando ya hay una persona atendiendo.
+   *
+   * Ahora `herramientasExpuestas` decide: con dueño, todo lo que esa persona
+   * pueda; sin dueño, solo lo del NEGOCIO —`HERRAMIENTAS_SIN_DUENO`—, que no
+   * lee datos de nadie. La decisión vive allá y no acá, para que haya un solo
+   * lugar donde esté escrita.
+   */
+  const permisos = dueno
+    ? await permisosDe(client, data.tenantId, dueno, registry)
+    : new Set<string>();
+
+  /**
+   * Las dependencias que NECESITAN una persona.
+   *
+   * Solo las usan herramientas que piden dueño —ofrecer horarios, crear una
+   * tarea, crear una oportunidad— y ninguna de esas está en
+   * `HERRAMIENTAS_SIN_DUENO`, así que en este camino no se llaman nunca.
+   *
+   * Revienta en vez de pasar una cadena vacía: si algún día alguien agrega a
+   * esa lista una herramienta que sí necesita dueño, quiero un error con nombre
+   * y no una tarea creada a nombre de nadie.
+   */
+  const conDueno = (para: string): string => {
+    if (!dueno) throw new Error(`"${para}" necesita un dueño en la conversación y no lo hay.`);
+    return dueno;
+  };
 
   return herramientasExpuestas(
     client,
@@ -267,7 +297,7 @@ async function herramientasDeLaConversacion(
       buscarConocimiento: (query) => searchKnowledge(client, { tenantId: data.tenantId, query }),
       buscarProducto: (query) => getProduct(client, data.tenantId, query),
       horariosLibres: (dia) =>
-        huecosDelDia(client, { tenantId: data.tenantId, ownerId: dueno, dia }),
+        huecosDelDia(client, { tenantId: data.tenantId, ownerId: conDueno('ofrecer horarios'), dia }),
 
       // Las dos que ESCRIBEN (ADR-0017): quedan adentro del negocio y se
       // deshacen. El contacto no lo elige el modelo — sale de la
@@ -336,7 +366,7 @@ async function herramientasDeLaConversacion(
           body: i.body,
           // Sin dueño explícito queda a nombre de quien atiende: una tarea
           // sin responsable es una tarea que no hace nadie.
-          ownerId: dueno,
+          ownerId: conDueno('crear una tarea'),
           dueAt: i.dueAt ? new Date(`${i.dueAt}T12:00:00Z`) : undefined,
         }),
       crearOportunidad: async (i) => {
@@ -351,7 +381,7 @@ async function herramientasDeLaConversacion(
           // no gana ni pierde negocios.
           title: i.title,
           value: i.value,
-          ownerId: dueno,
+          ownerId: conDueno('crear una oportunidad'),
           sourceConversationId: data.conversationId,
         });
         // El agente lo logró ÉL (#319). Es un hecho, no una inferencia: lo
