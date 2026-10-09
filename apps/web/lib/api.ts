@@ -178,6 +178,14 @@ export interface ConversacionItem {
   lastMessageAt: string | null;
   unansweredSeconds: number | null;
   snoozedUntil: string | null;
+  /**
+   * La prioridad que decidió el equipo (#550).
+   *
+   * Existía desde la primera migración y la API ya la devolvía: lo que no había
+   * era forma de cambiarla ni de ordenar por ella, así que todo llegaba
+   * «normal». La lista ahora viene ordenada con esto adelante de la fecha.
+   */
+  priority: 'baja' | 'normal' | 'alta' | 'urgente';
 }
 
 export interface ConversacionDetalle extends ConversacionItem {

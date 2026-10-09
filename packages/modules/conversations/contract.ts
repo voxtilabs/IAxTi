@@ -86,3 +86,8 @@ export type { Reasignacion } from './application/conversations';
 // marca de dedupe y no se podía listar.
 export { conversacionesPorPeriodo } from './application/conversations';
 export type { ConversacionesDelPeriodo } from './application/conversations';
+// La prioridad se usa (#550): existía desde la primera migración, la API la
+// devolvía en cada conversación y nadie podía cambiarla ni ordenar por ella.
+export { cambiarPrioridad } from './application/conversations';
+export { PRIORIDADES } from './domain/prioridad';
+export type { Prioridad } from './domain/prioridad';

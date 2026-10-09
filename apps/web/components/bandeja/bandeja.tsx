@@ -38,7 +38,7 @@ import {
 } from '../../lib/api';
 import { Chat, type LimitesDeAdjunto } from './chat';
 import { Ficha } from './ficha';
-import { ESTADOS, fmtEspera } from './estado';
+import { ESTADOS, fmtEspera, insigniaDePrioridad } from './estado';
 
 // La bandeja de tres paneles (SPEC §11/§29, #37): lista sobre --bg-raised,
 // chat sobre --bg, ficha sobre --bg-raised. En celular, tres pantallas
@@ -509,6 +509,14 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                   </span>
                   <span className="flex flex-col items-end gap-1">
                     <Badge role={ESTADOS[c.state].role}>{ESTADOS[c.state].label}</Badge>
+                    {/* La prioridad en la lista (#550): es ahí donde sirve,
+                        porque es la lista la que ahora viene ordenada por
+                        ella. Solo si no es normal. */}
+                    {insigniaDePrioridad(c.priority) && (
+                      <Badge role={insigniaDePrioridad(c.priority)!.role}>
+                        {insigniaDePrioridad(c.priority)!.label}
+                      </Badge>
+                    )}
                     {c.unansweredSeconds !== null && (
                       <span className="flex items-center gap-1 font-mono text-rotulo text-warn-text">
                         <IconoReloj className="h-3 w-3" />
@@ -716,6 +724,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           }}
           onAsignar={(aQuien, motivo) => accion('/assign', { toOwnerId: aQuien, reason: motivo })}
           onEstado={(estado, hasta) => accion('/state', { state: estado, snoozedUntil: hasta })}
+          onPrioridad={(prioridad) => accion('/prioridad', { prioridad })}
         />
       </section>
 

@@ -15,7 +15,7 @@ import {
 } from '@iaxti/ui/react';
 import type { AnalisisDto, ConversacionDetalle, NotaDto } from '../../lib/api';
 import { FichaContacto } from '../crm/ficha-contacto';
-import { ESTADOS, fmtEspera } from './estado';
+import { ESTADOS, fmtEspera, insigniaDePrioridad } from './estado';
 import { SecuenciasFicha } from './secuencias-ficha';
 import { RetencionAviso } from './retencion-aviso';
 import { QuienLoHizo } from '../quien-lo-hizo';
@@ -97,6 +97,16 @@ export function Ficha({
         <Fila rotulo="Estado">
           <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
         </Fila>
+        {/* La prioridad, solo si no es normal (#550). Acá va con su fila
+            rotulada: la ficha es donde se mira el detalle, así que el rótulo
+            «Prioridad» cabe y la insignia sola no tendría que explicarse. */}
+        {insigniaDePrioridad(detalle.priority) && (
+          <Fila rotulo="Prioridad">
+            <Badge role={insigniaDePrioridad(detalle.priority)!.role}>
+              {insigniaDePrioridad(detalle.priority)!.label}
+            </Badge>
+          </Fila>
+        )}
         {detalle.contactEmail && <Fila rotulo="Correo">{detalle.contactEmail}</Fila>}
         <Fila rotulo="Canal"><CanalChip canal={detalle.channel} /></Fila>
         {detalle.unansweredSeconds !== null && (
