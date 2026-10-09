@@ -115,14 +115,45 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 768, height: 768 
     // Salir de Bandeja no deja un bloqueo global de scroll en otras rutas.
     await page.goto('/reportes');
     await expect(page.getByRole('heading', { name: 'Cómo va el negocio' })).toBeVisible();
-    // Se desplaza DENTRO del poll, y esa es la corrección (#636).
+
+    // Se espera a que el CONTENIDO esté, no a que pase el tiempo (#681).
     //
-    // Antes desplazaba una vez y después sondeaba `window.scrollY`, que no
-    // puede cambiar solo: si el contenido todavía era corto en ese instante
-    // —los gráficos entran por `next/dynamic` y con cuatro workers en paralelo
-    // llegan tarde—, el `scrollTo` no movía nada y el sondeo repetía un cero
-    // que nadie iba a volver a tocar. Cinco segundos después, rojo. El viewport
-    // que caía cambiaba en cada corrida, que es la firma de una carrera.
+    // #636 arregló la mitad fácil —desplazar dentro del sondeo— y quedó la
+    // espera: el gráfico entra por `next/dynamic`, así que la página nace corta
+    // y crece cuando el chunk llega. Sondear `scrollY` mientras eso pasa es
+    // medir CUÁNTA CARGA TIENE LA MÁQUINA: con la suite completa encima llega
+    // más tarde que el presupuesto del poll, y el viewport que caía cambiaba en
+    // cada corrida. Un timeout más grande solo mueve el umbral.
+    //
+    // El `.or` no es por cautela: con datos, la sección muestra el gráfico; sin
+    // movimiento en el período, muestra su estado vacío. Las dos cosas son
+    // «esta sección terminó de cargar», y afirmar solo una haría que la prueba
+    // dependa de lo que el sembrado dejó en la base.
+    const seccion = page.getByRole('region', { name: 'Evolución de conversaciones' });
+    await expect(
+      seccion
+        .getByRole('img', { name: 'Conversaciones nuevas y resueltas por día' })
+        .or(seccion.getByText('Todavía no hay movimiento en este período')),
+    ).toBeVisible();
+
+    // Y lo que se afirma es la propiedad, no la altura: que NO haya quedado un
+    // bloqueo global de scroll. Eso se ve en el `overflow` del documento, que no
+    // depende de cuánto contenido llegó ni de cuándo — es exactamente el
+    // mecanismo que la bandeja podría dejar pegado al desmontarse.
+    const bloqueo = await page.evaluate(() => ({
+      html: getComputedStyle(document.documentElement).overflowY,
+      body: getComputedStyle(document.body).overflowY,
+    }));
+    expect(bloqueo, 'Bandeja dejó el scroll del documento bloqueado en otra ruta').not.toMatchObject(
+      { html: 'hidden' },
+    );
+    expect(bloqueo, 'Bandeja dejó el scroll del documento bloqueado en otra ruta').not.toMatchObject(
+      { body: 'hidden' },
+    );
+
+    // Con el contenido ya montado, la página de reportes es más alta que la
+    // ventana y desplazarse MUEVE. Se desplaza dentro del sondeo (#636): el
+    // empujón tiene que ocurrir cuando la página ya es larga.
     await expect
       .poll(() =>
         page.evaluate(() => {
