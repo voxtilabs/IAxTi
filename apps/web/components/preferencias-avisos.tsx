@@ -215,7 +215,14 @@ interface SaludPushDto {
     fallasSeguidas: number;
     avisarQueNoLlega: boolean;
   }>;
-  negocio: { dispositivos: number; fallando: number; archivadas: number };
+  negocio: {
+    dispositivos: number;
+    fallando: number;
+    archivadas: number;
+    /** Por qué se archivaron. «El servicio dijo que ya no existe» en varios a
+     *  la vez es una señal distinta de que alguien quitó su dispositivo. */
+    archivadasPorMotivo: Array<{ motivo: string; n: number }>;
+  };
 }
 
 export function PreferenciasAvisos() {
