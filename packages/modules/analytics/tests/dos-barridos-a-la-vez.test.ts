@@ -18,22 +18,30 @@ import { sweepResponseSamples } from '../application/aggregate';
  *     duplicate key value violates unique constraint
  *     "response_samples_conversation_id_key"
  *
- * ## Lo que estas pruebas NO demuestran
+ * ## Lo que costó dos intentos entender
  *
- * La primera hipótesis fue que dos barridos solapados se pisaban. **Es falsa, y
- * esta prueba es la que lo muestra**: la inserción especulativa del árbitro
- * compuesto maneja bien ese caso —medido también con dos transacciones
- * solapadas a mano— y por eso esta prueba pasaba ANTES del arreglo.
+ * Esta prueba, sola, pasaba: pedirle al mismo pool dos barridos a la vez no
+ * alcanzaba para solapar los `INSERT`. Con eso di por falsa la hipótesis de la
+ * carrera y arreglé lo que sí era verdad —que el `ON CONFLICT` nombraba un
+ * índice mientras existía otra única encima—, moviendo el árbitro a la única de
+ * `conversation_id`.
  *
- * Se queda igual, y no por costumbre: es la que impide que el arreglo se
- * "arregle" de vuelta rompiendo la concurrencia, y la que documenta en qué
- * quedó la hipótesis. Una prueba que pasa antes y después no prueba el arreglo;
- * acota lo que el arreglo no puede romper.
+ * **El rojo cambió de nombre y no se fue**: pasó de
+ * `response_samples_conversation_id_key` a `response_samples_pkey`. Y eso lo
+ * explicó todo: `ON CONFLICT` protege UN índice —inserción especulativa en el
+ * que se le nombra— y en los demás únicos no hay nada, así que la única que no
+ * es árbitro es la que lanza. Con dos únicas que se pisan, las dos
+ * orientaciones estaban rotas.
  *
- * Lo que el arreglo sí cambia es cuál índice absorbe el choque: con la
- * compuesta como árbitro, un choque en la única de `conversation_id` lanzaba.
- * Qué escribió la fila cruzada que lo provocó sigue sin explicación, y está
- * anotado en el issue en vez de dado por entendido.
+ * El arreglo de verdad es que quede **una sola** (migración 0004): la de
+ * `conversation_id` era redundante —los ids de conversación son únicos en toda
+ * la base y la muestra copia el tenant de SU conversación— y a cambio rompía la
+ * idempotencia que el barrido necesita.
+ *
+ * La prueba que lo cazó fue la corrida completa del paquete, donde vitest corre
+ * los archivos en paralelo y dos barridos se solapan de verdad. Esta de acá
+ * sigue, porque es la que deja el caso escrito y la que impide que alguien
+ * "mejore" el `ON CONFLICT` de vuelta.
  */
 const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 
