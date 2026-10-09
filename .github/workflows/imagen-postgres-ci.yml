@@ -1,0 +1,119 @@
+# Publica en GHCR el Postgres con pgvector que usa el CI (#760).
+#
+# El por qué está en `infra/docker/postgres-pgvector.Dockerfile`, al lado del
+# código: resumido, Docker Hub limita las descargas anónimas por IP, las IP de
+# los runners son compartidas, y cuando el cupo se agota el job del CI muere en
+# «Initialize containers» sin decir nada útil. Esta imagen no toca Docker Hub en
+# ningún paso.
+#
+# ## Cuándo corre
+#
+# Semanal, a mano, y cuando cambia el Dockerfile o este archivo. Lo último es lo
+# que permite que la imagen EXISTA antes de que `ci.yml` le apunte: si los dos
+# cambios entraran en el mismo commit, el primer PR después del merge se cae
+# para todos.
+name: imagen-postgres-ci
+
+on:
+  schedule:
+    # Lunes temprano: `postgres:16` y el paquete de pgvector son etiquetas
+    # móviles, así que la imagen se refresca aunque nadie la toque.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+  push:
+    paths:
+      - infra/docker/postgres-pgvector.Dockerfile
+      - .github/workflows/imagen-postgres-ci.yml
+
+# Una a la vez, y gana la última: dos corridas estarían construyendo lo mismo.
+concurrency:
+  group: imagen-postgres-ci
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    # Si en quince minutos no construyó una imagen de Postgres más un
+    # `apt-get`, algo está mal afuera y seguir colgado no lo arregla.
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # Las dos acciones van con etiqueta móvil (`@v4`, `@v3`) como las otras 18
+      # del repositorio, y la regla que pide fijarlas a un SHA queda silenciada
+      # acá con su motivo (#758).
+      #
+      # Fijarlas es más seguro —una etiqueta la puede repuntar su dueño— y la
+      # decisión está planteada en #758 con su costo: cada actualización pasa a
+      # ser un PR con un SHA que nadie puede leer, y eso pide Dependabot, o sea
+      # un cambio de proceso. Pinear DOS acciones mientras las otras dieciocho
+      # siguen móviles no compra seguridad: compra una convención partida en dos
+      # que alguien va a tener que deshacer cuando #758 se decida.
+      #
+      # Cuando se decida, estas dos siguen el mismo camino que el resto y este
+      # comentario se va.
+      # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+      - uses: actions/checkout@v4
+
+      # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `docker build` pelado, sin buildx y sin `build-push-action` (#760).
+      #
+      # `docker/setup-buildx-action` arranca BuildKit en un contenedor y para
+      # eso descarga `moby/buildkit:buildx-stable-1`… **de Docker Hub**. O sea
+      # que el workflow que viene a dejar de depender de Docker Hub se caía
+      # justo ahí:
+      #
+      #   #1 pulling image moby/buildkit:buildx-stable-1
+      #   ERROR: Head "https://registry-1.docker.io/v2/moby/buildkit/manifests/
+      #   buildx-stable-1": … Client.Timeout exceeded
+      #
+      # Y `build-push-action` necesita buildx, así que se va con él. El demonio
+      # del runner trae BuildKit adentro: `docker build` no descarga nada para
+      # construir. Se pierde el caché de `type=gha` —un `apt-get install` sobre
+      # una imagen oficial, treinta segundos— y se pierde el multi-arquitectura,
+      # que acá no hace falta: esta imagen la consume el `services:` de un
+      # runner amd64, no una persona.
+      - name: Construir y publicar
+        env:
+          IMAGEN: ghcr.io/voxtilabs/postgres-pgvector:16
+        run: |
+          set -euo pipefail
+          docker build -f infra/docker/postgres-pgvector.Dockerfile -t "$IMAGEN" .
+          docker push "$IMAGEN"
+
+      - name: Qué versión de pgvector quedó
+        env:
+          IMAGEN: ghcr.io/voxtilabs/postgres-pgvector:16
+        run: |
+          set -euo pipefail
+          # Se comprueba lo que la imagen HACE, no que el build terminó: una
+          # imagen con el paquete instalado y la extensión sin poder crearse
+          # dejaría al CI fallando en la primera migración de `knowledge`, y el
+          # error aparecería a mitad de la suite, lejos de acá.
+          docker run -d --name pgv -e POSTGRES_PASSWORD=ci "$IMAGEN"
+          for i in $(seq 1 30); do
+            if docker exec pgv pg_isready -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          version=$(docker exec pgv psql -U postgres -tAc \
+            "CREATE EXTENSION vector; SELECT extversion FROM pg_extension WHERE extname='vector';" \
+            | tail -1)
+          # Y que `halfvec` con su índice HNSW funcione: es lo que usa el módulo
+          # `knowledge` desde #502, y es la parte que una versión vieja no tiene.
+          docker exec pgv psql -U postgres -c \
+            "CREATE TABLE t(v halfvec(2048)); CREATE INDEX ON t USING hnsw (v halfvec_cosine_ops);"
+          docker rm -f pgv >/dev/null
+          {
+            echo "## Postgres del CI"
+            echo ""
+            echo "- Imagen: \`$IMAGEN\`"
+            echo "- pgvector: **$version**"
+            echo "- \`halfvec(2048)\` con índice HNSW: funciona"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -11,9 +11,31 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # Ninguna imagen sale de Docker Hub (#760).
+    #
+    # Docker Hub limita las descargas anónimas por IP y las IP de los runners
+    # son compartidas: cuando el cupo se agota, el job muere en «Initialize
+    # containers» con `toomanyrequests`, sin una línea de log de pruebas y sin
+    # nada que apunte a la causa. El 09-10 dejó cinco PR trancados a la vez, y
+    # el reintento caía en lo mismo.
+    #
+    #  - **Postgres**: la construimos nosotros desde la oficial de AWS y la
+    #    publicamos en GHCR (`imagen-postgres-ci.yml`). La imagen de la
+    #    comunidad `pgvector/pgvector` vive solo en Docker Hub, y espejarla no
+    #    sirve: copiarla ES una descarga de Docker Hub, así que el espejo se cae
+    #    por lo mismo que vino a arreglar. Medido.
+    #  - **Redis**: es una imagen OFICIAL, y AWS espeja las oficiales en
+    #    `public.ecr.aws/docker/library/*` sin ese cupo. Un espejo propio de
+    #    algo ya espejado sería una pieza más por nada.
+    #
+    # **No vuelvas a apuntar un `services:` a Docker Hub**, aunque sea una sola
+    # y aunque sea chica: el cupo lo comparte el job entero.
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: ghcr.io/voxtilabs/postgres-pgvector:16
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
         env:
           POSTGRES_USER: iaxti
           POSTGRES_PASSWORD: iaxti
@@ -24,14 +46,25 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # Redis sale del espejo de AWS, no del nuestro: es una imagen OFICIAL y
+      # las oficiales están en `public.ecr.aws/docker/library/*`, que permite
+      # descargas anónimas sin el cupo de Docker Hub. Mantener un espejo propio
+      # de algo ya espejado sería una pieza más por nada. `pgvector` sí necesita
+      # el nuestro, porque es de la comunidad y no está ahí.
       redis:
-        image: redis:7-alpine
+        image: public.ecr.aws/docker/library/redis:7-alpine
         ports: ["6379:6379"]
     env:
       DATABASE_URL: postgres://iaxti:iaxti@127.0.0.1:5432/iaxti
       REDIS_URL: redis://127.0.0.1:6379
     steps:
+      # `fetch-depth: 0` por Semgrep (#756): compara contra la base del PR para
+      # bloquear SOLO lo que el PR introduce, y para eso necesita el commit base
+      # en el clon. Con el clon de un commit —el defecto— ese commit no existe y
+      # la comparación no se puede hacer.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -196,10 +229,62 @@ jobs:
       # Análisis estático de seguridad (#81). Corre en CADA PR y BLOQUEA:
       # un hallazgo de seguridad que solo avisa se ignora a la tercera vez.
       # El ruleset es el de OWASP + TypeScript de la propia Semgrep.
+      #
+      # El CLI por pip y NO `semgrep/semgrep-action@v1` (#756).
+      #
+      # Esa acción corre dentro del contenedor `returntocorp/semgrep-agent:v1`,
+      # que sale de Docker Hub SIN AUTENTICAR. Docker Hub limita las descargas
+      # anónimas por IP y las IP de los runners son compartidas, así que cuando
+      # el cupo se agota el job muere en «Pull returntocorp/semgrep-agent:v1»:
+      #
+      #   Error response from daemon: toomanyrequests: You have reached your
+      #   unauthenticated pull rate limit.
+      #
+      # Sin una línea de log de pruebas, sin nada que leer, y el PR rojo por
+      # algo que no tiene ninguna relación con su diff. Pasó cuatro veces
+      # seguidas el 09-10 y dejó #755 y #757 trancados. El reintento no es
+      # remedio ni diagnóstico: vuelve a caer en la misma, y lo que enseña es a
+      # apretar «rerun» ante cualquier rojo — el hábito justo que las guardas de
+      # este repo existen para evitar.
+      #
+      # `semgrep` es un paquete de Python y el runner ya trae Python: instalarlo
+      # saca el contenedor de la ecuación y con él el cupo. La acción además
+      # está marcada como obsoleta por Semgrep, que recomienda el CLI.
+      #
+      # ## Por qué contra la BASE y no contra todo
+      #
+      # La acción `:v1` congela un semgrep de hace años. Los packs
+      # (`p/typescript`, `p/owasp-top-ten`, `p/secrets`) se bajan del registro
+      # en cada corrida y han crecido: con el CLI de hoy, los mismos tres packs
+      # encuentran 27 hallazgos preexistentes —tags móviles de acciones, ajustes
+      # de pnpm, un `USER` que falta en el Dockerfile, dos inyecciones de shell
+      # en workflows—. O sea que el CI estaba verde porque miraba con los ojos
+      # de 2023, no porque el repo esté limpio.
+      #
+      # Bloquear los 27 de una en el PR que viene a desatascar el CI sería
+      # cambiar un rojo que no habla del cambio por otro. Y silenciarlos con
+      # `--exclude` sería apagar reglas de seguridad de verdad. Así que esto
+      # bloquea lo que el PR INTRODUCE —que es lo único de lo que su autor puede
+      # responder— y los 27 tienen su propio issue (#758), con la lista.
+      #
+      # `--error` conserva lo que importa: un hallazgo nuevo tumba el job. Sin
+      # eso Semgrep informa y devuelve 0, que es la versión que se ignora a la
+      # tercera vez.
       - name: Semgrep (SAST)
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: >-
-            p/typescript
-            p/owasp-top-ten
-            p/secrets
+        run: |
+          python -m pip install --disable-pip-version-check --quiet semgrep
+          # En un push a main no hay PR contra el que comparar: ahí se mira el
+          # commit anterior, que es el cambio que entró.
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "semgrep: sin commit base utilizable ($base); se mira el árbol completo."
+            base=""
+          fi
+          semgrep scan \
+            --config p/typescript \
+            --config p/owasp-top-ten \
+            --config p/secrets \
+            ${base:+--baseline-commit "$base"} \
+            --error \
+            --metrics off \
+            --quiet
