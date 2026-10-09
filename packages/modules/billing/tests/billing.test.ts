@@ -150,6 +150,18 @@ describe('el ciclo (#67)', () => {
     expect(evento.rows[0].n).toBe(1);
   });
 
+  /**
+   * Su propio presupuesto, igual que la de entregas de webhooks (#728).
+   *
+   * Medido: 10,7 s con la base en otra máquina, y bien debajo de 5 s con el
+   * Postgres local del runner de CI. Son muchos viajes a Postgres y son
+   * inherentes a lo que prueba: emitir el ciclo vencido, marcar la factura
+   * overdue, aplicar past_due, volver a barrer para llegar a read_only, y
+   * revisar el libro de auditoría al final.
+   *
+   * El límite GLOBAL no se toca: los 5 s cuidan que una prueba de unidad no se
+   * vuelva una de integración sin que nadie lo note.
+   */
   it('el barrido: emite el ciclo vencido, marca overdue y aplica past_due → read_only', async () => {
     // El ciclo quedó vencido, pero el período YA se facturó en el test
     // anterior: el sweep NO duplica (idempotente) y el ciclo avanza igual.
@@ -199,7 +211,7 @@ describe('el ciclo (#67)', () => {
     expect(audit.rows.map((r) => r.action)).toEqual(
       expect.arrayContaining(['billing.tenant.past_due', 'billing.tenant.read_only']),
     );
-  });
+  }, 30_000);
 });
 
 describe('lo que va a salir ESTE ciclo, antes de que te cobren (#67, SPEC §40)', () => {
