@@ -187,11 +187,12 @@ const ICONOS: Record<string, LucideIcon> = {
 /**
  * El menú dice la verdad sobre el plan (issue 215).
  *
- * `GET /me/modules` lo pide la página desde el SERVIDOR, sin sesión y sin
- * tenant: dibuja la navegación antes de saber quién mira. Acá ya hay sesión,
- * así que se pregunta `modules/acceso` y lo que el plan no incluye queda con
- * candado — en vez de dejar que alguien escriba media regla y se entere al
- * guardar.
+ * `GET /modules/catalogo` lo pide la página desde el SERVIDOR, sin sesión y sin
+ * tenant: dibuja la navegación antes de saber quién mira, y es el catálogo del
+ * despliegue para todos (#629). Acá ya hay sesión, así que se pregunta
+ * `modules/acceso` —la única que depende del negocio— y lo que el plan no
+ * incluye queda con candado, en vez de dejar que alguien escriba media regla y
+ * se entere al guardar.
  *
  * No se esconde: bajar de plan nunca borra (SPEC §6), y mostrar lo que se
  * estaría comprando vale más que ocultarlo.
@@ -206,7 +207,7 @@ function useModulosConCandado(): Set<string> {
     void Promise.all([
       // Qué rutas trae cada módulo: el menú llega aplanado y ahí ya se
       // perdió de qué módulo salió cada item.
-      fetch(`${config.apiUrl}/v1/me/modules`, { cache: 'no-store', signal: controller.signal }).then(
+      fetch(`${config.apiUrl}/v1/modules/catalogo`, { cache: 'no-store', signal: controller.signal }).then(
         (r) => r.json() as Promise<Array<{ id: string; nav: NavItem[] }>>,
       ),
       apiFetch<Array<{ id: string; acceso: 'completo' | 'solo_lectura' }>>(
@@ -451,8 +452,8 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
  * modo y "Cerrar sesión", todo al mismo peso. Ahora es una barra lateral
  * con grupos, estado activo e iconos, y los controles de sesión abajo.
  *
- * Lo que NO cambió, porque es la regla: la navegación sale de
- * `GET /me/modules` y un módulo apagado desaparece sin desplegar (SPEC §26).
+ * Lo que NO cambió, porque es la regla: la navegación sale del catálogo de
+ * módulos y uno apagado en el despliegue desaparece sin desplegar (SPEC §26).
  * El `grupo` de cada destino también viene de ahí.
  */
 export function AppShell(props: ShellProps) {
@@ -484,7 +485,7 @@ function useNavDeRespaldo(hace: boolean): {
     if (!hace) return;
     const controller = new AbortController();
     setFallo(false);
-    fetch(`${config.apiUrl}/v1/me/modules`, { cache: 'no-store', signal: controller.signal })
+    fetch(`${config.apiUrl}/v1/modules/catalogo`, { cache: 'no-store', signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error(`contestó ${r.status}`);
         return r.json() as Promise<Array<{ nav: NavItem[] }>>;

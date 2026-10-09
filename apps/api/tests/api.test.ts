@@ -54,8 +54,8 @@ describe('API base', () => {
     expect(body.message).not.toMatch(/Cannot GET/);
   });
 
-  it('GET /me/modules arma navegación desde los manifiestos activos', async () => {
-    const res = await fetch(`${base}/v1/me/modules`);
+  it('GET /modules/catalogo arma navegación desde los manifiestos activos', async () => {
+    const res = await fetch(`${base}/v1/modules/catalogo`);
     expect(res.status).toBe(200);
     const mods = await res.json();
     const ids = mods.map((m: { id: string }) => m.id);
@@ -66,6 +66,17 @@ describe('API base', () => {
     }
   });
 
+  it('y el nombre viejo contesta lo MISMO: el contrato de /v1 no se rompe', async () => {
+    // `GET /me/modules` sigue viva (#629) porque hay SDK generado y widgets
+    // afuera que la piden. Lo que cambió es que su documentación dejó de
+    // prometer que es «la de quien mira»: nunca lo fue. Se va en /v2.
+    const [vieja, nueva] = await Promise.all([
+      fetch(`${base}/v1/me/modules`).then((r) => r.json()),
+      fetch(`${base}/v1/modules/catalogo`).then((r) => r.json()),
+    ]);
+    expect(vieja).toEqual(nueva);
+  });
+
   it('la salud queda fuera del prefijo /v1 y OpenAPI se publica en /docs', async () => {
     expect((await fetch(`${base}/health`)).status).toBe(200);
     expect((await fetch(`${base}/health/modules`)).status).toBe(200);
@@ -73,6 +84,9 @@ describe('API base', () => {
     expect(docs.status).toBe(200);
     const spec = await docs.json();
     expect(spec.openapi).toBe('3.1.0');
+    expect(Object.keys(spec.paths)).toContain('/v1/modules/catalogo');
+    // La obsoleta también se publica: un cliente que la usa tiene que poder
+    // verla documentada —con su aviso— hasta que /v2 la saque.
     expect(Object.keys(spec.paths)).toContain('/v1/me/modules');
   });
 });

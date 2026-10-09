@@ -80,7 +80,9 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   // entrar, no del negocio. Sin permiso no hay cómo filtrarlas por quien
   // habla, así que ninguna puede ser herramienta.
   MeController_modules:
-    'Arma el menú de la aplicación para la sesión en curso; el agente no dibuja menús (#11).',
+    'Arma el menú de la aplicación; el agente no dibuja menús (#11). Obsoleta desde #629: contesta lo mismo que ModulesController_catalogo, que la reemplaza.',
+  ModulesController_catalogo:
+    'El catálogo de módulos del DESPLIEGUE, para dibujar el menú; el agente no dibuja menús (#629). Pública y sin permiso: devuelve lo mismo para todos y no hay nada del negocio que filtrar.',
   MeController_me: 'Dice quién es el usuario de la sesión; el agente ya actúa a nombre de alguien (#7).',
   InvitacionesController_aceptar:
     'Aceptar una invitación es un acto PERSONAL de quien la recibió, con su token; hacerlo por él no (#7).',

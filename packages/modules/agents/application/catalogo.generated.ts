@@ -3519,7 +3519,20 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
   "MeController_modules": {
     "metodo": "GET",
     "ruta": "/v1/me/modules",
-    "resumen": "Módulos activos con su navegación y widgets",
+    "resumen": "OBSOLETA: usa GET /modules/catalogo. Catálogo global, no por tenant",
+    "permiso": null,
+    "modulo": null,
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "ModulesController_catalogo": {
+    "metodo": "GET",
+    "ruta": "/v1/modules/catalogo",
+    "resumen": "Catálogo global de módulos del despliegue, con navegación y widgets",
     "permiso": null,
     "modulo": null,
     "soloSesion": false,

@@ -10,7 +10,7 @@ import type { WidgetItem } from '../../lib/nav';
 /**
  * Los widgets del inicio (#517).
  *
- * Los módulos los declaran en su `module.yaml` y `GET /me/modules` los
+ * Los módulos los declaran en su `module.yaml` y `GET /modules/catalogo` los
  * entrega; acá viven los componentes. El `id` es el contrato entre las dos
  * mitades, y hay una prueba que las compara: un widget declarado sin
  * componente falla el PR, y un componente sin declarar también — sin estar en

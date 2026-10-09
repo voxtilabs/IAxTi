@@ -13,7 +13,7 @@ import type { NavItem } from '../lib/nav';
  * misma sección, que es lo que Lino pidió — "la API en un solo lado, la IA
  * en un solo lado".
  *
- * Salen de `GET /me/modules`, igual que el menú. Acá no hay lista: si un
+ * Salen de `GET /modules/catalogo`, igual que el menú. Acá no hay lista: si un
  * módulo se apaga para el tenant, su pestaña desaparece sola.
  */
 export function PestanasAjustes({ items, candados }: { items: NavItem[]; candados: Set<string> }) {

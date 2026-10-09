@@ -45,4 +45,38 @@ describe('rutasConCandado', () => {
   it('un módulo sin navegación no rompe nada', () => {
     expect(rutasConCandado([{ id: 'billing' }], [{ id: 'billing', acceso: 'solo_lectura' }]).size).toBe(0);
   });
+
+  /**
+   * Dos negocios, el mismo catálogo, menús distintos (#629).
+   *
+   * El issue pedía una prueba con dos tenants donde el menú difiera, y pedía
+   * que difiriera **escondiendo** el módulo que el negocio no tiene encendido.
+   * Esa prueba no se puede escribir, y el motivo vale más que la prueba: hoy
+   * no existe ningún interruptor de módulo por tenant —`modules` vive en
+   * `plan_limits` (por plan) y en `platform_module_flags` (global)— y lo que el
+   * plan no incluye **no se esconde**: queda con candado, que es SPEC §6 con
+   * todas sus letras. Bajar de plan nunca borra ni esconde.
+   *
+   * Lo que sí difiere, y es lo que el negocio ve distinto, es el candado. El
+   * catálogo que llega es idéntico para los dos —es global, por eso se cachea y
+   * se pide sin sesión— y lo que lo vuelve de cada uno es `modules/acceso`.
+   *
+   * Que el SPEC prometa módulos por tenant y el producto no los tenga está en
+   * #752, con la decisión planteada.
+   */
+  it('dos negocios con el mismo catálogo ven menús distintos (#629)', () => {
+    const base = rutasConCandado(MODULOS, [
+      { id: 'crm', acceso: 'completo' },
+      { id: 'automations', acceso: 'solo_lectura' },
+      { id: 'authorization', acceso: 'completo' },
+    ]);
+    const crece = rutasConCandado(MODULOS, [
+      { id: 'crm', acceso: 'completo' },
+      { id: 'automations', acceso: 'completo' },
+      { id: 'authorization', acceso: 'completo' },
+    ]);
+    expect([...base]).toEqual(['/automatizaciones']);
+    expect([...crece]).toEqual([]);
+    expect(base, 'el menú de los dos negocios se ve igual').not.toEqual(crece);
+  });
 });

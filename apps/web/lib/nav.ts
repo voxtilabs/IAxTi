@@ -1,6 +1,7 @@
 /**
  * Un destino del menú, tal como lo declara el `module.yaml` de su módulo y
- * lo entrega `GET /me/modules`.
+ * lo entrega `GET /modules/catalogo` (#629: antes `GET /me/modules`, que
+ * prometía ser «los míos» y es el catálogo del despliegue).
  *
  * Vive acá y no en `app-shell.tsx` porque las pestañas de ajustes también
  * lo necesitan, y el shell las renderiza: importarlo de allá cerraba un
@@ -21,7 +22,7 @@ export interface NavItem {
  * Un widget del inicio, tal como lo declara el `module.yaml` de su módulo
  * (#517).
  *
- * Estaban declarados y expuestos por `GET /me/modules` desde el principio, y
+ * Estaban declarados y expuestos por el catálogo desde el principio, y
  * ningún componente los leía: el inicio mostraba la puesta en marcha para
  * siempre, también al negocio que terminó de configurarse hace medio año.
  *
@@ -81,12 +82,17 @@ const DESCONFIAR_MS = 60_000;
 
 async function pedirLosModulos(urlInterna: string, sinCache: boolean): Promise<ModuloConNav[]> {
   const res = await fetch(
-    `${urlInterna}/v1/me/modules`,
+    // `/modules/catalogo` y no `/me/modules` (#629): es el catálogo GLOBAL del
+    // despliegue, no «los módulos de quien mira» — esta petición sale del
+    // servidor sin sesión y sin tenant, así que no podría ser otra cosa. El
+    // nombre viejo sigue contestando por el contrato de /v1, pero decía lo que
+    // no era, y el menú se dibuja desde acá.
+    `${urlInterna}/v1/modules/catalogo`,
     // El minuto de caché es del camino feliz y lo puso #400 para no agotar el
     // cupo por IP. Sin cache es el camino de recuperación.
     sinCache ? { cache: 'no-store' } : { next: { revalidate: 60 } },
   );
-  if (!res.ok) throw new Error(`GET /v1/me/modules contestó ${res.status}`);
+  if (!res.ok) throw new Error(`GET /v1/modules/catalogo contestó ${res.status}`);
   return (await res.json()) as ModuloConNav[];
 }
 

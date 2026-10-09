@@ -280,24 +280,80 @@ class MeController {
   }
 
   /**
-   * El frontend arma navegación y widgets desde aquí: un módulo apagado
-   * desaparece sin desplegar (SPEC §26 regla 5). El acceso por PLAN va en
-   * `GET /me/modules/acceso`, que sí pide sesión (issue 215).
+   * El catálogo GLOBAL del despliegue, con su nombre viejo (#629).
+   *
+   * Se queda porque el contrato de `/v1` no se rompe: hay SDK generado y
+   * widgets afuera que la piden. Lo que cambia es que su documentación dejó de
+   * prometer lo que no cumple — abajo, en `catalogoDeModulos`, está escrito
+   * qué devuelve de verdad y por qué el nombre engaña. La ruta honesta es
+   * `GET /modules/catalogo`, que es la que usa esta app; esta se va en `/v2`.
    */
   @Get('modules')
-  @ApiOperation({ summary: 'Módulos activos con su navegación y widgets' })
+  @ApiOperation({
+    summary: 'OBSOLETA: usa GET /modules/catalogo. Catálogo global, no por tenant',
+  })
   modules() {
-    return registry
-      .health()
-      .filter((m) => m.active)
-      .map((m) => {
-        const manifest = registry.manifest(m.id);
-        return {
-          id: m.id,
-          nav: manifest.nav ?? [],
-          widgets: manifest.widgets ?? [],
-        };
-      });
+    return catalogoDeModulos();
+  }
+}
+
+/**
+ * Los módulos que este DESPLIEGUE tiene encendidos, con su navegación.
+ *
+ * ## Por qué dejó de llamarse «los míos» (#629)
+ *
+ * Vivía en `GET /me/modules` y su doc decía que el frontend armaba la
+ * navegación desde acá y que «un módulo apagado desaparece sin desplegar
+ * (SPEC §26 regla 5)». Las dos cosas juntas se leen como que la lista es del
+ * NEGOCIO que mira. No lo es: es `registry.health()`, el flag global del
+ * proceso. No tiene nada de `me`, y es pública a propósito —el servidor de Next
+ * la pide sin sesión para dibujar el menú antes de saber quién mira, y #400 la
+ * cacheó porque 26 páginas la llamaban—.
+ *
+ * ## Lo que se midió, y lo que el issue daba por cierto
+ *
+ * #629 decía que un negocio con `payments` apagado ve «Pagos» y al entrar
+ * recibe `MODULE_DISABLED`. Eso **hoy no puede pasar**, y vale la pena que
+ * quede escrito acá: no existe ningún interruptor de módulo POR TENANT.
+ * `modules` solo aparece en `plan_limits` (por plan) y en
+ * `platform_module_flags` (global). Si el módulo está apagado globalmente, esta
+ * lista ya lo excluye y el menú es correcto; y lo que el plan no incluye queda
+ * en `solo_lectura` —con candado, no escondido—, que es SPEC §6 con todas sus
+ * letras: bajar de plan nunca borra ni esconde.
+ *
+ * O sea que lo que faltaba no era un filtro: era que esta ruta dijera la
+ * verdad. Que SPEC §26 regla 5 prometa módulos por tenant y el producto no los
+ * tenga es otra cosa, más grande, y está en #752.
+ */
+function catalogoDeModulos() {
+  return registry
+    .health()
+    .filter((m) => m.active)
+    .map((m) => {
+      const manifest = registry.manifest(m.id);
+      return {
+        id: m.id,
+        nav: manifest.nav ?? [],
+        widgets: manifest.widgets ?? [],
+      };
+    });
+}
+
+@ApiTags('modules')
+@Controller('modules')
+class ModulesController {
+  /**
+   * El catálogo global, con el nombre que le corresponde (#629).
+   *
+   * Pública, igual que la vieja: el menú se dibuja desde el servidor antes de
+   * que haya sesión, y lo que devuelve es el mismo catálogo para todos. Lo que
+   * depende del negocio es el candado, y eso vive en `GET /me/modules/acceso`,
+   * que sí pide sesión y tenant.
+   */
+  @Get('catalogo')
+  @ApiOperation({ summary: 'Catálogo global de módulos del despliegue, con navegación y widgets' })
+  catalogo() {
+    return catalogoDeModulos();
   }
 }
 
@@ -935,6 +991,7 @@ const controllers = [
   AuditController,
   PlatformAuditController,
   MeController,
+  ModulesController,
   PlatformController,
   SupportStatusController,
   DemoController,
