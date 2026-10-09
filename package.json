@@ -9,12 +9,14 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "eslint .",
+    "antes-de-empujar": "bash scripts/antes-de-empujar.sh",
     "test": "turbo test",
     "migrate:deploy": "pnpm --filter @iaxti/db run build && pnpm --filter @iaxti/db run migrate",
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
     "seed": "pnpm --filter @iaxti/seed run build && pnpm --filter @iaxti/seed run seed",
     "zavu:conectar": "node scripts/conectar-zavu.mjs",
-    "catalogo": "node scripts/dump-openapi.mjs /tmp/iaxti-openapi.json && node scripts/generar-catalogo-herramientas.mjs /tmp/iaxti-openapi.json"
+    "catalogo": "node scripts/dump-openapi.mjs /tmp/iaxti-openapi.json && node scripts/generar-catalogo-herramientas.mjs /tmp/iaxti-openapi.json",
+    "columnas": "node scripts/columnas-sin-lector.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",

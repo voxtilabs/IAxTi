@@ -1,0 +1,40 @@
+# Columnas que se escriben y ningún SELECT devuelve (#703).
+#
+# Esta lista es un TRINQUETE, no una lista de tareas: la guarda falla si
+# aparece una columna nueva sin lector, y falla pidiendo bajar la marca si una
+# consigue lector y nadie la saca de acá. No afirma que este estado esté bien
+# — impide que empeore.
+#
+# Cada línea lleva su MOTIVO después de « — », y eso es a propósito: tener que
+# escribir el porqué es lo que impide que la lista crezca sola. Un motivo que
+# dice «pendiente» con su issue está bien; uno que no dice nada, no.
+#
+# `updated_at` queda fuera de la medición por regla, no por excepción: es una
+# marca operativa que la plataforma mantiene sola y que ninguna pantalla
+# muestra. Hay una por tabla de negocio, y diecisiete entradas diciendo lo
+# mismo enseñarían a no mirar esta lista. `created_at` NO queda fuera: «desde
+# cuándo existe esto» es información que el producto sí muestra.
+#
+# Se regenera con: node scripts/columnas-sin-lector.mjs --escribir
+# (conserva los motivos que ya estaban; las nuevas quedan con SIN MOTIVO y la
+#  guarda falla hasta que alguien escriba el porqué)
+
+agent_executions.decision — #699 cableó `tools_called` y dejó `decision` sin pantalla: qué decidió la corrida (responder, escalar, callarse) se guarda y no se muestra en ninguna parte.
+agent_proposals.agent_id — el configurador resuelve en vivo qué asistente arma la propuesta (#415), así que la columna guarda historia que ninguna pantalla recorre.
+api_keys.key_hash — la lee `resolver_api_key`, una función SQL que vive en la migración `0003_resolver_api_key.sql`. El escáner no mira dentro de las migraciones a propósito: son la escritura.
+appointments.cancel_reason — #700.
+appointments.created_at — la agenda ordena por `starts_at`, que es lo que le importa a quien la mira; cuándo se creó la cita no se muestra.
+appointments.google_event_id — #700.
+availability.created_at — la disponibilidad se lee entera y se reemplaza; cuándo se guardó cada franja no cambia nada.
+conversations.team_id — los equipos existen (#9) y la bandeja todavía no filtra por equipo: se escribe al asignar y ninguna consulta lo usa.
+custom_fields.created_at — los campos del negocio se listan por entidad y nombre; la fecha de creación no se muestra.
+invoices.subscription_id — #702.
+payment_links.currency — hoy todo link se emite en CLP y el monto viaja en `amount_clp`. La columna existe para cuando haya otra moneda, y hasta entonces nadie la lee.
+platform_audit.created_at — el panel de plataforma lista por `id DESC`, que en una tabla append-only es el mismo orden; la fecha no se proyecta.
+platform_support_sessions.started_at — lo que decide si la sesión de soporte está viva es `ends_at`, que sí se lee. Cuándo empezó no se muestra.
+subscriptions.created_at — la suscripción se muestra por su estado y su período vigente; desde cuándo existe no aparece.
+teams.created_at — los equipos se listan por nombre.
+webhook_deliveries.event_id — la entrega guarda de qué evento del outbox salió y el panel muestra `event_name`: no se puede ir de una entrega fallida al evento que la produjo.
+whatsapp_templates.created_at — #552.
+whatsapp_templates.reviewed_at — #552.
+whatsapp_templates.submitted_at — #552.

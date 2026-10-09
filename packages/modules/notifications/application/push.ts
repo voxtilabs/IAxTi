@@ -257,7 +257,21 @@ export async function sendPushToUser(
 export async function saludDelPush(
   client: PoolClient,
   tenantId: string,
-): Promise<{ dispositivos: number; fallando: number; archivadas: number }> {
+): Promise<{
+  dispositivos: number;
+  fallando: number;
+  archivadas: number;
+  /**
+   * Por qué se archivaron, con su cuenta.
+   *
+   * Distingue las dos razones, que no son lo mismo: «el usuario lo quitó» es
+   * una decisión suya y no hay nada que arreglar; «el servicio dijo que ya no
+   * existe» en varios dispositivos a la vez es una señal de que algo nuestro
+   * está mal. Sin esto, `archived_reason` sería una columna más que se escribe
+   * y nadie lee — justo lo que #703 viene a impedir.
+   */
+  archivadasPorMotivo: Array<{ motivo: string; n: number }>;
+}> {
   const r = await client.query(
     `SELECT count(*) FILTER (WHERE archived_at IS NULL)::int AS dispositivos,
             count(*) FILTER (WHERE archived_at IS NULL AND failed_count >= $2)::int AS fallando,
@@ -265,5 +279,15 @@ export async function saludDelPush(
        FROM push_subscriptions WHERE tenant_id = $1`,
     [tenantId, FALLAS_PARA_AVISAR],
   );
-  return r.rows[0];
+  const motivos = await client.query(
+    `SELECT coalesce(archived_reason, 'sin motivo') AS motivo, count(*)::int AS n
+       FROM push_subscriptions
+      WHERE tenant_id = $1 AND archived_at IS NOT NULL
+      GROUP BY 1 ORDER BY n DESC, motivo`,
+    [tenantId],
+  );
+  return {
+    ...r.rows[0],
+    archivadasPorMotivo: motivos.rows.map((f) => ({ motivo: f.motivo as string, n: f.n as number })),
+  };
 }

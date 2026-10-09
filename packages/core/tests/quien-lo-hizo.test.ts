@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { join } from 'node:path';
-import { columnasDeAutor, columnasDeAutorSinLector, lecturasPorTabla } from '../src/columnas-de-autor';
+import {
+  ES_DE_AUTOR,
+  columnasDeclaradas,
+  columnasSinLector,
+  lecturasPorTabla,
+} from '../src/columnas-sin-lector';
 
 /**
  * Las columnas que guardan QUIÉN, con trinquete (#697).
@@ -90,7 +95,7 @@ describe('el escáner distingue leer de escribir', () => {
 
 describe('las columnas de autor del repo (#697)', () => {
   it('el escáner encuentra algo (si esto falla, se rompió el escáner)', () => {
-    const todas = columnasDeAutor(MIGRACIONES).map((c) => `${c.tabla}.${c.columna}`);
+    const todas = columnasDeclaradas(MIGRACIONES, ES_DE_AUTOR).map((c) => `${c.tabla}.${c.columna}`);
     expect(todas.length).toBeGreaterThanOrEqual(8);
     // Tres que existen desde antes de esta guarda: si alguna desaparece de la
     // lista, el parseo del SQL se rompió y la guarda pasó a medir nada.
@@ -101,7 +106,7 @@ describe('las columnas de autor del repo (#697)', () => {
   });
 
   it('toda columna que guarda quién hizo algo tiene quién la lea', () => {
-    const sinLector = columnasDeAutorSinLector(MIGRACIONES, FUENTES);
+    const sinLector = columnasSinLector(MIGRACIONES, FUENTES, ES_DE_AUTOR);
     expect(
       sinLector,
       'Estas columnas guardan QUIÉN hizo algo y nadie las lee. Proyéctalas en la ' +

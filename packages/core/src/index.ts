@@ -45,6 +45,13 @@ export {
 // Qué publica cada módulo y quién lo usa (#664). Se exporta para que la guarda
 // pueda leerlo; no lo usa nada en producción, y eso está escrito en su lista.
 export { exportsSinConsumidor, valoresQuePublica } from './exports-sin-consumidor';
-// Las columnas que guardan QUIÉN, y quién las lee (#697).
-export { columnasDeAutor, columnasDeAutorSinLector, lecturasPorTabla, enCamello } from './columnas-de-autor';
-export type { ColumnaDeAutor } from './columnas-de-autor';
+// Columnas que se escriben y nadie lee, con trinquete (#703). La familia de
+// autores (#697) es el mismo escáner con un filtro: `ES_DE_AUTOR`.
+export {
+  columnasDeclaradas,
+  columnasSinLector,
+  lecturasPorTabla,
+  enCamello,
+  ES_DE_AUTOR,
+} from './columnas-sin-lector';
+export type { Columna } from './columnas-sin-lector';
