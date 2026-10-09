@@ -16,9 +16,11 @@ export type { Transportes } from './application/consumers';
 export { renderEmail, resolveUserEmail, sendNotificationEmail, resetSmtp } from './application/email';
 export {
   registerPushSubscription,
-  deletePushSubscription,
+  // Archiva, no borra (#698): nada se borra desde la interfaz (SPEC §39).
+  archivePushSubscription,
   listPushSubscriptions,
   sendPushToUser,
+  saludDelPush,
   vapidFromEnv,
 } from './application/push';
 export type { PushSubscription, PushPayload, PushSender, ResultadoPush, VapidConfig } from './application/push';

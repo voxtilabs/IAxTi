@@ -18,7 +18,9 @@ import {
   markRead,
   setPreference,
   registerPushSubscription,
-  deletePushSubscription,
+  archivePushSubscription,
+  listPushSubscriptions,
+  saludDelPush,
   vapidFromEnv,
 } from '@iaxti/module-notifications';
 import { z } from 'zod';
@@ -161,10 +163,48 @@ export class NotificationsController {
     @Cuerpo(BajaDePush) body: z.infer<typeof BajaDePush>,
   ) {
     const actor = actorOf(request);
+    // Archiva y no borra (#698): nada se borra desde la interfaz (SPEC §39).
+    // Para quien aprieta el botón es lo mismo —el dispositivo desaparece de su
+    // lista— y el rastro de que recibía avisos no se pierde.
     await withTenant(pool(), actor.tenantId, (c) =>
-      deletePushSubscription(c, actor.tenantId, body.endpoint),
+      archivePushSubscription(c, actor.tenantId, body.endpoint, 'el usuario lo quitó'),
     );
     return { subscribed: false };
+  }
+
+  /**
+   * La salud de los avisos de este usuario (#698).
+   *
+   * `last_ok_at` y `failed_at` se escribían en cada envío y ninguna consulta las
+   * devolvía: una suscripción muerta hace semanas seguía en la tabla y el
+   * producto creía que estaba avisando. El dueño no recibía nada y nadie se
+   * enteraba.
+   *
+   * Devuelve los dispositivos con su estado —criterio 3— y el conteo del
+   * negocio, que es el diagnóstico del criterio 4. No va en `/ready`: un
+   * dispositivo que no recibe avisos no es razón para sacar la API de rotación.
+   */
+  @Get('push/salud')
+  @RequirePermission('notifications.manage_own')
+  @ApiOperation({ summary: 'Si tus avisos están llegando, dispositivo por dispositivo' })
+  async saludPush(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const dispositivos = await listPushSubscriptions(c, actor.tenantId, actor.userId);
+      return {
+        // El endpoint no viaja: es una URL de servicio y una credencial de
+        // hecho. Lo que la pantalla necesita es QUÉ dispositivo y cómo va.
+        dispositivos: dispositivos.map((d) => ({
+          id: d.id,
+          userAgent: d.userAgent,
+          ultimoOkEl: d.ultimoOkEl,
+          ultimaFallaEl: d.ultimaFallaEl,
+          fallasSeguidas: d.fallasSeguidas,
+          avisarQueNoLlega: d.avisarQueNoLlega,
+        })),
+        negocio: await saludDelPush(c, actor.tenantId),
+      };
+    });
   }
 
   @Get('push/clave')

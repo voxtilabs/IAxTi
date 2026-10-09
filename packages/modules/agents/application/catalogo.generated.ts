@@ -3506,6 +3506,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "NotificationsController_saludPush": {
+    "metodo": "GET",
+    "ruta": "/v1/notifications/push/salud",
+    "resumen": "Si tus avisos están llegando, dispositivo por dispositivo",
+    "permiso": "notifications.manage_own",
+    "modulo": "notifications",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "NotificationsController_setPref": {
     "metodo": "PUT",
     "ruta": "/v1/notifications/preferences",

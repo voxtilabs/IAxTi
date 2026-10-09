@@ -150,7 +150,6 @@ notifications/TIPOS_CRITICOS
 notifications/TIPOS_LEGIBLES
 notifications/dispatchTeamWhatsApp
 notifications/handleNotifiableEvent
-notifications/listPushSubscriptions
 notifications/notifyUser
 notifications/renderEmail
 notifications/resetSmtp
