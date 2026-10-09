@@ -55,3 +55,6 @@ export {
   ES_DE_AUTOR,
 } from './columnas-sin-lector';
 export type { Columna } from './columnas-sin-lector';
+// Barridos que recorren todos los tenants, con trinquete (#743).
+export { barridosDelRepo, llamadasDeBarrido } from './barridos-sin-lista';
+export type { LlamadaDeBarrido } from './barridos-sin-lista';
