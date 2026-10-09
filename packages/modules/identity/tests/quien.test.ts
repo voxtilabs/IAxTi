@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { acceptInvitation, createInvitation, upsertProfile } from '../application/invitations';
-import { quienEs, quienesSon, quienFue } from '../application/quien';
+import { quienEs, quienesSon, quienesSonEnLaPlataforma, quienFue } from '../application/quien';
 
 /**
  * Quién hizo esto (#697).
@@ -85,12 +87,22 @@ describe('quién hizo esto (#697)', () => {
     });
   });
 
-  it('sin tenant no se afirma pertenencia: null, no false', async () => {
-    // Ámbito plataforma. Un SuperAdmin que apagó el Agente General no pertenece
-    // al equipo de ningún negocio: decir «ya no está en el equipo» de alguien
-    // que nunca estuvo sería afirmar algo falso.
-    const q = await withTenant(admin, tenant, (c) => quienEs(c, null, conNombre));
-    expect(q).toEqual({ userId: conNombre, nombre: 'Carla', enElEquipo: null });
+  it('en la plataforma no se afirma pertenencia: null, no false', async () => {
+    // Un SuperAdmin que apagó el Agente General no pertenece al equipo de ningún
+    // negocio: decir «ya no está en el equipo» de alguien que nunca estuvo sería
+    // afirmar algo falso.
+    const mapa = await quienesSonEnLaPlataforma(admin, [conNombre]);
+    expect(mapa.get(conNombre)).toEqual({ userId: conNombre, nombre: 'Carla', enElEquipo: null });
+  });
+
+  it('la consulta de plataforma NO toca user_roles, que tiene RLS', async () => {
+    // Corre suelta al pool —el panel de SuperAdmin vive fuera de `withTenant`—
+    // y con el rol de producción una tabla con RLS devolvería cero filas sin
+    // error: todo el mundo saldría como «ya no está en el equipo». Por eso son
+    // dos consultas y no una con el tenant en null (la guarda de #286).
+    const fuente = readFileSync(join(__dirname, '..', 'application', 'quien.ts'), 'utf8');
+    const plataforma = fuente.slice(fuente.indexOf('export async function quienesSonEnLaPlataforma'));
+    expect(plataforma.slice(0, plataforma.indexOf('\n}'))).not.toContain('user_roles');
   });
 
   it('varios de una vez, sin repetir ni preguntar por los nulos', async () => {
@@ -103,12 +115,9 @@ describe('quién hizo esto (#697)', () => {
   });
 
   it('una lista sin ids no va a la base', async () => {
-    const mapa = await quienesSon(
-      { query: () => { throw new Error('no debería consultar'); } } as never,
-      tenant,
-      [null, undefined],
-    );
-    expect(mapa.size).toBe(0);
+    const reventar = { query: () => { throw new Error('no debería consultar'); } } as never;
+    expect((await quienesSon(reventar, tenant, [null, undefined])).size).toBe(0);
+    expect((await quienesSonEnLaPlataforma(reventar, [null, undefined])).size).toBe(0);
   });
 
   it('quienFue de un null es null: no hay a quién atribuirlo', () => {

@@ -28,33 +28,41 @@ export interface Quien {
    * Importa para la pantalla: a alguien que ya no está no se le muestra el UUID
    * —no significa nada para quien lee— se dice que ya no está.
    *
-   * `null` cuando la pregunta no corresponde: un SuperAdmin que apagó el Agente
-   * General no pertenece al equipo de ningún negocio, y decir «ya no está en el
-   * equipo» de alguien que nunca estuvo sería afirmar algo falso.
+   * `null` cuando la pregunta no corresponde — ámbito plataforma, vía
+   * `quienesSonEnLaPlataforma`: un SuperAdmin que apagó el Agente General no
+   * pertenece al equipo de ningún negocio, y decir «ya no está en el equipo» de
+   * alguien que nunca estuvo sería afirmar algo falso.
    */
   enElEquipo: boolean | null;
 }
 
 /**
- * Resuelve varios ids de una vez.
+ * Resuelve varios ids de una vez, DENTRO del tenant.
  *
  * De a uno sería una consulta por fila de la lista; acá la lista entera cuesta
  * un viaje. Los nulos y repetidos se descartan antes de preguntar.
+ *
+ * Pide un `PoolClient` de verdad y no un `Pick<..., 'query'>` a propósito:
+ * `user_roles` tiene RLS, así que esta consulta SOLO es correcta dentro de un
+ * `withTenant`. Suelta al pool, con el rol de producción, la política evaluaría
+ * `tenant_id = NULL` y devolvería cero filas **sin error** — y entonces todo el
+ * mundo saldría como «alguien que ya no está en el equipo». Una respuesta falsa
+ * presentada como un hecho, que es justo el defecto que este issue viene a
+ * sacar. La guarda de #286 lo caza, y tenía razón.
  */
 export async function quienesSon(
-  client: Pick<PoolClient, 'query'>,
-  /** `null` para el ámbito plataforma: el nombre sin preguntar por pertenencia. */
-  tenantId: string | null,
+  client: PoolClient,
+  tenantId: string,
   userIds: ReadonlyArray<string | null | undefined>,
 ): Promise<Map<string, Quien>> {
-  const ids = [...new Set(userIds.filter((x): x is string => typeof x === 'string' && x.length > 0))];
+  const ids = idsLimpios(userIds);
   if (ids.length === 0) return new Map();
   const r = await client.query(
     `SELECT u.id,
             p.name AS nombre,
-            CASE WHEN $2::uuid IS NULL THEN NULL ELSE EXISTS (
+            EXISTS (
               SELECT 1 FROM user_roles ur WHERE ur.tenant_id = $2 AND ur.user_id = u.id
-            ) END AS en_el_equipo
+            ) AS en_el_equipo
        FROM unnest($1::uuid[]) AS u(id)
        LEFT JOIN user_profiles p ON p.user_id = u.id`,
     [ids, tenantId],
@@ -65,10 +73,48 @@ export async function quienesSon(
       {
         userId: f.id as string,
         nombre: (f.nombre as string) ?? null,
-        enElEquipo: (f.en_el_equipo as boolean | null) ?? null,
+        enElEquipo: f.en_el_equipo as boolean,
       },
     ]),
   );
+}
+
+/**
+ * Lo mismo en ámbito PLATAFORMA: el nombre, sin preguntar por pertenencia.
+ *
+ * Es para quien apagó el Agente General o tocó un flag de módulo: un
+ * SuperAdmin, que no pertenece al equipo de ningún negocio. Por eso
+ * `enElEquipo` llega en `null` y no en `false` — decir «ya no está en el
+ * equipo» de alguien que nunca estuvo sería afirmar algo falso.
+ *
+ * Y por eso NO consulta `user_roles`: no hay tenant por el que preguntar, el
+ * panel corre fuera de `withTenant`, y `user_profiles` no tiene RLS porque no
+ * lleva tenant. Dos ámbitos, dos consultas: una sola con un `tenantId` nulo
+ * dejaría una tabla con RLS en un camino que corre suelto al pool.
+ */
+export async function quienesSonEnLaPlataforma(
+  client: Pick<PoolClient, 'query'>,
+  userIds: ReadonlyArray<string | null | undefined>,
+): Promise<Map<string, Quien>> {
+  const ids = idsLimpios(userIds);
+  if (ids.length === 0) return new Map();
+  const r = await client.query(
+    `SELECT u.id, p.name AS nombre
+       FROM unnest($1::uuid[]) AS u(id)
+       LEFT JOIN user_profiles p ON p.user_id = u.id`,
+    [ids],
+  );
+  return new Map(
+    r.rows.map((f) => [
+      f.id as string,
+      { userId: f.id as string, nombre: (f.nombre as string) ?? null, enElEquipo: null },
+    ]),
+  );
+}
+
+/** Sin nulos, sin vacíos y sin repetidos: lo que vale la pena preguntar. */
+function idsLimpios(userIds: ReadonlyArray<string | null | undefined>): string[] {
+  return [...new Set(userIds.filter((x): x is string => typeof x === 'string' && x.length > 0))];
 }
 
 /**
@@ -85,8 +131,8 @@ export function quienFue(quien: Map<string, Quien> | undefined, userId: unknown)
 
 /** Lo mismo para UN id, que es el caso del interruptor y de la ficha. */
 export async function quienEs(
-  client: Pick<PoolClient, 'query'>,
-  tenantId: string | null,
+  client: PoolClient,
+  tenantId: string,
   userId: string | null | undefined,
 ): Promise<Quien | null> {
   if (!userId) return null;

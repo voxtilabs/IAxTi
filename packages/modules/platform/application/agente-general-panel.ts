@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
+import { quienesSonEnLaPlataforma, quienFue, type Quien } from '@iaxti/module-identity';
 import { platformAudit } from './planes';
 
 /**
@@ -60,7 +60,7 @@ export async function agenteGeneralApagado(
     motivo: f.motivo as string,
     apagadoEl: f.apagado_el as Date,
     apagadoPor: quienFue(
-      await quienesSon(client, null, [f.apagado_por as string | null]),
+      await quienesSonEnLaPlataforma(client, [f.apagado_por as string | null]),
       f.apagado_por,
     ),
   };
@@ -218,7 +218,7 @@ export async function resumenDelAgenteGeneral(
   );
   // Quién apagó qué, en un viaje (#697). Ámbito plataforma: son SuperAdmins y
   // no pertenecen al equipo de ningún negocio.
-  const quien = await quienesSon(client, null, [
+  const quien = await quienesSonEnLaPlataforma(client, [
     ...apagados.rows.map((a) => a.apagado_por as string | null),
     ...global.rows.map((g) => g.apagado_por as string | null),
   ]);
