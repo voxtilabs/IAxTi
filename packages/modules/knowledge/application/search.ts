@@ -38,6 +38,20 @@ const CACHE_TTL = "interval '1 hour'";
  */
 const FUENTE_VIGENTE = `s.status = 'active' AND (s.valid_until IS NULL OR s.valid_until > now())`;
 
+/**
+ * Nota para quien venga a "mejorar" esa constante (#631).
+ *
+ * Dice qué fuente SÍ sirve; no enumera las que no. Por eso el estado
+ * `delete_failed` —fuente viva, archivo destruido— quedó excluido de los tres
+ * lugares que la usan (los pasajes, el chequeo de frescura del cache y el
+ * catálogo de productos) sin tocar ninguna consulta.
+ *
+ * Reescribirla como `s.status <> 'expired'` o como una lista de exclusiones
+ * reabre el agujero en el momento en que aparezca el próximo estado: el estado
+ * nuevo entra como vigente por omisión, que es exactamente cómo un PDF que
+ * nadie puede bajar se siguió citando con la bendición del chequeo de frescura.
+ */
+
 const SQL_PASAJES = `SELECT c.content, c.question, s.id AS source_id, s.name AS source_name,
             1 - (c.embedding <=> $2::halfvec) AS score
        FROM chunks c

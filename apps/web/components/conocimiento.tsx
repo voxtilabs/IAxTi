@@ -28,7 +28,7 @@ interface FuenteDto {
   id: string;
   kind: 'texto' | 'pdf' | 'url' | 'faq' | 'catalogo';
   name: string;
-  status: 'processing' | 'active' | 'expired' | 'failed';
+  status: 'processing' | 'active' | 'expired' | 'failed' | 'delete_failed';
   error: string | null;
   validUntil: string | null;
   chunkCount?: number;
@@ -69,6 +69,11 @@ const ESTADO: Record<FuenteDto['status'], { label: string; role: 'good' | 'warn'
   processing: { label: 'Procesando', role: 'neutral' },
   expired: { label: 'Vencida', role: 'warn' },
   failed: { label: 'Falló', role: 'bad' },
+  // Fuente viva, archivo destruido (#631). La etiqueta dice lo que pasó con el
+  // ARCHIVO y no «falló»: lo que hay que hacer con ésta es otra cosa —volver a
+  // subir el documento o terminar de borrarla—, y «falló» manda a reintentar la
+  // indexación, que acá no arregla nada.
+  delete_failed: { label: 'Sin su archivo', role: 'bad' },
 };
 
 /**
@@ -434,8 +439,14 @@ export function Conocimiento() {
                     {reindexando === f.id ? 'Reindexando…' : 'Reindexar'}
                   </Button>
                 )}
+                {/* Reindexar NO se ofrece sobre una fuente sin su archivo
+                    (#631): el documento ya no está, así que volver a indexarlo
+                    no puede salir bien. Lo que queda es terminar de borrarla
+                    —el archivo ya no está, el borrado completa— y subir el
+                    documento de nuevo, que es el control que está arriba en
+                    esta misma pantalla. */}
                 <Button variant="fantasma" size="chico" onClick={() => void eliminar(f.id)}>
-                  Eliminar
+                  {f.status === 'delete_failed' ? 'Terminar de borrar' : 'Eliminar'}
                 </Button>
               </li>
               );
