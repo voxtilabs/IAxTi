@@ -152,24 +152,19 @@ export async function sweepResponseSamples(pool: Pool): Promise<number> {
            FROM conversations c
            JOIN tenants t ON t.id = c.tenant_id
           WHERE c.tenant_id = $1 AND c.first_response_at > now() - interval '26 hours'
-          -- El arbitro es conversation_id y no la clave primaria (#748).
+          -- El arbitro vuelve a ser la primaria, y ahora SI alcanza (#748).
           --
-          -- response_samples tiene DOS unicas: la primaria compuesta y una
-          -- sobre conversation_id sola. ON CONFLICT solo absorbe el choque del
-          -- indice que se le NOMBRA; en cualquier otra unica, lanza. Con la
-          -- compuesta como arbitro, un choque en la de conversation_id -misma
-          -- conversacion, otro tenant- se cae con "duplicate key value
-          -- violates unique constraint response_samples_conversation_id_key",
-          -- que es como aparecio.
+          -- ON CONFLICT protege UN indice: inserta especulativamente en el que
+          -- se le nombra y espera al que este a medias. En las demas unicas no
+          -- hay nada de eso, y la que no es arbitro lanza. Con dos unicas que
+          -- se pisan, las dos orientaciones estaban rotas bajo concurrencia:
+          -- nombrar la primaria tiraba el error de la unica de
+          -- conversation_id, y nombrar esa ultima tiraba el de la primaria.
           --
-          -- conversation_id es la MAS ESTRICTA de las dos: no se puede chocar
-          -- en la compuesta sin chocar tambien en ella. Nombrarla cubre los
-          -- dos casos y deja el barrido de verdad idempotente, que es lo que
-          -- este DO NOTHING prometia desde el primer dia.
-          --
-          -- Sin comillas invertidas aca: esto va DENTRO de un template
-          -- literal, y una sola lo corta. Costo una corrida.
-          ON CONFLICT (conversation_id) DO NOTHING`,
+          -- La migracion 0004 saca la unica redundante. Queda una sola, es la
+          -- que se nombra aca, y recien ahora este DO NOTHING hace lo que
+          -- promete cuando dos barridos se solapan.
+          ON CONFLICT (tenant_id, conversation_id) DO NOTHING`,
         [tenantId, TZ_POR_DEFECTO],
       );
       return r.rowCount ?? 0;

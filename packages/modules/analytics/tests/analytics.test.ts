@@ -144,8 +144,12 @@ describe('primera respuesta y "sin responder ahora" (#66)', () => {
       [tenant, contacto.rows[0].id],
     );
 
-    const primera = await sweepResponseSamples(admin);
-    expect(primera).toBeGreaterThanOrEqual(3);
+    // El TOTAL del barrido no se afirma (#745, y volvió a aparecer con #748):
+    // `sweepResponseSamples` es global y otra suite corriendo al lado puede
+    // haberle tomado estas mismas muestras un instante antes —vitest corre los
+    // archivos del paquete en paralelo—, así que su número no es de esta
+    // prueba. Lo que es de esta prueba son SUS tres conversaciones.
+    await sweepResponseSamples(admin);
 
     // La idempotencia se mide SOBRE ESTE TENANT y no sobre el total que
     // devuelve el barrido (#738). `sweepResponseSamples` es global: si otra
@@ -160,6 +164,7 @@ describe('primera respuesta y "sin responder ahora" (#66)', () => {
         ])
       ).rows[0].n as number;
     const antes = await mias();
+    expect(antes, 'las tres conversaciones respondidas se muestrearon').toBeGreaterThanOrEqual(3);
     await sweepResponseSamples(admin);
     expect(await mias(), 'una muestra por conversación, no dos').toBe(antes);
 
