@@ -45,6 +45,23 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
 const PRESUPUESTO_BANDEJA = 7;
 const PRESUPUESTO_CON_CONVERSACION = 21;
 
+/**
+ * Espera a que la pantalla deje de pedir cosas, y devuelve cuántas puertas tocó.
+ *
+ * Dos lecturas iguales seguidas, no un `waitForTimeout`: la ficha y las
+ * secuencias llegan después del chat, y un tiempo fijo mediría cuánto alcanzó a
+ * pedir la página antes de que la prueba siguiera — que es el defecto de #681,
+ * cometido de nuevo en la prueba que viene a medir.
+ */
+async function cuandoDejeDePedir(puertas: Set<string>): Promise<number> {
+  let anterior = -1;
+  for (let i = 0; i < 40 && anterior !== puertas.size; i++) {
+    anterior = puertas.size;
+    await new Promise((listo) => setTimeout(listo, 400));
+  }
+  return puertas.size;
+}
+
 test('abrir la bandeja y una conversación no cuesta más llamadas que las medidas (#711)', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.addInitScript((auth) => {
@@ -71,27 +88,25 @@ test('abrir la bandeja y una conversación no cuesta más llamadas que las medid
   const conversaciones = lista.locator('ul > li').getByRole('button');
   await expect(conversaciones.first()).toBeVisible();
 
+  // Un PRESUPUESTO, o sea un techo: pedir menos es la meta, no un fallo. Lo que
+  // esto caza es el crecimiento, que es lo que pasa solo.
   expect(
-    [...puertas].sort(),
-    `Abrir la bandeja cuesta ${puertas.size} llamadas y el presupuesto es ${PRESUPUESTO_BANDEJA} (#711). ` +
-      'Con la base a 64 ms de viaje, cada una se paga. Si la llamada nueva hace falta, sube el ' +
-      'número acá y escribe por qué en el PR.',
-  ).toHaveLength(PRESUPUESTO_BANDEJA);
+    await cuandoDejeDePedir(puertas),
+    `Abrir la bandeja toca estas puertas:\n  ${[...puertas].sort().join('\n  ')}\n` +
+      `Son ${puertas.size} y el presupuesto es ${PRESUPUESTO_BANDEJA} (#711). Con la base a 64 ms de ` +
+      'viaje, cada una se paga. Si la llamada nueva hace falta, sube el número acá y escribe por qué ' +
+      'en el PR.',
+  ).toBeLessThanOrEqual(PRESUPUESTO_BANDEJA);
 
   await conversaciones.first().click();
   await expect(page.getByRole('region', { name: 'Conversación', exact: true })).toBeVisible();
-  // La ficha y las secuencias llegan después del chat: sin esta espera, el
-  // número mediría cuánto alcanzó a pedir la página antes de que la prueba
-  // siguiera, que es otra forma de medir la carga de la máquina.
+  // La ficha llega después del chat, así que se espera a verla antes de contar.
   await expect(page.getByText('Notas del equipo')).toBeVisible();
-  await expect
-    .poll(() => puertas.size, { timeout: 10_000, intervals: [250] })
-    .toBeGreaterThanOrEqual(PRESUPUESTO_CON_CONVERSACION);
 
   expect(
-    [...puertas].sort(),
-    `Abrir una conversación cuesta ${puertas.size} llamadas distintas y el presupuesto es ` +
-      `${PRESUPUESTO_CON_CONVERSACION} (#711). Agruparlas es #761; agregar una más es una decisión ` +
-      'que se escribe, no un número que sube solo.',
-  ).toHaveLength(PRESUPUESTO_CON_CONVERSACION);
+    await cuandoDejeDePedir(puertas),
+    `Abrir una conversación toca estas puertas:\n  ${[...puertas].sort().join('\n  ')}\n` +
+      `Son ${puertas.size} y el presupuesto es ${PRESUPUESTO_CON_CONVERSACION} (#711). Agruparlas es ` +
+      '#761; agregar una más es una decisión que se escribe, no un número que sube solo.',
+  ).toBeLessThanOrEqual(PRESUPUESTO_CON_CONVERSACION);
 });
