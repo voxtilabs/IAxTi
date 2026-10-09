@@ -29,6 +29,7 @@ import {
   listSavedFilters,
   moveDealStage,
   renamePipeline,
+  RangoInvalido,
   reorderStages,
   saveFilter,
   updateStage,
@@ -278,30 +279,25 @@ export class DealsController {
     @Query('owner') owner?: string,
   ) {
     const actor = actorOf(request);
-    for (const [nombre, valor] of [['from', from], ['to', to]] as const) {
-      if (valor !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: `El rango de fechas no se entiende (${nombre} como AAAA-MM-DD).`,
-        });
-      }
-    }
-    if (from && to && from > to) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'El rango de fechas no se entiende: la fecha de inicio es posterior a la de término.',
-      });
-    }
     const verTodo = actorCan(actor, 'crm.read_all');
-    return withTenant(pool(), actor.tenantId, (c) =>
-      getEmbudo(c, {
-        tenantId: actor.tenantId,
-        pipelineId,
-        from,
-        to,
-        ownerId: verTodo ? (owner ?? null) : actor.userId,
-      }),
-    );
+    // Relevo: el rango lo valida el módulo, que es de quien es la regla.
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        getEmbudo(c, {
+          tenantId: actor.tenantId,
+          pipelineId,
+          from,
+          to,
+          ownerId: verTodo ? (owner ?? null) : actor.userId,
+        }),
+      );
+    } catch (err) {
+      // SOLO el rango: una base caída no es un dato mal escrito.
+      if (err instanceof RangoInvalido) {
+        throw new BadRequestException({ code: 'VALIDATION_ERROR', message: err.message });
+      }
+      throw err;
+    }
   }
 
   /** La historia de etapas de una oportunidad, para la ficha (#32/#695). */

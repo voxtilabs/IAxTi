@@ -78,7 +78,40 @@ function dias(segundos: unknown): number | null {
   return Math.round((Number(segundos) / SEGUNDOS_POR_DIA) * 10) / 10;
 }
 
+const UN_DIA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Un rango que no se entiende.
+ *
+ * Tiene su clase para que el controlador traduzca SOLO esto y no cualquier
+ * error: envolver la consulta entera en un `catch` que responda
+ * VALIDATION_ERROR haría que una base caída se reportara como un dato mal
+ * escrito, y quien lo lea va a corregir la fecha para siempre.
+ */
+export class RangoInvalido extends Error {}
+
+/**
+ * El rango se valida acá, no en el controlador.
+ *
+ * Es una regla del embudo —la cohorte son los días que se piden— y el mensaje
+ * lo lee alguien que está mirando un reporte. Escribirlo en el controlador
+ * dejaría la regla en el borde y el mensaje repetido en cada puerta nueva.
+ */
+function validarRango(input: EmbudoInput): void {
+  for (const [nombre, valor] of [['from', input.from], ['to', input.to]] as const) {
+    if (valor !== undefined && !UN_DIA.test(valor)) {
+      throw new RangoInvalido(`El rango de fechas no se entiende (${nombre} como AAAA-MM-DD).`);
+    }
+  }
+  if (input.from && input.to && input.from > input.to) {
+    throw new RangoInvalido(
+      'El rango de fechas no se entiende: la fecha de inicio es posterior a la de término.',
+    );
+  }
+}
+
 export async function getEmbudo(client: PoolClient, input: EmbudoInput): Promise<Embudo> {
+  validarRango(input);
   // Un solo viaje a Postgres: el embudo se mira entero o no se mira.
   const r = await client.query(
     `WITH etapas AS (

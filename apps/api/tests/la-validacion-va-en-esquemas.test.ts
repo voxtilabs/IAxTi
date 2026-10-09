@@ -33,7 +33,11 @@ const CON_MOTIVO: Record<string, number> = {
   'campanas.controller.ts': 2,
   'tags.controller.ts': 1,
   'plantillas.controller.ts': 1,
-  'deals.controller.ts': 4,
+  // Cuatro relevos de etapas y pipelines, más el rango del embudo (#695): la
+  // cohorte son los días que se piden, así que la regla es del módulo y el
+  // controlador traduce SOLO `RangoInvalido` — una base caída no es un dato mal
+  // escrito.
+  'deals.controller.ts': 5,
   // Relevo del dominio: el mensaje lo arma comparando `custom` contra los
   // campos que DECLARÓ ese negocio (tipo, obligatoriedad, opciones de lista).
   // El esquema no sabe qué declaró cada tenant.
