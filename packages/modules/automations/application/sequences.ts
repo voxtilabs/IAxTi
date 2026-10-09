@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
-import { idsDeTenants, withTenant } from '@iaxti/db';
+import { withTenant } from '@iaxti/db';
 import { isWithinWindow, salePorProveedor } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
 import { ruleModuleGaps, ACTION_REQUIREMENTS, type Action } from '../domain/rules';
@@ -241,8 +241,27 @@ export function sequenceConsumers(): Consumer[] {
  * hasta que las plantillas de #44 existan).
  */
 export async function sweepSequences(pool: Pool, deps: EngineDeps): Promise<number> {
-  // De `tenants`, no de `sequence_enrollments` (#286).
-  const tenants = { rows: (await idsDeTenants(pool)).map((id) => ({ tenant_id: id })) };
+  // A QUIÉN visitar se pregunta UNA vez (#740, ADR-0026).
+  //
+  // Antes se recorrían todos los tenants vivos, abriendo una transacción por
+  // cada uno para descubrir que no tiene ninguna inscripción vencida. Medido
+  // con 1.283 tenants: 4,5 ms cada uno, ~5,8 s el tick entero — y éste corre
+  // cada pocos minutos, como el de recordatorios.
+  //
+  // `sequence_enrollments` tiene RLS, así que la pregunta vive en una función
+  // SECURITY DEFINER que devuelve SOLO ids (#286 sigue en pie: una consulta
+  // suelta a esa tabla devolvería cero filas con el rol de producción).
+  //
+  // La función solo filtra a QUIÉN mirar. Qué paso toca, si el cliente ya
+  // respondió, si la secuencia sigue encendida y si la ventana de 24 h lo
+  // permite lo sigue decidiendo el tick con sus reglas.
+  const conVencidos = (
+    await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM tenants_con_secuencias_vencidas()',
+    )
+  ).rows.map((f) => f.tenant_id);
+  if (conVencidos.length === 0) return 0;
+  const tenants = { rows: conVencidos.map((id) => ({ tenant_id: id })) };
   let corridos = 0;
   for (const { tenant_id: tenantId } of tenants.rows) {
     corridos += await withTenant(pool, tenantId, async (client) => {
