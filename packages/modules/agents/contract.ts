@@ -147,3 +147,7 @@ export type { SinSugerencia, CodigoSinSugerencia } from './application/por-que-n
 // Por qué la IA no hace nada (#614): el mismo diagnóstico que tiene el canal.
 export { diagnosticarLaIa } from './application/diagnostico-ia';
 export type { DiagnosticoDeLaIa, PasoDeLaIa } from './application/diagnostico-ia';
+// Quién puso la conversación en autónomo (#697): `set_by` se escribía y la
+// bandeja mostraba solo el modo.
+export { modoConQuienLoPuso } from './application/autonomous';
+export type { ModoDeLaConversacion } from './application/autonomous';

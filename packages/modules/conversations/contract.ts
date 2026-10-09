@@ -78,3 +78,7 @@ export {
   tenantsWithRetention,
 } from './application/retention';
 export type { RetentionCutoff, PurgeResult } from './application/retention';
+// El rastro de la reasignación (#697): la tabla `assignments` se escribía desde
+// el día uno y ninguna consulta la leía.
+export { historialDeAsignaciones } from './application/conversations';
+export type { Reasignacion } from './application/conversations';

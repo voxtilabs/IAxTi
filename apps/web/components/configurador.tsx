@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
+import type { Quien } from '@iaxti/sdk';
+import { QuienLoHizo } from './quien-lo-hizo';
 
 // El configurador (#50): "cuéntanos tu negocio y el CRM se arma solo" —
 // la propuesta llega como diff ANTES/DESPUÉS (dispositivo Pulso) y el
@@ -22,6 +24,15 @@ interface PropuestaDto {
   id: string;
   vertical: string;
   status: 'pending' | 'applied' | 'dismissed';
+  /**
+   * Quién aprobó el diff (#697).
+   *
+   * `applied_by` se escribía al aplicar y la pantalla no lo mostraba. Aplicar
+   * una propuesta cambia la configuración del negocio entero —horarios,
+   * plantillas, etapas— y se audita como «user via agent»: quién apretó el
+   * botón es la mitad de esa frase.
+   */
+  aplicadaPor: Quien | null;
   diff: {
     antes: { pipelines: string[]; quickReplies: string[] };
     items: Array<{ tipo: string; nombre: string; detalle: string; accion: 'crear' | 'ya_existe' | 'proponer' }>;
@@ -172,6 +183,9 @@ export function Configurador() {
 
       {propuesta && (
         <div className="mt-4">
+          {propuesta.status === 'applied' && (
+            <p className="mb-3"><QuienLoHizo accion="Aplicada" quien={propuesta.aplicadaPor} /></p>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-campo border border-line bg-bg p-4">
               <p className="rotulo">Cómo trabajas hoy</p>

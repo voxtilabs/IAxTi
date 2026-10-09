@@ -7,6 +7,7 @@ import type { ContactOrigin } from '@iaxti/module-crm';
 import type { Contact } from '@iaxti/module-crm';
 import { assertConversationTransition, assertDeliveryAdvance, salePorProveedor } from '../domain/state';
 import type { ConversationState, DeliveryStatus } from '../domain/state';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 
 export type Channel = 'whatsapp' | 'webchat' | 'simulador' | 'instagram' | 'messenger';
 
@@ -936,4 +937,54 @@ export async function requestHandoff(
     actor: input.actor,
     requestId: input.requestId,
   });
+}
+
+/**
+ * A quién se le quitó la conversación, y quién la tiene (#697).
+ *
+ * `.claude/rules/negocio.md` pide «un dueño por conversación; **reasignar deja
+ * rastro**». El rastro se escribía desde el primer día —la tabla
+ * `assignments` guarda de quién a quién, con motivo— y **ninguna consulta la
+ * leía**: la regla estaba escrita, la escritura estaba hecha, y lo escrito no
+ * se podía ver desde el producto.
+ *
+ * «Esta conversación era mía y ya no» es la pregunta del día a día de un
+ * equipo chico, y hasta acá se contestaba con Auditoría o con nada.
+ */
+export interface Reasignacion {
+  /** De quién era. `null` cuando no tenía dueño: la primera asignación. */
+  de: Quien | null;
+  /** A quién pasó. `null` si se dejó sin dueño. */
+  a: Quien | null;
+  /** El motivo cuando se escribió. */
+  motivo: string | null;
+  /** Quién hizo el movimiento: una persona, `automation` o `system`. */
+  actor: string | null;
+  cuando: Date;
+}
+
+export async function historialDeAsignaciones(
+  client: PoolClient,
+  tenantId: string,
+  conversationId: string,
+): Promise<Reasignacion[]> {
+  const r = await client.query(
+    `SELECT from_owner_id, to_owner_id, reason, actor, created_at
+       FROM assignments
+      WHERE tenant_id = $1 AND conversation_id = $2
+      ORDER BY created_at DESC, id DESC
+      LIMIT 50`,
+    [tenantId, conversationId],
+  );
+  const quien = await quienesSon(client, tenantId, [
+    ...r.rows.map((f) => f.from_owner_id as string | null),
+    ...r.rows.map((f) => f.to_owner_id as string | null),
+  ]);
+  return r.rows.map((f) => ({
+    de: quienFue(quien, f.from_owner_id),
+    a: quienFue(quien, f.to_owner_id),
+    motivo: (f.reason as string) ?? null,
+    actor: (f.actor as string) ?? null,
+    cuando: f.created_at as Date,
+  }));
 }

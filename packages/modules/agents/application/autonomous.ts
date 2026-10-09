@@ -15,6 +15,7 @@ import { isAutonomousPaused } from './quota';
 import { activeAgent, refreshedContext } from './copilot';
 import type { Agent } from './agents';
 import { abrirIntento } from './objetivo-medido';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 
 // El modo autónomo (#49, SPEC §13): la IA responde SOLA únicamente cuando
 // el dueño lo permitió — por horario del tenant o por marca manual en la
@@ -53,6 +54,42 @@ export async function conversationMode(
     [tenantId, conversationId],
   );
   return (r.rows[0]?.mode as ConversationMode) ?? null;
+}
+
+/**
+ * Quién puso esta conversación en autónomo, y cuándo (#697).
+ *
+ * `agent_conversation_modes.set_by` se escribía en cada cambio y la bandeja
+ * mostraba solo el modo. Dejar que la IA conteste sola a un cliente es la
+ * decisión más delicada del producto: quien abre la conversación después tiene
+ * que poder ver quién la tomó, en la misma pantalla donde está el interruptor.
+ *
+ * Separado de `conversationMode` a propósito: eso lo llama el motor en cada
+ * mensaje y no necesita resolver nombres. Esto lo llama la pantalla.
+ */
+export interface ModoDeLaConversacion {
+  mode: ConversationMode;
+  puestoPor: Quien | null;
+  puestoEl: Date;
+}
+
+export async function modoConQuienLoPuso(
+  client: PoolClient,
+  tenantId: string,
+  conversationId: string,
+): Promise<ModoDeLaConversacion | null> {
+  const r = await client.query(
+    `SELECT mode, set_by, updated_at FROM agent_conversation_modes
+      WHERE tenant_id = $1 AND conversation_id = $2`,
+    [tenantId, conversationId],
+  );
+  if (r.rowCount === 0) return null;
+  const f = r.rows[0];
+  return {
+    mode: f.mode as ConversationMode,
+    puestoPor: quienFue(await quienesSon(client, tenantId, [f.set_by as string | null]), f.set_by),
+    puestoEl: f.updated_at as Date,
+  };
 }
 
 export async function setConversationMode(

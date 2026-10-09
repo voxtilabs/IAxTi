@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { quienesSonEnLaPlataforma, quienFue, type Quien } from '@iaxti/module-identity';
 import { platformAudit } from './planes';
 
 /**
@@ -21,6 +22,16 @@ export interface EstadoDelApagado {
   alcance: 'global' | 'tenant' | null;
   motivo: string | null;
   apagadoEl: Date | null;
+  /**
+   * Quién lo apagó (#697).
+   *
+   * `apagado_por` se escribía desde #496 y ninguna pantalla lo mostraba: «¿quién
+   * apagó la IA?» no se podía contestar desde el producto. Va SOLO al panel de
+   * SuperAdmin — igual que `motivo`, que tampoco viaja al negocio (es una nota
+   * interna de un incidente). Quien apaga es de la plataforma y no del equipo de
+   * ningún negocio, así que `enElEquipo` llega en null.
+   */
+  apagadoPor: Quien | null;
 }
 
 /**
@@ -34,18 +45,24 @@ export async function agenteGeneralApagado(
   tenantId: string,
 ): Promise<EstadoDelApagado> {
   const r = await client.query(
-    `SELECT tenant_id, motivo, apagado_el FROM agente_general_apagado
+    `SELECT tenant_id, motivo, apagado_el, apagado_por FROM agente_general_apagado
       WHERE tenant_id IS NULL OR tenant_id = $1
       ORDER BY tenant_id NULLS FIRST LIMIT 1`,
     [tenantId],
   );
-  if (r.rowCount === 0) return { apagado: false, alcance: null, motivo: null, apagadoEl: null };
+  if (r.rowCount === 0) {
+    return { apagado: false, alcance: null, motivo: null, apagadoEl: null, apagadoPor: null };
+  }
   const f = r.rows[0];
   return {
     apagado: true,
     alcance: f.tenant_id === null ? 'global' : 'tenant',
     motivo: f.motivo as string,
     apagadoEl: f.apagado_el as Date,
+    apagadoPor: quienFue(
+      await quienesSonEnLaPlataforma(client, [f.apagado_por as string | null]),
+      f.apagado_por,
+    ),
   };
 }
 
@@ -192,13 +209,19 @@ export async function resumenDelAgenteGeneral(
   const f = r.rows[0];
   const corridas = Number(f.corridas);
   const apagados = await client.query(
-    `SELECT a.tenant_id, t.name AS tenant, a.motivo, a.apagado_el
+    `SELECT a.tenant_id, t.name AS tenant, a.motivo, a.apagado_el, a.apagado_por
        FROM agente_general_apagado a JOIN tenants t ON t.id = a.tenant_id
       WHERE a.tenant_id IS NOT NULL ORDER BY a.apagado_el DESC`,
   );
   const global = await client.query(
-    'SELECT motivo, apagado_el FROM agente_general_apagado WHERE tenant_id IS NULL',
+    'SELECT motivo, apagado_el, apagado_por FROM agente_general_apagado WHERE tenant_id IS NULL',
   );
+  // Quién apagó qué, en un viaje (#697). Ámbito plataforma: son SuperAdmins y
+  // no pertenecen al equipo de ningún negocio.
+  const quien = await quienesSonEnLaPlataforma(client, [
+    ...apagados.rows.map((a) => a.apagado_por as string | null),
+    ...global.rows.map((g) => g.apagado_por as string | null),
+  ]);
   return {
     corridasDelMes: corridas,
     costoDelMesUsd: Number(f.costo),
@@ -209,18 +232,20 @@ export async function resumenDelAgenteGeneral(
     latenciaP95Ms: f.p95 === null ? null : Number(f.p95),
     apagadoGlobal:
       global.rowCount === 0
-        ? { apagado: false, alcance: null, motivo: null, apagadoEl: null }
+        ? { apagado: false, alcance: null, motivo: null, apagadoEl: null, apagadoPor: null }
         : {
             apagado: true,
-            alcance: 'global',
+            alcance: 'global' as const,
             motivo: global.rows[0].motivo as string,
             apagadoEl: global.rows[0].apagado_el as Date,
+            apagadoPor: quienFue(quien, global.rows[0].apagado_por),
           },
     apagadosPorNegocio: apagados.rows.map((a) => ({
       tenantId: a.tenant_id as string,
       tenant: a.tenant as string,
       motivo: a.motivo as string,
       apagadoEl: a.apagado_el as Date,
+      apagadoPor: quienFue(quien, a.apagado_por),
     })),
   };
 }

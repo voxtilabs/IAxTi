@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 
 /**
  * Segmentos de la cartera (#75, SPEC §15).
@@ -149,13 +150,26 @@ export async function guardarSegmento(
   return r.rows[0];
 }
 
+/**
+ * Los segmentos guardados, con quién armó cada uno (#697).
+ *
+ * `segments.created_by` se escribía al guardar y la lista no lo proyectaba. Un
+ * segmento es a quién se le va a escribir: saber quién lo definió es parte de
+ * poder confiar en él.
+ */
 export async function listarSegmentos(
   client: PoolClient,
   tenantId: string,
-): Promise<Array<{ id: string; name: string; filters: FiltrosSegmento }>> {
+): Promise<Array<{ id: string; name: string; filters: FiltrosSegmento; creadoPor: Quien | null }>> {
   const r = await client.query(
-    'SELECT id, name, filters FROM segments WHERE tenant_id = $1 ORDER BY name',
+    'SELECT id, name, filters, created_by FROM segments WHERE tenant_id = $1 ORDER BY name',
     [tenantId],
   );
-  return r.rows.map((x) => ({ id: x.id, name: x.name, filters: x.filters }));
+  const quien = await quienesSon(client, tenantId, r.rows.map((x) => x.created_by as string | null));
+  return r.rows.map((x) => ({
+    id: x.id,
+    name: x.name,
+    filters: x.filters,
+    creadoPor: quienFue(quien, x.created_by),
+  }));
 }

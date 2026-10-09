@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 import { contactosDelSegmento, previsualizarSegmento, type FiltrosSegmento } from './segmentos';
 
 /**
@@ -57,9 +58,18 @@ export interface Campana {
   status: 'draft' | 'sending' | 'done' | 'cancelled';
   filters: FiltrosSegmento;
   values: string[];
+  /**
+   * Quién la lanzó (#697).
+   *
+   * `campaigns.created_by` se escribía desde el primer envío y ninguna pantalla
+   * lo mostraba. «¿Quién mandó esto a 650 personas?» es la primera pregunta
+   * cuando una campaña sale mal, y se contestaba abriendo Auditoría — con
+   * permiso de auditoría, que el equipo no tiene.
+   */
+  creadaPor: Quien | null;
 }
 
-function aCampana(row: Record<string, unknown>): Campana {
+function aCampana(row: Record<string, unknown>, quien?: Map<string, Quien>): Campana {
   return {
     id: row.id as string,
     name: row.name as string,
@@ -67,6 +77,7 @@ function aCampana(row: Record<string, unknown>): Campana {
     status: row.status as Campana['status'],
     filters: (row.filters as FiltrosSegmento) ?? {},
     values: (row.values as string[]) ?? [],
+    creadaPor: quienFue(quien, row.created_by),
   };
 }
 
@@ -195,9 +206,11 @@ export async function listarCampanas(
     [tenantId, limite + 1],
   );
   const filas = r.rows.slice(0, limite);
+  // Los autores de la lista entera en un viaje, no uno por fila (#697).
+  const quien = await quienesSon(client, tenantId, filas.map((f) => f.created_by as string | null));
   return {
     campanas: filas.map((row) => ({
-      ...aCampana(row),
+      ...aCampana(row, quien),
       createdAt: (row.created_at as Date).toISOString(),
       startedAt: row.started_at ? (row.started_at as Date).toISOString() : null,
       finishedAt: row.finished_at ? (row.finished_at as Date).toISOString() : null,
@@ -221,7 +234,7 @@ export async function obtenerCampana(
     campaignId,
   ]);
   if (r.rowCount === 0) throw new Error('Esa campaña no existe en este negocio.');
-  return aCampana(r.rows[0]);
+  return aCampana(r.rows[0], await quienesSon(client, tenantId, [r.rows[0].created_by as string | null]));
 }
 
 export interface ResultadoEnvio {

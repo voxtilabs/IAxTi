@@ -5,6 +5,7 @@ import { isWithinWindow, salePorProveedor } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
 import { ruleModuleGaps, ACTION_REQUIREMENTS, type Action } from '../domain/rules';
 import { executeAction, loadObject, type EngineDeps } from './engine';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 
 // Secuencias (#63, SPEC §15): "día 1 mensaje, día 3 si no respondió,
 // día 7 tarea" — y se CORTAN solas cuando el cliente responde o la
@@ -48,9 +49,17 @@ export interface Enrollment {
   status: 'running' | 'completed' | 'stopped';
   stopReason: string | null;
   nextRunAt: Date | null;
+  /**
+   * Quién metió al contacto en la secuencia (#697).
+   *
+   * `enrolled_by` se escribía en cada inscripción y la ficha no lo mostraba. Es
+   * la pregunta de «¿por qué le estamos escribiendo a este cliente?»: una
+   * secuencia manda mensajes solos durante días y alguien decidió que empezara.
+   */
+  inscritoPor?: Quien | null;
 }
 
-function rowToEnrollment(row: Record<string, unknown>): Enrollment {
+function rowToEnrollment(row: Record<string, unknown>, quien?: Map<string, Quien>): Enrollment {
   return {
     id: row.id as string,
     sequenceId: row.sequence_id as string,
@@ -63,6 +72,7 @@ function rowToEnrollment(row: Record<string, unknown>): Enrollment {
     status: row.status as Enrollment['status'],
     stopReason: (row.stop_reason as string) ?? null,
     nextRunAt: (row.next_run_at as Date) ?? null,
+    inscritoPor: quien ? quienFue(quien, row.enrolled_by) : undefined,
   };
 }
 
@@ -360,7 +370,8 @@ export async function enrollmentsForContact(
       ORDER BY e.created_at DESC LIMIT 10`,
     [tenantId, contactId],
   );
-  return r.rows.map(rowToEnrollment);
+  const quien = await quienesSon(client, tenantId, r.rows.map((f) => f.enrolled_by as string | null));
+  return r.rows.map((f) => rowToEnrollment(f, quien));
 }
 
 export async function stopEnrollment(

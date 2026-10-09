@@ -708,6 +708,18 @@ interface ModuloRow {
   killSwitch: boolean;
   dependsOn: string[];
   tenantsUsing: number;
+  /**
+   * Qué SuperAdmin tocó el flag, y cuándo (#697).
+   *
+   * `platform_module_flags.updated_by` se escribía en cada cambio y esta tabla
+   * no lo mostraba. Apagar un módulo deja a negocios sin una función: con
+   * varias personas en la plataforma, «esto estaba prendido ayer» necesita
+   * respuesta en la misma pantalla donde está el interruptor.
+   *
+   * `null` cuando el flag nunca se tocó a mano: lo que se ve es el registry.
+   */
+  tocadoPor: QuienDto | null;
+  tocadoEl: string | null;
 }
 
 /** Módulos con kill-switch (#69): el registry valida dependencias. */
@@ -756,7 +768,7 @@ function TablaModulos() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-rest text-left">
-              {['Módulo', 'Versión', 'Estado', 'Depende de', 'Tenants', 'Acciones'].map((h) => (
+              {['Módulo', 'Versión', 'Estado', 'Depende de', 'Tenants', 'Último cambio', 'Acciones'].map((h) => (
                 <th key={h} className="rotulo px-4 py-3 font-normal">{h}</th>
               ))}
             </tr>
@@ -779,6 +791,17 @@ function TablaModulos() {
                 </td>
                 <td className="dato px-4 py-3 text-xs text-muted">{m.dependsOn.join(', ') || '—'}</td>
                 <td className="dato px-4 py-3 text-right text-body">{m.tenantsUsing}</td>
+                {/* Quién tocó el flag (#697). */}
+                <td className="px-4 py-3 text-xs text-muted">
+                  {m.tocadoEl ? (
+                    <>
+                      <span className="dato">{new Date(m.tocadoEl).toLocaleString('es-CL')}</span>
+                      {quienApago(m.tocadoPor) && <> · {quienApago(m.tocadoPor)}</>}
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   {!m.core && (
                     <div className="flex flex-wrap gap-2">
@@ -1192,14 +1215,50 @@ interface CorridaAgenteDto {
   createdAt: string;
 }
 
+/**
+ * Quién hizo algo (#697).
+ *
+ * El servidor manda un nombre y no un UUID: un identificador no significa nada
+ * para quien lee. `enElEquipo` llega en null acá a propósito — quien apaga el
+ * Agente General es de la plataforma y no pertenece al equipo de ningún
+ * negocio, así que decir «ya no está en el equipo» sería afirmar algo falso.
+ */
+interface QuienDto {
+  userId: string;
+  nombre: string | null;
+  enElEquipo: boolean | null;
+}
+
+/** El nombre para la frase, o null si no hay a quién atribuirlo. */
+function quienApago(quien: QuienDto | null | undefined): string | null {
+  if (!quien) return null;
+  return quien.nombre ?? 'alguien de la plataforma';
+}
+
 interface ResumenAgenteDto {
   corridasDelMes: number;
   costoDelMesUsd: number;
   tasaDeError: number;
   negocios: number;
   latenciaP95Ms: number | null;
-  apagadoGlobal: { apagado: boolean; motivo: string | null; apagadoEl: string | null };
-  apagadosPorNegocio: Array<{ tenantId: string; tenant: string; motivo: string; apagadoEl: string }>;
+  /**
+   * Quién lo apagó (#697). `apagado_por` se escribía desde #496 y ninguna
+   * pantalla lo mostraba: «¿quién apagó la IA?» no se podía contestar. Viaja
+   * solo acá, igual que `motivo`, que tampoco llega al negocio.
+   */
+  apagadoGlobal: {
+    apagado: boolean;
+    motivo: string | null;
+    apagadoEl: string | null;
+    apagadoPor: QuienDto | null;
+  };
+  apagadosPorNegocio: Array<{
+    tenantId: string;
+    tenant: string;
+    motivo: string;
+    apagadoEl: string;
+    apagadoPor: QuienDto | null;
+  }>;
 }
 
 /**
@@ -1294,6 +1353,7 @@ function AgenteGeneralPanel() {
             <p className="mt-2 text-sm text-ink">{resumen.apagadoGlobal.motivo}</p>
             <p className="dato mt-1 text-xs text-muted">
               desde {new Date(resumen.apagadoGlobal.apagadoEl!).toLocaleString('es-CL')}
+              {quienApago(resumen.apagadoGlobal.apagadoPor) && `, lo apagó ${quienApago(resumen.apagadoGlobal.apagadoPor)}`}
             </p>
             <button
               type="button"
@@ -1359,6 +1419,9 @@ function AgenteGeneralPanel() {
               <li key={a.tenantId} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <span className="font-medium text-ink">{a.tenant}</span>
                 <span className="text-warn-text">{a.motivo}</span>
+                {quienApago(a.apagadoPor) && (
+                  <span className="text-xs text-muted">lo apagó {quienApago(a.apagadoPor)}</span>
+                )}
                 <button
                   type="button"
                   disabled={ocupado}

@@ -1927,6 +1927,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ConversationsController_asignaciones": {
+    "metodo": "GET",
+    "ruta": "/v1/conversations/{id}/asignaciones",
+    "resumen": "De quién a quién pasó la conversación, con el motivo",
+    "permiso": "conversations.read",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ConversationsController_assign": {
     "metodo": "POST",
     "ruta": "/v1/conversations/{id}/assign",

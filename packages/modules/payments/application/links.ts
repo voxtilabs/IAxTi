@@ -3,6 +3,7 @@ import { publishEvent } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { getContactEmail } from '@iaxti/module-crm';
 import { flowConfig } from '../domain/flow-config';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 import {
   paymentProviderFor,
   type PaymentProviderPort,
@@ -47,9 +48,20 @@ export interface PaymentLink {
   expiresAt: Date | null;
   paidAt: Date | null;
   createdAt: Date;
+  /**
+   * Quién generó el cobro (#697).
+   *
+   * `payment_links.created_by` se escribía en cada link y la lista no lo
+   * mostraba. Es plata: «¿quién le mandó este cobro al cliente, y por qué ese
+   * monto?» no debería obligar a abrir Auditoría.
+   *
+   * `undefined` cuando quien llamó no pidió resolverlo, `null` cuando lo generó
+   * el sistema (un link de una automatización no tiene persona detrás).
+   */
+  creadoPor?: Quien | null;
 }
 
-export function rowToLink(row: Record<string, unknown>): PaymentLink {
+export function rowToLink(row: Record<string, unknown>, quien?: Map<string, Quien>): PaymentLink {
   return {
     id: row.id as string,
     providerId: row.provider_id as string,
@@ -63,6 +75,7 @@ export function rowToLink(row: Record<string, unknown>): PaymentLink {
     expiresAt: (row.expires_at as Date) ?? null,
     paidAt: (row.paid_at as Date) ?? null,
     createdAt: row.created_at as Date,
+    creadoPor: quien ? quienFue(quien, row.created_by) : undefined,
   };
 }
 
@@ -357,7 +370,8 @@ export async function listLinks(
       ORDER BY created_at DESC LIMIT 50`,
     [tenantId, filtro.conversationId ?? null, filtro.dealId ?? null],
   );
-  return r.rows.map(rowToLink);
+  const quien = await quienesSon(client, tenantId, r.rows.map((f) => f.created_by as string | null));
+  return r.rows.map((f) => rowToLink(f, quien));
 }
 
 /**

@@ -1,4 +1,5 @@
 import { campaignRoutes } from './campaign-routes.generated';
+import type { Quien } from './quien';
 
 export interface CampaignFilters {
   tagIds?: string[];
@@ -14,6 +15,8 @@ export interface Campaign {
   status: 'draft' | 'sending' | 'done' | 'cancelled';
   filters: CampaignFilters;
   values: string[];
+  /** Quién la lanzó (#697). `null` si no quedó registrado. */
+  creadaPor: Quien | null;
 }
 export interface CampaignListItem extends Campaign {
   createdAt: string;
@@ -78,7 +81,12 @@ export function campaignClient(config: { apiUrl: string; token: string; tenantId
     templates: () => call<CampaignTemplate[]>('PlantillasController_list'),
     channels: () => call<CampaignChannel[]>('ChannelsController_list'),
     tags: () => call<Array<{ id: string; name: string }>>('TagsController_list'),
-    segments: () => call<Array<{ id: string; name: string; filters: CampaignFilters }>>('CampanasController_segmentos'),
+    // `creadoPor` (#697): quién armó el segmento. Se escribía desde #75 y la
+    // lista no lo proyectaba.
+    segments: () =>
+      call<Array<{ id: string; name: string; filters: CampaignFilters; creadoPor: Quien | null }>>(
+        'CampanasController_segmentos',
+      ),
     create: (body: { name: string; templateId: string; filtros: CampaignFilters; valores: string[] }, key: string) => call<Campaign>('CampanasController_crear', { body, key }),
     preview: (id: string) => call<CampaignPreview>('CampanasController_previa', { id }),
     /**

@@ -15,6 +15,8 @@ import {
 } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import { apiFetch } from '../../lib/api';
+import type { Quien } from '@iaxti/sdk';
+import { QuienLoHizo } from '../quien-lo-hizo';
 
 // El estado de las secuencias en la FICHA (#63): el seguimiento como
 // proceso visible — en qué paso va, cuándo sigue, por qué se cortó.
@@ -34,6 +36,16 @@ interface InscripcionDto {
   status: 'running' | 'completed' | 'stopped';
   stopReason: string | null;
   nextRunAt: string | null;
+  /**
+   * Quién metió al contacto acá (#697).
+   *
+   * `enrolled_by` se escribía en cada inscripción y la ficha no lo mostraba.
+   * Una secuencia manda mensajes solos durante días: «¿por qué le estamos
+   * escribiendo a este cliente?» se contesta con esto.
+   *
+   * `null` cuando la inscribió una automatización, no una persona.
+   */
+  inscritoPor: Quien | null;
 }
 
 const ESTADO: Record<InscripcionDto['status'], { label: string; role: 'good' | 'neutral' | 'warn' }> = {
@@ -115,6 +127,12 @@ export function SecuenciasFicha({
                   </Button>
                 )}
               </span>
+              {/* Quién la inscribió (#697). */}
+              {i.inscritoPor && (
+                <span className="mt-0.5 block">
+                  <QuienLoHizo accion="Inscrito" quien={i.inscritoPor} />
+                </span>
+              )}
               {i.status === 'running' && i.nextRunAt && (
                 <span className="dato mt-0.5 block text-faint">
                   siguiente paso {new Date(i.nextRunAt).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}

@@ -13,6 +13,7 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
+    "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "ioredis": "^5.4.1",
     "pg": "^8.13.0"

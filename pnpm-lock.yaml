@@ -647,6 +647,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../crm
+      '@iaxti/module-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../organizations
@@ -771,6 +774,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../crm
+      '@iaxti/module-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../organizations
@@ -895,6 +901,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../crm
+      '@iaxti/module-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../organizations
@@ -1106,6 +1115,9 @@ importers:
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../crm
+      '@iaxti/module-identity':
+        specifier: workspace:*
+        version: link:../identity
       pg:
         specifier: ^8.13.0
         version: 8.23.0
@@ -1137,6 +1149,9 @@ importers:
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
+      '@iaxti/module-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@iaxti/module-organizations':
         specifier: workspace:*
         version: link:../organizations
