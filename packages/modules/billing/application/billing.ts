@@ -433,6 +433,22 @@ export async function sweepBilling(
    * Y de paso se gana: una transacción por tenant en vez de seis pasadas,
    * con los pasos en el orden correcto dentro de la misma.
    */
+  // A QUIÉN visitar se pregunta UNA vez (#580, ADR-0026).
+  //
+  // Antes se recorrían todos los tenants vivos. Medido el 09/10 con 1.232
+  // tenants: visitar uno sin trabajo cuesta 4,5 ms, así que el barrido entero
+  // eran ~5,5 s — y proyectado a mil tenants con la base a 64 ms de distancia
+  // (#711), diez minutos de un cron haciendo nada. Preguntar una vez: 2 ms.
+  //
+  // La condición cruza `subscriptions` e `invoices`, que tienen RLS, así que la
+  // pregunta vive en una función SECURITY DEFINER que devuelve SOLO ids. Cada
+  // tenant se sigue visitando con `withTenant`: lo que cambia es a quién, no
+  // qué se puede leer.
+  const conTrabajo = (
+    await pool.query<{ tenant_id: string }>('SELECT tenant_id FROM tenants_con_trabajo_de_facturacion()')
+  ).rows.map((f) => f.tenant_id);
+  if (conTrabajo.length === 0) return res;
+
   await porCadaTenant(pool, async (client, tenantId) => {
     const tenant = await getTenant(client, tenantId);
 
@@ -614,7 +630,7 @@ export async function sweepBilling(
         res.cancelacionesEfectivas += 1;
       }
     }
-  });
+  }, { ids: conTrabajo });
 
   return res;
 }

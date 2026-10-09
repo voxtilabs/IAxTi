@@ -40,14 +40,22 @@ export async function withTenant<T>(
  * es por donde un barrido debe empezar. Después se entra a cada uno con
  * `withTenant` y ahí sí se ve su trabajo.
  *
- * El precio es pasar de una consulta a N. Con la cantidad de tenants del
- * primer año no es un problema, y es lo que cuesta que el aislamiento sea
- * de verdad y no solo en desarrollo.
+ * El precio es pasar de una consulta a N. Y resultó ser un problema antes de
+ * lo previsto: medido el 09/10, visitar un tenant SIN trabajo cuesta 4,5 ms
+ * —una transacción más las consultas de cada paso—, así que mil tenants son
+ * minutos de un cron haciendo nada (#580, ADR-0026).
+ *
+ * De ahí `opts.ids`: quien sepa a quiénes hay que visitar los pasa, y esta
+ * consulta no corre. El aislamiento no cambia — se sigue entrando con
+ * `withTenant`—; lo que cambia es a quién.
  */
 export async function idsDeTenants(
   pool: Pool,
-  opts: { estados?: readonly string[] } = {},
+  opts: { estados?: readonly string[]; ids?: readonly string[] } = {},
 ): Promise<string[]> {
+  // Una lista explícita gana: quien la pasó ya averiguó quién tiene trabajo, y
+  // volver a consultar `tenants` acá sería preguntar dos veces lo mismo.
+  if (opts.ids) return [...opts.ids];
   const estados = opts.estados ?? ['trial', 'active', 'past_due', 'read_only', 'suspended'];
   const r = await pool.query(
     `SELECT id FROM tenants WHERE COALESCE(state, 'active') = ANY($1) ORDER BY created_at`,
@@ -67,7 +75,12 @@ export async function idsDeTenants(
 export async function porCadaTenant<T>(
   pool: Pool,
   fn: (client: PoolClient, tenantId: string) => Promise<T>,
-  opts: { estados?: readonly string[]; alFallar?: (tenantId: string, err: Error) => void } = {},
+  opts: {
+    estados?: readonly string[];
+    /** A quiénes visitar. Sin esto, a todos los vivos (#580). */
+    ids?: readonly string[];
+    alFallar?: (tenantId: string, err: Error) => void;
+  } = {},
 ): Promise<T[]> {
   const salida: T[] = [];
   for (const tenantId of await idsDeTenants(pool, opts)) {
