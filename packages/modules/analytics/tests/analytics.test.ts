@@ -146,8 +146,22 @@ describe('primera respuesta y "sin responder ahora" (#66)', () => {
 
     const primera = await sweepResponseSamples(admin);
     expect(primera).toBeGreaterThanOrEqual(3);
-    const denuevo = await sweepResponseSamples(admin);
-    expect(denuevo).toBe(0); // idempotente
+
+    // La idempotencia se mide SOBRE ESTE TENANT y no sobre el total que
+    // devuelve el barrido (#738). `sweepResponseSamples` es global: si otra
+    // suite dejó una conversación respondida en la ventana de 26 horas, la
+    // segunda pasada inserta ESA y el total deja de ser cero — y el fallo no
+    // dice nada sobre lo que esta prueba quiere afirmar, que es que una
+    // conversación no se muestrea dos veces.
+    const mias = async (): Promise<number> =>
+      (
+        await admin.query('SELECT count(*)::int AS n FROM response_samples WHERE tenant_id = $1', [
+          tenant,
+        ])
+      ).rows[0].n as number;
+    const antes = await mias();
+    await sweepResponseSamples(admin);
+    expect(await mias(), 'una muestra por conversación, no dos').toBe(antes);
 
     const d = await dashboard();
     expect(d.primeraRespuesta.muestras).toBe(3);
