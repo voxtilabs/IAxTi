@@ -322,18 +322,49 @@ export interface SeguridadInput {
   dias?: number;
 }
 
+/**
+ * Una lista cortada que DICE que está cortada (#734).
+ *
+ * Las tres listas de este panel muestran veinte filas. Antes no decían que
+ * había más, y el `valor` de cada chequeo —el número que enciende el semáforo—
+ * se calculaba sumando SOLO esas veinte: con treinta actores de diez intentos
+ * cada uno, el panel decía 200 y habían sido 300.
+ *
+ * Es el patrón que `listarCampanas` ya resolvió: «sin ese dato, una lista
+ * cortada se ve exactamente igual que una lista completa, y eso es mentir en
+ * silencio». Acá era peor, porque el número truncado alimentaba un semáforo de
+ * seguridad.
+ */
+export interface Cortada<T> {
+  filas: T[];
+  /** Cuántos hay EN TOTAL, contados en la base y no sobre las filas. */
+  total: number;
+  /** Si quedaron fuera. `total > filas.length`, dicho de una vez. */
+  truncado: boolean;
+}
+
 export interface Seguridad {
   estado: EstadoSalud;
   desde: string;
   chequeos: Chequeo[];
-  permisosDenegados: Array<{ tenant_id: string; actor: string; ip: string | null; n: number }>;
-  webhooksFallidos: Array<{ tenant_id: string; endpoint_id: string; n: number; ultimo: string }>;
-  numerosEnRiesgo: Array<{
+  permisosDenegados: Cortada<{ tenant_id: string; actor: string; ip: string | null; n: number }>;
+  /** Intentos sin permiso en la ventana, TODOS, no solo los de las filas. */
+  intentosDenegados: number;
+  webhooksFallidos: Cortada<{ tenant_id: string; endpoint_id: string; n: number; ultimo: string }>;
+  numerosEnRiesgo: Cortada<{
     tenant_id: string;
     display_phone: string | null;
     quality: string | null;
     business_paused_at: string | null;
   }>;
+}
+
+/** Cuántas filas muestra cada lista del panel. */
+const FILAS_POR_LISTA = 20;
+
+/** Arma la lista con su total, para que cortar no sea callar (#734). */
+function cortada<T>(filas: T[], total: number): Cortada<T> {
+  return { filas, total, truncado: total > filas.length };
 }
 
 /** Cuántos rechazos hacen ruido antes de ser un problema. */
@@ -355,10 +386,21 @@ export async function securitySnapshot(
        FROM audit_log
       WHERE action = 'permission.denied' AND occurred_at >= $1
       GROUP BY tenant_id, actor, host(ip)
-      ORDER BY n DESC LIMIT 20`,
+      ORDER BY n DESC LIMIT ${FILAS_POR_LISTA}`,
     [desde],
   );
-  const totalDenegados = denegados.rows.reduce((t, r) => t + r.n, 0);
+  // Los totales se cuentan EN LA BASE y no sumando las filas que se muestran
+  // (#734). Sumando las veinte, treinta actores de diez intentos daban 200 en
+  // vez de 300 — y ese número es el que enciende el semáforo.
+  const totalesDenegados = await pool.query(
+    `SELECT count(*)::int AS intentos,
+            count(DISTINCT (tenant_id, actor, host(ip)))::int AS actores
+       FROM audit_log
+      WHERE action = 'permission.denied' AND occurred_at >= $1`,
+    [desde],
+  );
+  const totalDenegados = totalesDenegados.rows[0].intentos as number;
+  const actoresDenegados = totalesDenegados.rows[0].actores as number;
   chequeos.push({
     id: 'permisos',
     titulo: 'Permisos denegados',
@@ -417,19 +459,28 @@ export async function securitySnapshot(
          FROM webhook_deliveries
         WHERE status = 'failed' AND created_at >= $1
         GROUP BY tenant_id, endpoint_id
-        ORDER BY n DESC LIMIT 20`,
+        ORDER BY n DESC LIMIT ${FILAS_POR_LISTA}`,
       [desde],
     )
-    .catch(() => ({ rows: [] as Seguridad['webhooksFallidos'] }));
+    .catch(() => ({ rows: [] as Seguridad['webhooksFallidos']['filas'] }));
+  const totalWebhooks = await pool
+    .query(
+      `SELECT count(DISTINCT (tenant_id, endpoint_id))::int AS n
+         FROM webhook_deliveries
+        WHERE status = 'failed' AND created_at >= $1`,
+      [desde],
+    )
+    .then((r) => r.rows[0].n as number)
+    .catch(() => webhooks.rows.length);
   chequeos.push({
     id: 'webhooks',
     titulo: 'Webhooks salientes fallidos',
-    estado: webhooks.rows.length > 0 ? 'atencion' : 'bien',
+    estado: totalWebhooks > 0 ? 'atencion' : 'bien',
     detalle:
-      webhooks.rows.length > 0
-        ? `${webhooks.rows.length} endpoint(s) con entregas fallidas. El cliente no está recibiendo sus eventos.`
+      totalWebhooks > 0
+        ? `${totalWebhooks} endpoint(s) con entregas fallidas. El cliente no está recibiendo sus eventos.`
         : 'Todas las entregas salieron.',
-    valor: webhooks.rows.length,
+    valor: totalWebhooks,
   });
 
   // 4. Números en riesgo: calidad baja o pausados por el negocio (#45).
@@ -438,26 +489,42 @@ export async function securitySnapshot(
       `SELECT tenant_id, display_phone, quality, business_paused_at
          FROM whatsapp_numbers
         WHERE quality = 'red' OR business_paused_at IS NOT NULL
-        ORDER BY business_paused_at DESC NULLS LAST LIMIT 20`,
+        ORDER BY business_paused_at DESC NULLS LAST LIMIT ${FILAS_POR_LISTA}`,
     )
-    .catch(() => ({ rows: [] as Seguridad['numerosEnRiesgo'] }));
+    .catch(() => ({ rows: [] as Seguridad['numerosEnRiesgo']['filas'] }));
+  // Éste es el que más importa de los tres: «un número bloqueado deja al
+  // cliente sin su canal de ventas», y con veinticinco en rojo decía 20.
+  const totalNumeros = await pool
+    .query(
+      `SELECT count(*)::int AS n FROM whatsapp_numbers
+        WHERE quality = 'red' OR business_paused_at IS NOT NULL`,
+    )
+    .then((r) => r.rows[0].n as number)
+    .catch(() => numeros.rows.length);
   chequeos.push({
     id: 'numeros',
     titulo: 'Números en riesgo',
-    estado: numeros.rows.length > 0 ? 'mal' : 'bien',
+    estado: totalNumeros > 0 ? 'mal' : 'bien',
     detalle:
-      numeros.rows.length > 0
-        ? `${numeros.rows.length} número(s) en calidad baja o con envíos pausados. Un número bloqueado deja al cliente sin su canal de ventas.`
+      totalNumeros > 0
+        ? `${totalNumeros} número(s) en calidad baja o con envíos pausados. Un número bloqueado deja al cliente sin su canal de ventas.`
         : 'Ningún número en rojo.',
-    valor: numeros.rows.length,
+    valor: totalNumeros,
   });
 
   return {
     estado: estadoGeneral(chequeos),
     desde,
     chequeos,
-    permisosDenegados: denegados.rows,
-    webhooksFallidos: webhooks.rows as Seguridad['webhooksFallidos'],
-    numerosEnRiesgo: numeros.rows as Seguridad['numerosEnRiesgo'],
+    permisosDenegados: cortada(denegados.rows, actoresDenegados),
+    intentosDenegados: totalDenegados,
+    webhooksFallidos: cortada(
+      webhooks.rows as Seguridad['webhooksFallidos']['filas'],
+      totalWebhooks,
+    ),
+    numerosEnRiesgo: cortada(
+      numeros.rows as Seguridad['numerosEnRiesgo']['filas'],
+      totalNumeros,
+    ),
   };
 }
