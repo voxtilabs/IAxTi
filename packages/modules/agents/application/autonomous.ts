@@ -214,6 +214,13 @@ export async function autoRespondForInbound(
     tenantId: string;
     conversationId: string;
     knowledge?: string | null;
+    /**
+     * Las fuentes detrás de ese conocimiento (#714). Acá importan MÁS que en la
+     * sugerencia: en modo autónomo nadie revisa antes de que salga, así que la
+     * única forma de reconstruir después de dónde salió lo que se le dijo al
+     * cliente es que la corrida lo tenga escrito.
+     */
+    fuentes?: Array<{ id: string; nombre: string }>;
     requestId?: string;
     /** Módulos activos: contra ellos se resuelve el objetivo del agente (#315). */
     activeModules?: readonly string[];
@@ -291,6 +298,7 @@ export async function autoRespondForInbound(
       ...(input.activeModules ? { activeModules: input.activeModules } : {}),
       prompt: formatoAutonomo({ moneyLimitClp: limits.moneyLimitClp }),
       requestId: input.requestId,
+      ...(input.fuentes ? { fuentes: input.fuentes } : {}),
     },
     modelPortFactory,
   );

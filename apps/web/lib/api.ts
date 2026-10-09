@@ -429,6 +429,15 @@ export interface SugerenciaDto {
    * afirmar algo que no sabemos.
    */
   herramientas?: string[];
+  /**
+   * De qué fuente del conocimiento salió lo que dice (#714). Misma regla:
+   * ausente = no se sabe, `[]` = lo dijo sin apoyarse en ninguna.
+   *
+   * Lleva el nombre guardado y no resuelto al leer: es el acta de ese momento.
+   * Una fuente renombrada o sacada del conocimiento sigue diciendo de dónde
+   * salió lo que se le dijo al cliente.
+   */
+  fuentes?: Array<{ id: string; nombre: string }>;
 }
 
 export interface AnalisisDto {

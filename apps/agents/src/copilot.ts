@@ -24,6 +24,7 @@ import {
   embeddingsAvailable,
   getProduct,
   knowledgeContext,
+  fuentesCitadas,
   searchKnowledge,
 } from '@iaxti/module-knowledge';
 import { huecosDelDia, listarCitas } from '@iaxti/module-calendar';
@@ -136,6 +137,10 @@ export async function processSuggest(
     // imagina. Sin módulo o sin llaves, sigue sin conocimiento (y el
     // modo autónomo escala más, por diseño del prompt).
     let knowledge: string | null = null;
+    // Y en QUÉ fuentes se apoyó ese bloque (#714): el acta de la corrida. Se
+    // arma acá, donde el retrieval acaba de pasar, porque `knowledgeContext`
+    // devuelve texto y del texto no se puede sacar el id de la fuente.
+    let fuentes: Array<{ id: string; nombre: string }> | undefined;
     if (data.knowledgeActivo && embeddingsAvailable()) {
       try {
         const entrante = await client.query(
@@ -145,9 +150,16 @@ export async function processSuggest(
         );
         const pregunta = entrante.rows[0]?.body as string | null;
         if (pregunta) {
-          knowledge = knowledgeContext(
-            await searchKnowledge(client, { tenantId: data.tenantId, query: pregunta }),
-          );
+          const res = await searchKnowledge(client, {
+            tenantId: data.tenantId,
+            query: pregunta,
+          });
+          knowledge = knowledgeContext(res);
+          // `[]` si consultó y no encontró nada: eso es «lo dijo sin apoyarse en
+          // ninguna fuente», y es distinto de `undefined` —el módulo apagado,
+          // sin llaves, o el RAG caído— que es «no se sabe». La pantalla las
+          // dice distinto.
+          fuentes = fuentesCitadas(res);
         }
       } catch {
         /* el RAG caído no frena la sugerencia */
@@ -179,6 +191,7 @@ export async function processSuggest(
       conversationId: data.conversationId,
       knowledge,
       activeModules,
+      ...(fuentes ? { fuentes } : {}),
       requestId: data.requestId,
     });
     if (auto.action === 'escalated') {
@@ -217,6 +230,7 @@ export async function processSuggest(
       knowledge,
       tools,
       activeModules,
+      ...(fuentes ? { fuentes } : {}),
       requestId: data.requestId,
     });
     return suggestion

@@ -37,6 +37,19 @@ export interface Suggestion {
    * sugerencia suelta no la necesita.
    */
   herramientas?: string[];
+  /**
+   * En qué FUENTE del conocimiento se apoyó (#714).
+   *
+   * La misma distinción que `herramientas`, por la misma razón: `undefined` es
+   * «no se sabe» —una sugerencia anterior a este cambio, o una tarea que no
+   * consulta conocimiento— y `[]` es «lo dijo sin consultar ninguna fuente».
+   * Mostrar lo segundo cuando pasa lo primero sería afirmar algo que no sabemos.
+   *
+   * Lleva el nombre guardado, no un join: es el acta de ese momento. Si la
+   * fuente se renombró o se sacó del conocimiento, el nombre sigue diciendo de
+   * dónde salió, y el `id` sirve para abrirla cuando todavía está.
+   */
+  fuentes?: Array<{ id: string; nombre: string }>;
 }
 
 function rowToSuggestion(row: Record<string, unknown>): Suggestion {
@@ -59,6 +72,11 @@ function rowToSuggestion(row: Record<string, unknown>): Suggestion {
     // nada». La pantalla los muestra distinto, porque no saber no es lo mismo
     // que saber que no.
     herramientas: Array.isArray(row.tools_called) ? (row.tools_called as string[]) : undefined,
+    // Acá el `null` SÍ importa y por eso se pregunta por el arreglo y no por la
+    // presencia de la columna: `sources_used` es nullable a propósito (#714).
+    fuentes: Array.isArray(row.sources_used)
+      ? (row.sources_used as Array<{ id: string; nombre: string }>)
+      : undefined,
   };
 }
 
@@ -173,6 +191,12 @@ export async function suggestForInbound(
     messageId?: string;
     /** Bloque de conocimiento del negocio con citas (#51), si el módulo está activo. */
     knowledge?: string | null;
+    /**
+     * Las fuentes detrás de ese bloque de conocimiento (#714). El worker las
+     * arma con `fuentesCitadas`; sin ellas la corrida queda en «no se sabe», que
+     * es la verdad cuando el módulo de conocimiento está apagado.
+     */
+    fuentes?: Array<{ id: string; nombre: string }>;
     requestId?: string;
     /**
      * Las herramientas de lectura que el modelo puede pedir (#240). Las arma
@@ -225,6 +249,11 @@ export async function suggestForInbound(
       requestId: input.requestId,
       ...(input.activeModules ? { activeModules: input.activeModules } : {}),
       ...(input.tools?.length ? { tools: input.tools } : {}),
+      // `...(x ? {} : {})` y no `fuentes: input.fuentes` (#714): con
+      // `exactOptionalPropertyTypes` pasar `undefined` explícito no es lo mismo
+      // que no pasar la propiedad, y acá esa diferencia es justo la que
+      // distingue «no se sabe» de «no se apoyó en nada».
+      ...(input.fuentes ? { fuentes: input.fuentes } : {}),
     },
     modelPortFactory,
   );
@@ -298,7 +327,7 @@ export async function pendingSuggestion(
   // mostrándose. Perder la sugerencia por no poder decir en qué se apoyó sería
   // peor que no decirlo.
   const r = await client.query(
-    `SELECT s.*, e.tools_called
+    `SELECT s.*, e.tools_called, e.sources_used
        FROM suggestions s
        LEFT JOIN agent_executions e
               ON e.id = s.execution_id AND e.tenant_id = s.tenant_id

@@ -49,6 +49,17 @@ export interface RunInput {
    * confirmó.
    */
   activeModules?: readonly string[];
+  /**
+   * Las fuentes del conocimiento que respaldan el contexto de esta corrida
+   * (#714). Las arma `fuentesCitadas` con el resultado del retrieval.
+   *
+   * `undefined` y `[]` NO son lo mismo, y por eso el tipo las distingue:
+   * `undefined` es «esta tarea no consulta conocimiento» —configurar, clasificar,
+   * resumir— y `[]` es «consultó y no encontró nada en qué apoyarse». Lo primero
+   * se guarda como NULL y la pantalla dice «no se sabe»; lo segundo se guarda
+   * como `[]` y dice «lo dijo sin consultar».
+   */
+  fuentes?: Array<{ id: string; nombre: string }>;
 }
 
 export interface RunResult {
@@ -221,8 +232,9 @@ export async function runAgentTask(
     const fila = await client.query(
       `INSERT INTO agent_executions
          (tenant_id, agent_id, task, provider, model, input, output,
-          tokens_in, tokens_out, cost_usd, latency_ms, trace_id, explanation, tools_called)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+          tokens_in, tokens_out, cost_usd, latency_ms, trace_id, explanation, tools_called,
+          sources_used)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
       [
         input.tenantId,
         input.agent.id,
@@ -259,6 +271,10 @@ export async function runAgentTask(
         // corridas tocaron precios» sin abrir un jsonb, y lo que la pantalla de
         // corridas necesita para contestar «¿de dónde sacó eso?».
         JSON.stringify(res.herramientasUsadas ?? []),
+        // La otra mitad de la misma pregunta (#714): en qué CONOCIMIENTO se
+        // apoyó. `null` y `[]` son distintos a propósito —ver la migración
+        // 0014— así que no lleva `?? []`.
+        input.fuentes === undefined ? null : JSON.stringify(input.fuentes),
       ],
     );
     // El medidor de §6 y los umbrales de la cuota (#52).

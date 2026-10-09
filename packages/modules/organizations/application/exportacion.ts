@@ -94,6 +94,11 @@ export const TABLAS_EXPORTADAS = [
   'sequence_enrollments',
   'sources',
   'chunks',
+  // Los `[[enlaces]]` entre fuentes (#714). Van con las fuentes porque son
+  // parte de lo que esos documentos dicen: quien se lleva su conocimiento en
+  // markdown se lleva también cómo estaba relacionado, que es la mitad del
+  // valor de haberlo escrito así.
+  'source_links',
   'channel_accounts',
   'whatsapp_numbers',
   'whatsapp_templates',
