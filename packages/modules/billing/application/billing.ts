@@ -58,6 +58,19 @@ export interface Invoice {
   issuedAt: Date;
   dueAt: Date;
   paidAt: Date | null;
+  /**
+   * De qué suscripción salió, y con qué plan (#702).
+   *
+   * `invoices.subscription_id` se escribía al emitir y ningún `SELECT` la
+   * devolvía: la factura no podía decir de qué plan y de qué ciclo era. Un
+   * negocio que cambió de plan a mitad de mes no entendía su factura, y ésa es
+   * exactamente la llamada que nadie quiere recibir.
+   *
+   * El plan va al lado del id porque es el que estaba cuando se emitió: si la
+   * suscripción cambió después, la factura vieja sigue diciendo lo que cobró.
+   */
+  subscriptionId: string | null;
+  plan: string | null;
 }
 
 function rowToInvoice(row: Record<string, unknown>): Invoice {
@@ -72,6 +85,8 @@ function rowToInvoice(row: Record<string, unknown>): Invoice {
     issuedAt: row.issued_at as Date,
     dueAt: row.due_at as Date,
     paidAt: (row.paid_at as Date) ?? null,
+    subscriptionId: (row.subscription_id as string) ?? null,
+    plan: (row.plan as string) ?? null,
   };
 }
 
@@ -93,13 +108,27 @@ export async function getSubscription(client: PoolClient, tenantId: string): Pro
   return r.rowCount === 0 ? null : rowToSubscription(r.rows[0]);
 }
 
+/**
+ * Las facturas, cada una con el plan de la suscripción que la emitió (#702).
+ *
+ * El `plan` sale de la suscripción por `subscription_id`: es la columna que se
+ * escribía desde el primer día y ninguna consulta devolvía. `LEFT JOIN` y no
+ * `JOIN` — una factura cuya suscripción se borró tiene que seguir apareciendo:
+ * perderla por no poder nombrar su plan sería peor que mostrarla sin él.
+ */
 export async function listInvoices(client: PoolClient, tenantId: string): Promise<Invoice[]> {
   const r = await client.query(
-    'SELECT * FROM invoices WHERE tenant_id = $1 ORDER BY period_start DESC LIMIT 24',
+    `SELECT i.*, s.plan
+       FROM invoices i
+       LEFT JOIN subscriptions s ON s.id = i.subscription_id
+      WHERE i.tenant_id = $1
+      ORDER BY i.period_start DESC
+      LIMIT 24`,
     [tenantId],
   );
   return r.rows.map(rowToInvoice);
 }
+
 
 /** El costo de Meta del período, desde las tablas agregadas (#66). */
 async function metaSpentUsd(

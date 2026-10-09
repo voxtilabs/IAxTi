@@ -82,3 +82,7 @@ export type { RetentionCutoff, PurgeResult } from './application/retention';
 // el día uno y ninguna consulta la leía.
 export { historialDeAsignaciones } from './application/conversations';
 export type { Reasignacion } from './application/conversations';
+// El consumo del ciclo, reconstruible (#702): `usage_period` se leía solo como
+// marca de dedupe y no se podía listar.
+export { conversacionesPorPeriodo } from './application/conversations';
+export type { ConversacionesDelPeriodo } from './application/conversations';
