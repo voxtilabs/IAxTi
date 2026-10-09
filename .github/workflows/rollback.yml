@@ -48,6 +48,20 @@ jobs:
           COMPOSE_ID: ${{ inputs.ambiente == 'production' && secrets.DOKPLOY_COMPOSE_ID_PROD || secrets.DOKPLOY_COMPOSE_ID_STAGING }}
           BASE: ${{ inputs.ambiente == 'production' && secrets.PROD_BASE_URL || secrets.STAGING_BASE_URL }}
           TAG: ${{ inputs.tag }}
+          # Por `env:` y no interpolados en el `run:` (#758). Un `${{ … }}` se
+          # expande antes de que bash vea el script, así que su contenido pasa a
+          # ser programa y no dato — y acá uno de los dos es un secreto y el otro
+          # es un nombre que lo elige quien dispara el workflow. El riesgo de
+          # `github.actor` es chico (GitHub no permite metacaracteres en los
+          # nombres), pero la forma correcta no depende de eso.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          # El resumen también sale por `env:` (#758). `motivo` es texto libre
+          # de quien dispara el rollback; interpolado dentro del `run:` es
+          # ejecución de comandos en el runner — y un rollback se dispara bajo
+          # presión, que es cuando nadie revisa lo que pegó en un campo.
+          AMBIENTE: ${{ inputs.ambiente }}
+          MOTIVO: ${{ inputs.motivo || 'no indicado' }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado; no hay nada que revertir."; exit 1; fi
 
@@ -56,7 +70,7 @@ jobs:
           # el proyecto queda apuntando a nada y Dokploy falla con el
           # incidente original todavía abierto. Lo cazó el primer simulacro
           # (#80), donde el SHA iba incompleto.
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 || true
+          echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin >/dev/null 2>&1 || true
           if ! docker manifest inspect "ghcr.io/voxtilabs/iaxti:${TAG}" >/dev/null 2>&1; then
             echo "No existe la imagen ghcr.io/voxtilabs/iaxti:${TAG}."
             echo "Los tags son el SHA COMPLETO del commit (40 caracteres) o un tag de release vX.Y.Z."
@@ -105,11 +119,11 @@ jobs:
           fin=$(date +%s)
           segundos=$((fin - inicio))
           {
-            echo "## Rollback de ${{ inputs.ambiente }}"
+            echo "## Rollback de ${AMBIENTE}"
             echo ""
             echo "- Desde: \`${anterior#IMAGE=}\`"
             echo "- A: \`ghcr.io/voxtilabs/iaxti:${TAG}\`"
-            echo "- Motivo: ${{ inputs.motivo || 'no indicado' }}"
+            echo "- Motivo: ${MOTIVO}"
             echo "- **Duración: ${segundos} s** (compromiso: menos de 120 s, SPEC §15)"
             if [ "$segundos" -gt 120 ]; then
               echo ""
