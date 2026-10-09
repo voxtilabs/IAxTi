@@ -8,8 +8,18 @@ export {
   agendar,
   cambiarEstadoCita,
   listarCitas,
+  // Por qué se nos cancelan las visitas, y qué quedó vivo en Google (#700).
+  motivosDeCancelacion,
+  citasDesincronizadasConGoogle,
 } from './application/agenda';
-export type { Disponibilidad, HuecoOfrecido, Cita } from './application/agenda';
+export type {
+  Disponibilidad,
+  HuecoOfrecido,
+  Cita,
+  AgendaDeps,
+  CancelarEnGoogle,
+  MotivoDeCancelacion,
+} from './application/agenda';
 export { ESTADOS_CITA, assertTransicionCita, ocupaAgenda } from './domain/estado';
 export type { EstadoCita } from './domain/estado';
 export { huecosLibres, comoHora, desdeHora } from './domain/horarios';

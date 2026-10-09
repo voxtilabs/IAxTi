@@ -3,11 +3,15 @@
 import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Button, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
+import {
+  Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
+  DialogTitle, Input, Skeleton, useSession, type BadgeRole,
+} from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { RecordatoriosDeCita } from './recordatorios-de-cita';
 import { HorariosDeAtencion } from './horarios-de-atencion';
 import { DarUnaHora } from './dar-una-hora';
+import { PorQueSeCancelan } from './por-que-se-cancelan';
 import { apiFetch, type CitaDto } from '../lib/api';
 
 // La agenda (#58, SPEC §16): las citas de la semana y qué pasó con cada una.
@@ -75,6 +79,8 @@ export function Agenda() {
   const { config, session } = useSession();
   const tenant = selectedTenant();
   const [citas, setCitas] = useState<CitaDto[] | null>(null);
+  const [porCancelar, setPorCancelar] = useState<CitaDto | null>(null);
+  const [motivo, setMotivo] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [moviendo, setMoviendo] = useState<string | null>(null);
 
@@ -102,13 +108,13 @@ export function Agenda() {
     void cargar();
   }, [cargar]);
 
-  async function cambiar(cita: CitaDto, a: CitaDto['status']) {
+  async function cambiar(cita: CitaDto, a: CitaDto['status'], motivo?: string) {
     if (!session || !tenant || moviendo) return;
     setMoviendo(cita.id);
     try {
       await apiFetch(config, session, tenant, `/agenda/${cita.id}/estado`, {
         method: 'POST',
-        body: JSON.stringify({ estado: a }),
+        body: JSON.stringify(motivo ? { estado: a, motivo } : { estado: a }),
       });
       await cargar();
     } catch (e) {
@@ -117,6 +123,19 @@ export function Agenda() {
       setMoviendo(null);
     }
   }
+
+  /**
+   * Cancelar pide el motivo (#700).
+   *
+   * `cancel_reason` existía desde el primer día y esta pantalla mandaba la
+   * cancelación sin él: la columna solo se llenaba cuando cancelaba la IA. Así
+   * que «¿por qué se nos cancelan las visitas?» no se podía contestar ni
+   * leyendo la base — el dato no estaba.
+   *
+   * No es obligatorio: forzarlo haría que alguien escriba «x» para salir del
+   * paso, y un motivo falso es peor que ninguno. Se ofrece, y lo que quede en
+   * blanco se cuenta aparte como «sin motivo».
+   */
 
   if (citas === null) {
     return (
@@ -176,6 +195,15 @@ export function Agenda() {
                     {c.title ?? 'Sin título'}
                   </a>
                   <Badge role={ETIQUETA[c.status].rol}>{ETIQUETA[c.status].texto}</Badge>
+                  {/* Por qué se cayó (#700): se escribía y no se mostraba. */}
+                  {c.status === 'cancelled' && c.cancelReason && (
+                    <span className="w-full text-xs text-muted sm:w-auto">{c.cancelReason}</span>
+                  )}
+                  {/* Cancelada acá y viva en Google: ocupa una hora que el
+                      vendedor ve libre, así que se dice en la cita. */}
+                  {c.googleSyncError && (
+                    <span className="w-full text-xs text-warn-text">{c.googleSyncError}</span>
+                  )}
                   <span className="flex flex-wrap gap-2">
                     {SIGUIENTES[c.status].map((s) => (
                       <Button
@@ -183,7 +211,11 @@ export function Agenda() {
                         variant={s.a === 'cancelled' ? 'fantasma' : 'secundario'}
                         size="chico"
                         disabled={moviendo === c.id}
-                        onClick={() => void cambiar(c, s.a)}
+                        onClick={() =>
+                          s.a === 'cancelled'
+                            ? (setPorCancelar(c), setMotivo(''))
+                            : void cambiar(c, s.a)
+                        }
                       >
                         {s.texto}
                       </Button>
@@ -199,6 +231,41 @@ export function Agenda() {
           viene a ver qué tiene hoy, no a configurar. */}
       {/* Dar una hora va con las citas, no con la configuración: es
           trabajo del día, no un ajuste (#460). */}
+      <Dialog open={porCancelar !== null} onOpenChange={(abierto) => !abierto && setPorCancelar(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar esta hora</DialogTitle>
+            <DialogDescription>
+              ¿Por qué se cayó? Queda en la cita y sirve para ver qué se repite. Puedes dejarlo en
+              blanco.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            aria-label="Motivo de la cancelación"
+            placeholder="El cliente avisó que no podía"
+            maxLength={200}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="secundario" onClick={() => setPorCancelar(null)}>
+              Volver
+            </Button>
+            <Button
+              onClick={() => {
+                const cita = porCancelar;
+                if (!cita) return;
+                setPorCancelar(null);
+                void cambiar(cita, 'cancelled', motivo.trim() || undefined);
+              }}
+            >
+              Cancelar la hora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <PorQueSeCancelan />
       <DarUnaHora onAgendada={() => void cargar()} />
       <HorariosDeAtencion />
       <RecordatoriosDeCita />
