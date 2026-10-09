@@ -75,7 +75,14 @@ import {
   reindexarPendientes,
   embeddingsAvailable,
 } from '@iaxti/module-knowledge';
-import { automationConsumers, sequenceConsumers, sweepSequences, sweepTimeRules, type EngineDeps } from '@iaxti/module-automations';
+import {
+  automationConsumers,
+  correrReglasDeEntrada,
+  sequenceConsumers,
+  sweepSequences,
+  sweepTimeRules,
+  type EngineDeps,
+} from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
 import { avisarBorradoPendiente, billingConsumers, sweepBilling } from '@iaxti/module-billing';
@@ -116,6 +123,18 @@ function start(): void {
   });
 
   // El motor de reglas (#62): consumidores de eventos + barrido de tiempo.
+/**
+ * Cuánto se le da a las reglas de entrada antes de seguir sin ellas (#720).
+ *
+ * Dos segundos: una regla que asigna o etiqueta son dos consultas, y con la
+ * base a 64 ms de viaje eso son ~130 ms. Dos segundos es diez veces eso.
+ *
+ * Y vencerlo NO es un error: el mensaje entra igual y el outbox corre la regla
+ * después, con la misma clave de deduplicación. Llegar tarde es malo; no
+ * recibir el mensaje es peor.
+ */
+const REGLAS_DE_ENTRADA_MS = 2_000;
+
   const automationDeps: EngineDeps = {
     activeModules: ['conversations', 'crm'].filter((m) => registry.isActive(m)),
   };
@@ -612,6 +631,48 @@ function start(): void {
         }
         const data = job.data as unknown as InboundJob;
         const res = await processInbound(pool, data);
+
+        /**
+         * Las reglas de entrada, ANTES de que el bot conteste (#720).
+         *
+         * El copiloto se encolaba acá mismo y las reglas corrían después, por
+         * el outbox. O sea que la regla que debía enrutar el lead —«estos son
+         * de Carla»— llegaba cuando el bot ya había hablado por el negocio.
+         *
+         * Antes daba casi igual porque el copiloto respondía ciego. Desde #716
+         * contesta el primer mensaje CON herramientas.
+         *
+         * Solo en conversaciones NUEVAS: `conversation.created` es el
+         * disparador, y correrlo en una conversación que ya existía sería
+         * inventar un evento que no pasó.
+         *
+         * Con presupuesto y con catch, y las dos cosas a propósito: llegar
+         * tarde es malo, pero NO RECIBIR EL MENSAJE es peor. Si la regla se
+         * cuelga o revienta, el mensaje entra igual y la corrida del outbox
+         * —que comparte la clave de deduplicación— queda como red.
+         */
+        if (res.conversationCreated && registry.isActive('automations')) {
+          await Promise.race([
+            withTenant(pool, data.tenantId, (c) =>
+              correrReglasDeEntrada(
+                c,
+                {
+                  tenantId: data.tenantId,
+                  conversationId: res.conversationId,
+                  eventoId: res.messageId,
+                  requestId: data.requestId,
+                },
+                automationDeps,
+              ),
+            ),
+            new Promise((listo) => setTimeout(listo, REGLAS_DE_ENTRADA_MS)),
+          ]).catch((err: Error) => {
+            console.warn(
+              `[${data.requestId}] reglas de entrada: ${err.message} — el mensaje entra igual y las corre el outbox`,
+            );
+          });
+        }
+
         // El copiloto (#48) corre DESPUÉS, en su cola: la bandeja no espera.
         if (registry.isActive('agents') && !res.optedOut) {
           const adjunto = (data.attachments as Array<{ key?: string; contentType?: string }> | undefined)?.[0];
