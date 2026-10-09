@@ -242,6 +242,12 @@ export class KnowledgeController {
             name: fuente.nombre,
             content: fuente.contenido,
             validUntil,
+            // Los `[[enlaces]]` se GUARDAN (#714). Antes se extraían, se
+            // devolvían en esta respuesta y ahí morían: el negocio los veía una
+            // vez en el aviso de la importación y nunca más. Un enlace es una
+            // relación entre dos partes del conocimiento del negocio, y esa
+            // relación es parte de lo que el documento dice.
+            ...(fuente.enlaces.length ? { enlaces: fuente.enlaces } : {}),
             actor: actor.userId,
             requestId: request.requestId,
           });

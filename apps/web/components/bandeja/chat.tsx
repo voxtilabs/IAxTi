@@ -159,14 +159,48 @@ export interface ChatProps {
  * corrida no registraba qué usaba. Decir «sin consultar» ahí sería afirmar algo
  * que no sabemos — exactamente el defecto que venimos sacando toda la semana.
  */
-function EnQueSeApoyo({ herramientas }: { herramientas?: string[] }) {
-  if (herramientas === undefined) return null;
+function EnQueSeApoyo({
+  herramientas,
+  fuentes,
+}: {
+  herramientas?: string[];
+  fuentes?: Array<{ id: string; nombre: string }>;
+}) {
+  if (herramientas === undefined && fuentes === undefined) return null;
   return (
-    <p className="mt-2 rotulo">
-      {herramientas.length === 0
-        ? 'Respondió sin consultar nada'
-        : `Consultó ${herramientas.map(enCastellano).join(' y ')}`}
-    </p>
+    <>
+      {herramientas !== undefined && (
+        <p className="mt-2 rotulo">
+          {herramientas.length === 0
+            ? 'Respondió sin consultar nada'
+            : `Consultó ${herramientas.map(enCastellano).join(' y ')}`}
+        </p>
+      )}
+      {/* De qué documento del negocio salió (#714). La otra mitad de la misma
+          pregunta: #717 trajo QUÉ HERRAMIENTAS consultó, y lo que uno se
+          pregunta cuando un cliente reclama un precio es de dónde salió ESE
+          precio. Con enlace a la fuente, porque la respuesta útil no es el
+          nombre del documento sino el documento. */}
+      {fuentes !== undefined && (
+        <p className="mt-1 rotulo">
+          {fuentes.length === 0 ? (
+            'Esto lo dijo sin consultar el conocimiento del negocio'
+          ) : (
+            <>
+              Según{' '}
+              {fuentes.map((f, i) => (
+                <span key={f.id}>
+                  {i > 0 && ', '}
+                  <a href="/ajustes/conocimiento" className="text-action-text underline">
+                    {f.nombre}
+                  </a>
+                </span>
+              ))}
+            </>
+          )}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -665,7 +699,7 @@ export function Chat({
         <div className="mx-4 mb-2 rounded-campo border border-action-soft-br bg-action-soft p-3">
           <p className="rotulo">Sugerencia del asistente{sugerencia.confidence !== null && ` · ${Math.round(sugerencia.confidence * 100)} %`}</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{sugerencia.text}</p>
-          <EnQueSeApoyo herramientas={sugerencia.herramientas} />
+          <EnQueSeApoyo herramientas={sugerencia.herramientas} fuentes={sugerencia.fuentes} />
           {sugerencia.suggestDeal && detalle && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-action-text">
               Parece que quiere cotizar —

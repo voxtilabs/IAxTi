@@ -2,6 +2,7 @@ import type { PoolClient, QueryResultRow } from 'pg';
 import { hashQuery, toVectorLiteral } from '../domain/chunking';
 import type { EmbedPort } from './embeddings';
 import { nvidiaEmbedPort } from './embeddings';
+import { marcarFuentesUsadas } from './sources';
 
 // El retrieval (#51): top-K por coseno SOLO sobre fuentes vigentes, con la
 // cita a la fuente SIEMPRE — que la IA responda con lo que el negocio dice.
@@ -187,6 +188,14 @@ export async function searchKnowledge(
   if ((cache.rowCount ?? 0) > 0) {
     const guardados = cache.rows[0].results as KnowledgeHit[];
     if (await elCacheSigueSirviendo(client, input.tenantId, guardados)) {
+      // El uso se marca TAMBIÉN cuando la respuesta sale del cache (#714): la
+      // fuente respaldó una respuesta igual, y no contarla haría que las
+      // preguntas más repetidas del negocio —las que más se cachean— fueran
+      // justo las que no aparecen en el uso de sus fuentes.
+      await marcarFuentesUsadas(client, {
+        tenantId: input.tenantId,
+        sourceIds: guardados.map((h) => h.sourceId),
+      });
       return { hits: guardados, cached: true, expiredSources };
     }
   }
@@ -201,6 +210,10 @@ export async function searchKnowledge(
      ON CONFLICT (tenant_id, query_hash) DO UPDATE SET results = $3, created_at = now()`,
     [input.tenantId, hash, JSON.stringify(hits)],
   );
+  await marcarFuentesUsadas(client, {
+    tenantId: input.tenantId,
+    sourceIds: hits.map((h) => h.sourceId),
+  });
   return { hits, cached: false, expiredSources };
 }
 
@@ -242,6 +255,25 @@ export async function getProduct(
     description: row.description ?? null,
     sourceName: row.source_name,
   }));
+}
+
+/**
+ * Las fuentes que respaldan esta respuesta, sin repetir (#714).
+ *
+ * Va con NOMBRE y no solo con id, y eso es a propósito: lo que se guarda en la
+ * corrida del agente es un acta de en qué se apoyó ESE día. Si mañana la fuente
+ * se renombra o se saca del conocimiento, el id dejaría la pantalla mostrando un
+ * enlace roto y nada más; el nombre sigue diciendo de dónde salió. El id va
+ * igual, para poder abrirla cuando todavía existe.
+ *
+ * Y resuelve el otro problema de un acta por id: `agents` no puede consultar las
+ * tablas de `knowledge` —la regla del módulo es que se cruza por contrato— así
+ * que sin el nombre adentro no habría forma de mostrarlo.
+ */
+export function fuentesCitadas(result: KnowledgeResult): Array<{ id: string; nombre: string }> {
+  const porId = new Map<string, string>();
+  for (const h of result.hits) porId.set(h.sourceId, h.sourceName);
+  return [...porId].map(([id, nombre]) => ({ id, nombre }));
 }
 
 /**

@@ -33,6 +33,11 @@ interface FuenteDto {
   validUntil: string | null;
   chunkCount?: number;
   createdAt: string;
+  /** Cuándo se usó por última vez y cuántas veces (#714). */
+  lastUsedAt: string | null;
+  useCount: number;
+  /** Los `[[enlaces]]` del markdown, con el destino si ya está cargado (#714). */
+  enlaces?: Array<{ nombre: string; sourceId: string | null }>;
 }
 
 interface ProductoDto {
@@ -65,6 +70,25 @@ const ESTADO: Record<FuenteDto['status'], { label: string; role: 'good' | 'warn'
   expired: { label: 'Vencida', role: 'warn' },
   failed: { label: 'Falló', role: 'bad' },
 };
+
+/**
+ * Desde cuándo no se usa, en palabras (#714).
+ *
+ * «Nunca» va aparte y en tono de aviso: una fuente que nadie usó está pagando
+ * indexación y ocupando contexto sin devolver nada, y es la respuesta a la
+ * pregunta que nadie podía hacer —«¿cuáles de mis ocho documentos sirven?»—.
+ *
+ * El resto va en días y no en fecha exacta a propósito: lo que se decide con
+ * esto es si sacarla o actualizarla, y para eso «hace 3 meses» dice más que
+ * «12-07-2026».
+ */
+function fmtUso(f: FuenteDto): { texto: string; role: 'good' | 'warn' | 'neutral' } {
+  if (!f.lastUsedAt || f.useCount === 0) return { texto: 'Nunca se ha usado', role: 'warn' };
+  const dias = Math.floor((Date.now() - new Date(f.lastUsedAt).getTime()) / 86_400_000);
+  const cuando = dias <= 0 ? 'hoy' : dias === 1 ? 'ayer' : dias < 30 ? `hace ${dias} días` : `hace ${Math.floor(dias / 30)} meses`;
+  const veces = f.useCount === 1 ? '1 vez' : `${f.useCount} veces`;
+  return { texto: `Usada ${cuando} · ${veces}`, role: dias < 30 ? 'good' : 'neutral' };
+}
 
 const PLACEHOLDER: Record<string, string> = {
   texto: 'Pega aquí lo que la IA debe saber: horarios, políticas, cómo trabajar…',
@@ -357,7 +381,9 @@ export function Conocimiento() {
           <p className="mt-2 text-sm text-muted">Aún no hay fuentes. La IA solo conoce la conversación.</p>
         ) : (
           <ul className="mt-2 flex flex-col">
-            {fuentes.map((f) => (
+            {fuentes.map((f) => {
+              const uso = fmtUso(f);
+              return (
               <li key={f.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-ink">{f.name}</p>
@@ -367,6 +393,30 @@ export function Conocimiento() {
                     {f.validUntil && ` · vence ${new Date(f.validUntil).toLocaleDateString('es-CL')}`}
                     {f.error && ` · ${f.error}`}
                   </p>
+                  {/* El uso (#714): una fuente que sostiene la mitad de las
+                      respuestas y una que nadie usó nunca se veían idénticas.
+                      Va como etiqueta y no solo con color, que es la regla de
+                      Pulso: el color nunca es el único portador. */}
+                  <p className="mt-1">
+                    <Badge role={uso.role}>{uso.texto}</Badge>
+                  </p>
+                  {/* Los `[[enlaces]]` del documento. El que todavía no tiene
+                      destino se muestra igual y se dice: es un documento que
+                      falta, no un error. */}
+                  {f.enlaces !== undefined && f.enlaces.length > 0 && (
+                    <p className="mt-1 text-xs text-muted">
+                      Enlaza a{' '}
+                      {f.enlaces.map((e, i) => (
+                        <span key={e.nombre}>
+                          {i > 0 && ', '}
+                          <span className={e.sourceId ? 'text-action-text' : 'text-warn-text'}>
+                            {e.nombre}
+                            {!e.sourceId && ' (sin cargar)'}
+                          </span>
+                        </span>
+                      ))}
+                    </p>
+                  )}
                 </div>
                 <Badge role={ESTADO[f.status].role}>{ESTADO[f.status].label}</Badge>
                 {/* Reindexar (#447): la ruta existía y no la llamaba nadie,
@@ -388,7 +438,8 @@ export function Conocimiento() {
                   Eliminar
                 </Button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

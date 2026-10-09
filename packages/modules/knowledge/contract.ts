@@ -22,11 +22,16 @@ export {
 export type {
   Source,
   SourceKind,
+  SourceLink,
   AddSourceInput,
   ProcessPorts,
   Reindexacion,
 } from './application/sources';
-export { searchKnowledge, getProduct, knowledgeContext } from './application/search';
+// `marcarFuentesUsadas` NO se exporta (#714): la llama `searchKnowledge` acá
+// adentro y nadie más debe poder llamarla. Si el copiloto pudiera marcar uso por
+// su cuenta, el contador diría «esta fuente respaldó una respuesta» sin que
+// ninguna respuesta se haya apoyado en ella.
+export { searchKnowledge, getProduct, knowledgeContext, fuentesCitadas } from './application/search';
 export type { KnowledgeHit, KnowledgeResult, ProductHit } from './application/search';
 export {
   googleEmbedPort,

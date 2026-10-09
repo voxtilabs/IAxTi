@@ -21,6 +21,38 @@ export interface Source {
   error: string | null;
   chunkCount?: number;
   createdAt: Date;
+  /**
+   * Cuándo se usó por última vez y cuántas veces (#714).
+   *
+   * «Usar» una fuente es que el retrieval la haya devuelto como respaldo de una
+   * respuesta — no que alguien la haya abierto en la pantalla. Es lo que
+   * contesta la pregunta que importa: de los ocho documentos que subí, ¿cuáles
+   * sostienen lo que la IA dice?
+   *
+   * `lastUsedAt` en null significa NUNCA, y eso se muestra distinto: una fuente
+   * que nadie usó está costando indexación y contexto sin devolver nada.
+   */
+  lastUsedAt: Date | null;
+  useCount: number;
+  /**
+   * Los `[[enlaces]]` que traía el markdown, con el destino resuelto si existe
+   * (#714). Solo cuando la consulta los trae al lado.
+   */
+  enlaces?: SourceLink[];
+}
+
+/** Un `[[enlace]]` de un markdown importado y a qué apunta hoy (#714). */
+export interface SourceLink {
+  /** El nombre tal cual lo escribió quien redactó el documento. */
+  nombre: string;
+  /**
+   * La fuente a la que apunta, o null si ese documento todavía no está.
+   *
+   * Se resuelve al LEER y no al importar: en una carpeta, `precios.md` nombra
+   * `[[despacho]]` antes de que `despacho.md` entre. Un enlace suelto no es un
+   * error, es un documento que falta.
+   */
+  sourceId: string | null;
 }
 
 function rowToSource(row: Record<string, unknown>): Source {
@@ -34,6 +66,9 @@ function rowToSource(row: Record<string, unknown>): Source {
     error: (row.error as string) ?? null,
     chunkCount: row.chunk_count === undefined ? undefined : Number(row.chunk_count),
     createdAt: row.created_at as Date,
+    lastUsedAt: (row.last_used_at as Date) ?? null,
+    useCount: Number(row.use_count ?? 0),
+    ...(row.enlaces === undefined ? {} : { enlaces: row.enlaces as SourceLink[] }),
   };
 }
 
@@ -48,6 +83,15 @@ export interface AddSourceInput {
   validUntil?: Date | null;
   actor?: string;
   requestId?: string;
+  /**
+   * Los `[[enlaces]]` del markdown de origen (#714).
+   *
+   * `fuenteDesdeMarkdown` los venía extrayendo desde el primer día y la ruta de
+   * importación los devolvía en la respuesta HTTP: nadie los guardaba. Se
+   * registran acá, en la misma transacción que la fuente, porque son parte de
+   * lo que ese documento dice.
+   */
+  enlaces?: string[];
 }
 
 export async function addSource(client: PoolClient, input: AddSourceInput): Promise<Source> {
@@ -70,6 +114,17 @@ export async function addSource(client: PoolClient, input: AddSourceInput): Prom
       input.validUntil ?? null,
     ],
   );
+  // Los enlaces del documento, si traía (#714). `ON CONFLICT DO NOTHING`
+  // porque el mismo `[[precios]]` puede aparecer tres veces en un texto y la
+  // relación es una sola — `enlacesDe` ya desduplica, y esto cubre el reintento.
+  if (input.enlaces?.length) {
+    await client.query(
+      `INSERT INTO source_links (tenant_id, source_id, target_name)
+       SELECT $1, $2, unnest($3::text[])
+       ON CONFLICT DO NOTHING`,
+      [input.tenantId, r.rows[0].id, input.enlaces],
+    );
+  }
   await writeAudit(client, {
     tenantId: input.tenantId,
     actor: input.actor ?? 'system',
@@ -295,12 +350,51 @@ export async function processSource(
 }
 
 export async function listSources(client: PoolClient, tenantId: string): Promise<Source[]> {
+  // Los enlaces vienen resueltos acá y no en otra vuelta (#714): el destino se
+  // busca POR NOMBRE contra las fuentes del mismo tenant, que es lo que hace
+  // que un enlace se encienda cuando el documento que falta aparece. El
+  // `LEFT JOIN` es lo que deja pasar al enlace suelto con `sourceId: null` en
+  // vez de borrarlo de la lista — un enlace sin destino dice que falta algo.
   const r = await client.query(
-    `SELECT s.*, (SELECT count(*) FROM chunks c WHERE c.tenant_id = s.tenant_id AND c.source_id = s.id) AS chunk_count
+    `SELECT s.*,
+            (SELECT count(*) FROM chunks c WHERE c.tenant_id = s.tenant_id AND c.source_id = s.id) AS chunk_count,
+            COALESCE((
+              SELECT jsonb_agg(jsonb_build_object('nombre', l.target_name, 'sourceId', d.id)
+                               ORDER BY l.target_name)
+                FROM source_links l
+                LEFT JOIN sources d
+                       ON d.tenant_id = l.tenant_id AND lower(d.name) = lower(l.target_name)
+               WHERE l.tenant_id = s.tenant_id AND l.source_id = s.id
+            ), '[]'::jsonb) AS enlaces
        FROM sources s WHERE s.tenant_id = $1 ORDER BY s.created_at DESC`,
     [tenantId],
   );
   return r.rows.map(rowToSource);
+}
+
+/**
+ * Deja constancia de que estas fuentes respaldaron una respuesta (#714).
+ *
+ * Vive acá y la llama `searchKnowledge`, o sea TODO el que consulta el
+ * conocimiento: el copiloto cuando arma su contexto y la herramienta
+ * `knowledge.search` cuando el modelo la pide. Una regla, una implementación —
+ * si estuviera en el copiloto, lo que la IA consulta por herramienta no contaría
+ * y la pantalla diría que esa fuente no se usa nunca.
+ *
+ * Sí: es una escritura en un camino de lectura. Es una sola `UPDATE` por
+ * consulta sobre una tabla de decenas de filas, y el dato no se puede derivar de
+ * otra parte — la alternativa es no saberlo.
+ */
+export async function marcarFuentesUsadas(
+  client: PoolClient,
+  input: { tenantId: string; sourceIds: readonly string[] },
+): Promise<void> {
+  if (input.sourceIds.length === 0) return;
+  await client.query(
+    `UPDATE sources SET last_used_at = now(), use_count = use_count + 1
+      WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+    [input.tenantId, [...new Set(input.sourceIds)]],
+  );
 }
 
 /**

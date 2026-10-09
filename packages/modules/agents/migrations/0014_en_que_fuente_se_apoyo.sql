@@ -1,0 +1,20 @@
+-- En qué fuente del conocimiento se apoyó la corrida (#714).
+--
+-- #699 hizo que la corrida guardara QUÉ HERRAMIENTAS consultó, y #717 lo llevó a
+-- la bandeja. Falta la otra mitad y es la que el negocio pregunta más seguido:
+-- de dónde sacó LO QUE DIJO. El retrieval armaba las citas, se las mandaba al
+-- modelo y se quedaban ahí — una sugerencia respaldada por la lista de precios y
+-- una dicha de memoria se veían idénticas.
+--
+-- Sin DEFAULT y nullable, a diferencia de `tools_called`: NULL es «no se sabe»
+-- —una corrida anterior a este cambio— y `[]` es «no se apoyó en ninguna
+-- fuente». Son cosas distintas y la pantalla las dice distinto. `tools_called`
+-- nació con DEFAULT '[]' y por eso durante meses dijo «no consultó nada» en
+-- corridas donde nadie estaba guardando el dato.
+--
+-- Guarda `[{ "id": ..., "nombre": ... }]` y no solo los ids: es el acta de ese
+-- momento. Si la fuente se renombra o se saca del conocimiento, el id solo
+-- dejaría un enlace roto; el nombre sigue diciendo de dónde salió. Y `agents` no
+-- puede consultar las tablas de `knowledge` —se cruza por contrato—, así que el
+-- nombre tiene que venir guardado.
+ALTER TABLE agent_executions ADD COLUMN IF NOT EXISTS sources_used jsonb;
