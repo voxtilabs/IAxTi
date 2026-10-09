@@ -251,6 +251,22 @@ export async function deliverWebhooks(
   // producción. El tope de 100 pasa a ser por tenant, que además reparte
   // mejor: antes un tenant con mucha cola se comía el turno de los demás.
   const vencidas = { rows: [] as Array<{ id: string; tenant_id: string }> };
+  // A QUIÉN visitar se pregunta UNA vez (#743, ADR-0026).
+  //
+  // Antes se recorrían todos los tenants vivos. No salía rojo en las pruebas
+  // porque la de entregas ya tiene su presupuesto declarado (#728) — o sea que
+  // el costo estaba ahí, tapado por el arreglo del síntoma. Medido con 1.283
+  // tenants: 4,5 ms cada uno, ~5,8 s el barrido entero, y éste corre seguido:
+  // es el que entrega los webhooks del cliente.
+  //
+  // `webhook_deliveries` tiene RLS, así que la pregunta vive en una función
+  // SECURITY DEFINER que devuelve SOLO ids. El tope de 100 por tenant, el
+  // backoff y el apagado del endpoint los sigue decidiendo el barrido.
+  const conEntregas = (
+    await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM tenants_con_entregas_pendientes()',
+    )
+  ).rows.map((f) => f.tenant_id);
   await porCadaTenant(
     pool,
     async (client, tenantId) => {
@@ -282,7 +298,14 @@ export async function deliverWebhooks(
       // castigar más de lo que la regla dice.
       //
       // `deleted` ya queda fuera: `idsDeTenants` lo excluye por defecto.
+      //
+      // Y desde #743 este filtro vive TAMBIÉN en
+      // `tenants_con_entregas_pendientes`, porque pasar `ids` cortocircuita
+      // `estados` —`idsDeTenants` devuelve la lista tal cual cuando se la dan—.
+      // Se deja acá igual: si alguien quita el `ids`, el barrido sigue
+      // respetando los estados en vez de empezar a mandarle a los suspendidos.
       estados: ['trial', 'active', 'past_due', 'read_only'],
+      ids: conEntregas,
     },
   );
   for (const fila of vencidas.rows) {

@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { idsDeTenants, withTenant } from '@iaxti/db';
+import { withTenant } from '@iaxti/db';
 import { getProvider, listChannelAccounts } from '@iaxti/module-channels';
 import type { ChannelAccountRef, PuertoDePlantillas } from '@iaxti/module-channels';
 import {
@@ -47,15 +47,28 @@ async function cuentaConPlantillas(
 export async function sincronizarPlantillas(
   pool: Pool,
 ): Promise<{ tenants: number; revisadas: number; cambiadas: number; conErrores: number }> {
-  // Los tenants se sacan de `tenants`, no de `whatsapp_templates` (#286):
-  // esa tabla tiene RLS y una consulta suelta devuelve cero filas con el rol
-  // de producción. Era mío, de este mismo día.
+  // A QUIÉN visitar se pregunta UNA vez (#743, ADR-0026).
+  //
+  // Antes se recorrían todos los tenants vivos para preguntarle a cada uno
+  // «¿tienes alguna plantilla pendiente?». La consulta de adentro ya estaba
+  // bien pensada —si no hay nada esperando, no se molesta al proveedor— pero la
+  // TRANSACCIÓN se pagaba igual, por cada tenant, en cada vuelta: medido con
+  // 1.283 tenants, 4,5 ms cada uno y ~5,8 s el barrido entero.
+  //
+  // `whatsapp_templates` tiene RLS, así que la pregunta vive en una función
+  // SECURITY DEFINER que devuelve SOLO ids (#286 sigue en pie: una consulta
+  // suelta a esa tabla devolvería cero filas con el rol de producción).
   let revisadas = 0;
   let cambiadas = 0;
   let conPendientes = 0;
   let conErrores = 0;
 
-  for (const tenantId of await idsDeTenants(pool)) {
+  const conPendiente = (
+    await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM tenants_con_plantillas_en_revision()',
+    )
+  ).rows.map((f) => f.tenant_id);
+  for (const tenantId of conPendiente) {
     try {
       const cambios = await withTenant(pool, tenantId, async (c) => {
         const hay = await c.query(
