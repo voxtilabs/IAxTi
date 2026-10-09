@@ -8,6 +8,7 @@ import type { Contact } from '@iaxti/module-crm';
 import { assertConversationTransition, assertDeliveryAdvance, salePorProveedor } from '../domain/state';
 import type { ConversationState, DeliveryStatus } from '../domain/state';
 import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
+import { PRIORIDADES, type Prioridad } from '../domain/prioridad';
 
 export type Channel = 'whatsapp' | 'webchat' | 'simulador' | 'instagram' | 'messenger';
 
@@ -1038,4 +1039,61 @@ export async function conversacionesPorPeriodo(
     periodo: f.periodo as string,
     conversaciones: f.conversaciones as number,
   }));
+}
+
+/**
+ * Cambia la prioridad de una conversación (#550).
+ *
+ * `conversations.priority` existía desde la primera migración con su CHECK
+ * completo, estaba en el SPEC, estaba en el tipo y **la API la devolvía en cada
+ * conversación de la bandeja**. Cero escrituras: siempre `'normal'`.
+ *
+ * Era peor que si no existiera. El campo viajaba en la respuesta, así que quien
+ * consumiera la API dibujaba un selector o una insignia que el backend nunca iba
+ * a poder cambiar: todo se veía «normal» y no había nada que explicara por qué.
+ *
+ * Por qué vale construirlo y no sacarlo: la bandeja ya tiene «sin responder» y
+ * «mi cola», que son las dos vistas de triage derivadas del tiempo. La prioridad
+ * es la única que el equipo puede **decidir**. Para una pyme con doscientas
+ * conversaciones el día de una promoción, es la diferencia entre atender por
+ * orden de llegada y atender al que reclama.
+ *
+ * Queda auditado con quién: cambiar el orden en que se atiende a los clientes es
+ * una decisión del negocio, y la pregunta «¿quién puso esto arriba?» tiene que
+ * tener respuesta — es lo mismo que #697 pedía para las otras nueve columnas.
+ */
+export async function cambiarPrioridad(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    prioridad: Prioridad;
+    actor: string;
+    actorKind?: ActorKind;
+    requestId?: string;
+  },
+): Promise<Conversation> {
+  if (!PRIORIDADES.includes(input.prioridad)) {
+    throw new Error(`La prioridad es una de: ${PRIORIDADES.join(', ')}.`);
+  }
+  const antes = await getConversation(client, input.tenantId, input.conversationId, true);
+  const r = await client.query(
+    `UPDATE conversations SET priority = $3, updated_at = now()
+      WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    [input.tenantId, input.conversationId, input.prioridad],
+  );
+  // En la MISMA transacción (CLAUDE.md §3). El `from` va en el metadata porque
+  // «la subió a urgente» y «la bajó a baja» no son la misma decisión.
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor,
+    actorKind: input.actorKind ?? 'user',
+    action: 'conversation.prioridad_cambiada',
+    resource: 'conversation',
+    resourceId: input.conversationId,
+    result: 'ok',
+    requestId: input.requestId,
+    metadata: { from: antes.priority, to: input.prioridad },
+  });
+  return rowToConversation(r.rows[0]);
 }

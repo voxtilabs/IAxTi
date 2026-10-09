@@ -19,9 +19,11 @@ import { z } from 'zod';
 import {
   assignConversation,
   changeConversationState,
+  cambiarPrioridad,
   getConversation,
   getConversationDetail,
   historialDeAsignaciones,
+  PRIORIDADES,
   cierreDeLaVentana,
   isWithinWindow,
   listInbox,
@@ -37,6 +39,7 @@ import type {
   ConversationState,
   InboxFilters,
   MessageType,
+  Prioridad,
 } from '@iaxti/module-conversations';
 import {
   activeAgent,
@@ -168,6 +171,20 @@ const Asignacion = z.object({
   reason: z.string().optional(),
 });
 
+/**
+ * La prioridad (#550).
+ *
+ * `z.enum` y no texto suelto: el conjunto es cerrado y lo dice la base con su
+ * CHECK, así que un valor inventado tiene que morir en el borde con un mensaje
+ * que nombre las opciones — y no llegar a Postgres para volver como un error de
+ * constraint que nadie puede leer.
+ */
+const NuevaPrioridad = z.object({
+  prioridad: z.enum(PRIORIDADES, {
+    error: `La prioridad es una de: ${PRIORIDADES.join(', ')}.`,
+  }),
+});
+
 const NuevoEstado = z.object({
   // Texto y no `z.enum`: el estado que existe pero no se alcanza desde el
   // actual lo rechaza el caso de uso con INVALID_TRANSITION y su motivo (lo
@@ -199,21 +216,30 @@ export class ConversationsController {
   @Get()
   @RequirePermission('conversations.read')
   @ApiOperation({ summary: 'Bandeja: lista con filtros, vistas y cursor' })
+  @ApiQuery({ name: 'prioridad', required: false, enum: PRIORIDADES })
   async list(
     @Req() request: WithUser,
     @Query('state') state?: string,
     @Query('channel') channel?: string,
     @Query('contactId') contactId?: string,
     @Query('view') view?: string,
+    @Query('prioridad') prioridad?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
     const actor = actorOf(request);
+    // Una prioridad que no existe se IGNORA en vez de rechazar la bandeja: un
+    // `?prioridad=urgentisima` de un link mal pegado no puede dejar a alguien
+    // sin su lista de trabajo. Lo que no calza, no filtra (#550).
+    const filtroPrioridad = (PRIORIDADES as readonly string[]).includes(prioridad ?? '')
+      ? (prioridad as Prioridad)
+      : undefined;
     const filters: InboxFilters = {
       state: state as ConversationState | undefined,
       channel: channel as Channel | undefined,
       contactId,
       view: view === 'sin_responder' ? 'sin_responder' : undefined,
+      prioridad: filtroPrioridad,
       cursor,
       limit: limit ? Number(limit) : undefined,
     };
@@ -429,6 +455,40 @@ export class ConversationsController {
         toOwnerId: body.toOwnerId,
         reason: body.reason,
         actor: actor.userId,
+        requestId: request.requestId,
+      });
+    });
+  }
+
+  /**
+   * Subir o bajar la prioridad (#550).
+   *
+   * `conversations.priority` existía desde la primera migración y la API la
+   * devolvía en cada conversación de la bandeja: nadie podía cambiarla. Todo se
+   * veía «normal» y no había nada que explicara por qué.
+   *
+   * Va con `conversations.assign` y no con un permiso nuevo: decidir el orden en
+   * que se atiende es la misma clase de decisión que decidir quién atiende, y
+   * quien puede repartir la cola puede ordenarla. Un permiso más sería una
+   * casilla más que nadie va a configurar distinto.
+   */
+  @Post(':id/prioridad')
+  @RequirePermission('conversations.assign')
+  @ApiOperation({ summary: 'Sube o baja la prioridad de la conversación — queda auditado' })
+  async prioridad(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Cuerpo(NuevaPrioridad) body: z.infer<typeof NuevaPrioridad>,
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      await getConversation(c, actor.tenantId, id).catch(notFound);
+      return cambiarPrioridad(c, {
+        tenantId: actor.tenantId,
+        conversationId: id,
+        prioridad: body.prioridad,
+        actor: actor.userId,
+        actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
         requestId: request.requestId,
       });
     });

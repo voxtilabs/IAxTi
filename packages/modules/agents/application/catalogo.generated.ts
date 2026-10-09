@@ -2097,6 +2097,10 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string",
           "x-iaxti-en": "query"
         },
+        "prioridad": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        },
         "cursor": {
           "type": "string",
           "x-iaxti-en": "query"
@@ -2134,6 +2138,37 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       },
       "required": [
         "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ConversationsController_prioridad": {
+    "metodo": "POST",
+    "ruta": "/v1/conversations/{id}/prioridad",
+    "resumen": "Sube o baja la prioridad de la conversación — queda auditado",
+    "permiso": "conversations.assign",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "prioridad": {
+          "type": "string",
+          "enum": [
+            "baja",
+            "normal",
+            "alta",
+            "urgente"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "prioridad"
       ],
       "additionalProperties": false
     }

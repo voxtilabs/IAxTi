@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import type { ConversationState } from '../domain/state';
 import type { Channel, Conversation } from './conversations';
+import { RANGO_SQL, rangoDePrioridad, type Prioridad } from '../domain/prioridad';
 
 // La bandeja (SPEC §11): lista con filtros, vista "sin responder" y la ficha
 // mínima del contacto. El orden y los índices son los de §39. "Sin responder"
@@ -27,6 +28,14 @@ export interface InboxFilters {
   /** Historia de UN contacto (la ficha #32): incluye resueltas y archivadas. */
   contactId?: string;
   view?: 'sin_responder';
+  /**
+   * Solo las de esta prioridad (#550).
+   *
+   * El día de una promoción, con doscientas conversaciones abiertas, «muéstrame
+   * las urgentes» es la diferencia entre atender por orden de llegada y atender
+   * al que reclama.
+   */
+  prioridad?: Prioridad;
   cursor?: string;
   limit?: number;
 }
@@ -53,14 +62,30 @@ function rowToItem(row: Record<string, unknown>): InboxItem {
   };
 }
 
-function encodeCursor(sortValue: Date, id: string): string {
-  return Buffer.from(`${sortValue.toISOString()}|${id}`).toString('base64url');
+/**
+ * El cursor lleva TRES valores desde #550: rango, fecha e id.
+ *
+ * El keyset tiene que comparar exactamente las mismas columnas que el `ORDER
+ * BY`. Al meter la prioridad delante de la fecha y dejar el cursor con dos,
+ * la segunda página habría empezado desde una fecha sin mirar el rango: se
+ * saltarían conversaciones urgentes y se repetirían otras, y en una lista
+ * paginada eso no se nota mirando — se nota cuando alguien no fue atendido.
+ *
+ * Un cursor viejo de dos partes se rechaza con el mensaje que ya existía. Es
+ * una pestaña abierta durante el despliegue: se vuelve a la primera página y
+ * listo.
+ */
+function encodeCursor(rango: number, sortValue: Date, id: string): string {
+  return Buffer.from(`${rango}|${sortValue.toISOString()}|${id}`).toString('base64url');
 }
 
-function decodeCursor(cursor: string): { sortValue: string; id: string } {
-  const [sortValue, id] = Buffer.from(cursor, 'base64url').toString().split('|');
-  if (!sortValue || !id) throw new Error('Ese cursor no es válido. Vuelve a la primera página.');
-  return { sortValue, id };
+function decodeCursor(cursor: string): { rango: string; sortValue: string; id: string } {
+  const partes = Buffer.from(cursor, 'base64url').toString().split('|');
+  const [rango, sortValue, id] = partes;
+  if (partes.length !== 3 || !rango || !sortValue || !id) {
+    throw new Error('Ese cursor no es válido. Vuelve a la primera página.');
+  }
+  return { rango, sortValue, id };
 }
 
 /**
@@ -129,6 +154,10 @@ export async function listInbox(
     params.push(filters.ownerIdOrUnassigned);
     where.push(`(c.owner_id = $${params.length} OR c.owner_id IS NULL)`);
   }
+  if (filters.prioridad) {
+    params.push(filters.prioridad);
+    where.push(`c.priority = $${params.length}`);
+  }
 
   const sinResponder = filters.view === 'sin_responder';
   if (sinResponder) {
@@ -140,12 +169,24 @@ export async function listInbox(
   // Keyset sobre la columna de orden + id, sin OFFSET (SPEC §28).
   const sortCol = sinResponder ? 'c.last_inbound_at' : 'c.last_message_at';
   const direction = sinResponder ? 'ASC' : 'DESC';
+  // La prioridad va PRIMERO (#550), también en `sin_responder`: una urgente que
+  // lleva veinte minutos esperando importa más que una normal que lleva dos
+  // horas, y la vista de «sin responder» es exactamente donde se decide a quién
+  // se atiende ahora.
+  //
+  // DESC siempre para el rango: lo urgente arriba, en las dos vistas. Que la
+  // fecha cambie de sentido entre vistas no cambia qué es urgente.
   if (filters.cursor) {
-    const { sortValue, id } = decodeCursor(filters.cursor);
-    params.push(sortValue, id);
+    const { rango, sortValue, id } = decodeCursor(filters.cursor);
+    params.push(rango, sortValue, id);
     const cmp = sinResponder ? '>' : '<';
+    // El rango va al revés que la fecha: para seguir avanzando en DESC de
+    // rango, lo que viene después es rango MENOR — o el mismo rango con la
+    // fecha avanzando en el sentido de la vista.
     where.push(
-      `(${sortCol}, c.id) ${cmp} ($${params.length - 1}::timestamptz, $${params.length}::uuid)`,
+      `((${RANGO_SQL}) < $${params.length - 2}::int
+        OR ((${RANGO_SQL}) = $${params.length - 2}::int
+            AND (${sortCol}, c.id) ${cmp} ($${params.length - 1}::timestamptz, $${params.length}::uuid)))`,
     );
   }
 
@@ -161,7 +202,7 @@ export async function listInbox(
        FROM conversations c
        JOIN contacts k ON k.id = c.contact_id
       WHERE ${where.join(' AND ')}
-      ORDER BY ${sortCol} ${direction}, c.id ${direction}
+      ORDER BY (${RANGO_SQL}) DESC, ${sortCol} ${direction}, c.id ${direction}
       LIMIT $${params.length}`,
     params,
   );
@@ -172,6 +213,7 @@ export async function listInbox(
   const last = rows.at(-1);
   const nextCursor = hasMore && last
     ? encodeCursor(
+        rangoDePrioridad(last.priority as string | null),
         (sinResponder ? last.last_inbound_at : last.last_message_at) as Date,
         last.id as string,
       )

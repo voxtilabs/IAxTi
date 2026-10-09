@@ -39,13 +39,14 @@ import {
   renderQuickReply,
   variablesDePlantilla,
   type ConversacionDetalle,
+  type ConversacionItem,
   type Mensaje,
   type PlantillaDto,
   type QuickReplyDto,
   type SugerenciaDto,
   type Aviso,
 } from '../../lib/api';
-import { ESTADOS } from './estado';
+import { ESTADOS, PRIORIDADES, insigniaDePrioridad } from './estado';
 
 /** Cuántos valores pide una plantilla: el mayor índice, como en el servidor. */
 function cuantasVariables(p: PlantillaDto): number {
@@ -114,6 +115,14 @@ export interface ChatProps {
   // esconderlo acá era lo que hacía que un fallo se viera como un éxito (#560).
   onAsignar: (aQuien: string, motivo?: string) => Promise<boolean>;
   onEstado: (estado: string, hasta?: string) => Promise<boolean>;
+  /**
+   * Subir o bajar la prioridad (#550).
+   *
+   * Va en el menú de Acciones y no como botón suelto: no es algo que se toque
+   * en cada conversación, y un control permanente para eso le quitaría espacio
+   * a lo que sí.
+   */
+  onPrioridad: (prioridad: ConversacionItem['priority']) => Promise<boolean>;
   onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
   /** Retoma el despacho de un saliente que falló (#445). */
   onReintentar: (messageId: string) => Promise<void>;
@@ -177,7 +186,7 @@ export function Chat({
   detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   hayAnteriores, trayendoAnteriores, onVerAnteriores,
   onReintentar, reintentando,
-  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onSugerencia, onModo, onCobrar, onCrearOportunidad,
+  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onPrioridad, onSugerencia, onModo, onCobrar, onCrearOportunidad,
   plantillas, onCargarPlantillas, onEnviarPlantilla, onAbrirAdjunto, limitesDeAdjunto,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
@@ -384,6 +393,14 @@ export function Chat({
           </Button>
         )}
         <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
+        {/* La prioridad, solo si NO es normal (#550): una lista donde todo
+            tiene etiqueta es una lista sin etiquetas. Y el color no va solo —
+            la insignia lleva la palabra. */}
+        {insigniaDePrioridad(detalle.priority) && (
+          <Badge role={insigniaDePrioridad(detalle.priority)!.role}>
+            {insigniaDePrioridad(detalle.priority)!.label}
+          </Badge>
+        )}
         <Button variant="secundario" size="chico" className="lg:hidden" onClick={onVerFicha}>
           <IconoPersona className="h-4 w-4" /> Ficha
         </Button>
@@ -404,6 +421,27 @@ export function Chat({
             <DropdownMenuItem data-testid="cobrar" onSelect={() => setDialogoCobrar(true)}>
               Cobrar con link de pago…
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {/* Prioridad (#550). Cada opción dice qué significa: sin eso,
+                «alta» y «urgente» terminan queriendo decir lo mismo y la
+                prioridad deja de ordenar nada. */}
+            <DropdownMenuLabel>Prioridad</DropdownMenuLabel>
+            {PRIORIDADES.map((p) => (
+              <DropdownMenuItem
+                key={p.valor}
+                data-testid={`prioridad-${p.valor}`}
+                disabled={detalle.priority === p.valor}
+                onSelect={() => void onPrioridad(p.valor)}
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span>
+                    {p.label}
+                    {detalle.priority === p.valor && ' · ahora'}
+                  </span>
+                  <span className="text-rotulo text-muted">{p.ayuda}</span>
+                </span>
+              </DropdownMenuItem>
+            ))}
             <DropdownMenuSeparator />
             {detalle.state === 'resolved' ? (
               <DropdownMenuItem onSelect={() => void onEstado('open')}>Reabrir</DropdownMenuItem>
