@@ -12,7 +12,11 @@ export {
   addSource,
   processSource,
   listSources,
-  deleteSource,
+  // `deleteSource` ya no sale del módulo (#631): corre DENTRO de una
+  // transacción y el hueco está justo afuera, así que llamarla sola deja el
+  // estado «fuente viva, archivo destruido» sin marcar. Lo que se exporta es el
+  // pegamento completo, que es lo único seguro de llamar desde una ruta.
+  eliminarFuente,
   expireSources,
   tenantsWithExpirable,
   reindexarPendientes,

@@ -17,7 +17,7 @@ import { z } from 'zod';
 import {
   addSource,
   fuenteDesdeMarkdown,
-  deleteSource,
+  eliminarFuente,
   embeddingsAvailable,
   getProduct,
   listSources,
@@ -432,19 +432,24 @@ export class KnowledgeController {
   @ApiOperation({ summary: 'Elimina la fuente y todo su índice' })
   async remove(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, async (c) => {
-      try {
-        await deleteSource(c, {
-          tenantId: actor.tenantId,
-          sourceId: id,
-          actor: actor.userId,
-          requestId: request.requestId,
-          // Explícito: quien decide si este ambiente tiene almacén es el
-          // controlador, que lo sabe. Dejarlo al defecto ambiental hacía que el
-          // borrado dependiera de qué test corrió al lado.
-          almacen: almacenR2(),
-        });
-      } catch (err) {
+    try {
+      // `eliminarFuente` y no `deleteSource` dentro de un `withTenant` (#631):
+      // el hueco está justo AFUERA de la transacción —entre que el archivo se
+      // destruyó en R2 y que el COMMIT confirma—, así que quien abre la
+      // transacción es quien tiene que poder marcar la fila cuando queda viva
+      // sin su archivo. Esa marca viaja por una conexión aparte, porque la que
+      // se deshizo ya no sirve para escribir.
+      await eliminarFuente(pool(), {
+        tenantId: actor.tenantId,
+        sourceId: id,
+        actor: actor.userId,
+        requestId: request.requestId,
+        // Explícito: quien decide si este ambiente tiene almacén es el
+        // controlador, que lo sabe. Dejarlo al defecto ambiental hacía que el
+        // borrado dependiera de qué test corrió al lado.
+        almacen: almacenR2(),
+      });
+    } catch (err) {
         // Solo el «no existe» es un 404. Este `catch` se tragaba CUALQUIER cosa
         // —el bucket mal configurado, el borrado que falló, la base— y le
         // contestaba «No encontramos esa fuente» mientras la fuente estaba ahí.
@@ -452,16 +457,15 @@ export class KnowledgeController {
         // pudo, y el mensaje se tiraba a la basura acá mismo. Es el mismo
         // arreglo que ya tiene `reprocess` unas líneas más arriba, y por el
         // mismo motivo.
-        if ((err as Error).message === 'No encontramos esa fuente.') {
-          throw new NotFoundException({
-            code: 'SOURCE_NOT_FOUND',
-            message: 'No encontramos esa fuente.',
-          });
-        }
-        throw err;
+      if ((err as Error).message === 'No encontramos esa fuente.') {
+        throw new NotFoundException({
+          code: 'SOURCE_NOT_FOUND',
+          message: 'No encontramos esa fuente.',
+        });
       }
-      return { deleted: true };
-    });
+      throw err;
+    }
+    return { deleted: true };
   }
 
   @Get('search')

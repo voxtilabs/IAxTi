@@ -1,4 +1,5 @@
-import type { PoolClient } from 'pg';
+import type { Pool, PoolClient } from 'pg';
+import { withTenant } from '@iaxti/db';
 import { publishEvent, type AlmacenObjetos } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { parseCsv } from '@iaxti/module-crm';
@@ -17,7 +18,14 @@ export interface Source {
   name: string;
   url: string | null;
   validUntil: Date | null;
-  status: 'processing' | 'active' | 'expired' | 'failed';
+  /**
+   * `delete_failed` es «fuente viva, archivo destruido» (#631): el borrado sacó
+   * el archivo de R2 y la transacción no llegó a confirmar. No es 'failed' —esa
+   * es la fuente que no se pudo INDEXAR, que se arregla reintentando— porque la
+   * acción que corresponde es otra: volver a subir el documento o terminar de
+   * borrar la fuente.
+   */
+  status: 'processing' | 'active' | 'expired' | 'failed' | 'delete_failed';
   error: string | null;
   chunkCount?: number;
   createdAt: Date;
@@ -462,7 +470,7 @@ export async function deleteSource(
      */
     almacen: AlmacenObjetos | null;
   },
-): Promise<void> {
+): Promise<{ archivoDestruido: boolean }> {
   // RETURNING porque la llave del archivo se necesita DESPUÉS de borrar la
   // fila y después ya no hay dónde leerla.
   const r = await client.query(
@@ -522,6 +530,102 @@ export async function deleteSource(
       archivoCompartido,
     },
   });
+  // Lo devuelve, y esto no es cosmético (#631): el único que puede enterarse de
+  // que el COMMIT falló DESPUÉS de destruir el archivo es quien está afuera de
+  // la transacción. Desde acá adentro ese momento no se ve. `eliminarFuente`
+  // —abajo— es quien junta las dos cosas; si algún día alguien llama a
+  // `deleteSource` directo y tira este dato a la basura, el estado «fuente viva,
+  // archivo destruido» vuelve a ser invisible.
+  return { archivoDestruido: archivoBorrado };
+}
+
+/**
+ * Marca una fuente como «su archivo ya no está» (#631).
+ *
+ * Recibe el POOL y no un cliente, a propósito: se llama justo después de que una
+ * transacción se deshizo, y ese cliente ya no sirve para escribir nada. La marca
+ * tiene que viajar por una conexión aparte o no viaja.
+ *
+ * No limpia `knowledge_query_cache`: el chequeo de frescura (#621) ya pide
+ * `FUENTE_VIGENTE` sobre cada fuente citada, y `delete_failed` no la cumple. Un
+ * `DELETE` más acá sería un segundo lugar donde se decide lo mismo.
+ */
+export async function marcarFuenteSinArchivo(
+  pool: Pool,
+  input: { tenantId: string; sourceId: string },
+): Promise<void> {
+  await withTenant(pool, input.tenantId, async (client) => {
+    await client.query(
+      `UPDATE sources
+          SET status = 'delete_failed',
+              error = 'Se eliminó el archivo guardado y la eliminación de la fuente no llegó a completarse. Vuelve a subir el documento o termina de borrar la fuente.',
+              updated_at = now()
+        WHERE tenant_id = $1 AND id = $2`,
+      [input.tenantId, input.sourceId],
+    );
+    await writeAudit(client, {
+      tenantId: input.tenantId,
+      actor: 'system',
+      actorKind: 'system',
+      action: 'knowledge.source.sin_archivo',
+      resource: 'source',
+      resourceId: input.sourceId,
+      result: 'ok',
+      metadata: { motivo: 'el archivo se borró y la transacción no confirmó' },
+    });
+  });
+}
+
+/**
+ * Elimina una fuente, con su archivo, y deja constancia si queda a medias
+ * (#631).
+ *
+ * Esto es el pegamento que la ruta necesitaba y no tenía. `deleteSource` corre
+ * DENTRO de una transacción y el hueco está justo afuera: entre que el archivo
+ * se destruyó y que el COMMIT confirma. Si ese COMMIT falla, la fila vuelve sin
+ * su archivo y nadie lo anota.
+ *
+ * Vive en el módulo y no en el controlador para que el pegamento sea uno. Si
+ * cada llamador tuviera que acordarse de marcar, el estado invisible volvería
+ * por el primero que no se acordó.
+ *
+ * ## Lo que esto NO cubre, y la decisión
+ *
+ * Si el proceso MUERE entre el borrado en R2 y el commit, nadie marca nada: la
+ * fila queda 'active' sin archivo y se cita igual. Taparlo pide anotar la
+ * intención ANTES de tocar R2 y que un barrido reconcilie, y eso no se puede
+ * hacer sobre la misma fila: la transacción que está borrando tiene el candado,
+ * así que una conexión aparte se quedaría esperándola. Pide su propia tabla y su
+ * propio barrido, y está en #751 con su riesgo residual nombrado en vez de
+ * insinuado acá.
+ */
+export async function eliminarFuente(
+  pool: Pool,
+  input: {
+    tenantId: string;
+    sourceId: string;
+    actor: string;
+    requestId?: string;
+    almacen: AlmacenObjetos | null;
+  },
+): Promise<void> {
+  let archivoDestruido = false;
+  try {
+    await withTenant(pool, input.tenantId, async (client) => {
+      ({ archivoDestruido } = await deleteSource(client, input));
+    });
+  } catch (error) {
+    // La marca va antes de propagar el error, y en su propia conexión. El orden
+    // importa: si se dejara para después del `throw`, no habría después.
+    //
+    // Y si la marca TAMPOCO se puede escribir —la base sigue caída—, el error
+    // que se propaga es el ORIGINAL: es el que explica qué pasó. Reemplazarlo
+    // por «no pude marcar la fuente» le cambiaría el problema a quien lo lee.
+    // Esa fila queda sin marcar, y es el mismo riesgo residual que el proceso
+    // que muere a medias: está nombrado arriba y en su issue, no tapado.
+    if (archivoDestruido) await marcarFuenteSinArchivo(pool, input).catch(() => undefined);
+    throw error;
+  }
 }
 
 /**
