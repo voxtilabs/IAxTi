@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { TZ_POR_DEFECTO, diaEn, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
-import { idsDeTenants, withTenant } from '@iaxti/db';
+import { withTenant } from '@iaxti/db';
 import { montoDelCosto } from '../domain/metrics';
 import { TOTAL_OWNER, type Metric } from '../domain/metrics';
 
@@ -116,11 +116,29 @@ export function analyticsConsumers(): Consumer[] {
  * respondida — mediana y p90 reales sin barrer messages en vivo.
  */
 export async function sweepResponseSamples(pool: Pool): Promise<number> {
-  // De `tenants`, no de `conversations` (#286): esa tabla tiene RLS y una
-  // consulta suelta devuelve cero filas con el rol de producción — o sea,
-  // el dashboard del dueño se quedaba sin números y nadie veía un error.
+  // A QUIÉN visitar se pregunta UNA vez (#738, ADR-0026).
+  //
+  // Antes se recorrían todos los tenants vivos, abriendo una transacción por
+  // cada uno para un `INSERT … SELECT` que casi nunca inserta nada. Medido con
+  // 1.283 tenants: 4,5 ms cada uno, ~5,8 s el barrido entero — y éste es
+  // HORARIO, así que se paga veinticuatro veces al día.
+  //
+  // `conversations` tiene RLS, así que la pregunta vive en una función SECURITY
+  // DEFINER que devuelve SOLO ids (#286 sigue en pie: una consulta suelta a
+  // `conversations` devolvería cero filas con el rol de producción y el tablero
+  // del dueño se quedaría sin números sin que nadie viera un error).
+  //
+  // La ventana de 26 horas de la función es la MISMA que la del `INSERT` de
+  // abajo. Si una cambia, la otra tiene que cambiar con ella: acá no hay margen
+  // como en recordatorios, donde la función filtra amplio y los minutos exactos
+  // los decide `AVISOS`.
   let total = 0;
-  for (const tenantId of await idsDeTenants(pool)) {
+  const conMuestras = (
+    await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM tenants_con_muestras_por_tomar()',
+    )
+  ).rows.map((f) => f.tenant_id);
+  for (const tenantId of conMuestras) {
     total += await withTenant(pool, tenantId, async (client) => {
       const r = await client.query(
         // El día del NEGOCIO, igual que en daily_metrics: `::date` a secas
