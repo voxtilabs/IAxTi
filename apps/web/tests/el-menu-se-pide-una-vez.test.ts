@@ -41,7 +41,10 @@ describe('el menú se pide una vez y se cachea', () => {
 
   it('ninguna página se arma su propia llamada al menú', () => {
     const propias = archivos
-      .filter((a) => readFileSync(a, 'utf8').includes('/v1/me/modules'))
+      // La ruta se llama `/v1/modules/catalogo` desde #629; el nombre viejo
+      // sigue en la lista porque una página que lo copie tiene el mismo
+      // problema —y sería además la que quedó atrás.
+      .filter((a) => /\/v1\/(modules\/catalogo|me\/modules)/.test(readFileSync(a, 'utf8')))
       .map((a) => a.slice(APP.length + 1));
     expect(
       propias,

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 
 export default async function Home() {
-  // Las dos salen de `GET /me/modules`, y Next dedupe la petición: un solo
+  // Las dos salen de `GET /modules/catalogo`, y Next dedupe la petición: un solo
   // viaje. Los widgets los declara cada módulo en su manifiesto (#517), así
   // que un módulo apagado se lleva el suyo sin desplegar.
   const api = internalApiUrl();

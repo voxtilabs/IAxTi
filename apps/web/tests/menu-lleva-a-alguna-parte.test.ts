@@ -5,7 +5,7 @@ import { join } from 'node:path';
 /**
  * Un ítem del menú que lleva a un 404.
  *
- * La navegación NO la escribe el frontend: sale de `GET /me/modules`, que
+ * La navegación NO la escribe el frontend: sale de `GET /modules/catalogo`, que
  * devuelve el `nav` declarado en cada `module.yaml`. Es a propósito —"el
  * frontend jamás hardcodea qué módulos existen"— y tiene un costo: el
  * manifiesto puede prometer una ruta que nadie construyó, y nada se queja

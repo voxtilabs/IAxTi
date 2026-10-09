@@ -59,6 +59,10 @@ const SIN_CONSUMIDOR: Record<string, string> = {
 
   'POST /agents/:id/run': 'Sin pantalla a propósito: es para el SDK y las pruebas, no para el dueño.',
 
+  // Obsoleta, con su reemplazo vivo.
+  'GET /me/modules':
+    'Reemplazada por GET /modules/catalogo (#629): el nombre prometía «los míos» y es el catálogo del despliegue. Sigue contestando porque /v1 no se rompe —hay SDK generado y widgets afuera— y se va en /v2. Su consumidor en este repo ES la prueba que comprueba que las dos devuelven lo mismo.',
+
   // --- Lo que SÍ es una función sin puerta, con su issue ---
   //
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de

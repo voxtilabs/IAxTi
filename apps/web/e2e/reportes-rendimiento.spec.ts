@@ -102,11 +102,11 @@ for (const mode of ['dia', 'noche']) test(`gráficos en ${mode}: escala, teclado
 test('navegar por menú, pestañas y volver no recarga el documento ni duplica las consultas del menú', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
   const counts = new Map<string, number>();
-  page.on('response', (r) => { const path = new URL(r.url()).pathname; if (['/v1/me/modules', '/v1/me/modules/acceso'].includes(path)) counts.set(path, (counts.get(path) ?? 0) + 1); });
+  page.on('response', (r) => { const path = new URL(r.url()).pathname; if (['/v1/modules/catalogo', '/v1/me/modules/acceso'].includes(path)) counts.set(path, (counts.get(path) ?? 0) + 1); });
   await page.goto('/ajustes/canales');
   await expect(page.getByRole('navigation', { name: 'Ajustes de Canales' })).toBeVisible();
   await expect.poll(() => counts.get('/v1/me/modules/acceso')).toBe(1);
-  expect(counts.get('/v1/me/modules')).toBe(1);
+  expect(counts.get('/v1/modules/catalogo')).toBe(1);
   await page.evaluate(() => { (window as unknown as Record<string, unknown>).__documento424 = 'mismo'; });
   let documents = 0; page.on('request', (r) => { if (r.isNavigationRequest() && r.resourceType() === 'document') documents++; });
   await page.getByRole('navigation', { name: 'Ajustes de Canales' }).getByRole('link', { name: 'Plantillas', exact: true }).click();
