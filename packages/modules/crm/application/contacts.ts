@@ -294,30 +294,53 @@ export async function identityFor(
  * El camino de los canales (SPEC §10): al llegar un mensaje de un teléfono
  * desconocido se crea el contacto. Idempotente por (tenant, phone).
  */
-export async function ensureContactByPhone(
+/**
+ * El contacto de un teléfono, sin crearlo (#587).
+ *
+ * `ensureContactByPhone` crea el que falta, y eso es lo correcto cuando entra un
+ * mensaje: alguien escribió, así que existe. Pero hay preguntas que NO deben
+ * crear nada —«¿este número ya nos escribió?», que es lo que decide si una
+ * prueba de envío puede salir— y hacerlas con `ensure` dejaría un contacto
+ * inventado en la cartera del negocio por el solo hecho de preguntar.
+ *
+ * `null` es «no lo tenemos», y para el que pregunta eso YA es una respuesta: un
+ * número que nunca escribió está fuera de la ventana de 24 h por definición.
+ *
+ * Sigue la fusión igual que `ensure` (#34): el canal conversa con el que quedó
+ * vivo, no con el que se fusionó.
+ */
+export async function contactoPorTelefono(
   client: PoolClient,
-  input: { tenantId: string; phone: string; origin: ContactOrigin; requestId?: string },
-): Promise<{ contact: Contact; created: boolean }> {
+  input: { tenantId: string; phone: string },
+): Promise<Contact | null> {
   const phone = normalizePhone(input.phone);
   const existing = await client.query(
     'SELECT * FROM contacts WHERE tenant_id = $1 AND phone = $2',
     [input.tenantId, phone],
   );
-  if ((existing.rowCount ?? 0) > 0) {
-    const row = existing.rows[0];
-    // Un contacto fusionado apunta a su principal (#34): el canal siempre
-    // conversa con el que quedó vivo.
-    if (row.merged_into) {
-      const principal = await client.query(
-        'SELECT * FROM contacts WHERE tenant_id = $1 AND id = $2',
-        [input.tenantId, row.merged_into],
-      );
-      if ((principal.rowCount ?? 0) > 0) {
-        return { contact: rowToContact(principal.rows[0]), created: false };
-      }
-    }
-    return { contact: rowToContact(row), created: false };
+  if ((existing.rowCount ?? 0) === 0) return null;
+  const row = existing.rows[0];
+  if (row.merged_into) {
+    const principal = await client.query(
+      'SELECT * FROM contacts WHERE tenant_id = $1 AND id = $2',
+      [input.tenantId, row.merged_into],
+    );
+    if ((principal.rowCount ?? 0) > 0) return rowToContact(principal.rows[0]);
   }
+  return rowToContact(row);
+}
+
+export async function ensureContactByPhone(
+  client: PoolClient,
+  input: { tenantId: string; phone: string; origin: ContactOrigin; requestId?: string },
+): Promise<{ contact: Contact; created: boolean }> {
+  const phone = normalizePhone(input.phone);
+  // La búsqueda —con su seguimiento de la fusión— es la misma de
+  // `contactoPorTelefono`, y vive en un solo lugar a propósito: eran dos
+  // copias del mismo `merged_into`, y la del día que alguien arregle una sola
+  // es la que va a mandar mensajes al contacto fusionado.
+  const encontrado = await contactoPorTelefono(client, { tenantId: input.tenantId, phone });
+  if (encontrado) return { contact: encontrado, created: false };
   const contact = await createContact(client, { ...input, phone, actor: 'system' });
   return { contact, created: true };
 }

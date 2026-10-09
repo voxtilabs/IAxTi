@@ -22,6 +22,15 @@ interface NumeroDto {
   disconnectedAt?: string | null;
 }
 
+/** Lo que contesta la prueba de envío (#587). */
+interface ResultadoPruebaDto {
+  ok: boolean;
+  motivo: string | null;
+  mensaje: string;
+  detalle?: string;
+  providerMessageId?: string;
+}
+
 /** Un emisor del proyecto de la llave de este canal (#600). */
 interface EmisorDto {
   id: string;
@@ -230,6 +239,103 @@ function Diagnostico({ accountId }: { accountId: string }) {
             );
           })}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Probar el envío por el camino real (#587).
+ *
+ * De dónde sale: «no puedo enviar mensajes desde la bandeja», tres veces, sin
+ * poder contestar ninguna. El diagnóstico de al lado revisa la CONFIGURACIÓN y
+ * nada intentaba enviar, así que la diferencia entre «no funciona» y «falta el
+ * emisor en la cuenta» costaba una sesión entera.
+ *
+ * Esto manda un mensaje de verdad, al número que se escriba, por el mismo
+ * adaptador y la misma credencial que un mensaje del negocio. Y por eso pide el
+ * número explícitamente en vez de ofrecer un botón suelto: lo que sale le llega
+ * a una persona.
+ *
+ * El detalle crudo del proveedor se muestra acá —plegado— y no en la bandeja:
+ * es la contraparte de #556. El vendedor lee la frase humana; quien conecta el
+ * canal necesita el cuerpo del error.
+ */
+function ProbarEnvio({ accountId }: { accountId: string }) {
+  const { config, session } = useSession();
+  const tenant = selectedTenant();
+  const [telefono, setTelefono] = useState('');
+  const [probando, setProbando] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoPruebaDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const probar = async () => {
+    if (!session || !tenant || !telefono.trim()) return;
+    setProbando(true);
+    setError(null);
+    setResultado(null);
+    try {
+      setResultado(
+        await apiFetch<ResultadoPruebaDto>(config, session, tenant, `/channels/${accountId}/probar-envio`, {
+          method: 'POST',
+          body: JSON.stringify({ telefono: telefono.trim() }),
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No pudimos probar el envío.');
+    } finally {
+      setProbando(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-campo border border-line bg-bg p-4">
+      <p className="rotulo">Probar el envío</p>
+      <p className="mt-1 text-sm text-body">
+        Manda un mensaje de prueba por este canal, por el camino real, y te dice exactamente qué
+        pasó. Le llega a una persona: usa un número que te haya escrito en las últimas 24 horas.
+      </p>
+      <Formulario
+        className="mt-3 flex flex-wrap items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void probar();
+        }}
+      >
+        <Input
+          aria-label="Número para la prueba"
+          placeholder="+56912345678"
+          className="h-9 w-48 text-sm"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+        />
+        <Button type="submit" variant="secundario" size="chico" disabled={probando || !telefono.trim()}>
+          {probando ? 'Enviando…' : 'Enviar prueba'}
+        </Button>
+      </Formulario>
+      {error && <p className="mt-2 text-sm text-bad-text">{error}</p>}
+      {resultado && (
+        <div className="mt-3">
+          <p className="flex flex-wrap items-center gap-2">
+            <Badge role={resultado.ok ? 'good' : 'bad'}>{resultado.ok ? 'Salió' : 'No salió'}</Badge>
+            {resultado.motivo && <span className="dato text-muted">{resultado.motivo}</span>}
+          </p>
+          <p className="mt-2 text-sm text-body">{resultado.mensaje}</p>
+          {resultado.detalle && (
+            <details className="mt-2 text-sm">
+              <summary className="w-fit cursor-pointer text-action-text">Ver el detalle técnico</summary>
+              <pre className="mt-2 overflow-x-auto rounded-campo border border-line bg-raised p-3 text-xs text-body">
+                {resultado.detalle}
+              </pre>
+            </details>
+          )}
+          {resultado.ok && (
+            <p className="mt-2 text-xs text-muted">
+              Esta prueba no queda en la bandeja: queda en el libro de auditoría, con el número y el
+              resultado.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -446,6 +552,11 @@ export function Canales() {
                 <p className="mt-2 text-sm text-muted">{estado.ayuda}</p>
 
                 <Diagnostico accountId={canal.id} />
+
+                {/* Probar el envío (#587): junto al diagnóstico, porque es la
+                    pregunta siguiente. El diagnóstico dice cómo está
+                    configurado; esto dice si de verdad sale un mensaje. */}
+                {canal.kind !== 'webchat' && <ProbarEnvio accountId={canal.id} />}
 
                 {/* Reapuntar y desconectar (#600). Solo en WhatsApp: es el
                     único canal con emisor del proveedor y con cupo de plan. */}
