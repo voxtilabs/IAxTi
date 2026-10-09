@@ -1,0 +1,92 @@
+# Publica en GHCR el Postgres con pgvector que usa el CI (#760).
+#
+# El por qué está en `infra/docker/postgres-pgvector.Dockerfile`, al lado del
+# código: resumido, Docker Hub limita las descargas anónimas por IP, las IP de
+# los runners son compartidas, y cuando el cupo se agota el job del CI muere en
+# «Initialize containers» sin decir nada útil. Esta imagen no toca Docker Hub en
+# ningún paso.
+#
+# ## Cuándo corre
+#
+# Semanal, a mano, y cuando cambia el Dockerfile o este archivo. Lo último es lo
+# que permite que la imagen EXISTA antes de que `ci.yml` le apunte: si los dos
+# cambios entraran en el mismo commit, el primer PR después del merge se cae
+# para todos.
+name: imagen-postgres-ci
+
+on:
+  schedule:
+    # Lunes temprano: `postgres:16` y el paquete de pgvector son etiquetas
+    # móviles, así que la imagen se refresca aunque nadie la toque.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+  push:
+    paths:
+      - infra/docker/postgres-pgvector.Dockerfile
+      - .github/workflows/imagen-postgres-ci.yml
+
+# Una a la vez, y gana la última: dos corridas estarían construyendo lo mismo.
+concurrency:
+  group: imagen-postgres-ci
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    # Si en quince minutos no construyó una imagen de Postgres más un
+    # `apt-get`, algo está mal afuera y seguir colgado no lo arregla.
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/postgres-pgvector.Dockerfile
+          push: true
+          # La etiqueta dice la versión del MOTOR, que es lo que importa para
+          # quien lee `ci.yml`. La de pgvector queda en el resumen de abajo.
+          tags: ghcr.io/voxtilabs/postgres-pgvector:16
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Qué versión de pgvector quedó
+        env:
+          IMAGEN: ghcr.io/voxtilabs/postgres-pgvector:16
+        run: |
+          set -euo pipefail
+          # Se comprueba lo que la imagen HACE, no que el build terminó: una
+          # imagen con el paquete instalado y la extensión sin poder crearse
+          # dejaría al CI fallando en la primera migración de `knowledge`, y el
+          # error aparecería a mitad de la suite, lejos de acá.
+          docker run -d --name pgv -e POSTGRES_PASSWORD=ci "$IMAGEN"
+          for i in $(seq 1 30); do
+            if docker exec pgv pg_isready -U postgres >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          version=$(docker exec pgv psql -U postgres -tAc \
+            "CREATE EXTENSION vector; SELECT extversion FROM pg_extension WHERE extname='vector';" \
+            | tail -1)
+          # Y que `halfvec` con su índice HNSW funcione: es lo que usa el módulo
+          # `knowledge` desde #502, y es la parte que una versión vieja no tiene.
+          docker exec pgv psql -U postgres -c \
+            "CREATE TABLE t(v halfvec(2048)); CREATE INDEX ON t USING hnsw (v halfvec_cosine_ops);"
+          docker rm -f pgv >/dev/null
+          {
+            echo "## Postgres del CI"
+            echo ""
+            echo "- Imagen: \`$IMAGEN\`"
+            echo "- pgvector: **$version**"
+            echo "- \`halfvec(2048)\` con índice HNSW: funciona"
+          } >> "$GITHUB_STEP_SUMMARY"
