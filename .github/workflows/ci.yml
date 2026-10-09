@@ -271,11 +271,19 @@ jobs:
       # eso Semgrep informa y devuelve 0, que es la versión que se ignora a la
       # tercera vez.
       - name: Semgrep (SAST)
-        run: |
-          python -m pip install --disable-pip-version-check --quiet semgrep
+        env:
+          # Por `env:` y no interpolado adentro, como todo lo demás (#758).
+          # Acá el valor es un SHA —hexadecimal, inofensivo— y da igual: la
+          # regla es «ninguno» justamente para no tener que juzgar cuáles son
+          # seguros. La guarda de `packages/core` lo cazó a los diez minutos de
+          # haberlo escrito yo, que es exactamente para lo que existe.
+          #
           # En un push a main no hay PR contra el que comparar: ahí se mira el
           # commit anterior, que es el cambio que entró.
-          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          BASE_DEL_PR: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          python -m pip install --disable-pip-version-check --quiet semgrep
+          base="$BASE_DEL_PR"
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
             echo "semgrep: sin commit base utilizable ($base); se mira el árbol completo."
             base=""

@@ -26,7 +26,7 @@ import { parse } from 'yaml';
  * escaneo ZAP, el motivo del rollback (texto libre, escrito bajo presión), y
  * tres `docker login` que interpolaban el token y el nombre de quien dispara.
  */
-const WORKFLOWS = join(import.meta.dirname, '../../../.github/workflows');
+const WORKFLOWS = join(__dirname, '..', '..', '..', '.github', 'workflows');
 
 /**
  * Lo que sí puede quedar interpolado, con su motivo.
