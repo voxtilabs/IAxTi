@@ -1,0 +1,115 @@
+# Espejo en GHCR de las imágenes que el CI necesita (#760).
+#
+# ## Por qué existe
+#
+# `ci.yml` levanta Postgres y Redis como `services:`. Esas dos imágenes vivían en
+# Docker Hub y se descargaban SIN AUTENTICAR. Docker Hub limita las descargas
+# anónimas por IP, las IP de los runners de GitHub son compartidas, y cuando el
+# cupo se agota el job muere en «Initialize containers»:
+#
+#   Error response from daemon: toomanyrequests: You have reached your
+#   unauthenticated pull rate limit.
+#
+# Sin una línea de log de pruebas y sin nada que apunte a la causa. El 09-10 dejó
+# cinco PR trancados a la vez y lo único que se podía hacer era reintentar — que
+# no es remedio ni diagnóstico, y enseña a encogerse de hombros frente a un rojo.
+#
+# GHCR autentica con el `GITHUB_TOKEN` que cada job ya tiene y no tiene cupo
+# anónimo, porque no hay nada anónimo.
+#
+# ## Por qué `imagetools create` y no `pull` + `push`
+#
+# Copia los manifiestos de un registro a otro sin bajarse las capas a este
+# runner: menos peticiones contra el cupo de Docker Hub —que este workflow sí
+# paga— y conserva el multi-arquitectura. Un `docker pull` acá traería solo la
+# arquitectura del runner y el espejo serviría una imagen más pobre que la
+# original.
+#
+# ## Cuándo corre
+#
+# Semanal, a mano, y cuando ESTE archivo cambia. Lo último no es un detalle: la
+# lista de imágenes vive acá, así que agregar una tiene que re-espejar sin que
+# nadie se acuerde de apretar nada — y es lo que permite que el espejo exista
+# ANTES de que `ci.yml` le apunte. Si entraran en el mismo commit, el primer PR
+# después del merge se cae para todos.
+name: espejo-imagenes
+
+on:
+  schedule:
+    # Lunes temprano: las etiquetas que espejamos (`pg16`, `7-alpine`) son
+    # móviles, así que el espejo se refresca aunque nadie lo toque.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/espejo-imagenes.yml
+
+jobs:
+  espejar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copiar las imágenes del CI a GHCR
+        env:
+          # Origen → destino. Una por línea, con el destino en minúsculas
+          # porque GHCR no acepta mayúsculas en el nombre del paquete.
+          IMAGENES: |
+            pgvector/pgvector:pg16 ghcr.io/voxtilabs/pgvector:pg16
+            redis:7-alpine ghcr.io/voxtilabs/redis:7-alpine
+        run: |
+          set -euo pipefail
+          fallo=0
+          while read -r origen destino; do
+            [ -z "${origen:-}" ] && continue
+            echo "::group::$origen → $destino"
+            # Tres intentos: el cupo de Docker Hub es justo lo que este
+            # workflow viene a dejar de pagar en cada PR, pero acá todavía se
+            # paga una vez por semana. Fallar al primer intento sería dejar el
+            # espejo viejo por un hipo.
+            for intento in 1 2 3; do
+              if docker buildx imagetools create --tag "$destino" "$origen"; then
+                echo "ok en el intento $intento"
+                break
+              fi
+              if [ "$intento" = 3 ]; then
+                echo "::error::no se pudo copiar $origen a $destino en 3 intentos"
+                fallo=1
+              else
+                echo "intento $intento falló; esperando"
+                sleep 30
+              fi
+            done
+            echo "::endgroup::"
+          done <<< "$IMAGENES"
+          exit "$fallo"
+
+      - name: Qué quedó en el espejo
+        if: always()
+        env:
+          IMAGENES: |
+            ghcr.io/voxtilabs/pgvector:pg16
+            ghcr.io/voxtilabs/redis:7-alpine
+        run: |
+          set -uo pipefail
+          # El resumen dice qué hay DESPUÉS, no qué se intentó: si una quedó
+          # afuera, lo que el CI va a encontrar es esto.
+          {
+            echo "## Espejo de imágenes del CI"
+            echo ""
+            while read -r imagen; do
+              [ -z "${imagen:-}" ] && continue
+              if docker manifest inspect "$imagen" >/dev/null 2>&1; then
+                echo "- \`$imagen\` — disponible"
+              else
+                echo "- \`$imagen\` — **FALTA**: el CI no va a poder levantar su servicio."
+              fi
+            done <<< "$IMAGENES"
+          } >> "$GITHUB_STEP_SUMMARY"
