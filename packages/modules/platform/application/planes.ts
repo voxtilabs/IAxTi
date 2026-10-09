@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import type { ModuleRegistry } from '@iaxti/core';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 
 // Planes y módulos (#69, SPEC §22): los planes son configuración, no
 // código. Los flags de módulos persisten en DB y el registry los aplica
@@ -121,6 +122,18 @@ export interface ModuleAdminRow {
   dependsOn: string[];
   /** Cuántos planes lo incluyen (proxy de "tenants que lo usan"). */
   tenantsUsing: number;
+  /**
+   * Qué SuperAdmin tocó el flag, y cuándo (#697).
+   *
+   * `platform_module_flags.updated_by` se escribía en cada cambio y la tabla del
+   * panel no lo mostraba. Apagar un módulo deja a negocios sin una función: con
+   * varias personas en la plataforma, «esto estaba prendido ayer» necesita una
+   * respuesta en la misma pantalla donde está el interruptor.
+   *
+   * `null` cuando el flag nunca se tocó a mano: lo que se ve es el registry.
+   */
+  tocadoPor: Quien | null;
+  tocadoEl: Date | null;
 }
 
 /** El estado de los módulos: registry vivo + tenants que los usan. */
@@ -136,10 +149,20 @@ export async function modulesAdmin(
       GROUP BY m.module_id`,
   );
   const porModulo = new Map(uso.rows.map((r) => [r.module_id, Number(r.tenants)]));
-  return registry.health().map((h) => ({
-    ...h,
-    tenantsUsing: porModulo.get(h.id) ?? 0,
-  }));
+  const flags = await client.query(
+    'SELECT module_id, updated_by, updated_at FROM platform_module_flags',
+  );
+  const quien = await quienesSon(client, null, flags.rows.map((f) => f.updated_by as string | null));
+  const porFlag = new Map(flags.rows.map((f) => [f.module_id as string, f]));
+  return registry.health().map((h) => {
+    const flag = porFlag.get(h.id);
+    return {
+      ...h,
+      tenantsUsing: porModulo.get(h.id) ?? 0,
+      tocadoPor: flag ? quienFue(quien, flag.updated_by) : null,
+      tocadoEl: (flag?.updated_at as Date) ?? null,
+    };
+  });
 }
 
 /**

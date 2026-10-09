@@ -13,6 +13,7 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
+    "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "pg": "^8.13.0"
   },

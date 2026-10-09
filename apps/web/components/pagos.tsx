@@ -17,6 +17,8 @@ import {
 } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
+import type { Quien } from '@iaxti/sdk';
+import { QuienLoHizo } from './quien-lo-hizo';
 
 /**
  * «No mover» como valor del desplegable.
@@ -47,6 +49,8 @@ interface LinkDto {
   url: string | null;
   createdAt: string;
   paidAt: string | null;
+  /** Quién generó el cobro (#697). `null` si lo generó una automatización. */
+  creadoPor: Quien | null;
 }
 
 const KINDS = [
@@ -320,6 +324,10 @@ export function Pagos() {
                     {new Date(l.createdAt).toLocaleDateString('es-CL')}
                     {l.paidAt && ` · pagado ${new Date(l.paidAt).toLocaleDateString('es-CL')}`}
                   </p>
+                  {/* Quién lo generó (#697). Es plata: «¿quién le mandó este
+                      cobro al cliente, y por qué ese monto?» no debería
+                      obligar a abrir Auditoría. */}
+                  {l.creadoPor && <QuienLoHizo accion="Generado" quien={l.creadoPor} />}
                 </div>
                 <span className="dato font-bold text-ink">{fmtClp(l.amountClp)}</span>
                 <Badge role={ESTADO_LINK[l.status].role}>{ESTADO_LINK[l.status].label}</Badge>

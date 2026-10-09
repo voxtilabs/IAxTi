@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import {
   campaignClient, type Campaign, type CampaignChannel, type CampaignFilters,
   type CampaignListItem, type CampaignPreview, type CampaignResults, type CampaignTemplate,
+  type Quien,
 } from '@iaxti/sdk';
 import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
+import { nombreDeQuien, QuienLoHizo } from './quien-lo-hizo';
 import { selectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
@@ -45,7 +47,12 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   const [puedeEscribir, setPuedeEscribir] = useState<boolean | null>(null);
   const [vista, setVista] = useState<'lista' | 'nueva' | 'previa' | 'resultados'>('lista');
   const [plantillas, setPlantillas] = useState<CampaignTemplate[]>([]);
-  const [segmentos, setSegmentos] = useState<Array<{ id: string; name: string; filters: CampaignFilters }>>([]);
+  // `creadoPor` (#697): `segments.created_by` se escribía al guardar y la lista
+  // no lo proyectaba. Un segmento es a quién se le va a escribir; saber quién lo
+  // definió es parte de poder confiar en él antes de mandarle una campaña.
+  const [segmentos, setSegmentos] = useState<
+    Array<{ id: string; name: string; filters: CampaignFilters; creadoPor: Quien | null }>
+  >([]);
   const [etiquetas, setEtiquetas] = useState<Array<{ id: string; name: string }>>([]);
   const [campana, setCampana] = useState<Campaign | null>(null);
   const [previa, setPrevia] = useState<CampaignPreview | null>(null);
@@ -198,6 +205,10 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           </section> : <ul className="space-y-3">{lista.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised p-4">
             <div className="min-w-0 flex-1"><h2 className="break-words text-lg font-bold text-ink">{c.name}</h2>
               <time dateTime={c.createdAt} className="font-mono text-xs text-muted">{new Date(c.createdAt).toLocaleString('es-CL')}</time>
+              {/* Quién la lanzó (#697): `created_by` se escribía desde el primer
+                  envío y esta lista no lo mostraba. «¿Quién mandó esto a 650
+                  personas?» es la primera pregunta cuando una campaña sale mal. */}
+              {c.creadaPor && <><span className="text-xs text-muted"> · </span><QuienLoHizo accion="Lanzada" quien={c.creadaPor} /></>}
               <p className="mt-2 text-sm text-body"><span className="font-mono">{c.destinatarios.encolados}</span> encolados · <span className="font-mono">{c.destinatarios.saltados}</span> omitidos · <span className="font-mono">{c.destinatarios.fallados}</span> fallidos</p></div>
             <Badge role={c.status === 'draft' ? 'neutral' : 'info'}>{ESTADOS[c.status]}</Badge>
             <Button variant="secundario" disabled={ocupado} onClick={() => void ejecutar(async () => {
@@ -224,7 +235,9 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
         <fieldset className="space-y-4 rounded-tarjeta border border-line p-4"><legend className="px-2 font-bold text-ink">Destinatarios</legend>
           {!!segmentos.length && <label className="block text-sm">Partir de un segmento guardado<Select onValueChange={(valor) => setFiltros(segmentos.find((s) => s.id === valor)?.filters ?? {})}>
             <SelectTrigger className="mt-1 w-full" aria-label="Partir de un segmento guardado"><SelectValue placeholder="Todos los contactos con consentimiento" /></SelectTrigger>
-            <SelectContent>{segmentos.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{segmentos.map((s) => <SelectItem key={s.id} value={s.id}>
+              {s.name}{nombreDeQuien(s.creadoPor) && ` — lo armó ${nombreDeQuien(s.creadoPor)}`}
+            </SelectItem>)}</SelectContent>
           </Select></label>}
           <label className="block text-sm">Origen<Select value={filtros.origen ?? TODOS} onValueChange={(valor) => setFiltros((f) => ({ ...f, origen: valor === TODOS ? undefined : valor }))}>
             <SelectTrigger className="mt-1 w-full" aria-label="Origen"><SelectValue /></SelectTrigger>

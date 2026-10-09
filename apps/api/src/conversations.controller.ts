@@ -21,6 +21,7 @@ import {
   changeConversationState,
   getConversation,
   getConversationDetail,
+  historialDeAsignaciones,
   cierreDeLaVentana,
   isWithinWindow,
   listInbox,
@@ -45,6 +46,7 @@ import {
   pendingSuggestion,
   porQueNoHaySugerencia,
   resolveSuggestion,
+  modoConQuienLoPuso,
   setConversationMode,
 } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -579,7 +581,32 @@ export class ConversationsController {
       const analisis = await conversationAnalysis(c, actor.tenantId, id);
       const agent = await activeAgent(c, actor.tenantId);
       const mode = agent ? await effectiveMode(c, agent, actor.tenantId, id) : 'off';
-      return { ...analisis, mode };
+      // Quién puso la marca manual, si hay (#697). `set_by` se escribía en
+      // cada cambio y la ficha mostraba solo el modo: dejar que la IA conteste
+      // sola a un cliente es la decisión más delicada del producto, y quien
+      // abre la conversación después tiene que ver quién la tomó.
+      const marcaManual = await modoConQuienLoPuso(c, actor.tenantId, id);
+      return { ...analisis, mode, marcaManual };
+    });
+  }
+
+  /**
+   * A quién se le quitó la conversación (#697).
+   *
+   * `.claude/rules/negocio.md` pide «un dueño por conversación; reasignar deja
+   * rastro». El rastro se escribía en `assignments` desde el primer día y
+   * ninguna consulta lo leía: la regla estaba escrita, la escritura hecha, y lo
+   * escrito no se podía ver. «Esta conversación era mía y ya no» se contestaba
+   * con Auditoría —con permiso de auditoría— o con nada.
+   */
+  @Get(':id/asignaciones')
+  @RequirePermission('conversations.read')
+  @ApiOperation({ summary: 'De quién a quién pasó la conversación, con el motivo' })
+  async asignaciones(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      await getConversation(c, actor.tenantId, id).catch(notFound);
+      return historialDeAsignaciones(c, actor.tenantId, id);
     });
   }
 

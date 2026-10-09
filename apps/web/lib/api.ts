@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/supabase-js';
 import type { PublicConfig } from '@iaxti/ui/react';
+import type { Quien } from '@iaxti/sdk';
 
 // Cliente mínimo de la API /v1 desde el navegador: Bearer de la sesión +
 // X-Tenant-Id del selector. Los errores llegan en voz Pulso ({code, message}).
@@ -395,6 +396,22 @@ export interface AnalisisDto {
   leadScore: string | null;
   suggestDeal: boolean;
   acciones: Array<{ at: string; que: string; estado: string; feedback: string | null }>;
+  /**
+   * La marca manual, con quién la puso (#697).
+   *
+   * `null` cuando el modo sale del horario del asistente y nadie lo marcó a
+   * mano. `set_by` se escribía en cada cambio y la ficha mostraba solo el modo.
+   */
+  marcaManual: { mode: 'assist' | 'autonomous' | 'off'; puestoPor: Quien | null; puestoEl: string } | null;
+}
+
+/** De quién a quién pasó la conversación, con el motivo (#697). */
+export interface ReasignacionDto {
+  de: Quien | null;
+  a: Quien | null;
+  motivo: string | null;
+  actor: string | null;
+  cuando: string;
 }
 
 /** Una cita de la agenda (#58, SPEC §16). */

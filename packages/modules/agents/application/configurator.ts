@@ -19,6 +19,7 @@ import type { ModelPortFactory } from './models';
 import { aiSdkModelPort } from './models';
 import { activeAgent } from './copilot';
 import { listAgents, type Agent } from './agents';
+import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 
 // El configurador (#50): "el CRM se arma solo en 15 minutos" — el agente
 // PROPONE un diff antes/después y el usuario lo aplica. Nunca actúa solo.
@@ -31,9 +32,20 @@ export interface Proposal {
   diff: ConfigDiff;
   status: 'pending' | 'applied' | 'dismissed';
   createdAt: Date;
+  /**
+   * Quién aprobó lo que propuso el agente (#697).
+   *
+   * `agent_proposals.applied_by` se escribía al aplicar el diff y ninguna
+   * pantalla lo mostraba. Aplicar una propuesta cambia la configuración del
+   * negocio entero —horarios, plantillas, etapas— y se audita como «user via
+   * agent»: quién apretó el botón es la mitad de esa frase.
+   *
+   * `null` mientras está pendiente o si se descartó: no hay a quién atribuirlo.
+   */
+  aplicadaPor: Quien | null;
 }
 
-function rowToProposal(row: Record<string, unknown>): Proposal {
+function rowToProposal(row: Record<string, unknown>, quien?: Map<string, Quien>): Proposal {
   return {
     id: row.id as string,
     description: row.description as string,
@@ -42,6 +54,7 @@ function rowToProposal(row: Record<string, unknown>): Proposal {
     diff: row.diff as ConfigDiff,
     status: row.status as Proposal['status'],
     createdAt: row.created_at as Date,
+    aplicadaPor: quienFue(quien, row.applied_by),
   };
 }
 
@@ -194,7 +207,11 @@ export async function getProposal(
     'SELECT * FROM agent_proposals WHERE tenant_id = $1 AND id = $2',
     [tenantId, proposalId],
   );
-  return r.rowCount === 0 ? null : rowToProposal(r.rows[0]);
+  if (r.rowCount === 0) return null;
+  return rowToProposal(
+    r.rows[0],
+    await quienesSon(client, tenantId, [r.rows[0].applied_by as string | null]),
+  );
 }
 
 /** La última propuesta pendiente (para retomar el diff al volver). */
@@ -204,7 +221,11 @@ export async function pendingProposal(client: PoolClient, tenantId: string): Pro
       ORDER BY created_at DESC LIMIT 1`,
     [tenantId],
   );
-  return r.rowCount === 0 ? null : rowToProposal(r.rows[0]);
+  if (r.rowCount === 0) return null;
+  return rowToProposal(
+    r.rows[0],
+    await quienesSon(client, tenantId, [r.rows[0].applied_by as string | null]),
+  );
 }
 
 /**

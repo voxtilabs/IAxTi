@@ -18,6 +18,8 @@ import { FichaContacto } from '../crm/ficha-contacto';
 import { ESTADOS, fmtEspera } from './estado';
 import { SecuenciasFicha } from './secuencias-ficha';
 import { RetencionAviso } from './retencion-aviso';
+import { QuienLoHizo } from '../quien-lo-hizo';
+import { Reasignaciones } from './reasignaciones';
 
 function Fila({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
@@ -158,6 +160,9 @@ export function Ficha({
       {/* Retención (#77): desde cuándo no hay historial. */}
       <RetencionAviso />
 
+      {/* Quién ha tenido esta conversación (#697). */}
+      <Reasignaciones conversationId={detalle.id} />
+
       {/* La lectura de la IA (#48): resumen, intención y calificación. */}
       {analisis && (analisis.summary || analisis.intent || analisis.acciones.length > 0) && (
         <div className="mt-6 rounded-campo border border-line bg-rest p-4">
@@ -172,6 +177,20 @@ export function Ficha({
               </Badge>
             )}
           </p>
+          {/* Quién lo puso en piloto automático (#697). `set_by` se escribía
+              en cada cambio y acá se mostraba solo el modo: dejar que la IA
+              conteste sola a un cliente es la decisión más delicada del
+              producto, y quien abre la conversación después tiene que poder
+              ver quién la tomó, no solo que está tomada. */}
+          {analisis.marcaManual && (
+            <p className="mt-2">
+              <QuienLoHizo
+                accion={analisis.marcaManual.mode === 'autonomous' ? 'Piloto automático puesto' : 'Modo marcado a mano'}
+                quien={analisis.marcaManual.puestoPor}
+                cuando={analisis.marcaManual.puestoEl}
+              />
+            </p>
+          )}
           {analisis.acciones.length > 0 && (
             <ul className="mt-3 flex flex-col gap-1">
               {analisis.acciones.slice(0, 5).map((a, i) => (

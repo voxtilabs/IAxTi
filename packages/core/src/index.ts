@@ -45,3 +45,6 @@ export {
 // Qué publica cada módulo y quién lo usa (#664). Se exporta para que la guarda
 // pueda leerlo; no lo usa nada en producción, y eso está escrito en su lista.
 export { exportsSinConsumidor, valoresQuePublica } from './exports-sin-consumidor';
+// Las columnas que guardan QUIÉN, y quién las lee (#697).
+export { columnasDeAutor, columnasDeAutorSinLector, lecturasPorTabla, enCamello } from './columnas-de-autor';
+export type { ColumnaDeAutor } from './columnas-de-autor';
