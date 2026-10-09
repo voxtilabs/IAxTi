@@ -25,6 +25,16 @@
 # arquitectura del runner y el espejo serviría una imagen más pobre que la
 # original.
 #
+# ## Redis no está acá, y no es un olvido
+#
+# `redis` es una imagen OFICIAL, y las oficiales están espejadas por AWS en
+# `public.ecr.aws/docker/library/*`, que permite descargas anónimas sin este
+# cupo. Así que `ci.yml` la toma de ahí directo: un espejo nuestro para algo
+# que ya está espejado sería una pieza más que mantener por nada.
+#
+# `pgvector/pgvector` NO es oficial —es una imagen de la comunidad— así que no
+# está en ese espejo, y es la única que necesita el nuestro.
+#
 # ## Cuándo corre
 #
 # Semanal, a mano, y cuando ESTE archivo cambia. Lo último no es un detalle: la
@@ -44,9 +54,19 @@ on:
     paths:
       - .github/workflows/espejo-imagenes.yml
 
+# Uno a la vez, y gana el último: la lista de imágenes vive en este archivo, así
+# que dos corridas a la vez estarían copiando lo mismo.
+concurrency:
+  group: espejo-imagenes
+  cancel-in-progress: true
+
 jobs:
   espejar:
     runs-on: ubuntu-latest
+    # Si en diez minutos no copió una imagen, algo está mal afuera y seguir
+    # colgado no lo arregla. La primera corrida se quedó 15 minutos esperando a
+    # un Docker Hub que no contestaba, y sin este tope habría seguido.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -63,7 +83,6 @@ jobs:
           # porque GHCR no acepta mayúsculas en el nombre del paquete.
           IMAGENES: |
             pgvector/pgvector:pg16 ghcr.io/voxtilabs/pgvector:pg16
-            redis:7-alpine ghcr.io/voxtilabs/redis:7-alpine
         run: |
           set -euo pipefail
           fallo=0
@@ -75,7 +94,11 @@ jobs:
             # paga una vez por semana. Fallar al primer intento sería dejar el
             # espejo viejo por un hipo.
             for intento in 1 2 3; do
-              if docker buildx imagetools create --tag "$destino" "$origen"; then
+              # Con tope por intento: `imagetools` espera largo cuando el
+              # registro de origen no contesta —y cuando no contesta es
+              # justamente cuando hay que reintentar, no esperar—. Dos minutos
+              # alcanzan de sobra para copiar manifiestos.
+              if timeout 120 docker buildx imagetools create --tag "$destino" "$origen"; then
                 echo "ok en el intento $intento"
                 break
               fi
@@ -96,7 +119,6 @@ jobs:
         env:
           IMAGENES: |
             ghcr.io/voxtilabs/pgvector:pg16
-            ghcr.io/voxtilabs/redis:7-alpine
         run: |
           set -uo pipefail
           # El resumen dice qué hay DESPUÉS, no qué se intentó: si una quedó
