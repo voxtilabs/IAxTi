@@ -153,10 +153,28 @@ export async function barrerRecordatorios(
     // cuando haya con qué mandarlo.
     return { enviados: 0, saltados: 0, sinConfigurar: 0, motivo: 'no hay por dónde mandar el recordatorio' };
   }
-  // Los tenants salen de `tenants`, no de `appointments` (#286): una
-  // consulta suelta a una tabla con RLS corre sin `app.tenant_id` y devuelve
-  // cero filas con el rol de producción. En desarrollo se veía bien porque
-  // el rol es superusuario.
+  // A QUIÉN visitar se pregunta UNA vez (#733, ADR-0026).
+  //
+  // Antes se recorrían todos los tenants vivos y, por cada uno, se corría una
+  // consulta por cada aviso de `AVISOS` para descubrir que no tiene citas.
+  // Medido con 1.283 tenants: 4,5 ms cada uno, ~5,8 s el barrido entero — y
+  // este barrido corre cada pocos minutos, no una vez al día.
+  //
+  // `appointments` tiene RLS, así que la pregunta vive en una función SECURITY
+  // DEFINER que devuelve SOLO ids (#286 sigue en pie: una consulta suelta a
+  // `appointments` devolvería cero filas con el rol de producción). Cada tenant
+  // se sigue visitando con `withTenant`, y qué aviso corresponde lo decide
+  // `citasPorRecordar` con `AVISOS` — la función no evalúa la regla, solo filtra
+  // a quién mirar.
+  // El MISMO instante con el que después se evalúa. Si el filtro usara `now()`
+  // y el barrido un reloj inyectado, discreparían: el barrido no vería al
+  // tenant que sí tenía una cita para su reloj. Lo cazó una prueba.
+  const conCitas = (
+    await pool.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM tenants_con_citas_por_recordar($1::timestamptz)',
+      [ahora],
+    )
+  ).rows.map((f) => f.tenant_id);
   let enviados = 0;
   let saltados = 0;
   let sinConfigurar = 0;
@@ -188,6 +206,6 @@ export async function barrerRecordatorios(
         else saltados += 1;
       }
     }
-  });
+  }, { ids: conCitas });
   return { enviados, saltados, sinConfigurar };
 }
