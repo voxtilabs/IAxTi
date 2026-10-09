@@ -42,8 +42,10 @@ const CON_MOTIVO: Record<string, number> = {
   // campos que DECLARÓ ese negocio (tipo, obligatoriedad, opciones de lista).
   // El esquema no sabe qué declaró cada tenant.
   'contacts.controller.ts': 1,
-  // Mixtos: un relevo y validaciones que necesitan la zona del negocio.
-  'agenda.controller.ts': 3,
+  // Mixtos: un relevo y validaciones que necesitan la zona del negocio. La
+  // cuarta es el rango de los motivos de cancelación (#700): son parámetros de
+  // query y `@Cuerpo` solo cubre cuerpos.
+  'agenda.controller.ts': 4,
   // El rango de fechas se valida contra la zona del tenant, que se lee de la
   // base dentro del `withTenant`: el esquema no la tiene.
   'analytics.controller.ts': 2,

@@ -43,7 +43,11 @@ paso 'lint'        pnpm lint
 paso 'depcruise'   pnpm depcruise
 paso 'typecheck'   pnpm typecheck "$@"
 paso 'build'       pnpm build "$@"
-paso 'tests'       pnpm turbo test --concurrency=1 "$@"
+# `--continue` y no es un detalle: sin él, turbo corta en el PRIMER paquete que
+# falla y los demás no corren. Pasó con #700 — un flake de `integrations` tapó
+# una guarda de `apps/api` que CI sí cazó, y la corrida de doce minutos se gastó
+# en algo que este script ya tenía que haber dicho.
+paso 'tests'       pnpm turbo test --concurrency=1 --continue "$@"
 
 # Estas tres van FUERA de turbo, igual que en CI, y por el mismo motivo: su
 # entrada es el repo entero, así que turbo las sirve desde caché justo en el PR
