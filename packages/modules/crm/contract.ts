@@ -16,7 +16,18 @@ export {
 } from './application/contacts';
 export type { IdentityChannel } from './application/contacts';
 export type { Contact, ContactOrigin, CreateContactInput } from './application/contacts';
-export { normalizePhone, normalizeRut, isOptOutMessage } from './domain/validation';
+export {
+  normalizePhone,
+  normalizeRut,
+  isOptOutMessage,
+  tipoDeLinea,
+} from './domain/validation';
+export type { TipoDeLinea } from './domain/validation';
+// `PAIS_POR_DEFECTO` NO sale del módulo: es el valor por defecto del
+// parámetro de `normalizePhone`, así que nadie de afuera necesita nombrarlo
+// —y el día que se vuelva configurable por tenant, lo que cambia es de dónde
+// lo lee esta función, no quién lo importa. El trinquete de #664 lo cazó
+// exportado sin consumidor, con razón.
 export {
   createPipeline,
   getPipelineStages,

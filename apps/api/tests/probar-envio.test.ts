@@ -218,3 +218,26 @@ describe('lo que contesta el proveedor (#587)', () => {
     expect(r.detalle).toContain('503');
   });
 });
+
+describe('WhatsApp solo llega a celulares (#582)', () => {
+  it('un fijo chileno se rechaza diciendo ESO, no «teléfono inválido»', async () => {
+    // La distinción es el punto: `+56229123456` es un teléfono perfectamente
+    // válido. Decirle «inválido» manda a corregir un número que está bien
+    // escrito, y quien prueba se queda buscando el error donde no está.
+    const falso = despachoFalso({ providerMessageId: 'no-deberia' });
+    const r = await probar('+56229123456', { despachar: falso.despachar });
+    expect(r.motivo).toBe('NO_ES_MOVIL');
+    expect(r.mensaje).toMatch(/solo llega a celulares/i);
+    expect(r.mensaje).toMatch(/está bien escrito/i);
+    expect(falso.llamadas).toEqual([]);
+  });
+
+  it('un número de fuera de Chile NO se bloquea: el tipo no se puede saber', async () => {
+    // `tipoDeLinea` devuelve `no_se` fuera de Chile, y `no_se` pasa. Bloquear
+    // por una duda es bloquear a un cliente de verdad; lo que sigue decidiendo
+    // acá es la ventana de 24 h, no una suposición sobre el tipo de línea.
+    const falso = despachoFalso({ providerMessageId: 'no-deberia' });
+    const r = await probar('+14085551234', { despachar: falso.despachar });
+    expect(r.motivo).not.toBe('NO_ES_MOVIL');
+  });
+});
