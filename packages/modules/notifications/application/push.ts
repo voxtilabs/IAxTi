@@ -13,6 +13,22 @@ export interface PushSubscription {
   endpoint: string;
   keys: { p256dh: string; auth: string };
   userAgent: string | null;
+  /**
+   * La salud del dispositivo (#698).
+   *
+   * `last_ok_at` y `failed_at` se escribían en cada envío y nada las leía: una
+   * suscripción que falla desde hace semanas seguía ahí y el producto creía que
+   * estaba avisando.
+   */
+  ultimoOkEl: Date | null;
+  ultimaFallaEl: Date | null;
+  /** Fallas SEGUIDAS. El éxito la vuelve a cero. */
+  fallasSeguidas: number;
+  /**
+   * Si hay que decirle en pantalla «no estamos pudiendo avisarte en este
+   * dispositivo». Se calcula acá y no en la interfaz para que el umbral sea uno.
+   */
+  avisarQueNoLlega: boolean;
 }
 
 export interface PushPayload {
@@ -52,12 +68,17 @@ export function vapidFromEnv(env: NodeJS.ProcessEnv = process.env): VapidConfig 
 }
 
 function rowToSub(row: Record<string, unknown>): PushSubscription {
+  const fallas = Number(row.failed_count ?? 0);
   return {
     id: row.id as string,
     userId: row.user_id as string,
     endpoint: row.endpoint as string,
     keys: { p256dh: row.p256dh as string, auth: row.auth as string },
     userAgent: (row.user_agent as string) ?? null,
+    ultimoOkEl: (row.last_ok_at as Date) ?? null,
+    ultimaFallaEl: (row.failed_at as Date) ?? null,
+    fallasSeguidas: fallas,
+    avisarQueNoLlega: fallas >= FALLAS_PARA_AVISAR,
   };
 }
 
@@ -86,40 +107,92 @@ export async function registerPushSubscription(
        p256dh = EXCLUDED.p256dh,
        auth = EXCLUDED.auth,
        user_agent = EXCLUDED.user_agent,
-       failed_at = NULL
+       -- Volver a suscribirse DESARCHIVA y empieza de cero (#698). Sin esto, el
+       -- dispositivo que falló y el usuario apagó y volvió a activar se quedaba
+       -- archivado para siempre: la pantalla decía «activo» y el push no salía
+       -- nunca más, en silencio. Lo encontró la prueba.
+       failed_at = NULL,
+       failed_count = 0,
+       archived_at = NULL,
+       archived_reason = NULL
      RETURNING *`,
     [input.tenantId, input.userId, input.endpoint, input.p256dh, input.auth, input.userAgent ?? null],
   );
   return rowToSub(r.rows[0]);
 }
 
-export async function deletePushSubscription(
+/**
+ * Archiva la suscripción. No la borra (#698).
+ *
+ * Antes el 404/410 del servicio hacía `DELETE`, con el argumento de que guardar
+ * una suscripción muerta es acumular basura. El argumento tiene una parte buena
+ * —no hay que seguir intentándolo— y una mala: borraba el rastro de que ese
+ * dispositivo recibía avisos, que es justo lo que alguien quiere mirar cuando
+ * dice «no me está llegando nada». `.claude/rules/negocio.md` lo zanja: nada se
+ * borra, se archiva.
+ *
+ * El `motivo` queda escrito porque las dos formas de llegar acá no son lo mismo:
+ * la persona que quitó el dispositivo a propósito, y el servicio que dijo que ya
+ * no existe.
+ */
+export async function archivePushSubscription(
   client: PoolClient,
   tenantId: string,
   endpoint: string,
+  motivo: 'el usuario lo quitó' | 'el servicio dijo que ya no existe',
 ): Promise<void> {
-  await client.query('DELETE FROM push_subscriptions WHERE tenant_id = $1 AND endpoint = $2', [
-    tenantId,
-    endpoint,
-  ]);
+  await client.query(
+    `UPDATE push_subscriptions
+        SET archived_at = now(), archived_reason = $3
+      WHERE tenant_id = $1 AND endpoint = $2 AND archived_at IS NULL`,
+    [tenantId, endpoint, motivo],
+  );
 }
 
+/**
+ * Los dispositivos vivos del usuario.
+ *
+ * Las archivadas quedan fuera (#698): se archivan y no se borran —SPEC §39— así
+ * que hay que excluirlas a mano, o el producto seguiría intentando mandarle a un
+ * navegador que ya dijo que no existe.
+ */
 export async function listPushSubscriptions(
   client: PoolClient,
   tenantId: string,
   userId: string,
 ): Promise<PushSubscription[]> {
   const r = await client.query(
-    'SELECT * FROM push_subscriptions WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at',
+    `SELECT * FROM push_subscriptions
+      WHERE tenant_id = $1 AND user_id = $2 AND archived_at IS NULL
+      ORDER BY created_at`,
     [tenantId, userId],
   );
   return r.rows.map(rowToSub);
 }
 
+/** Una falla más, seguida: el contador sube y el éxito lo baja a cero (#698). */
+async function marcarFalla(client: PoolClient, id: string): Promise<void> {
+  await client.query(
+    'UPDATE push_subscriptions SET failed_at = now(), failed_count = failed_count + 1 WHERE id = $1',
+    [id],
+  );
+}
+
 /**
- * Envía a todos los dispositivos del usuario. Una suscripción que el
- * servicio declara muerta (404/410) SE BORRA: guardarla es acumular basura
- * que falla para siempre.
+ * Cuántas fallas seguidas hacen falta para decirlo en pantalla.
+ *
+ * Tres y no una: la red de un celular falla sola, y el servicio del navegador
+ * tiene malos minutos. Avisar al primer error llenaría la pantalla de avisos
+ * falsos, y un aviso falso enseña a ignorar los verdaderos — que es el mismo
+ * problema que este issue viene a arreglar, por el otro lado.
+ */
+export const FALLAS_PARA_AVISAR = 3;
+
+/**
+ * Envía a todos los dispositivos del usuario.
+ *
+ * Una suscripción que el servicio declara muerta (404/410) se ARCHIVA (#698):
+ * no se sigue intentando, y el rastro queda.
  */
 export async function sendPushToUser(
   client: PoolClient,
@@ -144,19 +217,53 @@ export async function sendPushToUser(
     try {
       const { statusCode } = await input.sender(sub, input.payload);
       if (statusCode === 404 || statusCode === 410) {
-        await deletePushSubscription(client, input.tenantId, sub.endpoint);
+        await archivePushSubscription(
+          client, input.tenantId, sub.endpoint, 'el servicio dijo que ya no existe',
+        );
         resultados.push({ estado: 'muerta' });
       } else if (statusCode >= 200 && statusCode < 300) {
-        await client.query('UPDATE push_subscriptions SET last_ok_at = now() WHERE id = $1', [sub.id]);
+        // El éxito vuelve el contador a cero: lo que importa es fallar N veces
+        // SEGUIDAS, no haber fallado alguna vez (#698).
+        await client.query(
+          `UPDATE push_subscriptions
+              SET last_ok_at = now(), failed_at = NULL, failed_count = 0
+            WHERE id = $1`,
+          [sub.id],
+        );
         resultados.push({ estado: 'enviado' });
       } else {
-        await client.query('UPDATE push_subscriptions SET failed_at = now() WHERE id = $1', [sub.id]);
+        await marcarFalla(client, sub.id);
         resultados.push({ estado: 'error', motivo: `HTTP ${statusCode}` });
       }
     } catch (err) {
-      await client.query('UPDATE push_subscriptions SET failed_at = now() WHERE id = $1', [sub.id]);
+      await marcarFalla(client, sub.id);
       resultados.push({ estado: 'error', motivo: (err as Error).message });
     }
   }
   return resultados;
+}
+
+/**
+ * Cuántas suscripciones están fallando, para el diagnóstico (#698).
+ *
+ * Criterio 4 del issue: que se pueda ver, **sin bloquear**. No va en `/ready`
+ * —que es público y además decide si el proceso recibe tráfico; un dispositivo
+ * de un usuario que no recibe avisos no es razón para sacar de rotación a la
+ * API— sino en el diagnóstico de avisos del negocio.
+ *
+ * Se cuenta solo lo vivo: las archivadas ya no se intentan, así que contarlas
+ * sería un número que nunca baja.
+ */
+export async function saludDelPush(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ dispositivos: number; fallando: number; archivadas: number }> {
+  const r = await client.query(
+    `SELECT count(*) FILTER (WHERE archived_at IS NULL)::int AS dispositivos,
+            count(*) FILTER (WHERE archived_at IS NULL AND failed_count >= $2)::int AS fallando,
+            count(*) FILTER (WHERE archived_at IS NOT NULL)::int AS archivadas
+       FROM push_subscriptions WHERE tenant_id = $1`,
+    [tenantId, FALLAS_PARA_AVISAR],
+  );
+  return r.rows[0];
 }

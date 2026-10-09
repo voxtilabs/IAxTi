@@ -8,9 +8,11 @@ import {
   TIPOS_CRITICOS,
 } from '../application/notifications';
 import {
-  deletePushSubscription,
+  archivePushSubscription,
+  FALLAS_PARA_AVISAR,
   listPushSubscriptions,
   registerPushSubscription,
+  saludDelPush,
   sendPushToUser,
   vapidFromEnv,
 } from '../application/push';
@@ -63,7 +65,12 @@ describe('suscripciones de push (#78)', () => {
     expect(subs[0].keys.p256dh).toBe('llave-nueva');
   });
 
-  it('una suscripción que el servicio declara muerta se borra sola', async () => {
+  it('una suscripción que el servicio declara muerta se ARCHIVA, no se borra', async () => {
+    // Antes hacía DELETE, con el argumento de que guardar una muerta es
+    // acumular basura. La parte buena del argumento —no seguir intentándolo— se
+    // conserva: deja de aparecer en la lista. La mala era borrar el rastro de
+    // que ese dispositivo recibía avisos, que es lo que alguien quiere mirar
+    // cuando dice «no me llega nada» (#698, SPEC §39).
     await withTenant(admin, tenant, (c) => registerPushSubscription(c, sub('https://push.test/b')));
     const sender = vi.fn().mockResolvedValue({ statusCode: 410 });
     const res = await withTenant(admin, tenant, (c) =>
@@ -72,6 +79,14 @@ describe('suscripciones de push (#78)', () => {
     expect(res.some((r) => r.estado === 'muerta')).toBe(true);
     const quedan = await withTenant(admin, tenant, (c) => listPushSubscriptions(c, tenant, duena));
     expect(quedan.map((s) => s.endpoint)).not.toContain('https://push.test/b');
+
+    const fila = await admin.query(
+      'SELECT archived_at, archived_reason FROM push_subscriptions WHERE endpoint = $1',
+      ['https://push.test/b'],
+    );
+    expect(fila.rowCount, 'la fila sigue ahí: se archiva, no se borra').toBe(1);
+    expect(fila.rows[0].archived_at).toBeTruthy();
+    expect(fila.rows[0].archived_reason).toBe('el servicio dijo que ya no existe');
   });
 
   it('sin llaves VAPID no se finge un envío', async () => {
@@ -83,7 +98,9 @@ describe('suscripciones de push (#78)', () => {
   });
 
   it('un error del servicio se anota pero no borra la suscripción', async () => {
-    await withTenant(admin, tenant, (c) => deletePushSubscription(c, tenant, 'https://push.test/a'));
+    await withTenant(admin, tenant, (c) =>
+      archivePushSubscription(c, tenant, 'https://push.test/a', 'el usuario lo quitó'),
+    );
     await withTenant(admin, tenant, (c) => registerPushSubscription(c, sub('https://push.test/c')));
     const sender = vi.fn().mockResolvedValue({ statusCode: 500 });
     const res = await withTenant(admin, tenant, (c) =>
@@ -92,6 +109,93 @@ describe('suscripciones de push (#78)', () => {
     expect(res[0]).toMatchObject({ estado: 'error' });
     const quedan = await withTenant(admin, tenant, (c) => listPushSubscriptions(c, tenant, duena));
     expect(quedan).toHaveLength(1);
+  });
+});
+
+describe('la salud de los avisos se LEE (#698)', () => {
+  /**
+   * `last_ok_at` y `failed_at` se escribían en cada envío y ninguna consulta las
+   * devolvía: una suscripción muerta hace semanas seguía en la tabla y el
+   * producto creía que estaba avisando. El dueño no recibía nada y nadie se
+   * enteraba — ni él, ni nosotros.
+   */
+  const otroUsuario = randomUUID();
+  const suyo = (endpoint: string) => ({
+    tenantId: tenant, userId: otroUsuario, endpoint, p256dh: 'pk', auth: 'sk',
+  });
+
+  it('un error aislado NO se avisa en pantalla', async () => {
+    // Tres fallas seguidas y no una: la red de un celular falla sola, y el
+    // servicio del navegador tiene malos minutos. Avisar al primer error
+    // llenaría la pantalla de avisos falsos, y un aviso falso enseña a ignorar
+    // los verdaderos — el mismo problema que esto arregla, por el otro lado.
+    await withTenant(admin, tenant, (c) => registerPushSubscription(c, suyo('https://push.test/s1')));
+    const sender = vi.fn().mockResolvedValue({ statusCode: 500 });
+    await withTenant(admin, tenant, (c) =>
+      sendPushToUser(c, { tenantId: tenant, userId: otroUsuario, payload: { title: 'x' }, sender }),
+    );
+    const [d] = await withTenant(admin, tenant, (c) => listPushSubscriptions(c, tenant, otroUsuario));
+    expect(d.fallasSeguidas).toBe(1);
+    expect(d.ultimaFallaEl).toBeInstanceOf(Date);
+    expect(d.avisarQueNoLlega, 'una sola falla no es un dispositivo roto').toBe(false);
+  });
+
+  it('a las N seguidas sí, y eso es lo que la pantalla dice', async () => {
+    const sender = vi.fn().mockResolvedValue({ statusCode: 500 });
+    for (let i = 1; i < FALLAS_PARA_AVISAR; i += 1) {
+      await withTenant(admin, tenant, (c) =>
+        sendPushToUser(c, { tenantId: tenant, userId: otroUsuario, payload: { title: 'x' }, sender }),
+      );
+    }
+    const [d] = await withTenant(admin, tenant, (c) => listPushSubscriptions(c, tenant, otroUsuario));
+    expect(d.fallasSeguidas).toBe(FALLAS_PARA_AVISAR);
+    expect(d.avisarQueNoLlega).toBe(true);
+  });
+
+  it('un envío que sí llega vuelve el contador a cero', async () => {
+    // Lo que importa es fallar N veces SEGUIDAS. Un contador que solo sube
+    // dejaría el aviso puesto para siempre después de un mal día.
+    const sender = vi.fn().mockResolvedValue({ statusCode: 201 });
+    await withTenant(admin, tenant, (c) =>
+      sendPushToUser(c, { tenantId: tenant, userId: otroUsuario, payload: { title: 'ok' }, sender }),
+    );
+    const [d] = await withTenant(admin, tenant, (c) => listPushSubscriptions(c, tenant, otroUsuario));
+    expect(d.fallasSeguidas).toBe(0);
+    expect(d.ultimaFallaEl, 'y la marca de falla se limpia con él').toBeNull();
+    expect(d.ultimoOkEl).toBeInstanceOf(Date);
+    expect(d.avisarQueNoLlega).toBe(false);
+  });
+
+  it('el diagnóstico cuenta las que fallan, y no cuenta las archivadas', async () => {
+    // Criterio 4: se puede ver, sin bloquear. Las archivadas ya no se intentan,
+    // así que contarlas sería un número que nunca baja.
+    const sender = vi.fn().mockResolvedValue({ statusCode: 500 });
+    for (let i = 0; i < FALLAS_PARA_AVISAR; i += 1) {
+      await withTenant(admin, tenant, (c) =>
+        sendPushToUser(c, { tenantId: tenant, userId: otroUsuario, payload: { title: 'x' }, sender }),
+      );
+    }
+    const antes = await withTenant(admin, tenant, (c) => saludDelPush(c, tenant));
+    expect(antes.fallando).toBeGreaterThanOrEqual(1);
+
+    await withTenant(admin, tenant, (c) =>
+      archivePushSubscription(c, tenant, 'https://push.test/s1', 'el usuario lo quitó'),
+    );
+    const despues = await withTenant(admin, tenant, (c) => saludDelPush(c, tenant));
+    expect(despues.fallando).toBe(antes.fallando - 1);
+    expect(despues.archivadas).toBe(antes.archivadas + 1);
+    expect(despues.dispositivos).toBe(antes.dispositivos - 1);
+  });
+
+  it('una archivada que vuelve a suscribirse arranca sana', async () => {
+    // Pasa de verdad: el dispositivo que falló, el usuario apaga y vuelve a
+    // activar. Si el contador o el archivado sobrevivieran, el aviso de «no
+    // estamos pudiendo avisarte» quedaría puesto sobre un dispositivo sano.
+    await withTenant(admin, tenant, (c) => registerPushSubscription(c, suyo('https://push.test/s1')));
+    const [d] = await withTenant(admin, tenant, (c) => listPushSubscriptions(c, tenant, otroUsuario));
+    expect(d.endpoint).toBe('https://push.test/s1');
+    expect(d.fallasSeguidas).toBe(0);
+    expect(d.avisarQueNoLlega).toBe(false);
   });
 });
 

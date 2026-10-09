@@ -42,6 +42,15 @@ function PermisoPush() {
     'cargando',
   );
   const [aviso, setAviso] = useState<string | null>(null);
+  /**
+   * Si los avisos están LLEGANDO a este dispositivo (#698).
+   *
+   * «Activo» decía que el navegador está suscrito, no que el aviso llegue.
+   * `last_ok_at` y `failed_at` se escribían en cada envío y nada las leía, así
+   * que una suscripción muerta hace semanas se veía igual que una sana: el
+   * dueño no recibía nada y el producto creía que estaba avisando.
+   */
+  const [salud, setSalud] = useState<SaludPushDto | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -65,6 +74,13 @@ function PermisoPush() {
         setEstado(
           suscripcion ? 'activo' : Notification.permission === 'denied' ? 'negado' : 'listo',
         );
+        if (!suscripcion) return;
+        // La salud se pide solo si hay suscripción: sin ella no hay nada que
+        // contar, y un fallo acá no puede romper la pantalla del permiso.
+        const r = await fetch(`${config.apiUrl}/v1/notifications/push/salud`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).catch(() => null);
+        if (r?.ok) setSalud((await r.json()) as SaludPushDto);
       })
       .catch(() => setEstado('no_disponible'));
   }, [session, config.apiUrl]);
@@ -166,9 +182,40 @@ function PermisoPush() {
           Dejar de recibirlos aquí
         </button>
       )}
+      {/* No estamos pudiendo avisarte acá (#698), criterio 3. Tres fallas
+          seguidas y no una: la red de un celular falla sola, y un aviso falso
+          enseña a ignorar los verdaderos — que es el problema que este arreglo
+          viene a resolver, por el otro lado. */}
+      {estado === 'activo' && salud?.dispositivos.some((d) => d.avisarQueNoLlega) && (
+        <div className="mt-3">
+          <AvisoResultado tono="warning" persistente>
+            No estamos pudiendo avisarte en este dispositivo. Prueba apagando y volviendo a activar
+            los avisos acá; si sigue igual, revisa los permisos del navegador.
+          </AvisoResultado>
+        </div>
+      )}
       {aviso && <p className="mt-2 text-sm text-warn-text">{aviso}</p>}
     </div>
   );
+}
+
+/**
+ * Si los avisos están llegando (#698).
+ *
+ * `negocio` es el diagnóstico del criterio 4: cuántos dispositivos del negocio
+ * están fallando. No va en `/ready` —un dispositivo que no recibe avisos no es
+ * razón para sacar la API de rotación— sino acá, donde alguien puede hacer algo.
+ */
+interface SaludPushDto {
+  dispositivos: Array<{
+    id: string;
+    userAgent: string | null;
+    ultimoOkEl: string | null;
+    ultimaFallaEl: string | null;
+    fallasSeguidas: number;
+    avisarQueNoLlega: boolean;
+  }>;
+  negocio: { dispositivos: number; fallando: number; archivadas: number };
 }
 
 export function PreferenciasAvisos() {
