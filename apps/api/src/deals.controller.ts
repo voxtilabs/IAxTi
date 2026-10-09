@@ -20,6 +20,8 @@ import {
   createDeal,
   deleteSavedFilter,
   deleteStage,
+  getEmbudo,
+  historiaDeEtapas,
   InvalidListQuery,
   listDeals,
   listLossReasons,
@@ -248,6 +250,69 @@ export class DealsController {
       }
       throw new BadRequestException({ code: 'INVALID_MOVE', message });
     }
+  }
+
+  /**
+   * El embudo leído (#695). `won_at`, `lost_at` y la historia de etapas se
+   * escribían desde el día uno y ningún SELECT las devolvía, así que el CRM
+   * mostraba el presente del embudo sin poder decir si estaba mejorando.
+   *
+   * Vive acá y no en `analytics` porque el dato es de `crm`: ponerlo allá
+   * obligaba a consultar tablas ajenas o a declarar una dependencia nueva
+   * para leer lo que ya tiene dueño.
+   *
+   * Sin `crm.read_all` se ve el embudo PROPIO, igual que la lista: los
+   * números de todo el negocio son una lectura de todo el negocio.
+   */
+  @Get('pipelines/:id/embudo')
+  @RequirePermission('crm.deals.read')
+  @ApiOperation({ summary: 'Conversión etapa por etapa, ciclo de venta y dónde se cae' })
+  @ApiQuery({ name: 'from', required: false, type: String, description: 'AAAA-MM-DD, cohorte por creación' })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  @ApiQuery({ name: 'owner', required: false, type: String })
+  async embudo(
+    @Req() request: WithUser,
+    @Param('id') pipelineId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('owner') owner?: string,
+  ) {
+    const actor = actorOf(request);
+    for (const [nombre, valor] of [['from', from], ['to', to]] as const) {
+      if (valor !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: `El rango de fechas no se entiende (${nombre} como AAAA-MM-DD).`,
+        });
+      }
+    }
+    if (from && to && from > to) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El rango de fechas no se entiende: la fecha de inicio es posterior a la de término.',
+      });
+    }
+    const verTodo = actorCan(actor, 'crm.read_all');
+    return withTenant(pool(), actor.tenantId, (c) =>
+      getEmbudo(c, {
+        tenantId: actor.tenantId,
+        pipelineId,
+        from,
+        to,
+        ownerId: verTodo ? (owner ?? null) : actor.userId,
+      }),
+    );
+  }
+
+  /** La historia de etapas de una oportunidad, para la ficha (#32/#695). */
+  @Get('deals/:id/etapas')
+  @RequirePermission('crm.deals.read')
+  @ApiOperation({ summary: 'Cada movimiento de etapa con su motivo y si fue hacia atrás' })
+  async etapasDe(@Req() request: WithUser, @Param('id') dealId: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      historiaDeEtapas(c, { tenantId: actor.tenantId, dealId }),
+    );
   }
 
   @Get('saved-filters')

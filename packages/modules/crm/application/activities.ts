@@ -256,12 +256,30 @@ export async function getContactFicha(
     [tenantId, contactId],
   );
   if (contacto.rowCount === 0) throw new Error('No encontramos ese contacto. Puede que se haya eliminado.');
+  // El cierre viaja con la ficha (#695). `won_at` y `lost_at` se escribían
+  // desde el día uno y esta consulta no los proyectaba: la ficha mostraba
+  // «Perdida» sin poder decir cuándo ni desde qué etapa, que es justo lo que
+  // alguien pregunta al abrirla. La etapa de la pérdida sale de la historia
+  // —`from_stage_id` del paso que cerró— y no de una columna nueva: la
+  // historia ya está escrita y un campo paralelo se desincroniza al primer
+  // movimiento manual.
   const deals = await client.query(
     `SELECT d.id, d.title, d.status, d.value, d.currency, d.value_clp, d.stalled,
-            d.created_at, s.name AS stage_name, p.name AS pipeline_name
+            d.created_at, d.won_at, d.lost_at,
+            s.name AS stage_name, p.name AS pipeline_name,
+            cierre.name AS lost_from_stage
        FROM deals d
        JOIN stages s ON s.id = d.stage_id
        JOIN pipelines p ON p.id = d.pipeline_id
+       LEFT JOIN LATERAL (
+         SELECT origen.name
+           FROM deal_stage_history h
+           JOIN stages origen ON origen.id = h.from_stage_id
+           JOIN stages destino ON destino.id = h.to_stage_id
+          WHERE h.tenant_id = d.tenant_id AND h.deal_id = d.id AND destino.type = 'lost'
+          ORDER BY h.created_at DESC
+          LIMIT 1
+       ) cierre ON true
       WHERE d.tenant_id = $1 AND d.contact_id = $2
       ORDER BY d.created_at DESC`,
     [tenantId, contactId],

@@ -54,6 +54,10 @@ function rowToCard(row: Record<string, unknown>): DealCard {
     stalled: row.stalled as boolean,
     stageEnteredAt: row.stage_entered_at as Date,
     expectedCloseDate: (row.expected_close_date as Date) ?? null,
+    // El cierre viaja en la tarjeta: la lista ordena por «ganadas» y hasta
+    // ahora no podía decir cuándo (#695).
+    wonAt: (row.won_at as Date) ?? null,
+    lostAt: (row.lost_at as Date) ?? null,
     contactName: (row.contact_name as string) ?? null,
     contactPhone: row.contact_phone as string,
     stageName: row.stage_name as string,

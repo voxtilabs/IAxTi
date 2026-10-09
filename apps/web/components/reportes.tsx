@@ -7,6 +7,7 @@ import {
   Skeleton, Tabs, TabsList, TabsTrigger,
 } from '@iaxti/ui/react';
 import dynamic from 'next/dynamic';
+import { EmbudoDeVentas } from './embudo-de-ventas';
 import { PreguntaALosNumeros } from './pregunta-a-los-numeros';
 import { useReporte } from './use-reporte';
 import { fmtClp } from '../lib/api';
@@ -134,6 +135,8 @@ export function Reportes() {
             series={[{ nombre: 'Oportunidades', valores: serie.map((x) => x.oportunidades), tono: 'warn' }]} />
         </section>
       </div>
+
+      <EmbudoDeVentas from={rango.from} to={rango.to} />
 
       <h2 className="mt-7 font-display text-seccion font-bold text-ink">Recursos y actividad</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
