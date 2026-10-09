@@ -45,7 +45,7 @@ import {
 } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
-import { apiPool } from './db';
+import { apiPool, apiRedis } from './db';
 import { writeAudit } from '@iaxti/module-audit';
 import { z } from 'zod';
 import { Cuerpo } from './validar';
@@ -57,7 +57,12 @@ import {
 } from '@iaxti/module-organizations';
 import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
 import { withTenant } from '@iaxti/db';
-import { redisConnection, versionDelBuild } from '@iaxti/core';
+import {
+  leerConCache,
+  olvidarEnTodosLosTenants,
+  redisConnection,
+  versionDelBuild,
+} from '@iaxti/core';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
@@ -123,6 +128,17 @@ class HealthController {
   }
 }
 
+/**
+ * Cuánto vive el acceso por plan en el caché (#711).
+ *
+ * Cinco minutos: cambia cuando el negocio cambia de plan o cuando SuperAdmin
+ * toca el catálogo de módulos, y el candado que esto pinta no decide nada por
+ * sí solo — el servidor igual rechaza lo que no corresponde. O sea que el peor
+ * caso de estar desactualizado es un candado de más o de menos durante un rato,
+ * no una escritura que no debía pasar.
+ */
+const TTL_ACCESO = 300;
+
 @ApiTags('me')
 @Controller('me')
 class MeController {
@@ -130,6 +146,20 @@ class MeController {
    * Quién soy y a qué negocios pertenezco: lo primero que pide el shell
    * tras el login, para el selector de tenant (SPEC §9: un usuario puede
    * estar en varios tenants con roles distintos).
+   */
+  /**
+   * NO se cachea, y el motivo es de forma (#711).
+   *
+   * El issue la nombra entre las lecturas casi estáticas, y lo es. Pero
+   * `leerConCache` exige tenant en la clave —regla de `.claude/rules/db.md`— y
+   * ésta es precisamente la llamada que contesta *cuáles* tenants hay: corre
+   * con `@RequireAuth()` y sin tenant elegido. Cachearla pediría una clave por
+   * USUARIO, que es otra forma de clave y aflojaría la regla «no hay caché sin
+   * tenant» para una sola ruta.
+   *
+   * Hace UNA consulta, así que son 64 ms, no 192. Si algún día hace falta, el
+   * camino es un prefijo propio (`cache:usuario:{id}:…`) decidido a propósito y
+   * no colándolo por acá.
    */
   @Get()
   @RequireAuth()
@@ -206,6 +236,24 @@ class MeController {
    *
    * `solo_lectura` no es esconder: bajar de plan nunca borra (SPEC §6).
    */
+  /**
+   * Cacheado en Redis (#711).
+   *
+   * Medido contra staging desde dentro del VPS: **postgres 64 ms**, **redis
+   * 0 ms**. Acá son DOS consultas —los módulos vendibles y los del plan—, así
+   * que son 128 ms de viaje antes de ejecutar una línea de lógica.
+   *
+   * Y es de las que más se pide: la interfaz la usa para poner el candado en
+   * cada pantalla, así que entra en casi toda navegación. Lo que devuelve
+   * cambia cuando el negocio cambia de plan o cuando se toca el catálogo de
+   * módulos desde SuperAdmin — nunca mientras alguien navega.
+   *
+   * La clave NO lleva actor: la respuesta depende del PLAN del negocio y del
+   * registro de módulos, no de quién pregunta. Todos los del mismo tenant ven
+   * lo mismo, y por eso compartir el valor es correcto y no una filtración.
+   *
+   * No se cachea el camino sin base: ahí no hay nada que ahorrar.
+   */
   @Get('modules/acceso')
   @RequirePermission('tenant.read')
   @ApiOperation({ summary: 'Acceso del tenant a cada módulo según su plan' })
@@ -215,14 +263,20 @@ class MeController {
     const activos = registry.health().filter((m) => m.active);
     if (!pool) return activos.map((m) => ({ id: m.id, acceso: 'completo' as const }));
 
-    const [vendibles, plan] = await Promise.all([
-      modulosVendibles(pool),
-      modulosDelPlan(pool, actor.tenantId),
-    ]);
-    return activos.map((m) => ({
-      id: m.id,
-      acceso: accesoAlModulo({ moduleId: m.id, vendibles, delPlan: plan.modulos }),
-    }));
+    return leerConCache(
+      apiRedis(),
+      { clave: 'modulos:acceso', tenantId: actor.tenantId, ttlSegundos: TTL_ACCESO },
+      async () => {
+        const [vendibles, plan] = await Promise.all([
+          modulosVendibles(pool),
+          modulosDelPlan(pool, actor.tenantId),
+        ]);
+        return activos.map((m) => ({
+          id: m.id,
+          acceso: accesoAlModulo({ moduleId: m.id, vendibles, delPlan: plan.modulos }),
+        }));
+      },
+    );
   }
 
   /**
@@ -717,6 +771,11 @@ class PlatformController {
   @RequirePermission('platform.plans')
   @ApiOperation({ summary: 'Edita el plan — configuración, no código' })
   async updatePlan(@Req() request: WithUser, @Param('plan') plan: string, @Body() body: Record<string, unknown>) {
+    // Editar un plan cambia qué módulos incluye, y eso mueve el acceso de
+    // TODOS los tenants que lo tienen (#711). No hay un tenant al que
+    // olvidarle: hay que olvidarles a todos. Antes de escribir, por lo mismo
+    // que en el resto — si falla, haber olvidado no hace daño.
+    await olvidarEnTodosLosTenants(apiRedis(), { clave: 'modulos:acceso' });
     try {
       return await updatePlan(platformPool(), {
         plan,
@@ -749,6 +808,8 @@ class PlatformController {
         message: `La acción es una de: ${acciones.join(', ')}.`,
       });
     }
+    // Encender o apagar un módulo mueve el acceso de todos (#711).
+    await olvidarEnTodosLosTenants(apiRedis(), { clave: 'modulos:acceso' });
     try {
       return await setModuleFlag(platformPool(), registry, {
         moduleId: id,
@@ -797,6 +858,18 @@ class PlatformController {
 @ApiTags('settings')
 @Controller('support-status')
 class SupportStatusController {
+  /**
+   * NO se cachea, a propósito (#711).
+   *
+   * El issue la nombra entre las candidatas y es la excepción: esto no es
+   * configuración, es el AVISO de que alguien de IAxTi está mirando la cuenta.
+   * Un TTL de dos minutos significa dos minutos en que el soporte ya entró y el
+   * cliente todavía no lo sabe.
+   *
+   * El trato de «ver lo viejo un rato» es razonable para una lista de etiquetas.
+   * Para un aviso de privacidad no lo es, y 64 ms es un precio que sí se puede
+   * pagar.
+   */
   @Get()
   @RequirePermission('tenant.read')
   @ApiOperation({ summary: '¿El soporte de IAxTi está mirando esta cuenta?' })

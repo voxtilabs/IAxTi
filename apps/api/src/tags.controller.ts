@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { leerConCache, olvidarEnCache } from '@iaxti/core';
 import {
   addTagToContacts,
   contactTags,
@@ -22,7 +23,32 @@ import {
 } from '@iaxti/module-crm';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
-import { apiPool } from './db';
+import { apiPool, apiRedis } from './db';
+
+/**
+ * Cuánto vive la lista de etiquetas en el caché (#711).
+ *
+ * Dos minutos: el precio es que una etiqueta recién creada tarde hasta ese
+ * rato en aparecerle a un compañero que ya tenía la pantalla abierta. Quien la
+ * crea la ve al tiro, porque la escritura olvida el caché antes de escribir.
+ *
+ * Es el mismo trato que #400 aceptó para el menú, y el mismo número que los
+ * campos propios: tenerlos distintos sin motivo sería dos decisiones donde hay
+ * una.
+ */
+const TTL_ETIQUETAS = 120;
+
+/**
+ * Olvida la lista cacheada de este negocio.
+ *
+ * ANTES de escribir y no después: si la escritura falla, haber olvidado el
+ * caché no hace daño —se vuelve a leer de la base—, mientras que olvidar
+ * después deja una ventana en la que alguien lee lo viejo y lo guarda otra vez
+ * por otros dos minutos.
+ */
+async function olvidarEtiquetas(tenantId: string): Promise<void> {
+  await olvidarEnCache(apiRedis(), { clave: 'tags', tenantId });
+}
 
 /**
  * Etiquetas del negocio (SPEC §10 y §23, issue 248).
@@ -70,12 +96,32 @@ export class TagsController {
     } catch (err) { seVeMal(err); }
   }
 
+  /**
+   * Cacheado en Redis (#711).
+   *
+   * Medido contra staging desde dentro del VPS: **postgres 64 ms** por consulta,
+   * **redis 0 ms**. La base es Supabase y está lejos; Redis está al lado.
+   *
+   * Las etiquetas del negocio son el mismo caso que los campos propios: las
+   * leen la tabla de contactos, la ficha, el filtro, el selector de campañas y
+   * el etiquetado masivo —cinco pantallas— y cambian cuando alguien declara una
+   * etiqueta, o sea casi nunca.
+   *
+   * Sin actor en la clave a propósito: la lista es del negocio y la ve igual
+   * cualquiera con `crm.contacts.read`. Si algún día dependiera del rol, el
+   * actor tiene que entrar — un caché por tenant que ignore el permiso filtra
+   * entre usuarios del mismo negocio.
+   */
   @Get()
   @RequirePermission('crm.contacts.read')
   @ApiOperation({ summary: 'Etiquetas del negocio' })
   async list(@Req() request: WithUser) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, (c) => listTags(c, actor.tenantId));
+    return leerConCache(
+      apiRedis(),
+      { clave: 'tags', tenantId: actor.tenantId, ttlSegundos: TTL_ETIQUETAS },
+      () => withTenant(pool(), actor.tenantId, (c) => listTags(c, actor.tenantId)),
+    );
   }
 
   @Post()
@@ -83,6 +129,7 @@ export class TagsController {
   @ApiOperation({ summary: 'Crea una etiqueta con su color de rol' })
   async create(@Req() request: WithUser, @Body() body: { name?: string; role?: string }) {
     const actor = actorOf(request);
+    await olvidarEtiquetas(actor.tenantId);
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         createTag(c, { tenantId: actor.tenantId, name: body?.name ?? '', role: body?.role }),
@@ -101,6 +148,7 @@ export class TagsController {
     @Body() body: { name?: string; role?: string },
   ) {
     const actor = actorOf(request);
+    await olvidarEtiquetas(actor.tenantId);
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         updateTag(c, { tenantId: actor.tenantId, tagId: id, name: body?.name, role: body?.role }),
@@ -115,6 +163,7 @@ export class TagsController {
   @ApiOperation({ summary: 'Borra una etiqueta y la quita de todos los contactos' })
   async remove(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
+    await olvidarEtiquetas(actor.tenantId);
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         deleteTag(c, { tenantId: actor.tenantId, tagId: id }),

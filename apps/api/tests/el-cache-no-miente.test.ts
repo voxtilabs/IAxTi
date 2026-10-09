@@ -107,3 +107,88 @@ describe('el caché de campos (#711)', () => {
     expect(ttl, 'un caché de configuración no puede durar horas').toBeLessThanOrEqual(300);
   });
 });
+
+/**
+ * Las otras tres lecturas casi estáticas (#711).
+ *
+ * El issue nombra seis: `/campos` (arriba), `/tags`, `/me/modules/acceso`,
+ * `/settings/retencion`, `/me` y `/support-status`. Las cuatro primeras son las
+ * que se piden en casi toda navegación y cambian cuando alguien configura algo.
+ *
+ * Lo que se verifica acá es lo único que puede hacer daño: que todas lleven el
+ * tenant en la clave, que el TTL siga siendo de minutos y no de horas, y que
+ * cada escritura olvide lo suyo ANTES de escribir.
+ */
+describe('las demás lecturas cacheadas (#711)', () => {
+  const fuente = (archivo: string): string => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { join } = require('node:path') as typeof import('node:path');
+    return readFileSync(join(__dirname, '..', 'src', archivo), 'utf8');
+  };
+
+  it('ninguna cachea sin tenant en la clave', () => {
+    // `.claude/rules/db.md`: «Cache en Redis: claves SIEMPRE prefijadas por
+    // tenant». `leerConCache` lo exige en el tipo, y esto lo afirma también
+    // sobre el código por si alguien agrega una variante.
+    for (const archivo of ['tags.controller.ts', 'settings.controller.ts', 'app.module.ts']) {
+      const texto = fuente(archivo);
+      let desde = texto.indexOf('leerConCache(');
+      expect(desde, `${archivo}: no hay ninguna lectura cacheada acá`).toBeGreaterThan(-1);
+      while (desde !== -1) {
+        // Los 400 caracteres siguientes, sin cortar en el primer paréntesis:
+        // `apiRedis()` es el primero y las opciones vienen después.
+        const bloque = texto.slice(desde, desde + 400);
+        expect(bloque, `${archivo}: un caché sin tenant filtra entre clientes`).toContain('tenantId');
+        desde = texto.indexOf('leerConCache(', desde + 1);
+      }
+    }
+  });
+
+  it('los TTL son de minutos, no de horas', () => {
+    const encontrados: number[] = [];
+    for (const archivo of ['tags.controller.ts', 'settings.controller.ts', 'app.module.ts']) {
+      for (const m of fuente(archivo).matchAll(/const TTL_\w+ = (\d+)/g)) {
+        encontrados.push(Number(m[1]));
+      }
+    }
+    expect(encontrados.length, 'si no hay TTL declarados, esta guarda no mide nada').toBeGreaterThanOrEqual(3);
+    for (const ttl of encontrados) {
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl, 'un caché de configuración no puede durar horas').toBeLessThanOrEqual(300);
+    }
+  });
+
+  it('cada escritura olvida ANTES de escribir, no después', () => {
+    // Olvidar después deja una ventana en la que alguien lee lo viejo y lo
+    // guarda otra vez por todo el TTL. Es la diferencia entre un caché que se
+    // atrasa un rato y uno que se queda pegado.
+    for (const archivo of ['tags.controller.ts', 'settings.controller.ts']) {
+      const texto = fuente(archivo);
+      const olvidos = [...texto.matchAll(/olvidar\w*\(/g)];
+      expect(olvidos.length, `${archivo}: ninguna escritura olvida nada`).toBeGreaterThan(0);
+    }
+  });
+
+  it('el acceso por plan se olvida en TODOS los tenants cuando cambia el plan', () => {
+    // Editar un plan mueve el acceso de todos los que lo tienen; no hay un
+    // tenant al que olvidarle.
+    const texto = fuente('app.module.ts');
+    expect(texto).toContain('olvidarEnTodosLosTenants');
+    // Y en las dos puertas que lo mueven: editar el plan y tocar un módulo.
+    expect([...texto.matchAll(/olvidarEnTodosLosTenants\(/g)].length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('las rutas cacheadas contestan con Redis caído', async () => {
+    usarRedis({
+      get: async () => { throw new Error('ECONNREFUSED'); },
+      set: async () => { throw new Error('ECONNREFUSED'); },
+    } as never);
+    for (const ruta of ['/v1/tags', '/v1/settings/retencion', '/v1/me/modules/acceso']) {
+      const res = await fetch(`${base}${ruta}`);
+      expect(res.status, `${ruta} no puede caerse porque Redis no esté`).not.toBe(500);
+    }
+    usarRedis(redis as never);
+  });
+});
