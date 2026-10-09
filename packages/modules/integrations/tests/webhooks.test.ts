@@ -147,12 +147,16 @@ describe('suscripciones y entregas (#76)', () => {
       });
       return new Response('ok', { status: 200 });
     };
-    const res = await deliverWebhooks(admin, fetch200);
-    expect(res.delivered).toBe(1);
-    const [cap] = capturadas;
+    // `deliverWebhooks` es GLOBAL: entrega lo de TODOS los tenants, y el
+    // `fetch` que se le pasa recibe todas esas idas. Así que ni su total ni
+    // `capturadas.length` son de esta prueba: dependen de lo que dejó pendiente
+    // otra suite (#745). Lo que sí es de esta prueba es la firma — solo las
+    // suyas validan contra el secreto de SU endpoint.
     const ep = (await withTenant(admin, tenant, (c) => listEndpoints(c, tenant)))[0];
-    expect(verifySignature(ep.secret, cap.body, cap.firma)).toBe(true); // firma real
-    expect(JSON.parse(cap.body).data.valueClp).toBe(45000);
+    await deliverWebhooks(admin, fetch200);
+    const mias = capturadas.filter((c) => verifySignature(ep.secret, c.body, c.firma));
+    expect(mias, 'la entrega de este endpoint salió, firmada con su secreto').toHaveLength(1);
+    expect(JSON.parse(mias[0].body).data.valueClp).toBe(45000);
 
     // Un evento nuevo contra un servidor caído: reintenta y agota.
     await encolar(1004, 'payment.received');
@@ -175,8 +179,16 @@ describe('suscripciones y entregas (#76)', () => {
     await withTenant(admin, tenant, (c) =>
       retryDelivery(c, { tenantId: tenant, deliveryId: fallida.id }),
     );
-    const res2 = await deliverWebhooks(admin, fetch200);
-    expect(res2.delivered).toBe(1);
+    // Lo que se afirma es que ESTA entrega salió al sanar el servidor. Ni el
+    // total del barrido ni lo que capturó el `fetch` sirven: los dos son
+    // globales —el `fetch` que se le pasa recibe las entregas de todos los
+    // tenants de esa pasada— y dependen de lo que dejaron otras suites (#745).
+    // Lo que es de esta prueba es el estado de SU fila.
+    await deliverWebhooks(admin, fetch200);
+    const sana = (
+      await admin.query('SELECT status FROM webhook_deliveries WHERE id = $1', [fallida.id])
+    ).rows[0];
+    expect(sana.status, 'el reintento manual la entregó').toBe('ok');
   }, 30_000);
 
   it('falla sostenida >24 h: el endpoint se APAGA con webhook.failed', async () => {

@@ -113,24 +113,43 @@ describe('umbral de particionado (#84)', () => {
 });
 
 describe('eventos abandonados (#71)', () => {
-  it('sin abandonados dice que no hay, con el umbral explícito', async () => {
+  /**
+   * El chequeo cuenta el outbox de TODA la plataforma, y así tiene que ser: es
+   * un chequeo de plataforma, no de un negocio. Lo que estaba mal era la prueba
+   * (#745): insertaba uno y afirmaba `valor === 1`, así que en una base con
+   * eventos abandonados de otras suites daba 5. Fallaba siempre en local y
+   * pasaba en CI, donde la base nace limpia.
+   *
+   * Ahora se mide el DELTA: cuántos había antes y cuántos después. Es lo que la
+   * prueba siempre quiso afirmar — que ESE evento cuenta, o no cuenta.
+   */
+  const cuantos = async (): Promise<number> =>
+    // `valor` del chequeo es `string | number` porque otros chequeos reportan
+    // texto; acá siempre es el conteo. `Number` y no un casteo: si algún día
+    // dejara de ser numérico, esto da NaN y la aserción falla en vez de callar.
+    Number((await chequeoEventosAbandonados(admin)).valor ?? 0);
+
+  it('el umbral es explícito: cualquiera mayor que cero', async () => {
+    // El estado depende de lo que haya en la base, que esta prueba no controla.
+    // Lo que sí es suyo es el contrato del chequeo.
     const chequeo = await chequeoEventosAbandonados(admin);
-    expect(chequeo.estado).toBe('bien');
-    expect(chequeo.valor).toBe(0);
     expect(chequeo.umbral).toMatch(/> 0/);
+    expect(chequeo.estado === 'bien' || chequeo.estado === 'mal').toBe(true);
+    if (chequeo.estado === 'bien') expect(chequeo.valor).toBe(0);
   });
 
-  it('un evento que agotó los reintentos es MAL, no "atención"', async () => {
+  it('un evento que agotó los reintentos SUMA, y deja el tablero en MAL', async () => {
     // El despachador deja de intentar a los 5 fallos y lo abandona con su
-    // último error. Hasta ahora nadie miraba esa pila.
+    // último error. Hasta #71 nadie miraba esa pila.
+    const antes = await cuantos();
     await admin.query(
       `INSERT INTO outbox (tenant_id, name, payload, attempts, last_error)
        VALUES ($1, 'payment.received', '{}'::jsonb, 5, 'el consumidor explotó')`,
       [tenant],
     );
     const chequeo = await chequeoEventosAbandonados(admin);
+    expect(Number(chequeo.valor), 'suma exactamente uno: el que insertó esta prueba').toBe(antes + 1);
     expect(chequeo.estado).toBe('mal');
-    expect(chequeo.valor).toBe(1);
     // El motivo viaja: sin él, "1 evento abandonado" no se puede accionar.
     expect(chequeo.detalle).toMatch(/el consumidor explotó/);
     // Y ensucia el general del tablero.
@@ -139,14 +158,23 @@ describe('eventos abandonados (#71)', () => {
     await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
   });
 
-  it('un evento con reintentos pendientes NO cuenta: todavía puede salir', async () => {
+  it('un evento con reintentos pendientes NO suma: todavía puede salir', async () => {
+    const antes = await cuantos();
     await admin.query(
       `INSERT INTO outbox (tenant_id, name, payload, attempts, last_error)
        VALUES ($1, 'payment.received', '{}'::jsonb, 2, 'falló una vez')`,
       [tenant],
     );
-    expect((await chequeoEventosAbandonados(admin)).valor).toBe(0);
+    expect(await cuantos(), 'el mismo número que antes: éste no está abandonado').toBe(antes);
     await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  });
+
+  it('y el motivo del que insertó esta prueba no se lleva el de otro', async () => {
+    // El `detalle` muestra hasta tres motivos distintos. Que el de esta prueba
+    // aparezca es lo que se afirma arriba; que NO aparezca uno inventado es lo
+    // que hace que esa aserción signifique algo.
+    const chequeo = await chequeoEventosAbandonados(admin);
+    expect(chequeo.detalle).not.toMatch(/un motivo que nadie escribió/);
   });
 });
 
