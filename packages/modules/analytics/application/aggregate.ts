@@ -152,7 +152,24 @@ export async function sweepResponseSamples(pool: Pool): Promise<number> {
            FROM conversations c
            JOIN tenants t ON t.id = c.tenant_id
           WHERE c.tenant_id = $1 AND c.first_response_at > now() - interval '26 hours'
-          ON CONFLICT (tenant_id, conversation_id) DO NOTHING`,
+          -- El arbitro es conversation_id y no la clave primaria (#748).
+          --
+          -- response_samples tiene DOS unicas: la primaria compuesta y una
+          -- sobre conversation_id sola. ON CONFLICT solo absorbe el choque del
+          -- indice que se le NOMBRA; en cualquier otra unica, lanza. Con la
+          -- compuesta como arbitro, un choque en la de conversation_id -misma
+          -- conversacion, otro tenant- se cae con "duplicate key value
+          -- violates unique constraint response_samples_conversation_id_key",
+          -- que es como aparecio.
+          --
+          -- conversation_id es la MAS ESTRICTA de las dos: no se puede chocar
+          -- en la compuesta sin chocar tambien en ella. Nombrarla cubre los
+          -- dos casos y deja el barrido de verdad idempotente, que es lo que
+          -- este DO NOTHING prometia desde el primer dia.
+          --
+          -- Sin comillas invertidas aca: esto va DENTRO de un template
+          -- literal, y una sola lo corta. Costo una corrida.
+          ON CONFLICT (conversation_id) DO NOTHING`,
         [tenantId, TZ_POR_DEFECTO],
       );
       return r.rowCount ?? 0;
