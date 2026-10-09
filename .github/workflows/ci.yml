@@ -11,9 +11,31 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    # Ninguna imagen sale de Docker Hub (#760).
+    #
+    # Docker Hub limita las descargas anónimas por IP y las IP de los runners
+    # son compartidas: cuando el cupo se agota, el job muere en «Initialize
+    # containers» con `toomanyrequests`, sin una línea de log de pruebas y sin
+    # nada que apunte a la causa. El 09-10 dejó cinco PR trancados a la vez, y
+    # el reintento caía en lo mismo.
+    #
+    #  - **Postgres**: la construimos nosotros desde la oficial de AWS y la
+    #    publicamos en GHCR (`imagen-postgres-ci.yml`). La imagen de la
+    #    comunidad `pgvector/pgvector` vive solo en Docker Hub, y espejarla no
+    #    sirve: copiarla ES una descarga de Docker Hub, así que el espejo se cae
+    #    por lo mismo que vino a arreglar. Medido.
+    #  - **Redis**: es una imagen OFICIAL, y AWS espeja las oficiales en
+    #    `public.ecr.aws/docker/library/*` sin ese cupo. Un espejo propio de
+    #    algo ya espejado sería una pieza más por nada.
+    #
+    # **No vuelvas a apuntar un `services:` a Docker Hub**, aunque sea una sola
+    # y aunque sea chica: el cupo lo comparte el job entero.
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: ghcr.io/voxtilabs/postgres-pgvector:16
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
         env:
           POSTGRES_USER: iaxti
           POSTGRES_PASSWORD: iaxti
@@ -24,8 +46,13 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # Redis sale del espejo de AWS, no del nuestro: es una imagen OFICIAL y
+      # las oficiales están en `public.ecr.aws/docker/library/*`, que permite
+      # descargas anónimas sin el cupo de Docker Hub. Mantener un espejo propio
+      # de algo ya espejado sería una pieza más por nada. `pgvector` sí necesita
+      # el nuestro, porque es de la comunidad y no está ahí.
       redis:
-        image: redis:7-alpine
+        image: public.ecr.aws/docker/library/redis:7-alpine
         ports: ["6379:6379"]
     env:
       DATABASE_URL: postgres://iaxti:iaxti@127.0.0.1:5432/iaxti
