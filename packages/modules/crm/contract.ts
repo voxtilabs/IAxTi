@@ -56,7 +56,7 @@ export {
   deleteSavedFilter,
 } from './application/board';
 export type { DealCard, DealFilters, SavedFilter } from './application/board';
-export { listContacts, ensureWebContact } from './application/contacts';
+export { listContacts, ensureWebContact, contactoPorTelefono } from './application/contacts';
 export { mergeContacts, previewImport, confirmImport } from './application/merge';
 export type { ImportPreview, ImportRowResult } from './application/merge';
 export { parseCsv, guessMapping, sniffDelimiter, IMPORT_FIELDS } from './domain/csv';

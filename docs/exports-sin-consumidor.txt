@@ -124,7 +124,6 @@ crm/isOptOutMessage
 crm/linkIdentity
 crm/listStalledDeals
 crm/llaveDeCampo
-crm/normalizePhone
 crm/normalizeRut
 crm/registerOptIn
 crm/sniffDelimiter

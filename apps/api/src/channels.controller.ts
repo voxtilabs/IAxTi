@@ -29,7 +29,8 @@ import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
-import { apiPool } from './db';
+import { apiPool, apiRedis } from './db';
+import { CUERPO_DE_PRUEBA, probarEnvio } from './probar-envio';
 
 function pool() {
   const p = apiPool();
@@ -52,6 +53,19 @@ const actorOf = (request: WithUser): Actor => request.actor as Actor;
  * canal de un negocio al emisor equivocado es de las cosas más caras de
  * deshacer. Que lo escriba quien decide.
  */
+/**
+ * El cuerpo de la prueba de envío (#587).
+ *
+ * Solo el teléfono: el texto NO lo elige quien prueba. Es
+ * `CUERPO_DE_PRUEBA`, dice que es una prueba de IAxTi y de dónde viene —
+ * quien lo recibe tiene que entender por qué le llegó— y dejar el texto
+ * abierto convertiría esto en un formulario para mandar lo que sea desde el
+ * número del negocio, sin pasar por la bandeja ni quedar en la conversación.
+ */
+const PruebaDeEnvio = z.object({
+  telefono: textoRequerido('Dinos a qué número mandar la prueba, en formato +56912345678.'),
+});
+
 const OtroEmisor = z.object({
   senderId: textoRequerido('Dinos a qué emisor apuntar este canal.'),
   phoneNumberId: z.string().trim().optional(),
@@ -340,6 +354,80 @@ export class ChannelsController {
       });
       return resultado;
     });
+  }
+
+  /**
+   * Manda un mensaje de prueba por el camino real y cuenta qué pasó (#587).
+   *
+   * El tope: una prueba por canal cada cinco minutos. No es por costo —un
+   * mensaje no cuesta nada— es porque esto manda un WhatsApp a una persona de
+   * verdad, y un botón que se puede apretar diez veces seguidas le llena el
+   * teléfono a alguien. Si Redis no está, la prueba igual sale: el tope es una
+   * cortesía, no una cerradura, y cambiar «no puedo diagnosticar» por «no
+   * tengo Redis» sería el peor negocio posible justo en la herramienta que
+   * existe para desatascar.
+   */
+  @Post('channels/:id/probar-envio')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Manda un mensaje de prueba por este canal y dice exactamente qué pasó' })
+  async probar(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Cuerpo(PruebaDeEnvio) body: z.infer<typeof PruebaDeEnvio>,
+  ) {
+    const actor = actorOf(request);
+    const redis = apiRedis();
+    const clave = `prueba-envio:${actor.tenantId}:${id}`;
+    if (redis) {
+      try {
+        // `NX` + `EX`: la marca se pone solo si no estaba, en una sola
+        // operación. Con un `get` y después un `set`, dos clics simultáneos
+        // pasan los dos.
+        const puso = await redis.set(clave, '1', 'EX', 300, 'NX');
+        if (puso === null) {
+          throw new BadRequestException({
+            code: 'TEST_SEND_TOO_SOON',
+            message:
+              'Ya probaste este canal hace menos de cinco minutos. La prueba le llega a una ' +
+              'persona de verdad, así que espera un rato antes de repetirla.',
+          });
+        }
+      } catch (err) {
+        // Un Redis caído no puede impedir diagnosticar; el `BadRequest` de
+        // arriba sí tiene que salir.
+        if (err instanceof BadRequestException) throw err;
+      }
+    }
+    const resultado = await probarEnvio(
+      { pool: pool(), redis },
+      {
+        tenantId: actor.tenantId,
+        accountId: id,
+        telefono: body.telefono,
+        requestId: request.requestId,
+      },
+    );
+    // Se audita SIEMPRE, salga o no: a quién se le mandó —o a quién se intentó
+    // mandar— desde el número del negocio es justo lo que alguien va a querer
+    // reconstruir después. El cuerpo no va: es fijo y está en el código.
+    await withTenant(pool(), actor.tenantId, (c) =>
+      writeAudit(c, {
+        tenantId: actor.tenantId,
+        actor: actor.userId,
+        actorKind: 'user',
+        action: 'channel.test_send',
+        resource: 'channel_account',
+        resourceId: id,
+        result: resultado.ok ? 'ok' : 'denied',
+        metadata: {
+          telefono: body.telefono,
+          motivo: resultado.motivo,
+          ...(resultado.providerMessageId ? { providerMessageId: resultado.providerMessageId } : {}),
+        },
+        requestId: request.requestId,
+      }),
+    );
+    return { ...resultado, cuerpo: CUERPO_DE_PRUEBA };
   }
 
   @Post('whatsapp/numbers/:id/resume')

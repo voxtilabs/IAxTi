@@ -1595,6 +1595,32 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ChannelsController_probar": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/{id}/probar-envio",
+    "resumen": "Manda un mensaje de prueba por este canal y dice exactamente qué pasó",
+    "permiso": "channels.manage",
+    "modulo": "channels",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "telefono": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "telefono"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ChannelsController_resume": {
     "metodo": "POST",
     "ruta": "/v1/whatsapp/numbers/{id}/resume",

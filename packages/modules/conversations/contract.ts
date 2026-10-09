@@ -15,6 +15,7 @@ export {
   requestHandoff,
   changeConversationState,
   getConversation,
+  ventanaDelContacto,
   listMessages,
 } from './application/conversations';
 export type {

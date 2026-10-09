@@ -173,6 +173,41 @@ async function getConversation(
 
 export { getConversation };
 
+/**
+ * ¿Está abierta la ventana del canal para este contacto? (#587)
+ *
+ * Devuelve cuándo escribió por última vez por ese canal, o `null` si no hay
+ * conversación — y `null` ya es la respuesta: quien nunca escribió tiene la
+ * ventana cerrada por definición.
+ *
+ * Existe para poder contestar «por qué no sale un mensaje a este número» ANTES
+ * de intentar mandarlo. Hasta ahora la ventana se evaluaba con la conversación
+ * en la mano (`getOutboundContext`, que parte de un mensaje ya guardado), y una
+ * prueba de envío no tiene mensaje: tiene un teléfono que alguien escribió en
+ * una pantalla.
+ *
+ * Mira TODAS las conversaciones del contacto en ese canal y toma la más
+ * reciente, no «la abierta»: la ventana de 24 h la define el último mensaje
+ * entrante, y una conversación resuelta ayer la deja abierta igual.
+ */
+export async function ventanaDelContacto(
+  client: PoolClient,
+  input: { tenantId: string; contactId: string; channel: Channel },
+): Promise<{ conversationId: string; lastInboundAt: Date | null } | null> {
+  const r = await client.query(
+    `SELECT id, last_inbound_at FROM conversations
+      WHERE tenant_id = $1 AND contact_id = $2 AND channel = $3
+      ORDER BY last_inbound_at DESC NULLS LAST, created_at DESC
+      LIMIT 1`,
+    [input.tenantId, input.contactId, input.channel],
+  );
+  if (r.rowCount === 0) return null;
+  return {
+    conversationId: r.rows[0].id as string,
+    lastInboundAt: (r.rows[0].last_inbound_at as Date) ?? null,
+  };
+}
+
 export interface InboundInput {
   tenantId: string;
   /** Identidad de quien escribe EN SU CANAL: teléfono, correo o id de chat. */
