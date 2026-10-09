@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { claveDeCache, leerConCache, olvidarEnCache } from '../src/cache';
+import {
+  claveDeCache,
+  leerConCache,
+  olvidarEnCache,
+  olvidarEnTodosLosTenants,
+} from '../src/cache';
 
 /**
  * El caché de lecturas (#711).
@@ -150,5 +155,63 @@ describe('olvidarEnCache', () => {
       scan: vi.fn(async () => { throw new Error('ECONNREFUSED'); }),
     };
     await expect(olvidarEnCache(roto, { clave: 'campos', tenantId: 't1' })).resolves.toBeUndefined();
+  });
+});
+
+describe('olvidarEnTodosLosTenants (#711)', () => {
+  /**
+   * Existe para lo que cambia a nivel de PLATAFORMA: editar un plan cambia qué
+   * módulos incluye, y eso mueve el acceso de todos los tenants que lo tienen.
+   * No hay un tenant al que olvidarle nada — hay que olvidarles a todos.
+   */
+  it('borra esa clave en todos los negocios, y solo esa', async () => {
+    const redis = redisFalso();
+    redis.datos.set('cache:t1:modulos:acceso', '"de t1"');
+    redis.datos.set('cache:t2:modulos:acceso', '"de t2"');
+    redis.datos.set('cache:t3:ana:modulos:acceso', '"de ana en t3"');
+    redis.datos.set('cache:t1:tags', '"las etiquetas de t1"');
+    redis.datos.set('cache:t2:campos', '"los campos de t2"');
+
+    await olvidarEnTodosLosTenants(redis as never, { clave: 'modulos:acceso' });
+
+    expect(redis.datos.has('cache:t1:modulos:acceso')).toBe(false);
+    expect(redis.datos.has('cache:t2:modulos:acceso')).toBe(false);
+    expect(redis.datos.has('cache:t3:ana:modulos:acceso'), 'también las copias por persona').toBe(false);
+    // Y nada más: borrar de más sería tirar al suelo caché que estaba bien.
+    expect(redis.datos.get('cache:t1:tags')).toBe('"las etiquetas de t1"');
+    expect(redis.datos.get('cache:t2:campos')).toBe('"los campos de t2"');
+  });
+
+  it('usa scan y no keys, igual que el otro', async () => {
+    const redis = redisFalso();
+    await olvidarEnTodosLosTenants(redis as never, { clave: 'modulos:acceso' });
+    expect(redis.scan).toHaveBeenCalled();
+  });
+
+  it('sin Redis no hace nada y no revienta', async () => {
+    await expect(
+      olvidarEnTodosLosTenants(null, { clave: 'modulos:acceso' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('si Redis se cae, no revienta: lo viejo vence solo', async () => {
+    const roto = {
+      del: vi.fn(async () => { throw new Error('ECONNREFUSED'); }),
+      scan: vi.fn(async () => { throw new Error('ECONNREFUSED'); }),
+    };
+    await expect(
+      olvidarEnTodosLosTenants(roto, { clave: 'modulos:acceso' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('una clave que es prefijo de otra NO se lleva a la vecina', async () => {
+    // `modulos` y `modulos:acceso` son dos cosas: borrar la primera no puede
+    // llevarse la segunda, ni al revés.
+    const redis = redisFalso();
+    redis.datos.set('cache:t1:modulos', '"la lista"');
+    redis.datos.set('cache:t1:modulos:acceso', '"el acceso"');
+    await olvidarEnTodosLosTenants(redis as never, { clave: 'modulos' });
+    expect(redis.datos.has('cache:t1:modulos')).toBe(false);
+    expect(redis.datos.get('cache:t1:modulos:acceso'), 'la vecina se queda').toBe('"el acceso"');
   });
 });

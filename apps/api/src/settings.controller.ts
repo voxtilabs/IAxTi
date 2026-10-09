@@ -10,6 +10,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { withTenant } from '@iaxti/db';
+import { leerConCache, olvidarEnCache } from '@iaxti/core';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
 import { bandejaSettings, cierreSettings, retentionCutoff, scheduleRetentionNotice, setRetentionOverride } from '@iaxti/module-conversations';
 import type { BandejaSettings, CierreSettings } from '@iaxti/module-conversations';
@@ -18,7 +19,17 @@ type AjustesBandeja = BandejaSettings & CierreSettings;
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { validar } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
-import { apiPool } from './db';
+import { apiPool, apiRedis } from './db';
+
+/**
+ * Cuánto vive la retención en el caché (#711).
+ *
+ * Cinco minutos, más que los dos de etiquetas y campos, porque cambia menos: la
+ * retención se toca cuando alguien la acorta a mano o cuando cambia el plan, y
+ * ninguna de las dos pasa mientras se navega. Quien la cambia la ve al tiro,
+ * porque la escritura olvida el caché antes de escribir.
+ */
+const TTL_RETENCION = 300;
 
 function pool() {
   const p = apiPool();
@@ -114,19 +125,39 @@ export class SettingsController {
       return { ...limpios, ...cierre };
     });
   }
+  /**
+   * Cacheado en Redis (#711).
+   *
+   * Medido contra staging desde dentro del VPS: **postgres 64 ms**, **redis
+   * 0 ms**. La base es Supabase y está lejos; Redis está al lado.
+   *
+   * La retención la pide la bandeja en CADA conversación que se abre —el aviso
+   * de «desde cuándo no hay historial»— y cambia cuando alguien la acorta a
+   * mano o cuando cambia el plan. O sea: se lee todo el día y cambia casi
+   * nunca, que es exactamente el caso del caché.
+   *
+   * Las fechas viajan ya convertidas a texto `AAAA-MM-DD`, así que pasar por
+   * JSON no las deforma: lo que no sobrevive a `JSON.stringify` no se puede
+   * cachear sin convertirlo antes, y acá la conversión ya estaba.
+   */
   @Get('retencion')
   @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'La retención vigente: plan, override y corte' })
   async retencion(@Req() request: WithUser) {
     const actor = request.actor as Actor;
-    return withTenant(pool(), actor.tenantId, async (c) => {
-      const r = await retentionCutoff(c, actor.tenantId);
-      return {
-        months: r.months,
-        cutoff: r.cutoff ? r.cutoff.toISOString().slice(0, 10) : null,
-        deferredUntil: r.deferredUntil ? r.deferredUntil.toISOString().slice(0, 10) : null,
-      };
-    });
+    return leerConCache(
+      apiRedis(),
+      { clave: 'retencion', tenantId: actor.tenantId, ttlSegundos: TTL_RETENCION },
+      () =>
+        withTenant(pool(), actor.tenantId, async (c) => {
+          const r = await retentionCutoff(c, actor.tenantId);
+          return {
+            months: r.months,
+            cutoff: r.cutoff ? r.cutoff.toISOString().slice(0, 10) : null,
+            deferredUntil: r.deferredUntil ? r.deferredUntil.toISOString().slice(0, 10) : null,
+          };
+        }),
+    );
   }
 
   /**
@@ -141,6 +172,10 @@ export class SettingsController {
   @ApiOperation({ summary: 'Acorta la retención (jamás más que el plan) — avisa la purga' })
   async setRetencion(@Req() request: WithUser, @Body() body: { months?: number | null }) {
     const actor = request.actor as Actor;
+    // Olvidar ANTES de escribir: si la escritura falla, haber olvidado no hace
+    // daño —se vuelve a leer—, y olvidar después deja una ventana en la que
+    // alguien lee lo viejo y lo guarda otra vez.
+    await olvidarEnCache(apiRedis(), { clave: 'retencion', tenantId: actor.tenantId });
     return withTenant(pool(), actor.tenantId, async (c) => {
       try {
         await setRetentionOverride(c, { tenantId: actor.tenantId, months: body?.months ?? null });

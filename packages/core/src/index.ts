@@ -23,7 +23,7 @@ export { crearZip, crc32 } from './zip';
 export type { ArchivoZip } from './zip';
 // Un xlsx es un zip con XML, así que vive al lado del zip (#709).
 // Caché de lecturas: Redis está a 0 ms y la base a 64 ms (#711).
-export { leerConCache, olvidarEnCache, claveDeCache } from './cache';
+export { leerConCache, olvidarEnCache, olvidarEnTodosLosTenants, claveDeCache } from './cache';
 export type { OpcionesDeCache } from './cache';
 export { crearXlsx, referencia } from './xlsx';
 export type { HojaXlsx, ColumnaXlsx, ValorCelda } from './xlsx';

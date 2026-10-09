@@ -112,3 +112,38 @@ export async function olvidarEnCache(
     // venza el TTL. Por eso el TTL es corto.
   }
 }
+
+/**
+ * Borra una clave en TODOS los tenants.
+ *
+ * Existe para lo que cambia a nivel de plataforma y no de un negocio: editar un
+ * plan cambia qué módulos incluye, y eso mueve el acceso de todos los tenants
+ * que tienen ese plan; encender o apagar un módulo desde SuperAdmin, lo mismo.
+ * No hay un tenant al que olvidarle nada — hay que olvidarles a todos.
+ *
+ * **No es el camino normal.** Una escritura de un negocio usa `olvidarEnCache`,
+ * que toca solo lo suyo. Esto recorre el espacio de claves, así que se usa
+ * cuando lo que cambió es de la plataforma, y por eso no acepta tenant: pedirlo
+ * y después ignorarlo sería peor.
+ */
+export async function olvidarEnTodosLosTenants(
+  redis: Pick<IORedis, 'del' | 'scan'> | null,
+  entrada: { clave: string },
+): Promise<void> {
+  if (!redis) return;
+  try {
+    // `scan` y no `keys`, por lo mismo que arriba: `keys` bloquea Redis entero
+    // mientras recorre, y acá Redis es lo único que está rápido.
+    for (const patron of [`cache:*:${entrada.clave}`, `cache:*:*:${entrada.clave}`]) {
+      let cursor = '0';
+      do {
+        const [siguiente, encontradas] = await redis.scan(cursor, 'MATCH', patron, 'COUNT', 200);
+        cursor = siguiente;
+        if (encontradas.length > 0) await redis.del(...encontradas);
+      } while (cursor !== '0');
+    }
+  } catch {
+    // Igual que el otro: lo peor que pasa es ver lo viejo hasta que venza el
+    // TTL, y por eso el TTL es corto.
+  }
+}
