@@ -5,11 +5,12 @@
 // docker compose up) y `pnpm turbo build` previo.
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
+import { porQueNoCorrer } from './build-coherente.mjs';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { createContact, createDeal, createPipeline, createTag } from '@iaxti/module-crm';
@@ -225,7 +226,36 @@ async function main() {
   // corrida de un checkout limpio pasaba; la segunda, nunca. Costó media hora
   // de esta sesión creyendo que un cambio en la barra lateral había roto la
   // aplicación entera.
+  //
+  // Y antes de copiar: que el standalone y el `.next` sean DEL MISMO BUILD
+  // (#637). Copiar siempre arregló la mitad que se podía arreglar copiando; la
+  // otra mitad es que `server.js` y sus `server/chunks` salen de
+  // `.next/standalone`, y si ESO quedó de un build anterior —un build a medias,
+  // un `turbo build --filter` que no tocó web, un checkout encima— la copia deja
+  // un servidor viejo pidiéndole estáticos nuevos. El síntoma es idéntico:
+  // `ChunkLoadError` y la suite entera roja por algo que no es el cambio.
+  //
+  // `BUILD_ID` es la huella que Next deja en los dos lados, así que compararla
+  // es gratis. Y la respuesta correcta es NEGARSE, no apañar: una suite que
+  // corre sobre un build mezclado no está verificando nada, y eso es peor que
+  // no correrla — el rojo (o el verde) no habla del código que se quería
+  // probar.
   {
+    const buildIdDe = (dir) => {
+      const archivo = join(dir, 'BUILD_ID');
+      return existsSync(archivo) ? readFileSync(archivo, 'utf8').trim() : null;
+    };
+    const objecion = porQueNoCorrer({
+      delStandalone: buildIdDe(join(standalone, '.next')),
+      delNext: buildIdDe(join(webDir, '.next')),
+    });
+    if (objecion) throw new Error(objecion);
+    // El destino se vacía antes de copiar: `force: true` sobrescribe lo que
+    // calza y DEJA lo que ya no existe. Un chunk que el build nuevo no generó
+    // se queda ahí, servible, y entonces el e2e puede estar corriendo contra
+    // código que ya se borró. Vaciarlo vuelve la copia exacta en vez de
+    // acumulada.
+    rmSync(staticDst, { recursive: true, force: true });
     mkdirSync(dirname(staticDst), { recursive: true });
     cpSync(join(webDir, '.next/static'), staticDst, { recursive: true, force: true });
     // Igual que el Dockerfile (infra/docker/Dockerfile:15), para que el e2e
