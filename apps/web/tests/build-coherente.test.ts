@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error -- el runner del e2e es .mjs y no pasa por tsc; lo que se
-// prueba acá es su comparación, no sus tipos.
 import { porQueNoCorrer } from '../e2e/build-coherente.mjs';
 
 /**
