@@ -98,7 +98,6 @@ channels/CHANNEL_STATES
 channels/LIMITES_CONSERVADORES
 channels/LIMITES_WHATSAPP
 channels/assertChannelTransition
-channels/getChannelAccount
 channels/rastroDeWebhook
 conversations/CANALES_POR_PROVEEDOR
 conversations/CONVERSATION_STATES
@@ -186,7 +185,6 @@ whatsapp/codigoDelProveedor
 whatsapp/conectarSender
 whatsapp/consultarEnZavu
 whatsapp/crearEnZavu
-whatsapp/elegirSender
 whatsapp/enviarARevisionEnZavu
 whatsapp/envioDePlantilla
 whatsapp/estadoDeZavu

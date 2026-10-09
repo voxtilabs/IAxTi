@@ -106,6 +106,55 @@ export async function setChannelState(
   return rowToAccount(r.rows[0]);
 }
 
+/**
+ * Cambia a qué EMISOR del proveedor apunta una cuenta ya conectada (#600).
+ *
+ * Existe porque faltaba la salida. Cambiar la llave de Zavu de un canal
+ * conectado —de prueba a producción, por ejemplo— puede dejar el `senderId`
+ * guardado apuntando a un emisor que en el proyecto de la llave nueva **no
+ * existe**. Desde #591 el diagnóstico lo dice («el emisor guardado ya no existe
+ * en el proveedor»), pero decirlo no era arreglarlo: `connectWhatsAppNumber` se
+ * niega a correr de nuevo —«Ese número ya está conectado»— y no había ninguna
+ * ruta para reapuntar ni para desconectar. El único camino era entrar a la base
+ * a mano, para algo que un ADMIN tiene que poder hacer en su pantalla.
+ *
+ * ## Qué se conserva, y por qué importa
+ *
+ * El `config` se MEZCLA, no se reemplaza. Ahí vive `enviosReales` (#593), que es
+ * la marca de que este canal manda mensajes de verdad fuera de producción.
+ * Pisarla al reapuntar dejaría un canal mandando a clientes reales sin la marca
+ * que lo declara, y esa marca es justamente lo que hace que el riesgo sea
+ * visible. Lo mismo con cualquier cosa que un canal guarde ahí y esto no
+ * conozca.
+ *
+ * Las conversaciones cuelgan de la CUENTA, no del emisor, así que reapuntar no
+ * mueve historial: es el mismo canal hablando por otra boca.
+ */
+export async function reapuntarEmisorDeLaCuenta(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    accountId: string;
+    senderId: string;
+    phoneNumberId?: string | null;
+    wabaId?: string | null;
+  },
+): Promise<ChannelAccountRef> {
+  const actual = await getChannelAccount(client, input.tenantId, input.accountId);
+  const config = {
+    ...actual.config,
+    senderId: input.senderId,
+    ...(input.phoneNumberId === undefined ? {} : { phoneNumberId: input.phoneNumberId }),
+    ...(input.wabaId === undefined ? {} : { wabaId: input.wabaId }),
+  };
+  const r = await client.query(
+    `UPDATE channel_accounts SET config = $3, updated_at = now()
+     WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    [input.tenantId, input.accountId, JSON.stringify(config)],
+  );
+  return rowToAccount(r.rows[0]);
+}
+
 export async function listChannelAccounts(
   client: PoolClient,
   tenantId: string,

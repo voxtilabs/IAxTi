@@ -306,21 +306,37 @@ export async function emisorDelProveedor(
   llamar: LlamarZavu,
   senderId: string,
 ): Promise<{ existe: boolean; canales: string[] } | null> {
+  const senders = await emisoresDelProveedor(llamar);
+  if (senders === null) return null;
+  const suyo = senders.find((s) => s.id === senderId);
+  if (!suyo) return { existe: false, canales: [] };
+  return { existe: true, canales: suyo.channels ?? [] };
+}
+
+/**
+ * Los emisores del proyecto de ESTA llave, o `null` si no se pudo preguntar
+ * (#600).
+ *
+ * Hace falta para poder reapuntar un canal eligiendo con información: el
+ * `senderId` se escribe a mano una sola vez y de memoria, y el error se
+ * descubre cuando un cliente escribe y nadie le contesta. La pantalla muestra
+ * los que hay, con sus canales encendidos.
+ *
+ * `null` es «no se pudo preguntar» y NO «no hay ninguno» — sin credencial o con
+ * el proveedor caído no sabemos nada, y confundir las dos cosas es lo que tenía
+ * el diagnóstico en verde mientras no salía ni un mensaje (#591).
+ */
+export async function emisoresDelProveedor(llamar: LlamarZavu): Promise<SenderZavu[] | null> {
   try {
     // La API pagina con `{items, nextCursor}`; se aceptan las tres formas que
     // ya tolera el script de conexión, por la misma razón que él.
     const respuesta = (await llamar('/senders')) as
       | SenderZavu[]
       | { items?: SenderZavu[]; data?: SenderZavu[] };
-    const senders = Array.isArray(respuesta)
-      ? respuesta
-      : (respuesta.items ?? respuesta.data ?? []);
-    const suyo = senders.find((s) => s.id === senderId);
-    if (!suyo) return { existe: false, canales: [] };
-    return { existe: true, canales: suyo.channels ?? [] };
+    return Array.isArray(respuesta) ? respuesta : (respuesta.items ?? respuesta.data ?? []);
   } catch {
-    // No se pudo preguntar. El motivo no se propaga a propósito: puede traer
-    // la credencial en el mensaje del error.
+    // El motivo no se propaga a propósito: puede traer la credencial en el
+    // mensaje del error.
     return null;
   }
 }

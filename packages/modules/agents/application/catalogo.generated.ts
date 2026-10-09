@@ -1487,10 +1487,84 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ChannelsController_cambiarEmisor": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/{id}/emisor",
+    "resumen": "Apunta este canal a otro emisor del proveedor",
+    "permiso": "channels.manage",
+    "modulo": "channels",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "senderId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phoneNumberId": {
+          "type": "string"
+        },
+        "wabaId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "senderId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ChannelsController_desconectar": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/{id}/desconectar",
+    "resumen": "Desconecta el canal y libera el cupo del plan (el historial queda)",
+    "permiso": "channels.manage",
+    "modulo": "channels",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ChannelsController_diagnostico": {
     "metodo": "GET",
     "ruta": "/v1/channels/{id}/diagnostico",
     "resumen": "Por qué este canal no está recibiendo, paso a paso",
+    "permiso": "channels.read",
+    "modulo": "channels",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ChannelsController_emisores": {
+    "metodo": "GET",
+    "ruta": "/v1/channels/{id}/emisores",
+    "resumen": "Emisores disponibles en el proyecto de la llave de este canal",
     "permiso": "channels.read",
     "modulo": "channels",
     "soloSesion": false,

@@ -1,5 +1,10 @@
 import type { PoolClient } from 'pg';
-import { createChannelAccount, setChannelState } from '@iaxti/module-channels';
+import {
+  createChannelAccount,
+  getChannelAccount,
+  reapuntarEmisorDeLaCuenta,
+  setChannelState,
+} from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
 
 // WhatsAppNumber (#42, ADR-0014): el número es del cliente y lo conecta él
@@ -23,6 +28,15 @@ export interface WhatsAppNumber {
   /** Pausa de envíos del negocio por calidad (#45); la levanta el ADMIN. */
   businessPausedAt: Date | null;
   pausedReason: string | null;
+  /**
+   * Cuándo se desconectó, o null si sigue en uso (#600).
+   *
+   * Desconectado NO es pausado: la pausa es por calidad y se levanta; esto es
+   * «este número ya no es de este negocio». Libera el cupo del plan y la fila
+   * se queda, porque las conversaciones que pasaron por él cuelgan de su cuenta
+   * de canal y borrarla dejaría el historial sin de dónde salió.
+   */
+  disconnectedAt: Date | null;
 }
 
 function rowToNumber(row: Record<string, unknown>): WhatsAppNumber {
@@ -39,6 +53,7 @@ function rowToNumber(row: Record<string, unknown>): WhatsAppNumber {
     connectedAt: (row.connected_at as Date) ?? null,
     businessPausedAt: (row.business_paused_at as Date) ?? null,
     pausedReason: (row.paused_reason as string) ?? null,
+    disconnectedAt: (row.disconnected_at as Date) ?? null,
   };
 }
 
@@ -77,8 +92,12 @@ export async function connectWhatsAppNumber(
     enviosReales?: boolean;
   },
 ): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
+  // Los desconectados NO cuentan para el cupo (#600): si contaran, un número
+  // que el negocio ya dio de baja le seguiría ocupando un lugar del plan y la
+  // única salida sería borrar la fila a mano — justo lo que archivar evita.
   const existentes = await client.query(
-    'SELECT count(*)::int AS n FROM whatsapp_numbers WHERE tenant_id = $1',
+    `SELECT count(*)::int AS n FROM whatsapp_numbers
+      WHERE tenant_id = $1 AND disconnected_at IS NULL`,
     [input.tenantId],
   );
   const max = await numerosPermitidos(client, input.tenantId);
@@ -130,6 +149,111 @@ export async function connectWhatsAppNumber(
     state: 'active',
   });
   return { number: rowToNumber(row), account: activa };
+}
+
+/**
+ * Apunta el número de esta cuenta a OTRO emisor del proveedor (#600).
+ *
+ * El caso que lo pide es el que estamos viviendo: staging pasa de llave de
+ * prueba a llave de producción, y si esa llave es de otro proyecto en Zavu el
+ * `senderId` guardado no existe allá. Desde #591 el diagnóstico lo dice; lo que
+ * no había era salida. `connectWhatsAppNumber` se niega —«Ese número ya está
+ * conectado en IAxTi.»— y sin esto el único camino era entrar a la base.
+ *
+ * ## Lo que NO hace, y es deliberado
+ *
+ * No valida contra el proveedor. Quien llama ya eligió de una lista que salió
+ * del proveedor y pasó por `elegirSender`, que es el mismo chequeo que se hace
+ * al conectar: un emisor cuyo `channels` no incluya este canal se rechaza
+ * **antes** de llegar acá. Repetir la llamada HTTP adentro sería preguntar dos
+ * veces lo mismo y dejar a esta función sin poder probarse sin red.
+ *
+ * No toca las conversaciones: cuelgan de la cuenta de canal, no del emisor. Es
+ * el mismo canal hablando por otra boca, y el historial se queda donde está.
+ *
+ * Y no reactiva el canal. Si estaba desconectado, sigue desconectado: reapuntar
+ * es decir POR DÓNDE habla, no decidir que vuelva a hablar — eso lo decide quien
+ * reconecta, y así una cuenta que alguien dio de baja no revive de lado.
+ */
+export async function reapuntarEmisor(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    accountId: string;
+    senderId: string;
+    phoneNumberId?: string | null;
+    wabaId?: string | null;
+    displayPhone?: string | null;
+  },
+): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
+  const cuenta = await getChannelAccount(client, input.tenantId, input.accountId);
+  if (cuenta.kind !== 'whatsapp') {
+    throw new Error('Esa cuenta no es de WhatsApp.');
+  }
+  const r = await client.query(
+    `UPDATE whatsapp_numbers
+        SET sender_id = $3,
+            phone_number_id = COALESCE($4, phone_number_id),
+            waba_id = COALESCE($5, waba_id),
+            display_phone = COALESCE($6, display_phone),
+            updated_at = now()
+      WHERE tenant_id = $1 AND channel_account_id = $2
+      RETURNING *`,
+    [
+      input.tenantId,
+      input.accountId,
+      input.senderId,
+      input.phoneNumberId ?? null,
+      input.wabaId ?? null,
+      input.displayPhone ?? null,
+    ],
+  );
+  if (r.rowCount === 0) throw new Error('Esa cuenta no tiene un número de WhatsApp conectado.');
+  const account = await reapuntarEmisorDeLaCuenta(client, {
+    tenantId: input.tenantId,
+    accountId: input.accountId,
+    senderId: input.senderId,
+    ...(input.phoneNumberId === undefined ? {} : { phoneNumberId: input.phoneNumberId }),
+    ...(input.wabaId === undefined ? {} : { wabaId: input.wabaId }),
+  });
+  return { number: rowToNumber(r.rows[0]), account };
+}
+
+/**
+ * Da de baja el número de una cuenta, sin perder lo que pasó por él (#600).
+ *
+ * Archiva, no borra: las conversaciones cuelgan de la cuenta de canal, y borrar
+ * la fila del número dejaría el historial sin de dónde salió. Es la regla del
+ * producto (SPEC §39) y acá además es lo que permite reconectar después.
+ *
+ * Libera el cupo del plan —`connectWhatsAppNumber` no cuenta los desconectados—
+ * que es la mitad del problema: un número que ya no sirve seguía ocupando lugar.
+ *
+ * El canal queda `disconnected`, y eso es lo que apaga los envíos: el estado del
+ * canal es lo que mira el despacho, no esta columna.
+ */
+export async function desconectarNumero(
+  client: PoolClient,
+  input: { tenantId: string; accountId: string; motivo?: string; requestId?: string },
+): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
+  const r = await client.query(
+    `UPDATE whatsapp_numbers
+        SET disconnected_at = now(), updated_at = now()
+      WHERE tenant_id = $1 AND channel_account_id = $2 AND disconnected_at IS NULL
+      RETURNING *`,
+    [input.tenantId, input.accountId],
+  );
+  if (r.rowCount === 0) {
+    throw new Error('Esa cuenta no tiene un número de WhatsApp conectado.');
+  }
+  const account = await setChannelState(client, {
+    tenantId: input.tenantId,
+    accountId: input.accountId,
+    state: 'disconnected',
+    reason: input.motivo ?? 'el ADMIN desconectó el canal',
+    ...(input.requestId ? { requestId: input.requestId } : {}),
+  });
+  return { number: rowToNumber(r.rows[0]), account };
 }
 
 export async function listWhatsAppNumbers(

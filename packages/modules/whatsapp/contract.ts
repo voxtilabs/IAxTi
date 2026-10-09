@@ -25,6 +25,8 @@ export type { OutboundJobData } from './application/outbound';
 export type { ZavuConfig } from './application/zavu';
 export {
   connectWhatsAppNumber,
+  reapuntarEmisor,
+  desconectarNumero,
   listWhatsAppNumbers,
   findNumberBySenderId,
 } from './application/numbers';
@@ -45,6 +47,7 @@ export {
   quienSoy,
   llaveSirveParaAmbiente,
   emisorDelProveedor,
+  emisoresDelProveedor,
   conectarSender,
   urlWebhook,
   EVENTOS_WEBHOOK,

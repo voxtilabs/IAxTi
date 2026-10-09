@@ -18,6 +18,19 @@ interface NumeroDto {
   quality: 'green' | 'yellow' | 'red' | null;
   messagingLimit: string | null;
   businessPausedAt?: string | null;
+  /** Desconectado y archivado (#600): ya no ocupa cupo del plan. */
+  disconnectedAt?: string | null;
+}
+
+/** Un emisor del proyecto de la llave de este canal (#600). */
+interface EmisorDto {
+  id: string;
+  name: string | null;
+  channels: string[];
+  /** Si tiene ESTE canal encendido. El que no, no se puede elegir. */
+  sirve: boolean;
+  /** El que la cuenta usa hoy. */
+  actual: boolean;
 }
 
 interface WidgetDto {
@@ -222,6 +235,120 @@ function Diagnostico({ accountId }: { accountId: string }) {
   );
 }
 
+/**
+ * Reapuntar el canal a otro emisor, y desconectarlo (#600).
+ *
+ * De dónde sale: cambiar la llave de Zavu de un canal conectado —de prueba a
+ * producción— puede dejar el `senderId` guardado apuntando a un emisor que en
+ * el proyecto de la llave nueva **no existe**. Desde #591 el diagnóstico lo
+ * dice, pero decirlo no era arreglarlo: no había ninguna ruta para reapuntar ni
+ * para desconectar, y el único camino era entrar a la base a mano. Para algo que
+ * un ADMIN tiene que poder hacer en su pantalla.
+ *
+ * Los emisores se piden **a pedido** y no al cargar la pantalla: es una llamada
+ * al proveedor, y la pregunta se hace cuando algo hay que cambiar, no en cada
+ * visita.
+ *
+ * Los que no sirven se MUESTRAN, deshabilitados y con el motivo. Filtrarlos
+ * dejaría una lista vacía sin explicación —«no hay emisores»— cuando lo que pasa
+ * es que existen y les falta este canal encendido en Zavu, que se arregla allá y
+ * no acá.
+ */
+function CambiarEmisor({
+  accountId,
+  kind,
+  onListo,
+  onError,
+}: {
+  accountId: string;
+  kind: string;
+  onListo: () => Promise<void>;
+  onError: (mensaje: string) => void;
+}) {
+  const { config, session } = useSession();
+  const tenant = selectedTenant();
+  const [emisores, setEmisores] = useState<EmisorDto[] | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [cambiando, setCambiando] = useState<string | null>(null);
+
+  const pedirEmisores = async () => {
+    if (!session || !tenant) return;
+    setCargando(true);
+    onError('');
+    try {
+      setEmisores(
+        await apiFetch<EmisorDto[]>(config, session, tenant, `/channels/${accountId}/emisores`),
+      );
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'No pudimos pedirle los emisores al proveedor.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const cambiar = async (senderId: string) => {
+    if (!session || !tenant) return;
+    setCambiando(senderId);
+    onError('');
+    try {
+      await apiFetch(config, session, tenant, `/channels/${accountId}/emisor`, {
+        method: 'POST',
+        body: JSON.stringify({ senderId }),
+      });
+      setEmisores(null);
+      await onListo();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'No pudimos cambiar el emisor.');
+    } finally {
+      setCambiando(null);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      <Button variant="secundario" size="chico" onClick={() => void pedirEmisores()} disabled={cargando}>
+        {cargando ? 'Preguntando al proveedor…' : emisores ? 'Pedir la lista de nuevo' : 'Cambiar el emisor'}
+      </Button>
+      {emisores !== null && emisores.length === 0 && (
+        <p className="mt-2 text-sm text-body">
+          El proyecto de esta llave no tiene ningún emisor. Se conectan en Zavu, con la invitación
+          al negocio, y después vuelves acá.
+        </p>
+      )}
+      {emisores !== null && emisores.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2">
+          {emisores.map((e) => (
+            <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-bg p-3">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-ink">{e.name ?? 'Sin nombre'}</span>
+                <span className="dato text-muted">{e.id}</span>
+              </span>
+              {e.actual && <Badge role="good">El de ahora</Badge>}
+              {!e.sirve && <Badge role="neutral">Sin {kind}</Badge>}
+              {!e.actual && e.sirve && (
+                <Button
+                  variant="secundario"
+                  size="chico"
+                  disabled={cambiando !== null}
+                  onClick={() => void cambiar(e.id)}
+                >
+                  {cambiando === e.id ? 'Cambiando…' : 'Apuntar acá'}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {emisores?.some((e) => !e.sirve) && (
+        <p className="mt-2 text-xs text-muted">
+          Los marcados «Sin {kind}» existen en el proyecto pero no tienen ese canal encendido. Eso se
+          activa en Zavu; acá no se puede forzar, porque un emisor sin el canal no manda nada.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function Canales() {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
@@ -254,6 +381,24 @@ export function Canales() {
       await cargar();
     } catch (err) {
       setAviso((err as Error).message);
+    }
+  }
+
+  // Desconectar ARCHIVA (#600): libera el cupo del plan y el historial se
+  // queda. Se pregunta antes porque apaga los envíos del negocio, y eso se nota
+  // en la cara del cliente que escribe y no recibe respuesta.
+  const [desconectando, setDesconectando] = useState<string | null>(null);
+  async function desconectar(accountId: string) {
+    if (!session || !tenant) return;
+    setAviso(null);
+    setDesconectando(accountId);
+    try {
+      await apiFetch(config, session, tenant, `/channels/${accountId}/desconectar`, { method: 'POST' });
+      await cargar();
+    } catch (err) {
+      setAviso((err as Error).message);
+    } finally {
+      setDesconectando(null);
     }
   }
 
@@ -301,6 +446,34 @@ export function Canales() {
                 <p className="mt-2 text-sm text-muted">{estado.ayuda}</p>
 
                 <Diagnostico accountId={canal.id} />
+
+                {/* Reapuntar y desconectar (#600). Solo en WhatsApp: es el
+                    único canal con emisor del proveedor y con cupo de plan. */}
+                {canal.kind === 'whatsapp' && (
+                  <>
+                    <CambiarEmisor
+                      accountId={canal.id}
+                      kind={canal.kind}
+                      onListo={cargar}
+                      onError={(m) => setAviso(m || null)}
+                    />
+                    {canal.state !== 'disconnected' && (
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <Button
+                          variant="fantasma"
+                          size="chico"
+                          disabled={desconectando === canal.id}
+                          onClick={() => void desconectar(canal.id)}
+                        >
+                          {desconectando === canal.id ? 'Desconectando…' : 'Desconectar canal'}
+                        </Button>
+                        <span className="text-xs text-muted">
+                          Libera el cupo de tu plan. Las conversaciones se quedan.
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
 
                 {canal.numbers.map((n) => {
                   const calidad = n.quality ? CALIDAD[n.quality] : null;
