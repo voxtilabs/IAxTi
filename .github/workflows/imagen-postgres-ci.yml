@@ -42,24 +42,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: infra/docker/postgres-pgvector.Dockerfile
-          push: true
-          # La etiqueta dice la versión del MOTOR, que es lo que importa para
-          # quien lee `ci.yml`. La de pgvector queda en el resumen de abajo.
-          tags: ghcr.io/voxtilabs/postgres-pgvector:16
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # `docker build` pelado, sin buildx y sin `build-push-action` (#760).
+      #
+      # `docker/setup-buildx-action` arranca BuildKit en un contenedor y para
+      # eso descarga `moby/buildkit:buildx-stable-1`… **de Docker Hub**. O sea
+      # que el workflow que viene a dejar de depender de Docker Hub se caía
+      # justo ahí:
+      #
+      #   #1 pulling image moby/buildkit:buildx-stable-1
+      #   ERROR: Head "https://registry-1.docker.io/v2/moby/buildkit/manifests/
+      #   buildx-stable-1": … Client.Timeout exceeded
+      #
+      # Y `build-push-action` necesita buildx, así que se va con él. El demonio
+      # del runner trae BuildKit adentro: `docker build` no descarga nada para
+      # construir. Se pierde el caché de `type=gha` —un `apt-get install` sobre
+      # una imagen oficial, treinta segundos— y se pierde el multi-arquitectura,
+      # que acá no hace falta: esta imagen la consume el `services:` de un
+      # runner amd64, no una persona.
+      - name: Construir y publicar
+        env:
+          IMAGEN: ghcr.io/voxtilabs/postgres-pgvector:16
+        run: |
+          set -euo pipefail
+          docker build -f infra/docker/postgres-pgvector.Dockerfile -t "$IMAGEN" .
+          docker push "$IMAGEN"
 
       - name: Qué versión de pgvector quedó
         env:
