@@ -162,7 +162,6 @@ organizations/TABLAS_EXPORTADAS
 organizations/TOPE_POR_TABLA
 organizations/advanceOnboarding
 organizations/avanzarPorEvento
-organizations/getPlanLimits
 organizations/olvidarPlan
 organizations/olvidarZonas
 payments/createFlowProvider

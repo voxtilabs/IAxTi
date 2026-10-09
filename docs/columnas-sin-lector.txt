@@ -26,7 +26,6 @@ appointments.created_at — la agenda ordena por `starts_at`, que es lo que le i
 availability.created_at — la disponibilidad se lee entera y se reemplaza; cuándo se guardó cada franja no cambia nada.
 conversations.team_id — los equipos existen (#9) y la bandeja todavía no filtra por equipo: se escribe al asignar y ninguna consulta lo usa.
 custom_fields.created_at — los campos del negocio se listan por entidad y nombre; la fecha de creación no se muestra.
-invoices.subscription_id — #702.
 payment_links.currency — hoy todo link se emite en CLP y el monto viaja en `amount_clp`. La columna existe para cuando haya otra moneda, y hasta entonces nadie la lee.
 platform_audit.created_at — el panel de plataforma lista por `id DESC`, que en una tabla append-only es el mismo orden; la fecha no se proyecta.
 platform_support_sessions.started_at — lo que decide si la sesión de soporte está viva es `ends_at`, que sí se lee. Cuándo empezó no se muestra.

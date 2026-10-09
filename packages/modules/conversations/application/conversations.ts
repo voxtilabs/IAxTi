@@ -988,3 +988,54 @@ export async function historialDeAsignaciones(
     cuando: f.created_at as Date,
   }));
 }
+
+export interface ConversacionesDelPeriodo {
+  /**
+   * El ciclo, como `AAAA-MM-01`.
+   *
+   * Es el valor crudo de `usage_period`, que es el MISMO que
+   * `usage_meters.period_start`: así el desglose y el contador se pueden
+   * comparar por la llave, sin convertir nada en el medio. Convertirlo a
+   * `AAAA-MM` acá haría que calzaran «casi», que es la peor forma de calzar.
+   */
+  periodo: string;
+  conversaciones: number;
+}
+
+/**
+ * Cuántas conversaciones activas tuvo cada ciclo (#702).
+ *
+ * `usage_period` es la marca que se estampa la primera vez que una conversación
+ * entra en el ciclo, y ya se leía: en el `WHERE ... IS DISTINCT FROM` del
+ * `UPDATE` que la estampa, que es exactamente lo que hace que cada conversación
+ * se cuente UNA vez. Lo que faltaba era poder LISTARLA.
+ *
+ * Importa porque `.claude/rules/negocio.md` pide «costos visibles, sin margen
+ * escondido»: un contador que no se puede abrir no es verificable, ni por el
+ * cliente ni por nosotros. Esto es lo que permite decir «estas N conversaciones,
+ * en este período, suman esto» y que el número calce con el del medidor —los dos
+ * salen del mismo hecho.
+ *
+ * Vive acá y no en `billing` porque la tabla es de `conversations`: billing
+ * compone esto con el tope del plan por los contratos de cada módulo.
+ */
+export async function conversacionesPorPeriodo(
+  client: PoolClient,
+  tenantId: string,
+  meses = 6,
+): Promise<ConversacionesDelPeriodo[]> {
+  const tope = Math.min(Math.max(Math.trunc(Number(meses) || 6), 1), 24);
+  const r = await client.query(
+    `SELECT usage_period AS periodo, count(*)::int AS conversaciones
+       FROM conversations
+      WHERE tenant_id = $1 AND usage_period IS NOT NULL
+      GROUP BY usage_period
+      ORDER BY usage_period DESC
+      LIMIT $2`,
+    [tenantId, tope],
+  );
+  return r.rows.map((f) => ({
+    periodo: f.periodo as string,
+    conversaciones: f.conversaciones as number,
+  }));
+}

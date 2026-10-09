@@ -22,6 +22,30 @@ interface FacturacionDto {
     totalClp: number;
     status: 'issued' | 'paid' | 'overdue' | 'void';
     dueAt: string;
+    /**
+     * De qué plan y de qué suscripción es (#702).
+     *
+     * `invoices.subscription_id` se escribía al emitir y ninguna consulta la
+     * devolvía: la factura no podía decir de qué plan era. Un negocio que
+     * cambió de plan a mitad de mes no entendía su factura, y ésa es la llamada
+     * que nadie quiere recibir.
+     */
+    subscriptionId: string | null;
+    plan: string | null;
+  }>;
+  /**
+   * El consumo del ciclo, desglosado (#702).
+   *
+   * «Costos visibles, sin margen escondido»: un contador que no se puede abrir
+   * no es verificable. Esto sale de la marca que hace que cada conversación se
+   * cuente una sola vez, así que calza con el medidor por construcción.
+   */
+  consumo: Array<{
+    /** `AAAA-MM-01`: el valor crudo del ciclo, para que calce con el medidor. */
+    periodo: string;
+    conversaciones: number;
+    tope: number | null;
+    plan: string | null;
   }>;
 }
 
@@ -82,6 +106,33 @@ export function Facturacion() {
         </p>
       </div>
 
+      {/* El consumo que sostiene el cobro (#702). Va ANTES de las facturas
+          porque es lo que está pasando ahora; las facturas son historia. */}
+      {datos.consumo.length > 0 && (
+        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+          <span className="rotulo">Conversaciones por ciclo</span>
+          <p className="mt-1 text-sm text-muted">
+            Cada conversación se cuenta una sola vez por ciclo, la primera vez que entra un mensaje.
+            Este desglose sale de las conversaciones mismas: el número se puede reconstruir.
+          </p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {datos.consumo.map((c) => (
+              <li key={c.periodo} className="flex items-baseline justify-between gap-3 text-sm">
+                {/* El período llega como AAAA-MM-01 porque es la llave del
+                    medidor; acá se lee como mes, que es lo que significa. */}
+                <span className="dato text-body">{c.periodo.slice(0, 7)}</span>
+                <span className="min-w-0 flex-1 text-right">
+                  <span className="dato font-bold text-ink">{c.conversaciones}</span>
+                  {c.tope !== null && c.tope > 0 && (
+                    <span className="text-muted"> de {c.tope} del plan {c.plan}</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {datos.invoices.length > 0 && (
         <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <span className="rotulo">Facturas</span>
@@ -92,6 +143,10 @@ export function Facturacion() {
                   <span className="dato text-sm text-body">{f.periodStart} → {f.periodEnd}</span>
                   <Badge role={ESTADO[f.status].role}>{ESTADO[f.status].label}</Badge>
                 </div>
+                {/* Con qué plan se cobró ESTE ciclo (#702): si la suscripción
+                    cambió después, la factura vieja sigue diciendo lo que
+                    cobró, que es lo que alguien viene a revisar. */}
+                {f.plan && <p className="mt-1 text-xs text-muted">Plan {f.plan} en este período.</p>}
                 <ul className="mt-2 flex flex-col gap-1">
                   {f.lines.map((l, i) => (
                     <li key={i} className="flex items-baseline justify-between gap-3 text-sm">

@@ -15,7 +15,7 @@
     "depcruise": "depcruise apps packages --config .dependency-cruiser.cjs",
     "seed": "pnpm --filter @iaxti/seed run build && pnpm --filter @iaxti/seed run seed",
     "zavu:conectar": "node scripts/conectar-zavu.mjs",
-    "catalogo": "node scripts/dump-openapi.mjs /tmp/iaxti-openapi.json && node scripts/generar-catalogo-herramientas.mjs /tmp/iaxti-openapi.json",
+    "catalogo": "turbo build --filter=@iaxti/api && node scripts/dump-openapi.mjs /tmp/iaxti-openapi.json && node scripts/generar-catalogo-herramientas.mjs /tmp/iaxti-openapi.json",
     "columnas": "node scripts/columnas-sin-lector.mjs"
   },
   "devDependencies": {

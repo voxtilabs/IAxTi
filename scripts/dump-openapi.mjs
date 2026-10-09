@@ -1,5 +1,12 @@
 // Vuelca el documento OpenAPI a un archivo. Levanta la app de verdad: el
 // documento sale del código, jamás de una copia escrita a mano.
+//
+// OJO con el orden: esto carga `apps/api/dist`, así que corre contra el ÚLTIMO
+// BUILD y no contra el código de ahora. Corrido a mano sin compilar antes,
+// genera un catálogo al que le faltan las rutas nuevas y además BORRA las que
+// el build viejo no tenía — pasó con la ruta de #700, que desapareció del
+// catálogo al regenerarlo sin compilar. Por eso `pnpm catalogo` compila primero
+// y el script de pre-push lo corre después del paso de build.
 import { writeFileSync } from 'node:fs';
 const { createApp } = await import('../apps/api/dist/main.js');
 // Los esquemas de cuerpo (#524) se registran al declararse: importar el módulo

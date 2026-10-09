@@ -1,7 +1,8 @@
 import { Body, Controller, Get, Post, Req, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
-import { exportarTenant } from '@iaxti/module-organizations';
+import { exportarTenant, getPlanLimits } from '@iaxti/module-organizations';
+import { conversacionesPorPeriodo } from '@iaxti/module-conversations';
 import {
   cancelarSuscripcion,
   costosDelCicloEnCurso,
@@ -10,6 +11,7 @@ import {
 } from '@iaxti/module-billing';
 import { costThisCycle } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { registry } from './registry';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -94,9 +96,33 @@ export class BillingController {
       const cicloEnCurso = await costosDelCicloEnCurso(c, actor.tenantId);
       const iaUsd = await costThisCycle(c, actor.tenantId);
       const rate = cicloEnCurso?.usdClpRate ?? 950;
+      // El consumo desglosado (#702).
+      //
+      // `.claude/rules/negocio.md` pide «costos visibles, sin margen escondido»:
+      // un contador que no se puede abrir no es verificable, ni por el cliente
+      // ni por nosotros. El desglose sale de `conversations.usage_period` —la
+      // marca que hace que cada conversación se cuente una sola vez— y el tope
+      // del plan, de `organizations`. Se juntan ACÁ por la misma razón que los
+      // dos costos de arriba: es el único lugar que conoce los dos contratos.
+      //
+      // Se degrada si `conversations` está apagado para el tenant: la pantalla
+      // de facturación no puede caerse porque un módulo opcional no esté.
+      const limites = await getPlanLimits(c, subscription.plan).catch(() => null);
+      const porPeriodo = registry.isActive('conversations')
+        ? await conversacionesPorPeriodo(c, actor.tenantId)
+        : [];
       return {
         subscription,
         invoices,
+        consumo: porPeriodo.map((p) => ({
+          ...p,
+          tope: limites?.conversationsMonth ?? null,
+          // El plan es el VIGENTE, y el ciclo va completo: el medidor cuenta
+          // conversaciones activas del ciclo, no del plan, y partir el ciclo al
+          // cambiar de plan sería cambiar la definición de la métrica a mitad
+          // de camino. La factura de ese ciclo sí dice con qué plan se cobró.
+          plan: subscription.plan,
+        })),
         cicloEnCurso: cicloEnCurso && {
           ...cicloEnCurso,
           // La IA va aparte y NO suma al total del ciclo: lo que se factura
