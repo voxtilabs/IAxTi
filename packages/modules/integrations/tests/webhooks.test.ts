@@ -118,6 +118,25 @@ describe('suscripciones y entregas (#76)', () => {
     expect(ajenas).toHaveLength(0); // jamás cross-tenant
   });
 
+  /**
+   * Su propio presupuesto, y no el de 5 s por defecto (#728).
+   *
+   * Esta prueba hace, inherentemente, muchos viajes a Postgres: la entrega
+   * inicial, la verificación de firma, el bucle de `MAX_ATTEMPTS` reintentos
+   * —dos idas por iteración, el `UPDATE` de `next_retry_at` y una corrida
+   * completa del barrido— y el reintento manual al final. Medido: 9 s con la
+   * base en otra máquina, y bien debajo de 5 s con el Postgres local del runner
+   * de CI. O sea que fallaba SIEMPRE en local y pasaba SIEMPRE en CI.
+   *
+   * Lo que NO se toca es el límite global: los 5 s cuidan que una prueba de
+   * unidad no se vuelva una de integración sin que nadie lo note. Acá el
+   * presupuesto se declara porque esta prueba de verdad lo necesita, y el
+   * número dice cuánto.
+   *
+   * Importa más de lo que parece: `scripts/antes-de-empujar.sh` (#703) existe
+   * para ver las guardas antes de empujar, y un chequeo que sale rojo en cada
+   * corrida enseña a ignorar el rojo.
+   */
   it('entrega FIRMADA con 200; el fallo reintenta con backoff y agota en failed', async () => {
     const capturadas: Array<{ url: string; firma: string; body: string }> = [];
     const fetch200: typeof fetch = async (url, init) => {
@@ -158,7 +177,7 @@ describe('suscripciones y entregas (#76)', () => {
     );
     const res2 = await deliverWebhooks(admin, fetch200);
     expect(res2.delivered).toBe(1);
-  });
+  }, 30_000);
 
   it('falla sostenida >24 h: el endpoint se APAGA con webhook.failed', async () => {
     // Forzamos el reloj: failing_since hace 25 horas y una entrega al borde.
