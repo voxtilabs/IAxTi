@@ -8,10 +8,11 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
   DEFINICIONES,
@@ -50,6 +51,9 @@ import {
   listEvalCases,
   listEvalRuns,
   tasaDeObjetivo,
+  intentosLogrados,
+  casiLogrados,
+  VENTANA_ATRIBUCION_DIAS,
   runEvaluation,
 } from '@iaxti/module-agents';
 import { ConflictException } from '@nestjs/common';
@@ -647,6 +651,33 @@ export class AgentsController {
   async objetivo(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, (c) => tasaDeObjetivo(c, actor.tenantId, id));
+  }
+
+  /**
+   * El respaldo de la tasa (#701).
+   *
+   * `achieved_event` y `closed_at` se escribían desde #319 y ningún `SELECT`
+   * las devolvía, así que `/objetivo` era un porcentaje sin forma de revisarlo.
+   * Esta ruta lo abre: qué evento contó como logro en cada caso, cuánto tardó,
+   * y lo que llegó fuera de la ventana de atribución — que no suma a la tasa
+   * pero explica por qué no contó.
+   */
+  @Get(':id/objetivo/intentos')
+  @RequirePermission('agents.usage.read')
+  @ApiOperation({ summary: 'Los intentos logrados con el evento que los logró, y los que llegaron tarde' })
+  @ApiQuery({ name: 'limite', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } })
+  async intentosDelObjetivo(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Query('limite') limite?: string,
+  ) {
+    const actor = actorOf(request);
+    const tope = Number(limite);
+    return withTenant(pool(), actor.tenantId, async (c) => ({
+      logrados: await intentosLogrados(c, actor.tenantId, id, Number.isFinite(tope) ? tope : 20),
+      fueraDeVentana: await casiLogrados(c, actor.tenantId, id, Number.isFinite(tope) ? tope : 20),
+      ventanaDias: VENTANA_ATRIBUCION_DIAS,
+    }));
   }
 
   @Get(':id/evals')
