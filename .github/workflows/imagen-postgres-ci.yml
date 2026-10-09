@@ -40,8 +40,23 @@ jobs:
       contents: read
       packages: write
     steps:
+      # Las dos acciones van con etiqueta móvil (`@v4`, `@v3`) como las otras 18
+      # del repositorio, y la regla que pide fijarlas a un SHA queda silenciada
+      # acá con su motivo (#758).
+      #
+      # Fijarlas es más seguro —una etiqueta la puede repuntar su dueño— y la
+      # decisión está planteada en #758 con su costo: cada actualización pasa a
+      # ser un PR con un SHA que nadie puede leer, y eso pide Dependabot, o sea
+      # un cambio de proceso. Pinear DOS acciones mientras las otras dieciocho
+      # siguen móviles no compra seguridad: compra una convención partida en dos
+      # que alguien va a tener que deshacer cuando #758 se decida.
+      #
+      # Cuando se decida, estas dos siguen el mismo camino que el resto y este
+      # comentario se va.
+      # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
       - uses: actions/checkout@v4
 
+      # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
