@@ -118,13 +118,18 @@ describe('a quién visita el barrido de muestras (#738)', () => {
   it('y el barrido sigue tomando la muestra que hay que tomar', async () => {
     // Visitar menos no puede significar medir menos: si la muestra falta, el
     // dueño se queda sin percentiles y no hay ningún error que lo diga.
+    //
+    // Se mide sobre ESTE tenant y no sobre el total que devuelve el barrido
+    // (#745): `sweepResponseSamples` es global, así que su total depende de lo
+    // que dejaron otras suites — puede ser cero si todas sus muestras ya
+    // estaban tomadas, y entonces el fallo no diría nada sobre lo que esta
+    // prueba quiere afirmar. Era mi propio defecto, de este mismo día.
     const id = await tenantConRespuesta(1);
-    const tomadas = await sweepResponseSamples(admin);
-    expect(tomadas).toBeGreaterThan(0);
+    await sweepResponseSamples(admin);
     const mias = await admin.query(
       'SELECT count(*)::int AS n FROM response_samples WHERE tenant_id = $1',
       [id],
     );
-    expect(mias.rows[0].n).toBeGreaterThan(0);
+    expect(mias.rows[0].n, 'la muestra de este tenant se tomó').toBeGreaterThan(0);
   }, 30_000);
 });
