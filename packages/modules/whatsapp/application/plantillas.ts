@@ -34,11 +34,59 @@ export interface Plantilla {
   providerId: string | null;
   rejectionReason: string | null;
   variables: number;
+  /**
+   * Cuándo se mandó a revisión, y cuándo Meta contestó (#552).
+   *
+   * Las dos columnas se escribían desde el primer día y ninguna consulta las
+   * devolvía. Meta se demora DÍAS y la revisión es asíncrona: la pantalla decía
+   * «en revisión» sin decir desde cuándo, y para quien atiende eso es la
+   * diferencia entre «la mandé ayer, espero» y «la mandé hace dos semanas, algo
+   * pasó». Pasadas las 24 h de la ventana, una plantilla trabada es no poder
+   * escribirle a nadie.
+   */
+  submittedAt: Date | null;
+  reviewedAt: Date | null;
+  /**
+   * Días que lleva esperando revisión, o `null` si no está en revisión.
+   *
+   * Se calcula acá y no en la pantalla para que el número sea uno: con dos
+   * lugares calculándolo, el día que uno cambie de criterio la insignia y el
+   * texto dirán cosas distintas sobre la misma plantilla.
+   */
+  diasEnRevision: number | null;
+  /**
+   * Si lleva demasiado esperando.
+   *
+   * Sin esto, «hace 12 días» y «hace 2» se leen igual: el criterio 3 del issue
+   * pide justamente que se distingan. El umbral vive en el dominio, con su
+   * motivo.
+   */
+  revisionDemorada: boolean;
 }
+
+/**
+ * Cuántos días de revisión son demasiados.
+ *
+ * Meta documenta que la mayoría de las revisiones se resuelven en minutos y
+ * promete «hasta 24 horas»; en la práctica se van días. Tres es el número en el
+ * que esperar deja de ser lo normal y conviene revisar: antes de eso avisar
+ * sería ruido, y después de una semana el aviso llega tarde para algo que
+ * bloquea escribirle a un cliente fuera de la ventana.
+ *
+ * No es una verdad: es un umbral declarado en un lugar, para que la pantalla y
+ * el dato no puedan discrepar.
+ */
+export const DIAS_DE_REVISION_DEMORADA = 3;
 
 function aPlantilla(row: Record<string, unknown>): Plantilla {
   const body = row.body as string;
   const vars = variablesDe(body);
+  const submittedAt = (row.submitted_at as Date) ?? null;
+  const enRevision = (row.status as EstadoPlantilla) === 'pending';
+  const dias =
+    enRevision && submittedAt
+      ? Math.floor((Date.now() - submittedAt.getTime()) / 86_400_000)
+      : null;
   return {
     id: row.id as string,
     name: row.name as string,
@@ -52,6 +100,10 @@ function aPlantilla(row: Record<string, unknown>): Plantilla {
     providerId: (row.provider_id as string) ?? null,
     rejectionReason: (row.rejection_reason as string) ?? null,
     variables: vars.length === 0 ? 0 : Math.max(...vars),
+    submittedAt,
+    reviewedAt: (row.reviewed_at as Date) ?? null,
+    diasEnRevision: dias,
+    revisionDemorada: dias !== null && dias >= DIAS_DE_REVISION_DEMORADA,
   };
 }
 
