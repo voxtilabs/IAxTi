@@ -39,6 +39,11 @@ export interface Deal {
   stalled: boolean;
   stageEnteredAt: Date;
   expectedCloseDate: Date | null;
+  /** Cuándo se ganó y cuándo se perdió. Se escribían desde el día uno y nadie
+   *  los leía (#695): sin esto la ficha no puede decir cuándo se cerró y el
+   *  ciclo de venta no se puede calcular. */
+  wonAt: Date | null;
+  lostAt: Date | null;
 }
 
 function rowToStage(row: Record<string, unknown>): Stage {
@@ -71,6 +76,8 @@ function rowToDeal(row: Record<string, unknown>): Deal {
     stalled: row.stalled as boolean,
     stageEnteredAt: row.stage_entered_at as Date,
     expectedCloseDate: (row.expected_close_date as Date) ?? null,
+    wonAt: (row.won_at as Date) ?? null,
+    lostAt: (row.lost_at as Date) ?? null,
   };
 }
 

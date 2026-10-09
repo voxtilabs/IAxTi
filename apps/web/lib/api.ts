@@ -306,6 +306,10 @@ export interface FichaContacto {
     stage_name: string;
     pipeline_name: string;
     created_at: string;
+    /** Cuándo se cerró, y desde qué etapa se perdió (#695). */
+    won_at: string | null;
+    lost_at: string | null;
+    lost_from_stage: string | null;
   }>;
   activities: Array<{
     id: string;
@@ -351,9 +355,40 @@ export interface DealCardDto {
   valueClp: number | null;
   stalled: boolean;
   ownerId: string | null;
+  /** Cuándo se cerró. Se escribía desde el día uno y nadie lo leía (#695). */
+  wonAt: string | null;
+  lostAt: string | null;
   contactId: string;
   contactName: string | null;
   contactPhone: string | null;
+}
+
+/** El embudo leído (#695): conversión por etapa, ciclo de venta y dónde se cae. */
+export interface EmbudoDto {
+  etapas: Array<{
+    stageId: string;
+    name: string;
+    position: number;
+    type: 'open' | 'won' | 'lost';
+    entraron: number;
+    avanzaron: number;
+    conversion: number | null;
+    perdidas: number;
+  }>;
+  ciclo: { muestras: number; promedioDias: number | null; medianaDias: number | null };
+  seCaeEn: { stageId: string; name: string; perdidas: number } | null;
+  oportunidades: number;
+  definiciones: Record<string, string>;
+}
+
+/** Un movimiento de etapa de una oportunidad, para la ficha (#695). */
+export interface PasoDeEtapaDto {
+  from: { stageId: string; name: string } | null;
+  to: { stageId: string; name: string };
+  reason: string | null;
+  actor: string | null;
+  at: string;
+  backward: boolean;
 }
 
 export interface SavedFilterDto {

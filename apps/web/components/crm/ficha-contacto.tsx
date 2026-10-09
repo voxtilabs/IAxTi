@@ -25,6 +25,7 @@ import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import { DerechosDelTitular } from './derechos-del-titular';
 import { FusionarDuplicado } from './fusionar-duplicado';
+import { HistoriaDeEtapas } from './historia-de-etapas';
 import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
 
 /** «Sin empresa» necesita un valor: Radix no acepta la cadena vacía. */
@@ -39,6 +40,24 @@ const ESTADO_DEAL: Record<Ficha['deals'][number]['status'], { label: string; rol
   won: { label: 'Ganada', role: 'good' },
   lost: { label: 'Perdida', role: 'neutral' },
 };
+
+/**
+ * Cuándo se cerró la oportunidad, y desde qué etapa se perdió (#695).
+ *
+ * `won_at` y `lost_at` se escribían desde el día uno y la ficha mostraba solo
+ * «Ganada» o «Perdida»: la pregunta que sigue —cuándo, y desde dónde— no tenía
+ * respuesta en pantalla aunque el dato estuviera guardado.
+ */
+function cierreDeLaOportunidad(d: Ficha['deals'][number]): string | null {
+  const dia = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (d.status === 'won' && d.won_at) return `Ganada el ${dia(d.won_at)}`;
+  if (d.status === 'lost' && d.lost_at) {
+    return d.lost_from_stage
+      ? `Perdida el ${dia(d.lost_at)}, estando en ${d.lost_from_stage}`
+      : `Perdida el ${dia(d.lost_at)}`;
+  }
+  return null;
+}
 
 const TIPO_ACTIVIDAD: Record<string, string> = {
   llamada: 'Llamada',
@@ -506,6 +525,12 @@ export function FichaContacto({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-ink">{d.title}</span>
                   <span className="block text-xs text-muted">{d.pipeline_name} · {d.stage_name}</span>
+                  {/* Cuándo se cerró, y desde dónde se perdió (#695): se
+                      escribía desde el día uno y la ficha no lo mostraba. */}
+                  {cierreDeLaOportunidad(d) && (
+                    <span className="block text-xs text-muted">{cierreDeLaOportunidad(d)}</span>
+                  )}
+                  {tenant && <HistoriaDeEtapas dealId={d.id} tenant={tenant} />}
                 </span>
                 {d.stalled && d.status === 'open' && <Badge role="warn">Estancada</Badge>}
                 <Badge role={ESTADO_DEAL[d.status].role}>{ESTADO_DEAL[d.status].label}</Badge>

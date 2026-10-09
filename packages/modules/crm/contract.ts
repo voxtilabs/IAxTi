@@ -105,5 +105,10 @@ export {
 } from './application/empresas';
 export type { Empresa } from './application/empresas';
 
+// El embudo que se puede leer (#695): won_at, lost_at y la historia de etapas
+// se escribían desde el día uno y ningún SELECT las devolvía.
+export { getEmbudo, historiaDeEtapas, RangoInvalido } from './application/embudo';
+export type { Embudo, EmbudoInput, EtapaDelEmbudo, PasoDeEtapa } from './application/embudo';
+
 export { InvalidListQuery } from './application/list-cursor';
 export { addTagToContacts } from './application/tags';

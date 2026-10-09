@@ -2377,6 +2377,60 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "DealsController_embudo": {
+    "metodo": "GET",
+    "ruta": "/v1/pipelines/{id}/embudo",
+    "resumen": "Conversión etapa por etapa, ciclo de venta y dónde se cae",
+    "permiso": "crm.deals.read",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "from": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        },
+        "to": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        },
+        "owner": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DealsController_etapasDe": {
+    "metodo": "GET",
+    "ruta": "/v1/deals/{id}/etapas",
+    "resumen": "Cada movimiento de etapa con su motivo y si fue hacia atrás",
+    "permiso": "crm.deals.read",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "DealsController_filters": {
     "metodo": "GET",
     "ruta": "/v1/saved-filters",
