@@ -40,9 +40,16 @@ jobs:
         id: destino
         env:
           STAGING_URL: ${{ secrets.STAGING_URL }}
+          # Por `env:` y NO interpolado en el `run:` (#758).
+          #
+          # `${{ github.event.inputs.target }}` se expande ANTES de que bash
+          # vea el script: lo que llegue adentro de ese input se vuelve parte
+          # del programa, no un valor. Un `; curl …` ahí es ejecución de código
+          # en el runner, con los secretos del job a mano. Por `env:` el valor
+          # llega como variable y bash lo trata como dato.
+          TARGET: ${{ github.event.inputs.target }}
         run: |
-          URL="${{ github.event.inputs.target }}"
-          URL="${URL:-$STAGING_URL}"
+          URL="${TARGET:-$STAGING_URL}"
           if [ -z "$URL" ]; then
             echo "Sin STAGING_URL configurada: no hay nada que escanear." >> "$GITHUB_STEP_SUMMARY"
             echo "correr=false" >> "$GITHUB_OUTPUT"
@@ -58,8 +65,12 @@ jobs:
       # y reporta cabeceras "ausentes" que sí están. Pasó en la 3ª corrida.
       - name: Esperar a que la app responda
         if: steps.destino.outputs.correr == 'true'
+        env:
+          # Por `env:` (#758). Esta salida viene del input del dispatch unos
+          # pasos más arriba: pasar por un `outputs` no la vuelve confiable.
+          URL_DESTINO: ${{ steps.destino.outputs.url }}
         run: |
-          URL="${{ steps.destino.outputs.url }}"
+          URL="${URL_DESTINO}"
           for i in $(seq 1 30); do
             CODIGO=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$URL" || echo 000)
             echo "intento $i: $URL → HTTP $CODIGO"

@@ -52,11 +52,37 @@ jobs:
     # Staging se despliega desde la rama `staging`, no desde main (ADR-0019).
     # Sin esta condición, cada promoción a main redesplegaría staging con lo
     # mismo que ya tiene, y peor: pisaría lo que se esté probando ahí.
+    #
+    # Y que la corrida que lo dispara sea de ESTE repositorio (#758).
+    #
+    # Un `workflow_run` corre con los secretos del repo base y acá hace checkout
+    # del `head_sha` de quien lo disparó: si ese commit pudiera venir de un fork,
+    # desplegaríamos —y correríamos `pnpm install`— con código de un extraño y
+    # las llaves de staging a mano. Es el patrón clásico de robo de secretos en
+    # Actions.
+    #
+    # Hoy no pasa, y es importante entender POR QUÉ no pasa: `build.yml` solo
+    # corre en `push` a main y staging, y a esas ramas un fork no puede empujar.
+    # O sea que la protección vive en el disparador de OTRO workflow. El día que
+    # alguien le agregue `pull_request` a `build.yml` —que es un cambio
+    # razonable y que nadie relacionaría con esto— el agujero se abre en
+    # silencio. Es la forma de siempre: la garantía declarada en un lado y
+    # aplicada en ninguno.
+    #
+    # El filtro por repositorio la aplica acá, donde está el riesgo. Y el
+    # `head_branch == 'staging'` se queda: un fork PUEDE llamar `staging` a su
+    # rama, así que esa comparación sola nunca fue la que protegía.
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
           (github.event.workflow_run.conclusion == 'success' &&
-           github.event.workflow_run.head_branch == 'staging') }}
+           github.event.workflow_run.head_branch == 'staging' &&
+           github.event.workflow_run.head_repository.full_name == github.repository) }}
     steps:
+      # El `if:` de arriba exige que la corrida venga de ESTE repositorio, así
+      # que el `head_sha` no puede ser de un fork. La regla no alcanza a ver esa
+      # condición —está en otro nivel del YAML— y por eso se silencia acá, con el
+      # motivo escrito al lado y no a secas (#758).
+      # nosemgrep: yaml.github-actions.security.workflow-run-target-code-checkout.workflow-run-target-code-checkout
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
