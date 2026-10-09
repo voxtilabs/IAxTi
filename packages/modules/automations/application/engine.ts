@@ -327,12 +327,86 @@ export async function handleAutomationEvent(
         rule: rowToRule(fila),
         objectKind: mapping.kind,
         objectId,
-        dedupeKey: `${fila.id}:${objectId}:ev${event.id}`,
+        dedupeKey: claveDeCorrida(fila.id as string, objectId, event.name, event.id),
         requestId: event.requestId ?? undefined,
       },
       deps,
     );
   }
+}
+
+/**
+ * Los disparadores que ocurren UNA sola vez por objeto (#720).
+ *
+ * Para éstos la clave de deduplicación puede ser el objeto y no el evento, y esa
+ * diferencia es la que permite correr la regla en línea —antes de que el bot
+ * conteste— sin que el outbox la vuelva a correr después: las dos rutas calculan
+ * la MISMA clave, así que la segunda se deduplica sola.
+ *
+ * Y queda una red: si la corrida en línea falló, la del outbox la rescata. Eso
+ * es mejor que sacar el consumidor, que era la otra forma de evitar el doble.
+ *
+ * `conversation.state_changed` NO entra: pasa muchas veces por la misma
+ * conversación y una clave por objeto la dejaría corriendo una sola vez en la
+ * vida.
+ */
+const UNA_VEZ_POR_OBJETO = new Set(['conversation.created', 'deal.created']);
+
+function claveDeCorrida(ruleId: string, objectId: string, evento: string, eventId: string | number): string {
+  return UNA_VEZ_POR_OBJETO.has(evento)
+    ? `${ruleId}:${objectId}:${evento}`
+    : `${ruleId}:${objectId}:ev${eventId}`;
+}
+
+/**
+ * Las reglas de entrada, corridas EN LÍNEA (#720).
+ *
+ * El copiloto se encolaba en el mismo instante en que entraba el mensaje, y las
+ * reglas corrían después, cuando el publicador vaciaba el outbox. O sea: la
+ * regla que debía enrutar el lead —«estos son de Carla»— llegaba cuando el bot
+ * ya había contestado.
+ *
+ * Antes daba casi igual, porque el copiloto respondía ciego. Desde #716
+ * responde el primer mensaje CON herramientas, así que habla por el negocio
+ * antes de que nadie lo haya enrutado.
+ *
+ * Esto corre los mismos disparadores, con la misma clave, desde el job de
+ * entrada y antes de encolar la sugerencia. Quien llama decide el presupuesto y
+ * qué hacer si falla: acá no se decide nada de eso, porque la decisión —«llegar
+ * tarde es malo, no recibir el mensaje es peor»— es de quien procesa la entrada.
+ */
+export async function correrReglasDeEntrada(
+  client: PoolClient,
+  input: { tenantId: string; conversationId: string; eventoId: string | number; requestId?: string },
+  deps: EngineDeps,
+): Promise<number> {
+  const reglas = await client.query(
+    `SELECT * FROM rules WHERE tenant_id = $1 AND active AND trigger->>'kind' = 'event'
+        AND trigger->>'event' = 'conversation.created'`,
+    [input.tenantId],
+  );
+  let corridas = 0;
+  for (const fila of reglas.rows) {
+    const r = await runRule(
+      client,
+      {
+        tenantId: input.tenantId,
+        rule: rowToRule(fila),
+        objectKind: 'conversation',
+        objectId: input.conversationId,
+        dedupeKey: claveDeCorrida(
+          fila.id as string,
+          input.conversationId,
+          'conversation.created',
+          input.eventoId,
+        ),
+        requestId: input.requestId,
+      },
+      deps,
+    );
+    if (r) corridas++;
+  }
+  return corridas;
 }
 
 /** Los consumidores para el OutboxDispatcher (main de workers). */

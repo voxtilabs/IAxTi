@@ -13,6 +13,7 @@ export type { Rule, PreviewItem } from './application/rules';
 export {
   runRule,
   handleAutomationEvent,
+  correrReglasDeEntrada,
   automationConsumers,
   sweepTimeRules,
   listRuns,
