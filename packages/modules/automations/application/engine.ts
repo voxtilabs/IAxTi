@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { diaEn, publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
-import { idsDeTenants, withTenant } from '@iaxti/db';
+import { withTenant } from '@iaxti/db';
 import {
   addInternalNote,
   assignConversation,
@@ -425,9 +425,23 @@ export function automationConsumers(deps: EngineDeps): Consumer[] {
  * cada pasada.
  */
 export async function sweepTimeRules(pool: Pool, deps: EngineDeps): Promise<number> {
-  // De `tenants`, no de `rules` (#286): una consulta suelta a una tabla con
-  // RLS devuelve cero filas con el rol de producción.
-  const tenants = { rows: (await idsDeTenants(pool)).map((id) => ({ tenant_id: id })) };
+  // A QUIÉN visitar se pregunta UNA vez (#733, ADR-0026).
+  //
+  // Antes se recorrían todos los tenants vivos, abriendo una transacción y
+  // leyendo la zona horaria de cada uno para después descubrir que no tiene
+  // ninguna regla de tiempo. Medido con 1.283 tenants: 4,5 ms cada uno, ~5,8 s
+  // el barrido entero — y proyectado a mil con la base a 64 ms de distancia
+  // (#711), minutos de un cron haciendo nada.
+  //
+  // `rules` tiene RLS, así que la pregunta vive en una función SECURITY DEFINER
+  // que devuelve SOLO ids (#286 sigue en pie: una consulta suelta a `rules`
+  // devolvería cero filas con el rol de producción). Cada tenant se sigue
+  // visitando con `withTenant`.
+  const conReglas = (
+    await pool.query<{ tenant_id: string }>('SELECT tenant_id FROM tenants_con_reglas_de_tiempo()')
+  ).rows.map((f) => f.tenant_id);
+  if (conReglas.length === 0) return 0;
+  const tenants = { rows: conReglas.map((id) => ({ tenant_id: id })) };
   let corridas = 0;
   // El día del NEGOCIO: con el día en UTC, el dedupe cambiaba a las 21:00
   // en Chile y una regla "una vez al día" podía dispararle DOS veces al

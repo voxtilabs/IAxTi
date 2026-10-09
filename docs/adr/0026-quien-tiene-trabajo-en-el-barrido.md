@@ -61,6 +61,29 @@ Se acota con el mismo criterio que la primera:
   función se equivocara y devolviera un tenant de más, el paso correspondiente no
   encontraría trabajo y no haría nada.
 
+## Enmienda · 09/10, al aplicar el patrón a los otros dos barridos (#733)
+
+`barrerRecordatorios` y `sweepTimeRules` tenían el mismo problema y se
+arreglaron igual, con una función cada uno en su módulo —`calendar` y
+`automations`— porque la condición de «quién tiene trabajo» la conoce su dueño.
+Son tres funciones `SECURITY DEFINER` en total, todas de la misma forma: salen
+ids y nada más.
+
+Y hay una diferencia que esta ADR no previó: **la de recordatorios SÍ acepta un
+parámetro**, el instante de referencia. El barrido acepta un reloj inyectado para
+poder probarse, y con `now()` en el SQL el filtro y la regla **discrepaban**: el
+barrido no veía al tenant que sí tenía una cita para su reloj. Lo cazó una
+prueba, y tenía razón — un filtro que solo acierta en producción es la clase de
+cosa que después nadie entiende.
+
+El argumento de «no acepta parámetros» se sostenía en que así no se puede
+preguntar por otra cosa. Vale para la de facturación, que no lo necesita. Para la
+de recordatorios el parámetro no abre nada que el rol de la aplicación no pudiera
+ya: **ese rol fija `app.tenant_id` él mismo en cada transacción**, así que RLS lo
+protege de errores y de inyección, no de sí mismo. La acotación que de verdad
+sostiene las tres es la otra: sale una lista de ids, y los ids ya son visibles
+porque `tenants` no tiene RLS.
+
 ## Consecuencias
 
 - El cron de facturación pasa de O(tenants) a O(tenants con trabajo). Con mil
