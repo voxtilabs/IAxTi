@@ -24,6 +24,7 @@ export {
   findAccountById,
   tenantDeCuenta,
   setChannelState,
+  reapuntarEmisorDeLaCuenta,
   listChannelAccounts,
 } from './application/accounts';
 export { simuladorProvider, firmarWebhook } from './application/simulador';

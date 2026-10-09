@@ -12,11 +12,16 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { diagnosticarCanal, findAccountById, listChannelAccounts } from '@iaxti/module-channels';
+import { writeAudit } from '@iaxti/module-audit';
 import {
   clienteZavu,
+  desconectarNumero,
+  elegirSender,
   emisorDelProveedor,
+  emisoresDelProveedor,
   listTemplates,
   listWhatsAppNumbers,
+  reapuntarEmisor,
   resumeBusinessSends,
 } from '@iaxti/module-whatsapp';
 import { createWidget, listWidgets, setWidgetActive } from '@iaxti/module-webchat';
@@ -38,6 +43,20 @@ function pool() {
 }
 
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
+
+/**
+ * El cuerpo para reapuntar un canal (#600).
+ *
+ * `senderId` obligatorio y nada de «elige tú el único que sirva»: cuando hay
+ * uno solo, `elegirSender` lo resolvería sin que nadie confirme, y apuntar el
+ * canal de un negocio al emisor equivocado es de las cosas más caras de
+ * deshacer. Que lo escriba quien decide.
+ */
+const OtroEmisor = z.object({
+  senderId: textoRequerido('Dinos a qué emisor apuntar este canal.'),
+  phoneNumberId: z.string().trim().optional(),
+  wabaId: z.string().trim().optional(),
+});
 
 /** La pantalla de canales (#45): estado, calidad y la reactivación manual. */
 @ApiTags('channels')
@@ -138,6 +157,188 @@ export class ChannelsController {
           },
         },
       );
+    });
+  }
+
+  /**
+   * Los emisores del proyecto de la llave ACTUAL de este canal (#600).
+   *
+   * Para elegir con información y no de memoria: el `senderId` se escribe una
+   * sola vez y el error se descubre cuando un cliente escribe y nadie le
+   * contesta. Viene el `channels` de cada uno y si sirve para ESTE canal, que es
+   * el chequeo que `elegirSender` hace al conectar y que acá no se relaja.
+   *
+   * La credencial se lee del ambiente y no sale de acá: lo que viaja al cliente
+   * son ids y nombres de emisores.
+   */
+  @Get('channels/:id/emisores')
+  @RequirePermission('channels.read')
+  @ApiOperation({ summary: 'Emisores disponibles en el proyecto de la llave de este canal' })
+  async emisores(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    const cuenta = await withTenant(pool(), actor.tenantId, async (c) => {
+      const encontrada = await findAccountById(c, id);
+      if (!encontrada || encontrada.tenantId !== actor.tenantId) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'No encontramos ese canal.' });
+      }
+      return encontrada;
+    });
+    const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
+    if (!apiKey) {
+      throw new ServiceUnavailableException({
+        code: 'CREDENTIAL_MISSING',
+        message:
+          `Este canal guarda su credencial como ${cuenta.credentialRef ?? '(sin referencia)'} y esa ` +
+          'variable no está en este ambiente, así que no podemos preguntarle al proveedor qué ' +
+          'emisores tiene.',
+      });
+    }
+    const senders = await emisoresDelProveedor(clienteZavu(apiKey));
+    if (senders === null) {
+      throw new ServiceUnavailableException({
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'No pudimos preguntarle al proveedor qué emisores tiene. Intenta en unos minutos.',
+      });
+    }
+    // `sirve` y no filtrar: ver los que NO sirven explica por qué la lista
+    // está corta —un emisor existe pero sin este canal encendido— y eso se
+    // arregla en Zavu, no acá. Una lista vacía sin explicación manda a adivinar.
+    return senders.map((s) => ({
+      id: s.id,
+      name: s.name ?? null,
+      channels: s.channels ?? [],
+      sirve: (s.channels ?? []).includes(cuenta.kind),
+      actual: cuenta.config.senderId === s.id,
+    }));
+  }
+
+  /**
+   * Reapunta este canal a otro emisor (#600).
+   *
+   * No crea otra cuenta: cambia la de esta. Las conversaciones cuelgan de la
+   * cuenta, así que el historial se queda — es el mismo canal hablando por otra
+   * boca.
+   */
+  @Post('channels/:id/emisor')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Apunta este canal a otro emisor del proveedor' })
+  async cambiarEmisor(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Cuerpo(OtroEmisor) body: z.infer<typeof OtroEmisor>,
+  ) {
+    const actor = actorOf(request);
+    const cuenta = await withTenant(pool(), actor.tenantId, async (c) => {
+      const encontrada = await findAccountById(c, id);
+      if (!encontrada || encontrada.tenantId !== actor.tenantId) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'No encontramos ese canal.' });
+      }
+      return encontrada;
+    });
+    const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
+    if (!apiKey) {
+      throw new ServiceUnavailableException({
+        code: 'CREDENTIAL_MISSING',
+        message:
+          `Este canal guarda su credencial como ${cuenta.credentialRef ?? '(sin referencia)'} y esa ` +
+          'variable no está en este ambiente.',
+      });
+    }
+    const senders = await emisoresDelProveedor(clienteZavu(apiKey));
+    if (senders === null) {
+      throw new ServiceUnavailableException({
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'No pudimos preguntarle al proveedor por sus emisores. Intenta en unos minutos.',
+      });
+    }
+    // El MISMO chequeo que al conectar, y por eso se reusa `elegirSender` en vez
+    // de escribirlo de nuevo: un emisor sin este canal encendido no manda nada,
+    // y la regla no tiene por qué relajarse después de conectar.
+    const elegido = elegirSender(senders, cuenta.kind, body.senderId);
+    if ('error' in elegido) {
+      throw new BadRequestException({
+        code: 'SENDER_INVALID',
+        message: elegido.error,
+        details: elegido.candidatos.map((s) => ({ id: s.id, channels: s.channels ?? [] })),
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const { number, account } = await reapuntarEmisor(c, {
+        tenantId: actor.tenantId,
+        accountId: id,
+        senderId: elegido.sender.id,
+        ...(body.phoneNumberId === undefined ? {} : { phoneNumberId: body.phoneNumberId }),
+        ...(body.wabaId === undefined ? {} : { wabaId: body.wabaId }),
+      });
+      // En la MISMA transacción: cambiar por dónde habla un canal es de las
+      // cosas que alguien va a querer reconstruir después, y el emisor viejo
+      // solo existe acá una vez que se sobrescribió.
+      await writeAudit(c, {
+        tenantId: actor.tenantId,
+        actor: actor.userId,
+        actorKind: 'user',
+        action: 'channel.sender.changed',
+        resource: 'channel_account',
+        resourceId: id,
+        result: 'ok',
+        metadata: {
+          kind: cuenta.kind,
+          desde: cuenta.config.senderId ?? null,
+          hacia: elegido.sender.id,
+        },
+        requestId: request.requestId,
+      });
+      return { number, account };
+    });
+  }
+
+  /**
+   * Desconecta el canal: archiva, no borra (#600).
+   *
+   * Libera el cupo del plan y deja las conversaciones donde están. El canal
+   * queda `disconnected`, que es lo que apaga los envíos.
+   */
+  @Post('channels/:id/desconectar')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Desconecta el canal y libera el cupo del plan (el historial queda)' })
+  async desconectar(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      const cuenta = await findAccountById(c, id);
+      if (!cuenta || cuenta.tenantId !== actor.tenantId) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'No encontramos ese canal.' });
+      }
+      if (cuenta.kind !== 'whatsapp') {
+        throw new BadRequestException({
+          code: 'CHANNEL_KIND_UNSUPPORTED',
+          message: 'Por ahora solo se puede desconectar un canal de WhatsApp.',
+        });
+      }
+      let resultado;
+      try {
+        resultado = await desconectarNumero(c, {
+          tenantId: actor.tenantId,
+          accountId: id,
+          requestId: request.requestId,
+        });
+      } catch (err) {
+        throw new BadRequestException({
+          code: 'DISCONNECT_REJECTED',
+          message: (err as Error).message,
+        });
+      }
+      await writeAudit(c, {
+        tenantId: actor.tenantId,
+        actor: actor.userId,
+        actorKind: 'user',
+        action: 'channel.disconnected',
+        resource: 'channel_account',
+        resourceId: id,
+        result: 'ok',
+        metadata: { kind: cuenta.kind, senderId: cuenta.config.senderId ?? null },
+        requestId: request.requestId,
+      });
+      return resultado;
     });
   }
 
