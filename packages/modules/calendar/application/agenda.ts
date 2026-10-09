@@ -244,6 +244,31 @@ export interface Cita {
   endsAt: Date;
   status: EstadoCita;
   title: string | null;
+  /**
+   * Por qué se cayó (#700).
+   *
+   * `cancel_reason` se escribía en cada cancelación desde el primer día y
+   * ninguna consulta lo devolvía: nadie podía contestar «¿por qué se nos
+   * cancelan las visitas?», que para una inmobiliaria es la pregunta del mes.
+   */
+  cancelReason: string | null;
+  /**
+   * El evento en Google, si esta cita tiene uno.
+   *
+   * Hoy nadie lo escribe —la conexión con Google es #57— y por eso casi todas
+   * las citas lo tienen en null. Se proyecta igual: el camino de cancelación lo
+   * necesita para no dejar el evento vivo allá, y una cita SIN él tiene que
+   * seguir funcionando como siempre.
+   */
+  googleEventId: string | null;
+  /**
+   * Qué pasó la última vez que se intentó avisarle a Google, si falló.
+   *
+   * Una cita que figura cancelada acá y viva allá es peor que no sincronizar:
+   * el cliente ve la hora ocupada, el vendedor la ve libre, y nadie sabe por
+   * qué. Se dice en vez de callarse.
+   */
+  googleSyncError: string | null;
 }
 
 function aCita(row: Record<string, unknown>): Cita {
@@ -255,6 +280,9 @@ function aCita(row: Record<string, unknown>): Cita {
     endsAt: row.ends_at as Date,
     status: row.status as EstadoCita,
     title: (row.title as string) ?? null,
+    cancelReason: (row.cancel_reason as string) ?? null,
+    googleEventId: (row.google_event_id as string) ?? null,
+    googleSyncError: (row.google_sync_error as string) ?? null,
   };
 }
 
@@ -347,6 +375,41 @@ export async function agendar(
   return cita;
 }
 
+/**
+ * Cancelar el evento en Google, cuando la cita tiene uno (#700).
+ *
+ * Es un puerto y no una implementación a propósito: la conexión con Google
+ * —OAuth, almacén cifrado de tokens, scopes— es #57 y todavía no existe. Lo que
+ * sí se puede dejar hecho ahora es que el camino de cancelación lo LLAME, así
+ * que el día que #57 aterrice no hay que volver a tocar esto y, hasta entonces,
+ * una cita con `google_event_id` que se cancela deja dicho que allá sigue viva
+ * en vez de callarse.
+ *
+ * Devuelve `null` si pudo, o el motivo del fallo en una frase que lee alguien
+ * que está atendiendo. Nunca lanza: una cita se cancela acá pase lo que pase
+ * allá — lo contrario sería que un error de Google impida cancelar una visita.
+ */
+export type CancelarEnGoogle = (input: {
+  tenantId: string;
+  appointmentId: string;
+  googleEventId: string;
+}) => Promise<string | null>;
+
+export interface AgendaDeps {
+  /** Ausente mientras la integración no exista (#57): se degrada, no revienta. */
+  cancelarEnGoogle?: CancelarEnGoogle | null;
+}
+
+/**
+ * Qué decir cuando la cita tenía evento en Google y no se pudo avisar.
+ *
+ * El texto lo lee alguien que está atendiendo, no quien programa: dice qué pasó
+ * y qué hacer, y no menciona tokens ni códigos HTTP.
+ */
+const SIN_CONEXION_A_GOOGLE =
+  'La cita quedó cancelada acá, pero el evento sigue en Google Calendar ocupando la hora: ' +
+  'bórralo a mano o vuelve a conectar Google.';
+
 /** Cambia el estado con la máquina del dominio y avisa lo que corresponde. */
 export async function cambiarEstadoCita(
   client: PoolClient,
@@ -359,6 +422,7 @@ export async function cambiarEstadoCita(
     actorKind?: ActorKind;
     requestId?: string;
   },
+  deps: AgendaDeps = {},
 ): Promise<Cita> {
   const actual = await client.query(
     'SELECT * FROM appointments WHERE tenant_id = $1 AND id = $2 FOR UPDATE',
@@ -368,10 +432,29 @@ export async function cambiarEstadoCita(
   const antes = aCita(actual.rows[0]);
   assertTransicionCita(antes.status, input.to);
 
+  // La cita se cancela acá PRIMERO y pase lo que pase allá: que un error de
+  // Google impida cancelar una visita sería exactamente al revés de lo que
+  // alguien necesita cuando el cliente ya avisó que no viene (#700).
+  let googleSyncError: string | null = null;
+  if (input.to === 'cancelled' && antes.googleEventId) {
+    if (!deps.cancelarEnGoogle) {
+      googleSyncError = SIN_CONEXION_A_GOOGLE;
+    } else {
+      googleSyncError = await deps
+        .cancelarEnGoogle({
+          tenantId: input.tenantId,
+          appointmentId: input.appointmentId,
+          googleEventId: antes.googleEventId,
+        })
+        .catch((err: unknown) => `No pudimos avisarle a Google: ${(err as Error).message}`);
+    }
+  }
+
   const r = await client.query(
-    `UPDATE appointments SET status = $3, cancel_reason = COALESCE($4, cancel_reason), updated_at = now()
+    `UPDATE appointments SET status = $3, cancel_reason = COALESCE($4, cancel_reason),
+            google_sync_error = $5, updated_at = now()
       WHERE tenant_id = $1 AND id = $2 RETURNING *`,
-    [input.tenantId, input.appointmentId, input.to, input.motivo ?? null],
+    [input.tenantId, input.appointmentId, input.to, input.motivo ?? null, googleSyncError],
   );
 
   await writeAudit(client, {
@@ -422,3 +505,79 @@ export async function listarCitas(
 }
 
 export { ocupaAgenda };
+
+export interface MotivoDeCancelacion {
+  /** El texto tal como lo escribió quien canceló, o «sin motivo». */
+  motivo: string;
+  n: number;
+}
+
+/**
+ * Por qué se nos cancelan las visitas (#700, criterio 2).
+ *
+ * `cancel_reason` se escribía en cada cancelación desde el primer día y ninguna
+ * consulta lo devolvía. Para una inmobiliaria con cinco visitas al día es la
+ * pregunta del mes, y se contestaba abriendo la base.
+ *
+ * Se agrupa por el texto crudo y NO por categorías: inventar una taxonomía
+ * —«el cliente no llegó», «se arrepintió», «lo movimos»— obligaría a mapear
+ * texto libre a cajas, y lo que no calza termina en «otros», que es donde
+ * muere la información. El negocio escribe sus propias palabras y las ve
+ * repetidas; cuando una se repita lo suficiente, ahí vale la pena un botón.
+ *
+ * El rango viaja como texto `AAAA-MM-DD` en la zona del negocio: mandar un
+ * `Date` hace que Postgres lo convierta y el rango se corra un día (en Chile,
+ * cada noche a partir de las 21:00).
+ */
+export async function motivosDeCancelacion(
+  client: PoolClient,
+  input: { tenantId: string; from: string; to: string; ownerId?: string | null },
+): Promise<{ total: number; sinMotivo: number; motivos: MotivoDeCancelacion[] }> {
+  const r = await client.query(
+    `SELECT coalesce(nullif(btrim(cancel_reason), ''), 'sin motivo') AS motivo,
+            count(*)::int AS n
+       FROM appointments
+      WHERE tenant_id = $1
+        AND status = 'cancelled'
+        AND starts_at >= $2::date
+        AND starts_at < ($3::date + 1)
+        AND ($4::uuid IS NULL OR owner_id = $4)
+      GROUP BY 1
+      ORDER BY n DESC, motivo`,
+    [input.tenantId, input.from, input.to, input.ownerId ?? null],
+  );
+  const motivos = r.rows.map((f) => ({ motivo: f.motivo as string, n: f.n as number }));
+  return {
+    total: motivos.reduce((suma, m) => suma + m.n, 0),
+    // Se cuenta aparte: «no sabemos» no es un motivo, y mezclarlo con los
+    // demás haría que el más frecuente fuera siempre ése.
+    sinMotivo: motivos.find((m) => m.motivo === 'sin motivo')?.n ?? 0,
+    motivos: motivos.filter((m) => m.motivo !== 'sin motivo'),
+  };
+}
+
+/**
+ * Las citas que quedaron canceladas acá y vivas en Google (#700).
+ *
+ * Una cita así ocupa una hora que el vendedor ve libre. Que exista la lista es
+ * lo que permite arreglarlo: sin ella, el error queda escrito en una columna
+ * que nadie mira, que es el defecto que este issue viene a sacar.
+ */
+export async function citasDesincronizadasConGoogle(
+  client: PoolClient,
+  tenantId: string,
+): Promise<Array<{ appointmentId: string; startsAt: Date; problema: string }>> {
+  const r = await client.query(
+    `SELECT id, starts_at, google_sync_error
+       FROM appointments
+      WHERE tenant_id = $1 AND google_sync_error IS NOT NULL
+      ORDER BY starts_at DESC
+      LIMIT 50`,
+    [tenantId],
+  );
+  return r.rows.map((f) => ({
+    appointmentId: f.id as string,
+    startsAt: f.starts_at as Date,
+    problema: f.google_sync_error as string,
+  }));
+}

@@ -10,11 +10,13 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
   agendar,
   cambiarEstadoCita,
+  motivosDeCancelacion,
+  citasDesincronizadasConGoogle,
   configuracionDeAvisos,
   definirDisponibilidad,
   listarDisponibilidad,
@@ -28,6 +30,7 @@ import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizat
 import { listTemplates } from '@iaxti/module-whatsapp';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
+import { actorCan } from './authz/can';
 import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
@@ -293,6 +296,52 @@ export class AgendaController {
     } catch (err) {
       seVeMal(err);
     }
+  }
+
+  /**
+   * Por qué se nos cancelan las visitas (#700).
+   *
+   * `cancel_reason` se escribía en cada cancelación desde el primer día y
+   * ninguna consulta lo devolvía. Para un negocio con cinco visitas al día es
+   * la pregunta del mes, y se contestaba abriendo la base.
+   *
+   * Viene también la lista de las que quedaron canceladas acá y vivas en
+   * Google: una cita así ocupa una hora que el vendedor ve libre.
+   */
+  @Get('cancelaciones')
+  @RequirePermission('calendar.read')
+  @ApiOperation({ summary: 'Los motivos de cancelación del período, agrupados' })
+  @ApiQuery({ name: 'from', required: false, type: String, description: 'AAAA-MM-DD' })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async cancelaciones(
+    @Req() request: WithUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const actor = actorOf(request);
+    const dia = /^\d{4}-\d{2}-\d{2}$/;
+    if ((from && !dia.test(from)) || (to && !dia.test(to))) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El rango de fechas no se entiende (from y to como AAAA-MM-DD).',
+      });
+    }
+    // Por defecto, los últimos 90 días: un mes solo no alcanza para que un
+    // motivo se repita lo suficiente como para significar algo.
+    const hoy = new Date();
+    const hace90 = new Date(hoy.getTime() - 90 * 86_400_000);
+    const comoDia = (d: Date) => d.toISOString().slice(0, 10);
+    // Sin `calendar.read_all` cada uno ve SOLO sus cancelaciones, igual que su
+    // agenda. No hay un permiso aparte: el de la agenda ya decide eso.
+    return withTenant(pool(), actor.tenantId, async (c) => ({
+      ...(await motivosDeCancelacion(c, {
+        tenantId: actor.tenantId,
+        from: from ?? comoDia(hace90),
+        to: to ?? comoDia(hoy),
+        ownerId: actorCan(actor, 'crm.read_all') ? null : actor.userId,
+      })),
+      desincronizadas: await citasDesincronizadasConGoogle(c, actor.tenantId),
+    }));
   }
 
   /**

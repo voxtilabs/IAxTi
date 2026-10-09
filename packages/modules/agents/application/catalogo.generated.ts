@@ -87,6 +87,28 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgendaController_cancelaciones": {
+    "metodo": "GET",
+    "ruta": "/v1/agenda/cancelaciones",
+    "resumen": "Los motivos de cancelación del período, agrupados",
+    "permiso": "calendar.read",
+    "modulo": "calendar",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        },
+        "to": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "AgendaController_disponibilidad": {
     "metodo": "POST",
     "ruta": "/v1/agenda/disponibilidad",

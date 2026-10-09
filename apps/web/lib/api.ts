@@ -465,6 +465,28 @@ export interface CitaDto {
     | 'cancelled'
     | 'rescheduled';
   title: string | null;
+  /** Por qué se cayó (#700). Se escribía desde el día uno y no se mostraba. */
+  cancelReason: string | null;
+  /** El evento en Google, cuando la cita tiene uno (lo escribirá #57). */
+  googleEventId: string | null;
+  /**
+   * Qué pasó al intentar avisarle a Google, si falló.
+   *
+   * Una cita cancelada acá y viva allá ocupa una hora que el vendedor ve libre:
+   * se dice en la cita en vez de quedar en una columna que nadie mira.
+   */
+  googleSyncError: string | null;
+}
+
+/** Por qué se nos cancelan las visitas (#700). */
+export interface CancelacionesDto {
+  total: number;
+  /** Canceladas sin que nadie escribiera el motivo. Se cuenta aparte a
+   *  propósito: «no sabemos» no es un motivo, y mezclarlo haría que el más
+   *  frecuente fuera siempre ése. */
+  sinMotivo: number;
+  motivos: Array<{ motivo: string; n: number }>;
+  desincronizadas: Array<{ appointmentId: string; startsAt: string; problema: string }>;
 }
 
 /** Un horario libre, en la hora del negocio. */
