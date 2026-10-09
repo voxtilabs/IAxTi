@@ -86,6 +86,11 @@ export async function abrirIntento(
  * Corre ANTES que el evento de éxito que la misma operación publica. Cuando
  * ese evento llegue, el intento ya no está pendiente y el consumidor no lo
  * toca: el orden no importa y no hay doble conteo.
+ *
+ * Estampa `closed_at` además de `achieved_at` (#701). Se escribía SOLO al
+ * perder, así que un intento logrado quedaba con esa columna en NULL para
+ * siempre: «cuánto tarda en lograrse» no se podía calcular, y por esa columna
+ * un logro se veía igual que un intento todavía abierto.
  */
 export async function marcarLogradoPorElAgente(
   client: PoolClient,
@@ -103,6 +108,7 @@ export async function marcarLogradoPorElAgente(
             achieved_at = now(),
             achieved_event = $3,
             achieved_ref = $4,
+            closed_at = now(),
             updated_at = now()
       WHERE tenant_id = $1 AND conversation_id = $2 AND outcome = 'pendiente'`,
     [input.tenantId, input.conversationId, input.evento, input.referencia],
@@ -147,6 +153,7 @@ export async function marcarLogrado(
             achieved_at = $5,
             achieved_event = $4,
             achieved_ref = $6,
+            closed_at = $5,
             updated_at = now()
       WHERE tenant_id = $1
         AND contact_id = $2
@@ -163,7 +170,32 @@ export async function marcarLogrado(
       desde,
     ],
   );
-  return r.rowCount ?? 0;
+  if ((r.rowCount ?? 0) > 0) return r.rowCount ?? 0;
+
+  // No entró por la ventana. Anotarlo es lo que hace verificable la decisión
+  // (#701): sin esto, «no contó» y «no pasó» se ven idénticos, y la pregunta
+  // del dueño frente a un intento perdido de un cliente que terminó comprando
+  // no tiene respuesta. La ventana NO se mueve: esto es poder verla.
+  await client.query(
+    `UPDATE agent_goal_attempts
+        SET fuera_de_ventana_at = $4,
+            fuera_de_ventana_event = $3,
+            updated_at = now()
+      WHERE tenant_id = $1
+        AND contact_id = $2
+        AND objetivo = ANY($5::text[])
+        AND started_at < $6
+        AND fuera_de_ventana_at IS NULL`,
+    [
+      input.tenantId,
+      input.contactId,
+      input.evento,
+      ahora,
+      objetivosQueLoEsperan,
+      desde,
+    ],
+  );
+  return 0;
 }
 
 /**
@@ -199,6 +231,32 @@ export interface TasaDeObjetivo {
   tasaDelAgente: number | null;
   /** `(porElAgente + asistidos) / cerrados`. La otra. Van SIEMPRE separadas. */
   tasaConAsistencia: number | null;
+  /**
+   * Cuánto tarda en lograrse, en horas (#701).
+   *
+   * Sale de `closed_at − started_at` sobre los LOGRADOS, no de una resta contra
+   * `now()`: restar contra ahora daría un número que crece solo con el tiempo
+   * aunque no pase nada.
+   *
+   * `null` sin logros todavía. Como las tasas: «no se sabe» no es cero.
+   */
+  horasHastaElLogro: number | null;
+  /**
+   * Qué eventos contaron como logro, y cuántas veces cada uno (#701).
+   *
+   * `achieved_event` se escribía desde el primer día y nada lo leía, así que la
+   * tasa era un número sin respaldo: no se podía mostrar «estos 14 se lograron,
+   * y así». Y si el catálogo de eventos de éxito cambia, esto es lo único que
+   * dice cuáles se midieron con la regla vieja.
+   */
+  porEvento: Array<{ evento: string; n: number }>;
+  /**
+   * Intentos donde el resultado llegó FUERA de la ventana de atribución.
+   *
+   * No suma a ninguna tasa: la ventana es una decisión y esto es poder verla.
+   * Pero sin el número, «no contó» y «no pasó» se ven idénticos.
+   */
+  fueraDeVentana: number;
 }
 
 /**
@@ -220,7 +278,11 @@ export async function tasaDeObjetivo(
             count(*) FILTER (WHERE outcome = 'pendiente')                               AS pendientes,
             count(*) FILTER (WHERE outcome = 'logrado' AND atribucion = 'agente')       AS por_el_agente,
             count(*) FILTER (WHERE outcome = 'logrado' AND atribucion = 'asistida')     AS asistidos,
-            count(*) FILTER (WHERE outcome = 'perdido')                                 AS perdidos
+            count(*) FILTER (WHERE outcome = 'perdido')                                 AS perdidos,
+            count(*) FILTER (WHERE fuera_de_ventana_at IS NOT NULL)                     AS fuera_de_ventana,
+            -- El tiempo hasta el logro sale de closed_at y no de now() (#701).
+            avg(extract(epoch FROM (closed_at - started_at)))
+              FILTER (WHERE outcome = 'logrado' AND closed_at IS NOT NULL)              AS segundos_al_logro
        FROM agent_goal_attempts
       WHERE tenant_id = $1 AND agent_id = $2
       GROUP BY objetivo
@@ -238,6 +300,9 @@ export async function tasaDeObjetivo(
       perdidos: 0,
       tasaDelAgente: null,
       tasaConAsistencia: null,
+      horasHastaElLogro: null,
+      porEvento: [],
+      fueraDeVentana: 0,
     };
   }
   const f = r.rows[0];
@@ -256,7 +321,131 @@ export async function tasaDeObjetivo(
     perdidos: Number(f.perdidos),
     tasaDelAgente: tasa(porElAgente),
     tasaConAsistencia: tasa(porElAgente + asistidos),
+    horasHastaElLogro:
+      f.segundos_al_logro === null
+        ? null
+        : Math.round((Number(f.segundos_al_logro) / 3600) * 10) / 10,
+    porEvento: await eventosQueLograron(client, tenantId, agentId),
+    fueraDeVentana: Number(f.fuera_de_ventana),
   };
+}
+
+/** Qué eventos contaron como logro, con su cuenta, de mayor a menor. */
+async function eventosQueLograron(
+  client: PoolClient,
+  tenantId: string,
+  agentId: string,
+): Promise<Array<{ evento: string; n: number }>> {
+  const r = await client.query(
+    `SELECT coalesce(achieved_event, 'sin registrar') AS evento, count(*)::int AS n
+       FROM agent_goal_attempts
+      WHERE tenant_id = $1 AND agent_id = $2 AND outcome = 'logrado'
+      GROUP BY 1 ORDER BY n DESC, evento`,
+    [tenantId, agentId],
+  );
+  return r.rows.map((f) => ({ evento: f.evento as string, n: f.n as number }));
+}
+
+export interface IntentoLogrado {
+  conversationId: string;
+  contactId: string;
+  /** Qué evento contó como logro. `null` en intentos anteriores a #701. */
+  evento: string | null;
+  /** El id de la cita, el trato o el pago. */
+  referencia: string | null;
+  atribucion: 'agente' | 'asistida' | null;
+  startedAt: Date;
+  /** Cuándo se cerró. `null` en logros viejos que nunca lo estamparon. */
+  closedAt: Date | null;
+  /** Horas entre abrir el intento y cerrarlo. `null` si falta `closed_at`. */
+  horas: number | null;
+}
+
+/**
+ * Los intentos logrados, con el evento que los logró (#701).
+ *
+ * Criterio 1 del issue: la tasa tiene que poder mostrar su respaldo. «45 %» sin
+ * poder abrir los catorce casos es un número que hay que creer; con el evento al
+ * lado, es un número que se puede revisar — y esta métrica vale exactamente lo
+ * que el dueño le crea.
+ */
+export async function intentosLogrados(
+  client: PoolClient,
+  tenantId: string,
+  agentId: string,
+  limite = 20,
+): Promise<IntentoLogrado[]> {
+  const tope = Math.min(Math.max(Math.trunc(Number(limite) || 20), 1), 100);
+  const r = await client.query(
+    `SELECT conversation_id, contact_id, achieved_event, achieved_ref, atribucion,
+            started_at, closed_at,
+            extract(epoch FROM (closed_at - started_at)) AS segundos
+       FROM agent_goal_attempts
+      WHERE tenant_id = $1 AND agent_id = $2 AND outcome = 'logrado'
+      ORDER BY coalesce(closed_at, achieved_at, started_at) DESC
+      LIMIT $3`,
+    [tenantId, agentId, tope],
+  );
+  return r.rows.map((f) => ({
+    conversationId: f.conversation_id as string,
+    contactId: f.contact_id as string,
+    evento: (f.achieved_event as string) ?? null,
+    referencia: (f.achieved_ref as string) ?? null,
+    atribucion: (f.atribucion as 'agente' | 'asistida') ?? null,
+    startedAt: f.started_at as Date,
+    closedAt: (f.closed_at as Date) ?? null,
+    horas: f.segundos === null ? null : Math.round((Number(f.segundos) / 3600) * 10) / 10,
+  }));
+}
+
+export interface CasiLogrado {
+  conversationId: string;
+  contactId: string;
+  /** Qué evento llegó, tarde. */
+  evento: string;
+  cuando: Date;
+  /** Cuántos días después de abrirse el intento. */
+  diasDespues: number;
+  /** En qué quedó el intento: perdido, o todavía abierto. */
+  outcome: 'pendiente' | 'logrado' | 'perdido';
+}
+
+/**
+ * Los que NO contaron por la ventana de atribución (#701, criterio 4).
+ *
+ * Sin esto, «no contó» y «no pasó» se ven idénticos, y el dueño que mira un
+ * intento perdido de un cliente que terminó comprando no tiene respuesta. La
+ * respuesta honesta no es «se perdió»: es «se perdió, y la venta llegó cinco
+ * días después, fuera de los tres que atribuimos».
+ *
+ * No suma a ninguna tasa. La ventana es una decisión declarada
+ * (`VENTANA_ATRIBUCION_DIAS`) y esto es poder verla, no moverla.
+ */
+export async function casiLogrados(
+  client: PoolClient,
+  tenantId: string,
+  agentId: string,
+  limite = 20,
+): Promise<CasiLogrado[]> {
+  const tope = Math.min(Math.max(Math.trunc(Number(limite) || 20), 1), 100);
+  const r = await client.query(
+    `SELECT conversation_id, contact_id, fuera_de_ventana_event, fuera_de_ventana_at,
+            outcome,
+            extract(epoch FROM (fuera_de_ventana_at - started_at)) / 86400 AS dias
+       FROM agent_goal_attempts
+      WHERE tenant_id = $1 AND agent_id = $2 AND fuera_de_ventana_at IS NOT NULL
+      ORDER BY fuera_de_ventana_at DESC
+      LIMIT $3`,
+    [tenantId, agentId, tope],
+  );
+  return r.rows.map((f) => ({
+    conversationId: f.conversation_id as string,
+    contactId: f.contact_id as string,
+    evento: f.fuera_de_ventana_event as string,
+    cuando: f.fuera_de_ventana_at as Date,
+    diasDespues: Math.round(Number(f.dias) * 10) / 10,
+    outcome: f.outcome as CasiLogrado['outcome'],
+  }));
 }
 
 /**

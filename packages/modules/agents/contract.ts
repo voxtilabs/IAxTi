@@ -18,6 +18,10 @@ export {
   marcarLogradoPorElAgente,
   marcarPerdido,
   tasaDeObjetivo,
+  // El respaldo de la tasa (#701): qué evento la logró, cuánto tardó, y lo que
+  // llegó fuera de la ventana de atribución.
+  intentosLogrados,
+  casiLogrados,
   objetivoConsumers,
   eventosDeExito,
   VENTANA_ATRIBUCION_DIAS,

@@ -511,6 +511,31 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgentsController_intentosDelObjetivo": {
+    "metodo": "GET",
+    "ruta": "/v1/agents/{id}/objetivo/intentos",
+    "resumen": "Los intentos logrados con el evento que los logró, y los que llegaron tarde",
+    "permiso": "agents.usage.read",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "limite": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "AgentsController_list": {
     "metodo": "GET",
     "ruta": "/v1/agents",
