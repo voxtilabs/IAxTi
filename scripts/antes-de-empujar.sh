@@ -60,6 +60,11 @@ paso 'guardas de core'                   pnpm --filter @iaxti/core exec vitest r
 # queda a la vista antes del commit.
 paso 'catálogo de herramientas'          pnpm catalogo
 
+# Las migraciones sobre una base NUEVA (#738). Local la base ya tiene todas las
+# tablas, así que una migración que referencia la tabla de otro módulo pasa verde
+# acá y falla en CI: el runner aplica en orden topológico de dependencias.
+paso 'migraciones en base virgen'       node scripts/migraciones-en-base-virgen.mjs
+
 # Los dos trinquetes con lista base: avisan si hay que bajar la marca.
 paso 'exports sin consumidor'            node scripts/exports-sin-consumidor.mjs
 paso 'columnas sin lector'               node scripts/columnas-sin-lector.mjs

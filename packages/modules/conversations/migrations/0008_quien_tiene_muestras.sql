@@ -26,6 +26,18 @@
 --
 -- Acepta el instante por el mismo motivo que la de recordatorios: para que el
 -- filtro y el barrido no puedan discrepar si alguna vez se le inyecta un reloj.
+--
+-- VIVE ACÁ Y NO EN `analytics`, aunque la llame su barrido: la tabla es de
+-- `conversations`. Lo intenté al revés y CI lo cazó —«relation "conversations"
+-- does not exist»— porque el runner aplica las migraciones en orden topológico
+-- de dependencias y `analytics` no depende de `conversations`: sus migraciones
+-- corren antes de que la tabla exista. En local no se veía porque la tabla ya
+-- estaba de corridas anteriores, que es exactamente la clase de diferencia que
+-- el script de pre-push no puede ver.
+--
+-- La función solo tiene que existir cuando el CÓDIGO la llama, no cuando corre
+-- la migración de analytics. Y acá es donde corresponde: quien sabe qué es una
+-- conversación respondida es este módulo.
 
 CREATE OR REPLACE FUNCTION tenants_con_muestras_por_tomar(p_ahora timestamptz DEFAULT now())
 RETURNS TABLE (tenant_id uuid)

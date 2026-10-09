@@ -16,7 +16,8 @@
     "seed": "pnpm --filter @iaxti/seed run build && pnpm --filter @iaxti/seed run seed",
     "zavu:conectar": "node scripts/conectar-zavu.mjs",
     "catalogo": "turbo build --filter=@iaxti/api && node scripts/dump-openapi.mjs /tmp/iaxti-openapi.json && node scripts/generar-catalogo-herramientas.mjs /tmp/iaxti-openapi.json",
-    "columnas": "node scripts/columnas-sin-lector.mjs"
+    "columnas": "node scripts/columnas-sin-lector.mjs",
+    "migraciones:virgen": "node scripts/migraciones-en-base-virgen.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
