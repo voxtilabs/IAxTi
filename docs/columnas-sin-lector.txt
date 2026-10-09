@@ -33,5 +33,3 @@ subscriptions.created_at — la suscripción se muestra por su estado y su perí
 teams.created_at — los equipos se listan por nombre.
 webhook_deliveries.event_id — la entrega guarda de qué evento del outbox salió y el panel muestra `event_name`: no se puede ir de una entrega fallida al evento que la produjo.
 whatsapp_templates.created_at — #552.
-whatsapp_templates.reviewed_at — #552.
-whatsapp_templates.submitted_at — #552.

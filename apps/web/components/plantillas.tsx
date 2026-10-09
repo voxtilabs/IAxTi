@@ -234,7 +234,32 @@ export function Plantillas() {
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <span className="dato text-sm text-ink">{p.name}</span>
                 <span className="text-xs text-muted">{p.language}</span>
-                <Badge role={ETIQUETA[p.status].rol}>{ETIQUETA[p.status].texto}</Badge>
+                <Badge role={p.revisionDemorada ? 'bad' : ETIQUETA[p.status].rol}>
+                  {ETIQUETA[p.status].texto}
+                </Badge>
+                {/* Desde cuándo (#552). Meta se demora DÍAS y la revisión es
+                    asíncrona: «en revisión» sin fecha no dice si hay que
+                    esperar o si pasó algo. Y pasadas las 24 h de la ventana,
+                    una plantilla trabada es no poder escribirle a nadie. */}
+                {p.diasEnRevision !== null && (
+                  <span className={`text-xs ${p.revisionDemorada ? 'text-bad-text' : 'text-muted'}`}>
+                    {p.diasEnRevision === 0
+                      ? 'mandada hoy'
+                      : `hace ${p.diasEnRevision} ${p.diasEnRevision === 1 ? 'día' : 'días'}`}
+                  </span>
+                )}
+                {p.status === 'approved' && p.reviewedAt && (
+                  <span className="text-xs text-muted">
+                    aprobada el{' '}
+                    <span className="dato">
+                      {new Date(p.reviewedAt).toLocaleDateString('es-CL', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </span>
+                )}
                 {p.variables > 0 && (
                   <span className="text-xs text-muted">
                     {p.variables} {p.variables === 1 ? 'variable' : 'variables'}
@@ -268,6 +293,16 @@ export function Plantillas() {
                 )}
               </div>
               <p className="mt-2 whitespace-pre-wrap text-sm text-body">{p.body}</p>
+              {/* Lo que hay que hacer cuando se demasió: Meta no tiene una
+                  puerta para apurar, así que lo honesto es decir qué sí se
+                  puede hacer y no ofrecer un botón que no existe. */}
+              {p.revisionDemorada && (
+                <p className="mt-2 rounded-campo border border-bad-soft-br bg-bad-soft px-3 py-2 text-sm text-bad-text">
+                  Lleva {p.diasEnRevision} días en revisión. Meta suele contestar en menos de un
+                  día: revisa en el Administrador de WhatsApp si pidió algo, o manda otra versión
+                  más simple en paralelo.
+                </p>
+              )}
               {p.rejectionReason && (
                 <p className="mt-2 rounded-campo border border-bad-soft-br bg-bad-soft px-3 py-2 text-sm text-bad-text">
                   <span className="font-medium">Meta la rechazó:</span> {p.rejectionReason}

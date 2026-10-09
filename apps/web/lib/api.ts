@@ -509,6 +509,19 @@ export interface PlantillaDto {
   providerId: string | null;
   rejectionReason: string | null;
   variables: number;
+  /**
+   * Desde cuándo está en revisión, y cuándo Meta contestó (#552).
+   *
+   * Se escribían desde el primer día y ninguna consulta las devolvía: la
+   * pantalla decía «en revisión» sin decir desde cuándo, y para quien atiende
+   * eso es la diferencia entre «la mandé ayer» y «la mandé hace dos semanas».
+   */
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  /** Días esperando, o null si no está en revisión. Lo calcula el servidor. */
+  diasEnRevision: number | null;
+  /** Si lleva demasiado: sin esto, «hace 12 días» y «hace 2» se leen igual. */
+  revisionDemorada: boolean;
 }
 
 /**
