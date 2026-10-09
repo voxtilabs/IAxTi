@@ -915,8 +915,24 @@ function SeguridadYSalud() {
     estado: string;
     desde: string;
     chequeos: ChequeoDto[];
-    permisosDenegados: Array<{ tenant_id: string; actor: string; ip: string | null; n: number }>;
-    numerosEnRiesgo: Array<{ tenant_id: string; display_phone: string | null; quality: string | null }>;
+    /**
+     * Las listas vienen cortadas en veinte y lo DICEN (#734).
+     *
+     * Antes llegaban como un array suelto: veinte filas y ninguna forma de
+     * saber si eran veinte o cuatrocientos. Y el `valor` del chequeo se
+     * calculaba sumando esas veinte, así que el semáforo también mentía.
+     */
+    permisosDenegados: {
+      filas: Array<{ tenant_id: string; actor: string; ip: string | null; n: number }>;
+      total: number;
+      truncado: boolean;
+    };
+    intentosDenegados: number;
+    numerosEnRiesgo: {
+      filas: Array<{ tenant_id: string; display_phone: string | null; quality: string | null }>;
+      total: number;
+      truncado: boolean;
+    };
   } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -961,7 +977,7 @@ function SeguridadYSalud() {
             Seguridad · desde {new Date(seguridad.desde).toLocaleDateString('es-CL')}
           </p>
           <Chequeos chequeos={seguridad.chequeos} />
-          {seguridad.permisosDenegados.length > 0 && (
+          {seguridad.permisosDenegados.filas.length > 0 && (
             <div className="mt-4 overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
               <table className="w-full text-sm">
                 <thead>
@@ -972,7 +988,7 @@ function SeguridadYSalud() {
                   </tr>
                 </thead>
                 <tbody>
-                  {seguridad.permisosDenegados.map((d, i) => (
+                  {seguridad.permisosDenegados.filas.map((d, i) => (
                     <tr key={`${d.actor}-${i}`} className="border-b border-line last:border-0">
                       <td className="dato px-3 py-2 text-xs text-faint">{d.tenant_id.slice(0, 8)}</td>
                       <td className="dato px-3 py-2 text-xs text-body">{d.actor.slice(0, 13)}</td>
@@ -982,6 +998,19 @@ function SeguridadYSalud() {
                   ))}
                 </tbody>
               </table>
+              {/* Que la lista esté cortada se dice (#734): «20 de 137» no se
+                  lee igual que «20», y en un panel de seguridad la diferencia
+                  es si alguien sigue mirando o se queda tranquilo. */}
+              {seguridad.permisosDenegados.truncado && (
+                <p className="border-t border-line px-3 py-2 text-xs text-muted">
+                  Se muestran{' '}
+                  <span className="dato">{seguridad.permisosDenegados.filas.length}</span> de{' '}
+                  <span className="dato">{seguridad.permisosDenegados.total}</span> actores, los de
+                  más intentos. En total van{' '}
+                  <span className="dato">{seguridad.intentosDenegados}</span> intentos sin permiso
+                  en el período.
+                </p>
+              )}
             </div>
           )}
         </>

@@ -152,11 +152,16 @@ describe('eventos abandonados (#71)', () => {
 
 describe('seguridad (#71)', () => {
   it('cuenta los permisos denegados desde el libro de auditoría, con su IP', async () => {
+    // Las denegaciones se buscan en la base y no en las veinte filas que el
+    // panel muestra (#734): antes este `find` fallaba en cuanto el libro de
+    // auditoría acumulaba más de veinte actores con más intentos que éste, y
+    // pasaba en CI solo porque allá la base nace limpia.
+    const actor = `user-curioso-${Date.now()}`;
     for (let i = 0; i < 3; i++) {
       await withTenant(admin, tenant, (c) =>
         writeAudit(c, {
           tenantId: tenant,
-          actor: 'user-curioso',
+          actor,
           actorKind: 'user',
           action: 'permission.denied',
           resource: 'payments.refund',
@@ -165,15 +170,64 @@ describe('seguridad (#71)', () => {
         }),
       );
     }
-    const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
-    const fila = snap.permisosDenegados.find((d) => d.actor === 'user-curioso');
+    const fila = (
+      await admin.query(
+        `SELECT actor, host(ip) AS ip, count(*)::int AS n
+           FROM audit_log
+          WHERE action = 'permission.denied' AND actor = $1
+          GROUP BY actor, host(ip)`,
+        [actor],
+      )
+    ).rows[0];
     expect(fila).toBeDefined();
-    expect(fila!.n).toBe(3);
-    expect(fila!.ip).toBe('190.44.9.9');
+    expect(fila.n).toBe(3);
+    expect(fila.ip).toBe('190.44.9.9');
 
+    const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
     const chequeo = snap.chequeos.find((c) => c.id === 'permisos')!;
     expect(chequeo.detalle).toMatch(/intentos sin permiso/);
     expect(chequeo.umbral).toBeTruthy();
+    // El total sale de la base, así que incluye a este actor aunque sus tres
+    // intentos no entren en la lista de los veinte más activos.
+    expect(snap.intentosDenegados).toBeGreaterThanOrEqual(3);
+  });
+
+  it('una lista cortada DICE que está cortada (#734)', async () => {
+    // Era el patrón que `listarCampanas` ya había resuelto: «sin ese dato, una
+    // lista cortada se ve exactamente igual que una lista completa, y eso es
+    // mentir en silencio». Acá era peor, porque el número truncado alimentaba
+    // un semáforo de seguridad.
+    const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
+    for (const lista of [snap.permisosDenegados, snap.webhooksFallidos, snap.numerosEnRiesgo]) {
+      expect(lista.filas.length).toBeLessThanOrEqual(20);
+      expect(lista.total).toBeGreaterThanOrEqual(lista.filas.length);
+      expect(lista.truncado).toBe(lista.total > lista.filas.length);
+    }
+  });
+
+  it('el total de intentos NO se calcula sumando las filas que se muestran (#734)', async () => {
+    // Con treinta actores de diez intentos cada uno, sumar las veinte filas
+    // daba 200 y habían sido 300 — y ése es el número que enciende el semáforo.
+    const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
+    // El total tiene que calzar EXACTO con lo que hay en la base, contado
+    // aparte. Sumando las veinte filas calzaría solo si no hubiera más de
+    // veinte grupos, y es justo cuando hay más que el número importa.
+    const enLaBase = (
+      await admin.query(
+        `SELECT count(*)::int AS n FROM audit_log
+          WHERE action = 'permission.denied' AND occurred_at >= $1`,
+        [snap.desde],
+      )
+    ).rows[0].n as number;
+    expect(snap.intentosDenegados).toBe(enLaBase);
+    const chequeo = snap.chequeos.find((c) => c.id === 'permisos')!;
+    expect(chequeo.valor).toBe(snap.intentosDenegados);
+    // Y si la lista viene cortada, el total es ESTRICTAMENTE mayor que la suma
+    // de lo que se muestra: ahí está la mentira que esto saca.
+    if (snap.permisosDenegados.truncado) {
+      const sumaDeLasFilas = snap.permisosDenegados.filas.reduce((t, f) => t + f.n, 0);
+      expect(snap.intentosDenegados).toBeGreaterThan(sumaDeLasFilas);
+    }
   });
 
   it('un número en rojo es "mal", no "atención": deja al cliente sin canal', async () => {
@@ -188,7 +242,7 @@ describe('seguridad (#71)', () => {
       [tenant, cuenta.rows[0].id],
     );
     const snap = await securitySnapshot(admin, { redis: null });
-    expect(snap.numerosEnRiesgo.some((n) => n.display_phone === '+56 9 0000 0000')).toBe(true);
+    expect(snap.numerosEnRiesgo.filas.some((n) => n.display_phone === '+56 9 0000 0000')).toBe(true);
     expect(snap.chequeos.find((c) => c.id === 'numeros')!.estado).toBe('mal');
     expect(snap.estado).toBe('mal');
   });
