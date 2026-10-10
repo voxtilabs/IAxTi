@@ -488,7 +488,8 @@ export async function securitySnapshot(
     .query(
       `SELECT tenant_id, display_phone, quality, business_paused_at
          FROM whatsapp_numbers
-        WHERE quality = 'red' OR business_paused_at IS NOT NULL
+        WHERE (quality = 'red' OR business_paused_at IS NOT NULL)
+          AND disconnected_at IS NULL
         ORDER BY business_paused_at DESC NULLS LAST LIMIT ${FILAS_POR_LISTA}`,
     )
     .catch(() => ({ rows: [] as Seguridad['numerosEnRiesgo']['filas'] }));
@@ -496,8 +497,10 @@ export async function securitySnapshot(
   // cliente sin su canal de ventas», y con veinticinco en rojo decía 20.
   const totalNumeros = await pool
     .query(
+      // Los archivados no están en riesgo: ya no mandan nada (#772).
       `SELECT count(*)::int AS n FROM whatsapp_numbers
-        WHERE quality = 'red' OR business_paused_at IS NOT NULL`,
+        WHERE (quality = 'red' OR business_paused_at IS NOT NULL)
+          AND disconnected_at IS NULL`,
     )
     .then((r) => r.rows[0].n as number)
     .catch(() => numeros.rows.length);

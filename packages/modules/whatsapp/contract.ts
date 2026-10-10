@@ -27,6 +27,7 @@ export {
   connectWhatsAppNumber,
   reapuntarEmisor,
   desconectarNumero,
+  tenantDelEmisor,
   listWhatsAppNumbers,
   findNumberBySenderId,
 } from './application/numbers';

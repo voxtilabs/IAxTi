@@ -66,7 +66,8 @@ export type MotivoDeRechazo =
   | 'HORARIO_DE_SILENCIO'
   | 'CANAL_RECHAZO'
   | 'PROVEEDOR_INTERMITENTE'
-  | 'NO_ES_MOVIL';
+  | 'NO_ES_MOVIL'
+  | 'TELEFONO_INVALIDO';
 
 export interface ResultadoDePrueba {
   ok: boolean;
@@ -107,7 +108,31 @@ export async function probarEnvio(
   deps: DepsDePrueba,
   input: { tenantId: string; accountId: string; telefono: string; requestId?: string },
 ): Promise<ResultadoDePrueba> {
-  const telefono = normalizePhone(input.telefono);
+  /**
+   * El teléfono se normaliza ACÁ ADENTRO, no afuera (#773).
+   *
+   * `normalizePhone` lanza, y la llamada estaba en la primera línea de esta
+   * función: fuera del `withTenant` y fuera del `try` del despacho. Un
+   * `+5691234` subía hasta `ErrorsFilter`, que al no ser `HttpException`
+   * contesta **500 «Algo falló de nuestro lado»** — en la única ruta del
+   * producto cuyo propósito declarado es decir exactamente qué pasó.
+   *
+   * Y peor: el `writeAudit` del controlador está después de esta llamada, así
+   * que el rastro que su comentario promete —«se audita SIEMPRE, salga o no»—
+   * no se escribía, mientras el candado de cinco minutos sí quedaba puesto. La
+   * persona escribía mal el número una vez y quedaba cinco minutos sin poder
+   * diagnosticar.
+   *
+   * Devuelto como un motivo más, el mensaje que sale es el de `normalizePhone`
+   * —que ya está escrito para quien lo lee— y el camino queda auditado como
+   * cualquier otro resultado.
+   */
+  let telefono: string;
+  try {
+    telefono = normalizePhone(input.telefono);
+  } catch (err) {
+    return { ok: false, motivo: 'TELEFONO_INVALIDO', mensaje: (err as Error).message };
+  }
   /**
    * Las comprobaciones van en la transacción; el envío, afuera.
    *
