@@ -13,7 +13,14 @@ import {
   nombreCanal,
   nombreVisible,
 } from '@iaxti/ui/react';
-import type { AnalisisDto, ConversacionDetalle, NotaDto } from '../../lib/api';
+import type {
+  AnalisisDto,
+  ConversacionDetalle,
+  EtiquetaDto,
+  FichaContacto as FichaDeContacto,
+  NotaDto,
+} from '../../lib/api';
+import type { InscripcionDto, SecuenciaDto } from './secuencias-ficha';
 import { FichaContacto } from '../crm/ficha-contacto';
 import { ESTADOS, fmtEspera, insigniaDePrioridad } from './estado';
 import { SecuenciasFicha } from './secuencias-ficha';
@@ -37,12 +44,25 @@ export function Ficha({
   analisis,
   onVolver,
   onAgregarNota,
+  fichaDelContacto,
+  etiquetasDelContacto,
+  secuencias,
+  inscripciones,
 }: {
   detalle: ConversacionDetalle | null;
   notas: NotaDto[];
   analisis: AnalisisDto | null;
   onVolver: () => void;
   onAgregarNota: (texto: string) => Promise<void>;
+  /**
+   * Lo que ya trajo el arranque de la conversación (#761), para que los
+   * componentes de abajo no lo pidan otra vez. Todo opcional: sin esto se
+   * comportan como antes, que es lo que necesita la pantalla de contactos.
+   */
+  fichaDelContacto?: FichaDeContacto | null;
+  etiquetasDelContacto?: EtiquetaDto[];
+  secuencias?: SecuenciaDto[] | null;
+  inscripciones?: InscripcionDto[] | null;
 }) {
   const [nota, setNota] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -165,7 +185,12 @@ export function Ficha({
       </div>
 
       {/* Secuencias (#63): el seguimiento como proceso visible. */}
-      <SecuenciasFicha contactId={detalle.contactId} conversationId={detalle.id} />
+      <SecuenciasFicha
+        contactId={detalle.contactId}
+        conversationId={detalle.id}
+        precargadas={secuencias}
+        inscripcionesPrecargadas={inscripciones}
+      />
 
       {/* Retención (#77): desde cuándo no hay historial. */}
       <RetencionAviso />
@@ -216,7 +241,12 @@ export function Ficha({
 
       {/* La MISMA ficha del CRM (#32): oportunidades y actividades aquí. */}
       <div className="mt-6 border-t border-line pt-4">
-        <FichaContacto contactId={detalle.contactId} compacta />
+        <FichaContacto
+          contactId={detalle.contactId}
+          compacta
+          precargada={fichaDelContacto}
+          etiquetasPrecargadas={etiquetasDelContacto}
+        />
         <a href={`/contactos/${detalle.contactId}`} className="mt-4 inline-block text-sm text-action-text">
           Abrir la ficha completa →
         </a>

@@ -13,6 +13,8 @@ import {
   pendingSuggestion,
   porQueNoHaySugerencia,
 } from '@iaxti/module-agents';
+import { enrollmentsForContact, listSequences } from '@iaxti/module-automations';
+import { contactTags, getContactFicha } from '@iaxti/module-crm';
 import {
   analisisDeConversacion,
   limitesDeAdjuntoDe,
@@ -309,22 +311,36 @@ export class ArranqueController {
         noExiste();
       }
 
+      const contactId = detalle.contactId ?? null;
+
       /**
-       * Tres piezas, no siete.
+       * Siete piezas: las tres de la conversación y las cuatro de la FICHA.
        *
-       * La primera versión traía también `contacto`, `etiquetasDelContacto`,
-       * `secuencias` e `inscripciones` — y **ningún componente las leía**: la
-       * ficha y las secuencias las piden sus propios componentes cuando se
-       * abren, que es otro momento y con otros parámetros. O sea que el camino
-       * caliente pagaba `getContactFicha` (tres consultas, una con LATERAL sobre
-       * `deal_stage_history`), `contactTags`, `listSequences` y
-       * `enrollmentsForContact` en CADA apertura de conversación, serializadas
-       * en el único cliente de la transacción, para tirar el resultado.
+       * Las cuatro de la ficha estuvieron fuera un rato, y con razón: ningún
+       * componente las leía, así que el camino caliente pagaba
+       * `getContactFicha` —tres consultas, una con LATERAL sobre
+       * `deal_stage_history`— en cada apertura para tirar el resultado. Un
+       * agregado que trae lo que nadie lee no es más rápido: es el mismo trabajo
+       * cobrado en el peor momento.
        *
-       * Un agregado que trae lo que nadie lee no es más rápido: es el mismo
-       * trabajo, cobrado en el momento en que más se nota.
+       * Vuelven porque ahora SÍ se leen: la bandeja se las pasa a `FichaContacto`
+       * y a `SecuenciasFicha`, que antes las pedían por su cuenta —cuatro puertas
+       * más, medidas en el e2e—. Y van con las mismas funciones que sus rutas
+       * sueltas, sin rearmar nada: es exactamente donde este PR se rompió dos
+       * veces.
+       *
+       * El viejo comentario de«tres piezas, no siete» queda como advertencia: si alguien
+       * saca un consumidor, estas piezas tienen que salir con él.
        */
-      const [notas, sugerencia, analisis] = await Promise.all([
+      const [
+        notas,
+        sugerencia,
+        analisis,
+        contacto,
+        etiquetasDelContacto,
+        secuencias,
+        inscripciones,
+      ] = await Promise.all([
           pieza(permisos, { modulo: 'conversations', permiso: 'conversations.notes' }, () =>
             listInternalNotes(c, actor.tenantId, id),
           ),
@@ -348,9 +364,29 @@ export class ArranqueController {
           pieza(permisos, { modulo: 'agents', permiso: 'conversations.read' }, () =>
             analisisDeConversacion(c, actor.tenantId, id),
           ),
-        ]);
+        pieza(permisos, { modulo: 'crm', permiso: 'crm.contacts.read' }, () =>
+          contactId ? getContactFicha(c, actor.tenantId, contactId) : Promise.resolve(null),
+        ),
+        pieza(permisos, { modulo: 'crm', permiso: 'crm.contacts.read' }, () =>
+          contactId ? contactTags(c, actor.tenantId, contactId) : Promise.resolve([]),
+        ),
+        pieza(permisos, { modulo: 'automations', permiso: 'automations.enroll' }, () =>
+          listSequences(c, actor.tenantId),
+        ),
+        pieza(permisos, { modulo: 'automations', permiso: 'automations.enroll' }, () =>
+          contactId ? enrollmentsForContact(c, actor.tenantId, contactId) : Promise.resolve([]),
+        ),
+      ]);
 
-      return { notas, sugerencia, analisis };
+      return {
+        notas,
+        sugerencia,
+        analisis,
+        contacto,
+        etiquetasDelContacto,
+        secuencias,
+        inscripciones,
+      };
     });
   }
 

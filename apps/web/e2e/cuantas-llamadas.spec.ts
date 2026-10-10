@@ -26,14 +26,14 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  *
  * | Momento | Antes | Con los arranques (#761) |
  * |---|---|---|
- * | Abrir `/bandeja` | **7** | **2** |
- * | Con una conversación abierta | **21** | **4** |
+ * | Abrir `/bandeja` | **7** | **3** |
+ * | Con una conversación abierta | **21** | **5** |
  *
  * Y lo que de verdad se ganó no son las llamadas: son los **statements**. Toda
  * ruta de `/v1` pasa por `withTenant`, que hace `BEGIN`, `set_config`, la
  * consulta y `COMMIT`, así que cada puerta cuesta cuatro viajes y no uno. Con
- * los 64 ms que midió #711: 21 llamadas ≥ 84 statements ≈ 5,4 s de viaje; 4
- * llamadas ≈ 16 statements ≈ 1 s. Hay una prueba en `apps/api` que cuenta los
+ * los 64 ms que midió #711: 21 llamadas ≥ 84 statements ≈ 5,4 s de viaje; 5
+ * llamadas ≈ 20 statements ≈ 1,3 s. Hay una prueba en `apps/api` que cuenta los
  * `BEGIN` por petición y exige UNO, porque agrupar las llamadas sin agrupar las
  * transacciones deja este presupuesto verde y la pantalla igual de lenta.
  *
@@ -60,19 +60,30 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  *   bandeja:            `/arranque` + `/conversations`                     = 2
  *   con conversación:   + `:id/arranque` + `:id/arranque/ficha`            = 4
  *
- * Los números de acá son un techo con aire, no la medición exacta. Hay paneles
- * que piden lo suyo al abrirse y que este cambio NO agrupó a propósito —las
- * secuencias de la ficha, las plantillas del compositor, las reasignaciones—
- * porque se piden en otro momento y con otros parámetros, y meterlas en el
- * arranque sería pagar sus consultas en cada apertura para tirarlas.
+ * Las cinco de «con conversación», nombradas, porque un número sin nombres no
+ * dice si creció por algo bueno:
+ *
+ *   GET /v1/me                                 quién soy y mis negocios
+ *   GET /v1/arranque                            el shell
+ *   GET /v1/conversations                       la lista de la bandeja
+ *   GET /v1/conversations/:id/arranque          el hilo (lo que se espera)
+ *   GET /v1/conversations/:id/arranque/ficha    el resto (entra solo)
+ *
+ * `/me` queda aparte y no es un descuido: corre con `@RequireAuth()` SIN tenant
+ * porque es la llamada que contesta *cuáles* negocios hay. Meterla en el
+ * arranque se probó y falló de dos formas medidas —`tenantsOf` bajo RLS devolvía
+ * UN negocio, y con API key el arranque entero daba 500—. Así que el piso real
+ * de esta pantalla es 5, no 4 como decía el criterio del issue.
  *
  * Cada corrida IMPRIME el número real y la lista de puertas (ver `contar`): eso
  * es lo que hay que leer para bajar el techo. Un presupuesto que solo habla
  * cuando se pasa deja de apretar — nadie sabe cuánto aire queda, así que nadie
  * lo ajusta, y a la segunda semana mide el crecimiento desde un número inventado.
+ * Esta vez sirvió al primer intento: el techo iba en 8 y la corrida dijo 12,
+ * con los nombres de las cuatro que faltaba agrupar.
  */
 const PRESUPUESTO_BANDEJA = 3;
-const PRESUPUESTO_CON_CONVERSACION = 8;
+const PRESUPUESTO_CON_CONVERSACION = 5;
 
 /**
  * Espera a que la pantalla deje de pedir cosas, y devuelve cuántas puertas tocó.

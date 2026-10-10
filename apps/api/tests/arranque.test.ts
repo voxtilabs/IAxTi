@@ -228,11 +228,28 @@ describe('arranque de una conversación (#761)', () => {
     const res = await pedir(duena, `/conversations/${conversationId}/arranque/ficha`);
     expect(res.status).toBe(200);
     const cuerpo = await res.json();
-    // Tres, y exactamente tres: la ficha del contacto y las secuencias las
-    // piden sus propios componentes, y traerlas acá era pagar cuatro consultas
-    // por apertura para tirar el resultado.
-    expect(Object.keys(cuerpo).sort()).toEqual(['analisis', 'notas', 'sugerencia']);
-    for (const pieza of ['notas', 'sugerencia', 'analisis']) {
+    /**
+     * Siete, y exactamente siete.
+     *
+     * Las cuatro de la ficha estuvieron fuera un rato porque ningún componente
+     * las leía —y un agregado que trae lo que nadie lee es el mismo trabajo
+     * cobrado en el peor momento—. Volvieron cuando la bandeja empezó a bajarlas
+     * por props a `FichaContacto` y `SecuenciasFicha`, que antes las pedían por
+     * su cuenta: cuatro puertas más por conversación abierta, medidas en el e2e.
+     *
+     * Claves EXACTAS a propósito: si alguien agrega una pieza que nadie lee,
+     * esto se pone rojo y le toca enseñar quién la consume.
+     */
+    expect(Object.keys(cuerpo).sort()).toEqual([
+      'analisis',
+      'contacto',
+      'etiquetasDelContacto',
+      'inscripciones',
+      'notas',
+      'secuencias',
+      'sugerencia',
+    ]);
+    for (const pieza of ['notas', 'sugerencia', 'analisis', 'contacto', 'secuencias']) {
       expect(['ok', 'sin-permiso', 'modulo-apagado']).toContain(cuerpo[pieza].estado);
     }
 
@@ -388,6 +405,7 @@ describe('arranque de una conversación (#761)', () => {
       // statements por pieza en cada arranque.
       expect(cuerpo.sugerencia.estado).toBe('falla');
       expect(cuerpo.analisis.estado).toBe('falla');
+      expect(cuerpo.contacto.estado).toBe('falla');
     } finally {
       await admin.query('ALTER TABLE internal_notes_escondida RENAME TO internal_notes');
     }

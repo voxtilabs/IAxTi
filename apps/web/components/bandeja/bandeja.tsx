@@ -22,6 +22,7 @@ import {
 } from '@iaxti/ui/react';
 import { estaEscribiendo } from '../../lib/teclado';
 import { usePieza, type Pieza } from '../arranque';
+import type { SecuenciaDto, InscripcionDto } from './secuencias-ficha';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
@@ -30,6 +31,8 @@ import {
   type ConversacionItem,
   type Mensaje,
   type AnalisisDto,
+  type EtiquetaDto,
+  type FichaContacto as FichaDeContacto,
   type NotaDto,
   type PlantillaDto,
   type QuickReplyDto,
@@ -94,6 +97,10 @@ interface ArranqueDeFicha {
   notas: Pieza<NotaDto[]>;
   sugerencia: Pieza<RespuestaDeSugerencia>;
   analisis: Pieza<AnalisisDto>;
+  contacto: Pieza<FichaDeContacto | null>;
+  etiquetasDelContacto: Pieza<EtiquetaDto[]>;
+  secuencias: Pieza<SecuenciaDto[]>;
+  inscripciones: Pieza<InscripcionDto[]>;
 }
 
 export function Bandeja() {
@@ -136,6 +143,18 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   // mandan dos recuperaciones del mismo pedido.
   const [reintentando, setReintentando] = useState<string | null>(null);
   const [analisis, setAnalisis] = useState<AnalisisDto | null>(null);
+  /**
+   * Lo de la FICHA, que viene en el mismo arranque y baja por props (#761).
+   *
+   * `null` significa «todavía no» o «no se puede ver», y los componentes de
+   * abajo tratan las dos igual que antes: piden lo suyo si no les llega nada.
+   * Así la pantalla de contactos —que usa el mismo `FichaContacto` y no tiene
+   * conversación— sigue funcionando sin cambios.
+   */
+  const [fichaDelContacto, setFichaDelContacto] = useState<FichaDeContacto | null>(null);
+  const [etiquetasDelContacto, setEtiquetasDelContacto] = useState<EtiquetaDto[]>([]);
+  const [secuencias, setSecuencias] = useState<SecuenciaDto[] | null>(null);
+  const [inscripciones, setInscripciones] = useState<InscripcionDto[] | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [hits, setHits] = useState<BusquedaHit[] | null>(null);
   const seleccionRef = useRef<string | null>(null);
@@ -238,6 +257,15 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
             setSugerencia(f.sugerencia.estado === 'ok' ? f.sugerencia.dato.sugerencia : null);
             setSinSugerencia(f.sugerencia.estado === 'ok' ? f.sugerencia.dato.motivo : null);
             setAnalisis(f.analisis.estado === 'ok' ? f.analisis.dato : null);
+            // Lo de la ficha baja por props: antes cada componente lo pedía por
+            // su cuenta y eran cuatro puertas más por conversación abierta,
+            // medidas en el e2e de #711.
+            setFichaDelContacto(f.contacto.estado === 'ok' ? f.contacto.dato : null);
+            setEtiquetasDelContacto(
+              f.etiquetasDelContacto.estado === 'ok' ? f.etiquetasDelContacto.dato : [],
+            );
+            setSecuencias(f.secuencias.estado === 'ok' ? f.secuencias.dato : null);
+            setInscripciones(f.inscripciones.estado === 'ok' ? f.inscripciones.dato : null);
           })
           .catch(() => {});
 
@@ -761,6 +789,10 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           detalle={detalle}
           notas={notas}
           analisis={analisis}
+          fichaDelContacto={fichaDelContacto}
+          etiquetasDelContacto={etiquetasDelContacto}
+          secuencias={secuencias}
+          inscripciones={inscripciones}
           onVolver={() => setPane('chat')}
           onAgregarNota={async (texto) => {
             if (!session || !tenant || !seleccion) return;

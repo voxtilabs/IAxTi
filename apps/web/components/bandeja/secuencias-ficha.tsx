@@ -21,14 +21,14 @@ import { QuienLoHizo } from '../quien-lo-hizo';
 // El estado de las secuencias en la FICHA (#63): el seguimiento como
 // proceso visible — en qué paso va, cuándo sigue, por qué se cortó.
 
-interface SecuenciaDto {
+export interface SecuenciaDto {
   id: string;
   name: string;
   active: boolean;
   steps: Array<{ afterHours: number }>;
 }
 
-interface InscripcionDto {
+export interface InscripcionDto {
   id: string;
   sequenceName?: string;
   currentStep: number;
@@ -57,9 +57,18 @@ const ESTADO: Record<InscripcionDto['status'], { label: string; role: 'good' | '
 export function SecuenciasFicha({
   contactId,
   conversationId,
+  precargadas,
+  inscripcionesPrecargadas,
 }: {
   contactId: string;
   conversationId: string;
+  /**
+   * Lo que ya trajo el arranque de la conversación (#761): las mismas funciones
+   * que sirven `/automations/sequences` y `.../enrollments`. Opcionales porque
+   * este componente también se usa sin arranque; sin ellas pide como antes.
+   */
+  precargadas?: SecuenciaDto[] | null;
+  inscripcionesPrecargadas?: InscripcionDto[] | null;
 }) {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
@@ -85,7 +94,18 @@ export function SecuenciasFicha({
       /* módulo apagado: la sección no aparece */
     }
   }, [config, session, tenant, contactId]);
-  useEffect(() => void cargar(), [cargar]);
+  useEffect(() => {
+    // El filtro `active` se aplica igual que al pedirlas: la pieza del arranque
+    // devuelve lo mismo que la ruta suelta —sin filtrar— y esta sección solo
+    // ofrece las activas. Aplicarlo en un lado y no en el otro haría que la
+    // lista cambie según por dónde llegó el dato.
+    if (precargadas) {
+      setSecuencias(precargadas.filter((s) => s.active));
+      setInscripciones(inscripcionesPrecargadas ?? []);
+      return;
+    }
+    void cargar();
+  }, [precargadas, inscripcionesPrecargadas, cargar]);
 
   if (!tenant || (secuencias.length === 0 && inscripciones.length === 0)) return null;
 
