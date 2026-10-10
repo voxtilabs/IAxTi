@@ -16,6 +16,14 @@ export const campaignRoutes = {
     "method": "POST",
     "path": "/v1/campanas/{id}/enviar"
   },
+  "CampanasController_detener": {
+    "method": "POST",
+    "path": "/v1/campanas/{id}/detener"
+  },
+  "CampanasController_seguir": {
+    "method": "POST",
+    "path": "/v1/campanas/{id}/seguir"
+  },
   "CampanasController_resultados": {
     "method": "GET",
     "path": "/v1/campanas/{id}/resultados"

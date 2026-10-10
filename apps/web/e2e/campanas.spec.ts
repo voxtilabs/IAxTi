@@ -29,17 +29,44 @@ async function preparar(page: import('@playwright/test').Page) {
   await expect(page.getByText('Sin consentimiento', { exact: true })).toHaveCount(0);
 }
 
-test('crea, revisa y encola por API real; muestra el motivo del destinatario omitido', async ({ page }) => {
+/**
+ * Lanzar y detener, por la API real (#609, #610).
+ *
+ * Esta prueba decía antes «muestra el motivo del destinatario omitido», y era
+ * cierto porque el envío terminaba dentro del request: al volver ya había
+ * destinatarios con su motivo. Ahora la campaña sale por lotes en un job, y
+ * **este ensayo no levanta workers a propósito** —«ningún mensaje de este ensayo
+ * sale a un proveedor», dice `run-e2e.mjs`— así que ningún lote va a correr.
+ * Afirmar el motivo acá sería afirmar algo que nada puede producir.
+ *
+ * Eso que se pierde ya está cubierto por `campanas.test.ts` del módulo, con base
+ * de verdad. Lo que SOLO esta prueba puede comprobar es el camino completo
+ * navegador → API → base, y ahora cubre algo que antes no existía: que detener
+ * una campaña en curso funciona de punta a punta y que lo que se le dice al dueño
+ * no promete lo que no podemos cumplir.
+ */
+test('lanza por API real, queda saliendo con su total, y se puede detener', async ({ page }) => {
   await preparar(page);
   const requests: string[] = [];
   page.on('request', (request) => {
     if (/\/campanas\/[^/]+\/enviar$/.test(request.url()) && request.method() === 'POST') requests.push(request.headers()['idempotency-key']);
   });
   await page.getByRole('button', { name: 'Enviar campaña', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Resultados de la campaña' })).toBeVisible();
-  await expect(page.getByText('sin conversación abierta por ese canal')).toBeVisible();
+
+  // Vuelve a la lista, con el total CONGELADO al lanzar y el estado nuevo.
+  await expect(page.getByText('Saliendo', { exact: true })).toBeVisible();
+  await expect(page.getByText('0 de 2')).toBeVisible();
   expect(requests).toHaveLength(1);
   expect(requests[0]).toBeTruthy();
+
+  // Y detener funciona sin que haya corrido ningún lote: es justo el caso del
+  // vendedor que aprieta a los treinta segundos.
+  await page.getByRole('button', { name: 'Detener', exact: true }).click();
+  await expect(page.locator('[data-sonner-toast]')).toContainText('no se van a enviar');
+  // El aviso NO promete que los últimos no salieron: lo encolado en el canal
+  // puede alcanzar a entregarse, y lo dice.
+  await expect(page.locator('[data-sonner-toast]')).toContainText('pueden alcanzar a entregarse');
+  await expect(page.getByText('Detenida', { exact: true })).toBeVisible();
 });
 
 test('la calidad roja explica el bloqueo y no envía ninguna solicitud', async ({ page }) => {

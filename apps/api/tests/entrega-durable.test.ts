@@ -98,16 +98,35 @@ describe('emisores HTTP con pedido durable (#380)', () => {
     expect((await pool.query('SELECT type,meta FROM messages WHERE id=$1', [messageId])).rows[0]).toMatchObject({ type: 'plantilla' });
   });
 
-  it('cada destinatario de una campaña conserva su pedido con política de negocio', async () => {
+  /**
+   * Esta prueba decía antes «cada destinatario de una campaña conserva su pedido
+   * con política de negocio», y lo comprobaba porque el envío entero pasaba
+   * dentro de este POST. Desde #609 la campaña sale por lotes en un job, así que
+   * acá no hay destinatarios que mirar: pedirlos sería afirmar algo que la API
+   * ya no hace.
+   *
+   * Lo que sí sigue siendo de esta prueba es que **lanzar no manda**: 202 y la
+   * campaña queda saliendo con su total congelado. La política de negocio de
+   * cada mensaje se comprueba donde ahora se decide, en
+   * `apps/workers/tests/recorrido.e2e.test.ts`.
+   */
+  it('lanzar una campaña no crea mensajes: 202 y queda saliendo (#609)', async () => {
     await conversation();
     const create = await post('/campanas', { name: 'campaña prueba', templateId: template, filtros: {} });
     expect(create.status).toBe(201);
     const campaignId = (await create.json()).id;
     const res = await post(`/campanas/${campaignId}/enviar`);
-    expect(res.status).toBe(201);
-    const messages = await pool.query('SELECT message_id FROM campaign_recipients WHERE tenant_id=$1 AND campaign_id=$2 AND message_id IS NOT NULL', [tenant, campaignId]);
-    expect(messages.rowCount).toBeGreaterThan(0);
-    for (const row of messages.rows) await expectRequest(row.message_id, 'business');
+    expect(res.status).toBe(202);
+    const { campana, total } = await res.json();
+    expect(campana.status).toBe('sending');
+    expect(total).toBeGreaterThan(0);
+    expect(campana.plannedTotal).toBe(total);
+    // Y ni un mensaje: los crea el lote, no el request.
+    const messages = await pool.query(
+      'SELECT count(*)::int n FROM campaign_recipients WHERE tenant_id=$1 AND campaign_id=$2',
+      [tenant, campaignId],
+    );
+    expect(messages.rows[0].n).toBe(0);
   });
 
   it.each(['whatsapp', 'instagram'] as const)('un link de pago por %s espera al proveedor', async channel => {

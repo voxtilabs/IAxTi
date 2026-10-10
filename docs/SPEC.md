@@ -638,11 +638,34 @@ imagina.
   acción depende de un módulo apagado se pausa con aviso. Las secuencias se cortan
   solas cuando el cliente responde o la oportunidad cambia de etapa. Vista previa
   "a quién le aplicaría hoy" antes de activar.
+- **Campañas** (envíos segmentados): `Segment` (filtros guardados) y `Campaign`
+  (plantilla aprobada + filtros y total CONGELADOS al lanzar + una fila por
+  destinatario con su resultado y su motivo).
+  - **Estados:** `draft → sending → done`, y dos salidas que no son `done`:
+    `partial` (salió incompleta) y `cancelled` (alguien la detuvo).
+    **`partial` existe porque una campaña nunca se reporta como enviada si no
+    salió completa** (#609): el canal tiene un tope diario, y marcar `done`
+    hacía que el dueño viera «enviada, 900» con 650 personas que nunca
+    recibieron nada.
+  - **Reglas:** sale por lotes desde un job, nunca dentro del request —900
+    contactos en una llamada HTTP es un timeout esperando ocurrir, y no deja
+    ningún punto donde preguntar si alguien pidió parar. Se puede **detener** en
+    curso con el mismo permiso que lanzarla, porque el daño corre mientras se
+    busca a quien tenga uno especial; lo ya entregado al proveedor puede
+    alcanzar a salir y el aviso al dueño lo dice. El tope del canal **no se
+    declara**: lo dice el proveedor al rechazar, y un rechazo por tope no deja
+    `failed` en la fila de esa persona, porque no dice nada sobre ella. Lo que
+    el sistema acota —el máximo de destinatarios por campaña— se **informa**:
+    una campaña que calla lo que dejó fuera es peor que una que avisa.
 - **Permisos:** `automations.read`, `automations.manage`.
-- **Eventos:** `automation.ran`, `automation.failed`, `automation.paused`.
+- **Eventos:** `automation.ran`, `automation.failed`, `automation.paused`,
+  `campaign.sent` (uno solo, al cerrar, con los totales de la campaña entera:
+  uno por lote los haría contar de más).
 - **Tools:** `automations.create_rule`, `automations.list_rules` (el configurador
   las usa).
 - **Apagado:** las secuencias en curso se detienen y las reglas quedan guardadas.
+  Una campaña en curso **espera**, no se salta: saltarla la dejaría `sending`
+  para siempre con el dueño mirando un progreso que no avanza.
 - **Plan mínimo:** Base (tres reglas), completo en Crece.
 
 ## 16. calendar

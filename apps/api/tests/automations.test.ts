@@ -195,10 +195,29 @@ describe('/v1/automations (#62)', () => {
        VALUES ($1, 'Quien no recibió', '+56933334444', 'whatsapp') RETURNING id`,
       [tenant],
     );
+    /**
+     * El que «recibió» en realidad NO recibió: el canal rechazó su mensaje.
+     *
+     * Esto es el bug de #609 montado a mano, y es la única forma de que la
+     * prueba signifique algo: afirmar `noEntregados: 0` no prueba nada, porque
+     * cero es también lo que devuelve un conteo que no cuenta. Acá hay un
+     * mensaje rechazado de verdad, así que el número tiene que ser 1 — y la
+     * fila del destinatario sigue en `queued`, porque encolarlo salió bien.
+     */
+    const conversacion = await admin.query(
+      `INSERT INTO conversations (tenant_id, contact_id, channel)
+       VALUES ($1, $2, 'whatsapp') RETURNING id`,
+      [tenant, contacto.rows[0].id],
+    );
+    const mensaje = await admin.query(
+      `INSERT INTO messages (tenant_id, conversation_id, direction, type, body, author_kind, delivery_status)
+       VALUES ($1, $2, 'out', 'plantilla', 'Promo', 'user', 'failed') RETURNING id`,
+      [tenant, conversacion.rows[0].id],
+    );
     await admin.query(
-      `INSERT INTO campaign_recipients (tenant_id, campaign_id, contact_id, status, reason)
-       VALUES ($1, $2, $3, 'queued', NULL), ($1, $2, $4, 'skipped', 'sin consentimiento')`,
-      [tenant, campaignId, contacto.rows[0].id, otro.rows[0].id],
+      `INSERT INTO campaign_recipients (tenant_id, campaign_id, contact_id, message_id, status, reason)
+       VALUES ($1, $2, $3, $5, 'queued', NULL), ($1, $2, $4, NULL, 'skipped', 'sin consentimiento')`,
+      [tenant, campaignId, contacto.rows[0].id, otro.rows[0].id, mensaje.rows[0].id],
     );
 
     const res = await pedir(duena, '/campanas');
@@ -210,7 +229,10 @@ describe('/v1/automations (#62)', () => {
     expect(mia.status).toBe('done');
     // El conteo viene en el listado: no hay que abrir cada una para saber
     // si salió bien.
-    expect(mia.destinatarios).toEqual({ encolados: 1, saltados: 1, fallados: 0 });
+    // `noEntregados` es nuevo (#609): lo que el CANAL rechazó, que no es lo
+    // mismo que lo que falló al encolar. Sin ese número, una campaña con los
+    // mensajes rechazados por WhatsApp mostraba «1 encolado · 0 fallidos».
+    expect(mia.destinatarios).toEqual({ encolados: 1, saltados: 1, fallados: 0, noEntregados: 1 });
     expect(truncado).toBe(false);
   });
 

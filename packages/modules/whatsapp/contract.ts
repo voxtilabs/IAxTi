@@ -18,6 +18,7 @@ export {
   codigoDelProveedor,
   esPermanente,
   rechazoPermanente,
+  MOTIVO_TOPE_DIARIO,
   mensajeDeRechazo,
   CAUSAS_META,
 } from './application/outbound';
