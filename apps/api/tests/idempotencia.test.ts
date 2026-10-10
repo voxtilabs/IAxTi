@@ -128,6 +128,58 @@ describe('Idempotency-Key (SPEC §28)', () => {
     expect(cuantos.rows[0].n).toBe(1);
   });
 
+  /**
+   * La respuesta está guardada ANTES de que el cliente la reciba (#778).
+   *
+   * Lo que esto arregla: el interceptor guardaba con `void` dentro de un `tap`,
+   * así que el 201 salía antes de que `completed_at` quedara escrito. En esa
+   * ventana `reservarLlave` devuelve `en_curso` y el interceptor contesta
+   * **409** — o sea que el reintento rápido, el caso para el que existe esta
+   * cabecera, era justo el que fallaba.
+   *
+   * ## Por qué se afirma el ORDEN y no un reintento rápido
+   *
+   * Un reintento «lo más rápido posible» es una moneda al aire: local la base
+   * está a 1 ms y la escritura gana; en CI, con cuatro archivos en paralelo,
+   * pierde. Una prueba así pasa o falla según la máquina, que es el defecto que
+   * esta noche se estuvo sacando del repositorio.
+   *
+   * Lo que sí es determinista es la garantía: cuando la respuesta llegó, la
+   * fila ya está completa. Si eso se cumple, NINGÚN reintento —rápido o lento—
+   * puede ver `en_curso`.
+   */
+  it('cuando la respuesta llega, la llave YA está completa', async () => {
+    const llave = `k-${randomUUID()}`;
+    const cuerpo = { contactId: await nuevoContacto(), title: 'Orden antes de responder', value: 1 };
+
+    const primera = await crearTrato(llave, cuerpo);
+    expect(primera.status).toBeLessThan(300);
+
+    // Sin ninguna espera entremedio: justo después de recibir la respuesta.
+    const fila = await admin.query(
+      'SELECT completed_at, response_status FROM idempotency_keys WHERE tenant_id = $1 AND key = $2',
+      [tenant, llave],
+    );
+    expect(
+      fila.rows[0]?.completed_at,
+      'la respuesta salió antes de guardarse: un reintento inmediato recibiría 409',
+    ).not.toBeNull();
+    expect(fila.rows[0]?.response_status).toBe(primera.status);
+  });
+
+  it('el reintento inmediato recibe la respuesta guardada, no un 409', async () => {
+    // Con la garantía de arriba, esto no puede fallar por timing. Se queda
+    // porque es lo que la cabecera PROMETE, y una garantía sin la promesa
+    // escrita se pierde en el próximo refactor.
+    const llave = `k-${randomUUID()}`;
+    const cuerpo = { contactId: await nuevoContacto(), title: 'Reintento inmediato', value: 2 };
+
+    const primera = await crearTrato(llave, cuerpo);
+    const segunda = await crearTrato(llave, cuerpo);
+    expect(segunda.status, 'un 409 acá es el defecto de #778').toBe(primera.status);
+    expect(segunda.headers.get('Idempotent-Replay')).toBe('true');
+  });
+
   it('sin la cabecera el pedido SE EJECUTA de nuevo: lo frena el dominio, no la llave', async () => {
     const contactoPropio = await nuevoContacto();
     const cuerpo = { contactId: contactoPropio, title: 'Sin llave' };
