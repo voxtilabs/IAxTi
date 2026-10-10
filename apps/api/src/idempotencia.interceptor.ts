@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Pool } from 'pg';
 import type { Response } from 'express';
-import { from, of, switchMap, tap, catchError, throwError } from 'rxjs';
+import { from, of, switchMap, concatMap, map, catchError, throwError } from 'rxjs';
 import { withTenant } from '@iaxti/db';
 import { guardarRespuesta, reservarLlave, soltarLlave } from '@iaxti/core';
 import type { WithRequestId } from './request-id';
@@ -60,11 +60,42 @@ export class IdempotenciaInterceptor implements NestInterceptor {
           );
         }
         return next.handle().pipe(
-          tap((body) => {
-            void withTenant(this.pool, tenantId, (c) =>
-              guardarRespuesta(c, { tenantId, key, status: response.statusCode, body }),
-            ).catch(() => {});
-          }),
+          // La respuesta se guarda ANTES de emitirla (#778).
+          //
+          // Esto era un `tap` con `void`: el 201 salía al cliente antes de que
+          // `completed_at` quedara escrito, y en esa ventana `reservarLlave`
+          // devuelve `en_curso` → el interceptor contesta **409**. O sea que el
+          // reintento rápido —el caso para el que existe esta cabecera— era
+          // justo el que fallaba.
+          //
+          // CI lo cazó con cuatro archivos de prueba en paralelo; local pasaba
+          // siempre porque la base está a 1 ms y la escritura ganaba la
+          // carrera. En producción la base está a 64 ms del VPS (#711), así que
+          // la ventana es ~64 veces más ancha que en local.
+          //
+          // Cuesta un viaje más a la base en cada POST idempotente. Vale: son
+          // las rutas que crean o cobran, y la alternativa es que la promesa de
+          // `Idempotency-Key` sea falsa justo cuando se la necesita.
+          concatMap((body) =>
+            from(
+              withTenant(this.pool, tenantId, (c) =>
+                guardarRespuesta(c, { tenantId, key, status: response.statusCode, body }),
+              ),
+            ).pipe(
+              // Si la escritura falla, el pedido NO se cae: el cliente ya tiene
+              // su resultado y repetirlo sería peor. Pero queda en el log —antes
+              // iba a un `.catch(() => {})` que no dejaba rastro— porque una
+              // llave sin respuesta guardada hace que el próximo reintento
+              // vuelva a ejecutar el pedido.
+              catchError((err) => {
+                console.error(
+                  `idempotencia: no se pudo guardar la respuesta de ${key}: ${(err as Error).message}`,
+                );
+                return of(null);
+              }),
+              map(() => body),
+            ),
+          ),
           catchError((err) =>
             // El pedido falló: se suelta la llave para que el cliente pueda
             // reintentar con la misma. Guardar el fallo sería condenarlo a
