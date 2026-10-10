@@ -11,6 +11,19 @@ import { enteroDeEntorno } from '@iaxti/core';
  * siguen llegando cuando el proveedor los pasa; los de texto son los que
  * inventa Zavu. Un "failed" sin explicación mata la confianza.
  */
+/**
+ * La frase exacta que queda guardada cuando el canal llegó a su tope.
+ *
+ * Es una constante y no un literal suelto porque **otro módulo la busca**: una
+ * campaña necesita saber si sus mensajes están siendo rechazados por tope para
+ * dejar de fabricar más (#609). Si esto fuera prosa escrita a mano acá y una
+ * consulta con `ILIKE '%tope diario%'` allá, el día que alguien mejore la
+ * redacción el corte dejaría de dispararse —sin ruido, sin error, sin prueba
+ * roja— y la campaña volvería a encolar mensajes para un canal lleno.
+ */
+export const MOTIVO_TOPE_DIARIO =
+  'El canal llegó a su tope diario de mensajes. Lo que falta puede salir mañana.';
+
 export const CAUSAS_META: Record<number | string, string> = {
   131026: 'El número no tiene WhatsApp.',
   131047: 'Pasaron más de 24 horas desde su último mensaje: solo salen plantillas aprobadas.',
@@ -33,6 +46,18 @@ export const CAUSAS_META: Record<number | string, string> = {
    * distingue este 403 de un 403 por credencial mala, y los dos mandan a
    * arreglar cosas opuestas.
    */
+  /**
+   * El tope diario del canal (#609).
+   *
+   * No estaba, y su ausencia tenía dos consecuencias que se suman. La primera:
+   * el motivo que leía la persona salía del `fallback` —«WhatsApp no aceptó el
+   * envío. Reintenta en unos minutos»— que es consejo EQUIVOCADO: reintentar en
+   * unos minutos no sirve, el tope se libera mañana. La segunda: sin una causa
+   * reconocible, una campaña no podía enterarse de que el canal se llenó, y por
+   * ahí pasaba lo de #609 — campaña «enviada» de 900 con 650 personas que nunca
+   * recibieron nada.
+   */
+  DAILY_LIMIT_EXCEEDED: MOTIVO_TOPE_DIARIO,
   'Sandbox mode':
     'Este canal está conectado con una llave de prueba, y esas solo alcanzan a los números ' +
     'del equipo en el proveedor. Agrega ese número al equipo, o conecta el canal con una ' +
@@ -54,6 +79,20 @@ export class RateLimitedError extends Error {
   constructor(public readonly phoneNumberId: string) {
     super('Rate limit del número alcanzado; se reintenta solo.');
   }
+}
+
+/**
+ * ¿El proveedor dijo que se llenó el tope diario del canal? (#609)
+ *
+ * Vive aparte de `rechazoPermanente` porque la respuesta no depende del código
+ * HTTP: el tope llega como 429, que en cualquier otro caso SÍ merece los cinco
+ * intentos con backoff. Acá no: el tope no se libera en treinta segundos, se
+ * libera al día siguiente. Reintentar es gastar cinco intentos por mensaje —con
+ * 650 mensajes son 3.250 llamadas inútiles— y, lo peor, retrasar horas el
+ * momento en que alguien se entera de qué pasó.
+ */
+export function esTopeDiario(cuerpo: string): boolean {
+  return /DAILY_LIMIT_EXCEEDED|daily limit (?:exceeded|reached)/i.test(cuerpo ?? '');
 }
 
 /**

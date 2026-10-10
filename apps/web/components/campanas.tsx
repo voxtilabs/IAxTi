@@ -11,7 +11,23 @@ import { nombreDeQuien, QuienLoHizo } from './quien-lo-hizo';
 import { selectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
-const ESTADOS: Record<Campaign['status'], string> = { draft: 'Borrador', sending: 'En curso', done: 'Procesada', cancelled: 'Cancelada' };
+const ESTADOS: Record<Campaign['status'], string> = {
+  draft: 'Borrador',
+  sending: 'Saliendo',
+  // «A medias» y no «Procesada» (#609): el canal llegó a su tope diario y
+  // quedó gente sin recibir. El estado tiene que verse distinto de una campaña
+  // que salió completa, porque el dueño tiene algo que hacer con esta.
+  partial: 'A medias',
+  done: 'Enviada',
+  cancelled: 'Detenida',
+};
+const ROL_DE_ESTADO: Record<Campaign['status'], BadgeRole> = {
+  draft: 'neutral',
+  sending: 'info',
+  partial: 'warn',
+  done: 'info',
+  cancelled: 'neutral',
+};
 const CALIDAD: Record<string, { nombre: string; rol: BadgeRole }> = {
   green: { nombre: 'Buena', rol: 'good' }, yellow: { nombre: 'Media', rol: 'warn' },
   red: { nombre: 'Roja', rol: 'bad' }, desconocida: { nombre: 'Sin confirmar', rol: 'neutral' },
@@ -75,6 +91,14 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
     setFiltrosCrudos(valor);
   };
   const [error, setError] = useState<string | null>(null);
+  /**
+   * El aviso de lo que SÍ pasó, separado del error (#609, #610).
+   *
+   * «Detuviste la campaña. Salieron 180 y 2.800 no se van a enviar» no es un
+   * error —la acción salió bien— y mostrarlo en rojo haría que el dueño
+   * creyera que algo falló además del desastre que acaba de parar.
+   */
+  const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const cerrojo = useRef(false);
   const creacion = useRef<{ cuerpo: string; llave: string } | null>(null);
@@ -89,9 +113,34 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   }, [cliente]);
   useEffect(() => { void cargar().catch((e: Error) => setError(e.message)); }, [cargar]);
 
+  /**
+   * Mientras haya una campaña saliendo, la lista se refresca sola (#609).
+   *
+   * Sin esto, «250 de 900» es un número congelado: la campaña sale por lotes
+   * durante minutos y la pantalla muestra lo que había cuando se cargó. El dueño
+   * tendría que apretar «Actualizar listado» para enterarse de que avanza, y el
+   * botón «Detener» estaría decidiendo sobre un número viejo.
+   *
+   * **Solo mientras alguna está en `sending`**, y por eso el efecto depende de
+   * esa condición y no de la lista entera: un sondeo permanente le pega a la API
+   * cada seis segundos para siempre en una pantalla donde casi nunca hay nada
+   * saliendo. Y no se sondea en `vista === 'lista'` solamente, porque detener
+   * también se puede desde los resultados.
+   */
+  const saliendo = (lista ?? []).some((c) => c.status === 'sending');
+  useEffect(() => {
+    if (!saliendo) return;
+    const timer = setInterval(() => {
+      // Sin `ejecutar`: este refresco no es una acción de la persona, así que no
+      // tiene que tomar el cerrojo ni borrar el aviso que acaba de leer.
+      void cargar().catch(() => {});
+    }, 6_000);
+    return () => clearInterval(timer);
+  }, [saliendo, cargar]);
+
   async function ejecutar(accion: () => Promise<void>) {
     if (cerrojo.current || !cliente) return;
-    cerrojo.current = true; setOcupado(true); setError(null);
+    cerrojo.current = true; setOcupado(true); setError(null); setAviso(null);
     try { await accion(); } catch (e) { setError((e as Error).message); }
     finally { cerrojo.current = false; setOcupado(false); }
   }
@@ -165,10 +214,51 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
       }
       const llave = envios.current.get(campana.id) ?? crypto.randomUUID();
       envios.current.set(campana.id, llave);
-      await cliente!.send(campana.id, llave);
-      // Desde aquí ya no se ofrece volver a enviar, aunque falle la consulta de resultados.
-      setVista('resultados'); setResultados(null);
-      setResultados(await cliente!.results(campana.id));
+      const lanzada = await cliente!.send(campana.id, llave);
+      // El tope de 5.000 del segmento es NUESTRO, y la API ahora lo dice (#609).
+      // Antes se callaba: una cartera de 7.000 recibía 5.000 mensajes y la
+      // campaña se marcaba como enviada.
+      if (lanzada.aviso) setAviso(lanzada.aviso);
+      /**
+       * Se vuelve a la LISTA y no a los resultados (#609).
+       *
+       * Antes tenía sentido: el envío terminaba dentro del request, así que
+       * cuando esta línea corría ya había resultados que mostrar. Ahora la
+       * campaña recién empieza a salir, así que la pantalla de resultados
+       * mostraría ceros en todo — que se lee como «no salió nada».
+       *
+       * La lista es donde está lo útil mientras sale: «0 de 2» avanzando sola
+       * cada seis segundos, y el botón «Detener» al lado. Los resultados siguen
+       * a un clic, para cuando haya algo que leer.
+       */
+      setVista('lista');
+      setResultados(null);
+      await cargar();
+    });
+  }
+
+  /**
+   * Detener (#610), y el aviso lo manda la API.
+   *
+   * No se arma acá a propósito: lo que ya se entregó al proveedor **puede
+   * alcanzar a salir** —lo dice su propia documentación— y quien sabe cuántos
+   * son es el servidor. Un texto escrito en la pantalla prometería algo que
+   * nadie comprobó.
+   */
+  async function detener(c: CampaignListItem) {
+    if (!puedeEscribir || !cliente) return;
+    await ejecutar(async () => {
+      const res = await cliente.stop(c.id);
+      setAviso(res.aviso);
+      await cargar();
+    });
+  }
+
+  async function seguir(c: CampaignListItem) {
+    if (!puedeEscribir || !cliente) return;
+    await ejecutar(async () => {
+      await cliente.resume(c.id);
+      setAviso('La campaña siguió: los que quedaban están saliendo.');
       await cargar();
     });
   }
@@ -196,6 +286,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
       />
       {puedeEscribir === false && <p className="text-sm text-muted">Tu plan permite consultar campañas, pero no crear ni enviar. <a href="/ajustes/facturacion">Revisar mi plan</a>.</p>}
       {error && <AvisoResultado tono="error">{error}</AvisoResultado>}
+      {aviso && <AvisoResultado tono="success">{aviso}</AvisoResultado>}
 
       {vista === 'lista' && <>
         {lista === null ? <Skeleton className="h-32" /> : lista.length === 0 ?
@@ -209,12 +300,51 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
                   envío y esta lista no lo mostraba. «¿Quién mandó esto a 650
                   personas?» es la primera pregunta cuando una campaña sale mal. */}
               {c.creadaPor && <><span className="text-xs text-muted"> · </span><QuienLoHizo accion="Lanzada" quien={c.creadaPor} /></>}
-              <p className="mt-2 text-sm text-body"><span className="font-mono">{c.destinatarios.encolados}</span> encolados · <span className="font-mono">{c.destinatarios.saltados}</span> omitidos · <span className="font-mono">{c.destinatarios.fallados}</span> fallidos</p></div>
-            <Badge role={c.status === 'draft' ? 'neutral' : 'info'}>{ESTADOS[c.status]}</Badge>
-            <Button variant="secundario" disabled={ocupado} onClick={() => void ejecutar(async () => {
-              if (c.status === 'draft') await verPrevia(c);
-              else { setCampana(c); setResultados(await cliente!.results(c.id)); setVista('resultados'); }
-            })}>{c.status === 'draft' ? 'Revisar borrador' : 'Ver resultados'}</Button>
+              <p className="mt-2 text-sm text-body"><span className="font-mono">{c.destinatarios.encolados}</span> encolados · <span className="font-mono">{c.destinatarios.saltados}</span> omitidos · <span className="font-mono">{c.destinatarios.fallados}</span> fallidos</p>
+              {/* Lo que el CANAL rechazó (#609). Sin esta línea una campaña con
+                  los dos mensajes rechazados por WhatsApp mostraba «2 encolados
+                  · 0 fallidos»: nadie mentía, el número contaba otra cosa. Va
+                  aparte y en `bad-text` porque es la diferencia entre «salió» y
+                  «llegó», y es la que el dueño necesita ver sin abrir nada. */}
+              {c.destinatarios.noEntregados > 0 && (
+                <p className="mt-1 text-sm text-bad-text">
+                  <span className="font-mono">{c.destinatarios.noEntregados}</span> no llegaron: el
+                  canal los rechazó
+                </p>
+              )}</div>
+            <Badge role={ROL_DE_ESTADO[c.status]}>{ESTADOS[c.status]}</Badge>
+            {/* «250 de 900» mientras sale y después (#609). `plannedTotal` está
+                congelado al lanzar: sin eso el denominador se movería cada vez
+                que alguien entrara o saliera del segmento. */}
+            {c.plannedTotal !== null && c.status !== 'draft' && (
+              <p className="w-full text-sm text-body sm:w-auto">
+                <span className="font-mono">{c.destinatarios.encolados}</span> de{' '}
+                <span className="font-mono">{c.plannedTotal}</span>
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {/* Detener está donde se ve el daño: en la lista, sin entrar a
+                  ninguna pantalla. El vendedor que ve «Hola ,» en la bandeja
+                  tiene treinta segundos útiles (#610). */}
+              {c.status === 'sending' && (
+                <Button variant="secundario" disabled={ocupado || !puedeEscribir} onClick={() => void detener(c)}>
+                  Detener
+                </Button>
+              )}
+              {c.status === 'partial' && (
+                <Button variant="secundario" disabled={ocupado || !puedeEscribir} onClick={() => void seguir(c)}>
+                  Seguir
+                </Button>
+              )}
+              <Button variant="secundario" disabled={ocupado} onClick={() => void ejecutar(async () => {
+                if (c.status === 'draft') await verPrevia(c);
+                else { setCampana(c); setResultados(await cliente!.results(c.id)); setVista('resultados'); }
+              })}>{c.status === 'draft' ? 'Revisar borrador' : 'Ver resultados'}</Button>
+            </div>
+            {/* Por qué quedó así, en español y tal cual lo manda la API. */}
+            {c.stopReason && (c.status === 'partial' || c.status === 'cancelled') && (
+              <p className="w-full text-sm text-warn-text">{c.stopReason}</p>
+            )}
           </li>)}</ul>}
         {truncado && <p className="text-sm text-muted">Se muestran las campañas más recientes. Hay campañas anteriores fuera de este listado.</p>}
         <Button variant="fantasma" disabled={ocupado} onClick={() => void ejecutar(cargar)}>Actualizar listado</Button>

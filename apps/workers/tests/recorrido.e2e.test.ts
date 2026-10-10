@@ -11,7 +11,8 @@ import {
   enviarPlantilla,
   marcarEnviadaARevision,
 } from '@iaxti/module-whatsapp';
-import { crearCampana, enviarCampana, previsualizarSegmento } from '@iaxti/module-automations';
+import { crearCampana, iniciarCampana, previsualizarSegmento } from '@iaxti/module-automations';
+import { procesarLoteDeCampana } from '../src/campanas';
 import { exportarTenant } from '@iaxti/module-organizations';
 
 /**
@@ -240,37 +241,55 @@ describe('el recorrido de una clienta, de punta a punta', () => {
         valores: ['{contacto.nombre}'],
       }),
     );
-    const res = await en((c) =>
-      enviarCampana(
+    /**
+     * Dos pasos desde #609: lanzar deja la campaña lista, y el LOTE la manda.
+     *
+     * Y el lote se corre con `procesarLoteDeCampana`, que es el código que corre
+     * en producción, en vez de armar los `deps` acá. La versión anterior de esta
+     * prueba los escribía a mano y les faltaba `delivery: 'business'` — o sea que
+     * medía un camino parecido al real con la política de envío equivocada, que
+     * es justo lo que la prueba de abajo viene a cuidar.
+     */
+    await en((c) =>
+      iniciarCampana(
         c,
         { tenantId: tenant, campaignId: campana.id },
-        {
-          calidadDelNumero: async () => 'verde',
-          puedeIniciar: (id) => canReceiveBusinessInitiated(c as never, tenant, id),
-          datosDelContacto: async () => ({ name: 'Ana', phone: '+56955551212' }),
-          conversacionDe: async () => conversacion,
-          enviarPlantilla: async ({ conversationId, templateId, valores }) => {
-            const env = await enviarPlantilla(
-              c as never,
-              { tenantId: tenant, conversationId, templateId, valores },
-              {
-                contactoDe: async () => contacto,
-                puedeIniciar: async () => true,
-                crearMensaje: (m) =>
-                  sendMessage(c as never, {
-                    tenantId: m.tenantId,
-                    conversationId: m.conversationId,
-                    authorKind: 'user',
-                    body: m.body,
-                  }),
-              },
-            );
-            return { messageId: env.messageId };
-          },
-        },
+        { calidadDelNumero: async () => 'verde' },
       ),
     );
+    const res = await procesarLoteDeCampana(admin, {
+      moduleId: 'automations',
+      tenantId: tenant,
+      campaignId: campana.id,
+    });
     expect(res.encolados, `la campaña no encoló: ${JSON.stringify(res.motivos)}`).toBe(1);
+
+    /**
+     * Y el mensaje del destinatario sale con política de NEGOCIO (#380).
+     *
+     * Esto vivía en `apps/api/tests/entrega-durable.test.ts`, y ahí ya no se
+     * puede comprobar: desde #609 lanzar una campaña no crea mensajes —los crea
+     * el lote, en el worker— así que la prueba de la API habría quedado pidiendo
+     * destinatarios que el request no produce. Acá sí corre el lote, con los
+     * mismos `deps` que usa producción.
+     *
+     * Por qué importa la política: `business` es la que respeta el horario de
+     * silencio, la ventana de 24 h y el consentimiento. Un mensaje de campaña
+     * marcado como `reply` saldría a las 2 de la mañana.
+     */
+    const destinatarios = await admin.query(
+      `SELECT message_id FROM campaign_recipients
+        WHERE tenant_id = $1 AND campaign_id = $2 AND message_id IS NOT NULL`,
+      [tenant, campana.id],
+    );
+    expect(destinatarios.rowCount).toBe(1);
+    const pedido = await admin.query(
+      `SELECT payload FROM outbox
+        WHERE tenant_id = $1 AND name = 'message.delivery_requested'
+          AND payload->>'messageId' = $2`,
+      [tenant, destinatarios.rows[0].message_id],
+    );
+    expect(pedido.rows.map((f) => (f.payload as { policy: string }).policy)).toEqual(['business']);
   });
 
   it('6. y el negocio se puede llevar todo lo suyo', async () => {

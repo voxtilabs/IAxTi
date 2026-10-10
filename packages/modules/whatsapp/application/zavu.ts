@@ -28,6 +28,7 @@ import {
   causaLegible,
   codigoDelProveedor,
   ErrorPermanente,
+  esTopeDiario,
   mensajeDeRechazo,
   rechazoPermanente,
 } from './outbound';
@@ -431,6 +432,15 @@ export function createZavuProvider(
         // Un 401 o un 400 no cambian por volver a mandarlos: la credencial
         // seguirá mala y el número seguirá inválido. Solo 429 y 5xx merecen
         // los cinco intentos con backoff.
+        // El tope diario primero, porque llega como 429 y un 429 normalmente
+        // sí merece los reintentos. Este no: el tope se libera mañana, no en
+        // treinta segundos (#609).
+        if (esTopeDiario(motivo)) {
+          throw new ErrorPermanente(
+            causaLegible('DAILY_LIMIT_EXCEEDED'),
+            `HTTP ${res.status} ${motivo}`.trim(),
+          );
+        }
         if (rechazoPermanente(res.status)) {
           // Si el proveedor dijo POR QUÉ y esa causa ya está traducida, se usa
           // la traducción: «Pasaron más de 24 horas…» le sirve a quien está

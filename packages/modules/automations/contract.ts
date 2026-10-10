@@ -42,7 +42,6 @@ export {
 export type { Sequence, SequenceStep, Enrollment } from './application/sequences';
 export {
   previsualizarSegmento,
-  contactosDelSegmento,
   guardarSegmento,
   listarSegmentos,
 } from './application/segmentos';
@@ -53,8 +52,14 @@ export {
   obtenerCampana,
   listarCampanas,
   LIMITE_LISTADO,
-  enviarCampana,
+  iniciarCampana,
+  enviarLoteDeCampana,
+  detenerCampana,
+  seguirCampana,
+  volverABorrador,
+  campanasSinAvance,
+  LOTE_POR_DEFECTO,
   resultadosDeCampana,
   resolverValores,
 } from './application/campanas';
-export type { Campana, CampanaEnLista, ResultadoEnvio } from './application/campanas';
+export type { Campana, CampanaEnLista, ResultadoEnvio, EstadoDelLote } from './application/campanas';

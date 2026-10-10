@@ -90,6 +90,7 @@ import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
+import { campanasPorReencolar, procesarLoteDeCampana, type JobDeCampana } from './campanas';
 
 const service = process.env.SERVICE ?? 'workers';
 const port = enteroDeEntorno('PORT', 3000);
@@ -181,6 +182,17 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
   // Los workers que hay que drenar al recibir SIGTERM. Se registran todos al
   // final de esta función, en el orden en que deben cerrarse.
   const trabajadores: Array<{ nombre: string; worker: Worker }> = [];
+
+  /**
+   * La cola de `automations`, perezosa y compartida.
+   *
+   * La usan dos cosas que se crean en momentos distintos: el worker de
+   * campañas, que encola el lote siguiente, y el barrido de la cola
+   * `scheduled`, que vuelve a encolar las campañas colgadas. Dos `createQueue`
+   * para la misma cola serían dos conexiones a Redis por el mismo trabajo.
+   */
+  let colaAutomations: ReturnType<typeof createQueue> | null = null;
+  const colaDeCampanas = () => (colaAutomations ??= createQueue('automations', redisConnection()));
 
   if (process.env.REDIS_URL) {
     const scheduled = createQueue('scheduled', redisConnection());
@@ -275,8 +287,18 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
         case 'automations.sweep': {
           const n = await sweepTimeRules(pool, automationDeps);
           const pasos = await sweepSequences(pool, automationDeps);
+          // Campañas colgadas (#609): el job se encola en Redis después del
+          // COMMIT, y entre los dos hay un sistema que se puede caer. Lo que
+          // queda es una campaña «saliendo» que nadie está mandando.
+          const colgadas = await campanasPorReencolar(pool);
+          for (const job of colgadas) {
+            await colaDeCampanas().add('campaign.send', { ...job });
+          }
+          if (colgadas.length > 0) {
+            console.log(`campañas: ${colgadas.length} sin avance, vueltas a encolar`);
+          }
           if (n + pasos > 0) console.log(`scheduled: ${n} reglas y ${pasos} pasos de secuencia`);
-          return { ran: n, steps: pasos };
+          return { ran: n, steps: pasos, campanas: colgadas.length };
         }
         // Plantillas colgadas (#44): si se perdió el webhook de Meta, la
         // plantilla se queda "en revisión" para siempre. Se pregunta.
@@ -746,6 +768,52 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
     });
     trabajadores.push({ nombre: 'cola outbound', worker: outboundWorker });
     console.log('workers: worker de cola outbound activo');
+
+    /**
+     * Las campañas, un lote por job (#609, #610).
+     *
+     * El job se vuelve a encolar después de cada lote en vez de recorrer la
+     * campaña entera en una vuelta, y eso da tres cosas: los lotes de dos
+     * negocios se intercalan —una campaña de 10.000 no deja esperando la de 80
+     * del negocio de al lado—, un fallo reintenta EL LOTE y no la campaña, y un
+     * despliegue a mitad de campaña alcanza a terminar el lote y se apaga
+     * ordenado en vez de morir en el medio.
+     *
+     * `disabled: 'delay'` y no `'skip'`: si el módulo de automatizaciones está
+     * apagado para este despliegue, la campaña espera; saltarla la dejaría
+     * `sending` para siempre, con el dueño mirando un progreso que no avanza.
+     */
+    const automationsWorker = createModuleWorker(
+      'automations',
+      registry,
+      async (job) => {
+        if (job.name !== 'campaign.send') return { ignorado: job.name };
+        const data = job.data as unknown as JobDeCampana;
+        const res = await procesarLoteDeCampana(pool, data);
+        // `yaHabiaOtroLote`: otro job tiene el candado de esta campaña. Encolar
+        // acá también haría que los dos se turnaran el candado para siempre sin
+        // que ninguno avance; el que lo tiene va a encolar el siguiente.
+        if (res.yaHabiaOtroLote) return res;
+        if (res.estado === 'sending') {
+          await colaDeCampanas().add('campaign.send', { ...data });
+        } else {
+          const cierre =
+            res.estado === 'done'
+              ? 'completa'
+              : res.estado === 'cancelled'
+                ? 'detenida'
+                : `a medias (${res.motivoDelCorte ?? 'sin motivo'})`;
+          console.log(
+            `campaña ${data.campaignId}: ${cierre}; quedaron ${res.quedan} sin enviar`,
+          );
+        }
+        return res;
+      },
+      redisConnection(),
+      { disabled: 'delay' },
+    );
+    trabajadores.push({ nombre: 'cola automations', worker: automationsWorker });
+    console.log('workers: worker de cola automations activo');
   } else {
     console.log('workers: sin REDIS_URL; colas BullMQ esperan configuración');
   }
@@ -767,6 +835,11 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
     alApagar(nombre, () => worker.close());
   }
   alApagar('publicador de salientes', () => outboundPublisher.close());
+  // La cola de campañas también PRODUCE trabajo (el lote siguiente), así que se
+  // cierra con los productores y no con la base.
+  alApagar('cola de campañas', async () => {
+    if (colaAutomations) await colaAutomations.close();
+  });
   // La base al final: los workers y el despachador la usan mientras drenan.
   alApagar('base de datos', () => pool.end());
 

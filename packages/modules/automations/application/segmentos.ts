@@ -120,15 +120,68 @@ export async function previsualizarSegmento(
   };
 }
 
-/** Los ids, para el envío. Con tope duro: una campaña no es un barrido. */
-export async function contactosDelSegmento(
+/**
+ * Cuántos son y si el tope dejó a alguien afuera. Para lanzar una campaña.
+ *
+ * **El tope de 5.000 era callado y eso lo hacía peor que el tope del proveedor**
+ * (#609). `enviarCampana` pedía los ids sin pasar `tope`, así que el límite era
+ * 5.000 fijo y nada lo decía: una cartera de 7.000 recibía 5.000 mensajes y la
+ * campaña se marcaba `done`. Los 2.000 que faltaban no aparecían en los
+ * saltados, no tenían motivo y no tenían fila. El tope del proveedor al menos
+ * deja un `failed` con su código; este no dejaba nada.
+ *
+ * Y cuenta en vez de traer los ids, que es lo que hacía la versión anterior de
+ * este arreglo: lanzar una campaña de 5.000 no necesita 5.000 uuid cruzando la
+ * red para después medir el largo del arreglo. Con la base lejos del VPS (#711)
+ * eso son 64 ms por viaje y un arreglo que no se usa para nada.
+ */
+export async function contarSegmento(
   client: PoolClient,
   input: { tenantId: string; filtros: FiltrosSegmento; tope?: number },
-): Promise<string[]> {
+): Promise<{ total: number; truncado: boolean }> {
   const { where, params } = condiciones(input.tenantId, input.filtros);
   const tope = Math.min(Math.max(1, Math.floor(Number(input.tope) || 5000)), 5000);
+  const r = await client.query(`SELECT count(*)::int AS n FROM contacts c WHERE ${where}`, params);
+  const cuantos = r.rows[0].n as number;
+  return { total: Math.min(cuantos, tope), truncado: cuantos > tope };
+}
+
+/**
+ * El lote siguiente de una campaña: los del segmento que **todavía no tienen
+ * fila** en `campaign_recipients` (#609).
+ *
+ * Es un anti-join y no un cursor sobre la fecha, y la diferencia importa:
+ * `ORDER BY created_at` no es un orden único —dos contactos del mismo instante
+ * empatan— así que un cursor sobre la fecha saltaría o repetiría filas justo en
+ * el empate. Acá el cursor ES la tabla de destinatarios, que ya existe, ya tiene
+ * su `UNIQUE (campaign_id, contact_id)` y no puede desincronizarse de la
+ * realidad porque es la realidad.
+ *
+ * Dos cosas salen gratis: retomar es idempotente —si el job se cae a mitad de un
+ * lote, el siguiente no vuelve a mandarle a quien ya tiene fila— y pausar queda
+ * a un issue de distancia, porque «por dónde iba» no hay que guardarlo.
+ *
+ * El orden `(created_at, id)` es determinista, así que dos lotes consecutivos no
+ * se pisan ni se saltan a nadie aunque el segmento gane contactos mientras sale.
+ */
+export async function loteSiguienteDeCampana(
+  client: PoolClient,
+  input: { tenantId: string; filtros: FiltrosSegmento; campaignId: string; lote: number },
+): Promise<string[]> {
+  const { where, params } = condiciones(input.tenantId, input.filtros);
+  const lote = Math.min(Math.max(1, Math.floor(Number(input.lote) || 100)), 500);
+  params.push(input.campaignId);
   const r = await client.query(
-    `SELECT c.id FROM contacts c WHERE ${where} ORDER BY c.created_at LIMIT ${tope}`,
+    `SELECT c.id FROM contacts c
+      WHERE ${where}
+        AND NOT EXISTS (
+          SELECT 1 FROM campaign_recipients cr
+           WHERE cr.tenant_id = c.tenant_id
+             AND cr.campaign_id = $${params.length}
+             AND cr.contact_id = c.id
+        )
+      ORDER BY c.created_at, c.id
+      LIMIT ${lote}`,
     params,
   );
   return r.rows.map((x) => x.id as string);

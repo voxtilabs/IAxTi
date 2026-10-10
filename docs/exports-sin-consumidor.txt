@@ -70,7 +70,6 @@ automations/AUTOMATION_AUTHOR
 automations/LIMITE_LISTADO
 automations/RULE_TEMPLATES
 automations/TRIGGER_EVENTS
-automations/contactosDelSegmento
 automations/evaluateConditions
 automations/handleAutomationEvent
 automations/resolverValores

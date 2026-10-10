@@ -1286,10 +1286,31 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "CampanasController_detener": {
+    "metodo": "POST",
+    "ruta": "/v1/campanas/{id}/detener",
+    "resumen": "Detiene una campaña en curso y dice cuántos salieron",
+    "permiso": "automations.manage",
+    "modulo": "automations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "CampanasController_enviar": {
     "metodo": "POST",
     "ruta": "/v1/campanas/{id}/enviar",
-    "resumen": "Manda la campaña: cada destinatario queda con su resultado",
+    "resumen": "Lanza la campaña: queda saliendo por lotes, con su total congelado",
     "permiso": "automations.manage",
     "modulo": "automations",
     "soloSesion": false,
@@ -1395,6 +1416,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "argumentos": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "CampanasController_seguir": {
+    "metodo": "POST",
+    "ruta": "/v1/campanas/{id}/seguir",
+    "resumen": "Manda los que quedaron de una campaña a medias",
+    "permiso": "automations.manage",
+    "modulo": "automations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
       "additionalProperties": false
     }
   },

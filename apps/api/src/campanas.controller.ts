@@ -2,28 +2,35 @@ import {
   BadRequestException,
   Controller,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { createQueue, redisConnection } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import {
   crearCampana,
-  enviarCampana,
+  detenerCampana,
   guardarSegmento,
+  iniciarCampana,
   listarCampanas,
   listarSegmentos,
   obtenerCampana,
   previsualizarCampana,
   previsualizarSegmento,
   resultadosDeCampana,
+  seguirCampana,
+  volverABorrador,
   type FiltrosSegmento,
 } from '@iaxti/module-automations';
-import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
-import { sendMessage } from '@iaxti/module-conversations';
-import { enviarPlantilla, getTemplate, numeroEnRojo } from '@iaxti/module-whatsapp';
+// El controlador dejó de saber cómo se manda un mensaje cuando dejó de
+// mandarlos: eso vive ahora en `apps/workers/src/campanas.ts`, en un solo lugar
+// (#609). Acá solo queda lo que hace falta para lanzar: la plantilla y la
+// calidad del número.
+import { getTemplate, numeroEnRojo } from '@iaxti/module-whatsapp';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
@@ -46,6 +53,16 @@ function pool() {
 
 function actorOf(request: WithUser): Actor {
   return request.actor as Actor;
+}
+
+/**
+ * La cola donde sale la campaña. Perezosa, como la de pagos: sin `REDIS_URL`
+ * el resto del controlador —crear, previsualizar, listar— sigue funcionando.
+ */
+let colaAutomations: ReturnType<typeof createQueue> | null = null;
+function campanasQueue(): ReturnType<typeof createQueue> {
+  colaAutomations ??= createQueue('automations', redisConnection());
+  return colaAutomations;
 }
 
 /**
@@ -203,71 +220,153 @@ export class CampanasController {
     );
   }
 
+  /**
+   * Lanza la campaña. **No la manda**: la deja lista y encola (#609, #610).
+   *
+   * Antes esta ruta recorría el segmento completo acá mismo, dentro del request
+   * y dentro de una sola transacción. 900 contactos en un request HTTP es un
+   * timeout esperando ocurrir, y cuando el tope del canal cortaba a mitad de
+   * camino la campaña se reportaba como ENVIADA igual.
+   *
+   * Devuelve 202 y el total congelado: el progreso se mira en
+   * `GET :id/resultados`, que ya existía y ahora tiene qué mostrar mientras sale.
+   */
   @Post(':id/enviar')
+  @HttpCode(202)
   @RequirePermission('automations.manage')
-  @ApiOperation({ summary: 'Manda la campaña: cada destinatario queda con su resultado' })
+  @ApiOperation({ summary: 'Lanza la campaña: queda saliendo por lotes, con su total congelado' })
   async enviar(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
     const requestId = (request as { requestId?: string }).requestId;
     try {
-      const res = await withTenant(pool(), actor.tenantId, async (c) =>
-        enviarCampana(
+      const res = await withTenant(pool(), actor.tenantId, (c) =>
+        iniciarCampana(
           c,
-          { tenantId: actor.tenantId, campaignId: id, actor: actor.userId, actorKind: actor.kind === 'apikey' ? 'apikey' : 'user', requestId },
+          {
+            tenantId: actor.tenantId,
+            campaignId: id,
+            actor: actor.userId,
+            actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+            requestId,
+          },
           {
             calidadDelNumero: async () =>
               (await numeroEnRojo(c, actor.tenantId)) ? 'rojo' : 'verde',
-            puedeIniciar: (contactId) => canReceiveBusinessInitiated(c, actor.tenantId, contactId),
-            datosDelContacto: async (contactId) => {
-              const r = await c.query(
-                'SELECT name, phone FROM contacts WHERE tenant_id = $1 AND id = $2',
-                [actor.tenantId, contactId],
-              );
-              return r.rows[0] ?? {};
-            },
-            conversacionDe: async (contactId) => {
-              const r = await c.query(
-                `SELECT id FROM conversations
-                  WHERE tenant_id = $1 AND contact_id = $2 AND channel = 'whatsapp'
-                  ORDER BY last_message_at DESC NULLS LAST LIMIT 1`,
-                [actor.tenantId, contactId],
-              );
-              return (r.rows[0]?.id as string) ?? null;
-            },
-            enviarPlantilla: async ({ conversationId, contactId, templateId, valores }) => {
-              const env = await enviarPlantilla(
-                c,
-                {
-                  tenantId: actor.tenantId,
-                  conversationId,
-                  templateId,
-                  valores,
-                  authorId: actor.userId,
-                  requestId,
-                },
-                {
-                  contactoDe: async () => contactId,
-                  puedeIniciar: () => canReceiveBusinessInitiated(c, actor.tenantId, contactId),
-                  crearMensaje: (m) =>
-                    sendMessage(c, {
-                      tenantId: m.tenantId,
-                      conversationId: m.conversationId,
-                      authorKind: 'user',
-                      authorId: m.authorId,
-                      body: m.body,
-                      requestId: m.requestId,
-                      delivery: 'business',
-                      actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
-                    }),
-                },
-              );
-              return { messageId: env.messageId };
-            },
           },
         ),
       );
 
-      return res;
+      // Se encola DESPUÉS del commit, a propósito: encolar dentro de la
+      // transacción deja el job pidiendo una campaña `sending` que todavía no
+      // existe para nadie más, y el worker se la encuentra en `draft`.
+      //
+      // Y si encolar falla —Redis caído—, la campaña se devuelve a `draft`. Sin
+      // esto quedaría `sending` para siempre, con el dueño mirando un progreso
+      // que nadie va a mover y sin botón para relanzarla: `iniciarCampana`
+      // rechaza todo lo que no sea `draft`. Un estado que miente es peor que un
+      // error, porque el error se puede reintentar.
+      try {
+        await campanasQueue().add('campaign.send', {
+          moduleId: 'automations',
+          tenantId: actor.tenantId,
+          campaignId: id,
+          actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+          requestId,
+        });
+      } catch (err) {
+        await withTenant(pool(), actor.tenantId, (c) =>
+          volverABorrador(c, { tenantId: actor.tenantId, campaignId: id }),
+        );
+        throw new Error(
+          'No pudimos poner la campaña en la cola de envío, así que volvió a borrador. ' +
+            `Intenta de nuevo en un momento. (${(err as Error).message})`,
+        );
+      }
+
+      return {
+        ...res,
+        aviso: res.truncado
+          ? `El segmento tiene más de ${res.total} contactos y esta campaña va a los primeros ${res.total}. ` +
+            'El tope es nuestro, no del canal: para llegar al resto, parte el segmento.'
+          : null,
+      };
+    } catch (err) {
+      throw new BadRequestException({ code: 'CAMPANA_RECHAZADA', message: (err as Error).message });
+    }
+  }
+
+  /**
+   * Detener una campaña que está saliendo mal (#610).
+   *
+   * Mismo permiso que lanzarla, sin pedir uno nuevo: el daño corre mientras se
+   * busca a quien tenga un permiso especial.
+   *
+   * El aviso no promete lo que no podemos cumplir. Lo que ya se mandó al
+   * proveedor **puede alcanzar a entregarse** —lo dice su propia documentación—
+   * así que se dice así y no «no se envió nada más».
+   */
+  @Post(':id/detener')
+  @RequirePermission('automations.manage')
+  @ApiOperation({ summary: 'Detiene una campaña en curso y dice cuántos salieron' })
+  async detener(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    const requestId = (request as { requestId?: string }).requestId;
+    try {
+      const res = await withTenant(pool(), actor.tenantId, (c) =>
+        detenerCampana(c, {
+          tenantId: actor.tenantId,
+          campaignId: id,
+          actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+          requestId,
+        }),
+      );
+      return {
+        ...res,
+        aviso:
+          `Detuviste la campaña. Salieron ${res.encolados} y ${res.sinTocar} no se van a enviar. ` +
+          'Los últimos que ya estaban en el canal pueden alcanzar a entregarse.',
+      };
+    } catch (err) {
+      throw new BadRequestException({ code: 'CAMPANA_RECHAZADA', message: (err as Error).message });
+    }
+  }
+
+  /** Seguir una campaña que quedó a medias por el tope del canal (#609). */
+  @Post(':id/seguir')
+  @HttpCode(202)
+  @RequirePermission('automations.manage')
+  @ApiOperation({ summary: 'Manda los que quedaron de una campaña a medias' })
+  async seguir(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    const requestId = (request as { requestId?: string }).requestId;
+    try {
+      const campana = await withTenant(pool(), actor.tenantId, (c) =>
+        seguirCampana(
+          c,
+          {
+            tenantId: actor.tenantId,
+            campaignId: id,
+            actor: actor.userId,
+            actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+            requestId,
+          },
+          {
+            calidadDelNumero: async () =>
+              (await numeroEnRojo(c, actor.tenantId)) ? 'rojo' : 'verde',
+          },
+        ),
+      );
+      await campanasQueue().add('campaign.send', {
+        moduleId: 'automations',
+        tenantId: actor.tenantId,
+        campaignId: id,
+        actor: actor.userId,
+        actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+        requestId,
+      });
+      return { campana };
     } catch (err) {
       throw new BadRequestException({ code: 'CAMPANA_RECHAZADA', message: (err as Error).message });
     }

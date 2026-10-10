@@ -12,17 +12,39 @@ export interface Campaign {
   id: string;
   name: string;
   templateId: string;
-  status: 'draft' | 'sending' | 'done' | 'cancelled';
+  /**
+   * `partial` es nuevo (#609): la campaña salió pero NO completa, porque el
+   * canal llegó a su tope diario. Antes ese caso se marcaba `done` y el dueño
+   * veía «enviada, 900» con 650 personas que nunca recibieron nada.
+   */
+  status: 'draft' | 'sending' | 'partial' | 'done' | 'cancelled';
   filters: CampaignFilters;
   values: string[];
   /** Quién la lanzó (#697). `null` si no quedó registrado. */
   creadaPor: Quien | null;
+  /** Cuántos eran al lanzar, congelado: el «de 900» de «250 de 900». */
+  plannedTotal: number | null;
+  /** Por qué se cortó o se detuvo, en español, para mostrárselo tal cual. */
+  stopReason: string | null;
+  /** Quién la detuvo y cuándo (#610). */
+  detenidaPor: Quien | null;
+  stopRequestedAt: string | null;
 }
 export interface CampaignListItem extends Campaign {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
-  destinatarios: { encolados: number; saltados: number; fallados: number };
+  /**
+   * `encolados` es encolados, NO entregados — era el bug de #609. Un mensaje
+   * que el canal rechazó sigue contando como encolado, porque encolarlo salió
+   * bien; `noEntregados` es lo que el canal rechazó.
+   */
+  destinatarios: {
+    encolados: number;
+    saltados: number;
+    fallados: number;
+    noEntregados: number;
+  };
 }
 export interface CampaignPreview {
   total: number;
@@ -103,7 +125,25 @@ export function campaignClient(config: { apiUrl: string; token: string; tenantId
      */
     saveSegment: (name: string, filtros: CampaignFilters) =>
       call<{ id: string; name: string }>('CampanasController_guardar', { body: { name, filtros } }),
-    send: (id: string, key: string) => call<{ encolados: number; saltados: number; motivos: Record<string, number> }>('CampanasController_enviar', { id, key }),
+    /**
+     * Lanza la campaña. **Ya no espera a que termine** (#609): devuelve 202 con
+     * el total congelado y la campaña sale por lotes en un job. El progreso se
+     * mira con `results`.
+     */
+    send: (id: string, key: string) =>
+      call<{ campana: Campaign; total: number; truncado: boolean; aviso: string | null }>(
+        'CampanasController_enviar',
+        { id, key },
+      ),
+    /** Detener una campaña que está saliendo mal (#610). */
+    stop: (id: string) =>
+      call<{ campana: Campaign; encolados: number; sinTocar: number; aviso: string }>(
+        'CampanasController_detener',
+        { id },
+      ),
+    /** Mandar los que quedaron de una campaña a medias (#609). */
+    resume: (id: string) =>
+      call<{ campana: Campaign }>('CampanasController_seguir', { id }),
     results: (id: string) => call<CampaignResults>('CampanasController_resultados', { id }),
   };
 }
