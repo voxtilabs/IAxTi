@@ -24,6 +24,7 @@ import {
 import type { BadgeRole } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
 import { DerechosDelTitular } from './derechos-del-titular';
+import { usePieza } from '../arranque';
 import { FusionarDuplicado } from './fusionar-duplicado';
 import { HistoriaDeEtapas } from './historia-de-etapas';
 import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
@@ -110,10 +111,37 @@ function CamposPropios({ valores, definiciones }: {
 export function FichaContacto({
   contactId,
   compacta = false,
+  precargada,
+  etiquetasPrecargadas,
+  esperandoPrecarga = false,
 }: {
   contactId: string;
   /** true en el panel de la bandeja: sin encabezado grande. */
   compacta?: boolean;
+  /**
+   * La ficha que ya trajo el arranque de la conversación (#761).
+   *
+   * Cuando viene, no se pide: es el MISMO dato de `GET /contacts/:id` —sale de
+   * `getContactFicha`, la misma función— así que pedirla otra vez es un viaje
+   * para traer lo que está en la mano.
+   *
+   * Y es opcional a propósito: este componente también vive en la pantalla de
+   * contactos, donde no hay conversación ni arranque que la traiga. Sin la
+   * prop, se comporta igual que antes.
+   */
+  precargada?: Ficha | null;
+  etiquetasPrecargadas?: EtiquetaDto[];
+  /**
+   * `true` cuando alguien va a pasar `precargada` y todavía no llegó.
+   *
+   * Es la distinción que faltaba y por la que el agrupado no bajaba el número:
+   * `undefined` significa «nadie me la va a dar, la pido yo» —la pantalla de
+   * contactos— y `null` significa «viene en camino». Sin este flag, el primer
+   * render de la bandeja veía `precargada = null`, pedía, y la llamada que el
+   * arranque venía a ahorrar se hacía igual: medido en CI, cuatro puertas que no
+   * bajaban.
+   */
+  esperandoPrecarga?: boolean;
 }) {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
@@ -139,19 +167,34 @@ export function FichaContacto({
 
   useEffect(() => setTenant(selectedTenant()), []);
 
+  /**
+   * Las tres listas del NEGOCIO salen del arranque del shell (#761).
+   *
+   * `campos`, el catálogo de etiquetas y `empresas` no dependen de qué contacto
+   * se esté mirando: son del negocio, cambian poco y vienen con su caché en el
+   * arranque. Pedirlas acá costaba tres puertas más cada vez que se abre una
+   * ficha —y la ficha se abre con cada conversación—, para traer exactamente lo
+   * que ya estaba en la mano.
+   *
+   * Este componente lo usan DOS pantallas (la ficha de la bandeja y la de
+   * contactos), y las dos viven dentro del `AppShell`, así que las dos tienen el
+   * arranque. Si una pieza viene `sin-permiso` o `modulo-apagado`, queda vacía
+   * —que es lo que hacía el `catch` de antes— y la sección simplemente no se
+   * dibuja.
+   */
+  const camposDelNegocio = usePieza('campos');
+  const catalogoDeEtiquetas = usePieza('etiquetas');
+  const empresasDelNegocio = usePieza('empresas');
+
   const cargar = useCallback(async () => {
     if (!session || !tenant || !contactId) return;
+    // Con la ficha precargada no se pide nada: ya está. `recargar()` después de
+    // guardar sigue funcionando porque pasa por acá con `precargada` vieja — por
+    // eso la condición mira el id y no solo la presencia de la prop.
     try {
       setFicha(await apiFetch<Ficha>(config, session, tenant, `/contacts/${contactId}`));
-      // Las definiciones aparte: sin ellas los valores son claves sueltas
-      // sin nombre. Si fallan, la ficha se dibuja igual sin esa sección.
-      try {
-        setCampos(await apiFetch<CampoDto[]>(config, session, tenant, '/campos'));
-      } catch {
-        setCampos([]);
-      }
-      // Las etiquetas del contacto (#35). Si fallan, la ficha se dibuja
-      // igual: son contexto, no el dato principal.
+      // Las etiquetas DEL CONTACTO sí son suyas, así que se piden (#35). Si
+      // fallan, la ficha se dibuja igual: son contexto, no el dato principal.
       try {
         setEtiquetas(
           await apiFetch<EtiquetaDto[]>(config, session, tenant, `/tags/contacto/${contactId}`),
@@ -159,27 +202,32 @@ export function FichaContacto({
       } catch {
         setEtiquetas([]);
       }
-      // El catálogo de etiquetas, para ofrecer cuáles poner. Si falla, se
-      // siguen viendo las que el contacto ya tiene.
-      try {
-        setCatalogo(await apiFetch<EtiquetaDto[]>(config, session, tenant, '/tags'));
-      } catch {
-        setCatalogo([]);
-      }
-      // Las empresas para el selector. Si el módulo o el permiso no están,
-      // el selector queda con lo que ya tiene puesto y nada más.
-      try {
-        setEmpresas(
-          await apiFetch<Array<{ id: string; name: string }>>(config, session, tenant, '/empresas'),
-        );
-      } catch {
-        setEmpresas([]);
-      }
     } catch (err) {
       setAviso((err as Error).message);
     }
   }, [config, session, tenant, contactId]);
-  useEffect(() => void cargar(), [cargar]);
+
+  useEffect(() => {
+    if (precargada && precargada.contact?.id === contactId) {
+      setFicha(precargada);
+      setEtiquetas(etiquetasPrecargadas ?? []);
+      return;
+    }
+    // Si viene en camino, se espera: pedirla ahora es la llamada que el arranque
+    // vino a ahorrar.
+    if (esperandoPrecarga) return;
+    void cargar();
+  }, [precargada, etiquetasPrecargadas, contactId, cargar, esperandoPrecarga]);
+
+  useEffect(() => {
+    setCampos((camposDelNegocio.dato as CampoDto[] | undefined) ?? []);
+  }, [camposDelNegocio.dato]);
+  useEffect(() => {
+    setCatalogo((catalogoDeEtiquetas.dato as EtiquetaDto[] | undefined) ?? []);
+  }, [catalogoDeEtiquetas.dato]);
+  useEffect(() => {
+    setEmpresas((empresasDelNegocio.dato as Array<{ id: string; name: string }> | undefined) ?? []);
+  }, [empresasDelNegocio.dato]);
 
   /**
    * Guarda las correcciones. Lo vacío viaja como `null` y no como cadena:

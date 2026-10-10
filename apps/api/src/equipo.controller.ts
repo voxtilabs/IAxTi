@@ -14,7 +14,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { attachmentKey, presignPutUrl, presignUrl, storageFromEnv } from '@iaxti/core';
-import { limitesDelCanal, revisarAdjunto } from '@iaxti/module-channels';
+import { revisarAdjunto } from '@iaxti/module-channels';
+import { limitesDeAdjuntoDe } from './piezas-compartidas';
 import {
   addInternalNote,
   createQuickReply,
@@ -272,15 +273,9 @@ export class EquipoController {
     const conversation = await withTenant(pool(), actor.tenantId, (c) =>
       getConversation(c, actor.tenantId, id),
     ).catch(notFound);
-    return {
-      canal: conversation.channel,
-      limites: limitesDelCanal(conversation.channel).map((l) => ({
-        clase: l.clase,
-        nombre: l.nombre,
-        maxBytes: l.maxBytes,
-        tipos: l.tipos,
-      })),
-    };
+    // La forma se arma en un solo lugar: el arranque de #761 sirve lo mismo por
+    // otra puerta, y dos sitios que arman la misma respuesta se separan.
+    return limitesDeAdjuntoDe(conversation.channel);
   }
 
   @Get('attachments/url')

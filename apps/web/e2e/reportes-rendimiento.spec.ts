@@ -101,12 +101,28 @@ for (const mode of ['dia', 'noche']) test(`gráficos en ${mode}: escala, teclado
 
 test('navegar por menú, pestañas y volver no recarga el documento ni duplica las consultas del menú', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
+  /**
+   * Lo que cuenta cambió de ruta, y la propiedad quedó más fuerte (#761).
+   *
+   * Antes se contaban `/v1/modules/catalogo` y `/v1/me/modules/acceso`: eran las
+   * dos del menú, y la propiedad era «navegar no las vuelve a pedir». Las dos
+   * vienen ahora en `/v1/arranque`, así que lo que hay que contar es el arranque
+   * — y es una propiedad MÁS exigente que la de antes, porque ese arranque trae
+   * además los avisos, los atajos, las etiquetas, los campos, las empresas y la
+   * retención. Si se volviera a pedir en cada navegación, el agrupado habría
+   * cambiado dos llamadas repetidas por nueve.
+   *
+   * UNA vez en toda la sesión: lo pide el proveedor cuando se monta el shell, y
+   * el shell no se desmonta al navegar entre pestañas.
+   */
   const counts = new Map<string, number>();
-  page.on('response', (r) => { const path = new URL(r.url()).pathname; if (['/v1/modules/catalogo', '/v1/me/modules/acceso'].includes(path)) counts.set(path, (counts.get(path) ?? 0) + 1); });
+  page.on('response', (r) => { const path = new URL(r.url()).pathname; if (['/v1/arranque', '/v1/modules/catalogo', '/v1/me/modules/acceso'].includes(path)) counts.set(path, (counts.get(path) ?? 0) + 1); });
   await page.goto('/ajustes/canales');
   await expect(page.getByRole('navigation', { name: 'Ajustes de Canales' })).toBeVisible();
-  await expect.poll(() => counts.get('/v1/me/modules/acceso')).toBe(1);
-  expect(counts.get('/v1/modules/catalogo')).toBe(1);
+  await expect.poll(() => counts.get('/v1/arranque')).toBe(1);
+  // Y las dos viejas ya no se piden desde la pantalla: si vuelven, alguien
+  // volvió a pedir por su cuenta lo que el arranque ya trae.
+  expect(counts.get('/v1/me/modules/acceso')).toBeUndefined();
   await page.evaluate(() => { (window as unknown as Record<string, unknown>).__documento424 = 'mismo'; });
   let documents = 0; page.on('request', (r) => { if (r.isNavigationRequest() && r.resourceType() === 'document') documents++; });
   await page.getByRole('navigation', { name: 'Ajustes de Canales' }).getByRole('link', { name: 'Plantillas', exact: true }).click();
@@ -115,6 +131,8 @@ test('navegar por menú, pestañas y volver no recarga el documento ni duplica l
   await expect(page).toHaveURL(/\/contactos$/);
   await page.goBack(); await expect(page).toHaveURL(/\/ajustes\/plantillas$/);
   expect(documents).toBe(0);
+  // Y el arranque sigue en uno después de tres navegaciones y un `goBack`.
+  expect(counts.get('/v1/arranque')).toBe(1);
   expect(await page.evaluate(() => (window as unknown as Record<string, unknown>).__documento424)).toBe('mismo');
 });
 

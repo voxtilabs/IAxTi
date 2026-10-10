@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -98,17 +98,40 @@ describe('la validación de entrada va en esquemas (#524)', () => {
     expect(fantasmas, 'Sácalos de CON_MOTIVO: ya no están').toEqual([]);
   });
 
-  it('el puente se usa: hay esquemas registrados por operación', async () => {
+  /**
+   * El tiempo se paga UNA vez, acá, y con su motivo escrito (#782).
+   *
+   * Esta prueba se caía por timeout cuando la máquina estaba cargada: usaba
+   * 3,5 s del límite de 5 s por prueba, o sea el 70 % del presupuesto. Un 70 %
+   * no es un margen, es una moneda al aire — y el rojo que salía decía
+   * «timeout», que manda a mirar el reloj en vez de lo que la prueba cuida.
+   *
+   * Medido antes de tocar nada, no supuesto:
+   *
+   *   import('../src/validar')      312 ms
+   *   import('../src/app.module')  2594 ms   ← acá está
+   *
+   * Y esos 2,6 s son inherentes a lo que se comprueba: el registro ocurre cuando
+   * el decorador se EVALÚA, o sea al importar el módulo que lo usa, así que hay
+   * que cargar los controladores de verdad. La primera versión de esta prueba
+   * importaba solo `validar` y medía cero — habría pasado por verde el día que
+   * el registro se rompiera.
+   *
+   * Así que el import se mueve al `beforeAll`, que tiene su propio presupuesto, y
+   * con un límite explícito de 30 s. No es «subirlo hasta que pase»: es pagar
+   * una vez lo que cuesta cargar la app, con el número medido al lado.
+   */
+  let esquemas = 0;
+  beforeAll(async () => {
+    await import('../src/app.module');
+    const { ESQUEMAS_DE_CUERPO } = await import('../src/validar');
+    esquemas = ESQUEMAS_DE_CUERPO.size;
+  }, 30_000);
+
+  it('el puente se usa: hay esquemas registrados por operación', () => {
     // Si `@Cuerpo` dejara de registrar, el catálogo del Agente General volvería
     // a quedarse sin argumentos y nadie se enteraría: las 195 herramientas
     // seguirían ahí, llamándose a ciegas.
-    //
-    // Hay que cargar los CONTROLADORES y no solo `validar`: el registro pasa
-    // cuando el decorador se evalúa, o sea al importar el módulo que lo usa.
-    // La primera versión de esta prueba importaba solo `validar` y medía cero —
-    // habría pasado por verde el día que el registro se rompiera de verdad.
-    await import('../src/app.module');
-    const { ESQUEMAS_DE_CUERPO } = await import('../src/validar');
-    expect(ESQUEMAS_DE_CUERPO.size).toBeGreaterThan(30);
+    expect(esquemas).toBeGreaterThan(30);
   });
 });

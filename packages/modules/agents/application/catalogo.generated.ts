@@ -821,6 +821,61 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ArranqueController_conversacion": {
+    "metodo": "GET",
+    "ruta": "/v1/conversations/{id}/arranque",
+    "resumen": "Lo urgente de una conversación: hilo, mensajes y adjuntos (#761)",
+    "permiso": "conversations.read",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ArranqueController_ficha": {
+    "metodo": "GET",
+    "ruta": "/v1/conversations/{id}/arranque/ficha",
+    "resumen": "El resto de una conversación: notas, copiloto y ficha (#761)",
+    "permiso": "conversations.read",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ArranqueController_shell": {
+    "metodo": "GET",
+    "ruta": "/v1/arranque",
+    "resumen": "Todo lo que el shell necesita para abrir, en una llamada (#761)",
+    "permiso": "tenant.read",
+    "modulo": null,
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "AuditController_export": {
     "metodo": "GET",
     "ruta": "/v1/audit/export",

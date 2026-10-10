@@ -64,6 +64,7 @@ import {
   redisConnection,
   versionDelBuild,
 } from '@iaxti/core';
+import { ArranqueController } from './arranque.controller';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
@@ -1028,6 +1029,7 @@ const controllers = [
   PaymentsController,
   PaymentWebhooksController,
   BillingController,
+  ArranqueController,
   // `esProduccion()` y no `(process.env.IAXTI_ENV ?? 'dev') !== 'production'`
   // (#575): con la variable DECLARADA SIN VALOR, `??` no la atrapa, `''` no es
   // `'production'` y el simulador de mensajes entrantes quedaba montado en

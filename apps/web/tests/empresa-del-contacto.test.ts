@@ -33,9 +33,14 @@ describe('empresa del contacto', () => {
   });
 
   it('si no se pueden leer las empresas, la ficha se dibuja igual', () => {
-    // El módulo puede estar apagado o el permiso faltar: eso no puede
-    // dejar en blanco la ficha entera.
-    const i = FICHA.indexOf("'/empresas'");
-    expect(FICHA.slice(i, i + 160)).toContain('setEmpresas([])');
+    // El módulo puede estar apagado o el permiso faltar: eso no puede dejar en
+    // blanco la ficha entera. Desde #761 el dato viene del arranque, y
+    // `usePieza` deja `dato: undefined` en los tres casos que el `catch` de
+    // antes cubría (sin-permiso, modulo-apagado, falla): el `?? []` es lo que
+    // conserva la propiedad.
+    expect(FICHA).toMatch(/usePieza\('empresas'\)/);
+    // `[\s\S]{0,160}` y no `[^)]*`: el valor lleva un cast con sus propios
+    // paréntesis, y una clase negada no los cruza.
+    expect(FICHA).toMatch(/setEmpresas\([\s\S]{0,160}\?\? \[\]\)/);
   });
 });

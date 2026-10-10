@@ -112,7 +112,18 @@ describe('qué se puede adjuntar, y qué se ve cuando no (#560)', () => {
   it('el `accept` del selector sale de la tabla que sirve la API', () => {
     expect(CHAT).toMatch(/limitesDeAdjunto\?\.limites\.flatMap/);
     expect(CHAT).toMatch(/accept: aceptados/);
-    expect(BANDEJA).toContain('/attachments/limites');
+    // Los límites los SIRVE la API, no los copia el front. Desde #761 vienen en
+    // el arranque de la conversación en vez de su ruta propia; lo que esta
+    // prueba cuida es que sigan llegando de allá y no de una tabla local, que es
+    // lo que se separa de la del servidor en el primer cambio.
+    expect(BANDEJA).toMatch(/setLimites\(a\.limitesDeAdjunto\)/);
+    // Y que el chat los lea por `.limites`, que es la FORMA que la API sirve.
+    // Esta línea y la de arriba juntas no bastan: que las dos puertas devuelvan
+    // la misma forma lo fija `apps/api/tests/arranque.test.ts`, comparando el
+    // arranque contra la ruta suelta. Sin esa comparación, el arranque devolvía
+    // el arreglo pelado y acá no se notaba — un arreglo es truthy, el `?.` no
+    // corta, y `.flatMap` lanza durante el render.
+    expect(CHAT).toMatch(/limitesDeAdjunto\?\.limites/);
   });
 
   it('el tipo y el peso se mandan al pedir la URL: sin eso no hay revisión', () => {

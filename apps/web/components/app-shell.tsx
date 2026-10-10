@@ -54,6 +54,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { AvisoResultado } from '@iaxti/ui/react';
+import { ProveedorDeArranque, useArranque, usePieza } from './arranque';
 import { SoporteAviso } from './soporte-aviso';
 import { PaletaComandos } from './paleta-comandos';
 import { AgenteGeneral } from './agente-general';
@@ -61,8 +62,6 @@ import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
 import { queBarraMostrar, type NavItem } from '../lib/nav';
-import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
 import { rutasConCandado } from '../lib/candados';
 
 // El tipo vive en `lib/nav` para no cerrar un ciclo con las pestañas de
@@ -198,32 +197,25 @@ const ICONOS: Record<string, LucideIcon> = {
  * estaría comprando vale más que ocultarlo.
  */
 function useModulosConCandado(): Set<string> {
-  const { session, config } = useSession();
-  const tenant = useSelectedTenant();
-  const [resultado, setResultado] = useState<{ tenant: string; token: string; rutas: Set<string> } | null>(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    if (!session || !tenant) return;
-    void Promise.all([
-      // Qué rutas trae cada módulo: el menú llega aplanado y ahí ya se
-      // perdió de qué módulo salió cada item.
-      fetch(`${config.apiUrl}/v1/modules/catalogo`, { cache: 'no-store', signal: controller.signal }).then(
-        (r) => r.json() as Promise<Array<{ id: string; nav: NavItem[] }>>,
-      ),
-      apiFetch<Array<{ id: string; acceso: 'completo' | 'solo_lectura' }>>(
-        config, session, tenant, '/me/modules/acceso', { signal: controller.signal },
-      ),
-    ])
-      .then(([modulos, acceso]) => {
-        if (!controller.signal.aborted) setResultado({ tenant, token: session.access_token, rutas: rutasConCandado(modulos, acceso) });
-      })
-      // Si falla, el menú queda como lo dibujó el servidor: sin candados,
-      // que es exactamente lo de antes. El tope igual lo aplica la API.
-      .catch(() => { if (!controller.signal.aborted) setResultado(null); });
-    return () => controller.abort();
-  }, [session, config, tenant]);
-  return resultado?.tenant === tenant && resultado?.token === session?.access_token
-    ? resultado.rutas : new Set();
+  /**
+   * Dos llamadas menos (#761): el catálogo de módulos y el acceso por plan
+   * vienen los dos en el arranque.
+   *
+   * El catálogo seguía pidiéndose por `fetch` directo a `/v1/modules/catalogo`
+   * —pública, sin sesión— y el acceso por `apiFetch`. Las dos cosas están ahora
+   * en `/arranque`, y lo que se gana no es solo el viaje: el acceso por plan
+   * abría su propia transacción con su `BEGIN`, su `set_config` y su `COMMIT`.
+   *
+   * Si el arranque falló, esto devuelve el conjunto vacío: el menú queda como lo
+   * dibujó el servidor, sin candados, que es exactamente lo de antes. El tope
+   * igual lo aplica la API.
+   */
+  const { arranque } = useArranque();
+  const acceso = usePieza('acceso');
+  return useMemo(() => {
+    if (!arranque || !acceso.puedeVerla || !acceso.dato) return new Set<string>();
+    return rutasConCandado(arranque.modulos, acceso.dato);
+  }, [arranque, acceso.puedeVerla, acceso.dato]);
 }
 
 /** Dónde se recuerda si esta persona plegó un grupo. Por navegador, nada más. */
@@ -457,8 +449,19 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
  * El `grupo` de cada destino también viene de ahí.
  */
 export function AppShell(props: ShellProps) {
+  /**
+   * El proveedor del arranque va DENTRO de `RequireSession` (#761).
+   *
+   * Afuera pediría `/arranque` sin sesión y comería un 401 en cada carga; y
+   * tiene que envolver todo el contenido porque las piezas las leen componentes
+   * de cualquier profundidad —la campana de avisos, el aviso de soporte, los
+   * atajos de la bandeja—, que es exactamente por qué estaban pidiendo cada uno
+   * lo suyo.
+   */
   return <SessionProvider config={props.config}><RequireSession>
-    <ContenidoShell {...props} />
+    <ProveedorDeArranque>
+      <ContenidoShell {...props} />
+    </ProveedorDeArranque>
   </RequireSession></SessionProvider>;
 }
 
