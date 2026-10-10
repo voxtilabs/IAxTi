@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from './testing/fuente-limpia';
 
 /**
  * Columnas que se escriben y nadie lee (#703).
@@ -98,15 +99,6 @@ export function columnasDeclaradas(
 }
 
 /** El código sin comentarios: acá se explica por qué algo NO se usa. */
-function sinComentarios(codigo: string): string {
-  return codigo
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .map((l) => l.replace(/\s\/\/.*$/, ''))
-    .filter((l) => !l.trim().startsWith('//'))
-    .join('\n');
-}
-
 /** Las cadenas con SQL de un archivo: plantillas o cadenas simples. */
 function consultas(codigo: string): string[] {
   const todas: string[] = [];
@@ -169,7 +161,7 @@ export function lecturasPorTabla(
   }
 
   for (const bruto of textos) {
-    const texto = sinComentarios(bruto);
+    const texto = fuenteLimpia(bruto);
     const tablas = [...porTabla.keys()].filter((t) => new RegExp(`\\b${t}\\b`).test(texto));
     if (tablas.length === 0) continue;
 

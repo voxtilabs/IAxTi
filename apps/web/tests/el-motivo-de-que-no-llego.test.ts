@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * La bandeja tiene que decir POR QUÉ no llegó (#645).
@@ -18,11 +19,8 @@ import { join } from 'node:path';
 const CHAT = readFileSync(join(__dirname, '../components/bandeja/chat.tsx'), 'utf8');
 
 /** Sin comentarios: los míos ya me han hecho pasar por verde cuatro veces. */
-function sinComentarios(fuente: string): string {
-  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-}
 
-const CODIGO = sinComentarios(CHAT);
+const CODIGO = fuenteLimpia(CHAT);
 
 describe('un mensaje que no llegó dice por qué (#645)', () => {
   it('la bandeja lee el motivo del mensaje, no solo su estado', () => {

@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Los directorios temporales se borran al terminar.
@@ -57,9 +58,7 @@ function clasesUsadas(): Set<string> {
       if (!ruta.endsWith('.tsx')) continue;
       // Sin comentarios: un comentario que EXPLICA una clase muerta no es un uso
       // de esa clase. Me pasó cinco veces escribiendo guardas de esta familia.
-      const texto = readFileSync(ruta, 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/.*$/gm, '');
+      const texto = fuenteLimpia(readFileSync(ruta, 'utf8'));
       for (const m of texto.matchAll(/'([^']*)'|"([^"]*)"|`([^`]*)`/g)) {
         for (const token of (m[1] ?? m[2] ?? m[3] ?? '').split(/\s+/)) {
           // Solo las familias que este test vigila: las de animación y las que

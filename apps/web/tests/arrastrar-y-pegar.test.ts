@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Arrastrar un archivo y pegar una captura (#561).
@@ -23,15 +24,13 @@ const HOOK = readFileSync(
 const CHAT = readFileSync(join(RAIZ, 'components', 'bandeja', 'chat.tsx'), 'utf8');
 const PDF = readFileSync(join(RAIZ, 'components', 'conocimiento-pdf.tsx'), 'utf8');
 
-const sinComentarios = (f: string) =>
-  f.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
 describe('el gesto vive en un solo lugar (#561)', () => {
   it('ni la bandeja ni el conocimiento traen su propio onDrop', () => {
     // Dos copias del mismo manejador se separan en el primer arreglo: es
     // exactamente el defecto que este issue viene a no repetir.
     for (const [nombre, fuente] of [['chat.tsx', CHAT], ['conocimiento-pdf.tsx', PDF]] as const) {
-      const limpio = sinComentarios(fuente);
+      const limpio = fuenteLimpia(fuente);
       expect(limpio, nombre).not.toMatch(/onDrop=\{/);
       expect(limpio, nombre).not.toMatch(/onDragOver=\{/);
       expect(limpio, nombre).not.toMatch(/dataTransfer/);
@@ -52,7 +51,7 @@ describe('el gesto vive en un solo lugar (#561)', () => {
   it('pegar texto sigue siendo pegar texto', () => {
     // Romper Ctrl+V en un campo de mensajes sería un arreglo peor que el
     // problema: solo se intercepta si el portapapeles trae un archivo.
-    const limpio = sinComentarios(HOOK);
+    const limpio = fuenteLimpia(HOOK);
     const i = limpio.indexOf('if (archivos.length === 0) return;');
     const j = limpio.indexOf('e.preventDefault()', i);
     expect(i).toBeGreaterThan(0);
@@ -105,7 +104,7 @@ describe('sin hex suelto ni tamaños arbitrarios en lo nuevo (#561)', () => {
     // Sin comentarios antes de buscar hex: un «#548» en una nota parece un
     // color de tres dígitos, y una guarda que grita por su propia explicación
     // se apaga igual de rápido que una que no grita.
-    const codigo = sinComentarios(overlay);
+    const codigo = fuenteLimpia(overlay);
     expect(codigo).not.toMatch(/#[0-9a-fA-F]{3,8}/);
     expect(codigo).not.toMatch(/text-\[\d/);
     expect(codigo).toMatch(/border-action/);

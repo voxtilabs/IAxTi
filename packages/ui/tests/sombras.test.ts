@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Elevación de overlays (ADR-0018); material y superficies en Pulso Vivo (ADR-0021).
@@ -73,14 +74,9 @@ describe('elevación de overlays sin efectos arbitrarios en componentes', () => 
     for (const archivo of archivos) {
       const nombre = archivo.split('/').pop()!;
       if (FLOTAN.has(nombre)) continue;
-      const texto = readFileSync(archivo, 'utf8');
-      // Los comentarios explican por qué NO hay sombra; no cuentan.
-      const sinComentarios = texto
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .filter((l) => !l.trim().startsWith('//'))
-        .join('\n');
-      for (const m of sinComentarios.match(SOMBRA) ?? []) {
+      // Los comentarios explican por qué NO hay sombra; no cuentan (#569).
+      const limpio = fuenteLimpia(readFileSync(archivo, 'utf8'));
+      for (const m of limpio.match(SOMBRA) ?? []) {
         intrusos.push(`${nombre}: ${m}`);
       }
     }
@@ -97,8 +93,7 @@ describe('elevación de overlays sin efectos arbitrarios en componentes', () => 
     for (const archivo of archivos) {
       const nombre = archivo.split('/').pop()!;
       if (!FLOTAN.has(nombre)) continue;
-      const texto = readFileSync(archivo, 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
+      const texto = fuenteLimpia(readFileSync(archivo, 'utf8'))
         .split('\n')
         .filter((l) => !l.trim().startsWith('//'))
         .join('\n');

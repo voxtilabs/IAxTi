@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MANDAN } from '../src/authz/no-por-encima';
 import { registry } from '../src/registry';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Guarda: toda ruta que reparta o edite permisos de rol pasa por la regla (#567).
@@ -17,9 +18,6 @@ const RAIZ = join(__dirname, '..', 'src');
 const ROLES = readFileSync(join(RAIZ, 'roles.controller.ts'), 'utf8');
 const EQUIPO = readFileSync(join(RAIZ, 'equipo-usuarios.controller.ts'), 'utf8');
 
-const sinComentarios = (f: string) =>
-  f.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-
 /**
  * Los métodos que otorgan o cambian lo que un rol puede hacer. Si agregas uno,
  * o lo pones acá o la guarda te lo pide: no hay tercera opción escrita.
@@ -28,7 +26,7 @@ const REPARTEN = ['create', 'update', 'assign'] as const;
 
 describe('nadie reparte por encima de sí mismo (#567)', () => {
   it('las tres rutas de roles pasan por la comprobación', () => {
-    const limpio = sinComentarios(ROLES);
+    const limpio = fuenteLimpia(ROLES);
     for (const metodo of REPARTEN) {
       const i = limpio.indexOf(`async ${metodo}(`);
       expect(i, `no encontré el método ${metodo}`).toBeGreaterThan(0);
@@ -46,13 +44,13 @@ describe('nadie reparte por encima de sí mismo (#567)', () => {
     expect(EQUIPO).toContain('nadiePorEncimaDeSiMismo');
     // Y ya no tiene su propia versión: cuatro copias de una regla de
     // autorización se separan, y la vieja es la que alguien va a usar.
-    const limpio = sinComentarios(EQUIPO);
+    const limpio = fuenteLimpia(EQUIPO);
     expect(limpio).not.toContain('MANDAN.has(');
     expect(limpio).not.toMatch(/const MANDAN|export const MANDAN/);
   });
 
   it('no aparece ninguna ruta nueva de roles sin la comprobación', () => {
-    const limpio = sinComentarios(ROLES);
+    const limpio = fuenteLimpia(ROLES);
     // Los métodos del controller que responden a un verbo que escribe.
     const escriben = [...limpio.matchAll(/@(?:Post|Put|Patch|Delete)\([^)]*\)[\s\S]{0,400}?async (\w+)\(/g)]
       .map((m) => m[1]!);

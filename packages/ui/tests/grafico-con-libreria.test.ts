@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Los gráficos con librería (#525), y las tres cosas que no se pueden perder.
@@ -24,14 +25,12 @@ const REPORTES = readFileSync(
 );
 const CSS = readFileSync(join(UI, 'pulso-vivo.css'), 'utf8');
 
-const sinComentarios = (f: string) =>
-  f.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
 describe('el peso de la librería no lo paga todo el mundo (#525)', () => {
   it('el barril NO exporta el gráfico de series', () => {
     // Exportarlo desde `index.ts` mete recharts en la primera carga de TODAS
     // las pantallas, porque el barril es un solo módulo.
-    const limpio = sinComentarios(BARRIL);
+    const limpio = fuenteLimpia(BARRIL);
     expect(limpio).not.toMatch(/export \{[^}]*GraficoSeries/);
     // El anillo sí: no usa librería.
     expect(limpio).toMatch(/export \{ GraficoCierre \} from '\.\/grafico-cierre'/);
@@ -46,7 +45,7 @@ describe('el peso de la librería no lo paga todo el mundo (#525)', () => {
     // importa recharts, así que menciona la palabra. Es la tercera vez esta
     // semana que una guarda mía se pone roja por su propia explicación; va en su
     // issue, porque hay treinta archivos de prueba con su propia copia de esto.
-    expect(sinComentarios(CIERRE)).not.toContain('recharts');
+    expect(fuenteLimpia(CIERRE)).not.toContain('recharts');
     expect(CIERRE).toContain('GraficoCierre');
   });
 
@@ -85,7 +84,7 @@ describe('la accesibilidad se queda (#525)', () => {
 
 describe('Pulso manda sobre la paleta de la librería (#525)', () => {
   it('ni un hex suelto ni un color literal en el componente', () => {
-    const limpio = sinComentarios(SERIES);
+    const limpio = fuenteLimpia(SERIES);
     expect(limpio).not.toMatch(/#[0-9a-fA-F]{3,8}/);
     // Los colores de serie van por token, no por nombre ni por rgb.
     expect(limpio).toMatch(/var\(--\$\{s\.tono\}-text\)/);
@@ -95,7 +94,7 @@ describe('Pulso manda sobre la paleta de la librería (#525)', () => {
   it('el tamaño y el color de los ejes salen del CSS, no del componente', () => {
     // Un `fill` o un `fontSize` en el componente es lo que Pulso prohíbe: el
     // componente no tiene por qué saber en qué modo está.
-    const limpio = sinComentarios(SERIES);
+    const limpio = fuenteLimpia(SERIES);
     expect(limpio).not.toMatch(/fontSize:/);
     expect(limpio).not.toMatch(/tick=\{\{/);
     expect(CSS).toContain('.pulso-chart .recharts-cartesian-axis-tick text');
@@ -110,7 +109,7 @@ describe('Pulso manda sobre la paleta de la librería (#525)', () => {
 
   it('el algoritmo de ticks que manteníamos ya no existe', () => {
     // Si vuelve «por si acaso», tenemos las dos cosas que mantener.
-    const limpio = sinComentarios(SERIES);
+    const limpio = fuenteLimpia(SERIES);
     expect(limpio).not.toContain('techoDeEscala');
     // La nota de arriba CITA el algoritmo que se borró, a propósito: quien lea
     // el archivo en un año merece saber qué había. Por eso se busca en el código.

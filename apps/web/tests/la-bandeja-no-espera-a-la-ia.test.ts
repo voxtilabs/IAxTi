@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * La bandeja no espera a la IA para mostrar lo que ya tiene (#690).
@@ -22,16 +23,9 @@ import { join } from 'node:path';
  */
 const BANDEJA = join(__dirname, '..', 'components', 'bandeja', 'bandeja.tsx');
 
-function sinComentarios(texto: string): string {
-  return texto
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((l) => !l.trim().startsWith('//'))
-    .join('\n');
-}
 
 describe('cargar una conversación (#690)', () => {
-  const codigo = sinComentarios(readFileSync(BANDEJA, 'utf8'));
+  const codigo = fuenteLimpia(readFileSync(BANDEJA, 'utf8'));
 
   it('la sugerencia de IA NO está en el camino que se espera', () => {
     // El `await` de la carga solo puede cubrir el detalle y los mensajes. Si

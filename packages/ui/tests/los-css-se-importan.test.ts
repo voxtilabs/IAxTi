@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Cada hoja de estilo que el paquete publica la importa alguna app.
@@ -35,7 +36,7 @@ describe('las hojas de estilo llegan a las apps', () => {
   it('ningún alias se refiere a sí mismo e invalida el token en el navegador', () => {
     const ciclos: string[] = [];
     for (const hoja of hojas) {
-      const css = readFileSync(join(UI, hoja.slice(2)), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      const css = fuenteLimpia(readFileSync(join(UI, hoja.slice(2)), 'utf8'));
       for (const m of css.matchAll(/(--[\w-]+)\s*:\s*var\(\s*(--[\w-]+)\s*\)\s*;/g)) {
         if (m[1] === m[2]) ciclos.push(`${hoja}: ${m[1]}`);
       }

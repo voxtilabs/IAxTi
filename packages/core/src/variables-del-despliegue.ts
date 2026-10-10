@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from './testing/fuente-limpia';
 
 /**
  * Qué variables de entorno lee el código que se despliega.
@@ -61,17 +62,6 @@ function* archivosDe(dir: string): Generator<string> {
  * también aparece dentro de cualquier URL y ahí sí se perdería una lectura
  * de verdad.
  */
-function sinComentarios(texto: string): string {
-  return texto
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((l) => {
-      const t = l.trim();
-      return !t.startsWith('//') && !t.startsWith('*');
-    })
-    .join('\n');
-}
-
 /** `process.env.FOO` y `process.env['FOO']`. */
 const LECTURA = /process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\])/g;
 
@@ -97,7 +87,7 @@ export function variablesQueLeeElCodigo(raices: string[]): LecturaDeVariable[] {
     for (const archivo of archivosDe(raiz)) {
       let texto: string;
       try {
-        texto = sinComentarios(readFileSync(archivo, 'utf8'));
+        texto = fuenteLimpia(readFileSync(archivo, 'utf8'));
       } catch {
         continue;
       }

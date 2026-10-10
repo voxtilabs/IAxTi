@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * La burbuja de validación del navegador no aparece (#618).
@@ -24,8 +25,6 @@ function tsx(dir: string, salida: string[] = []): string[] {
   return salida;
 }
 
-const sinComentarios = (f: string) =>
-  f.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
 /**
  * El chat de la bandeja queda fuera con su motivo escrito: su campo de mensaje no
@@ -42,7 +41,7 @@ describe('ningún formulario deja aparecer la burbuja nativa (#618)', () => {
   it('el escáner encuentra formularios', () => {
     // Sin esto, «cero formularios con el problema» y «el escáner no mira donde
     // debe» se ven exactamente igual.
-    const conForm = archivos.filter((f) => sinComentarios(readFileSync(f, 'utf8')).includes('<form'));
+    const conForm = archivos.filter((f) => fuenteLimpia(readFileSync(f, 'utf8')).includes('<form'));
     expect(archivos.length).toBeGreaterThan(20);
     expect(conForm.length + 1).toBeGreaterThan(0);
   });
@@ -50,7 +49,7 @@ describe('ningún formulario deja aparecer la burbuja nativa (#618)', () => {
   it('todo formulario con un campo obligatorio usa <Formulario>', () => {
     const malos: string[] = [];
     for (const ruta of archivos) {
-      const limpio = sinComentarios(readFileSync(ruta, 'utf8'));
+      const limpio = fuenteLimpia(readFileSync(ruta, 'utf8'));
       const nombre = ruta.split('/').pop()!;
       if (CON_MOTIVO[nombre]) continue;
       // Un `<form` crudo con un campo obligatorio adentro: ahí sale la burbuja.

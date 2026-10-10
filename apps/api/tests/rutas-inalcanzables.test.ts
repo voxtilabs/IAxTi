@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Una ruta literal declarada DESPUÉS de una con parámetro no existe (#657).
@@ -23,13 +24,6 @@ import { join } from 'node:path';
 const DIR = join(__dirname, '..', 'src');
 
 /** Sin comentarios: los de este repo nombran rutas todo el tiempo. */
-function sinComentarios(fuente: string): string {
-  return fuente
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((l) => !l.trim().startsWith('//'))
-    .join('\n');
-}
 
 interface Declarada {
   verbo: string;
@@ -39,7 +33,7 @@ interface Declarada {
 
 function rutasDe(fuente: string): Declarada[] {
   const salida: Declarada[] = [];
-  const lineas = sinComentarios(fuente).split('\n');
+  const lineas = fuenteLimpia(fuente).split('\n');
   lineas.forEach((l, i) => {
     const m = /@(Get|Post|Put|Patch|Delete)\(\s*(?:'([^']*)')?\s*\)/.exec(l);
     if (m) salida.push({ verbo: m[1], camino: m[2] ?? '', linea: i + 1 });

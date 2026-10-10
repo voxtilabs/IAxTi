@@ -226,6 +226,26 @@ jobs:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
         run: pnpm --filter @iaxti/module-agents exec node scripts/run-evals.mjs
 
+      # Los workflows se revisan a sí mismos (#770).
+      #
+      # Un `needs:` a un job que no existe, un `runs-on` mal escrito, una
+      # expresión que nombra algo no declarado: nada de eso se ve hasta que el
+      # job corre, y entonces ya se gastaron doce minutos. `actionlint` lo ve en
+      # 17 ms.
+      #
+      # El binario se baja de las releases y NO se usa la acción oficial: esa
+      # corre en un contenedor de Docker Hub, y meter esa dependencia de vuelta
+      # sería deshacer #760 y #765 por comodidad.
+      - name: Workflows (actionlint)
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar xz actionlint
+          ./actionlint
+
       # Análisis estático de seguridad (#81). Corre en CADA PR y BLOQUEA:
       # un hallazgo de seguridad que solo avisa se ignora a la tercera vez.
       # El ruleset es el de OWASP + TypeScript de la propia Semgrep.

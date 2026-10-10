@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from './testing/fuente-limpia';
 
 /**
  * Barridos que recorren TODOS los tenants (#743).
@@ -37,15 +38,6 @@ function fuentes(dir: string, acc: string[] = []): string[] {
 }
 
 /** El código sin comentarios: acá se explica por qué algo NO se hace. */
-function sinComentarios(codigo: string): string {
-  return codigo
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .map((l) => l.replace(/\s\/\/.*$/, ''))
-    .filter((l) => !l.trim().startsWith('//'))
-    .join('\n');
-}
-
 export interface LlamadaDeBarrido {
   /** Ruta relativa al repo, para que el mensaje se pueda seguir. */
   archivo: string;
@@ -72,7 +64,7 @@ export interface LlamadaDeBarrido {
 export function llamadasDeBarrido(archivos: Array<{ archivo: string; codigo: string }>): LlamadaDeBarrido[] {
   const encontradas: LlamadaDeBarrido[] = [];
   for (const { archivo, codigo } of archivos) {
-    const texto = sinComentarios(codigo);
+    const texto = fuenteLimpia(codigo);
     for (const funcion of ['porCadaTenant', 'idsDeTenants']) {
       let desde = texto.indexOf(`${funcion}(`);
       while (desde !== -1) {
