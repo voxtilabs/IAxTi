@@ -74,6 +74,29 @@ interface Estado {
 
 const Ctx = createContext<Estado>({ arranque: null, error: null, recargar: () => {} });
 
+/**
+ * Lo último que contestó el arranque, por negocio y por sesión.
+ *
+ * ## Por qué hace falta un caché fuera de React
+ *
+ * Cada pantalla compone su propio `<AppShell>`, así que navegar entre secciones
+ * DESMONTA y vuelve a montar el proveedor. Sin esto, el arranque se pedía de
+ * nuevo en cada navegación: medido en CI, **cuatro veces** en tres navegaciones y
+ * un «atrás».
+ *
+ * Y eso convertía el agrupado en lo contrario de lo que vino a hacer: antes eran
+ * dos llamadas del menú repetidas por navegación; ahora habrían sido nueve
+ * piezas. Lo cazó la guarda de #424 el mismo día que la endurecí para contar el
+ * arranque — y vale decir que ese defecto ya existía para las dos llamadas del
+ * menú: la versión anterior de esa prueba contaba ANTES de navegar, así que
+ * nunca lo miró.
+ *
+ * La llave lleva el token además del negocio: un `access_token` nuevo es una
+ * sesión nueva y puede traer otros permisos, así que servir lo de antes sería
+ * mostrar lo que ya no corresponde.
+ */
+let enCache: { llave: string; arranque: Arranque } | null = null;
+
 export function ProveedorDeArranque({ children }: { children: ReactNode }) {
   const { session, config } = useSession();
   /**
@@ -101,6 +124,17 @@ export function ProveedorDeArranque({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!session || !tenant) return;
+    const llave = `${tenant}|${session.access_token}`;
+    // Volver de otra sección no vuelve a pedirlo: es el mismo negocio y la misma
+    // sesión, y el proveedor se remonta porque cada pantalla arma su AppShell.
+    // Sin `&& vuelta === 0`: `recargar()` ya borra el caché, y con esa condición
+    // de más el caché quedaba inservible después de la primera recarga —`vuelta`
+    // se queda en 1 para siempre— así que volver de otra sección pedía de nuevo.
+    if (enCache?.llave === llave) {
+      setArranque(enCache.arranque);
+      setError(null);
+      return;
+    }
     // Lo que había del negocio anterior se descarta ANTES de pedir lo nuevo: si
     // se dejara, entre el cambio y la respuesta la pantalla pinta lo de allá.
     setArranque(null);
@@ -108,6 +142,7 @@ export function ProveedorDeArranque({ children }: { children: ReactNode }) {
     void apiFetch<Arranque>(config, session, tenant, '/arranque', { signal: controller.signal })
       .then((a) => {
         if (!controller.signal.aborted) {
+          enCache = { llave, arranque: a };
           setArranque(a);
           setError(null);
         }
@@ -121,7 +156,17 @@ export function ProveedorDeArranque({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [config, session, tenant, vuelta]);
 
-  const recargar = useCallback(() => setVuelta((v) => v + 1), []);
+  /**
+   * Volver a pedirlo de verdad: invalida el caché además de disparar el efecto.
+   *
+   * Sin borrar `enCache`, `recargar()` volvería a servir lo mismo que ya había y
+   * la pantalla no se enteraría de lo que acaba de cambiar — una recarga que no
+   * recarga es peor que no tener el botón.
+   */
+  const recargar = useCallback(() => {
+    enCache = null;
+    setVuelta((v) => v + 1);
+  }, []);
   const valor = useMemo(() => ({ arranque, error, recargar }), [arranque, error, recargar]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
