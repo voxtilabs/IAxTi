@@ -43,9 +43,27 @@ if [ -z "$cuerpo" ]; then
   exit 0
 fi
 
+# La clave AUSENTE y `"sha": null` son dos cosas distintas (#573).
+#
+# `jq -r '.sha // empty'` las colapsaba en vacío, y son diagnósticos opuestos:
+#
+#  - **ausente**: está corriendo una imagen anterior a #566, que todavía no
+#    informaba el SHA. Ahí sí hay que mirar la imagen.
+#  - **`null`**: la imagen es nueva —`version.ts` siempre serializa la clave— y
+#    lo que no llegó es la VARIABLE `IAXTI_IMAGE`. Ahí mirar la imagen es
+#    perder el tiempo: el problema está en el `environment` del compose.
+#
+# El 26/09 `/health` contestó `{"status":"ok","service":"api","sha":null}` y el
+# diagnóstico que salió fue «está corriendo una imagen anterior a #566», que es
+# mentira y manda al operador al lugar equivocado.
+tiene_clave=$(printf '%s' "$cuerpo" | jq -r 'has("sha")' 2>/dev/null) || tiene_clave='false'
 sha=$(printf '%s' "$cuerpo" | jq -r '.sha // empty' 2>/dev/null) || sha=''
 if [ -z "$sha" ]; then
-  echo "sha-de-health: /health contestó ${codigo} sin un .sha legible. Cuerpo:" >&2
+  if [ "$tiene_clave" = 'true' ]; then
+    echo "sha-de-health: /health contestó ${codigo} con \"sha\": null — la imagen es nueva y lo que NO llegó es IAXTI_IMAGE. Revisa el environment del compose, no la imagen. Cuerpo:" >&2
+  else
+    echo "sha-de-health: /health contestó ${codigo} SIN la clave .sha — está corriendo una imagen anterior a #566. Cuerpo:" >&2
+  fi
   printf '%s\n' "$cuerpo" | head -c 600 >&2
   echo >&2
   exit 0

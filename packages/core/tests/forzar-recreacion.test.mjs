@@ -83,6 +83,11 @@ function correr(nombre, extra = {}) {
       CONTADOR: contador,
       LLAMADAS: llamadas,
       PASO_SEG: '1',
+      // Sin presupuesto de espera por defecto: las pruebas del camino de
+      // FORZADO quieren una sola mirada, como antes de #573. La espera tiene
+      // sus propias pruebas más abajo, con un presupuesto chico.
+      ESPERA_SHA_SEG: '0',
+      PASO_SHA_SEG: '1',
       ...extra,
     },
     encoding: 'utf8',
@@ -98,7 +103,7 @@ describe('forzar la recreación (#652)', () => {
     // Lo más importante de esta prueba: NO se detuvo el stack. Un stop de más
     // es una caída de staging que nadie pidió.
     expect(r.llamadas).toEqual([]);
-    expect(r.stdout).toContain('ya tomó la imagen');
+    expect(r.stdout).toContain('tomó la imagen');
   });
 
   it('si atiende otra imagen, la fuerza: stop y después deploy', () => {
@@ -174,5 +179,49 @@ describe('forzar la recreación (#652)', () => {
     const r = correr('sin-base', { BASE: '' });
     expect(r.status).toBe(0);
     expect(r.llamadas).toEqual([]);
+  });
+
+  /**
+   * La ventana de gracia, que es la causa de #254 (#573).
+   *
+   * Esto sondeaba `/health` UNA vez, inmediatamente después de que Dokploy dijo
+   * `done`. Pero el workflow tiene MEDIDO que entre ese `done` y el primer
+   * `/health` del build nuevo pasan unos diez minutos, y que en ese rato
+   * contesta el contenedor VIEJO con su SHA (#643).
+   *
+   * O sea que la mirada única veía el SHA viejo casi siempre —aunque Dokploy
+   * hubiera recreado perfectamente— y detenía staging en CADA despliegue. Ese
+   * es el síntoma que #254 reporta: «cada despliegue deja staging sin atender
+   * unos diez minutos».
+   *
+   * `CAMBIA_EN` del arnés simula exactamente eso: el viejo contesta las
+   * primeras veces y después aparece el nuevo.
+   */
+  it('si el build nuevo aparece DENTRO de la espera, no detiene nada', () => {
+    const r = correr('gracia', {
+      SHA_VIVO: 'viejo9999999',
+      SHA_DESPUES: 'nuevo1234567',
+      CAMBIA_EN: '2',
+      ESPERA_SHA_SEG: '5',
+    });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    // Lo que importa: ni STOP ni DEPLOY. Staging siguió atendiendo.
+    expect(r.llamadas, 'detuvo staging aunque el build nuevo llegó').toEqual([]);
+    expect(r.stdout).toContain('tomó la imagen');
+  });
+
+  it('pero si no aparece en toda la espera, SÍ lo fuerza', () => {
+    // La otra mitad: la ventana de gracia no puede volverse una excusa para no
+    // actuar nunca. Si pasado el presupuesto sigue el viejo, Dokploy no recreó
+    // y hay que forzarlo — con la caída que eso implica, a sabiendas.
+    const r = correr('sin-gracia', {
+      SHA_VIVO: 'viejo9999999',
+      ESPERA_SHA_SEG: '2',
+      // Y el presupuesto de DESPUÉS del stop también chico: si no, la prueba
+      // espera los diez minutos de la recreación de verdad.
+      ESPERA_RECREAR_SEG: '3',
+    });
+    expect(r.llamadas).toContain('STOP');
+    expect(r.stdout).toContain('sigue contestando');
   });
 });
