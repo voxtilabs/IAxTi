@@ -65,6 +65,11 @@ jobs:
       - name: Qué quedó renderizado
         if: always()
         run: |
-          echo '```yaml' >> "$GITHUB_STEP_SUMMARY"
-          head -40 /tmp/render.yaml >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # Un solo grupo y una sola redirección (SC2129): con tres `>>`
+          # seguidos, si el archivo se vuelve inescribible a mitad de camino el
+          # resumen queda cortado sin que nada lo diga.
+          {
+            echo '```yaml'
+            head -40 /tmp/render.yaml
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

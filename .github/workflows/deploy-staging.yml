@@ -257,7 +257,10 @@ jobs:
           # decía 1 s siempre, porque medía hasta que alguien contestaba y no
           # hasta que contestaba el build desplegado. Un número que siempre da
           # lo mismo no está midiendo.
-          for i in $(seq 1 72); do
+          # `_` y no `i`: acá el contador no se usa —la espera se mide con el
+          # reloj, unas líneas más abajo— y una variable de ciclo que nadie lee
+          # es justo lo que shellcheck marca (SC2034). `_` dice «a propósito».
+          for _ in $(seq 1 72); do
             # /health puede responder mientras la base todavía conecta (#17,
             # #254). Esperar readiness; una caída persistente sigue fallando.
             codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/ready" || true)
@@ -283,7 +286,14 @@ jobs:
           # Fuera de Actions no hay GITHUB_OUTPUT, y este mismo paso se
           # ejecuta de verdad en un test (`smoke-readiness`): redirigir a una
           # ruta vacía aborta el script con `set -e`.
-          [ -n "${GITHUB_OUTPUT:-}" ] && echo "ventana_sin_atender_seg=${espera}" >> "$GITHUB_OUTPUT" || true
+          #
+          # Con `if` y no con `A && B || C` (SC2015): en esa forma el `|| true`
+          # también se ejecuta cuando A es verdadero y B falla, así que un
+          # `echo` que no puede escribir quedaba tapado. Acá el único caso que
+          # se quiere tolerar es que la variable no exista.
+          if [ -n "${GITHUB_OUTPUT:-}" ]; then
+            echo "ventana_sin_atender_seg=${espera}" >> "$GITHUB_OUTPUT"
+          fi
           if [ "$listo" = "si" ] && [ "$espera" -gt "$PRESUPUESTO_SEG" ]; then
             # Aviso y no error: el despliegue SÍ quedó sano, y fallarlo
             # dejaría staging desplegado con el CI en rojo, que es la peor

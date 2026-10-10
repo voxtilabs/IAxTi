@@ -94,6 +94,16 @@ if ! git diff --quiet HEAD -- .github/workflows || ! git diff --cached --quiet -
     printf '   go install github.com/rhysd/actionlint/cmd/actionlint@latest\n'
     printf '   (o baja el binario de https://github.com/rhysd/actionlint/releases)\n'
   fi
+  # Y shellcheck: `actionlint` lo usa para los bloques `run:` SI está en el
+  # PATH, y si no, calla. Así que sin él esto da menos hallazgos que CI —me
+  # pasó: medí «cero hallazgos» en local y CI encontró cuatro—. Un chequeo
+  # local que mide menos que el de CI es peor que no tenerlo, porque da
+  # confianza falsa.
+  if command -v actionlint >/dev/null 2>&1 && ! command -v shellcheck >/dev/null 2>&1; then
+    printf '   \033[33mOJO: sin shellcheck, actionlint NO revisa los bloques run:\033[0m\n'
+    printf '   CI sí lo tiene, así que allá puede salir rojo lo que acá pasó. Instálalo:\n'
+    printf '   apt-get install shellcheck\n'
+  fi
 fi
 
 printf '\n'
