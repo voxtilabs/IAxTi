@@ -47,13 +47,32 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 768, height: 768 
     // la prueba llama a la API de verdad, el panel queda con un mensaje, no
     // desborda, y falla en `scrollTop > 0` — por un motivo que no tiene nada que
     // ver con el scroll.
-    await page.route('**/v1/conversations/*/messages*', (route) => route.fulfill({ json:
-      Array.from({ length: 80 }, (_, i) => ({
-        id: `mensaje-scroll-${i}`, direction: 'in', type: 'text', deliveryStatus: null,
-        authorKind: 'contact', createdAt: new Date(Date.now() - i * 60_000).toISOString(),
-        body: `Mensaje de prueba ${i + 1}. Historial largo para comprobar el desplazamiento.`,
-      })),
+    const ochenta = Array.from({ length: 80 }, (_, i) => ({
+      id: `mensaje-scroll-${i}`, direction: 'in', type: 'text', deliveryStatus: null,
+      authorKind: 'contact', createdAt: new Date(Date.now() - i * 60_000).toISOString(),
+      body: `Mensaje de prueba ${i + 1}. Historial largo para comprobar el desplazamiento.`,
     }));
+    await page.route('**/v1/conversations/*/messages*', (route) => route.fulfill({ json: ochenta }));
+    /**
+     * El historial inicial llega por el ARRANQUE desde #761, no por `/messages`.
+     *
+     * Esta prueba mockeaba solo `/messages` y por eso el chat quedaba vacío: sin
+     * mensajes no hay nada que desplazar y `scrollTop` se queda en 0. El mock de
+     * `/messages` se conserva porque sigue sirviendo «cargar los anteriores»,
+     * que es la otra mitad de lo que esto prueba.
+     *
+     * Se intercepta la respuesta REAL y se le cambia una pieza, en vez de
+     * inventar el cuerpo entero: así la conversación, los límites de adjunto y la
+     * ventana de 24 h siguen siendo los que sirve la API. Un cuerpo escrito a
+     * mano acá sería otra copia de la forma del servidor —y copiar formas a mano
+     * es lo que rompió #761 dos veces.
+     */
+    await page.route('**/v1/conversations/*/arranque', async (route) => {
+      const respuesta = await route.fetch();
+      const cuerpo = await respuesta.json();
+      cuerpo.mensajes = { estado: 'ok', dato: ochenta };
+      await route.fulfill({ response: respuesta, json: cuerpo });
+    });
     let soporte = false;
     await page.route('**/v1/support-status', (route) => route.fulfill({ json: {
       active: soporte, until: soporte ? new Date(Date.now() + 3_600_000).toISOString() : null,
