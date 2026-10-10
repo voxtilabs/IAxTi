@@ -26,7 +26,7 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  *
  * | Momento | Antes | Con los arranques (#761) |
  * |---|---|---|
- * | Abrir `/bandeja` | **7** | **3** |
+ * | Abrir `/bandeja` | **7** | **4** |
  * | Con una conversación abierta | **21** | **6** |
  *
  * Y lo que de verdad se ganó no son las llamadas: son los **statements**. Toda
@@ -57,8 +57,8 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  * El criterio 1 de #761 pide «a lo más 4» para abrir la bandeja y una
  * conversación, y así quedó repartido:
  *
- *   bandeja:            `/arranque` + `/conversations`                     = 2
- *   con conversación:   + `:id/arranque` + `:id/arranque/ficha`            = 4
+ *   bandeja:            `/me` + `/arranque` + `/conversations` + soporte   = 4
+ *   con conversación:   + `:id/arranque` + `:id/arranque/ficha`            = 6
  *
  * Las cinco de «con conversación», nombradas, porque un número sin nombres no
  * dice si creció por algo bueno:
@@ -89,7 +89,24 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  * Esta vez sirvió al primer intento: el techo iba en 8 y la corrida dijo 12,
  * con los nombres de las cuatro que faltaba agrupar.
  */
-const PRESUPUESTO_BANDEJA = 3;
+/**
+ * Cuatro y no tres, y la cuarta es una decisión escrita (#761).
+ *
+ * Bajó a 3 cuando el aviso de modo soporte leía su dato del arranque, y subió a
+ * 4 cuando tuvo que volver a su ruta: el arranque se pide UNA vez por sesión, así
+ * que el soporte que entra diez minutos después no aparecía nunca. Una puerta
+ * más a cambio de que un aviso de privacidad diga la verdad.
+ *
+ * Esto es exactamente lo que el mensaje de error de abajo pide —«si la llamada
+ * nueva hace falta, sube el número acá y escribe por qué»—, y es la primera vez
+ * que lo hago subiendo en vez de bajando.
+ *
+ *   GET /v1/me              quién soy y mis negocios
+ *   GET /v1/arranque        el shell
+ *   GET /v1/conversations   la lista
+ *   GET /v1/support-status  ¿nos están mirando? (tiene que estar fresco)
+ */
+const PRESUPUESTO_BANDEJA = 4;
 const PRESUPUESTO_CON_CONVERSACION = 6;
 
 /**
