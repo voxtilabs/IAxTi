@@ -1,3 +1,4 @@
+import { textoDeEntorno } from '@iaxti/core';
 import {
   BadRequestException,
   Controller,
@@ -207,7 +208,13 @@ export class EquipoUsuariosController {
       // Mejor-esfuerzo: sin SMTP configurado la invitación existe igual y el
       // enlace se puede pasar a mano. Que no salga el correo no puede
       // deshacer lo que ya quedó en la base.
-      const enlace = `${process.env.APP_URL_PUBLIC ?? ''}/invitacion/${invitacion.token}`;
+      // El `?? ''` de antes (#575) dejaba el enlace RELATIVO —
+      // `/invitacion/<token>` — cuando la variable venía en blanco, y el
+      // compose de staging la pasa pelada (`${APP_URL_PUBLIC}`, sin `:?`).
+      // Un enlace relativo dentro de un correo no lleva a ninguna parte: la
+      // invitación existía en la base y era imposible de aceptar.
+      const base = textoDeEntorno('APP_URL_PUBLIC', 'https://app-staging.iaxti.cl');
+      const enlace = `${base}/invitacion/${invitacion.token}`;
       await sendNotificationEmail(c, {
         tenantId: actor.tenantId,
         userId: actor.userId,

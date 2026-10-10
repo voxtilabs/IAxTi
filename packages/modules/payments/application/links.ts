@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { publishEvent } from '@iaxti/core';
+import { publishEvent, textoDeEntorno, esProduccion } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { getContactEmail } from '@iaxti/module-crm';
 import { flowConfig } from '../domain/flow-config';
@@ -93,8 +93,17 @@ export function rowToLink(row: Record<string, unknown>, quien?: Map<string, Quie
  */
 export function assertModoPermitido(mode: 'test' | 'live'): void {
   if (mode !== 'live') return;
-  const entorno = process.env.IAXTI_ENV ?? 'dev';
-  if (entorno === 'production') return;
+  // Con `IAXTI_ENV` en BLANCO esto lanzaba en producción (#575).
+  //
+  // Era `process.env.IAXTI_ENV ?? 'dev'`, y `??` no atrapa la cadena vacía:
+  // `'' !== 'production'` → lanza. O sea que una variable sin valor en el panel
+  // **tiraba abajo toda creación de link de pago** en producción, con un
+  // mensaje que habla de ambientes de prueba. El issue decía que generaría
+  // links malos; la consecuencia era la opuesta y peor de diagnosticar.
+  //
+  // `esProduccion` además AVISA cuando la variable está en blanco, que es la
+  // información que faltaba para encontrarlo.
+  if (esProduccion()) return;
   throw new Error(
     'El modo live cobra dinero real: en este ambiente los proveedores van siempre en modo test.',
   );
@@ -185,6 +194,12 @@ export interface CreateLinkInput {
   expiresHours?: number;
   /** El tope del USER (matriz §23); null = sin tope (SUPERVISOR/ADMIN). */
   maxAmountClp?: number | null;
+  /**
+   * La base pública del link, si quien llama tiene una mejor que la del
+   * ambiente. HOY NO TIENE LLAMADOR (#575): se conserva porque es el punto de
+   * entrada para un dominio propio por tenant (#159), y porque borrarlo
+   * significaría volver a inventarlo. Si #159 se descarta, esto se va con él.
+   */
   publicBaseUrl?: string;
   /** Si viene, manda: el email de quien paga, escrito por quien cobra. */
   payerEmail?: string;
@@ -292,7 +307,28 @@ export async function createPaymentLink(
       input.actorUserId ?? null,
     ],
   );
-  const base = input.publicBaseUrl ?? process.env.PUBLIC_API_URL ?? 'https://api-staging.iaxti.cl';
+  /**
+   * La base pública, y una vacía NO es una base (#575).
+   *
+   * Esto era `process.env.PUBLIC_API_URL ?? 'https://api-staging.iaxti.cl'`, y
+   * `??` no atrapa la cadena vacía. Con la variable en blanco —que es cómo
+   * queda una variable de proyecto sin valor en el compose de staging, que la
+   * pasa pelada— `base` quedaba `''` y al proveedor se le mandaban
+   * `returnUrl: '/pagos/gracias'` y `confirmUrl: '/webhooks/payments/<id>'`:
+   * rutas RELATIVAS.
+   *
+   * Lo que pasa entonces no es un error visible: Flow acepta la orden con una
+   * URL de confirmación inservible, **el cliente paga, el webhook nunca llega,
+   * el link queda `pending` para siempre y en el CRM no hay registro del pago**.
+   *
+   * `input.publicBaseUrl` se quedó: existe para que un tenant con dominio
+   * propio pueda tener su propia base, y es lo que va a usar #159. Hasta
+   * entonces no tiene llamador, y eso está anotado al lado de su declaración
+   * en vez de borrarlo y volverlo a inventar.
+   */
+  const base = textoDeEntorno('PUBLIC_API_URL', 'https://api-staging.iaxti.cl', {
+    env: input.publicBaseUrl ? { PUBLIC_API_URL: input.publicBaseUrl } : undefined,
+  });
   // El vencimiento viaja al proveedor. Guardarlo solo en nuestra tabla dejaba
   // la orden vigente para siempre del otro lado: 'expired' o 'cancelled' acá
   // no impide que el cliente pague allá.

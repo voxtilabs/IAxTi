@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enteroDeEntorno } from '../src/entorno';
+import { enteroDeEntorno, textoDeEntorno, entornoDesplegado, esProduccion } from '../src/entorno';
 
 // `Number(process.env.X ?? 120)` se lee bien y falla mal. Lo que sigue es
 // cada forma en que falla, con el nombre de lo que rompía.
@@ -59,5 +59,69 @@ describe('enteroDeEntorno', () => {
     // Y `min: 0` para los que sí aceptan cero con sentido (una pausa de 0 ms
     // es "sin pausa", y eso es una configuración válida).
     expect(enteroDeEntorno('PAUSA', 4000, { env: { PAUSA: '0' }, min: 0 })).toBe(0);
+  });
+});
+
+describe('textos del entorno (#575)', () => {
+  it('ausente y EN BLANCO son lo mismo: cae al por-defecto', () => {
+    // Las dos entradas se prueban por separado a propósito: `??` atrapa la
+    // primera y no la segunda, y esa diferencia es el issue entero.
+    expect(textoDeEntorno('X', 'defecto', { env: {} })).toBe('defecto');
+    expect(textoDeEntorno('X', 'defecto', { env: { X: '' } })).toBe('defecto');
+    expect(textoDeEntorno('X', 'defecto', { env: { X: '   ' } })).toBe('defecto');
+  });
+
+  it('un valor de verdad llega limpio', () => {
+    expect(textoDeEntorno('X', 'defecto', { env: { X: 'https://api.iaxti.cl' } })).toBe(
+      'https://api.iaxti.cl',
+    );
+    // Los espacios de los costados se van: pegar un valor en un panel los trae,
+    // y una URL con un espacio al final no es la misma URL.
+    expect(textoDeEntorno('X', 'd', { env: { X: '  valor  ' } })).toBe('valor');
+  });
+
+  it('no avisa por una variable sin configurar: avisar de lo normal apaga los avisos', () => {
+    const avisos: string[] = [];
+    const original = console.warn;
+    console.warn = (m: string) => avisos.push(m);
+    try {
+      textoDeEntorno('X', 'd', { env: {} });
+      textoDeEntorno('X', 'd', { env: { X: '' } });
+    } finally {
+      console.warn = original;
+    }
+    expect(avisos).toEqual([]);
+  });
+});
+
+describe('IAXTI_ENV es distinta: en blanco SÍ avisa (#575)', () => {
+  it('ausente no avisa; en BLANCO sí', () => {
+    // De `IAXTI_ENV` cuelgan el modo de los pagos, el environment de Sentry y la
+    // comprobación de aislamiento. Caer al por-defecto en silencio es cómo un
+    // ambiente mal configurado se hace pasar por desarrollo.
+    const avisos: string[] = [];
+    const original = console.warn;
+    console.warn = (m: string) => avisos.push(m);
+    try {
+      expect(entornoDesplegado({ env: {} })).toBe('development');
+      expect(avisos, 'avisó por una variable que simplemente no está').toEqual([]);
+      expect(entornoDesplegado({ env: { IAXTI_ENV: '' } })).toBe('development');
+      expect(avisos).toHaveLength(1);
+      expect(avisos[0]).toMatch(/IAXTI_ENV está en BLANCO/);
+    } finally {
+      console.warn = original;
+    }
+  });
+
+  it('esProduccion es falso con la variable en blanco, que es lo restrictivo', () => {
+    const original = console.warn;
+    console.warn = () => {};
+    try {
+      expect(esProduccion({ env: { IAXTI_ENV: 'production' } })).toBe(true);
+      expect(esProduccion({ env: { IAXTI_ENV: '' } })).toBe(false);
+      expect(esProduccion({ env: {} })).toBe(false);
+    } finally {
+      console.warn = original;
+    }
   });
 });

@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
+import { publishEvent, esProduccion, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { porCadaTenant, withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import { MAX_ATTEMPTS, backoffMinutes, newWebhookSecret, signPayload } from '../domain/signing';
@@ -50,7 +50,11 @@ export async function createEndpoint(
   } catch {
     throw new Error('La URL del webhook no se entiende.');
   }
-  if (url.protocol !== 'https:' && process.env.IAXTI_ENV === 'production') {
+  // `esProduccion()` y no `=== 'production'` (#575): con la variable en blanco
+  // la comparación es falsa y esta guarda **deja pasar un webhook por http en
+  // producción** — los eventos del negocio, con sus datos, saliendo en claro.
+  // Falla abierto y en silencio, que es la peor forma de fallar para una guarda.
+  if (url.protocol !== 'https:' && esProduccion()) {
     throw new Error('En producción los webhooks van por https.');
   }
   if (!Array.isArray(input.events) || input.events.length === 0) {

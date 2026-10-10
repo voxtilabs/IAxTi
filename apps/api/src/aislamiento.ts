@@ -5,6 +5,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import type { EstadoRls } from '@iaxti/db';
+import { entornoDesplegado } from '@iaxti/core';
 import type { WithRequestId } from './request-id';
 
 /**
@@ -34,7 +35,17 @@ const ABIERTAS = /^\/(health|ready|docs|metrics)/;
 export class AislamientoGuard implements CanActivate {
   constructor(
     private readonly estado: () => EstadoRls | null,
-    private readonly entorno = process.env.IAXTI_ENV ?? 'development',
+    // Con `IAXTI_ENV` en BLANCO esto se desactivaba solo (#575).
+    //
+    // Era `process.env.IAXTI_ENV ?? 'development'`, y `??` no atrapa la cadena
+    // vacía: `'' !== 'production'` → el guard deja pasar TODO. Y lo que deja
+    // pasar es justo la comprobación de que el rol de la base no se salta RLS.
+    //
+    // O sea: una variable sin valor en el panel apagaba la última red de
+    // seguridad del aislamiento por tenant, en silencio y en producción. El
+    // issue no nombraba esta lectura —nombraba la de `rls.ts`, que solo arma el
+    // texto del log— y es la que de verdad decide.
+    private readonly entorno = entornoDesplegado(),
   ) {}
 
   canActivate(context: ExecutionContext): boolean {

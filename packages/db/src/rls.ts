@@ -60,7 +60,9 @@ export async function estadoRls(client: Pick<Pool, 'query'> | PoolClient): Promi
  */
 export async function exigeRolQueRespetaRls(
   client: Pick<Pool, 'query'> | PoolClient,
-  entorno = process.env.IAXTI_ENV ?? 'development',
+  // `??` no atrapa la cadena vacía (#575). `packages/db` no importa
+  // `@iaxti/core` —sería un ciclo—, así que se normaliza acá.
+  entorno = process.env.IAXTI_ENV?.trim() || 'development',
   intentos = 3,
 ): Promise<EstadoRls> {
   // Preguntar puede fallar por razones que no tienen NADA que ver con el

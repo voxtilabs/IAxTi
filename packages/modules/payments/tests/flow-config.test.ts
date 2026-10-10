@@ -18,7 +18,6 @@ describe('Flow solo usa el destino correspondiente al modo del proveedor', () =>
     ['test', 'staging', 'http://sandbox.flow.cl/api'],
     ['test', 'staging', 'https://sandbox.flow.cl@externo.invalid/api'],
     ['test', 'staging', 'https://sandbox.flow.cl/api?destino=otro'],
-    ['test', 'staging', ''],
   ] as const)('rechaza %s en %s con %s sin enviar credenciales', async (mode, entorno, base) => {
     vi.stubEnv('IAXTI_ENV', entorno);
     vi.stubEnv('FLOW_API_BASE', base);
@@ -51,6 +50,27 @@ describe('Flow solo usa el destino correspondiente al modo del proveedor', () =>
 
   it('sin URL definida usa sandbox; live requiere configurar su URL explícita', () => {
     vi.stubEnv('FLOW_API_BASE', undefined);
+    vi.stubEnv('IAXTI_ENV', 'production');
+    expect(flowConfig(cred).base).toBe('https://sandbox.flow.cl/api');
+    expect(() => flowConfig(cred, 'live')).toThrow(/destino oficial/);
+  });
+
+  /**
+   * #575. Esta tabla tenía una fila `['test', 'staging', '']` que afirmaba que
+   * una `FLOW_API_BASE` DECLARADA Y VACÍA rechazaba el envío. Era cierto, y por
+   * accidente: `(process.env.FLOW_API_BASE ?? SANDBOX)` dejaba `base = ''`, y el
+   * error que saltaba acusaba a la variable de «no corresponder al destino
+   * oficial» cuando lo que pasaba es que estaba vacía. La prueba congelaba ese
+   * diagnóstico equivocado como si fuera la intención.
+   *
+   * Ahora en blanco es lo mismo que ausente —que es todo el issue— y por lo
+   * tanto sandbox. Lo que protege el modo live no se movió: su destino sigue
+   * teniendo que estar escrito, y el por-defecto es sandbox, así que una
+   * variable vacía NO habilita cobros de verdad. Eso es lo que esta prueba
+   * fija, y es la única razón por la que vaciarla puede ser aceptable.
+   */
+  it('una FLOW_API_BASE en blanco es lo mismo que ausente, y live sigue cerrado (#575)', () => {
+    vi.stubEnv('FLOW_API_BASE', '');
     vi.stubEnv('IAXTI_ENV', 'production');
     expect(flowConfig(cred).base).toBe('https://sandbox.flow.cl/api');
     expect(() => flowConfig(cred, 'live')).toThrow(/destino oficial/);

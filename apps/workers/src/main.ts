@@ -14,6 +14,7 @@ import {
   storageFromEnv,
   presignUrl,
   enteroDeEntorno,
+  textoDeEntorno,
   versionDelBuild,
 } from '@iaxti/core';
 import { sinSolaparse, candadoEnRedis } from './sin-solaparse';
@@ -91,7 +92,7 @@ import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
 
-const service = process.env.SERVICE ?? 'workers';
+const service = textoDeEntorno('SERVICE', 'workers');
 const port = enteroDeEntorno('PORT', 3000);
 let consumersStarted = false;
 

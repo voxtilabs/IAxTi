@@ -58,6 +58,7 @@ import {
 import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
 import { withTenant } from '@iaxti/db';
 import {
+  esProduccion,
   leerConCache,
   olvidarEnTodosLosTenants,
   redisConnection,
@@ -1027,7 +1028,12 @@ const controllers = [
   PaymentsController,
   PaymentWebhooksController,
   BillingController,
-  ...((process.env.IAXTI_ENV ?? 'dev') !== 'production' ? [SimuladorController] : []),
+  // `esProduccion()` y no `(process.env.IAXTI_ENV ?? 'dev') !== 'production'`
+  // (#575): con la variable DECLARADA SIN VALOR, `??` no la atrapa, `''` no es
+  // `'production'` y el simulador de mensajes entrantes quedaba montado en
+  // producción. Una ruta que inyecta conversaciones falsas, abierta por una
+  // variable en blanco.
+  ...(esProduccion() ? [] : [SimuladorController]),
 ];
 
 @Module({ controllers })

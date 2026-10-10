@@ -5,13 +5,15 @@ import {
   consumerReadiness,
   createModuleWorker,
   enteroDeEntorno,
+  entornoDesplegado,
   redisConnection,
+  textoDeEntorno,
   versionDelBuild,
 } from '@iaxti/core';
 import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
 import { processSuggest, type SuggestJob } from './copilot';
 
-const service = process.env.SERVICE ?? 'agents';
+const service = textoDeEntorno('SERVICE', 'agents');
 const port = enteroDeEntorno('PORT', 3000);
 let consumersStarted = false;
 
@@ -40,7 +42,11 @@ function start(): void {
   const pool = createPool();
   // Igual que la API y los workers (#211): un rol que se salta RLS no sirve.
   // Grita y sigue; en producción la API además se niega a servir (#227).
-  void exigeRolQueRespetaRls(pool, process.env.IAXTI_ENV);
+  // `process.env.IAXTI_ENV` pelado (#575): con la variable declarada sin
+  // valor llegaba `''`, que no es `'production'`, y la comprobación de que
+  // el rol de la base respeta RLS se degradaba a «grita y sigue» en el
+  // ambiente donde justamente no puede.
+  void exigeRolQueRespetaRls(pool, entornoDesplegado());
 
   if (!process.env.REDIS_URL) {
     console.log('agents: sin REDIS_URL; la cola espera configuración');

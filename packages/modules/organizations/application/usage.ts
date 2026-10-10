@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { TZ_POR_DEFECTO, mesEn } from '@iaxti/core';
+import { TZ_POR_DEFECTO, mesEn, textoDeEntorno } from '@iaxti/core';
 
 export type UsageMetric = 'conversations' | 'ia_executions' | 'storage_mb' | 'api_requests';
 
@@ -9,7 +9,10 @@ export type UsageMetric = 'conversations' | 'ia_executions' | 'storage_mb' | 'ap
  * ya contaban para el mes siguiente: la cuota se reseteaba antes de tiempo.
  */
 export function periodStart(at = new Date()): string {
-  return mesEn(process.env.IAXTI_TZ ?? TZ_POR_DEFECTO, at);
+  // Con `?? TZ_POR_DEFECTO` una `IAXTI_TZ` en blanco llegaba como `''` a
+  // `Intl.DateTimeFormat`, que lanza `RangeError: Invalid time zone` (#575):
+  // la medición de consumo del tenant se caía entera por una variable vacía.
+  return mesEn(textoDeEntorno('IAXTI_TZ', TZ_POR_DEFECTO), at);
 }
 
 /**

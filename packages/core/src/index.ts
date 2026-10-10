@@ -27,7 +27,7 @@ export { leerConCache, olvidarEnCache, olvidarEnTodosLosTenants, claveDeCache } 
 export type { OpcionesDeCache } from './cache';
 export { crearXlsx, referencia } from './xlsx';
 export type { HojaXlsx, ColumnaXlsx, ValorCelda } from './xlsx';
-export { enteroDeEntorno } from './entorno';
+export { enteroDeEntorno, textoDeEntorno, entornoDesplegado, esProduccion } from './entorno';
 export { consumerReadiness } from './consumer-readiness';
 // Qué build está corriendo (#565): el SHA sale del tag de IAXTI_IMAGE.
 export { versionDelBuild } from './version';
@@ -45,6 +45,8 @@ export {
 // Qué publica cada módulo y quién lo usa (#664). Se exporta para que la guarda
 // pueda leerlo; no lo usa nada en producción, y eso está escrito en su lista.
 export { exportsSinConsumidor, valoresQuePublica } from './exports-sin-consumidor';
+export { entornoConCoalescencia } from './entorno-con-coalescencia';
+export type { LecturaConCoalescencia } from './entorno-con-coalescencia';
 // Columnas que se escriben y nadie lee, con trinquete (#703). La familia de
 // autores (#697) es el mismo escáner con un filtro: `ES_DE_AUTOR`.
 export {

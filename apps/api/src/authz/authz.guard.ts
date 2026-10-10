@@ -325,8 +325,33 @@ export class AuthzGuard implements CanActivate {
    */
   private fallbackPermitido(): boolean {
     if (this.options.jwtVerify) return false;
+    // #575. La cerradura 2 SÍ se abría sola, y por lo que menos se mira: una
+    // variable DECLARADA SIN VALOR. Era
+    //
+    //   const ambiente = process.env.IAXTI_ENV;
+    //   return ambiente !== 'production' && ambiente !== 'staging';
+    //
+    // y con `IAXTI_ENV=""` —la forma normal de dejar una variable «apagada»
+    // en un panel— `'' !== 'production' && '' !== 'staging'` es `true`. Si
+    // además faltara `SUPABASE_JWKS_URL`, las DOS cerraduras quedaban
+    // abiertas en producción y cualquiera entraba como cualquier tenant.
+    //
+    // Acá no sirve `entornoDesplegado()`, y vale decir por qué: su
+    // por-defecto es `development`, que es lo más restrictivo para los pagos
+    // y para el aislamiento, pero es lo más PERMISIVO para esta cerradura.
+    // La dirección segura depende de quién pregunta, así que la decide quien
+    // pregunta.
+    //
+    // Y la distinción es exactamente la del issue: ausente no es en blanco.
+    //   · ausente  → nadie configuró un ambiente: es el local sin Supabase
+    //                cableado, el caso que este camino existe para no romper.
+    //   · en blanco → alguien configuró el ambiente y se le quedó vacía. Eso
+    //                 es un despliegue, y en un despliegue esto no se abre.
     const ambiente = process.env.IAXTI_ENV;
-    return ambiente !== 'production' && ambiente !== 'staging';
+    if (ambiente === undefined) return true;
+    const nombre = ambiente.trim();
+    if (nombre === '') return false;
+    return nombre !== 'production' && nombre !== 'staging';
   }
 
   private async actorFrom(context: ExecutionContext): Promise<Actor> {

@@ -3,7 +3,7 @@ import type { LanguageModel } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { enteroDeEntorno } from '@iaxti/core';
+import { enteroDeEntorno, textoDeEntorno } from '@iaxti/core';
 import type { Provider } from '../domain/config';
 import { FalloDeHerramienta, FalloDelProveedor, esDeHerramienta } from './fallo-del-proveedor';
 
@@ -124,7 +124,8 @@ function languageModel(provider: Provider, model: string): LanguageModel {
       return createOpenAICompatible({
         name: 'glm',
         apiKey,
-        baseURL: process.env.GLM_API_BASE ?? 'https://integrate.api.nvidia.com/v1',
+        // Vacía dejaba `baseURL: ''` y el SDK apuntaba a la API de OpenAI (#575).
+        baseURL: textoDeEntorno('GLM_API_BASE', 'https://integrate.api.nvidia.com/v1'),
       })(model);
   }
 }
