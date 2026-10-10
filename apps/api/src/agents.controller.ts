@@ -37,7 +37,8 @@ import {
 } from '@iaxti/module-agents';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
 import { catalogoDeMetricas, metricaEnRango } from '@iaxti/module-analytics';
-import { enteroDeEntorno } from '@iaxti/core';
+// El tipo de cambio sale del contrato de `billing`, que es su dueño (#575).
+import { usdClpRate } from '@iaxti/module-billing';
 import { z } from 'zod';
 import {
   agenteQueConfigura,
@@ -367,7 +368,14 @@ export class AgentsController {
       // El costo en PESOS es para quien supervisa el gasto (matriz §23).
       if (!actorCan(actor, 'agents.usage.read')) return base;
       const costUsd = await costThisCycle(c, actor.tenantId);
-      const usdClp = enteroDeEntorno('USD_CLP_RATE', 950);
+      // El MISMO tipo de cambio que la factura (#575).
+      //
+      // Esto leía `USD_CLP_RATE` por su cuenta y no conocía `BILLING_USD_CLP`:
+      // con la segunda puesta y la primera sin poner, esta pantalla convertía a
+      // 950 y la factura a otro número. Un tipo de cambio, dos lectores, dos
+      // respuestas — y el cliente viendo un costo que no calza con lo que le
+      // cobramos.
+      const usdClp = usdClpRate();
       return {
         ...base,
         costUsdMonth: Number(costUsd.toFixed(4)),

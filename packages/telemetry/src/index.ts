@@ -39,7 +39,15 @@ export function initObservability(serviceName: string): void {
   if (process.env.SENTRY_DSN) {
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
-      environment: process.env.IAXTI_ENV ?? 'local',
+      // Con la variable en BLANCO, Sentry recibía `environment: ''` (#575) y
+      // las reglas de alerta filtradas por 'production' no matcheaban NADA:
+      // los errores llegaban y nadie los veía. `??` no atrapa la cadena vacía.
+      //
+      // Acá no se usa el helper de `@iaxti/core` a propósito: `telemetry` es
+      // una dependencia de `core`, no al revés, y meterle el import cerraría
+      // un ciclo que `dependency-cruiser` caza. El criterio es el mismo —
+      // ausente y en blanco son lo mismo— escrito en una línea.
+      environment: process.env.IAXTI_ENV?.trim() || 'local',
       serverName: serviceName,
       // De qué versión viene el error (#392). Sin esto, en Sentry todos se
       // ven iguales vengan del deploy de hace cinco minutos o del de la

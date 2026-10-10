@@ -1,3 +1,4 @@
+import { entornoDesplegado } from '@iaxti/core';
 import type { NextFunction, Request, Response } from 'express';
 
 // Cabeceras de respuesta de la API (#81). Salieron del primer escaneo ZAP
@@ -32,7 +33,11 @@ export function cabecerasMiddleware(req: Request, res: Response, next: NextFunct
   // la condición basada solo en el proto, HSTS no salía NUNCA en staging.
   // Por eso manda el ambiente, que sí sabemos, y el proto queda de refuerzo
   // para cuando la app se sirva directo por TLS.
-  const desplegado = ['staging', 'production'].includes(process.env.IAXTI_ENV ?? '');
+  // `textoDeEntorno` y no `?? ''` (#575): con la variable en blanco esto daba
+  // `''`, que no está en la lista, así que HSTS no salía en ningún ambiente
+  // desplegado — la cabecera que impide que un navegador vuelva a hablar por
+  // http con la app. Fallaba ABIERTO y sin avisar.
+  const desplegado = ['staging', 'production'].includes(entornoDesplegado());
   if (desplegado || req.secure || req.headers['x-forwarded-proto'] === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }

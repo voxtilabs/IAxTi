@@ -27,7 +27,7 @@ export { leerConCache, olvidarEnCache, olvidarEnTodosLosTenants, claveDeCache } 
 export type { OpcionesDeCache } from './cache';
 export { crearXlsx, referencia } from './xlsx';
 export type { HojaXlsx, ColumnaXlsx, ValorCelda } from './xlsx';
-export { enteroDeEntorno } from './entorno';
+export { enteroDeEntorno, textoDeEntorno, entornoDesplegado, esProduccion } from './entorno';
 export { consumerReadiness } from './consumer-readiness';
 // Qué build está corriendo (#565): el SHA sale del tag de IAXTI_IMAGE.
 export { versionDelBuild } from './version';

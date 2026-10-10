@@ -39,7 +39,7 @@ WHERE rolname = current_user;` — las dos banderas en `false`.
   nunca el valor. Una credencial con `:` o `=` se rechaza a propósito.
 - **Rotar todos los tokens** que hayan pasado por un chat durante la
   construcción. Sin excepción y antes de abrir a clientes.
-- `IAXTI_AUDIT_SECRET` (firma de la exportación de audit): sin él la
+- `AUDIT_EXPORT_SECRET` (firma de la exportación de audit): sin él la
   exportación sale sin firma, y lo dice, pero no sirve como evidencia.
 
 ## 4. El worker de tareas programadas TIENE que estar corriendo
