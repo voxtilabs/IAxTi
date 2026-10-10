@@ -172,8 +172,58 @@ jobs:
             esac
             exit 1
           fi
+          # Si Dokploy está OCUPADO, se espera; no se dispara encima (#573, criterio 3).
+          #
+          # `compose.one` ya traía `composeStatus` y se usaba solo para leer el
+          # `.env`. El estado no lo miraba nadie, y `compose.deploy` se disparaba
+          # igual.
+          #
+          # El escenario: dos merges separados por dos minutos. Con
+          # `cancel-in-progress: false` el segundo job espera al primero, pero el
+          # primero termina cuando `esperar-deploy.sh` ve `done` — no cuando
+          # Dokploy liberó el stack. El segundo manda `compose.update` +
+          # `compose.deploy` sobre un Dokploy a mitad de trabajo, y el `IMAGE`
+          # del env cambia bajo los pies del despliegue anterior.
+          #
+          # Se espera en vez de abortar: el commit igual hay que desplegarlo, y
+          # fallar dejaría staging con el commit viejo y el CI rojo.
+          estado=$(printf '%s\n' "$compose_actual" | jq -r '.composeStatus // "desconocido"')
+          ESPERA_LIBRE_SEG=${ESPERA_LIBRE_SEG:-600}
+          inicio_libre=$(date +%s)
+          while [ "$estado" = "running" ]; do
+            if [ $(( $(date +%s) - inicio_libre )) -ge "$ESPERA_LIBRE_SEG" ]; then
+              echo "Dokploy sigue ocupado después de ${ESPERA_LIBRE_SEG}s. No despliego encima:"
+              echo "cambiar el IMAGE a mitad de un deploy ajeno deja el stack en un estado"
+              echo "que nadie pidió. Revisa el panel y vuelve a correr este workflow."
+              exit 1
+            fi
+            echo "Dokploy está desplegando algo (composeStatus=running); espero."
+            sleep 15
+            compose_actual=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" 2>/dev/null || printf '%s' "$compose_actual")
+            estado=$(printf '%s\n' "$compose_actual" | jq -r '.composeStatus // "desconocido"')
+          done
+          echo "Dokploy libre (composeStatus=${estado}); sigo."
+
           env_actual=$(printf '%s\n' "$compose_actual" | jq -r '.env')
+          # La guarda que `release.yml` y `rollback.yml` SÍ tienen, y acá
+          # faltaba (#573). `compose.update` reemplaza el env ENTERO: mandarlo
+          # vacío borra la configuración del stack —todas las credenciales que
+          # el operador puso en el panel— y el despliegue siguiente arranca sin
+          # base, sin Redis y sin llaves.
+          if [ -z "$env_actual" ] || [ "$env_actual" = "null" ]; then
+            echo "No pude leer el entorno de staging: abortando antes de tocar nada."
+            exit 1
+          fi
           env_nuevo=$(printf '%s\n' "$env_actual" | sed "s|^IMAGE=.*|IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}|")
+          # Y que el `sed` haya COINCIDIDO. Sin esta comprobación, un env sin
+          # línea `IMAGE=` se manda igual: Dokploy despliega con la imagen que
+          # tenía —o sin ninguna— y `esperar-deploy.sh` lo ve `done`. Es el
+          # mismo defecto de #573 por otra puerta: todo verde, nada desplegado.
+          if ! printf '%s\n' "$env_nuevo" | grep -q "^IMAGE=ghcr.io/voxtilabs/iaxti:${SHA}$"; then
+            echo "El entorno de staging no tiene una línea IMAGE= que reemplazar."
+            echo "Sin eso el deploy no cambia la imagen y el pipeline diría que salió bien."
+            exit 1
+          fi
           # GLM (ADR-0025): la llave viaja como secreto de GitHub y el deploy
           # la SIEMBRA en el env de Dokploy si falta — así ningún humano la
           # pega en el panel. Si ya está, manda la del panel (el operador

@@ -93,7 +93,28 @@ inicio=$(date +%s)
 st=desconocido
 for i in $(seq 1 "$sondeos"); do
   sleep "$PASO_SEG"
-  st=$(curl -fsS "${auth[@]}" "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" | jq -r '.composeStatus')
+  # Un 502 transitorio NO puede matar la espera (#573).
+  #
+  # Esto era `curl -fsS … | jq` pelado bajo `set -euo pipefail`: un 502 de
+  # Cloudflare Access —pasó el 26/09 y está documentado en el workflow— abortaba
+  # el script, el paso salía 1, el Smoke nunca corría… y staging SÍ había
+  # quedado desplegado. CI rojo sobre un despliegue sano, que es la combinación
+  # que este repo declara la peor.
+  #
+  # `detalle_del_despliegue` ya se había blindado para esto (#661) y esta copia
+  # —la que de verdad decide— quedó frágil. Es el patrón de #675 otra vez: se
+  # arregla una de las dos y la que importaba sigue igual.
+  #
+  # Un sondeo que no se puede leer no es un fallo del despliegue: es un sondeo
+  # perdido. Se dice y se sigue; el presupuesto total es el que corta.
+  respuesta=$(curl -sS -m 20 -w '\n%{http_code}' "${auth[@]}" \
+    "${DOKPLOY_URL}/api/compose.one?composeId=${COMPOSE_ID}" 2>&1) || respuesta=''
+  http=$(printf '%s' "$respuesta" | tail -1)
+  st=$(printf '%s\n' "$respuesta" | head -n -1 | jq -r '.composeStatus' 2>/dev/null) || st=''
+  if [ -z "$st" ] || [ "$st" = 'null' ]; then
+    echo "[$i] sondeo ilegible (HTTP ${http:-sin código}); sigo esperando"
+    continue
+  fi
   echo "[$i] $st"
   if [ "$st" = "done" ]; then
     echo "Deploy aplicado en $(( $(date +%s) - inicio ))s."

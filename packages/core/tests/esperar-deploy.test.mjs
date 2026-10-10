@@ -44,13 +44,38 @@ echo "$n" > "$CONTADOR"
 estado=running
 if [ "$MODO" = listo ] && [ "$n" -ge 2 ]; then estado=done; fi
 if [ "$MODO" = falla ] && [ "$n" -ge 2 ]; then estado=error; fi
-printf '{"composeStatus":"%s"}' "$estado"
+# Desde #573 el sondeo pide el codigo HTTP con -w, porque un 502 transitorio de
+# Cloudflare mataba el script entero bajo set -e con un despliegue ya aplicado.
+# El curl de mentira tiene que contestar como el de verdad: si se come el -w, el
+# cuerpo se lee como si fuera el codigo.
+#
+# SONDEO_MALO deja que cada prueba simule la respuesta ilegible en el sondeo que
+# quiera: 502 el error de proxy, html un cuerpo que no es JSON, caida que curl
+# no conteste nada. (Sin comillas invertidas aca: esto vive DENTRO de un
+# template literal de JS y una sola lo corta.)
+if [ "\${SONDEO_MALO:-}" = "$n" ] || [ "\${SONDEO_MALO:-}" = todos ]; then
+  case "\${FORMA_MALA:-502}" in
+    html)  printf '<html>Cloudflare Access</html>\n200' ;;
+    caida) exit 7 ;;
+    *)     printf '\n502' ;;
+  esac
+  exit 0
+fi
+printf '{"composeStatus":"%s"}\n200' "$estado"
 `, { mode: 0o755 });
 });
 afterAll(() => rmSync(directorio, { recursive: true, force: true }));
 
 function correr(modo, extra = {}) {
-  const contador = join(directorio, modo + (extra.ESPERA_DEPLOY_SEG ?? ''));
+  // El contador se deriva de TODO lo que distingue a la corrida, no solo del
+  // modo: con dos pruebas que comparten nombre de archivo, la segunda empieza
+  // donde terminó la primera y el sondeo que se quería simular ya pasó. Me
+  // costó dos pruebas en rojo que decían que el script no imprimía algo que sí
+  // imprime.
+  const contador = join(
+    directorio,
+    [modo, ...Object.entries(extra).map(([k, v]) => `${k}-${v}`)].join('_'),
+  );
   return spawnSync('bash', [GUION], {
     env: {
       ...process.env,
@@ -73,6 +98,40 @@ describe('esperar-deploy.sh (#571)', () => {
     const r = correr('listo');
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('Deploy aplicado en');
+  });
+
+  /**
+   * Un sondeo ilegible no es un despliegue fallido (#573).
+   *
+   * Esto era `curl -fsS … | jq` pelado bajo `set -euo pipefail`. Un 502 de
+   * Cloudflare Access —pasó el 26/09 y está documentado en el workflow—
+   * abortaba el script: el paso salía 1, el Smoke nunca corría, y staging SÍ
+   * había quedado desplegado. CI rojo sobre un despliegue sano, que este
+   * repositorio declara la peor combinación para leer.
+   *
+   * Y lo irónico: `detalle_del_despliegue` ya se había blindado para esto en
+   * #661. La copia que de verdad decidía quedó frágil — el patrón de #675 otra
+   * vez.
+   */
+  it.each([
+    ['un 502 de Cloudflare', '502'],
+    ['un cuerpo que no es JSON', 'html'],
+    ['curl que no contesta nada', 'caida'],
+  ])('%s en el primer sondeo no mata la espera', (_que, forma) => {
+    const r = correr('listo', { SONDEO_MALO: '1', FORMA_MALA: forma, ESPERA_DEPLOY_SEG: '5' });
+    // Sale BIEN: el sondeo 2 ve el `done` y el despliegue se declara aplicado.
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain('Deploy aplicado en');
+    // Y lo dice, en vez de callar: un sondeo perdido es información.
+    expect(r.stdout).toContain('sondeo ilegible');
+  });
+
+  it('si NINGÚN sondeo se puede leer, se pasa del presupuesto y lo dice', () => {
+    // La otra mitad: tolerar un sondeo malo no puede volverse tolerar todos.
+    // Si nunca se pudo hablar con Dokploy, eso no es un deploy aplicado.
+    const r = correr('listo', { SONDEO_MALO: 'todos', ESPERA_DEPLOY_SEG: '3' });
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toContain('Deploy aplicado');
   });
 
   it('cuando Dokploy reporta error, lo dice y trae el detalle', () => {

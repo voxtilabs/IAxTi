@@ -68,6 +68,13 @@ cuerpo="$cuerpo}"
 # forma de reproducir el rojo de verdad; con ella, el arreglo se puede probar
 # al revés.
 if [ -n "\${CUERPO_MALO:-}" ] && [[ "$url" == */health ]]; then cuerpo="$CUERPO_MALO"; fi
+# El cuerpo que se midio el 26/09: la clave esta y vale null. Es la imagen
+# NUEVA a la que no llego IAXTI_IMAGE, y se veia igual que la clave ausente
+# (#573). Son diagnosticos opuestos: uno manda a mirar la imagen y el otro la
+# variable del compose.
+if [ -n "\${SHA_NULO:-}" ] && [[ "$url" == */health ]]; then
+  cuerpo='{"status":"ok","service":"api","sha":null}'
+fi
 if [[ "$format" == *'\\n'* ]]; then
   printf '%s\\n%s' "$cuerpo" "$code"
 elif [ -n "$format" ]; then
@@ -298,8 +305,29 @@ describe('un /health ilegible se explica, no se cae (#675)', () => {
     // es la diferencia entre «la app no arrancó» y «el proxy no la encontró»:
     // el 15/09 esa distinción costó una hora de apuestas a ciegas.
     const result = run('recover', sinSha);
-    expect(result.stderr).toMatch(/sha-de-health: \/health contestó 200 sin un \.sha legible/);
+    expect(result.stderr).toMatch(/sha-de-health: \/health contestó 200 SIN la clave \.sha/);
     expect(result.stderr).toContain('status');
+  });
+
+  it('distingue la clave AUSENTE de `sha: null` (#573)', () => {
+    // Son diagnósticos opuestos y se veían igual: `jq -r '.sha // empty'`
+    // devuelve vacío en los dos casos.
+    //
+    //  - ausente → está corriendo una imagen anterior a #566: mirá la imagen.
+    //  - `null`  → la imagen es nueva (`version.ts` siempre serializa la
+    //    clave) y lo que NO llegó es la variable `IAXTI_IMAGE`: mirá el
+    //    `environment` del compose.
+    //
+    // El 26/09 /health contestó `{"status":"ok","service":"api","sha":null}` y
+    // el diagnóstico que salió fue «está corriendo una imagen anterior a
+    // #566» — mentira, y mandó a mirar el lugar equivocado.
+    const conNull = run('recover', { SHA: 'abc1234567890', FAKE_SHA: '', SHA_NULO: '1' });
+    expect(conNull.stderr).toMatch(/IAXTI_IMAGE/);
+    expect(conNull.stderr).not.toMatch(/anterior a #566/);
+
+    const sinClave = run('recover', sinSha);
+    expect(sinClave.stderr).toMatch(/anterior a #566/);
+    expect(sinClave.stderr).not.toMatch(/IAXTI_IMAGE/);
   });
 
   it('un cuerpo que no es JSON no sale con el código 5 de jq (#675)', () => {
@@ -311,7 +339,10 @@ describe('un /health ilegible se explica, no se cae (#675)', () => {
     expect(result.status).toBe(1); // falla, sí: por #573.
     expect(result.status).not.toBe(5); // pero no por el parseo.
     expect(result.stdout).toContain('no informa el SHA');
-    expect(result.stderr).toContain('sin un .sha legible');
+    // El mensaje distingue el caso (#573): un cuerpo que no es un objeto JSON
+    // no tiene la clave, así que cae en la rama de «imagen anterior a #566».
+    // Lo que importa acá es que NO muera con el código 5 de jq.
+    expect(result.stderr).toContain('SIN la clave .sha');
     expect(result.stderr).toContain('200');
   });
 
