@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
   useSession,
 } from '@iaxti/ui/react';
+import { usePieza } from './arranque';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
@@ -36,6 +37,24 @@ export function Campana() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => setTenant(selectedTenant()), []);
+
+  /**
+   * La primera tanda sale del arranque; después se sondea (#761).
+   *
+   * Esta es la división que vale para todo lo que se refresca: el arranque
+   * ahorra la llamada de ENTRADA, que es la que pelea con las otras veinte por
+   * las seis conexiones que el navegador abre por host. El sondeo de cada minuto
+   * no estorba a nadie y sigue por su ruta suelta, que es la que puede pedir
+   * solo esto.
+   */
+  const delArranque = usePieza('avisos');
+  useEffect(() => {
+    if (!delArranque.puedeVerla || !delArranque.dato) return;
+    const dato = delArranque.dato as { items: AvisoDto[]; unread: number };
+    setItems(dato.items);
+    setUnread(dato.unread);
+  }, [delArranque.puedeVerla, delArranque.dato]);
+
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {
@@ -50,7 +69,10 @@ export function Campana() {
   }, [config, session, tenant]);
 
   useEffect(() => {
-    void cargar();
+    // Sin `cargar()` inmediato: eso lo trae el arranque. Si el arranque falló,
+    // el primer sondeo llega en un minuto y la campana no suena hasta entonces
+    // — que es mejor que pagar la llamada de entrada en cada carga por un caso
+    // que no pasa.
     const timer = setInterval(() => void cargar(), 60_000);
     return () => clearInterval(timer);
   }, [cargar]);

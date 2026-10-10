@@ -12,12 +12,13 @@ import { z } from 'zod';
 import { withTenant } from '@iaxti/db';
 import { leerConCache, olvidarEnCache } from '@iaxti/core';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
-import { bandejaSettings, cierreSettings, retentionCutoff, scheduleRetentionNotice, setRetentionOverride } from '@iaxti/module-conversations';
+import { bandejaSettings, cierreSettings, scheduleRetentionNotice, setRetentionOverride } from '@iaxti/module-conversations';
 import type { BandejaSettings, CierreSettings } from '@iaxti/module-conversations';
 
 type AjustesBandeja = BandejaSettings & CierreSettings;
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { validar } from './validar';
+import { retencionVigente } from './piezas-compartidas';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool, apiRedis } from './db';
 
@@ -149,14 +150,9 @@ export class SettingsController {
       apiRedis(),
       { clave: 'retencion', tenantId: actor.tenantId, ttlSegundos: TTL_RETENCION },
       () =>
-        withTenant(pool(), actor.tenantId, async (c) => {
-          const r = await retentionCutoff(c, actor.tenantId);
-          return {
-            months: r.months,
-            cutoff: r.cutoff ? r.cutoff.toISOString().slice(0, 10) : null,
-            deferredUntil: r.deferredUntil ? r.deferredUntil.toISOString().slice(0, 10) : null,
-          };
-        }),
+        // La forma se arma en un solo lugar (#761): el arranque del shell sirve
+        // esto mismo, y rearmarlo allá devolvía `Date` donde acá va 'AAAA-MM-DD'.
+        withTenant(pool(), actor.tenantId, (c) => retencionVigente(c, actor.tenantId)),
     );
   }
 

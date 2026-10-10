@@ -97,8 +97,32 @@ export function fuenteLimpia(texto: string): string {
         // El comentario de JSX se trata completo —con sus llaves— porque
         // dejarlas sueltas convierte `{/* nota */}` en `{}`, y hay guardas que
         // cuentan llaves para encontrar el final de una llamada.
+        //
+        // ## El error que tenía esta línea, y por qué era del peor tipo
+        //
+        // Era `/^\{\s*\/\*[\s\S]*?\*\/\s*\}/`, y ahí hay dos agujeros que se
+        // suman:
+        //
+        //  · `\s*` después de `{` acepta SALTOS DE LÍNEA, así que un `try {`
+        //    con un comentario de bloque en la línea siguiente —la forma más
+        //    común de documentar lo que hay dentro de unas llaves en este
+        //    repositorio— parecía el comienzo de un comentario JSX;
+        //  · y `[\s\S]*?`, aunque sea perezoso, se estira hasta encontrar un
+        //    `*/` seguido de `}`. Si ese par aparece doscientas líneas más
+        //    abajo, se come las doscientas líneas de código del medio.
+        //
+        // Lo medido en `bandeja.tsx`: un `try {` con su comentario debajo
+        // blanqueaba desde ahí hasta un `*/}` lejano. Y el modo de falla es el
+        // peor que puede tener esto: las guardas que miran el código limpio
+        // reciben un archivo medio vacío, y **una aserción negativa sobre texto
+        // que no está pasa sola**. Tres pruebas de #690 se pusieron verdes sin
+        // comprobar nada, y lo que las delató fue que una positiva —«tiene que
+        // existir este bloque»— falló con la cadena vacía.
+        //
+        // Ahora: `[ \t]*` en vez de `\s*` (un comentario JSX no cruza el salto
+        // antes del `/*`), y el cuerpo se corta en el PRIMER `*/`.
         if (c === '{') {
-          const m = /^\{\s*\/\*[\s\S]*?\*\/\s*\}/.exec(texto.slice(i));
+          const m = /^\{[ \t]*\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*\}/.exec(texto.slice(i));
           if (m) {
             salida.push([...m[0]].map(borrar).join(''));
             i += m[0].length;

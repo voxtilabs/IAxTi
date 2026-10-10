@@ -63,6 +63,35 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   'GET /me/modules':
     'Reemplazada por GET /modules/catalogo (#629): el nombre prometía «los míos» y es el catálogo del despliegue. Sigue contestando porque /v1 no se rompe —hay SDK generado y widgets afuera— y se va en /v2. Su consumidor en este repo ES la prueba que comprueba que las dos devuelven lo mismo.',
 
+  /**
+   * Las que el ARRANQUE reemplazó en la pantalla, y que siguen contestando
+   * (#761).
+   *
+   * Dejaron de tener consumidor en el front el día que `GET /arranque` y
+   * `GET /conversations/:id/arranque(/ficha)` empezaron a traer lo mismo en una
+   * llamada. No se borran, y el criterio 1 de #761 lo pide así: el arranque se
+   * AGREGA. Hay SDK generado contra ellas, y quien recarga UNA cosa —las notas
+   * después de escribir una— no tiene por qué volver a pedir los mensajes, la
+   * ficha y las secuencias.
+   *
+   * Su consumidor en este repo son las pruebas: `apps/api/tests/arranque.test.ts`
+   * las llama una por una justamente para que agregar el arranque no las rompa
+   * en silencio.
+   *
+   * Si alguna se queda de verdad sin uso —ni SDK, ni recarga puntual, ni
+   * prueba—, lo que corresponde es sacarla en `/v2`, no dejarla acá.
+   */
+  'GET /conversations/:id/suggestion':
+    'La trae el arranque de la ficha (#761). Sigue viva para el SDK y para recargar solo la sugerencia.',
+  'GET /conversations/:id/analisis':
+    'La trae el arranque de la ficha (#761). Sigue viva para el SDK y para recargar solo el análisis.',
+  'GET /conversations/:id/notes':
+    'La trae el arranque de la ficha (#761). La pantalla la recarga sola después de escribir una nota.',
+  'GET /conversations/:id/attachments/limites':
+    'La trae el arranque urgente (#761). Sigue viva para el SDK y para quien no arranque por acá.',
+  'GET /support-status':
+    'La trae el arranque del shell (#761). Sin caché a propósito: es un aviso de privacidad, no configuración.',
+
   // --- Lo que SÍ es una función sin puerta, con su issue ---
   //
   // Cada una es una pantalla que falta, no una ruta de más. Se sacan de

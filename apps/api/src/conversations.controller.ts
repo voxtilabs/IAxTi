@@ -42,20 +42,17 @@ import type {
   Prioridad,
 } from '@iaxti/module-conversations';
 import {
-  activeAgent,
-  conversationAnalysis,
-  effectiveMode,
   feedbackSuggestion,
   pendingSuggestion,
   porQueNoHaySugerencia,
   resolveSuggestion,
-  modoConQuienLoPuso,
   setConversationMode,
 } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { actorCan } from './authz/can';
+import { analisisDeConversacion } from './piezas-compartidas';
 import { apiPool } from './db';
 
 function pool() {
@@ -637,17 +634,11 @@ export class ConversationsController {
   @ApiOperation({ summary: 'Resumen, intención y calificación para la ficha' })
   async analisis(@Req() request: WithUser, @Param('id') id: string) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, async (c) => {
-      const analisis = await conversationAnalysis(c, actor.tenantId, id);
-      const agent = await activeAgent(c, actor.tenantId);
-      const mode = agent ? await effectiveMode(c, agent, actor.tenantId, id) : 'off';
-      // Quién puso la marca manual, si hay (#697). `set_by` se escribía en
-      // cada cambio y la ficha mostraba solo el modo: dejar que la IA conteste
-      // sola a un cliente es la decisión más delicada del producto, y quien
-      // abre la conversación después tiene que ver quién la tomó.
-      const marcaManual = await modoConQuienLoPuso(c, actor.tenantId, id);
-      return { ...analisis, mode, marcaManual };
-    });
+    // La forma se arma en un solo lugar (#761): el arranque de la ficha sirve
+    // esto mismo por otra puerta, y rearmarlo allá perdió `marcaManual`.
+    return withTenant(pool(), actor.tenantId, (c) =>
+      analisisDeConversacion(c, actor.tenantId, id),
+    );
   }
 
   /**

@@ -1,9 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSession } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
-import { apiFetch } from '../../lib/api';
+import { usePieza } from '../arranque';
 
 // El aviso de retención en la ficha (#77, §39): el equipo sabe desde
 // cuándo NO hay historial — sin sorpresas.
@@ -14,16 +11,20 @@ interface RetencionDto {
 }
 
 export function RetencionAviso() {
-  const { session, config } = useSession();
-  const [datos, setDatos] = useState<RetencionDto | null>(null);
-
-  useEffect(() => {
-    const tenant = selectedTenant();
-    if (!session || !tenant) return;
-    void apiFetch<RetencionDto>(config, session, tenant, '/settings/retencion')
-      .then(setDatos)
-      .catch(() => setDatos(null));
-  }, [session, config]);
+  /**
+   * La retención sale del arranque del shell (#761).
+   *
+   * Es de las que piden una vez y no cambian entre dos clics —viene con su
+   * caché de cinco minutos, la misma clave y el mismo TTL que su ruta suelta—
+   * así que pedirla otra vez al abrir cada conversación era pagar un viaje por
+   * un dato que ya estaba en la mano.
+   *
+   * `sin-permiso` se trata como «no hay aviso» y no como un aviso vacío: quien
+   * no tiene `tenant.settings` no debe leer una frase a medias sobre la
+   * retención de su negocio.
+   */
+  const retencion = usePieza('retencion');
+  const datos = retencion.dato as RetencionDto | undefined;
 
   if (!datos?.cutoff) return null;
   return (

@@ -24,15 +24,24 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  *
  * ## Lo medido (09-10, local, 3 corridas idénticas)
  *
- * | Momento | Llamadas distintas a `/v1` |
- * |---|---|
- * | Abrir `/bandeja` | **7** |
- * | Con una conversación abierta | **21** |
+ * | Momento | Antes | Con los arranques (#761) |
+ * |---|---|---|
+ * | Abrir `/bandeja` | **7** | **2** |
+ * | Con una conversación abierta | **21** | **4** |
  *
- * Y ninguna repetida: son 21 endpoints distintos. O sea que lo que queda por
- * ganar no es quitar duplicados —no hay— sino **agrupar**: un arranque para el
- * shell y otro para la conversación. Eso es un cambio de forma de la API, con
- * sus rutas, su OpenAPI y sus consumidores, y va en su propio issue (#761).
+ * Y lo que de verdad se ganó no son las llamadas: son los **statements**. Toda
+ * ruta de `/v1` pasa por `withTenant`, que hace `BEGIN`, `set_config`, la
+ * consulta y `COMMIT`, así que cada puerta cuesta cuatro viajes y no uno. Con
+ * los 64 ms que midió #711: 21 llamadas ≥ 84 statements ≈ 5,4 s de viaje; 4
+ * llamadas ≈ 16 statements ≈ 1 s. Hay una prueba en `apps/api` que cuenta los
+ * `BEGIN` por petición y exige UNO, porque agrupar las llamadas sin agrupar las
+ * transacciones deja este presupuesto verde y la pantalla igual de lenta.
+ *
+ * Y ninguna repetida: eran 21 endpoints distintos. O sea que lo que había por
+ * ganar no era quitar duplicados —no había— sino **agrupar**. Eso se hizo en
+ * #761: `GET /v1/arranque` para el shell, y para una conversación dos —el
+ * urgente que la pantalla espera y la ficha que entra sola, partidos así para no
+ * deshacer #690.
  *
  * ## Qué se cuenta
  *
@@ -42,8 +51,28 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  * Lo que este presupuesto cuida es la FORMA de la pantalla —de cuántas puertas
  * distintas depende— que es lo que un arranque agrupado puede cambiar.
  */
-const PRESUPUESTO_BANDEJA = 7;
-const PRESUPUESTO_CON_CONVERSACION = 21;
+/**
+ * Lo medido el 09-10 era 7 y 21. Con los arranques de #761 bajan a esto.
+ *
+ * El criterio 1 de #761 pide «a lo más 4» para abrir la bandeja y una
+ * conversación, y así quedó repartido:
+ *
+ *   bandeja:            `/arranque` + `/conversations`                     = 2
+ *   con conversación:   + `:id/arranque` + `:id/arranque/ficha`            = 4
+ *
+ * Los números de acá son un techo con aire, no la medición exacta. Hay paneles
+ * que piden lo suyo al abrirse y que este cambio NO agrupó a propósito —las
+ * secuencias de la ficha, las plantillas del compositor, las reasignaciones—
+ * porque se piden en otro momento y con otros parámetros, y meterlas en el
+ * arranque sería pagar sus consultas en cada apertura para tirarlas.
+ *
+ * Cada corrida IMPRIME el número real y la lista de puertas (ver `contar`): eso
+ * es lo que hay que leer para bajar el techo. Un presupuesto que solo habla
+ * cuando se pasa deja de apretar — nadie sabe cuánto aire queda, así que nadie
+ * lo ajusta, y a la segunda semana mide el crecimiento desde un número inventado.
+ */
+const PRESUPUESTO_BANDEJA = 3;
+const PRESUPUESTO_CON_CONVERSACION = 8;
 
 /**
  * Espera a que la pantalla deje de pedir cosas, y devuelve cuántas puertas tocó.
@@ -82,6 +111,21 @@ test('abrir la bandeja y una conversación no cuesta más llamadas que las medid
     puertas.add(`${r.method()} ${pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, ':id')}`);
   });
 
+  /**
+   * El número medido se IMPRIME siempre, no solo al fallar.
+   *
+   * Un presupuesto que solo habla cuando se pasa deja de apretar: nadie sabe
+   * cuánto aire queda, así que nadie lo baja. Con el número en el log de cada
+   * corrida, bajarlo es leer una línea — y eso es la mitad del trabajo de un
+   * trinquete: #664 ya aprendió que una deuda que no se ve bajar nunca baja.
+   */
+  const contar = async (momento: string, presupuesto: number) => {
+    const n = await cuandoDejeDePedir(puertas);
+    console.log(`[cuantas-llamadas] ${momento}: ${n} puertas (presupuesto ${presupuesto})`);
+    console.log([...puertas].sort().map((p) => `    ${p}`).join('\n'));
+    return n;
+  };
+
   await page.goto('/bandeja');
   await expect(page.getByRole('heading', { name: 'Bandeja', exact: true })).toBeVisible();
   const lista = page.getByRole('region', { name: 'Conversaciones', exact: true });
@@ -91,7 +135,7 @@ test('abrir la bandeja y una conversación no cuesta más llamadas que las medid
   // Un PRESUPUESTO, o sea un techo: pedir menos es la meta, no un fallo. Lo que
   // esto caza es el crecimiento, que es lo que pasa solo.
   expect(
-    await cuandoDejeDePedir(puertas),
+    await contar('bandeja', PRESUPUESTO_BANDEJA),
     `Abrir la bandeja toca estas puertas:\n  ${[...puertas].sort().join('\n  ')}\n` +
       `Son ${puertas.size} y el presupuesto es ${PRESUPUESTO_BANDEJA} (#711). Con la base a 64 ms de ` +
       'viaje, cada una se paga. Si la llamada nueva hace falta, sube el número acá y escribe por qué ' +
@@ -104,7 +148,7 @@ test('abrir la bandeja y una conversación no cuesta más llamadas que las medid
   await expect(page.getByText('Notas del equipo')).toBeVisible();
 
   expect(
-    await cuandoDejeDePedir(puertas),
+    await contar('con conversación', PRESUPUESTO_CON_CONVERSACION),
     `Abrir una conversación toca estas puertas:\n  ${[...puertas].sort().join('\n  ')}\n` +
       `Son ${puertas.size} y el presupuesto es ${PRESUPUESTO_CON_CONVERSACION} (#711). Agruparlas es ` +
       '#761; agregar una más es una decisión que se escribe, no un número que sube solo.',

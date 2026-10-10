@@ -21,6 +21,7 @@ import {
   nombreVisible,
 } from '@iaxti/ui/react';
 import { estaEscribiendo } from '../../lib/teclado';
+import { usePieza, type Pieza } from '../arranque';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
@@ -70,6 +71,30 @@ interface RespuestaDeSugerencia {
  * por su cuenta el día que alguien cambie el defecto.
  */
 const PAGINA_MENSAJES = 50;
+
+/**
+ * Lo que contesta `GET /conversations/:id/arranque` (#761).
+ *
+ * Cada pieza trae su estado porque «no tienes permiso» no es «no hay»: un `null`
+ * para los dos haría que el panel diga «sin notas» a quien no puede verlas.
+ */
+interface ArranqueUrgente {
+  conversacion: ConversacionDetalle;
+  limitesDeAdjunto: LimitesDeAdjunto;
+  mensajes: Pieza<Mensaje[]>;
+}
+
+/**
+ * Tres piezas, no siete: la ficha del contacto y las secuencias las piden sus
+ * propios componentes cuando se abren, que es otro momento y con otros
+ * parámetros. Traerlas acá era pagar cuatro consultas por apertura para tirar
+ * el resultado.
+ */
+interface ArranqueDeFicha {
+  notas: Pieza<NotaDto[]>;
+  sugerencia: Pieza<RespuestaDeSugerencia>;
+  analisis: Pieza<AnalisisDto>;
+}
 
 export function Bandeja() {
   const tenant = useSelectedTenant();
@@ -172,54 +197,48 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const cargarConversacion = useCallback(
     async (id: string) => {
       if (!session || !tenant) return;
+      const sigueAbierta = () => seleccionRef.current === id;
       try {
-        // Cada cosa se dibuja CUANDO LLEGA, no cuando llegaron todas (#690).
-        //
-        // Antes era un Promise.all: las seis salían juntas —eso estaba bien— y
-        // la pantalla esperaba a la ÚLTIMA. O sea, el mensaje del cliente, que
-        // ya estaba en la mano, no se veía hasta que contestara la sugerencia
-        // del copiloto. Y la sugerencia es una llamada al proveedor de IA: el
-        // 28/09 NVIDIA se puso a encolar y la misma petición pasó de 2 s a
-        // 170 s. La bandeja entera quedaba en blanco esperando a la IA.
-        //
-        // Lo urgente es leer la conversación y poder responder. La sugerencia,
-        // el análisis y los límites del clip son adornos útiles que pueden
-        // aparecer después, y hasta no aparecer: por eso ya traían `.catch`.
-        const sigueAbierta = () => seleccionRef.current === id;
+        /**
+         * Dos llamadas en vez de seis (#761), SIN deshacer lo de #690.
+         *
+         * La primera versión de esto era una sola llamada que traía todo, y las
+         * pruebas de #690 la frenaron — con razón. Esas seis peticiones estaban
+         * separadas a propósito: la pantalla se dibuja CUANDO LLEGA el hilo en
+         * vez de esperar a la última, porque el 28/09 el proveedor de IA se puso
+         * a encolar y la misma petición pasó de 2 s a 170 s con la bandeja en
+         * blanco. Y una respuesta agrupada es PEOR que un `Promise.all`: dentro
+         * de una respuesta HTTP no hay forma de dibujar lo que ya llegó.
+         *
+         * Así que el arranque son dos: el urgente —hilo, mensajes y qué se puede
+         * adjuntar, todo lectura de base— que es el único que se espera, y la
+         * ficha, que entra sola y puede no llegar.
+         *
+         * Lo que se gana: 6 puertas → 2, y cada una pagaba su propio
+         * BEGIN/set_config/COMMIT (#711: 64 ms por viaje).
+         */
         const pedir = <T,>(ruta: string) => apiFetch<T>(config, session, tenant, ruta);
 
-        // Lo primero: el hilo y con quién se está hablando.
-        const loUrgente = Promise.all([
-          pedir<ConversacionDetalle>(`/conversations/${id}`),
-          pedir<Mensaje[]>(`/conversations/${id}/messages?limit=${PAGINA_MENSAJES}`),
-        ]).then(([d, m]) => {
+        // Lo urgente: el hilo y poder responder.
+        const loUrgente = pedir<ArranqueUrgente>(`/conversations/${id}/arranque`).then((a) => {
           if (!sigueAbierta()) return;
-          setDetalle(d);
-          setMensajes(m);
-          setHayAnteriores(m.length >= PAGINA_MENSAJES);
+          setDetalle(a.conversacion);
+          const mensajes = a.mensajes.estado === 'ok' ? a.mensajes.dato : [];
+          setMensajes(mensajes);
+          setHayAnteriores(mensajes.length >= PAGINA_MENSAJES);
+          setLimites(a.limitesDeAdjunto);
         });
 
-        // Y el resto entra solo, cada uno a su ritmo.
-        void pedir<NotaDto[]>(`/conversations/${id}/notes`)
-          .then((n) => { if (sigueAbierta()) setNotas(n); })
-          .catch(() => {});
-        // agents puede estar apagado: el copiloto simplemente no aparece.
-        void pedir<RespuestaDeSugerencia | null>(`/conversations/${id}/suggestion`)
-          .then((sug) => {
+        // Y la ficha entra sola. Las piezas que no se pueden ver quedan en null,
+        // que es lo que ya significaba «no está» para el panel.
+        void pedir<ArranqueDeFicha>(`/conversations/${id}/arranque/ficha`)
+          .then((f) => {
             if (!sigueAbierta()) return;
-            setSugerencia(sug?.sugerencia ?? null);
-            setSinSugerencia(sug?.motivo ?? null);
+            setNotas(f.notas.estado === 'ok' ? f.notas.dato : []);
+            setSugerencia(f.sugerencia.estado === 'ok' ? f.sugerencia.dato.sugerencia : null);
+            setSinSugerencia(f.sugerencia.estado === 'ok' ? f.sugerencia.dato.motivo : null);
+            setAnalisis(f.analisis.estado === 'ok' ? f.analisis.dato : null);
           })
-          .catch(() => {});
-        void pedir<AnalisisDto>(`/conversations/${id}/analisis`)
-          .then((ana) => { if (sigueAbierta()) setAnalisis(ana); })
-          .catch(() => {});
-        // Qué acepta ESTE canal (#560). Se pide y no se copia: una tabla de
-        // tipos y tamaños duplicada en el front se separa de la del servidor
-        // en el primer cambio, y entonces el clip ofrece subir lo que la ruta
-        // va a rechazar.
-        void pedir<LimitesDeAdjunto>(`/conversations/${id}/attachments/limites`)
-          .then((lim) => { if (sigueAbierta()) setLimites(lim); })
           .catch(() => {});
 
         // Solo se espera lo urgente: si ESO falla, la pantalla lo dice.
@@ -232,13 +251,15 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   );
 
   useEffect(() => void cargarLista(), [cargarLista]);
-  // Los atajos del negocio + los míos, una vez por tenant.
+  // Los atajos vienen del arranque del shell (#761): son del negocio y míos,
+  // no de la conversación, así que se piden una vez por sesión y no por tenant
+  // en cada montaje de la bandeja.
+  const atajosDelArranque = usePieza('respuestasRapidas');
   useEffect(() => {
-    if (!session || !tenant) return;
-    void apiFetch<QuickReplyDto[]>(config, session, tenant, '/quick-replies')
-      .then(setAtajos)
-      .catch(() => setAtajos([]));
-  }, [config, session, tenant]);
+    if (atajosDelArranque.puedeVerla && atajosDelArranque.dato) {
+      setAtajos(atajosDelArranque.dato as QuickReplyDto[]);
+    }
+  }, [atajosDelArranque.puedeVerla, atajosDelArranque.dato]);
   useEffect(() => {
     if (seleccion) {
       setDetalle(null);
