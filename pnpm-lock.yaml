@@ -431,6 +431,9 @@ importers:
         specifier: ^19.0.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@iaxti/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -1389,6 +1392,9 @@ importers:
         specifier: ^1.1.6
         version: 1.1.6(react@19.3.0)
     devDependencies:
+      '@iaxti/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2

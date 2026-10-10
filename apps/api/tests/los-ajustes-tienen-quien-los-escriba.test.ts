@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Toda clave de `tenants.settings` que el código LEE tiene quien la escriba (#535).
@@ -46,7 +47,7 @@ const ARCHIVOS = [
   ruta: f.slice(RAIZ.length + 1),
   // Sin comentarios: un comentario que EXPLICA una clave no la lee ni la
   // escribe. Me costó cinco vueltas aprenderlo escribiendo estas guardas.
-  texto: readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''),
+  texto: fuenteLimpia(readFileSync(f, 'utf8')),
 }));
 
 /**

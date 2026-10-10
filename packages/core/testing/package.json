@@ -1,0 +1,6 @@
+{
+  "name": "@iaxti/core-testing-stub",
+  "private": true,
+  "main": "../dist/testing/fuente-limpia.js",
+  "types": "../dist/testing/fuente-limpia.d.ts"
+}

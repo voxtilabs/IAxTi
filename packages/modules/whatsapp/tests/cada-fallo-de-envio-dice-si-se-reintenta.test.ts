@@ -9,6 +9,7 @@ import {
   rechazoPermanente,
 } from '../application/outbound';
 import { createZavuProvider } from '../application/zavu';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Guarda: en el camino de envío, todo fallo dice si se reintenta o no (#556).
@@ -45,13 +46,10 @@ const TRANSITORIOS_CON_MOTIVO: Record<string, string> = {
     'Va en el camino de ENTRADA (normalizar un adjunto que llega), que no pasa por la cola outbound.',
 };
 
-function sinComentarios(fuente: string): string {
-  return fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-}
 
 describe('cada fallo de envío dice si se reintenta (#556)', () => {
   it('ningún throw crudo sin clasificar en el adaptador', () => {
-    const fuente = sinComentarios(readFileSync(join(RAIZ, 'zavu.ts'), 'utf8'));
+    const fuente = fuenteLimpia(readFileSync(join(RAIZ, 'zavu.ts'), 'utf8'));
     const crudos = fuente
       .split('\n')
       .filter((l) => l.includes('throw new Error('))
@@ -68,7 +66,7 @@ describe('cada fallo de envío dice si se reintenta (#556)', () => {
   });
 
   it('lo que falta de configuración es permanente, no transitorio', () => {
-    const fuente = sinComentarios(readFileSync(join(RAIZ, 'zavu.ts'), 'utf8'));
+    const fuente = fuenteLimpia(readFileSync(join(RAIZ, 'zavu.ts'), 'utf8'));
     // Las dos que causaban el síntoma que vio Lino: sin credencial y sin
     // emisor. Ninguna aparece sola, así que ninguna puede ser transitoria.
     for (const guardia of ['if (!apiKey)', 'if (!senderId)']) {
@@ -80,7 +78,7 @@ describe('cada fallo de envío dice si se reintenta (#556)', () => {
   });
 
   it('el worker rechaza lo permanente antes de mirar si es el último intento', () => {
-    const worker = sinComentarios(
+    const worker = fuenteLimpia(
       readFileSync(join(__dirname, '..', '..', '..', '..', 'apps', 'workers', 'src', 'outbound.ts'), 'utf8'),
     );
     const permanente = worker.indexOf('esPermanente(err)');

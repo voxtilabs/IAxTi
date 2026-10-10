@@ -98,8 +98,14 @@ jobs:
           # dejaría al CI fallando en la primera migración de `knowledge`, y el
           # error aparecería a mitad de la suite, lejos de acá.
           docker run -d --name pgv -e POSTGRES_PASSWORD=ci "$IMAGEN"
-          for i in $(seq 1 30); do
-            if docker exec pgv pg_isready -U postgres >/dev/null 2>&1; then break; fi
+          # El contador se USA, y no es por callar a shellcheck: una espera muda
+          # de un minuto no dice si tardó dos segundos o cincuenta y ocho, y ese
+          # número es lo que avisa el día que Postgres empiece a arrancar lento.
+          for intento in $(seq 1 30); do
+            if docker exec pgv pg_isready -U postgres >/dev/null 2>&1; then
+              echo "Postgres respondió en el intento $intento (~$((intento * 2)) s)"
+              break
+            fi
             sleep 2
           done
           version=$(docker exec pgv psql -U postgres -tAc \

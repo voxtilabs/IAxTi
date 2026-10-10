@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fuenteLimpia } from './testing/fuente-limpia';
 
 /**
  * Qué exporta cada módulo por su puerta pública, y quién lo usa (#664).
@@ -39,14 +40,6 @@ function fuentes(dir: string, acc: string[] = []): string[] {
  * qué algo NO se usa, justamente— y ya hicieron pasar por verde a cuatro guardas
  * distintas. Se quitan primero, siempre.
  */
-function sinComentarios(codigo: string): string {
-  return codigo
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((l) => !l.trim().startsWith('//'))
-    .join('\n');
-}
-
 /**
  * Los VALORES que publica un contrato: funciones, constantes y clases.
  *
@@ -59,7 +52,7 @@ function sinComentarios(codigo: string): string {
  * consumidor.
  */
 export function valoresQuePublica(contrato: string): string[] {
-  const texto = sinComentarios(readFileSync(contrato, 'utf8'));
+  const texto = fuenteLimpia(readFileSync(contrato, 'utf8'));
   const nombres = new Set<string>();
 
   for (const m of texto.matchAll(/export\s*\{([^}]+)\}/g)) {
@@ -92,7 +85,7 @@ function paqueteDe(contrato: string): string {
  */
 export function exportsSinConsumidor(raices: string[]): string[] {
   const archivos = raices.flatMap((r) => fuentes(r));
-  const codigo = new Map(archivos.map((f) => [f, sinComentarios(readFileSync(f, 'utf8'))]));
+  const codigo = new Map(archivos.map((f) => [f, fuenteLimpia(readFileSync(f, 'utf8'))]));
   const contratos = archivos.filter((f) => f.endsWith('contract.ts'));
 
   const huerfanos: string[] = [];

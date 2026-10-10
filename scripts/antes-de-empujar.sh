@@ -95,6 +95,43 @@ paso 'migraciones en base virgen'       node scripts/migraciones-en-base-virgen.
 paso 'exports sin consumidor'            node scripts/exports-sin-consumidor.mjs
 paso 'columnas sin lector'               node scripts/columnas-sin-lector.mjs
 
+# Los workflows, SOLO si los tocaste (#770).
+#
+# Un error de workflow —un `needs:` a un job que no existe, un `runs-on`
+# mal escrito, una expresión que nombra algo no declarado— no se ve hasta
+# empujar, y entonces cuesta una corrida de doce minutos. `actionlint` lo ve en
+# 17 ms, sin Docker, con un binario de 5 MB.
+#
+# Si no está instalado, se dice y se sigue: un chequeo que bloquea por no estar
+# instalado se desactiva el primer día con prisa, y este script existe para que
+# nadie quiera desactivarlo.
+#
+# Por qué NO `act`: corre los workflows de verdad, pero para eso descarga su
+# imagen de runner (de 1 a 18 GB) de Docker Hub —el cupo que #760 y #765 vinieron
+# a sacar del camino— y no emula nada de lo que de verdad falla:
+# `services.credentials`, la autenticación de GHCR, el caché `type=gha`, los
+# `environments`, `concurrency` ni las cadenas de `workflow_run`.
+if ! git diff --quiet HEAD -- .github/workflows || ! git diff --cached --quiet -- .github/workflows; then
+  if command -v actionlint >/dev/null 2>&1; then
+    paso 'workflows (actionlint)'        actionlint
+  else
+    printf '\033[1m── workflows (actionlint)\033[0m\n'
+    printf '   \033[33mse salta: no está instalado.\033[0m Tocaste .github/workflows y esto lo revisa en 17 ms:\n'
+    printf '   go install github.com/rhysd/actionlint/cmd/actionlint@latest\n'
+    printf '   (o baja el binario de https://github.com/rhysd/actionlint/releases)\n'
+  fi
+  # Y shellcheck: `actionlint` lo usa para los bloques `run:` SI está en el
+  # PATH, y si no, calla. Así que sin él esto da menos hallazgos que CI —me
+  # pasó: medí «cero hallazgos» en local y CI encontró cuatro—. Un chequeo
+  # local que mide menos que el de CI es peor que no tenerlo, porque da
+  # confianza falsa.
+  if command -v actionlint >/dev/null 2>&1 && ! command -v shellcheck >/dev/null 2>&1; then
+    printf '   \033[33mOJO: sin shellcheck, actionlint NO revisa los bloques run:\033[0m\n'
+    printf '   CI sí lo tiene, así que allá puede salir rojo lo que acá pasó. Instálalo:\n'
+    printf '   apt-get install shellcheck\n'
+  fi
+fi
+
 printf '\n'
 if [ ${#fallos[@]} -eq 0 ]; then
   printf '\033[32mTodo verde. Si cambió el catálogo o una lista base, revisa el diff y commitéalo.\033[0m\n'

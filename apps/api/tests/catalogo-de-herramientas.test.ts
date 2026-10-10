@@ -13,6 +13,7 @@ import {
   NO_SON_HERRAMIENTA,
   SIN_CONFIRMACION,
 } from '../../../packages/modules/agents/application/catalogo-curado';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * El catálogo de herramientas contra la API REAL (#492, ADR-0025).
@@ -257,9 +258,7 @@ describe('los nombres son para el modelo, no para el compilador', () => {
       // Me pasó al escribir esta misma guarda —la cazó mi propio comentario— y
       // es la quinta vez en la noche que un texto explicativo dispara el grep
       // que viene a cazar lo que explica.
-      const texto = readFileSync(join(__dirname, '..', 'src', archivo), 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/.*$/gm, '');
+      const texto = fuenteLimpia(readFileSync(join(__dirname, '..', 'src', archivo), 'utf8'));
       // Cada método que recibe `@Query()` sin nombre.
       for (const m of texto.matchAll(/@Query\(\)\s+\w+/g)) {
         // El bloque de decoradores de ese método: desde el @Get/@Post anterior.

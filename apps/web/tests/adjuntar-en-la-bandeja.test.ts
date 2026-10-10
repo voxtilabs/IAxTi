@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * Mandar un archivo desde la bandeja (#458).
@@ -93,10 +94,8 @@ describe('qué se puede adjuntar, y qué se ve cuando no (#560)', () => {
     // Esta guarda es PREVENTIVA y conviene decirlo: contra el código de antes
     // pasaba igual, porque antes no había ninguna tabla en ninguna parte. Las
     // otras cuatro de este bloque sí fallan contra el código anterior.
-    const sinComentarios = (f: string) =>
-      f.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
     for (const [nombre, fuente] of [['chat.tsx', CHAT], ['bandeja.tsx', BANDEJA]] as const) {
-      const limpio = sinComentarios(fuente);
+      const limpio = fuenteLimpia(fuente);
       // Ni tipos MIME de archivo escritos a mano, con UNA excepción escrita:
       // `application/octet-stream` no es parte de la tabla, es lo que se manda
       // cuando el navegador no supo qué archivo es. Y está bien que la ruta lo

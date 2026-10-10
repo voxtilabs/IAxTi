@@ -18,3 +18,17 @@
 - Los tests usan el seed (#18) como base; datos anonimizados, jamás datos
   reales de clientes en fixtures.
 - `/tdd` cuando el criterio de aceptación lo permite: test primero.
+- **Toda guarda que escanee código fuente lo escanea LIMPIO** (#569):
+  `import { fuenteLimpia } from '@iaxti/core/testing'`. Nunca una copia local con
+  expresiones regulares. Lo que eso evita: que la guarda se ponga roja por el
+  comentario que la explica —pasó tres veces en una semana, con el hex de un
+  `// #548`, con una nota que decía «no importa recharts» y con otra que citaba
+  el `Math.log10` borrado— y que un `https://…` dentro de un string se parta al
+  medio. Una guarda que grita de más se apaga igual de rápido que una que no
+  grita.
+- **Una prueba no mide el reloj de la máquina.** Si lo que se prueba depende de
+  la hora —horario de silencio, ventana de 24 h, vigencias— se le pasa un
+  instante fijo, y el dato de la base se ancla al MISMO instante. Mezclar los dos
+  relojes hace que la ventana se mida entre instantes distintos y la prueba pase
+  por la razón equivocada. Tres pruebas de #587 se caían con solo correr después
+  de las 21:00 en Chile.

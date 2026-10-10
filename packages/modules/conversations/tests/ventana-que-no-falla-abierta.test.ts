@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cierreDeLaVentana, isWithinWindow, VENTANA_HORAS } from '../domain/state';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * La lista de canales se LEE del archivo de `channels`, no se importa.
@@ -18,8 +19,7 @@ import { cierreDeLaVentana, isWithinWindow, VENTANA_HORAS } from '../domain/stat
  */
 function canalesQueExisten(): string[] {
   const ruta = join(__dirname, '..', '..', 'channels', 'domain', 'port.ts');
-  const fuente = readFileSync(ruta, 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
+  const fuente = fuenteLimpia(readFileSync(ruta, 'utf8'))
     .split('\n')
     .filter((l) => !l.trim().startsWith('//'))
     .join('\n');

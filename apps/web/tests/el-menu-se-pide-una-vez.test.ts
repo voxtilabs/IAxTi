@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * El menú se pide una vez y se cachea (#400).
@@ -64,8 +65,7 @@ describe('el menú se pide una vez y se cachea', () => {
   it('el helper compartido sí cachea, y no para siempre', () => {
     // Sin comentarios: `no-store` aparece en el que explica por qué NO se
     // usa, y la primera versión de este test se puso roja por eso.
-    const nav = readFileSync(NAV, 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
+    const nav = fuenteLimpia(readFileSync(NAV, 'utf8'))
       .split('\n')
       .filter((l) => !l.trim().startsWith('//'))
       .join('\n');
