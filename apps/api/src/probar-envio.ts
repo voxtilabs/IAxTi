@@ -3,7 +3,7 @@ import type IORedis from 'ioredis';
 import { withTenant } from '@iaxti/db';
 import { findAccountById } from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
-import { contactoPorTelefono, normalizePhone } from '@iaxti/module-crm';
+import { contactoPorTelefono, normalizePhone, tipoDeLinea } from '@iaxti/module-crm';
 import {
   bandejaSettings,
   enSilencio,
@@ -65,7 +65,8 @@ export type MotivoDeRechazo =
   | 'CALIDAD_PAUSADA'
   | 'HORARIO_DE_SILENCIO'
   | 'CANAL_RECHAZO'
-  | 'PROVEEDOR_INTERMITENTE';
+  | 'PROVEEDOR_INTERMITENTE'
+  | 'NO_ES_MOVIL';
 
 export interface ResultadoDePrueba {
   ok: boolean;
@@ -150,6 +151,23 @@ export async function probarEnvio(
       const permiso = puedeEnviar(tenant.state, true);
       if (!permiso.ok) {
         return { ok: false, motivo: 'TENANT_SIN_ENVIO' as const, mensaje: permiso.motivo };
+      }
+
+      // WhatsApp solo llega a móviles (#582). Un fijo es un teléfono VÁLIDO al
+      // que este canal no llega, así que el mensaje lo dice así y no «teléfono
+      // inválido» — que mandaría a corregir un número que está bien escrito.
+      //
+      // Solo corta con un `fijo` SEGURO. `no_se` pasa: fuera de Chile el tipo
+      // no se puede saber, y bloquear por una duda es bloquear a un cliente de
+      // verdad.
+      if (cuenta.kind === 'whatsapp' && tipoDeLinea(telefono) === 'fijo') {
+        return {
+          ok: false,
+          motivo: 'NO_ES_MOVIL' as const,
+          mensaje:
+            `${telefono} es un número fijo, y WhatsApp solo llega a celulares. El número está bien ` +
+            'escrito: lo que no se puede es mandarle un WhatsApp.',
+        };
       }
 
       const contacto = await contactoPorTelefono(client, { tenantId: input.tenantId, phone: telefono });
