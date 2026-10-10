@@ -1,4 +1,5 @@
 import { Langfuse } from 'langfuse';
+import { textoDeEntorno } from '@iaxti/core';
 
 // Langfuse (#47): trazas y prompts VERSIONADOS. Env-gated: sin llaves no
 // traza (y los prompts caen al fallback configurado del agente) — jamás un
@@ -16,7 +17,9 @@ export function langfuse(): Langfuse | null {
   cliente = new Langfuse({
     publicKey: LANGFUSE_PUBLIC_KEY,
     secretKey: LANGFUSE_SECRET_KEY,
-    baseUrl: process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com',
+    // `??` no atrapa la cadena vacía (#575): con la variable en blanco la
+    // base quedaba `''` y las trazas se mandaban a una URL inválida.
+    baseUrl: textoDeEntorno('LANGFUSE_BASE_URL', 'https://cloud.langfuse.com'),
   });
   return cliente;
 }

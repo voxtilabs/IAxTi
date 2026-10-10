@@ -1,3 +1,5 @@
+import { textoDeEntorno } from '@iaxti/core';
+
 /**
  * La base de la API de Zavu, en un archivo propio.
  *
@@ -9,5 +11,9 @@
 export const ZAVU_API_BASE_DEFAULT = 'https://api.zavu.dev/v1';
 
 export function baseDeZavu(apiBase?: string): string {
-  return apiBase ?? process.env.ZAVU_API_BASE ?? ZAVU_API_BASE_DEFAULT;
+  // Era una cadena de `??` y se rompía en el medio (#575): con
+  // `ZAVU_API_BASE=""` ganaba la cadena vacía, el default no se miraba nunca y
+  // TODA llamada a Zavu salía contra `''`. Fallaba como error de red, que es lo
+  // último que alguien atribuye a una variable de entorno.
+  return apiBase?.trim() || textoDeEntorno('ZAVU_API_BASE', ZAVU_API_BASE_DEFAULT);
 }

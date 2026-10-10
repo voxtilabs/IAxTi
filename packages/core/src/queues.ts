@@ -1,6 +1,7 @@
 import IORedis from 'ioredis';
 import { DelayedError, Queue, Worker, type Processor } from 'bullmq';
 import { conContextoDeLog, conTrazaDelJob, contextoDeTraza } from '@iaxti/telemetry';
+import { textoDeEntorno } from './entorno';
 import type { ModuleRegistry } from './registry';
 
 /**
@@ -22,7 +23,7 @@ export const QUEUE_NAMES = [
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
-export function redisConnection(url = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379') {
+export function redisConnection(url = textoDeEntorno('REDIS_URL', 'redis://127.0.0.1:6379')) {
   // maxRetriesPerRequest: null es requisito de BullMQ para workers.
   return new IORedis(url, { maxRetriesPerRequest: null });
 }

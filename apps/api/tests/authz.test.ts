@@ -191,6 +191,31 @@ describe('el fallback por cabeceras no existe donde hay tokens (#611)', () => {
     }
   });
 
+  it('con IAXTI_ENV DECLARADA EN BLANCO, el fallback no se abre (#575)', async () => {
+    // La prueba de arriba pone 'staging' y la de abajo BORRA la variable, y
+    // entre esas dos cabía el caso que de verdad pasa en un panel: la variable
+    // declarada y vacía. `'' !== 'production' && '' !== 'staging'` es `true`,
+    // así que las DOS cerraduras quedaban abiertas y cualquiera entraba como
+    // ADMIN de cualquier negocio con tres cabeceras.
+    //
+    // La distinción que lo arregla es la de #575: ausente no es en blanco.
+    // Ausente es el local sin Supabase (la prueba de abajo); en blanco es
+    // alguien que configuró el ambiente y se le quedó vacía, o sea un
+    // despliegue.
+    const antes = process.env.IAXTI_ENV;
+    process.env.IAXTI_ENV = '';
+    const app = await createApp({ jwtVerify: null, resolveRole: async () => 'ADMIN' });
+    await app.listen(0);
+    try {
+      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      expect(r.status, 'una variable en blanco no puede abrir el fallback').toBe(401);
+    } finally {
+      await app.close();
+      if (antes === undefined) delete process.env.IAXTI_ENV;
+      else process.env.IAXTI_ENV = antes;
+    }
+  });
+
   it('en desarrollo local sin verificador, sigue sirviendo', async () => {
     // El fallback existe para trabajar sin Supabase cableado. Cerrarlo del todo
     // rompería eso, y entonces alguien lo reabriría de la peor forma posible.

@@ -100,12 +100,28 @@ export function entornoDesplegado(opciones: { env?: NodeJS.ProcessEnv } = {}): s
     console.warn(
       'entorno: IAXTI_ENV está en BLANCO. De ella cuelgan el modo de los pagos, ' +
         'el environment de Sentry y la comprobación de aislamiento: se asume ' +
-        '"development", que es lo más restrictivo, pero revísala donde se configura.',
+        '"development" y hay que revisarla donde se configura el ambiente.',
     );
   }
   return textoDeEntorno('IAXTI_ENV', 'development', { env });
 }
 
+/**
+ * OJO con el por-defecto `development`, porque no es seguro en todas partes.
+ *
+ * Es lo más restrictivo donde la pregunta es «¿puedo cobrar de verdad?» o
+ * «¿puedo saltarme la comprobación de RLS?»: ahí, no saber equivale a no.
+ *
+ * Pero es lo más PERMISIVO donde la pregunta es «¿puedo aceptar una petición
+ * sin verificar el token?» — el fallback de `authz.guard.ts`, que existe para
+ * el local sin Supabase cableado. Ahí asumir `development` abre la puerta.
+ *
+ * Por eso esa cerradura NO usa esto: distingue a mano entre la variable
+ * ausente (nadie configuró nada: es el local) y la variable declarada en
+ * blanco (alguien configuró el ambiente y se le quedó vacía: es un
+ * despliegue, y no se abre). La dirección segura depende de quién pregunta,
+ * así que la decide quien pregunta.
+ */
 /** ¿Es producción? La única pregunta que de verdad se hace sobre `IAXTI_ENV`. */
 export function esProduccion(opciones: { env?: NodeJS.ProcessEnv } = {}): boolean {
   return entornoDesplegado(opciones) === 'production';

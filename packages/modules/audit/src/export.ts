@@ -69,7 +69,10 @@ export function signExport(
 ): SignedExport {
   const payload = format === 'csv' ? auditToCsv(rows) : auditToJson(rows);
   const sha256 = createHash('sha256').update(payload).digest('hex');
-  const secret = options.secret ?? process.env.AUDIT_EXPORT_SECRET ?? null;
+  // Acá la cadena vacía no hacía daño —abajo `secret ? … : null` la trata como
+  // ausente— pero lo hacía por casualidad: bastaba un `secret === null` para
+  // que una variable en blanco firmara con secreto vacío. Explícito (#575).
+  const secret = options.secret?.trim() || process.env.AUDIT_EXPORT_SECRET?.trim() || null;
   return {
     format,
     generatedAt: options.generatedAt ?? new Date().toISOString(),

@@ -1,5 +1,6 @@
 import { embedMany, generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { textoDeEntorno } from '@iaxti/core';
 
 // Embeddings (#51, #502): puerto chico e inyectable — los tests no tocan la
 // red y sin llave el módulo avisa en vez de adivinar. SIEMPRE tier pago (§40).
@@ -62,7 +63,8 @@ export function nvidiaEmbedPort(model = 'nvidia/nemotron-3-embed-1b'): EmbedPort
         throw new Error('Falta GLM_API_KEY para indexar conocimiento.');
       }
       if (texts.length === 0) return [];
-      const base = process.env.GLM_API_BASE ?? 'https://integrate.api.nvidia.com/v1';
+      // Vacía dejaba la base en `''` y los embeddings salían a otra parte (#575).
+      const base = textoDeEntorno('GLM_API_BASE', 'https://integrate.api.nvidia.com/v1');
       const res = await fetch(`${base}/embeddings`, {
         method: 'POST',
         headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },

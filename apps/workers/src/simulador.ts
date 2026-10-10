@@ -6,7 +6,7 @@
 //   node dist/simulador.js --tenant <uuid> --phone "+56 9 1234 5678" \
 //     --body "Hola, ¿precios?" [--channel simulador] [--type texto] \
 //     [--provider-id wamid.test1]
-import { createQueue, redisConnection } from '@iaxti/core';
+import { createQueue, esProduccion, redisConnection } from '@iaxti/core';
 import type { InboundJob } from './inbound';
 
 function arg(name: string): string | undefined {
@@ -15,7 +15,12 @@ function arg(name: string): string | undefined {
 }
 
 async function main(): Promise<void> {
-  if ((process.env.IAXTI_ENV ?? 'dev') === 'production') {
+  // Con `(process.env.IAXTI_ENV ?? 'dev') === 'production'` esta guarda no
+  // se disparaba si la variable estaba declarada sin valor (#575): `''` no es
+  // `'production'`, así que el simulador encolaba mensajes inventados en la
+  // cola `inbound` REAL, en el tenant real, y aparecían en la bandeja como si
+  // un cliente hubiera escrito.
+  if (esProduccion()) {
     console.error('El simulador no existe en producción.');
     process.exit(1);
   }

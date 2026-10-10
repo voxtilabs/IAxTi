@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { createQueue, redisConnection } from '@iaxti/core';
+import { createQueue, esProduccion, redisConnection } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import {
   addProvider,
@@ -257,7 +257,7 @@ export class PaymentsController {
     // El ambiente no es la forma del cuerpo, así que esto se queda como `if`
     // (ver el esquema). El caso de uso lo vuelve a comprobar (ADR-0008): la
     // regla es de él, no de esta puerta.
-    if (body.mode === 'live' && (process.env.IAXTI_ENV ?? 'dev') !== 'production') {
+    if (body.mode === 'live' && !esProduccion()) {
       // SPEC §17: nunca credenciales reales fuera de producción.
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',

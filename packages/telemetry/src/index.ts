@@ -81,7 +81,8 @@ export function initObservability(serviceName: string): void {
     // Import diferido: el SDK de OTel es pesado y solo se paga si está activo.
     // El exportador OTLP y sus cabeceras salen de las variables estándar
     // OTEL_EXPORTER_OTLP_* que el SDK lee solo.
-    process.env.OTEL_SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? `iaxti-${serviceName}`;
+    // Vacía se quedaba vacía y OTel reportaba sin nombre de servicio (#575).
+    process.env.OTEL_SERVICE_NAME = process.env.OTEL_SERVICE_NAME?.trim() || `iaxti-${serviceName}`;
     /* eslint-disable @typescript-eslint/no-require-imports */
     const { NodeSDK } = require('@opentelemetry/sdk-node') as typeof import('@opentelemetry/sdk-node');
     const { getNodeAutoInstrumentations } =

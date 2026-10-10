@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { TZ_POR_DEFECTO, diaEn, type Consumer, type EventEnvelope } from '@iaxti/core';
+import { TZ_POR_DEFECTO, diaEn, textoDeEntorno, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
 import { withTenant } from '@iaxti/db';
 import { montoDelCosto } from '../domain/metrics';
@@ -22,7 +22,11 @@ export async function bump(
   },
 ): Promise<void> {
   // El día del NEGOCIO, no el de UTC: a las 22:00 en Chile todavía es hoy.
-  const day = diaEn(input.timeZone ?? process.env.IAXTI_TZ ?? TZ_POR_DEFECTO, input.day ?? new Date());
+  // La cadena de `??` se rompía en el medio (#575): con `IAXTI_TZ=""` ganaba
+  // la cadena vacía, `TZ_POR_DEFECTO` no se miraba y `Intl` lanzaba
+  // `RangeError: Invalid time zone`. La agregación diaria se caía entera.
+  const zona = input.timeZone ?? textoDeEntorno('IAXTI_TZ', TZ_POR_DEFECTO);
+  const day = diaEn(zona, input.day ?? new Date());
   const owners = [TOTAL_OWNER, ...(input.ownerId ? [input.ownerId] : [])];
   for (const owner of owners) {
     await client.query(

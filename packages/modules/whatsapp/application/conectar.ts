@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { connectWhatsAppNumber, type WhatsAppNumber } from './numbers';
 import { ZAVU_API_BASE_DEFAULT } from './zavu';
 import type { ChannelAccountRef, ChannelKind } from '@iaxti/module-channels';
+import { textoDeEntorno } from '@iaxti/core';
 
 // Conectar un canal de Zavu a un tenant (#42, #56). Existe para que el día
 // que llegue la credencial esto sea UN comando y no una lista de pasos que
@@ -32,7 +33,12 @@ export type LlamarZavu = (
 ) => Promise<unknown>;
 
 /** Cliente mínimo contra la API de Zavu; se inyecta en los tests. */
-export function clienteZavu(apiKey: string, apiBase = process.env.ZAVU_API_BASE ?? ZAVU_API_BASE_DEFAULT): LlamarZavu {
+export function clienteZavu(
+  apiKey: string,
+  // En blanco dejaba `apiBase = ''` y conectar WhatsApp fallaba con un error
+  // de red, no de configuración: nadie lo iba a atribuir a la variable (#575).
+  apiBase = textoDeEntorno('ZAVU_API_BASE', ZAVU_API_BASE_DEFAULT),
+): LlamarZavu {
   return async (path, init = {}) => {
     const res = await fetch(`${apiBase}${path}`, {
       method: init.method ?? 'GET',
