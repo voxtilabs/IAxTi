@@ -3,7 +3,6 @@ import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { connectWhatsAppNumber } from '@iaxti/module-whatsapp';
 import { receiveInbound } from '@iaxti/module-conversations';
-import { updateTenantSettings } from '@iaxti/module-organizations';
 import { CUERPO_DE_PRUEBA, probarEnvio } from '../src/probar-envio';
 
 /**
@@ -45,9 +44,26 @@ function despachoFalso(
   return { llamadas, despachar };
 }
 
+/**
+ * Una hora FIJA, de día en Chile.
+ *
+ * Sin esto las pruebas dependían del reloj de la máquina: el horario de
+ * silencio por defecto es 21:00–08:00 en América/Santiago, así que las que
+ * esperan que la prueba SALGA se ponían rojas con solo correr de noche. En CI
+ * pasó a las 00:03 UTC —21:03 en Chile— y tres se cayeron a la vez.
+ *
+ * Es la misma familia que esta noche se estuvo sacando del repositorio: una
+ * prueba que mide la hora de la máquina en vez de lo que dice medir. Y la
+ * escribí yo hace dos horas.
+ *
+ * 15:00 en Chile, en una fecha cualquiera: fuera del silencio por defecto y
+ * lejos de los bordes.
+ */
+const DE_DIA_EN_CHILE = new Date('2026-03-10T18:00:00Z');
+
 const probar = (telefono: string, deps: Record<string, unknown> = {}) =>
   probarEnvio(
-    { pool: admin, redis: null, ...deps } as Parameters<typeof probarEnvio>[0],
+    { pool: admin, redis: null, ahora: DE_DIA_EN_CHILE, ...deps } as Parameters<typeof probarEnvio>[0],
     { tenantId: tenant, accountId, telefono },
   );
 
@@ -78,8 +94,19 @@ afterAll(async () => {
   await admin.end();
 });
 
-/** Un número que ESCRIBIÓ: la única forma de que una prueba pueda salir. */
-async function queEscribio(phone: string): Promise<void> {
+/**
+ * Un número que ESCRIBIÓ, hace `horas` horas **contadas desde el reloj fijo**.
+ *
+ * Lo segundo es el punto. `receiveInbound` deja `last_inbound_at = now()`, o sea
+ * el reloj de la máquina, y las pruebas preguntan con `DE_DIA_EN_CHILE`. Mezclar
+ * las dos cosas hace que la ventana de 24 h se mida entre dos relojes distintos:
+ * con el reloj fijo en marzo y el dato en octubre, el último mensaje queda en el
+ * FUTURO y la ventana sale abierta por la razón equivocada.
+ *
+ * Con las dos puntas ancladas al mismo instante, la prueba no depende del día ni
+ * de la hora en que se corra.
+ */
+async function queEscribio(phone: string, horas = 1): Promise<void> {
   await withTenant(admin, tenant, (c) =>
     receiveInbound(c, {
       tenantId: tenant,
@@ -89,6 +116,13 @@ async function queEscribio(phone: string): Promise<void> {
       body: 'hola',
       providerMessageId: `in-${phone}`,
     }),
+  );
+  await admin.query(
+    `UPDATE conversations
+        SET last_inbound_at = $3::timestamptz - make_interval(hours => $4)
+      WHERE tenant_id = $1
+        AND contact_id = (SELECT id FROM contacts WHERE tenant_id = $1 AND phone = $2)`,
+    [tenant, phone, DE_DIA_EN_CHILE.toISOString(), horas],
   );
 }
 
@@ -134,12 +168,7 @@ describe('cada camino dice lo suyo (#587)', () => {
   it('escribió hace más de 24 h: ventana cerrada, no «sin consentimiento»', async () => {
     // La distinción importa: una se arregla pidiéndole que escriba, la otra no
     // se arregla — hay que respetar que pidió no recibir.
-    await queEscribio('+56922220003');
-    await admin.query(
-      `UPDATE conversations SET last_inbound_at = now() - interval '30 hours'
-        WHERE tenant_id = $1 AND contact_id = (SELECT id FROM contacts WHERE tenant_id = $1 AND phone = $2)`,
-      [tenant, '+56922220003'],
-    );
+    await queEscribio('+56922220003', 30);
     const r = await probar('+56922220003', { despachar: despachoFalso({ providerMessageId: 'x' }).despachar });
     expect(r.motivo).toBe('VENTANA_CERRADA');
     expect(r.mensaje).toMatch(/24 horas/i);
@@ -180,18 +209,19 @@ describe('cada camino dice lo suyo (#587)', () => {
     // Diferir una prueba es dejar a alguien esperando un resultado que llega a
     // las ocho de la mañana. Lo que se difiere es un mensaje del negocio; una
     // prueba se contesta ahora, aunque la respuesta sea «no, estás en silencio».
-    await withTenant(admin, tenant, (c) =>
-      // Va bajo `bandeja`: es donde `bandejaSettings` lo lee.
-      updateTenantSettings(c, tenant, { bandeja: { silencio: { desde: '00:00', hasta: '23:59' } } }),
-    );
+    // Con el reloj, no tocando la configuración del tenant: el silencio por
+    // defecto es 21:00–08:00, así que basta con preguntar a las 23:00 de Chile.
+    // Mover los ajustes y devolverlos dejaba una ventana donde otra prueba del
+    // mismo archivo podía leerlos cambiados.
+    const DE_NOCHE_EN_CHILE = new Date('2026-03-11T02:00:00Z');
     const falso = despachoFalso({ providerMessageId: 'no-deberia' });
-    const r = await probar('+56922220001', { despachar: falso.despachar });
+    const r = await probar('+56922220001', {
+      despachar: falso.despachar,
+      ahora: DE_NOCHE_EN_CHILE,
+    });
     expect(r.motivo).toBe('HORARIO_DE_SILENCIO');
     expect(r.mensaje).toMatch(/no se difiere/i);
     expect(falso.llamadas).toEqual([]);
-    await withTenant(admin, tenant, (c) =>
-      updateTenantSettings(c, tenant, { bandeja: { silencio: { desde: '21:00', hasta: '08:00' } } }),
-    );
   });
 });
 
