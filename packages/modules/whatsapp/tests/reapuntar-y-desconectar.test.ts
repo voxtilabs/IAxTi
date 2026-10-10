@@ -191,8 +191,19 @@ describe('desconectar el canal (#600)', () => {
 
     // La fila SIGUE: las conversaciones cuelgan de la cuenta y borrarla dejaría
     // el historial sin de dónde salió (SPEC §39).
-    const filas = await withTenant(admin, tenant, (c) => listWhatsAppNumbers(c, tenant));
+    //
+    // Se pide explícitamente: desde #772 la lista NO trae los archivados, y por
+    // una razón que esta prueba casi escondió — `GET /channels` entrega esa
+    // lista y la interfaz decidía con ella si se puede mandar una campaña, así
+    // que una fila archivada sin `quality` bloqueaba todas las campañas del
+    // negocio.
+    const filas = await withTenant(admin, tenant, (c) =>
+      listWhatsAppNumbers(c, tenant, { incluirDesconectados: true }),
+    );
     expect(filas).toHaveLength(1);
+    // Y por defecto no está: es lo que ve la API.
+    const vivos = await withTenant(admin, tenant, (c) => listWhatsAppNumbers(c, tenant));
+    expect(vivos).toHaveLength(0);
 
     // Y el cupo quedó libre: esto es la mitad del problema que el issue nombra.
     await expect(conectado('snd_el_segundo')).resolves.toBeTruthy();

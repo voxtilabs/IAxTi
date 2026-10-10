@@ -271,3 +271,33 @@ describe('WhatsApp solo llega a celulares (#582)', () => {
     expect(r.motivo).not.toBe('NO_ES_MOVIL');
   });
 });
+
+describe('un teléfono mal escrito se contesta, no explota (#773)', () => {
+  it.each(['+5691234', '9 1234 567', 'hola', '+99999999999'])(
+    '%s devuelve TELEFONO_INVALIDO con el mensaje de normalizePhone',
+    async (malo) => {
+      // Antes `normalizePhone` lanzaba en la primera línea de `probarEnvio`
+      // —fuera del `withTenant` y fuera del `try`— y el error subía hasta
+      // `ErrorsFilter`, que contesta 500 «Algo falló de nuestro lado». En la
+      // única ruta cuyo propósito es decir exactamente qué pasó.
+      const falso = despachoFalso({ providerMessageId: 'no-deberia' });
+      const r = await probar(malo, { despachar: falso.despachar });
+      expect(r.ok).toBe(false);
+      expect(r.motivo).toBe('TELEFONO_INVALIDO');
+      expect(r.mensaje).toMatch(/Teléfono inválido/);
+      // Y no se intentó nada: la normalización ocurre antes de tocar al
+      // proveedor y antes de abrir una transacción.
+      expect(falso.llamadas).toEqual([]);
+    },
+  );
+
+  it('no lanza: el llamador recibe un resultado como cualquier otro', async () => {
+    // Lo que esto fija es la FORMA. Si volviera a lanzar, el controlador se
+    // saltaría su `writeAudit` —que está después— y el rastro no se escribiría,
+    // aunque el mensaje al final fuera el correcto.
+    await expect(probar('no es un telefono')).resolves.toMatchObject({
+      ok: false,
+      motivo: 'TELEFONO_INVALIDO',
+    });
+  });
+});

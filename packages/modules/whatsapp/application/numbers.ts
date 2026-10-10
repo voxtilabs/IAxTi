@@ -256,12 +256,60 @@ export async function desconectarNumero(
   return { number: rowToNumber(r.rows[0]), account };
 }
 
+/**
+ * De quién es un emisor del proveedor, o `null` si no es de nadie (#771).
+ *
+ * Recibe `Pick<PoolClient, 'query'>` y no un cliente con tenant: la pregunta
+ * CRUZA tenants —«¿este emisor es de alguien más?»— y por eso va por una función
+ * `SECURITY DEFINER` que devuelve solo el `tenant_id`. Desde el contexto del
+ * tenant que pregunta, la fila del otro no se ve, y no verla es exactamente lo
+ * que producía el agujero: la lista de emisores mostraba los de todos los
+ * negocios y reapuntar aceptaba cualquiera.
+ *
+ * `null` es «libre», y es el caso normal de un onboarding: el emisor existe en
+ * Zavu y todavía no lo conectó nadie en IAxTi.
+ *
+ * Cuenta los ARCHIVADOS: un número que un negocio dio de baja sigue siendo su
+ * número, y el único parcial de la migración 0007 ya no lo protege.
+ */
+export async function tenantDelEmisor(
+  client: Pick<PoolClient, 'query'>,
+  senderId: string,
+): Promise<string | null> {
+  const r = await client.query<{ tenant: string | null }>(
+    'SELECT tenant_del_emisor($1) AS tenant',
+    [senderId],
+  );
+  return r.rows[0]?.tenant ?? null;
+}
+
+/**
+ * Los números del negocio. Los archivados NO vienen, salvo que se pidan (#772).
+ *
+ * El defecto que esto cierra: `GET /channels` entrega esta lista y la interfaz
+ * decide con ella si se puede mandar una campaña
+ * (`apps/web/lib/campanas.ts`). Una fila archivada no tiene `quality`, y la
+ * regla «ningún número sin calidad» bastaba para **bloquear todas las campañas
+ * del negocio** con solo haber desconectado un canal — sin que Meta mandara
+ * nada.
+ *
+ * Por defecto fuera, y no «marcados»: un número archivado no es un número del
+ * negocio, y cada consulta que lo recibiera tendría que acordarse de filtrarlo.
+ * Esa es justo la forma del defecto — la columna `disconnected_at` tenía UN
+ * lector y seis consultas vecinas que no se enteraron.
+ *
+ * `incluirDesconectados` existe para quien de verdad quiere el historial: hoy,
+ * las pruebas que comprueban que la fila sobrevive al archivarla.
+ */
 export async function listWhatsAppNumbers(
   client: PoolClient,
   tenantId: string,
+  opciones: { incluirDesconectados?: boolean } = {},
 ): Promise<WhatsAppNumber[]> {
   const r = await client.query(
-    'SELECT * FROM whatsapp_numbers WHERE tenant_id = $1 ORDER BY created_at',
+    `SELECT * FROM whatsapp_numbers
+      WHERE tenant_id = $1 ${opciones.incluirDesconectados ? '' : 'AND disconnected_at IS NULL'}
+      ORDER BY created_at`,
     [tenantId],
   );
   return r.rows.map(rowToNumber);
@@ -272,6 +320,13 @@ export async function findNumberBySenderId(
   client: PoolClient,
   senderId: string,
 ): Promise<WhatsAppNumber | null> {
-  const r = await client.query('SELECT * FROM whatsapp_numbers WHERE sender_id = $1', [senderId]);
+  // El vivo primero (#772): desde la migración 0007 puede haber dos filas con
+  // el mismo sender —una archivada y una viva— y quien pregunta por un emisor
+  // quiere el que está en uso.
+  const r = await client.query(
+    `SELECT * FROM whatsapp_numbers WHERE sender_id = $1
+      ORDER BY disconnected_at NULLS FIRST, connected_at DESC NULLS LAST LIMIT 1`,
+    [senderId],
+  );
   return r.rowCount === 0 ? null : rowToNumber(r.rows[0]);
 }

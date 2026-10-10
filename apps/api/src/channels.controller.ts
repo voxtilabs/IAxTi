@@ -23,6 +23,7 @@ import {
   listWhatsAppNumbers,
   reapuntarEmisor,
   resumeBusinessSends,
+  tenantDelEmisor,
 } from '@iaxti/module-whatsapp';
 import { createWidget, listWidgets, setWidgetActive } from '@iaxti/module-webchat';
 import { z } from 'zod';
@@ -214,16 +215,38 @@ export class ChannelsController {
         message: 'No pudimos preguntarle al proveedor qué emisores tiene. Intenta en unos minutos.',
       });
     }
+    // Los emisores de OTROS negocios no se muestran (#771).
+    //
+    // Todos los tenants comparten la llave del proyecto, así que esta lista
+    // traía los emisores de todos: el tenant A veía «snd_xxx · Ferretería El
+    // Sol». Ni el id ni el nombre: el nombre es el del negocio.
+    //
+    // La pregunta cruza tenants, así que va por `tenant_del_emisor`
+    // —SECURITY DEFINER, devuelve solo el tenant— y no por una consulta a
+    // `whatsapp_numbers`, donde RLS esconde justo la fila que hay que ver.
+    //
+    // `null` es «de nadie» y se muestra: es el caso normal de un onboarding.
+    const duenos = await Promise.all(
+      senders.map(async (s) => [s.id, await tenantDelEmisor(pool(), s.id)] as const),
+    );
+    const ajeno = new Set(
+      duenos.filter(([, t]) => t !== null && t !== actor.tenantId).map(([id]) => id),
+    );
+
     // `sirve` y no filtrar: ver los que NO sirven explica por qué la lista
     // está corta —un emisor existe pero sin este canal encendido— y eso se
     // arregla en Zavu, no acá. Una lista vacía sin explicación manda a adivinar.
-    return senders.map((s) => ({
-      id: s.id,
-      name: s.name ?? null,
-      channels: s.channels ?? [],
-      sirve: (s.channels ?? []).includes(cuenta.kind),
-      actual: cuenta.config.senderId === s.id,
-    }));
+    // Lo de otro tenant SÍ se filtra: ahí no hay nada que explicar que no sea
+    // contar de quién es.
+    return senders
+      .filter((s) => !ajeno.has(s.id))
+      .map((s) => ({
+        id: s.id,
+        name: s.name ?? null,
+        channels: s.channels ?? [],
+        sirve: (s.channels ?? []).includes(cuenta.kind),
+        actual: cuenta.config.senderId === s.id,
+      }));
   }
 
   /**
@@ -276,7 +299,27 @@ export class ChannelsController {
         details: elegido.candidatos.map((s) => ({ id: s.id, channels: s.channels ?? [] })),
       });
     }
+    // Y que el emisor NO sea de otro negocio (#771).
+    //
+    // `elegirSender` solo mira si el emisor tiene el canal encendido: de quién
+    // es, no lo sabe. Sin esto, el ADMIN de A podía apuntar su canal a un emisor
+    // que otro negocio todavía no conectó —o que archivó— y quedar despachando
+    // WhatsApp desde el número de un tercero.
+    //
+    // El mensaje NO dice de quién es: eso sería la misma fuga por otra puerta.
+    const dueno = await tenantDelEmisor(pool(), elegido.sender.id);
+    if (dueno !== null && dueno !== actor.tenantId) {
+      throw new BadRequestException({
+        code: 'SENDER_DE_OTRO_NEGOCIO',
+        message:
+          'Ese emisor ya está conectado a otro negocio en IAxTi, así que no se puede usar acá. ' +
+          'Elige uno de la lista.',
+      });
+    }
     return withTenant(pool(), actor.tenantId, async (c) => {
+      // El único de `sender_id` es GLOBAL, así que todavía puede chocar: entre
+      // que se preguntó de quién era y que se escribe, otro negocio pudo
+      // conectarlo. Sin este catch salía un 500 crudo (#771).
       const { number, account } = await reapuntarEmisor(c, {
         tenantId: actor.tenantId,
         accountId: id,
@@ -303,6 +346,16 @@ export class ChannelsController {
         requestId: request.requestId,
       });
       return { number, account };
+    }).catch((err: unknown) => {
+      if ((err as { code?: string }).code === '23505') {
+        throw new BadRequestException({
+          code: 'SENDER_YA_CONECTADO',
+          message:
+            'Ese emisor acaba de quedar conectado a otro negocio. Vuelve a pedir la lista y elige ' +
+            'otro.',
+        });
+      }
+      throw err;
     });
   }
 
@@ -407,6 +460,17 @@ export class ChannelsController {
         requestId: request.requestId,
       },
     );
+    // El tope se DEVUELVE cuando no se llegó a enviar nada (#773).
+    //
+    // El candado se pone antes de llamar, porque es lo que impide que dos clics
+    // simultáneos manden dos mensajes. Pero si la prueba se rechazó por una
+    // regla —un teléfono mal escrito, la ventana cerrada, el silencio— no salió
+    // ningún WhatsApp, y dejar el candado puesto deja a la persona cinco
+    // minutos sin poder volver a intentar. El tope existe para no llenarle el
+    // teléfono a alguien, no para castigar un error de tipeo.
+    if (redis && !resultado.ok) {
+      await redis.del(clave).catch(() => undefined);
+    }
     // Se audita SIEMPRE, salga o no: a quién se le mandó —o a quién se intentó
     // mandar— desde el número del negocio es justo lo que alguien va a querer
     // reconstruir después. El cuerpo no va: es fijo y está en el código.

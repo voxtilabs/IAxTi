@@ -161,16 +161,29 @@ async function buscarNumero(
         'así que no lo aplicamos. Revisa quién lo encoló antes de reintentar.',
     );
   }
+  // Gana el número VIVO, y el desempate no es cosmético (#772).
+  //
+  // Desde la migración 0007 el único de `sender_id` es PARCIAL —ignora los
+  // archivados— así que desconectar y reconectar el MISMO emisor, que es el
+  // caso que esa migración existe para habilitar, deja DOS filas con ese
+  // sender. Sin `ORDER BY`, esto devolvía una arbitraria: en secuencial, la
+  // vieja.
+  //
+  // Lo medido: el aviso de calidad roja se escribía en la fila MUERTA,
+  // `setChannelState` degradaba la cuenta vieja, y el canal VIVO seguía
+  // despachando con la calidad en rojo — porque `isBusinessPaused` filtra por
+  // `channel_account_id` y no veía nada.
+  const ORDEN = 'ORDER BY disconnected_at NULLS FIRST, connected_at DESC NULLS LAST LIMIT 1';
   if (update.senderId) {
     const r = await client.query<FilaNumero>(
-      'SELECT * FROM whatsapp_numbers WHERE tenant_id = $1 AND sender_id = $2 FOR UPDATE',
+      `SELECT * FROM whatsapp_numbers WHERE tenant_id = $1 AND sender_id = $2 ${ORDEN} FOR UPDATE`,
       [tenantId, update.senderId],
     );
     if ((r.rowCount ?? 0) > 0) return r.rows[0];
   }
   if (update.phoneNumberId) {
     const r = await client.query<FilaNumero>(
-      'SELECT * FROM whatsapp_numbers WHERE tenant_id = $1 AND phone_number_id = $2 FOR UPDATE',
+      `SELECT * FROM whatsapp_numbers WHERE tenant_id = $1 AND phone_number_id = $2 ${ORDEN} FOR UPDATE`,
       [tenantId, update.phoneNumberId],
     );
     if ((r.rowCount ?? 0) > 0) return r.rows[0];
@@ -247,7 +260,8 @@ export async function isBusinessPaused(
 ): Promise<string | null> {
   const r = await client.query(
     `SELECT paused_reason FROM whatsapp_numbers
-      WHERE tenant_id = $1 AND channel_account_id = $2 AND business_paused_at IS NOT NULL`,
+      WHERE tenant_id = $1 AND channel_account_id = $2 AND business_paused_at IS NOT NULL
+        AND disconnected_at IS NULL`,
     [tenantId, channelAccountId],
   );
   return r.rowCount === 0 ? null : (r.rows[0].paused_reason as string) ?? 'Envíos del negocio pausados.';
@@ -294,7 +308,15 @@ export async function resumeBusinessSends(
  */
 export async function numeroEnRojo(client: PoolClient, tenantId: string): Promise<boolean> {
   const r = await client.query(
-    `SELECT 1 FROM whatsapp_numbers WHERE tenant_id = $1 AND quality = 'red' LIMIT 1`,
+    // Un número ARCHIVADO no es un número del negocio (#772).
+    //
+    // Sin este filtro: a un tenant le baja la calidad a rojo, el ADMIN
+    // desconecta ese canal —que es exactamente lo que uno hace con un número
+    // quemado— y conecta uno sano. La fila archivada sigue en rojo, esto sigue
+    // devolviendo `true` y TODA campaña del negocio se rechaza para siempre: la
+    // fila no se borra (SPEC §39) y nada limpia `quality`.
+    `SELECT 1 FROM whatsapp_numbers
+      WHERE tenant_id = $1 AND quality = 'red' AND disconnected_at IS NULL LIMIT 1`,
     [tenantId],
   );
   return (r.rowCount ?? 0) > 0;

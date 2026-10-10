@@ -21,6 +21,40 @@ describe('protecciones de la pantalla de campañas (#356)', () => {
     }
     expect(impedimentoDeCampana([{ ...canal, state: 'disconnected' }], previa)).toMatch(/sin conexión/);
   });
+  /**
+   * Un canal desconectado no bloquea si queda otro en servicio (#772).
+   *
+   * Lo que esto arregla: con el botón de desconectar (#600), dar de baja un
+   * canal —un número quemado, uno que el negocio dejó de usar— bloqueaba TODAS
+   * las campañas indefinidamente, y no había forma de salir desde el producto.
+   * La regla decía «ningún canal fuera de active/degraded», y eso es distinto de
+   * «hay con qué mandar».
+   */
+  it('un canal desconectado no impide nada si hay otro sano', () => {
+    const sano = { ...canal, id: 'vivo' };
+    const dadoDeBaja: CampaignChannel = { ...canal, id: 'muerto', state: 'disconnected', numbers: [] };
+    expect(impedimentoDeCampana([dadoDeBaja, sano], previa)).toBeNull();
+  });
+
+  it('pero si TODOS están sin conexión, lo dice', () => {
+    const dadoDeBaja: CampaignChannel = { ...canal, state: 'disconnected', numbers: [] };
+    expect(impedimentoDeCampana([dadoDeBaja], previa)).toMatch(/sin conexión/);
+  });
+
+  it('la calidad del canal fuera de servicio no se mira', () => {
+    // El camino sin salida: a un tenant le baja la calidad a rojo, desconecta
+    // ese canal y conecta uno sano. Si la calidad del muerto siguiera contando,
+    // las campañas quedarían bloqueadas para siempre — la fila no se borra
+    // (SPEC §39) y nada limpia `quality`.
+    const quemado: CampaignChannel = {
+      ...canal,
+      id: 'quemado',
+      state: 'disconnected',
+      numbers: [{ ...canal.numbers[0], id: 'viejo', quality: 'red' }],
+    };
+    expect(impedimentoDeCampana([quemado, { ...canal, id: 'nuevo' }], previa)).toBeNull();
+  });
+
   it('segmento vacío o sobre el máximo no promete un envío parcial', () => {
     expect(impedimentoDeCampana([canal], { ...previa, total: 0 })).toMatch(/no tiene/);
     expect(impedimentoDeCampana([canal], { ...previa, total: 5001 })).toMatch(/máximo/);
