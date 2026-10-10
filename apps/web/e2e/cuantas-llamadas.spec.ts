@@ -27,13 +27,13 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  * | Momento | Antes | Con los arranques (#761) |
  * |---|---|---|
  * | Abrir `/bandeja` | **7** | **3** |
- * | Con una conversación abierta | **21** | **5** |
+ * | Con una conversación abierta | **21** | **6** |
  *
  * Y lo que de verdad se ganó no son las llamadas: son los **statements**. Toda
  * ruta de `/v1` pasa por `withTenant`, que hace `BEGIN`, `set_config`, la
  * consulta y `COMMIT`, así que cada puerta cuesta cuatro viajes y no uno. Con
- * los 64 ms que midió #711: 21 llamadas ≥ 84 statements ≈ 5,4 s de viaje; 5
- * llamadas ≈ 20 statements ≈ 1,3 s. Hay una prueba en `apps/api` que cuenta los
+ * los 64 ms que midió #711: 21 llamadas ≥ 84 statements ≈ 5,4 s de viaje; 6
+ * llamadas ≈ 24 statements ≈ 1,5 s. Hay una prueba en `apps/api` que cuenta los
  * `BEGIN` por petición y exige UNO, porque agrupar las llamadas sin agrupar las
  * transacciones deja este presupuesto verde y la pantalla igual de lenta.
  *
@@ -68,6 +68,13 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  *   GET /v1/conversations                       la lista de la bandeja
  *   GET /v1/conversations/:id/arranque          el hilo (lo que se espera)
  *   GET /v1/conversations/:id/arranque/ficha    el resto (entra solo)
+ *   GET /v1/support-status                      ¿nos están mirando? (ver abajo)
+ *
+ * `/support-status` queda aparte por una regla que este PR aprendió a los golpes:
+ * una pieza que tiene que estar FRESCA no entra en un agregado que se pide UNA
+ * vez. Estuvo en el arranque y el e2e de #68 lo cazó — el soporte que entra diez
+ * minutos después de cargar la pantalla no aparecía nunca, infinitamente peor que
+ * el TTL de dos minutos que #711 había rechazado por esto mismo.
  *
  * `/me` queda aparte y no es un descuido: corre con `@RequireAuth()` SIN tenant
  * porque es la llamada que contesta *cuáles* negocios hay. Meterla en el
@@ -83,7 +90,7 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  * con los nombres de las cuatro que faltaba agrupar.
  */
 const PRESUPUESTO_BANDEJA = 3;
-const PRESUPUESTO_CON_CONVERSACION = 5;
+const PRESUPUESTO_CON_CONVERSACION = 6;
 
 /**
  * Espera a que la pantalla deje de pedir cosas, y devuelve cuántas puertas tocó.

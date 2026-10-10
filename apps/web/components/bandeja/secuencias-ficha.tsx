@@ -59,6 +59,7 @@ export function SecuenciasFicha({
   conversationId,
   precargadas,
   inscripcionesPrecargadas,
+  esperandoPrecarga = false,
 }: {
   contactId: string;
   conversationId: string;
@@ -69,6 +70,8 @@ export function SecuenciasFicha({
    */
   precargadas?: SecuenciaDto[] | null;
   inscripcionesPrecargadas?: InscripcionDto[] | null;
+  /** `true` si vienen en camino: sin esto se piden antes de que lleguen. */
+  esperandoPrecarga?: boolean;
 }) {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
@@ -104,8 +107,9 @@ export function SecuenciasFicha({
       setInscripciones(inscripcionesPrecargadas ?? []);
       return;
     }
+    if (esperandoPrecarga) return;
     void cargar();
-  }, [precargadas, inscripcionesPrecargadas, cargar]);
+  }, [precargadas, inscripcionesPrecargadas, cargar, esperandoPrecarga]);
 
   if (!tenant || (secuencias.length === 0 && inscripciones.length === 0)) return null;
 

@@ -190,6 +190,7 @@ export function Ficha({
         conversationId={detalle.id}
         precargadas={secuencias}
         inscripcionesPrecargadas={inscripciones}
+        esperandoPrecarga
       />
 
       {/* Retención (#77): desde cuándo no hay historial. */}
@@ -246,6 +247,7 @@ export function Ficha({
           compacta
           precargada={fichaDelContacto}
           etiquetasPrecargadas={etiquetasDelContacto}
+          esperandoPrecarga
         />
         <a href={`/contactos/${detalle.contactId}`} className="mt-4 inline-block text-sm text-action-text">
           Abrir la ficha completa →

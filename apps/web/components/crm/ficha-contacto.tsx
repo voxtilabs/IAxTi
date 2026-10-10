@@ -113,6 +113,7 @@ export function FichaContacto({
   compacta = false,
   precargada,
   etiquetasPrecargadas,
+  esperandoPrecarga = false,
 }: {
   contactId: string;
   /** true en el panel de la bandeja: sin encabezado grande. */
@@ -130,6 +131,17 @@ export function FichaContacto({
    */
   precargada?: Ficha | null;
   etiquetasPrecargadas?: EtiquetaDto[];
+  /**
+   * `true` cuando alguien va a pasar `precargada` y todavía no llegó.
+   *
+   * Es la distinción que faltaba y por la que el agrupado no bajaba el número:
+   * `undefined` significa «nadie me la va a dar, la pido yo» —la pantalla de
+   * contactos— y `null` significa «viene en camino». Sin este flag, el primer
+   * render de la bandeja veía `precargada = null`, pedía, y la llamada que el
+   * arranque venía a ahorrar se hacía igual: medido en CI, cuatro puertas que no
+   * bajaban.
+   */
+  esperandoPrecarga?: boolean;
 }) {
   const { session, config } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
@@ -201,8 +213,11 @@ export function FichaContacto({
       setEtiquetas(etiquetasPrecargadas ?? []);
       return;
     }
+    // Si viene en camino, se espera: pedirla ahora es la llamada que el arranque
+    // vino a ahorrar.
+    if (esperandoPrecarga) return;
     void cargar();
-  }, [precargada, etiquetasPrecargadas, contactId, cargar]);
+  }, [precargada, etiquetasPrecargadas, contactId, cargar, esperandoPrecarga]);
 
   useEffect(() => {
     setCampos((camposDelNegocio.dato as CampoDto[] | undefined) ?? []);

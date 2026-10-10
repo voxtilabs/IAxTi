@@ -45,6 +45,10 @@ export interface NavItem {
 
 export interface Arranque {
   /**
+   * Tampoco está el estado del soporte: una pieza que tiene que estar FRESCA no
+   * entra en un agregado que se pide una vez. El arranque no se vuelve a pedir,
+   * así que el soporte que entra diez minutos después no aparecería nunca.
+   *
    * `me` NO está acá, aunque el issue lo listara: su ruta corre sin tenant
    * porque es la que contesta *cuáles* negocios hay, y meterla en un agregado
    * por tenant hacía dos cosas mal —`tenantsOf` bajo RLS devolvía un solo
@@ -52,7 +56,6 @@ export interface Arranque {
    */
   modulos: Array<{ id: string; nav: NavItem[]; widgets: unknown[] }>;
   acceso: Pieza<Array<{ id: string; acceso: 'completo' | 'solo_lectura' }>>;
-  soporte: Pieza<{ activo: boolean; hasta?: string | null } | null>;
   avisos: Pieza<{ items: unknown[]; unread: number }>;
   respuestasRapidas: Pieza<unknown[]>;
   etiquetas: Pieza<Array<{ id: string; name: string }>>;

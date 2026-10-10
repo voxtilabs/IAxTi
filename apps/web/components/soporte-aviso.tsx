@@ -1,23 +1,45 @@
 'use client';
 
-import { usePieza } from './arranque';
+import { useEffect, useState } from 'react';
+import { useSession } from '@iaxti/ui/react';
+import { selectedTenant } from './tenant-switcher';
+import { apiFetch } from '../lib/api';
 
 // El aviso del modo soporte (#68, SPEC §22): si el soporte de IAxTi está
 // mirando la cuenta, el tenant LO VE — ayudar sin violar la confianza.
 
 export function SoporteAviso() {
   /**
-   * El estado del soporte sale del arranque (#761), y sin caché.
+   * Este aviso NO va en el arranque, y lo intenté (#761).
    *
-   * Vale repetir por qué esta pieza es la excepción deliberada de #711: no es
-   * configuración, es el AVISO de que alguien de IAxTi está mirando la cuenta.
-   * Un TTL de dos minutos son dos minutos en que el soporte ya entró y el
-   * cliente todavía no lo sabe. Va en el arranque —que no se cachea entero,
-   * justamente por esto— y no detrás de un TTL propio.
+   * El razonamiento con el que lo metí era el correcto a medias: #711 lo dejó
+   * fuera del caché porque no es configuración, es el AVISO de que alguien de
+   * IAxTi está mirando la cuenta, y un TTL de dos minutos son dos minutos en que
+   * el soporte ya entró y el cliente no lo sabe. El arranque no se cachea, así
+   * que parecía el lugar.
+   *
+   * Lo que no vi: **el arranque se pide una vez por sesión y no se vuelve a
+   * pedir.** O sea que si el soporte entra diez minutos después de cargar la
+   * pantalla, el aviso no aparece NUNCA — infinitamente peor que el TTL de dos
+   * minutos que se había rechazado. Lo cazó el e2e de #68, que enciende el
+   * soporte y recarga esperando verlo.
+   *
+   * La regla que sale de esto: una pieza que tiene que estar FRESCA no entra en
+   * un agregado que se pide una vez. El arranque sirve para lo que vale lo mismo
+   * en el segundo 1 y en el minuto 20.
    */
-  const soporte = usePieza('soporte');
-  const dato = soporte.dato as { active?: boolean; until?: string | null } | undefined;
-  const hasta = dato?.active ? (dato.until ?? null) : null;
+  const { session, config } = useSession();
+  const [hasta, setHasta] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tenant = selectedTenant();
+    if (!session || !tenant) return;
+    void apiFetch<{ active: boolean; until: string | null }>(
+      config, session, tenant, '/support-status',
+    )
+      .then((s) => setHasta(s.active ? s.until : null))
+      .catch(() => setHasta(null));
+  }, [session, config]);
 
   if (!hasta) return null;
   return (

@@ -80,6 +80,13 @@ const SIN_CONSUMIDOR: Record<string, string> = {
    *
    * Si alguna se queda de verdad sin uso —ni SDK, ni recarga puntual, ni
    * prueba—, lo que corresponde es sacarla en `/v2`, no dejarla acá.
+   *
+   * `GET /support-status` estuvo en esta lista un rato y salió: el aviso de modo
+   * soporte volvió a pedirla porque **una pieza que tiene que estar FRESCA no
+   * entra en un agregado que se pide una vez**. Esta guarda lo exigió al
+   * revés —«una excepción que ya tiene pantalla se saca de la lista»— que es la
+   * mitad que a estos trinquetes se les olvida: #664 aprendió lo mismo con los
+   * exports.
    */
   'GET /conversations/:id/suggestion':
     'La trae el arranque de la ficha (#761). Sigue viva para el SDK y para recargar solo la sugerencia.',
@@ -89,8 +96,6 @@ const SIN_CONSUMIDOR: Record<string, string> = {
     'La trae el arranque de la ficha (#761). La pantalla la recarga sola después de escribir una nota.',
   'GET /conversations/:id/attachments/limites':
     'La trae el arranque urgente (#761). Sigue viva para el SDK y para quien no arranque por acá.',
-  'GET /support-status':
-    'La trae el arranque del shell (#761). Sin caché a propósito: es un aviso de privacidad, no configuración.',
 
   // --- Lo que SÍ es una función sin puerta, con su issue ---
   //

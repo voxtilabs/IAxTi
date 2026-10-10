@@ -32,7 +32,6 @@ import {
   modulosDelPlan,
   modulosVendibles,
 } from '@iaxti/module-organizations';
-import { supportStatus } from '@iaxti/module-platform';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { permisosDelActor } from './authz/can';
@@ -399,6 +398,14 @@ export class ArranqueController {
    * a volver a pedirse cada vez que alguien cambia un filtro — que es lo
    * contrario de arrancar una vez.
    *
+   * **Tampoco incluye el estado del soporte**, y el motivo es una regla que
+   * conviene tener escrita: *una pieza que tiene que estar FRESCA no entra en un
+   * agregado que se pide una vez.* El arranque se pide al entrar y no se vuelve
+   * a pedir, así que el soporte que entra diez minutos después no aparecería
+   * nunca — infinitamente peor que el TTL de dos minutos que #711 rechazó por
+   * esto mismo. El arranque sirve para lo que vale lo mismo en el segundo 1 y en
+   * el minuto 20.
+   *
    * **Y no incluye `/me`**, aunque el issue lo liste. Lo intenté y está mal por
    * dos motivos que solo se ven al medirlo:
    *
@@ -429,7 +436,6 @@ export class ArranqueController {
 
       const [
         acceso,
-        soporte,
         avisos,
         respuestasRapidas,
         etiquetas,
@@ -464,13 +470,6 @@ export class ArranqueController {
             },
           ),
         ),
-        /**
-         * El soporte NO se cachea, y es la excepción deliberada (#711): esto no
-         * es configuración, es el AVISO de que alguien de IAxTi está mirando la
-         * cuenta. Un TTL de dos minutos son dos minutos en que el soporte ya
-         * entró y el cliente todavía no lo sabe.
-         */
-        pieza(permisos, { permiso: 'tenant.read' }, () => supportStatus(c, actor.tenantId)),
         pieza(permisos, { modulo: 'notifications', permiso: 'notifications.manage_own' }, () =>
           listNotifications(c, actor.tenantId, actor.userId),
         ),
@@ -525,7 +524,6 @@ export class ArranqueController {
           return { id: m.id, nav: manifiesto.nav ?? [], widgets: manifiesto.widgets ?? [] };
         }),
         acceso,
-        soporte,
         avisos,
         respuestasRapidas,
         etiquetas,

@@ -455,10 +455,18 @@ describe('arranque de una conversación (#761)', () => {
      * en una columna uuid: el arranque entero daba 500.
      */
     expect(cuerpo).not.toHaveProperty('me');
+    /**
+     * Y el estado del soporte TAMPOCO, por una regla que vale escribir: una
+     * pieza que tiene que estar FRESCA no entra en un agregado que se pide una
+     * vez. El arranque no se vuelve a pedir, así que el soporte que entra diez
+     * minutos después no aparecería nunca — peor que el TTL de dos minutos que
+     * #711 rechazó justamente por esto. Lo cazó el e2e de #68.
+     */
+    expect(cuerpo).not.toHaveProperty('soporte');
     // El catálogo del DESPLIEGUE sale del registry: no consulta nada y es el
     // mismo para todos (#629).
     expect(Array.isArray(cuerpo.modulos)).toBe(true);
-    for (const p of ['acceso', 'soporte', 'avisos', 'respuestasRapidas', 'etiquetas', 'campos', 'empresas', 'retencion']) {
+    for (const p of ['acceso', 'avisos', 'respuestasRapidas', 'etiquetas', 'campos', 'empresas', 'retencion']) {
       expect(cuerpo[p], `falta la pieza ${p}`).toBeTruthy();
       expect(['ok', 'sin-permiso', 'modulo-apagado']).toContain(cuerpo[p].estado);
     }
