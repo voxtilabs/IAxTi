@@ -1,5 +1,7 @@
 export { createPool } from './client';
 export { withTenant, idsDeTenants, porCadaTenant } from './tenant';
+// Limpiar en las pruebas sin apagar un trigger para TODA la base (#803).
+export { sinTriggers } from './sin-triggers';
 export { runMigrations, topologicalOrder, findModulesDir } from './migrate';
 export type { AppliedMigration } from './migrate';
 export { estadoRls, exigeRolQueRespetaRls } from './rls';

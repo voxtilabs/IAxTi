@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { PayloadTooLargeException } from '@nestjs/common';
 import { ExportDemasiadoGrande } from '@iaxti/module-audit';
 import { noMasDeLoQueCabe } from '../src/audit.controller';
@@ -93,9 +93,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-  await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
-  await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+  await sinTriggers(admin, async (c) => {
+    await c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+  });
   for (const tabla of ['user_roles', 'invitations', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
