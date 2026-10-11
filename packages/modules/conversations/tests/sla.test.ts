@@ -200,6 +200,7 @@ describe('avisos y SLA (rol de aplicación)', () => {
 });
 
 /**
+/**
  * La pospuesta despierta por FECHA (#819).
  *
  * `snoozed_until` se exigía al posponer, se guardaba y se mostraba, y tenía
@@ -301,5 +302,50 @@ describe('la pospuesta despierta por fecha (#819)', () => {
       [tenant, id],
     );
     expect(r.rows[0].payload).toEqual({ conversationId: id, from: 'snoozed', to: 'new' });
+  });
+});
+
+/**
+ * `ia_horario` se comporta como `manual`, y queda escrito (#830).
+ *
+ * El comentario decía «queda preparada: se activa con agents en Fase 3», y la
+ * fase 3 llegó: el modo autónomo está implementado y nada se enganchó a la
+ * asignación. `assigned_via = 'ia_horario'` no se escribe en ninguna fila.
+ *
+ * La prueba no bendice el comportamiento: lo fija para que el día que #830 lo
+ * cambie, el cambio se vea. Lo que hoy NO se puede dejar pasar es que la
+ * pantalla prometa otra cosa.
+ */
+describe('el modo de asignación ia_horario (#830)', () => {
+  it('deja la conversación en la cola, igual que manual, y lo dice en el `via`', async () => {
+    await admin.query(
+      `UPDATE tenants SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{bandeja}',
+         COALESCE(settings->'bandeja', '{}'::jsonb) || '{"assignmentMode":"ia_horario"}'::jsonb)
+        WHERE id = $1`,
+      [tenant],
+    );
+    const res = await withTenant(app, tenant, (c) =>
+      receiveInbound(c, {
+        tenantId: tenant,
+        phone: '+56930000020',
+        channel: 'simulador',
+        body: 'hola',
+      }),
+    );
+    const asignacion = await withTenant(app, tenant, (c) =>
+      autoAssignNew(c, { tenantId: tenant, conversationId: res.conversation.id }),
+    );
+    expect(asignacion).toEqual({ assignedTo: null, via: 'ia_horario' });
+
+    const fila = (
+      await admin.query('SELECT owner_id, state, assigned_via FROM conversations WHERE id = $1', [
+        res.conversation.id,
+      ])
+    ).rows[0];
+    expect(fila.owner_id).toBeNull();
+    expect(fila.state).toBe('new');
+    // Y el `via` tampoco se guarda: el UPDATE queda detrás del return. Es el
+    // dato que haría visible el modo desde la base, y no está.
+    expect(fila.assigned_via).toBeNull();
   });
 });

@@ -23,7 +23,28 @@ const MODOS: { value: Ajustes['assignmentMode']; label: string; ayuda: string }[
   { value: 'manual', label: 'Manual', ayuda: 'El equipo toma las conversaciones de la cola.' },
   { value: 'round_robin', label: 'Turno rotativo', ayuda: 'Recibe quien lleva más tiempo sin una nueva.' },
   { value: 'last_owner', label: 'Quien lo atendió la última vez', ayuda: 'El contacto vuelve a su vendedora.' },
-  { value: 'ia_horario', label: 'La IA en horario autónomo', ayuda: 'Se activa cuando conectes el asistente (Fase 3).' },
+  /**
+   * Dice la verdad: hoy se comporta como «Manual» (#830).
+   *
+   * La ayuda decía «Se activa cuando conectes el asistente (Fase 3)», y la
+   * fase 3 llegó: el modo autónomo está implementado y se configura en
+   * **Ajustes → IA**, con su horario y su pausa por cuota. Lo que no existe es
+   * este modo de ASIGNACIÓN: `autoAssignNew` hace
+   * `if (via === 'manual' || via === 'ia_horario') return` antes de tocar
+   * nada, así que el ADMIN que ya conectó el asistente y elige esto obtiene
+   * exactamente «Manual» mientras la pantalla le dice otra cosa.
+   *
+   * Se queda en la lista y no se borra porque hay tenants que lo tienen
+   * guardado: sacarlo del selector dejaría la pantalla sin nada seleccionado y
+   * sin forma de ver qué está puesto.
+   */
+  {
+    value: 'ia_horario',
+    label: 'La IA en horario autónomo',
+    ayuda:
+      'Hoy se comporta igual que Manual: la conversación queda en la cola. La autonomía de la ' +
+      'IA se configura en Ajustes → IA, con su horario.',
+  },
 ];
 
 export function AjustesBandeja() {
