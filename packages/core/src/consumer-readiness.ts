@@ -8,7 +8,16 @@ export async function consumerReadiness(
   service: 'workers' | 'agents',
   env: Record<string, string | undefined> = process.env,
   timeoutMs = 2_000,
-  initialized = true,
+  /**
+   * `true` arrancó · `false` todavía está arrancando · un texto: NO arrancó y
+   * ese texto es el motivo.
+   *
+   * El motivo existe porque «iniciando» y «falló el arranque» son dos cosas
+   * distintas y se veían iguales: la primera se espera, la segunda se
+   * atiende. El caso concreto es el de #807 — cero repetibles programados,
+   * donde el proceso responde todo menos las tareas del negocio.
+   */
+  initialized: boolean | string = true,
 ) {
   async function probe(kind: 'redis' | 'database', url: string | undefined): Promise<ProbeResult> {
     if (!url?.trim()) return 'sin configurar';
@@ -55,12 +64,15 @@ export async function consumerReadiness(
     probe('redis', env.REDIS_URL),
     service === 'workers' ? probe('database', env.DATABASE_URL) : Promise.resolve(undefined),
   ]);
-  const ok = initialized && redis === 'ok' && (service !== 'workers' || database === 'ok');
+  const arranco = initialized === true;
+  const detalleDelArranque =
+    typeof initialized === 'string' ? initialized : arranco ? 'ok' : 'iniciando';
+  const ok = arranco && redis === 'ok' && (service !== 'workers' || database === 'ok');
   return {
     statusCode: ok ? 200 : 503,
     body: {
       status: ok ? 'ok' : 'degraded', service, redis,
-      ...(service === 'workers' ? { database, startup: initialized ? 'ok' : 'iniciando' } : {}),
+      ...(service === 'workers' ? { database, startup: detalleDelArranque } : {}),
     },
   };
 }

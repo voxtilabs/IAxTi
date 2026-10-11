@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { REPETIBLES } from '../src/repetibles';
 
 /**
  * Cada job programado llega a su `case`, y cada `case` lo encola alguien (#529).
@@ -28,9 +29,19 @@ function atendidos(): Set<string> {
   return new Set([...MAIN.matchAll(/case '([a-z][a-z0-9_.]*)':/g)].map((m) => m[1]));
 }
 
-/** Los nombres que `scheduled.add('x', …)` encola. */
+/**
+ * Los nombres que se encolan en la cola `scheduled`.
+ *
+ * Los repetibles salen de la lista TIPADA y no de un regex sobre el texto de
+ * `main.ts`: desde #807 están declarados en `repetibles.ts`, y un escáner de
+ * texto que apunta al archivo equivocado no encuentra nada y se queda verde.
+ * El regex se conserva para los `scheduled.add` que quedan en el arranque.
+ */
 function encolados(): Set<string> {
-  return new Set([...MAIN.matchAll(/scheduled\.add\(\s*'([a-z][a-z0-9_.]*)'/g)].map((m) => m[1]));
+  return new Set([
+    ...REPETIBLES.map((r) => r.nombre),
+    ...[...MAIN.matchAll(/scheduled\.add\(\s*'([a-z][a-z0-9_.]*)'/g)].map((m) => m[1]),
+  ]);
 }
 
 /**

@@ -6,7 +6,14 @@ export { publishEvent, retryExhaustedEvent } from './events';
 export type { EventEnvelope, PublishInput } from './events';
 export { OutboxDispatcher, MAX_ATTEMPTS } from './dispatcher';
 export type { Consumer, EventHandler } from './dispatcher';
-export { QUEUE_NAMES, createQueue, createModuleWorker, redisConnection } from './queues';
+export {
+  QUEUE_NAMES,
+  createQueue,
+  createModuleWorker,
+  redisConnection,
+  programarRepetibles,
+} from './queues';
+export type { Repetible } from './queues';
 export type { QueueName, ModuleJobData } from './queues';
 export { attachmentKey, knowledgeKey, presignUrl, presignPutUrl, firmaPresignada, storageFromEnv, almacenR2 } from './storage';
 export type { StorageConfig, LimitesSubida, AlmacenObjetos } from './storage';
