@@ -11,8 +11,12 @@ enfocado:
 
 ## Al empezar una sesión
 
-1. Lee el **handoff** más reciente (comentario en el issue en curso o
-   `docs/handoffs/`), NO el historial de la conversación anterior.
+1. Lee el **handoff** más reciente —un comentario en el issue en curso—, NO
+   el historial de la conversación anterior. (Decía «o docs/handoffs/» —sin
+   comillas acá a propósito, o la guarda de #817 se pone roja por el texto que
+   la explica, que es la trampa de #569 una capa más arriba— y esa carpeta
+   nunca existió: quien siguiera la instrucción al pie de la letra se iba a
+   buscar el handoff a un lugar vacío.)
 2. Lee SOLO: el Issue que vas a trabajar, la sección del SPEC de su módulo
    (la Parte B tiene una sección por módulo — usa el índice, no leas la spec
    completa), y el ADR del área si existe.

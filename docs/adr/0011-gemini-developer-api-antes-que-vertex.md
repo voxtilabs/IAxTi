@@ -28,10 +28,25 @@ datos de clientes.**
 >
 > **Y acá hay una incomodidad que conviene escribir, no esconder.** La regla
 > del proyecto dice "nunca un número real de WhatsApp en staging", y hoy
-> staging está conectado al número real de VoxTi — porque Zavu no ofrece un
-> sandbox: `isTestMode` es propiedad de la llave, no del proyecto, así que
-> hay un solo sender y un solo número. El 21-09 entró por ahí un WhatsApp
-> real.
+> staging está conectado al número real de VoxTi. El 21-09 entró por ahí un
+> WhatsApp real.
+>
+> **Corrección (#593, aterrizada acá el 11-10 por #817).** Esta nota decía
+> antes "porque Zavu no ofrece un sandbox: `isTestMode` es propiedad de la
+> llave, no del proyecto, así que hay un solo sender y un solo número". Es
+> falso: Zavu tiene llaves `zv_test_` de sandbox y una pantalla de números
+> verificados. La decisión de usar el número real es **deliberada** —un
+> WhatsApp de verdad se comporta distinto que un simulador, y el producto se
+> prueba contra lo que va a pasar—, no una limitación del proveedor.
+>
+> La corrección llegó a `.claude/rules/seguridad.md` cuando se hizo y a este
+> ADR no, y eso importa más de lo que parece: este documento es el que citan
+> `SECURITY_BASELINE.md` y `COMPLIANCE_BASELINE.md` como autoridad. Quien lo
+> abriera para revisar la decisión —la condición 1 de más abajo— se habría
+> encontrado con una limitación de proveedor inexistente en vez del riesgo
+> deliberado que de verdad hay que pesar, y con la salida de la condición 2
+> (`zv_test_`) presentada como imposible. Se sostenía un riesgo aceptado con
+> un motivo equivocado, y **un motivo equivocado no se puede revisar**.
 >
 > O sea que staging **no es** un ambiente sin datos de terceros: es un
 > ambiente donde hoy solo escribimos nosotros, pero donde cualquiera que
@@ -41,9 +56,11 @@ datos de clientes.**
 >
 > 1. **Se revisa cuando haya un cliente de verdad.** No "cuando crezcamos":
 >    el primer cliente real que atienda por ese número.
-> 2. **La salida está identificada**: un segundo número de prueba en Zavu, o
->    tier pago en staging. Cuesta plata, y por eso hoy no se toma; el punto
->    es que la decisión sea esa y no el olvido.
+> 2. **La salida está identificada**: una llave `zv_test_` de sandbox con un
+>    número verificado, un segundo número de prueba, o tier pago en staging.
+>    Las tres cuestan algo —plata o dejar de probar contra un WhatsApp de
+>    verdad— y por eso hoy no se toma ninguna; el punto es que la decisión
+>    sea esa y no el olvido.
 >
 > Mientras tanto, lo que pasa por el modelo en staging son mensajes de
 > prueba nuestros. Si eso cambia, cambia la decisión. Modelo por tarea (palanca de costo): Flash para

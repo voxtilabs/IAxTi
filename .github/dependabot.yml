@@ -1,0 +1,91 @@
+# Actualizaciones de dependencias (SPEC §28).
+#
+# ## Por qué este archivo nace recién ahora
+#
+# `docs/SECURITY_BASELINE.md:42` declaraba «Dependabot semanal; lockfile en
+# CI» con estado **hecho**, y este archivo no existía. Las actualizaciones
+# programadas de Dependabot se configuran EXCLUSIVAMENTE acá: sin el archivo
+# no se abre un PR semanal, nunca. Lo único cierto de esa fila era el lockfile
+# congelado en CI.
+#
+# O sea: las dependencias envejecían sin que nadie recibiera un aviso, y el
+# control que haría aparecer un CVE en una dependencia transitiva estaba
+# marcado como cumplido — así que nadie iba a ir a mirar. Es la forma que se
+# repitió toda la noche del 10/10: cuando lo declarado y no aplicado es una
+# comprobación, el sistema no se ve roto, se ve vigilado (#817).
+#
+# ## Agrupado a propósito
+#
+# Un monorepo con veintitantos paquetes abre decenas de PRs sueltos, y una
+# bandeja con treinta PRs de versión se ignora igual que una guarda que grita
+# de más. Las de seguridad van en su propio grupo para que no se pierdan entre
+# las de rutina.
+#
+# ## Y el otro ecosistema: las acciones
+#
+# `github-actions` está acá porque #758 pide fijar las dieciocho acciones a
+# su SHA en vez de a un tag móvil. Un SHA fijo sin nadie que lo actualice se
+# queda viejo para siempre: Dependabot es la mitad que hace práctica a la otra.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Santiago
+    # Espera antes de proponer una versión recién publicada.
+    #
+    # Lo pidió Semgrep en el primer CI de este PR, y tenía razón: una versión
+    # comprometida de un paquete —cuenta del mantenedor tomada, publicación
+    # maliciosa— se detecta y se retira casi siempre en los primeros días. Un
+    # PR automático el mismo día nos pone justo en la ventana en que el ataque
+    # está vivo; esperar un poco significa que para cuando el PR llegue, esa
+    # versión ya no está.
+    #
+    # El cooldown NO se aplica a las actualizaciones de SEGURIDAD: ahí el
+    # riesgo es el contrario —quedarse en la versión vulnerable— y Dependabot
+    # las trata aparte. Por eso tienen su propio grupo acá abajo.
+    # Siete y no cinco: cinco es lo que puse primero y Semgrep lo rechazó
+    # igual, porque su regla pide `default-days: 7` como mínimo. El número no
+    # lo elegí yo y está bien así — una ventana de días es una apuesta sobre
+    # cuánto tarda en descubrirse una publicación maliciosa, y conviene que la
+    # apuesta sea la del que mira muchos repos y no la mía.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 7
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      seguridad:
+        applies-to: security-updates
+        patterns: ["*"]
+      produccion:
+        applies-to: version-updates
+        dependency-type: production
+        patterns: ["*"]
+      desarrollo:
+        applies-to: version-updates
+        dependency-type: development
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Santiago
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+    groups:
+      acciones:
+        patterns: ["*"]
