@@ -19,8 +19,24 @@ const RAZONES: Record<AssignmentMode, string> = {
 /**
  * Asignación automática al llegar una conversación nueva (SPEC §11, #38),
  * según el modo del tenant: manual (nada), round-robin (quien lleva más
- * tiempo sin recibir una), al último que atendió al contacto, o a la IA en
- * horario autónomo (queda preparada: se activa con agents en Fase 3).
+ * tiempo sin recibir una) o al último que atendió al contacto.
+ *
+ * ## `ia_horario` se comporta como `manual`, y el comentario de antes mentía
+ *
+ * Decía «queda preparada: se activa con agents en Fase 3», y la fase 3 llegó:
+ * el modo autónomo está implementado —`agents/application/autonomous.ts`,
+ * `agent_conversation_modes`, la pausa por cuota— y nada de eso se enganchó
+ * acá. `assigned_via = 'ia_horario'` no se escribe en ninguna fila: el
+ * `return` de abajo pasa antes del UPDATE.
+ *
+ * Y resulta que el modo de ASIGNACIÓN es un segundo interruptor para algo que
+ * ya tiene el suyo: la autonomía se configura por agente, en Ajustes → IA, con
+ * su horario. Dos interruptores para lo mismo, y el muerto es éste.
+ *
+ * Qué DEBERÍA hacer —si la IA atiende, el supervisor no tendría que recibir
+ * `conversation.unattended` por cada conversación— es una decisión de producto
+ * y cruza a `agents` por capability: va en #830. Mientras, la pantalla dice la
+ * verdad en vez de prometer una fase que ya pasó.
  */
 export async function autoAssignNew(
   client: PoolClient,
@@ -28,6 +44,7 @@ export async function autoAssignNew(
 ): Promise<AutoAssignResult> {
   const settings = bandejaSettings(await getTenantSettings(client, input.tenantId));
   const via = settings.assignmentMode;
+  // `ia_horario` cae acá a propósito y no por descuido: ver el docstring.
   if (via === 'manual' || via === 'ia_horario') return { assignedTo: null, via };
 
   const conv = await client.query(
