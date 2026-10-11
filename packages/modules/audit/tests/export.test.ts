@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { writeAudit } from '../src/write';
-import { searchAudit, searchAuditGlobal } from '../src/search';
+import { exportAudit, ExportDemasiadoGrande, searchAudit, searchAuditGlobal } from '../src/search';
 import { auditToCsv, signExport, verifyExport, COLUMNAS_EXPORT } from '../src/export';
 
 // Exportación firmada y búsqueda global (#72). Un export que el auditor no
@@ -174,5 +174,78 @@ describe('exportación firmada (#72)', () => {
     expect(doc.sha256).toMatch(/^[0-9a-f]{64}$/);
     // Un documento sin firma no pasa la verificación por descarte.
     expect(verifyExport(doc, 'cualquiera')).toBe(false);
+  });
+});
+
+/**
+ * El tope del export (#798).
+ *
+ * La ruta de export pedía hasta mil filas con defecto mil, `searchAudit` las
+ * cortaba en cien, y el documento salía FIRMADO sobre esas cien sin decir que
+ * faltaba el resto. Un libro truncado con firma correcta se lee como completo.
+ *
+ * Ahora el export es completo por construcción: si el filtro alcanza más de
+ * lo que cabe, se rechaza. Se prueba con un tope chico porque lo que importa
+ * es la decisión, no el número.
+ */
+describe('un export no sale truncado: sale completo o no sale', () => {
+  let admin: Pool;
+  let tenant: string;
+
+  beforeAll(async () => {
+    admin = createPool(ADMIN_URL);
+    await runMigrations(admin);
+    const t = await admin.query(
+      "INSERT INTO tenants (name, plan, state) VALUES ('test-tope-export', 'base', 'active') RETURNING id",
+    );
+    tenant = t.rows[0].id;
+    await withTenant(admin, tenant, async (c) => {
+      for (let i = 0; i < 12; i++) {
+        await writeAudit(c, {
+          tenantId: tenant,
+          actor: 'system',
+          actorKind: 'system',
+          action: 'prueba.tope',
+          resource: 'demo',
+          resourceId: `x-${i}`,
+          result: 'ok',
+        });
+      }
+    });
+  });
+
+  afterAll(async () => {
+    await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
+    await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+    await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+    await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
+    await admin.end();
+  });
+
+  // Filtrado por acción y no confiando en RLS: el rol de desarrollo es
+  // SUPERUSUARIO, así que Postgres no evalúa las políticas y un export sin
+  // filtro acá devuelve el libro entero de la base local. La primera versión
+  // de esta prueba esperaba 12 y recibió 26.548 — y el número que importaba
+  // no era el 12, era enterarse de que el aislamiento no estaba en juego.
+  const DEL_CASO = { action: 'prueba.tope' };
+
+  it('trae TODAS las entradas del rango, muy por encima del tope de una página', async () => {
+    const filas = await withTenant(admin, tenant, (c) => exportAudit(c, DEL_CASO));
+    expect(filas).toHaveLength(12);
+    // Y la búsqueda sigue siendo UNA página: son cosas distintas, y el tope de
+    // la búsqueda es el de la regla de API.
+    const pagina = await withTenant(admin, tenant, (c) =>
+      searchAudit(c, { ...DEL_CASO, limit: 5 }),
+    );
+    expect(pagina).toHaveLength(5);
+  });
+
+  it('si no cabe, se rechaza con el tope: jamás se recorta en silencio', async () => {
+    await expect(
+      withTenant(admin, tenant, (c) => exportAudit(c, DEL_CASO, 11)),
+    ).rejects.toThrow(ExportDemasiadoGrande);
+    // Justo en el tope sí cabe: el rechazo es por pasarse, no por llegar.
+    const justo = await withTenant(admin, tenant, (c) => exportAudit(c, DEL_CASO, 12));
+    expect(justo).toHaveLength(12);
   });
 });

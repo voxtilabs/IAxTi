@@ -7,14 +7,18 @@ import {
   Post,
   Query,
   Req,
+  PayloadTooLargeException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
+  exportAudit,
+  ExportDemasiadoGrande,
   searchAudit,
   searchAuditGlobal,
   signExport,
+  TOPE_EXPORT,
   verifyChain,
   type AuditFilter,
 } from '@iaxti/module-audit';
@@ -100,9 +104,20 @@ const FILTROS_DEL_LIBRO = [
   { name: 'limit', description: 'Cuántas entradas, hasta 100.', schema: { type: 'integer', minimum: 1, maximum: 100 } },
 ] as const;
 
-/** Los diez filtros en una línea, para no repetirlos en cada ruta. */
-function ConFiltrosDelLibro(): MethodDecorator {
-  const decoradores = FILTROS_DEL_LIBRO.map((f) =>
+/**
+ * El `limit` es de las búsquedas y NO de los exports.
+ *
+ * El handler del export pedía `Math.min(Number(q.limit ?? 1000), 1000)` y el
+ * OpenAPI publicaba el mismo parámetro diciendo «hasta 100» — y el motor
+ * entregaba 100. Tres declaraciones del mismo número, las tres distintas, y
+ * la que valía era la que no estaba escrita en ninguna de las dos puertas
+ * (#798). Un export se acota por FECHA, no por cantidad.
+ */
+const FILTROS_SIN_LIMITE = FILTROS_DEL_LIBRO.filter((f) => f.name !== 'limit');
+
+/** Los filtros en una línea, para no repetirlos en cada ruta. */
+function ConFiltrosDelLibro(opciones: { sinLimite?: boolean } = {}): MethodDecorator {
+  const decoradores = (opciones.sinLimite ? FILTROS_SIN_LIMITE : FILTROS_DEL_LIBRO).map((f) =>
     ApiQuery({ required: false, type: String, ...f } as Parameters<typeof ApiQuery>[0]),
   );
   return (target, key, descriptor) => {
@@ -134,6 +149,27 @@ function formatoDe(valor: string | undefined): 'csv' | 'json' {
   return (valor as 'csv' | 'json') ?? 'csv';
 }
 
+/**
+ * Un export que no cabe se RECHAZA con el motivo y con qué hacer. Antes salía
+ * recortado a cien entradas, firmado, y sin decirlo (#798).
+ */
+export async function noMasDeLoQueCabe<T>(traer: () => Promise<T>): Promise<T> {
+  try {
+    return await traer();
+  } catch (err) {
+    if (err instanceof ExportDemasiadoGrande) {
+      throw new PayloadTooLargeException({
+        code: 'EXPORT_TOO_LARGE',
+        message:
+          `El libro filtrado supera las ${TOPE_EXPORT.toLocaleString('es-CL')} entradas que ` +
+          'caben en un export. Acota el rango con "desde" y "hasta", o filtra por acción o ' +
+          'por actor, y pide el resto en otro archivo.',
+      });
+    }
+    throw err;
+  }
+}
+
 @ApiTags('audit')
 @Controller('audit')
 export class AuditController {
@@ -159,14 +195,14 @@ export class AuditController {
   // sale del sistema y sigue existiendo después. Por eso el catálogo tiene
   // `audit.export` aparte — y hasta ahora no lo usaba nadie.
   @RequirePermission('audit.export')
-  @ApiOperation({ summary: 'Exporta el libro del tenant, firmado' })
-  @ConFiltrosDelLibro()
+  @ApiOperation({ summary: 'Exporta el libro del tenant, COMPLETO para el rango pedido y firmado' })
+  @ConFiltrosDelLibro({ sinLimite: true })
   @ConFormato()
   async export(@Req() request: WithUser, @Query() q: Consulta) {
     const actor = actorOf(request);
     const formato = formatoDe(q.format);
-    const filas = await withTenant(pool(), actor.tenantId, (c) =>
-      searchAudit(c, { ...filtrosDe(q), limit: Math.min(Number(q.limit ?? 1000), 1000) }),
+    const filas = await noMasDeLoQueCabe(() =>
+      withTenant(pool(), actor.tenantId, (c) => exportAudit(c, filtrosDe(q))),
     );
     return signExport(filas, formato);
   }
@@ -238,18 +274,16 @@ export class PlatformAuditController {
 
   @Get('export')
   @RequirePermission('platform.audit')
-  @ApiOperation({ summary: 'Exporta el libro global (o el de un tenant), firmado' })
-  @ConFiltrosDelLibro()
+  @ApiOperation({ summary: 'Exporta el libro global (o el de un tenant), COMPLETO para el rango pedido y firmado' })
+  @ConFiltrosDelLibro({ sinLimite: true })
   @ConFormato()
   async export(@Query() q: Consulta) {
     const formato = formatoDe(q.format);
     const client = await pool().connect();
     try {
-      const filas = await searchAuditGlobal(client, {
-        ...filtrosDe(q),
-        tenantId: q.tenantId || undefined,
-        limit: Math.min(Number(q.limit ?? 1000), 1000),
-      });
+      const filas = await noMasDeLoQueCabe(() =>
+        exportAudit(client, { ...filtrosDe(q), tenantId: q.tenantId || undefined }),
+      );
       return signExport(filas, formato);
     } finally {
       client.release();
