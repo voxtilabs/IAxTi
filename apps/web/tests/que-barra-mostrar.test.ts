@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { queBarraMostrar } from '../lib/nav';
+import { destinosQuePuedeAbrir, queBarraMostrar, type NavItem } from '../lib/nav';
 
 /**
  * Qué barra se muestra y cuándo se avisa (#679).
@@ -43,5 +43,53 @@ describe('queBarraMostrar', () => {
     // mensaje de error.
     const r = queBarraMostrar({ delServidor: null, delNavegador: null, falloElNavegador: true });
     expect(r).toEqual({ items: [], avisar: true });
+  });
+});
+
+/**
+ * El `permission` de cada entrada del menú no lo leía nadie (#814).
+ *
+ * Se prueba acá, en la decisión, por la misma razón que `queBarraMostrar`:
+ * las pruebas del web corren sin DOM, y una regla de tres ramas escondida en
+ * un `.tsx` no se prueba nunca.
+ */
+describe('qué destinos puede abrir esta persona (#814)', () => {
+  const MENU: NavItem[] = [
+    { label: 'Bandeja', path: '/bandeja', permission: 'conversations.read' },
+    { label: 'Contactos', path: '/contactos', permission: 'crm.contacts.read' },
+    { label: 'Auditoría', path: '/ajustes/auditoria', permission: 'audit.read' },
+    { label: 'Roles', path: '/ajustes/roles', permission: 'roles.read' },
+  ];
+
+  it('deja solo los que tienen su permiso', () => {
+    const visibles = destinosQuePuedeAbrir(MENU, ['conversations.read', 'crm.contacts.read']);
+    expect(visibles.map((i) => i.path)).toEqual(['/bandeja', '/contactos']);
+  });
+
+  it('con todos los permisos, el menú no cambia', () => {
+    const todos = MENU.map((i) => i.permission);
+    expect(destinosQuePuedeAbrir(MENU, todos)).toEqual(MENU);
+  });
+
+  /**
+   * La rama que importa, y la que un `if (!permisos)` escribiría al revés.
+   * `null` es «no pudimos averiguarlo», no «ningún permiso»: esconder el menú
+   * por un error transitorio deja a la persona sin nada y sin explicación.
+   */
+  it('si no se pudo averiguar (null), se muestra TODO', () => {
+    expect(destinosQuePuedeAbrir(MENU, null)).toEqual(MENU);
+  });
+
+  it('un conjunto VACÍO sí es una respuesta: no hay a dónde ir', () => {
+    expect(destinosQuePuedeAbrir(MENU, [])).toEqual([]);
+  });
+
+  it('un permiso que nadie declara no agrega entradas', () => {
+    expect(destinosQuePuedeAbrir(MENU, ['inventado.permiso'])).toEqual([]);
+  });
+
+  it('no inventa el orden: deja el que trajo el servidor', () => {
+    const visibles = destinosQuePuedeAbrir(MENU, ['roles.read', 'conversations.read']);
+    expect(visibles.map((i) => i.path)).toEqual(['/bandeja', '/ajustes/roles']);
   });
 });

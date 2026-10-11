@@ -171,3 +171,48 @@ export function queBarraMostrar(entrada: {
   // que aparece y se va solo enseña a ignorar los avisos.
   return { items: [], avisar: entrada.falloElNavegador };
 }
+
+/**
+ * Qué destinos del menú puede abrir esta persona (#814).
+ *
+ * Los 19 `module.yaml` declaran 25 entradas de `nav`, cada una con su
+ * `permission`. `packages/core/src/manifest.ts` lo tipa como campo
+ * obligatorio, `GET /modules/catalogo` lo entrega tal cual, `NavItem` lo
+ * redeclara acá arriba, y **no lo leía nadie**: `grep -n permission
+ * app-shell.tsx` daba cero. Lo único que el shell consultaba era el candado
+ * por PLAN (#215), que es otra cosa.
+ *
+ * Entonces un USER —el rol más común— veía las 25 entradas, y quince de ellas
+ * exigen un permiso que no tiene: Auditoría, API, Roles, Automatizaciones,
+ * Campañas, Facturación, Agenda, Canales, Campos, Embudos, Etiquetas, Equipo,
+ * Webhooks, Conocimiento, Pagos, Plantillas, Ajustes. La página carga —ninguna
+ * `page.tsx` comprueba nada— y todas sus llamadas vuelven 403. No es una fuga:
+ * la API sí exige. Es un menú donde más de la mitad son callejones sin salida.
+ *
+ * ## Por qué esconder acá y no en los widgets
+ *
+ * `components/inicio/widgets.tsx` decidió a propósito NO comprobar permisos,
+ * y su razón es buena: un widget PIDE sus datos, así que sin permiso la
+ * petición falla y el widget no se dibuja — el servidor sigue mandando y no
+ * queda un hueco. Un destino del menú no pide nada: es un enlace. Nadie lo
+ * filtra por el camino, y el 403 llega recién después del clic.
+ *
+ * ## La regla de las tres ramas, que es donde está el defecto fácil
+ *
+ * `null` no es «ningún permiso»: es «no pudimos averiguarlo». El arranque
+ * manda `permisos: null` cuando el conjunto no se pudo resolver, y entonces se
+ * muestra TODO — igual que antes de este cambio. Esconder el menú por un error
+ * transitorio deja a la persona sin nada y sin explicación, que es peor que
+ * ofrecerle una puerta que se le va a cerrar.
+ *
+ * Un conjunto vacío SÍ es una respuesta: un rol propio sin permisos no tiene
+ * a dónde ir, y un menú vacío es la verdad.
+ */
+export function destinosQuePuedeAbrir(
+  items: NavItem[],
+  permisos: readonly string[] | null,
+): NavItem[] {
+  if (permisos === null) return items;
+  const tiene = new Set(permisos);
+  return items.filter((item) => tiene.has(item.permission));
+}

@@ -34,7 +34,7 @@ import {
 } from '@iaxti/module-organizations';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
-import { permisosDelActor } from './authz/can';
+import { permisosDelActor, permisosDelActorConEstado } from './authz/can';
 import { apiPool, apiRedis } from './db';
 import { registry } from './registry';
 
@@ -426,7 +426,7 @@ export class ArranqueController {
     const actor = actorOf(request);
 
     return withTenant(pool(), actor.tenantId, async (c) => {
-      const permisos = await permisosDelActor(c, actor);
+      const { permisos, resuelto } = await permisosDelActorConEstado(c, actor);
       const activos = registry.health().filter((m) => m.active);
 
       const [
@@ -534,6 +534,26 @@ export class ArranqueController {
           const manifiesto = registry.manifest(m.id);
           return { id: m.id, nav: manifiesto.nav ?? [], widgets: manifiesto.widgets ?? [] };
         }),
+        /**
+         * Lo que esta persona puede hacer, para que el menú no ofrezca
+         * callejones sin salida (#814).
+         *
+         * Los 19 manifiestos declaran 25 entradas de `nav`, cada una con su
+         * `permission`, y el campo no lo leía nadie: un USER veía las 25 y
+         * quince de ellas exigen un permiso que no tiene. La página carga y
+         * todas sus llamadas vuelven 403.
+         *
+         * `null` cuando el conjunto no se pudo RESOLVER —un rol propio cuyos
+         * permisos no se pudieron leer—, y entonces el menú se dibuja
+         * completo. «No tiene permisos» y «no pudimos averiguarlo» se ven
+         * iguales y son cosas distintas: con la segunda, esconder el menú
+         * deja a la persona sin nada y sin explicación. La API sigue siendo
+         * la que manda.
+         *
+         * No es una decisión de seguridad: es de interfaz. El permiso se
+         * aplica en cada ruta, y esto solo evita ofrecer la puerta.
+         */
+        permisos: resuelto ? [...permisos].sort() : null,
         acceso,
         avisos,
         respuestasRapidas,
