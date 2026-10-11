@@ -1,0 +1,61 @@
+# Colecciones que se dibujan sin estado vacío (#588).
+#
+# Esta lista es un TRINQUETE, no una lista de tareas: la guarda falla si
+# aparece una colección nueva sin `EstadoVacio`, y falla pidiendo bajar la
+# marca si una lo estrena y nadie la saca de acá. No afirma que este estado
+# esté bien — afirma que no empeore y que se vea cuando mejora.
+#
+# La unidad es la COLECCIÓN, no el componente, y por eso este número es mayor
+# que el del issue: #588 contó componentes, y un componente puede dibujar tres
+# listas o ninguna. Contar componentes hacía parecer que faltaban 22 cuando
+# faltan 41 vacíos y sobran 10 componentes que no son listas.
+#
+# Qué cuenta como «se dibuja una colección»: un `.map` dentro de llaves de JSX
+# sobre un arreglo del componente, más una de dos señales —que el autor ya
+# escribió la rama de vacío (`length === 0`), o que no la escribió y entonces
+# es peor—. Lo que el `map` DEVUELVE recorta los menús y desplegables; lo que
+# el `map` contiene no recorta nada, porque una lista con edición en línea
+# tiene controles en cada fila y sigue siendo una lista.
+#
+# Se regenera con:  node scripts/listas-sin-vacio.mjs --escribir
+# Y sin argumentos muestra qué cambió.
+#
+# Las que NO son colecciones —transcripciones, resultados de búsqueda,
+# sublistas de una ficha— viven en `packages/core/tests/listas-sin-estados.test.ts`
+# con su motivo, porque ahí el porqué es información que no está en el código.
+
+agente-general.tsx#turnos
+api-keys.tsx#keys
+api-keys.tsx#scopes
+asistente.tsx#agentes
+atajos-de-respuesta.tsx#items
+bandeja/chat.tsx#herramientas
+bandeja/ficha.tsx#notas
+bandeja/reasignaciones.tsx#pasos
+bandeja/secuencias-ficha.tsx#inscripciones
+campana.tsx#items
+campanas.tsx#lista
+campanas.tsx#valores
+conocimiento.tsx#fuentes
+conocimiento.tsx#productos
+consumo-ia.tsx#corridas
+crm/ficha-contacto.tsx#campos
+crm/ficha-contacto.tsx#catalogo
+crm/ficha-contacto.tsx#etiquetas
+crm/fusionar-duplicado.tsx#candidatos
+crm/historia-conversaciones.tsx#items
+crm/historia-de-etapas.tsx#pasos
+dar-una-hora.tsx#contactos
+dar-una-hora.tsx#huecos
+embudos.tsx#pipelines
+empresas.tsx#items
+etiquetas.tsx#items
+evaluaciones.tsx#corridas
+horarios-de-atencion.tsx#franjas
+pagos.tsx#proveedores
+preferencias-avisos.tsx#prefs
+roles.tsx#roles
+webchat-chat.tsx#mensajes
+webhooks-salientes.tsx#eventos
+webhooks-salientes.tsx#webhooks
+ui/audit-explorer.tsx#filas

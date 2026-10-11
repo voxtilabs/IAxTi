@@ -99,7 +99,11 @@ interface ArranqueDeFicha {
   analisis: Pieza<AnalisisDto>;
   contacto: Pieza<FichaDeContacto | null>;
   etiquetasDelContacto: Pieza<EtiquetaDto[]>;
-  secuencias: Pieza<SecuenciaDto[]>;
+  /**
+   * Las inscripciones son del CONTACTO; el catálogo de secuencias no — ese sale
+   * del arranque del shell, porque es del negocio y es el mismo para toda
+   * conversación. Un dato vive donde dice su alcance.
+   */
   inscripciones: Pieza<InscripcionDto[]>;
 }
 
@@ -153,7 +157,6 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
    */
   const [fichaDelContacto, setFichaDelContacto] = useState<FichaDeContacto | null>(null);
   const [etiquetasDelContacto, setEtiquetasDelContacto] = useState<EtiquetaDto[]>([]);
-  const [secuencias, setSecuencias] = useState<SecuenciaDto[] | null>(null);
   const [inscripciones, setInscripciones] = useState<InscripcionDto[] | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [hits, setHits] = useState<BusquedaHit[] | null>(null);
@@ -264,7 +267,6 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
             setEtiquetasDelContacto(
               f.etiquetasDelContacto.estado === 'ok' ? f.etiquetasDelContacto.dato : [],
             );
-            setSecuencias(f.secuencias.estado === 'ok' ? f.secuencias.dato : null);
             setInscripciones(f.inscripciones.estado === 'ok' ? f.inscripciones.dato : null);
           })
           .catch(() => {});
@@ -282,6 +284,10 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   // Los atajos vienen del arranque del shell (#761): son del negocio y míos,
   // no de la conversación, así que se piden una vez por sesión y no por tenant
   // en cada montaje de la bandeja.
+  // El catálogo de secuencias del negocio, del arranque del shell: igual para
+  // toda conversación, así que no se descarta al cambiar de contacto.
+  const secuenciasDelNegocio = usePieza('secuencias');
+  const secuencias = (secuenciasDelNegocio.dato as SecuenciaDto[] | undefined) ?? null;
   const atajosDelArranque = usePieza('respuestasRapidas');
   useEffect(() => {
     if (atajosDelArranque.puedeVerla && atajosDelArranque.dato) {
@@ -290,10 +296,35 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   }, [atajosDelArranque.puedeVerla, atajosDelArranque.dato]);
   useEffect(() => {
     if (seleccion) {
+      /**
+       * TODO lo de la conversación anterior se descarta, no solo el hilo.
+       *
+       * Faltaban seis: `notas`, `sugerencia`, `sinSugerencia`, `analisis`, la
+       * ficha del contacto y sus etiquetas. Y el hueco lo abrió #761 al partir
+       * el arranque en dos llamadas: cuando vuelve la URGENTE —hilo y
+       * mensajes— `detalle` ya es el contacto NUEVO, pero lo de la ficha sigue
+       * siendo del anterior hasta que llega la segunda respuesta.
+       *
+       * O sea que durante esa ventana la pantalla muestra **las notas internas
+       * de un cliente bajo el nombre de otro**. En una bandeja compartida eso
+       * no es un parpadeo: es leer sobre Ana lo que el equipo escribió sobre
+       * Pedro, y actuar en consecuencia.
+       *
+       * Antes de #761 no pasaba porque cada pieza tenía su propia llamada y su
+       * propio `setX(null)` al empezar. Agrupar movió el momento en que llega
+       * cada dato, y los reinicios se quedaron donde estaban.
+       */
       setDetalle(null);
       setMensajes(null);
       setLimites(null);
       setHayAnteriores(false);
+      setNotas([]);
+      setSugerencia(null);
+      setSinSugerencia(null);
+      setAnalisis(null);
+      setFichaDelContacto(null);
+      setEtiquetasDelContacto([]);
+      setInscripciones(null);
       void cargarConversacion(seleccion);
     }
   }, [seleccion, cargarConversacion]);

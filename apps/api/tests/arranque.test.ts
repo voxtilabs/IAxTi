@@ -240,16 +240,26 @@ describe('arranque de una conversación (#761)', () => {
      * Claves EXACTAS a propósito: si alguien agrega una pieza que nadie lee,
      * esto se pone rojo y le toca enseñar quién la consume.
      */
+    /**
+     * Seis, y `secuencias` NO está: se mudó al arranque del shell (#588).
+     *
+     * Las inscripciones son del CONTACTO; el catálogo de secuencias es del
+     * NEGOCIO, el mismo para toda conversación. Tenerlo acá obligaba a
+     * descartarlo al cambiar de contacto —porque todo lo del contacto anterior
+     * se descarta— y volver a traer lo idéntico, con su parpadeo.
+     *
+     * Un dato vive donde dice su alcance. Y esta aserción es exacta justamente
+     * para que moverlo sea una decisión declarada y no un cambio silencioso.
+     */
     expect(Object.keys(cuerpo).sort()).toEqual([
       'analisis',
       'contacto',
       'etiquetasDelContacto',
       'inscripciones',
       'notas',
-      'secuencias',
       'sugerencia',
     ]);
-    for (const pieza of ['notas', 'sugerencia', 'analisis', 'contacto', 'secuencias']) {
+    for (const pieza of ['notas', 'sugerencia', 'analisis', 'contacto']) {
       expect(['ok', 'sin-permiso', 'modulo-apagado']).toContain(cuerpo[pieza].estado);
     }
 
@@ -466,7 +476,7 @@ describe('arranque de una conversación (#761)', () => {
     // El catálogo del DESPLIEGUE sale del registry: no consulta nada y es el
     // mismo para todos (#629).
     expect(Array.isArray(cuerpo.modulos)).toBe(true);
-    for (const p of ['acceso', 'avisos', 'respuestasRapidas', 'etiquetas', 'campos', 'empresas', 'retencion']) {
+    for (const p of ['acceso', 'avisos', 'respuestasRapidas', 'etiquetas', 'campos', 'empresas', 'secuencias', 'retencion']) {
       expect(cuerpo[p], `falta la pieza ${p}`).toBeTruthy();
       expect(['ok', 'sin-permiso', 'modulo-apagado']).toContain(cuerpo[p].estado);
     }
