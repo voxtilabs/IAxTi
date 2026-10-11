@@ -41,6 +41,19 @@ WHERE rolname = current_user;` — las dos banderas en `false`.
   construcción. Sin excepción y antes de abrir a clientes.
 - `AUDIT_EXPORT_SECRET` (firma de la exportación de audit): sin él la
   exportación sale sin firma, y lo dice, pero no sirve como evidencia.
+- **Las cuatro de R2** —`R2_ENDPOINT`, `R2_ACCESS_KEY_ID`,
+  `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_ADJUNTOS`— o **se pierden todos los
+  adjuntos que entren**. Lo que manda el cliente por WhatsApp viene con una
+  URL firmada y de vida corta del proveedor: se baja AL LLEGAR y se guarda en
+  R2, y si R2 no está, el mensaje queda con esa URL y la URL vence. El dato no
+  se recupera después.
+
+  > No estaban en ningún runbook hasta #809, y el compose las interpola sin
+  > `:?`, así que sin valor quedan en cadena vacía y nada falla al arrancar.
+  > Encima `SECURITY_BASELINE.md` cuenta «los adjuntos de WhatsApp se
+  > descargan al llegar» como control hecho, cuando depende de estas cuatro.
+  > Hoy el worker al menos grita cuando no puede guardar uno; antes se caía
+  > por fuera del `if` sin una línea de log.
 
 ## 4. El worker de tareas programadas TIENE que estar corriendo
 

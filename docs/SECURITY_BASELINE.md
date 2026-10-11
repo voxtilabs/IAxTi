@@ -25,7 +25,7 @@ implementa se cierre; entonces se anota el PR.
 | Secrets | Variables de entorno en Dokploy y GitHub Environments; nada en Git; Gitleaks en CI | SPEC §36 | hecho — nada en git; falta la rotación del cierre |
 | Tokens OAuth de Google | Secret Manager/almacén cifrado, nunca en la base; scopes mínimos; revocación desde la app | SPEC §18 | **pendiente** — la integración con Google todavía no se conecta (#57) |
 | Backups | Supabase PITR (RPO 5 min); Redis diario a R2; restore probado cada mes (RTO 1 h) | ADR-0002, #80 | parcial — PITR del proveedor sí; el restore nunca se cronometró (#80) |
-| Adjuntos | R2 por tenant; los de WhatsApp se descargan al llegar; nunca en Postgres | SPEC §40 | hecho — R2 por tenant, descargados al llegar |
+| Adjuntos | R2 por tenant; los de WhatsApp se descargan al llegar; nunca en Postgres | SPEC §40 | hecho — **mientras R2 esté configurado**: sin las cuatro variables de R2 el adjunto se pierde con la URL del proveedor (#809) |
 | Borrado y retención | Sección 39: archivo no borra; retención por plan; solicitud del titular aparte | ADR-0012 | hecho — retención por plan (#77) y supresión del titular (#81) |
 
 ## Plataforma

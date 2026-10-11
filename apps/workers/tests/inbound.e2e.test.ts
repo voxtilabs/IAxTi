@@ -115,3 +115,102 @@ describe('simulador → cola inbound → worker (e2e)', () => {
     expect(contacto.rows[0].opted_out_at).not.toBeNull();
   });
 }, 30_000);
+
+/**
+ * Cuando un adjunto NO se puede guardar, se dice (#809).
+ *
+ * El camino era `if (account && apiKey && storage)` y nada más: con cualquiera
+ * de las tres en falso se caía por fuera del `if` sin una línea de log —el
+ * `catch` solo salta si algo LANZA—, el mensaje se guardaba con la URL firmada
+ * y de vida corta del proveedor, y esa URL vence. El adjunto se perdía para
+ * siempre y el único rastro era un enlace muerto.
+ *
+ * El caso caro es `!storage`: cuatro variables de R2 que no estaban nombradas
+ * en ningún runbook, que el compose interpola sin `:?` —así que sin valor
+ * quedan en cadena vacía y nada falla al arrancar— y que al faltar se llevan
+ * los adjuntos de TODOS los negocios a la vez.
+ *
+ * Llama a `processInbound` directo y no por la cola, a diferencia del resto
+ * del archivo: lo que se mide es lo que el worker DICE, y por la cola un
+ * error se convierte en reintentos con espera —el job no termina, la prueba
+ * se cae por tiempo y el motivo real queda escondido justo en el
+ * `console.error` que esta prueba está interceptando.
+ */
+describe('el adjunto que no se guarda lo dice en voz alta (#809)', () => {
+  const guardados = { ...process.env };
+  let gritos: string[] = [];
+  const errorReal = console.error;
+  let cuenta: string;
+  const INEXISTENTE = '00000000-0000-0000-0000-0000000000a9';
+
+  beforeAll(async () => {
+    console.error = (...args: unknown[]) => {
+      gritos.push(args.map(String).join(' '));
+    };
+    // Una cuenta de canal de verdad, con su credencial presente: así la única
+    // pieza que puede faltar es R2, que es el caso que importa.
+    const r = await admin.query(
+      `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref)
+       VALUES ($1, 'whatsapp', 'Prueba de adjuntos', 'LLAVE_DE_PRUEBA_809') RETURNING id`,
+      [tenant],
+    );
+    cuenta = r.rows[0].id;
+    process.env.LLAVE_DE_PRUEBA_809 = 'no-importa-el-valor';
+  });
+
+  afterAll(async () => {
+    console.error = errorReal;
+    process.env = guardados;
+    await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
+  });
+
+  /**
+   * Un teléfono distinto por caso, y es a propósito: dos mensajes del mismo
+   * contacto por cuentas de canal distintas MUDAN el emisor del hilo, y eso
+   * escribe en `audit_log` —que es append-only por trigger— así que la
+   * limpieza del archivo no podía borrar el tenant después. Conversación
+   * nueva en cada caso: ninguna mutación que auditar.
+   */
+  async function conAdjunto(channelAccountId: string, phone: string): Promise<void> {
+    gritos = [];
+    await processInbound(admin, {
+      moduleId: 'conversations',
+      tenantId: tenant,
+      phone,
+      channel: 'whatsapp',
+      channelAccountId,
+      type: 'imagen',
+      body: 'mira esto',
+      attachments: [
+        { url: 'https://proveedor.local/firmada-y-vence.jpg', filename: 'boleta.jpg' },
+      ],
+    } as unknown as InboundJob);
+  }
+
+  it('sin R2 no se guarda, y el log dice que se va a perder y cuáles variables faltan', async () => {
+    for (const v of ['R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_ADJUNTOS']) {
+      delete process.env[v];
+    }
+    await conAdjunto(cuenta, '+56955550801');
+    const aviso = gritos.find((g) => g.includes('NO se guardaron'));
+    expect(aviso, `no se avisó nada. Lo que se registró:\n${gritos.join('\n')}`).toBeTruthy();
+    expect(aviso).toContain('1 adjunto');
+    expect(aviso).toContain(tenant);
+    expect(aviso).toContain('se van a perder');
+    expect(aviso).toContain('R2_BUCKET_ADJUNTOS');
+  });
+
+  it('con R2 puesto, una cuenta que no existe se nombra como lo que es', async () => {
+    process.env.R2_ENDPOINT = 'https://cuenta.r2.cloudflarestorage.com';
+    process.env.R2_ACCESS_KEY_ID = 'LLAVE_DE_PRUEBA';
+    process.env.R2_SECRET_ACCESS_KEY = 'SECRETO_DE_PRUEBA';
+    process.env.R2_BUCKET_ADJUNTOS = 'adjuntos-prueba';
+    await conAdjunto(INEXISTENTE, '+56955550802');
+    const aviso = gritos.find((g) => g.includes('NO se guardaron'));
+    expect(aviso, `no se avisó nada. Lo que se registró:\n${gritos.join('\n')}`).toBeTruthy();
+    // La causa importa: una cuenta que no existe se arregla en otro lugar que
+    // R2 sin configurar, y antes las tres se veían igual — o sea, no se veían.
+    expect(aviso).toContain('no existe');
+    expect(aviso).not.toContain('R2_BUCKET_ADJUNTOS');
+  });
+});

@@ -53,7 +53,33 @@ export async function processInbound(pool: Pool, data: InboundJob): Promise<Inbo
         const account = await findAccountById(client, data.channelAccountId);
         const apiKey = account?.credentialRef ? process.env[account.credentialRef] : undefined;
         const storage = storageFromEnv();
-        if (account && apiKey && storage) {
+        // Por qué NO se baja, dicho en voz alta.
+        //
+        // Esto era `if (account && apiKey && storage)` y nada más: con
+        // cualquiera de las tres en falso se caía por fuera del `if` sin una
+        // línea de log —el `catch` solo salta si algo LANZA—, el mensaje se
+        // guardaba con la URL firmada y de vida corta del proveedor, y esa URL
+        // vence. O sea: el adjunto se perdía para siempre y el único rastro
+        // era un enlace muerto.
+        //
+        // Las tres causas son distintas y se arreglan en lugares distintos:
+        // una cuenta que ya no existe es un problema de datos, una credencial
+        // ausente es del ambiente, y R2 sin configurar es del despliegue —y
+        // esa última se la perdían TODOS los negocios a la vez (#809).
+        const falta = !account
+          ? `la cuenta de canal ${data.channelAccountId} no existe`
+          : !apiKey
+            ? 'la credencial del canal no está en este ambiente (el diagnóstico del canal dice cuál)'
+            : !storage
+              ? 'R2 no está configurado (R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_ADJUNTOS)'
+              : null;
+        if (falta) {
+          const cuantos = (attachments as AdjuntoEntrante[]).filter((a) => a?.url).length;
+          console.error(
+            `inbound: ${cuantos} adjunto(s) del tenant ${data.tenantId} NO se guardaron y se van a ` +
+              `perder cuando venza la URL del proveedor — ${falta}`,
+          );
+        } else if (account && apiKey && storage) {
           attachments = await downloadAttachmentsToR2({
             tenantId: data.tenantId,
             conversationId: 'whatsapp',
