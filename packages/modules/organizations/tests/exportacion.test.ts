@@ -74,7 +74,26 @@ describe('exportación del tenant (issue 222)', () => {
     expect(e.resumen.contacts).toBe(1);
     expect(e.resumen.messages).toBe(1);
     expect(JSON.stringify(e.datos.messages)).toContain('Clienta mía');
-    expect(e.adjuntos).toEqual([`${mio}/wa/foto.jpg`]);
+    /**
+     * Los adjuntos ya no son llaves peladas (#583).
+     *
+     * Era `expect(e.adjuntos).toEqual([\`${mio}/wa/foto.jpg\`])`: la llave de R2
+     * y nada más. Eso es lo que el negocio se llevaba —la referencia a sus fotos
+     * en vez de las fotos— y la prueba lo daba por bueno.
+     *
+     * Lo que se afirma ahora es la propiedad que importa: que venga el NOMBRE
+     * con el que se subió. La llave es
+     * `<tenant>/<conversacion>/<timestamp>-<nombre>`; sin el nombre, el negocio
+     * recibe mil archivos con prefijos de máquina y no reconoce ninguno. Un
+     * paquete que no se puede leer no es portabilidad.
+     */
+    expect(e.adjuntos).toHaveLength(1);
+    expect(e.adjuntos[0]).toMatchObject({
+      key: `${mio}/wa/foto.jpg`,
+      nombre: 'foto.jpg',
+    });
+    expect(e.adjuntos[0].conversationId).toBeTruthy();
+    expect(e.adjuntosFuera).toBe(0);
     expect(e.truncadas).toEqual([]);
   });
 

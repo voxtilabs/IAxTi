@@ -64,6 +64,7 @@ import {
   redisConnection,
   versionDelBuild,
 } from '@iaxti/core';
+import { armarPaquete } from './paquete-de-exportacion';
 import { ArranqueController } from './arranque.controller';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
@@ -194,6 +195,64 @@ class MeController {
    * Es del ADMIN: se lleva TODO lo del negocio, incluidas las conversaciones
    * de sus clientes. Queda en el libro quién la pidió y qué abarcó.
    */
+  /**
+   * La misma exportación, en un zip que se abre con doble clic (#583).
+   *
+   * La ruta de arriba SE QUEDA devolviendo JSON: hay SDK generado contra ella y
+   * `/v1` no se rompe. Esto es lo que usa la pantalla, y es lo que de verdad
+   * cumple «llevarse lo suyo»: adentro van los datos, la lista de archivos con
+   * sus enlaces firmados, y un LEEME que dice qué hay, qué falta y hasta cuándo
+   * sirven los enlaces.
+   *
+   * Por qué enlaces y no los bytes adentro: meter los archivos paga el egreso de
+   * R2 dos veces y la exportación se genera en la misma transacción que la
+   * cancelación — un stream de cientos de MB colgando de ahí es peor que el
+   * problema que resuelve.
+   */
+  @Get('exportacion.zip')
+  @RequirePermission('tenant.settings')
+  @ApiOperation({ summary: 'La exportación del negocio, en un zip con sus archivos' })
+  async exportacionZip(@Req() request: WithUser, @Res() res: Response) {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const actor = request.actor as { tenantId: string; userId: string };
+    const paquete = await withTenant(pool, actor.tenantId, async (c) => {
+      const datos = await exportarTenant(c, { tenantId: actor.tenantId });
+      const armado = armarPaquete(datos);
+      await writeAudit(c, {
+        tenantId: actor.tenantId,
+        actor: actor.userId,
+        actorKind: 'user',
+        action: 'tenant.exportado',
+        resource: 'tenant',
+        resourceId: actor.tenantId,
+        result: 'ok',
+        requestId: (request as { requestId?: string }).requestId,
+        metadata: {
+          filas: Object.values(datos.resumen).reduce((a, b) => a + b, 0),
+          truncadas: datos.truncadas,
+          adjuntos: datos.adjuntos.length,
+          adjuntosFuera: datos.adjuntosFuera,
+          // Cuántos salieron CON enlace, que es lo que el negocio puede bajar.
+          // Sin esto, el libro diría «se llevó 1.200 adjuntos» cuando el almacén
+          // no estaba configurado y no se llevó ninguno.
+          conEnlace: armado.conEnlace,
+          formato: 'zip',
+        },
+      });
+      return armado;
+    });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${paquete.nombre}"`);
+    res.setHeader('Content-Length', String(paquete.zip.length));
+    res.end(paquete.zip);
+  }
+
   @Get('exportacion')
   @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'Exportación completa de los datos del negocio' })

@@ -46,12 +46,25 @@ export class BillingController {
    * resumen queda en el audit junto a la cancelación. Así no existe la
    * posibilidad de cancelar sin que el negocio tenga cómo llevarse lo suyo.
    *
-   * La respuesta trae la exportación entera: es el archivo que el cliente se
-   * lleva, y pedirlo de nuevo después de cancelar sería pedirle que confíe.
+   * **Lo que la respuesta trae son los DATOS, no los archivos** — y decirlo así
+   * es parte del arreglo de #583.
+   *
+   * Antes este comentario decía «la exportación entera: es el archivo que el
+   * cliente se lleva». No lo era: los adjuntos salían como llaves peladas de R2,
+   * rutas privadas que sin firmar no sirven para nada, con la nota de que «se
+   * piden aparte» y ninguna ruta que los pidiera. El negocio que cancelaba se
+   * llevaba la referencia a sus fotos y no las fotos, y este comentario le daba
+   * la razón para no revisar.
+   *
+   * El paquete que SÍ se lleva —datos, la lista de archivos con enlaces firmados
+   * y un LEEME que dice qué falta— está en `GET /me/exportacion.zip`. Acá se
+   * genera la exportación en la misma transacción para que no exista la
+   * posibilidad de cancelar sin que el negocio tenga cómo llevarse lo suyo, y su
+   * resumen —incluido cuántos adjuntos hay— queda en el libro.
    */
   @Post('cancelar')
   @RequirePermission('billing.manage')
-  @ApiOperation({ summary: 'Cancela la suscripción y entrega la exportación completa' })
+  @ApiOperation({ summary: 'Cancela la suscripción y entrega los datos del negocio' })
   async cancelar(@Req() request: WithUser, @Body() body: { motivo?: string }) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
@@ -61,7 +74,15 @@ export class BillingController {
         tenantId: actor.tenantId,
         actor: actor.userId,
         motivo: body?.motivo,
-        exportacion: { filas, generadoEl: exportacion.generadoEl },
+        // Los adjuntos van en el libro, no solo las filas (#583): «se llevó
+        // 4.300 filas» no dice nada de si se llevó sus mil fotos, y es
+        // justamente la parte que se estaba perdiendo.
+        exportacion: {
+          filas,
+          generadoEl: exportacion.generadoEl,
+          adjuntos: exportacion.adjuntos.length,
+          adjuntosFuera: exportacion.adjuntosFuera,
+        },
         requestId: (request as { requestId?: string }).requestId,
       });
       return {

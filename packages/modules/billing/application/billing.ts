@@ -347,7 +347,18 @@ export async function cancelarSuscripcion(
     actor: string;
     motivo?: string;
     /** Resumen de la exportación que el negocio ya se llevó (#222). */
-    exportacion: { filas: number; generadoEl: string };
+    /**
+     * Los adjuntos van acá además de las filas (#583): «se llevó 4.300 filas»
+     * no dice nada de si se llevó sus mil fotos, y era justo la parte que se
+     * estaba perdiendo. `adjuntosFuera` es lo que el tope dejó afuera, que una
+     * exportación tiene que decir en vez de esconder.
+     */
+    exportacion: {
+      filas: number;
+      generadoEl: string;
+      adjuntos?: number;
+      adjuntosFuera?: number;
+    };
     requestId?: string;
   },
 ): Promise<{ cancelAt: string }> {
