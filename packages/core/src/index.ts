@@ -72,6 +72,9 @@ export type { ArchivoFuente } from './eventos-sin-emisor';
 export { montoDelCosto } from './costo-del-proveedor';
 // Credenciales por referencia: una sola guarda para todos (#801).
 export { esNombreDeVariable, exigirNombreDeVariable, refParaMostrar } from './referencia-a-secreto';
+// Lo que la documentación cita tiene que existir (#817).
+export { rutasCitadas, rutasQueNoExisten } from './rutas-en-la-documentacion';
+export type { RutaCitada } from './rutas-en-la-documentacion';
 // Barridos que recorren todos los tenants, con trinquete (#743).
 export { barridosDelRepo, llamadasDeBarrido } from './barridos-sin-lista';
 export type { LlamadaDeBarrido } from './barridos-sin-lista';

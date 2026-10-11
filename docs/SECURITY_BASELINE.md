@@ -39,7 +39,7 @@ implementa se cierre; entonces se anota el PR.
 | Rate limiting | Por tenant y por API key en Redis, cabeceras estándar | #12 | hecho |
 | Audit | Append-only, hash encadenado por tenant, misma transacción, sin UPDATE/DELETE | ADR-0008, #10 | hecho — con explorador y export firmado (#72) |
 | CI de seguridad | CodeQL, Gitleaks, Trivy (imagen); Semgrep y ZAP con usuarios reales | SPEC §37 | hecho — Semgrep BLOQUEA el PR; ZAP agendado contra staging (#81) |
-| Dependencias | Dependabot semanal; lockfile en CI | SPEC §28 | hecho |
+| Dependencias | Dependabot semanal (`.github/dependabot.yml`: npm y github-actions, agrupado); lockfile congelado en CI | SPEC §28 | **parcial** — el archivo se agregó el 11-10 (#817): hasta entonces la fila decía «hecho» y no existía, así que no se abrió un PR semanal nunca. Queda confirmar la primera corrida en el panel de Insights → Dependency graph → Dependabot |
 
 ## IA
 
@@ -48,7 +48,7 @@ implementa se cierre; entonces se anota el PR.
 | El LLM nunca toca la base | Solo tools autorizadas con la identidad del usuario, mismo guard | ADR-0008, #47 | hecho |
 | Aislamiento de tenant en IA | Contexto solo de la conversación actual; RLS en pgvector | SPEC §13, #51 | hecho |
 | PII hacia proveedores | Redacción antes de Langfuse y de cualquier proveedor LLM, según política del tenant | ADR-0006, ADR-0011 | hecho — `redactPII` encendido por defecto |
-| Tier de proveedores | Solo APIs de pago con opt-out de entrenamiento verificado | ADR-0011, #54 | hecho — regla vigente: jamás un tier gratis |
+| Tier de proveedores | Pago donde pasan datos de clientes — producción siempre; en staging se admite el tier gratis | ADR-0011 (enmienda 21-09), #54 | **parcial** — la regla vigente NO es «jamás un tier gratis»: la enmienda de ADR-0011 lo admite en staging, y staging está conectado al número real de VoxTi, así que el texto de la conversación de un tercero puede llegar a un proveedor de tier gratis. Riesgo aceptado a sabiendas, con dos condiciones de revisión en el ADR (#817) |
 | Guardrails del autónomo | Escalamiento, topes de dinero, horario de silencio, sin inventar datos | ADR-0010, #49 | hecho |
 
 ## Rotación y respuesta

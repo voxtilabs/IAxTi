@@ -1,0 +1,67 @@
+# Actualizaciones de dependencias (SPEC §28).
+#
+# ## Por qué este archivo nace recién ahora
+#
+# `docs/SECURITY_BASELINE.md:42` declaraba «Dependabot semanal; lockfile en
+# CI» con estado **hecho**, y este archivo no existía. Las actualizaciones
+# programadas de Dependabot se configuran EXCLUSIVAMENTE acá: sin el archivo
+# no se abre un PR semanal, nunca. Lo único cierto de esa fila era el lockfile
+# congelado en CI.
+#
+# O sea: las dependencias envejecían sin que nadie recibiera un aviso, y el
+# control que haría aparecer un CVE en una dependencia transitiva estaba
+# marcado como cumplido — así que nadie iba a ir a mirar. Es la forma que se
+# repitió toda la noche del 10/10: cuando lo declarado y no aplicado es una
+# comprobación, el sistema no se ve roto, se ve vigilado (#817).
+#
+# ## Agrupado a propósito
+#
+# Un monorepo con veintitantos paquetes abre decenas de PRs sueltos, y una
+# bandeja con treinta PRs de versión se ignora igual que una guarda que grita
+# de más. Las de seguridad van en su propio grupo para que no se pierdan entre
+# las de rutina.
+#
+# ## Y el otro ecosistema: las acciones
+#
+# `github-actions` está acá porque #758 pide fijar las dieciocho acciones a
+# su SHA en vez de a un tag móvil. Un SHA fijo sin nadie que lo actualice se
+# queda viejo para siempre: Dependabot es la mitad que hace práctica a la otra.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Santiago
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      seguridad:
+        applies-to: security-updates
+        patterns: ["*"]
+      produccion:
+        applies-to: version-updates
+        dependency-type: production
+        patterns: ["*"]
+      desarrollo:
+        applies-to: version-updates
+        dependency-type: development
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Santiago
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+    groups:
+      acciones:
+        patterns: ["*"]
