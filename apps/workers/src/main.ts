@@ -229,9 +229,10 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
       switch (job.name) {
         case 'conversations.checks': {
           const res = await sweepConversationAlerts(pool);
-          if (res.unattended || res.breached) {
+          if (res.unattended || res.breached || res.despertadas) {
             console.log(
-              `scheduled: alertas de bandeja — ${res.unattended} sin dueño, ${res.breached} SLA vencido (${res.tenants} tenants)`,
+              `scheduled: alertas de bandeja — ${res.unattended} sin dueño, ${res.breached} SLA vencido, ` +
+                `${res.despertadas} pospuestas despiertas (${res.tenants} tenants)`,
             );
           }
           return res;

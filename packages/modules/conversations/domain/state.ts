@@ -9,7 +9,7 @@ const TRANSITIONS: Record<ConversationState, ConversationState[]> = {
   open: ['pending', 'resolved', 'snoozed'],
   pending: ['open', 'resolved', 'snoozed'],
   resolved: ['open', 'new'],            // reapertura: solo al recibir mensaje
-  snoozed: ['open', 'resolved', 'new'], // despierta por fecha o por mensaje (sin dueño → cola)
+  snoozed: ['open', 'resolved', 'new'], // despierta por fecha (#819) o por mensaje (sin dueño → cola)
 };
 
 export function assertConversationTransition(from: ConversationState, to: ConversationState): void {

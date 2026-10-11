@@ -5,7 +5,7 @@ import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { DEFAULT_HORARIO, bandejaSettings, minutosHabilesEntre } from '../domain/horario';
 import { autoAssignNew } from '../application/assignment';
 import { checkConversationAlerts } from '../application/sla';
-import { receiveInbound } from '../application/conversations';
+import { changeConversationState, receiveInbound } from '../application/conversations';
 
 const ADMIN_URL =
   process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
@@ -196,5 +196,110 @@ describe('avisos y SLA (rol de aplicación)', () => {
 
     const segunda = await withTenant(app, tenant, (c) => checkConversationAlerts(c, tenant));
     expect(segunda.breached).toEqual([]);
+  });
+});
+
+/**
+ * La pospuesta despierta por FECHA (#819).
+ *
+ * `snoozed_until` se exigía al posponer, se guardaba y se mostraba, y tenía
+ * tres lectores: dos mapeos a DTO y la migración que crea la columna. Ninguno
+ * era un reloj. El comentario de la máquina de estados dice «despierta por
+ * fecha o por mensaje», y solo lo segundo pasaba.
+ *
+ * El instante se le PASA al barrido y el dato de la base se ancla al mismo
+ * instante, que es la regla de `.claude/rules/testing.md`: mezclar los dos
+ * relojes hace que la ventana se mida entre instantes distintos y la prueba
+ * pase por la razón equivocada.
+ */
+describe('la pospuesta despierta por fecha (#819)', () => {
+  // Un martes a las 10:00 en Chile, para no caer en el horario de silencio ni
+  // en fin de semana si algo del barrido llegara a mirarlos.
+  const AHORA = new Date('2026-06-02T14:00:00Z');
+
+  async function pospuesta(phone: string, hasta: Date) {
+    const res = await withTenant(app, tenant, (c) =>
+      receiveInbound(c, { tenantId: tenant, phone, channel: 'simulador', body: 'después vemos' }),
+    );
+    // Por `open`: la máquina no admite `new → snoozed`, y es correcto —
+    // posponer algo que nadie abrió todavía es dejarlo sin atender, no
+    // posponerlo.
+    await withTenant(app, tenant, async (c) => {
+      for (const state of ['open', 'snoozed'] as const) {
+        await changeConversationState(c, {
+          tenantId: tenant,
+          conversationId: res.conversation.id,
+          state,
+          snoozedUntil: state === 'snoozed' ? hasta : undefined,
+          actor: 'system',
+        });
+      }
+    });
+    return res.conversation.id as string;
+  }
+
+  it('la que venció despierta a la COLA si no tiene dueño, y se limpia la fecha', async () => {
+    const id = await pospuesta('+56930000010', new Date(AHORA.getTime() - 60_000));
+    const barrido = await withTenant(app, tenant, (c) =>
+      checkConversationAlerts(c, tenant, AHORA),
+    );
+    expect(barrido.despertadas).toContain(id);
+
+    const fila = (
+      await admin.query('SELECT state, owner_id, snoozed_until FROM conversations WHERE id = $1', [id])
+    ).rows[0];
+    expect(fila.state).toBe('new');
+    expect(fila.owner_id).toBeNull();
+    // Sin esto, el barrido siguiente la volvería a «despertar» cada minuto y
+    // publicaría un evento por minuto para siempre.
+    expect(fila.snoozed_until).toBeNull();
+
+    const segunda = await withTenant(app, tenant, (c) => checkConversationAlerts(c, tenant, AHORA));
+    expect(segunda.despertadas).toEqual([]);
+  });
+
+  it('con dueño vuelve a SUS manos, igual que cuando despierta por un mensaje', async () => {
+    const id = await pospuesta('+56930000011', new Date(AHORA.getTime() - 60_000));
+    await admin.query('UPDATE conversations SET owner_id = $2 WHERE id = $1', [id, miembros[0]]);
+    const barrido = await withTenant(app, tenant, (c) =>
+      checkConversationAlerts(c, tenant, AHORA),
+    );
+    expect(barrido.despertadas).toContain(id);
+    const fila = (
+      await admin.query('SELECT state, owner_id FROM conversations WHERE id = $1', [id])
+    ).rows[0];
+    expect(fila.state).toBe('open');
+    expect(fila.owner_id).toBe(miembros[0]);
+  });
+
+  /**
+   * La aserción que impide el arreglo de brocha gorda. Un `WHERE state =
+   * 'snoozed'` sin la comparación de fecha despertaría TODAS las pospuestas en
+   * la primera corrida, y la prueba de arriba seguiría verde.
+   */
+  it('la que NO venció se queda dormida', async () => {
+    const id = await pospuesta('+56930000012', new Date(AHORA.getTime() + 86_400_000));
+    const barrido = await withTenant(app, tenant, (c) =>
+      checkConversationAlerts(c, tenant, AHORA),
+    );
+    expect(barrido.despertadas).not.toContain(id);
+    const fila = (
+      await admin.query('SELECT state, snoozed_until FROM conversations WHERE id = $1', [id])
+    ).rows[0];
+    expect(fila.state).toBe('snoozed');
+    expect(fila.snoozed_until).not.toBeNull();
+  });
+
+  it('publica conversation.state_changed con la misma forma que el otro camino', async () => {
+    const id = await pospuesta('+56930000013', new Date(AHORA.getTime() - 60_000));
+    await withTenant(app, tenant, (c) => checkConversationAlerts(c, tenant, AHORA));
+    const r = await admin.query(
+      `SELECT payload FROM outbox
+        WHERE tenant_id = $1 AND name = 'conversation.state_changed'
+          AND payload->>'conversationId' = $2
+        ORDER BY id DESC LIMIT 1`,
+      [tenant, id],
+    );
+    expect(r.rows[0].payload).toEqual({ conversationId: id, from: 'snoozed', to: 'new' });
   });
 });

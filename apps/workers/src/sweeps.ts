@@ -15,20 +15,22 @@ import { markDueActivities } from '@iaxti/module-crm';
  */
 export async function sweepConversationAlerts(
   pool: Pool,
-): Promise<{ tenants: number; unattended: number; breached: number }> {
+): Promise<{ tenants: number; unattended: number; breached: number; despertadas: number }> {
   const tenants = await pool.query(
     `SELECT id FROM tenants WHERE COALESCE(state, 'active') IN ('trial','active','past_due')`,
   );
   let unattended = 0;
   let breached = 0;
+  let despertadas = 0;
   for (const row of tenants.rows) {
     const res = await withTenant(pool, row.id, (client) =>
       checkConversationAlerts(client, row.id),
     );
     unattended += res.unattended.length;
     breached += res.breached.length;
+    despertadas += res.despertadas.length;
   }
-  return { tenants: tenants.rowCount ?? 0, unattended, breached };
+  return { tenants: tenants.rowCount ?? 0, unattended, breached, despertadas };
 }
 
 async function tenantIds(pool: Pool): Promise<string[]> {

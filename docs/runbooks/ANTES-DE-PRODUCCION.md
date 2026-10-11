@@ -78,7 +78,7 @@ número, el que manda es el código:
 | `conversations.retention` | 04:00 | los datos no se purgan según el plan (y eso es un compromiso legal) |
 | `conversations.archive` | 03:00 | las conversaciones viejas no se archivan |
 | `conversations.auto_resolve` | cada hora | las conversaciones resueltas quedan abiertas para siempre |
-| `conversations.checks` | 1 min | los avisos de SLA y de conversación sin atender no salen |
+| `conversations.checks` | 1 min | los avisos de SLA y de conversación sin atender no salen, y **las conversaciones pospuestas no despiertan** (#819) |
 | `crm.activities_due` | 1 min | las actividades vencidas no avisan |
 | `crm.stalled` | 07:00 | las oportunidades estancadas no se marcan |
 | `idempotency.sweep` | :20 | las llaves de reintento se acumulan para siempre |
