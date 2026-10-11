@@ -102,6 +102,40 @@ describe('organizations', () => {
     }
   });
 
+  /**
+   * El eslabón que faltaba. La cadena completa —bajar de plan difiere la purga
+   * 30 días y avisa con la cantidad exacta— tenía su prueba en
+   * `conversations/tests/retention.test.ts:130`, y empezaba construyendo el
+   * sobre del evento A MANO. Cubría todo menos quién lo crea: `changePlan` no
+   * publicaba nada, el consumidor nunca corría, y la rama entera del
+   * diferimiento era código muerto con una prueba verde encima.
+   */
+  it('cambiar de plan publica tenant.plan_changed con el plan de antes y el de ahora', async () => {
+    const client = await admin.connect();
+    try {
+      await admin.query(`DELETE FROM outbox WHERE tenant_id = $1`, [tenantId]);
+      await changePlan(client, tenantId, 'equipo');
+      const uno = await admin.query(
+        `SELECT payload FROM outbox WHERE tenant_id = $1 AND name = 'tenant.plan_changed'`,
+        [tenantId],
+      );
+      expect(uno.rowCount).toBe(1);
+      expect(uno.rows[0].payload).toMatchObject({ from: 'base', to: 'equipo' });
+
+      // Ponerlo en el plan que ya tiene no es un cambio: sin esto, el
+      // recalculo de `billing` publicaría un evento por corrida y el
+      // consumidor volvería a mover la fecha de la primera purga cada vez.
+      await changePlan(client, tenantId, 'equipo');
+      const despues = await admin.query(
+        `SELECT count(*)::int AS n FROM outbox WHERE tenant_id = $1 AND name = 'tenant.plan_changed'`,
+        [tenantId],
+      );
+      expect(despues.rows[0].n).toBe(1);
+    } finally {
+      client.release();
+    }
+  });
+
   it('el onboarding avanza y no retrocede', async () => {
     const client = await admin.connect();
     try {
