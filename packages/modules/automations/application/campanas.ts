@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { publishEvent } from '@iaxti/core';
+import { montoDelCosto, publishEvent } from '@iaxti/core';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
 import {
@@ -951,7 +951,14 @@ export async function resultadosDeCampana(
   porEstado: Record<string, number>;
   motivos: Array<{ motivo: string; n: number }>;
   entrega: Record<string, number>;
-  costoUsd: number;
+  /**
+   * null = ningún mensaje de la campaña trae un monto que podamos leer. No es
+   * lo mismo que cero, y la pantalla lo dice distinto: «el proveedor no
+   * informa el costo» en vez de «US$0,00», que se lee como gratis.
+   */
+  costoUsd: number | null;
+  /** Mensajes con monto legible y sin él, para no mostrar un total parcial como si fuera todo. */
+  costoMedido: { conMonto: number; sinMonto: number };
 }> {
   const estados = await client.query(
     `SELECT status, count(*)::int AS n FROM campaign_recipients
@@ -971,18 +978,42 @@ export async function resultadosDeCampana(
       GROUP BY m.delivery_status`,
     [input.tenantId, input.campaignId],
   );
+  // El costo se guarda TAL CUAL lo manda el proveedor y su forma no la
+  // controlamos: quién sabe leerla es `montoDelCosto`, en core. Acá estaba
+  // escrito a mano —`SUM((meta->'costo'->>'amount')::numeric)`, una sola
+  // llave y sin mirar la moneda— y daba cero para TODA campaña, porque lo que
+  // Meta manda en el webhook de estados no trae monto. El `COALESCE(…, 0)`
+  // convertía cada fallo de lectura en un cero creíble (#795).
+  //
+  // Agrupado y no fila por fila: una campaña de cinco mil destinatarios tiene
+  // dos o tres formas distintas de costo, no cinco mil. Una consulta, pocas
+  // filas, y la suma donde está la función que sabe sumar.
   const costo = await client.query(
-    `SELECT COALESCE(SUM((m.meta->'costo'->>'amount')::numeric), 0) AS total
+    `SELECT m.meta->'costo' AS costo, count(*)::int AS n
        FROM campaign_recipients r JOIN messages m ON m.id = r.message_id
-      WHERE r.tenant_id = $1 AND r.campaign_id = $2`,
+      WHERE r.tenant_id = $1 AND r.campaign_id = $2
+      GROUP BY m.meta->'costo'`,
     [input.tenantId, input.campaignId],
   );
+  let totalUsd = 0;
+  let conMonto = 0;
+  let sinMonto = 0;
+  for (const fila of costo.rows) {
+    const n = fila.n as number;
+    const monto = montoDelCosto(fila.costo);
+    if (monto === null) sinMonto += n;
+    else {
+      totalUsd += monto * n;
+      conMonto += n;
+    }
+  }
 
   return {
     porEstado: Object.fromEntries(estados.rows.map((x) => [x.status, x.n])),
     motivos: motivos.rows.map((x) => ({ motivo: x.reason as string, n: x.n as number })),
     entrega: Object.fromEntries(entrega.rows.map((x) => [x.delivery_status ?? 'sin estado', x.n])),
-    costoUsd: Number(costo.rows[0].total),
+    costoUsd: conMonto === 0 ? null : totalUsd,
+    costoMedido: { conMonto, sinMonto },
   };
 }
 

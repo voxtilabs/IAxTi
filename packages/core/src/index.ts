@@ -61,6 +61,8 @@ export {
 export type { Columna } from './columnas-sin-lector';
 export { emisoresDeEventos, eventosSinEmisor } from './eventos-sin-emisor';
 export type { ArchivoFuente } from './eventos-sin-emisor';
+// Un solo lugar que sabe la forma del costo del proveedor (#795).
+export { montoDelCosto } from './costo-del-proveedor';
 // Barridos que recorren todos los tenants, con trinquete (#743).
 export { barridosDelRepo, llamadasDeBarrido } from './barridos-sin-lista';
 export type { LlamadaDeBarrido } from './barridos-sin-lista';
