@@ -161,14 +161,41 @@ describe('las demás lecturas cacheadas (#711)', () => {
   });
 
   it('cada escritura olvida ANTES de escribir, no después', () => {
-    // Olvidar después deja una ventana en la que alguien lee lo viejo y lo
-    // guarda otra vez por todo el TTL. Es la diferencia entre un caché que se
-    // atrasa un rato y uno que se queda pegado.
+    /**
+     * Olvidar después deja una ventana en la que alguien lee lo viejo y lo
+     * guarda otra vez por todo el TTL. Es la diferencia entre un caché que se
+     * atrasa un rato y uno que se queda pegado.
+     *
+     * Esta prueba decía mirar el ORDEN y solo contaba ocurrencias:
+     * `expect([...texto.matchAll(/olvidar\w*\(/g)].length).toBeGreaterThan(0)`.
+     * Mover el `olvidar` a después del UPDATE —el defecto que nombra— no la
+     * ponía roja (#823). Ahora se comparan POSICIONES, y por handler: un
+     * `olvidar` al final del archivo no cubre una escritura de arriba.
+     */
+    let handlersMirados = 0;
     for (const archivo of ['tags.controller.ts', 'settings.controller.ts']) {
       const texto = fuente(archivo);
-      const olvidos = [...texto.matchAll(/olvidar\w*\(/g)];
-      expect(olvidos.length, `${archivo}: ninguna escritura olvida nada`).toBeGreaterThan(0);
+      // Cada handler arranca con su decorador de método. Se parte ahí para que
+      // el orden se mida DENTRO de uno y no a lo largo del archivo.
+      const bloques = texto.split(/\n {2}@(?=Get\(|Post\(|Put\(|Delete\(|Patch\()/);
+      for (const bloque of bloques) {
+        const olvida = bloque.search(/\bolvidar\w*\(/);
+        if (olvida === -1) continue;
+        const escribe = bloque.search(/\bwithTenant\(/);
+        if (escribe === -1) continue; // declara el helper, no escribe
+        handlersMirados++;
+        const nombre = /async (\w+)\(/.exec(bloque)?.[1] ?? '(sin nombre)';
+        expect(
+          olvida,
+          `${archivo} → ${nombre}: olvida el caché DESPUÉS de escribir. Entre el UPDATE y el ` +
+            'olvido hay una ventana en la que otra petición lee lo viejo y lo vuelve a guardar ' +
+            'por todo el TTL.',
+        ).toBeLessThan(escribe);
+      }
     }
+    // Anti-vacuidad: si el recorte en bloques dejara de encontrar handlers, el
+    // `for` de arriba no correría y esto quedaría verde sin mirar nada.
+    expect(handlersMirados, 'el recorte por handler no encontró ninguna escritura con olvido').toBeGreaterThanOrEqual(4);
   });
 
   it('el acceso por plan se olvida en TODOS los tenants cuando cambia el plan', () => {

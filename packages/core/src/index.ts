@@ -52,7 +52,7 @@ export {
 // Qué publica cada módulo y quién lo usa (#664). Se exporta para que la guarda
 // pueda leerlo; no lo usa nada en producción, y eso está escrito en su lista.
 export { exportsSinConsumidor, valoresQuePublica } from './exports-sin-consumidor';
-export { entornoConCoalescencia } from './entorno-con-coalescencia';
+export { coalescenciasEnTexto, entornoConCoalescencia } from './entorno-con-coalescencia';
 export { listasSinVacio, pantallasQueDesaparecen } from './listas-sin-estados';
 export type { ListaSinVacio, PantallaQueDesaparece } from './listas-sin-estados';
 export type { LecturaConCoalescencia } from './entorno-con-coalescencia';

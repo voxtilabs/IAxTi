@@ -39,11 +39,27 @@ describe('ningún formulario deja aparecer la burbuja nativa (#618)', () => {
   const archivos = tsx(COMPONENTES);
 
   it('el escáner encuentra formularios', () => {
-    // Sin esto, «cero formularios con el problema» y «el escáner no mira donde
-    // debe» se ven exactamente igual.
+    /**
+     * Sin esto, «cero formularios con el problema» y «el escáner no mira donde
+     * debe» se ven exactamente igual.
+     *
+     * Y la aserción decía `expect(conForm.length + 1).toBeGreaterThan(0)`, que
+     * es verdadera SIEMPRE: `conForm.length` es un entero ≥ 0, así que `+1` da
+     * ≥ 1. O sea que la única guarda anti-vacuidad de este archivo era una
+     * tautología, y el `conForm` que calculaba se tiraba (#823).
+     *
+     * Hoy hay diez archivos con `<form`. El piso va en cinco: alcanza para
+     * cazar que los formularios se muden a `packages/ui`, un rename a
+     * `<Form>`, o una regresión de `fuenteLimpia` que blanquee archivos —que
+     * ya pasó una vez y dejó tres pruebas de #690 verdes sin comprobar nada—.
+     */
     const conForm = archivos.filter((f) => fuenteLimpia(readFileSync(f, 'utf8')).includes('<form'));
     expect(archivos.length).toBeGreaterThan(20);
-    expect(conForm.length + 1).toBeGreaterThan(0);
+    expect(
+      conForm.length,
+      'El escáner no encuentra formularios. La comprobación de abajo es solo-negativa, así que ' +
+        'con cero formularios encontrados queda verde sin vigilar nada.',
+    ).toBeGreaterThan(5);
   });
 
   it('todo formulario con un campo obligatorio usa <Formulario>', () => {

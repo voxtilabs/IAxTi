@@ -88,19 +88,38 @@ export interface LecturaConCoalescencia {
   variable: string;
 }
 
+/**
+ * El escáner sobre un TEXTO, separado del recorrido del repo (#823).
+ *
+ * Está aparte para que se pueda probar con una aserción POSITIVA. La prueba de
+ * esta guarda eran dos `toEqual([])` y nada más, o sea que si el escáner
+ * devolviera `[]` siempre, las dos seguían verdes — y ese modo de falla no es
+ * teórico: el escáner depende de `fuenteLimpia`, y ya pasó una vez que
+ * `fuenteLimpia` devolviera texto en blanco y tres pruebas de #690 se
+ * pusieran verdes sin comprobar nada. Lo que las delató fue una positiva.
+ *
+ * Recibe el texto YA limpio de comentarios: quien recorre archivos lo pasa por
+ * `fuenteLimpia`, y una prueba sobre un trozo escrito a mano no lo necesita.
+ */
+export function coalescenciasEnTexto(textoLimpio: string): Array<{ linea: number; variable: string }> {
+  const hallazgos: Array<{ linea: number; variable: string }> = [];
+  // `fuenteLimpia` preserva la numeración: reemplaza por espacios, no borra.
+  textoLimpio.split('\n').forEach((linea, i) => {
+    for (const [, variable, siguiente] of linea.matchAll(COALESCENCIA)) {
+      // `siguiente` es el primer bloque sin espacios, así que trae pegado lo
+      // que venga después: de `('' ).trim()` llega `'').trim()`.
+      if (INOCUO.test(siguiente)) continue;
+      hallazgos.push({ linea: i + 1, variable });
+    }
+  });
+  return hallazgos;
+}
+
 export function entornoConCoalescencia(raices: string[]): LecturaConCoalescencia[] {
   const hallazgos: LecturaConCoalescencia[] = [];
   for (const archivo of raices.flatMap((r) => fuentes(r))) {
     const limpio = fuenteLimpia(readFileSync(archivo, 'utf8'));
-    // `fuenteLimpia` preserva la numeración: reemplaza por espacios, no borra.
-    limpio.split('\n').forEach((linea, i) => {
-      for (const [, variable, siguiente] of linea.matchAll(COALESCENCIA)) {
-        // `siguiente` es el primer bloque sin espacios, así que trae pegado lo
-        // que venga después: de `('' ).trim()` llega `'').trim()`.
-        if (INOCUO.test(siguiente)) continue;
-        hallazgos.push({ archivo, linea: i + 1, variable });
-      }
-    });
+    for (const h of coalescenciasEnTexto(limpio)) hallazgos.push({ archivo, ...h });
   }
   return hallazgos.sort((a, b) =>
     a.archivo === b.archivo ? a.linea - b.linea : a.archivo.localeCompare(b.archivo),
