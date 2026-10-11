@@ -45,6 +45,25 @@ async function pedir(quien: string, path: string, init: RequestInit = {}): Promi
 
 beforeAll(async () => {
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? ADMIN_URL;
+  /**
+   * R2 de mentira, como ya hace `equipo.test.ts:41-44`.
+   *
+   * Sin estas cuatro, `storageFromEnv()` devuelve null y la ruta contesta
+   * `STORAGE_NOT_CONFIGURED`. Las pruebas de abajo empezaban con
+   * `if (r.status === 503) return;` y CI solo exporta `DATABASE_URL` y
+   * `REDIS_URL`: tres pruebas verdes que no ejecutaban ni una aserción, y las
+   * tres cuidan el aislamiento —que la llave nazca bajo el tenant, que un
+   * `../../otro-negocio/secreto.pdf` no salga del prefijo, y que la URL
+   * firmada amarre tipo y tamaño, que es la diferencia entre un tope real y
+   * lo que la propia prueba llama «un adorno» (#812).
+   *
+   * No se firma nada contra R2 de verdad: la firma SigV4 es local, así que
+   * una credencial inventada alcanza para comprobar qué quedó firmado.
+   */
+  process.env.R2_ENDPOINT = 'https://cuenta.r2.cloudflarestorage.com';
+  process.env.R2_ACCESS_KEY_ID = 'AKIDTEST';
+  process.env.R2_SECRET_ACCESS_KEY = 'secreto';
+  process.env.R2_BUCKET_ADJUNTOS = 'adjuntos-test';
   admin = createPool(ADMIN_URL);
   await runMigrations(admin);
   const t = await admin.query("INSERT INTO tenants (name, plan) VALUES ('test-knowledge-api', 'crece') RETURNING id");
@@ -148,13 +167,11 @@ describe('subir un PDF al conocimiento (#522)', () => {
       method: 'POST',
       body: JSON.stringify({ filename: 'Lista de precios.pdf', sizeBytes: 120_000 }),
     });
-    // Sin almacenamiento configurado en el ambiente de prueba se avisa claro,
-    // que es el contrato: nunca adivinar un destino.
-    if (r.status === 503) {
-      expect((await r.json()).code).toBe('STORAGE_NOT_CONFIGURED');
-      return;
-    }
-    expect(r.status).toBe(201);
+    // Antes acá había un `if (r.status === 503) return`, y era la razón por la
+    // que esta prueba y las dos siguientes no comprobaban nada en CI (#812).
+    // Un 503 ahora es un fallo: significa que el `beforeAll` dejó de poner las
+    // variables de R2, y lo que hay que saber es eso y no saltarse la prueba.
+    expect(r.status, `respondió ${r.status}: ${JSON.stringify(await r.clone().json())}`).toBe(201);
     const cuerpo = await r.json();
     // El prefijo es de donde cuelga el aislamiento: la ruta que firma la
     // bajada solo acepta llaves que empiecen con el tenant de quien pide.
@@ -167,9 +184,16 @@ describe('subir un PDF al conocimiento (#522)', () => {
       method: 'POST',
       body: JSON.stringify({ filename: '../../otro-negocio/secreto.pdf', sizeBytes: 1024 }),
     });
-    if (r.status === 503) return;
+    expect(r.status).toBe(201);
     const cuerpo = await r.json();
-    expect(cuerpo.key.startsWith(`${tenant}/conocimiento/`)).toBe(true);
+    // La propiedad que importa, dicha como estructura y no como ausencia: la
+    // llave tiene EXACTAMENTE tres segmentos y el primero es el tenant. Una
+    // aserción de «no contiene» se satisface también con una llave rara que
+    // igual se salió por otro lado.
+    const segmentos = (cuerpo.key as string).split('/');
+    expect(segmentos).toHaveLength(3);
+    expect(segmentos[0]).toBe(tenant);
+    expect(segmentos[1]).toBe('conocimiento');
     expect(cuerpo.key).not.toContain('..');
     expect(cuerpo.key).not.toContain('otro-negocio/');
   });
@@ -183,7 +207,6 @@ describe('subir un PDF al conocimiento (#522)', () => {
       method: 'POST',
       body: JSON.stringify({ filename: 'precios.pdf' }),
     });
-    if (r.status === 503) return;
     expect(r.status).toBe(400);
     expect((await r.json()).code).toBe('VALIDATION_ERROR');
   });
@@ -193,7 +216,7 @@ describe('subir un PDF al conocimiento (#522)', () => {
       method: 'POST',
       body: JSON.stringify({ filename: 'precios.pdf', sizeBytes: 2048 }),
     });
-    if (r.status === 503) return;
+    expect(r.status).toBe(201);
     const cuerpo = await r.json();
     // Las dos cabeceras DENTRO de la firma: mandar otra cosa cambia la firma
     // canónica y R2 responde 403. Sin esto, con la URL en la mano se sube un

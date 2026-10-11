@@ -49,7 +49,24 @@ export function knowledgeKey(tenantId: string, filename: string): string {
  * fuera del prefijo del negocio.
  */
 function nombreSeguro(filename: string): string {
-  return filename.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+  return (
+    filename
+      .normalize('NFKD')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      // Los puntos seguidos se colapsan. El aislamiento NO dependía de esto
+      // —la barra ya se volvía `_`, así que `../../otro/secreto.pdf` quedaba
+      // como `.._.._otro_secreto.pdf` y no salía del prefijo del tenant—,
+      // pero la llave se quedaba con un `..` literal adentro.
+      //
+      // Se saca igual porque una llave con `..` es una mina para cualquier
+      // código que la trate como RUTA: un export que la escriba en disco, un
+      // cliente S3 que normalice el path, un `join()` en una herramienta. Y
+      // porque la prueba que lo cazó —tres años de `if (r.status === 503)
+      // return` sin ejecutarse (#812)— decía exactamente esto, y tenía razón
+      // en lo que quería, no en por qué estaba a salvo.
+      .replace(/\.{2,}/g, '.')
+      .slice(-80)
+  );
 }
 
 function hmac(key: Buffer | string, data: string): Buffer {

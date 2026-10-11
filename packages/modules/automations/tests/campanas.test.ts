@@ -738,13 +738,97 @@ describe('una campaña que se corta, y una que se detiene', () => {
     expect(await en((c) => campanasSinAvance(c, tenant, 10))).not.toContain(colgada);
   });
 
-  it('la función SECURITY DEFINER ve lo que una consulta con RLS no vería (#286)', async () => {
-    // Un barrido cross-tenant escrito como SELECT suelto devuelve cero filas con
-    // el rol de producción: se vería corriendo y no encontraría nada nunca.
-    const r = await admin.query('SELECT * FROM tenants_con_campanas_sin_avance(10)');
-    expect(r.rowCount).toBeGreaterThanOrEqual(0);
-    const columnas = r.fields.map((f) => f.name);
-    expect(columnas).toEqual(['tenant_id']);
+  /**
+   * Esta prueba la escribí yo y no probaba nada (#812).
+   *
+   * Decía «la función SECURITY DEFINER ve lo que una consulta con RLS no
+   * vería», y la corría con el pool `admin` — el rol `iaxti` de desarrollo,
+   * que es SUPERUSUARIO y tiene BYPASSRLS. Con ese rol Postgres no evalúa
+   * ninguna política, así que el `SECURITY DEFINER` no estaba haciendo nada
+   * en esa llamada: la propiedad del título no se ejercitaba.
+   *
+   * Y su única aserción sobre el resultado era
+   * `expect(r.rowCount).toBeGreaterThanOrEqual(0)`, que es cierta para cero
+   * filas, porque `rowCount` nunca es negativo.
+   *
+   * Si se le quitara el `SECURITY DEFINER` a la función, o se cayera el
+   * `GRANT EXECUTE … TO iaxti_app` de la migración 0006, el barrido de
+   * `apps/workers/src/campanas.ts` dejaría de encontrar campañas colgadas
+   * para siempre y la prueba seguía verde. El dueño se queda mirando un
+   * progreso que no se mueve, que es el modo de falla que #609 vino a cerrar.
+   *
+   * Ahora se corre con un rol que RESPETA las políticas, y se comprueban las
+   * dos mitades: que el SELECT suelto no ve nada, y que la función sí.
+   */
+  describe('el barrido cross-tenant con un rol que respeta RLS (#286)', () => {
+    let app: Pool;
+    let colgada: string;
+
+    beforeAll(async () => {
+      await admin.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'iaxti_app') THEN
+            CREATE ROLE iaxti_app LOGIN PASSWORD 'iaxti_app';
+          END IF;
+        END $$
+      `);
+      await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
+      await admin.query('GRANT SELECT ON campaigns, campaign_recipients TO iaxti_app');
+      // El GRANT de la migración 0006 es condicional a que el rol YA exista
+      // cuando corre; acá el rol se crea después, así que se repite. En
+      // producción esto lo cubre el diagnóstico de #370, que pregunta EXECUTE
+      // por cada función nuestra.
+      await admin.query(
+        'GRANT EXECUTE ON FUNCTION tenants_con_campanas_sin_avance(int) TO iaxti_app',
+      );
+      app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
+
+      colgada = await nuevaCampana('Colgada de verdad');
+      await en((c) => iniciarCampana(c, { tenantId: tenant, campaignId: colgada }, deps()));
+      await admin.query(
+        "UPDATE campaigns SET started_at = now() - interval '30 minutes' WHERE id = $1",
+        [colgada],
+      );
+    });
+
+    afterAll(async () => {
+      await app?.end();
+    });
+
+    it('el rol de la aplicación no se salta las políticas: si se las saltara, esto no probaría nada', async () => {
+      const r = await app.query(
+        'SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user',
+      );
+      expect(r.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+    });
+
+    it('un SELECT suelto NO ve la campaña colgada: cero filas, sin error', async () => {
+      // Esto es lo que habría pasado si el barrido fuera una consulta normal:
+      // se vería corriendo cada minuto y no encontraría nada nunca.
+      const c = await app.connect();
+      try {
+        const r = await c.query(
+          `SELECT DISTINCT tenant_id FROM campaigns
+            WHERE status = 'sending' AND started_at < now() - interval '10 minutes'`,
+        );
+        expect(r.rows).toEqual([]);
+      } finally {
+        c.release();
+      }
+    });
+
+    it('la función SECURITY DEFINER sí la ve, y devuelve EL tenant de la campaña', async () => {
+      const c = await app.connect();
+      try {
+        const r = await c.query('SELECT * FROM tenants_con_campanas_sin_avance(10)');
+        expect(r.fields.map((f) => f.name)).toEqual(['tenant_id']);
+        // La aserción que faltaba: el tenant está EN el resultado. La anterior
+        // era `rowCount >= 0`, cierta también con cero filas.
+        expect(r.rows.map((f) => f.tenant_id)).toContain(tenant);
+      } finally {
+        c.release();
+      }
+    });
   });
 
   it('si el número se pone en ROJO a mitad de campaña, el lote siguiente no sale', async () => {
