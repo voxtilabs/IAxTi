@@ -75,6 +75,14 @@ export { esNombreDeVariable, exigirNombreDeVariable, refParaMostrar } from './re
 // Lo que la documentación cita tiene que existir (#817).
 export { rutasCitadas, rutasQueNoExisten } from './rutas-en-la-documentacion';
 export type { RutaCitada } from './rutas-en-la-documentacion';
+// Lo que un módulo importa está declarado en su manifiesto (#821).
+export {
+  importaSinDeclarar,
+  requeridasSinImport,
+  modulosQueImporta,
+  REQUERIDAS_SIN_IMPORT,
+} from './dependencias-declaradas';
+export type { DependenciaDelModulo } from './dependencias-declaradas';
 // Barridos que recorren todos los tenants, con trinquete (#743).
 export { barridosDelRepo, llamadasDeBarrido } from './barridos-sin-lista';
 export type { LlamadaDeBarrido } from './barridos-sin-lista';

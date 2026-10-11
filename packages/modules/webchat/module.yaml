@@ -6,8 +6,18 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [channels, organizations, identity, crm]
-  optional: []
+  # `conversations` faltaba, y era la única dependencia dura de un módulo que
+  # NO es del núcleo: `webchat.ts` llama a `receiveInboundForContact` y a
+  # `autoAssignNew` sin ninguna guarda. Sin declararla, la regla 4 del registry
+  # —no apagar un módulo del que otro activo depende— no la veía, y el
+  # SuperAdmin podía apagar `conversations` mientras el widget seguía
+  # escribiendo mensajes en una bandeja que el equipo ya no podía abrir (#821).
+  required: [channels, conversations, organizations, identity, crm]
+  # Las dos que el código SÍ trata como opcionales, con el chequeo canónico:
+  # `registry.isActive('agents')` y `registry.isActive('knowledge')` en
+  # `webchat.controller.ts`. El manifiesto decía `optional: []`, así que las
+  # tres dependencias que el código ejerce estaban fuera del contrato.
+  optional: [agents, knowledge]
 permissions:
   - webchat.manage
 events:
