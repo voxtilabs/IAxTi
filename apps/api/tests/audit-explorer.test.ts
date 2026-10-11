@@ -4,6 +4,9 @@ import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { PayloadTooLargeException } from '@nestjs/common';
+import { ExportDemasiadoGrande } from '@iaxti/module-audit';
+import { noMasDeLoQueCabe } from '../src/audit.controller';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { verifyExport, writeAudit } from '@iaxti/module-audit';
 import { createApp } from '../src/main';
@@ -140,6 +143,43 @@ describe('/v1/audit (#72)', () => {
     expect(sinTenant.status).toBe(400);
   });
 
+  /**
+   * El export pedía hasta mil filas con defecto mil, el motor cortaba en cien,
+   * y el documento salía FIRMADO sobre esas cien sin un campo que dijera que
+   * faltaba el resto y sin forma de pedir la página siguiente (#798).
+   *
+   * La prueba de al lado no lo veía porque corre sobre un tenant con UNA
+   * entrada: el recorte nunca se asomaba. Acá hay ciento cincuenta.
+   */
+  it('el export se lleva el libro COMPLETO, no la primera página', async () => {
+    await withTenant(admin, tenant, async (c) => {
+      for (let i = 0; i < 150; i++) {
+        await writeAudit(c, {
+          tenantId: tenant,
+          actor: duena,
+          actorKind: 'user',
+          action: 'prueba.volumen',
+          resource: 'demo',
+          resourceId: `v-${i}`,
+          result: 'ok',
+        });
+      }
+    });
+
+    const doc = await (
+      await pedir(duena, '/audit/export?format=json&action=prueba.volumen')
+    ).json();
+    expect(doc.rows).toBe(150);
+    expect(JSON.parse(doc.payload)).toHaveLength(150);
+    expect(verifyExport(doc, SECRETO)).toBe(true);
+
+    // La BÚSQUEDA sigue siendo una página de cien: es la regla de API, y es
+    // lo que el OpenAPI declara. Lo que estaba mal era que el export, que es
+    // otra cosa, usara ese mismo tope sin decirlo.
+    const pagina = await (await pedir(duena, '/audit?action=prueba.volumen&limit=500')).json();
+    expect(pagina).toHaveLength(100);
+  });
+
   it('el export sale firmado y la verificación de referencia calza', async () => {
     const doc = await (await pedir(duena, '/audit/export?format=csv')).json();
     expect(doc.signature).not.toBeNull();
@@ -166,5 +206,35 @@ describe('/v1/audit (#72)', () => {
     ).json();
     expect(JSON.parse(json.payload).length).toBeGreaterThanOrEqual(1);
     expect(verifyExport(json, SECRETO)).toBe(true);
+  });
+});
+
+/**
+ * La traducción del rechazo, aparte.
+ *
+ * Probar el tope de verdad serían cincuenta mil filas por corrida, y lo que
+ * importa de este lado no es el tope: es que el rechazo llegue al cliente con
+ * su código y con qué hacer, y no como un 500 sin nombre. Una traducción de
+ * error sin prueba es donde se esconde un `code` mal escrito.
+ */
+describe('un export que no cabe se rechaza con el motivo (#798)', () => {
+  it('traduce ExportDemasiadoGrande a 413 con EXPORT_TOO_LARGE y qué hacer', async () => {
+    const caida = noMasDeLoQueCabe(async () => {
+      throw new ExportDemasiadoGrande(50_000);
+    });
+    await expect(caida).rejects.toBeInstanceOf(PayloadTooLargeException);
+    const err = await caida.catch((e: PayloadTooLargeException) => e);
+    const cuerpo = err.getResponse() as { code: string; message: string };
+    expect(cuerpo.code).toBe('EXPORT_TOO_LARGE');
+    expect(cuerpo.message).toContain('50.000');
+    expect(cuerpo.message).toMatch(/Acota el rango/);
+  });
+
+  it('cualquier otro error pasa tal cual: no se disfraza de "no cabe"', async () => {
+    await expect(
+      noMasDeLoQueCabe(async () => {
+        throw new Error('se cayó la base');
+      }),
+    ).rejects.toThrow('se cayó la base');
   });
 });

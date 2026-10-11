@@ -879,7 +879,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
   "AuditController_export": {
     "metodo": "GET",
     "ruta": "/v1/audit/export",
-    "resumen": "Exporta el libro del tenant, firmado",
+    "resumen": "Exporta el libro del tenant, COMPLETO para el rango pedido y firmado",
     "permiso": "audit.export",
     "modulo": null,
     "soloSesion": false,
@@ -942,13 +942,6 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "to": {
           "type": "string",
           "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
-          "x-iaxti-en": "query"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100,
-          "description": "Cuántas entradas, hasta 100.",
           "x-iaxti-en": "query"
         }
       },
@@ -4220,7 +4213,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
   "PlatformAuditController_export": {
     "metodo": "GET",
     "ruta": "/v1/platform/audit/export",
-    "resumen": "Exporta el libro global (o el de un tenant), firmado",
+    "resumen": "Exporta el libro global (o el de un tenant), COMPLETO para el rango pedido y firmado",
     "permiso": "platform.audit",
     "modulo": null,
     "soloSesion": false,
@@ -4283,13 +4276,6 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "to": {
           "type": "string",
           "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
-          "x-iaxti-en": "query"
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100,
-          "description": "Cuántas entradas, hasta 100.",
           "x-iaxti-en": "query"
         }
       },
