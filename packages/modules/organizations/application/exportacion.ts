@@ -133,12 +133,57 @@ export interface ExportacionTenant {
    */
   truncadas: string[];
   fuera: Record<string, string>;
-  /** Llaves de los adjuntos en R2: los archivos se piden aparte. */
-  adjuntos: string[];
+  /**
+   * Los adjuntos del negocio, con lo que hace falta para poder bajarlos (#583).
+   *
+   * Antes esto era `string[]`: las llaves PELADAS de R2, con el comentario «los
+   * archivos se piden aparte». No había ninguna ruta que los pidiera. O sea que
+   * el cliente que cancelaba se llevaba la REFERENCIA a sus fotos, cotizaciones
+   * y comprobantes, y no las fotos — y el comentario de `POST /billing/cancelar`
+   * prometía «la exportación entera».
+   *
+   * Para una obligación de «llevarse lo suyo» (SPEC §19, Ley 21.719) eso es
+   * entregar la mitad y decir que es todo.
+   *
+   * Acá va la metadata; la URL firmada la pone quien tiene la configuración del
+   * almacén —este módulo no firma nada, igual que no manda mensajes.
+   */
+  adjuntos: AdjuntoExportado[];
+  /**
+   * Cuántos adjuntos quedaron fuera por el tope, si quedó alguno.
+   *
+   * Mismo criterio que `truncadas`: una exportación que calla lo que no incluyó
+   * es peor que una que avisa, porque se descubre cuando el negocio ya canceló.
+   */
+  adjuntosFuera: number;
+}
+
+export interface AdjuntoExportado {
+  /** La llave en R2. Va igual: es el nombre del archivo dentro del paquete. */
+  key: string;
+  /** El nombre que el archivo tenía cuando se subió, para que se reconozca. */
+  nombre: string;
+  conversationId: string | null;
+  messageId: string | null;
+  bytes: number | null;
+  contentType: string | null;
 }
 
 /** Tope por tabla, para que un tenant enorme no voltee el proceso. */
 export const TOPE_POR_TABLA = 50_000;
+
+/**
+ * Tope de adjuntos en una exportación, con su motivo (#583).
+ *
+ * No es un número cómodo: es el punto donde el paquete deja de ser algo que una
+ * persona abre. Con el promedio de los adjuntos de WhatsApp —una foto de
+ * teléfono son 2-4 MB— cinco mil son del orden de diez gigas de descargas, y la
+ * lista de enlaces ya no se lee, se procesa.
+ *
+ * Lo que importa de este número no es cuál sea: es que lo que deja afuera se
+ * DICE, en el paquete y en la respuesta. Un tope callado es peor que uno bajo.
+ */
+export const TOPE_ADJUNTOS = 5_000;
 
 export async function exportarTenant(
   client: PoolClient,
@@ -183,13 +228,40 @@ export async function exportarTenant(
     resumen[tabla] = filas.length;
   }
 
-  // Los adjuntos viven en R2 y no viajan en el JSON: acá van sus llaves para
-  // que se puedan pedir. Bajarlos y empaquetarlos es un paso aparte.
-  const adjuntos: string[] = [];
+  /**
+   * Los adjuntos: la metadata, no las llaves peladas (#583).
+   *
+   * Los bytes viven en R2 y no viajan en el JSON —eso no cambió— pero lo que
+   * sale de acá ya sirve para armar un paquete que se pueda abrir: el nombre con
+   * el que se subió, de qué conversación es, cuánto pesa y de qué tipo es.
+   *
+   * El nombre importa más de lo que parece. La llave de R2 es
+   * `<tenant>/<conversacion>/<timestamp>-<nombre-saneado>`: sin el nombre
+   * original, el negocio recibe mil archivos con prefijos de máquina y no
+   * reconoce ninguno. Un paquete que no se puede leer no es portabilidad.
+   */
+  const adjuntos: AdjuntoExportado[] = [];
+  let adjuntosFuera = 0;
   for (const mensaje of datos.messages ?? []) {
-    const lista = mensaje.attachments as Array<{ key?: string }> | null;
-    if (Array.isArray(lista)) {
-      for (const a of lista) if (a?.key) adjuntos.push(a.key);
+    const lista = mensaje.attachments as Array<Record<string, unknown>> | null;
+    if (!Array.isArray(lista)) continue;
+    for (const a of lista) {
+      const key = typeof a?.key === 'string' ? a.key : null;
+      if (!key) continue;
+      if (adjuntos.length >= TOPE_ADJUNTOS) {
+        adjuntosFuera += 1;
+        continue;
+      }
+      adjuntos.push({
+        key,
+        // `filename` es lo que mandó el navegador al subir; si no está, el
+        // último tramo de la llave es lo más parecido a un nombre que hay.
+        nombre: typeof a.filename === 'string' && a.filename ? a.filename : (key.split('/').pop() ?? key),
+        conversationId: typeof mensaje.conversation_id === 'string' ? mensaje.conversation_id : null,
+        messageId: typeof mensaje.id === 'string' ? mensaje.id : null,
+        bytes: typeof a.sizeBytes === 'number' ? a.sizeBytes : null,
+        contentType: typeof a.contentType === 'string' ? a.contentType : null,
+      });
     }
   }
 
@@ -201,5 +273,6 @@ export async function exportarTenant(
     truncadas,
     fuera: FUERA_DE_LA_EXPORTACION,
     adjuntos,
+    adjuntosFuera,
   };
 }

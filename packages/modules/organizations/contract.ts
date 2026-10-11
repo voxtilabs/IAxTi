@@ -25,7 +25,7 @@ export {
   FUERA_DE_LA_EXPORTACION,
   TOPE_POR_TABLA,
 } from './application/exportacion';
-export type { ExportacionTenant } from './application/exportacion';
+export type { AdjuntoExportado, ExportacionTenant } from './application/exportacion';
 export {
   modulosDelPlan,
   modulosVendibles,

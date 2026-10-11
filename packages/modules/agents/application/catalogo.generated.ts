@@ -1296,7 +1296,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
   "BillingController_cancelar": {
     "metodo": "POST",
     "ruta": "/v1/billing/cancelar",
-    "resumen": "Cancela la suscripción y entrega la exportación completa",
+    "resumen": "Cancela la suscripción y entrega los datos del negocio",
     "permiso": "billing.manage",
     "modulo": "billing",
     "soloSesion": false,
@@ -3691,6 +3691,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "metodo": "GET",
     "ruta": "/v1/me/exportacion",
     "resumen": "Exportación completa de los datos del negocio",
+    "permiso": "tenant.settings",
+    "modulo": null,
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "MeController_exportacionZip": {
+    "metodo": "GET",
+    "ruta": "/v1/me/exportacion.zip",
+    "resumen": "La exportación del negocio, en un zip con sus archivos",
     "permiso": "tenant.settings",
     "modulo": null,
     "soloSesion": false,

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { AvisoResultado, Button, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiDescargarBinario, apiFetch } from '../lib/api';
 
 /**
  * Llevarse los datos del negocio (#447, #222).
@@ -41,25 +41,46 @@ export function LlevarseLosDatos() {
     setAviso(null);
     setOcupado(true);
     try {
-      const datos = await apiFetch<Exportacion & Record<string, unknown>>(
+      /**
+       * Un ZIP que se abre con doble clic, no un `.json` (#583).
+       *
+       * Lo que bajaba antes era un JSON armado en el navegador, y dentro los
+       * adjuntos eran llaves PELADAS de R2 —rutas privadas del bucket— con un
+       * comentario que decía «los archivos se piden aparte». No había ninguna
+       * ruta que los pidiera: el negocio se llevaba la referencia a sus fotos,
+       * cotizaciones y comprobantes, y no las fotos.
+       *
+       * Ahora el paquete lo arma el servidor, que es el único que puede firmar
+       * los enlaces de descarga, y adentro va un `LEEME.txt` que dice qué hay,
+       * qué falta y hasta cuándo sirven esos enlaces.
+       *
+       * `/me/exportacion` (JSON) se queda viva: hay SDK generado contra ella.
+       * Esta pantalla usa `.zip`, que es lo que una persona puede abrir.
+       */
+      const { blob, nombre } = await apiDescargarBinario(
         config,
         session,
         tenant,
-        // `/me/exportacion` y no `/exportacion`: vive en el controlador de
-        // "lo mío". Mi propio inventario de rutas decía `/exportacion`
-        // porque tomaba el primer @Controller del archivo, y ese archivo
-        // tiene cinco. El guard de rutas lo cazó al primer intento.
-        '/me/exportacion',
+        // `/me/exportacion.zip` y no `/exportacion.zip`: vive en el controlador
+        // de "lo mío". Mi propio inventario de rutas decía `/exportacion`
+        // porque tomaba el primer @Controller del archivo, y ese archivo tiene
+        // cinco. El guard de rutas lo cazó al primer intento.
+        '/me/exportacion.zip',
       );
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' }),
-      );
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `iaxti-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = nombre;
       a.click();
       URL.revokeObjectURL(url);
-      setUltima(datos);
+      // El resumen de la pantalla sigue saliendo del JSON: es el mismo dato y
+      // así se puede mostrar sin volver a armar el paquete. Es una llamada más
+      // y es deliberada — el zip no se puede leer desde el navegador.
+      setUltima(
+        await apiFetch<Exportacion & Record<string, unknown>>(
+          config, session, tenant, '/me/exportacion',
+        ),
+      );
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No pudimos armar la exportación.');
     } finally {
