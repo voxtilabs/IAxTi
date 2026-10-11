@@ -68,11 +68,45 @@ describe('las métricas salen de verdad (#17)', () => {
      * falla cuando hay dos copias de `@opentelemetry/api` en el árbol — que es
      * exactamente lo que pasa en un monorepo con pnpm.
      */
-    expect(proveedor.constructor.name).not.toBe('NoopMeterProvider');
+    expect(proveedor.constructor.name).not.toMatch(/^Noop/);
 
-    // Y que un instrumento creado desde ahí sea real, no un hueco.
+    /**
+     * Y que un instrumento creado desde ahí sea real, no un hueco.
+     *
+     * Esta línea decía `not.toBe('NoopCounter')` y era cierta SIEMPRE: la
+     * clase no-op de `@opentelemetry/api` se llama `NoopCounterMetric`, no
+     * `NoopCounter`. O sea que la segunda mitad de esta prueba —la que cubre
+     * el instrumento y no solo el proveedor— no comprobaba nada y se leía como
+     * si lo hiciera (#823).
+     *
+     * Ahora `/^Noop/`, que es lo que de verdad se quiere decir y aguanta el
+     * próximo rename de la librería. Y con una aserción POSITIVA al lado: el
+     * `add()` tiene que existir y poder llamarse. Un `not.toMatch` solo sigue
+     * siendo una aserción que un objeto cualquiera satisface.
+     */
     const contador = proveedor.getMeter('prueba').createCounter('prueba_total');
-    expect(contador.constructor.name).not.toBe('NoopCounter');
+    expect(contador.constructor.name).not.toMatch(/^Noop/);
+    expect(typeof contador.add).toBe('function');
+    expect(() => contador.add(1, { prueba: 'si' })).not.toThrow();
+  });
+
+  /**
+   * El centinela de la aserción de arriba.
+   *
+   * Sin esto, `/^Noop/` podría estar mirando un nombre que ya no existe —que es
+   * exactamente el defecto que se acaba de arreglar— y nadie se enteraría.
+   *
+   * Se usa `createNoopMeter()` y no el proveedor global: el global queda
+   * REGISTRADO por la prueba de arriba y OTel lo guarda en `globalThis`, así
+   * que `vi.resetModules()` no lo devuelve al hueco. Pedirle el no-op a la
+   * librería no depende del orden de las pruebas, que es una dependencia que
+   * se rompe sola el día que alguien reordene el archivo.
+   */
+  it('el patrón del no-op reconoce al no-op de verdad', async () => {
+    const { createNoopMeter } = await import('@opentelemetry/api');
+    const hueco = createNoopMeter();
+    expect(hueco.constructor.name).toMatch(/^Noop/);
+    expect(hueco.createCounter('y').constructor.name).toMatch(/^Noop/);
   });
 
   it('avisa si el entorno pide un protocolo que las métricas no van a usar', async () => {

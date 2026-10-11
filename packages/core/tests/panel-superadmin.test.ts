@@ -28,7 +28,26 @@ describe('el panel de SuperAdmin usa lo que la API ofrece', () => {
   it('pero NO ofrece borrar desde esa lista', () => {
     // Borrar es irreversible y se lleva los datos de los clientes de
     // nuestro cliente: no puede ser la acción más cercana a la lista.
-    const bloque = PANEL.slice(PANEL.indexOf('function ColaDeBorrado'), PANEL.indexOf('interface PromptActivoDto'));
+    //
+    // Los dos marcadores se COMPRUEBAN antes de recortar (#823). Si el
+    // primero desaparece —un rename, un cambio a `const ColaDeBorrado = () =>`—
+    // `indexOf` devuelve -1, `slice(-1, …)` devuelve cadena vacía, y
+    // `''.not.toMatch(…)` pasa: un refactor de nombre apagaba en silencio la
+    // única guarda que impide poner un borrado irreversible pegado a la cola
+    // de borrado. Y el modo contrario también estaba: si el marcador de abajo
+    // se renombra, el bloque pasa a ser casi el archivo entero y la guarda
+    // empieza a dar rojos que no son suyos.
+    const desde = PANEL.indexOf('function ColaDeBorrado');
+    const hasta = PANEL.indexOf('interface PromptActivoDto');
+    expect(desde, 'no se encontró `function ColaDeBorrado` en el panel').toBeGreaterThan(-1);
+    expect(hasta, 'no se encontró `interface PromptActivoDto` en el panel').toBeGreaterThan(desde);
+
+    const bloque = PANEL.slice(desde, hasta);
+    // Y que el recorte tenga algo adentro: un bloque de treinta caracteres
+    // satisface cualquier aserción negativa.
+    expect(bloque.length).toBeGreaterThan(200);
+    expect(bloque).toContain('por-borrar');
+
     expect(bloque).not.toMatch(/action: 'delete'|\/state[\s\S]{0,80}delete/);
   });
 
