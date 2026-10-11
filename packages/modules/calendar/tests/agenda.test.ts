@@ -9,6 +9,7 @@ import {
   huecosDelDia,
   listarCitas,
 } from '../application/agenda';
+import { ESTADOS_CITA, assertTransicionCita, ocupaAgenda } from '../domain/estado';
 
 /**
  * La agenda contra la base (SPEC §16). Lo que se prueba acá es lo que pasa
@@ -201,5 +202,39 @@ describe('lo que la persona tiene ocupado FUERA de IAxTi (#57)', () => {
       huecosDelDia(c, { tenantId: tenant, ownerId: duena, dia: LUNES, ahora: ANTES, ocupadoExterno: [] }),
     );
     expect(b.map((h) => h.hora)).toEqual(a.map((h) => h.hora));
+  });
+});
+
+/**
+ * `rescheduled` no es alcanzable mientras nada reagende (#836).
+ *
+ * Estaba abierto desde `confirmed` y `reminded`, y era un callejón con una
+ * fuga: la cita quedaba congelada —`TRANSICIONES.rescheduled` está vacío—,
+ * `ocupaAgenda` la sacaba de la agenda de IAxTi, y el evento seguía ocupando
+ * esa hora en Google, porque el único `if` que cancela allá es
+ * `to === 'cancelled'`. La hora se volvía a ofrecer mientras seguía tomada.
+ */
+describe('reagendar no existe todavía, así que no se puede entrar (#836)', () => {
+  it('la transición a rescheduled se rechaza desde confirmed y desde reminded', () => {
+    for (const desde of ['confirmed', 'reminded'] as const) {
+      expect(() => assertTransicionCita(desde, 'rescheduled')).toThrow(
+        /Transición de cita inválida/,
+      );
+    }
+  });
+
+  it('pero el estado sigue existiendo: hay que poder leer una fila vieja que lo tenga', () => {
+    // Si se borrara de `ESTADOS_CITA` o del CHECK de la migración, una fila
+    // guardada antes de esto dejaría de poder leerse.
+    expect(ESTADOS_CITA).toContain('rescheduled');
+    expect(ocupaAgenda('rescheduled')).toBe(false);
+  });
+
+  it('y los caminos que SÍ existen siguen abiertos', () => {
+    // Anti-vacuidad: un `TRANSICIONES` vacío haría pasar la primera de arriba.
+    for (const hasta of ['reminded', 'attended', 'no_show', 'cancelled'] as const) {
+      expect(() => assertTransicionCita('confirmed', hasta)).not.toThrow();
+    }
+    expect(() => assertTransicionCita('proposed', 'confirmed')).not.toThrow();
   });
 });
