@@ -83,6 +83,8 @@ export {
   REQUERIDAS_SIN_IMPORT,
 } from './dependencias-declaradas';
 export type { DependenciaDelModulo } from './dependencias-declaradas';
+// El catálogo de eventos del SPEC y los manifiestos dicen lo mismo (#828).
+export { eventosDelCatalogo, eventosDelCatalogoEnArchivo } from './catalogo-de-eventos';
 // Barridos que recorren todos los tenants, con trinquete (#743).
 export { barridosDelRepo, llamadasDeBarrido } from './barridos-sin-lista';
 export type { LlamadaDeBarrido } from './barridos-sin-lista';

@@ -845,28 +845,56 @@ Todo evento lleva sobre: `id`, `name`, `tenant_id`, `occurred_at`, `actor`,
 
 ```
 identity        user.registered · user.invited · user.joined_tenant · user.login_failed
-organizations   tenant.created · tenant.plan_changed · tenant.state_changed · usage.threshold_reached
+organizations   tenant.created · tenant.plan_changed · tenant.state_changed
+                usage.threshold_reached · tenant.settings_changed
 authorization   role.created · role.assigned · permission.denied
 crm             contact.created · contact.updated · contact.merged · contact.opted_out
-                deal.created · deal.stage_changed · deal.won · deal.lost · deal.stalled · activity.due
+                deal.created · deal.stage_changed · deal.won · deal.lost · deal.stalled
+                activity.due
 conversations   conversation.created · conversation.assigned · conversation.state_changed
-                message.received · message.sent · message.failed · message.delivery_requested
-                sla.first_response_breached · conversation.handoff_requested
+                message.received · message.sent · message.failed
+                message.delivery_requested · sla.first_response_breached
+                conversation.unattended · conversation.handoff_requested · note.mentioned
+                conversation.auto_resolved · conversation.archived
+                conversations.retention.purged · conversations.retention.scheduled
 channels        channel.connected · channel.degraded · channel.disconnected
                 template.approved · template.rejected · number.quality_changed
+whatsapp        template.sent · template.status_changed · template.submitted
 agents          agent.executed · agent.suggested · agent.acted · agent.escalated
                 agent.failed · agent.quota_threshold
-knowledge       knowledge.updated · knowledge.source_expired
-automations     automation.ran · automation.failed · automation.paused
+knowledge       knowledge.source_added · knowledge.source_expired · knowledge.reindexed
+automations     campaign.sent · automation.ran · automation.failed · automation.paused
+                sequence.started · sequence.stopped · sequence.completed
 calendar        appointment.created · appointment.reminder_sent · appointment.attended
                 appointment.no_show · appointment.cancelled
-payments        payment_link.sent · payment.received · payment.failed · payment_link.expired
-                payment_link.cancelled
-integrations    integration.connected · integration.revoked · webhook.failed
-billing         invoice.issued · invoice.paid · invoice.overdue · subscription.changed
+payments        payment_link.created · payment_link.sent · payment_link.cancelled
+                payment_link.expired · payment.received · payment.failed
+integrations    webhook.failed
+billing         invoice.issued · invoice.paid · invoice.overdue · subscription.cancelled
+                tenant.deletion_warned
 ```
 
-Agregar un evento es editar el manifiesto del módulo que lo publica y esta lista.
+Agregar un evento es editar el manifiesto del módulo que lo publica y esta
+lista. **Y hay una guarda que lo comprueba** (`packages/core/tests/catalogo-de-eventos.test.ts`):
+esta lista y los `events.publishes` de los diecinueve manifiestos tienen que
+decir exactamente lo mismo, en los dos sentidos.
+
+> Hasta #828 no la había, y las dos listas se habían separado en las dos
+> direcciones (medido el 11-10):
+>
+> - **Cuatro eventos que esta lista prometía y ningún módulo declara:**
+>   `knowledge.updated`, `integration.connected`, `integration.revoked` y
+>   `subscription.changed`. Quien leyera el catálogo —que es el contrato entre
+>   módulos— y cableara un consumidor a uno de ellos esperaba para siempre, sin
+>   error y sin aviso. Se sacaron: lo que `knowledge.updated` quería decir lo
+>   dicen `knowledge.source_added`/`source_expired`/`reindexed`; lo de
+>   `subscription.changed`, `tenant.plan_changed` y `subscription.cancelled`; y
+>   los dos de `integration.*` llegan con la conexión a Google (#57), que los va
+>   a agregar al manifiesto y acá en el mismo PR, porque ahora la guarda lo
+>   exige.
+> - **Dieciocho eventos reales que esta lista no nombraba**, el módulo
+>   `whatsapp` entero entre ellos. El catálogo se presentaba como fuente de
+>   verdad y le faltaba casi una cuarta parte.
 
 ---
 
