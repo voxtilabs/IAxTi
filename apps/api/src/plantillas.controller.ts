@@ -1,3 +1,4 @@
+import { refParaMostrar } from '@iaxti/core';
 import {
   BadRequestException,
   Body,
@@ -74,7 +75,7 @@ async function cuentaDeWhatsApp(
   }
   if (!cuenta.credentialRef || !process.env[cuenta.credentialRef]) {
     throw new Error(
-      `Falta la variable ${cuenta.credentialRef} en este ambiente (credenciales por referencia).`,
+      `Falta la variable ${refParaMostrar(cuenta.credentialRef)} en este ambiente (credenciales por referencia).`,
     );
   }
   if (!cuenta.config.senderId) throw new Error('La cuenta de WhatsApp no tiene senderId configurado.');

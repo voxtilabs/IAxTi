@@ -36,7 +36,18 @@ WHERE rolname = current_user;` — las dos banderas en `false`.
 ## 3. Las credenciales, por referencia y rotadas
 
 - Los canales y los pagos guardan el **nombre** de la variable de entorno,
-  nunca el valor. Una credencial con `:` o `=` se rechaza a propósito.
+  nunca el valor. Lo que no tiene forma de nombre de variable —mayúsculas,
+  dígitos y guiones bajos, empezando por letra— se rechaza al guardar, en los
+  dos caminos.
+
+  > Hasta #801 esta frase era falsa de dos maneras. La comprobación existía
+  > solo en `payments`; `channels` —la llave del WhatsApp por el que pasa toda
+  > la conversación del negocio— guardaba lo que llegara. Y el criterio del
+  > que presumía, «con `:` o `=`», no alcanzaba: una llave de Zavu
+  > (`zv_live_…`) no tiene ninguno de los dos, así que tampoco la habría
+  > frenado. Quien le creyera a esta línea y pegara la llave de verdad quedaba
+  > con un secreto vivo en texto plano, y el único síntoma era que la API lo
+  > devolvía dentro del cuerpo de un error.
 - **Rotar todos los tokens** que hayan pasado por un chat durante la
   construcción. Sin excepción y antes de abrir a clientes.
 - `AUDIT_EXPORT_SECRET` (firma de la exportación de audit): sin él la

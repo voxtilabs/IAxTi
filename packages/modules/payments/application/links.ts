@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { publishEvent, textoDeEntorno, esProduccion } from '@iaxti/core';
+import { publishEvent, textoDeEntorno, esProduccion, exigirNombreDeVariable } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { getContactEmail } from '@iaxti/module-crm';
 import { flowConfig } from '../domain/flow-config';
@@ -123,12 +123,14 @@ export async function addProvider(
   },
 ): Promise<PaymentProvider> {
   if (!input.name?.trim()) throw new Error('El proveedor necesita un nombre.');
-  if (!input.credentialRef?.trim() || input.credentialRef.includes(' ')) {
-    throw new Error('credentialRef es el NOMBRE de la variable de entorno (sin espacios), jamás la credencial.');
-  }
-  // Paranoia §17: si alguien pega la credencial en vez del nombre, se corta.
-  if (/[:=]/.test(input.credentialRef)) {
-    throw new Error('Eso parece una credencial. Aquí va el NOMBRE de la variable de entorno.');
+  // Por referencia, nunca el valor (SPEC §17). La comprobación vive en core
+  // porque era de este módulo nada más, y `channels` —que guarda la llave del
+  // WhatsApp del negocio— no tenía ninguna (#801). De paso gana el criterio
+  // que a esta le faltaba: una llave `zv_live_…` no tiene `:` ni `=` ni
+  // espacios, así que pasaba.
+  exigirNombreDeVariable(input.credentialRef, 'credentialRef');
+  if (input.webhookSecretRef) {
+    exigirNombreDeVariable(input.webhookSecretRef, 'webhookSecretRef');
   }
   // Modo live SOLO en producción (SPEC §17). La API ya lo verificaba, pero
   // la regla vive en el CASO DE USO (ADR-0008): un proveedor en live cobra
