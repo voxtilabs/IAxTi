@@ -38,6 +38,17 @@ describe('dar una hora', () => {
   });
 
   it('vive con las citas, no con la configuración', () => {
-    expect(AGENDA.indexOf('<DarUnaHora')).toBeLessThan(AGENDA.indexOf('<HorariosDeAtencion />'));
+    // Los dos índices se comprueban ANTES de compararlos (#838). `indexOf`
+    // devuelve -1 cuando no encuentra, y -1 es menor que cualquier índice
+    // válido: si `<DarUnaHora` saliera de la agenda, la comparación pasaba
+    // igual. Y ésta es la ÚNICA mención del componente en todo
+    // `apps/web/tests`, así que nada más lo echaría de menos — justo el
+    // defecto que este archivo vino a cerrar («`POST /agenda` existía desde
+    // #57 y no la usaba ninguna pantalla»).
+    const iDarUnaHora = AGENDA.indexOf('<DarUnaHora');
+    const iHorarios = AGENDA.indexOf('<HorariosDeAtencion />');
+    expect(iDarUnaHora, '`<DarUnaHora` no está en la agenda').toBeGreaterThan(-1);
+    expect(iHorarios, '`<HorariosDeAtencion />` no está en la agenda').toBeGreaterThan(-1);
+    expect(iDarUnaHora).toBeLessThan(iHorarios);
   });
 });

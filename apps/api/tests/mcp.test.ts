@@ -107,8 +107,24 @@ describe('POST /v1/mcp (#419)', () => {
     // desconocido" deja al cliente creyendo que el servidor no habla el
     // protocolo, y la sesión se cae antes de pedir una sola herramienta.
     const key = await crearKey(['agents.use']);
-    const { cuerpo } = await rpc(key, 'notifications/initialized', undefined, null);
+    const { status, cuerpo } = await rpc(key, 'notifications/initialized', undefined, null);
+
+    /**
+     * El `status` también, y no solo `cuerpo.error` (#838).
+     *
+     * `expect(cuerpo.error).toBeUndefined()` era cierto para CUALQUIER error
+     * de la API: los errores nuestros no son JSON-RPC, su cuerpo es
+     * `{ code, message, requestId, details }` y no tiene clave `error`. Así
+     * que un 401, un 403 por scope o un 500 del filtro pasaban la aserción, y
+     * lo único que cazaba era el caso exacto de un `{error:{code:-32601}}`.
+     *
+     * Para el cliente MCP da igual por qué rebotó: la sesión se cae lo mismo.
+     */
+    expect(status, `la notificación rebotó con ${status}: ${JSON.stringify(cuerpo)}`).toBeLessThan(300);
     expect(cuerpo.error).toBeUndefined();
+    // Y que no venga el formato de error de la plataforma, que es la otra
+    // forma de rebotar sin una clave `error`.
+    expect(cuerpo.code, `contestó con el error de la API: ${JSON.stringify(cuerpo)}`).toBeUndefined();
   });
 
   it('tools/list muestra SOLO lo que esa key puede ejecutar', async () => {

@@ -366,26 +366,63 @@ describe('los ajustes de IA del negocio se pueden escribir (#536)', () => {
    * le podía dar con un UPDATE a mano en producción. Y el ADR declara el
    * problema resuelto, así que nadie iba a ir a revisarlo.
    */
-  it('el dueño elige proveedor único por la ruta, y el asistente nuevo nace ahí', async () => {
-    const disponibles = await (await pedir(duena, '/agents/ajustes')).json();
-    expect(Array.isArray(disponibles.disponibles)).toBe(true);
-    expect(disponibles.soloProveedor).toBeNull();
+  /**
+   * Las DOS ramas corren, y antes solo corría una (#838).
+   *
+   * Esto era un `if (disponibles.disponibles.includes('google'))`, y
+   * `providerAvailable` pregunta por `GOOGLE_GENERATIVE_AI_API_KEY` en el
+   * entorno. En CI no hay llaves de proveedor, así que `disponibles` llegaba
+   * vacío y **siempre corría el `else`**: el 400. La rama que comprueba que el
+   * PUT guarda `soloProveedor` —la capacidad que #494 vino a dar— no se
+   * ejecutaba nunca.
+   *
+   * Y la segunda mitad del título, «el asistente nuevo nace ahí», no se
+   * probaba en ninguna rama: la prueba no creaba ningún asistente.
+   *
+   * La llave se pone acá, de mentira: lo que se mide es que la ruta GUARDE la
+   * elección, no que el proveedor conteste. Nadie llama al modelo en esta
+   * prueba.
+   */
+  it('sin la llave del proveedor, elegirlo se rechaza diciendo qué pasaría', async () => {
+    delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const antes = await (await pedir(duena, '/agents/ajustes')).json();
+    expect(antes.disponibles).not.toContain('google');
+    expect(antes.soloProveedor).toBeNull();
 
-    // En este ambiente no hay llaves, así que el rechazo es el camino esperado:
-    // elegir un proveedor sin llave dejaría al asistente sin contestar.
-    const sinLlave = await pedir(duena, '/agents/ajustes', {
+    const r = await pedir(duena, '/agents/ajustes', {
       method: 'PUT',
       body: JSON.stringify({ soloProveedor: 'google' }),
     });
-    if (disponibles.disponibles.includes('google')) {
-      expect(sinLlave.status).toBe(200);
-      expect((await sinLlave.json()).soloProveedor).toBe('google');
-    } else {
-      expect(sinLlave.status).toBe(400);
-      const cuerpo = await sinLlave.json();
-      expect(cuerpo.code).toBe('PROVIDER_UNAVAILABLE');
-      // Y dice qué pasaría, no un «no disponible» a secas.
-      expect(cuerpo.message).toContain('dejaría de contestar');
+    expect(r.status).toBe(400);
+    const cuerpo = await r.json();
+    expect(cuerpo.code).toBe('PROVIDER_UNAVAILABLE');
+    // Y dice qué pasaría, no un «no disponible» a secas.
+    expect(cuerpo.message).toContain('dejaría de contestar');
+  });
+
+  it('con la llave, el dueño elige proveedor único por la ruta y queda guardado', async () => {
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'llave-de-prueba-no-se-llama-a-nadie';
+    try {
+      const disponibles = await (await pedir(duena, '/agents/ajustes')).json();
+      expect(disponibles.disponibles).toContain('google');
+
+      const r = await pedir(duena, '/agents/ajustes', {
+        method: 'PUT',
+        body: JSON.stringify({ soloProveedor: 'google' }),
+      });
+      expect(r.status, `respondió ${r.status}: ${JSON.stringify(await r.clone().json())}`).toBe(200);
+      expect((await r.json()).soloProveedor).toBe('google');
+
+      // Y QUEDA guardado: que el PUT lo devuelva en su respuesta no prueba que
+      // lo haya persistido. Ésta es la aserción que no existía.
+      const releido = await (await pedir(duena, '/agents/ajustes')).json();
+      expect(releido.soloProveedor).toBe('google');
+    } finally {
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      await pedir(duena, '/agents/ajustes', {
+        method: 'PUT',
+        body: JSON.stringify({ soloProveedor: null }),
+      });
     }
   });
 

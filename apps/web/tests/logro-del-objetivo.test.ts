@@ -25,7 +25,17 @@ describe('logro del objetivo', () => {
   it('va antes de «¿mejoró o empeoró?»', () => {
     // Primero si sirve para lo suyo; después si la última configuración lo
     // hizo mejor o peor.
-    expect(PAGINA.indexOf('<LogroDelObjetivo />')).toBeLessThan(PAGINA.indexOf('<Evaluaciones />'));
+    // Los dos índices, comprobados antes de compararlos (#838): `indexOf` da
+    // -1 cuando no encuentra y -1 es menor que cualquier índice válido, así
+    // que borrar `<LogroDelObjetivo />` de la página dejaba esto verde. Las
+    // otras cuatro pruebas de este archivo leen el COMPONENTE, que seguiría
+    // existiendo huérfano — y éste es el archivo que vino a cerrar justo eso:
+    // «`GET /agents/:id/objetivo` existe desde #319 y no la llamaba nadie».
+    const iLogro = PAGINA.indexOf('<LogroDelObjetivo />');
+    const iEvaluaciones = PAGINA.indexOf('<Evaluaciones />');
+    expect(iLogro, '`<LogroDelObjetivo />` no está en los ajustes de IA').toBeGreaterThan(-1);
+    expect(iEvaluaciones, '`<Evaluaciones />` no está en los ajustes de IA').toBeGreaterThan(-1);
+    expect(iLogro).toBeLessThan(iEvaluaciones);
   });
 
   it('sin conversaciones terminadas no muestra un 0%', () => {
