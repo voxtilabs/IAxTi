@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { publishEvent } from '@iaxti/core';
+import { exigirNombreDeVariable, publishEvent } from '@iaxti/core';
 import { assertChannelTransition } from '../domain/port';
 import type { ChannelAccountRef, ChannelKind, ChannelState } from '../domain/port';
 
@@ -26,6 +26,17 @@ export async function createChannelAccount(
     config?: Record<string, unknown>;
   },
 ): Promise<ChannelAccountRef> {
+  // Por referencia, nunca el valor (SPEC §17). Acá no se validaba nada: el
+  // runbook de producción decía que los canales rechazaban una credencial
+  // pegada y eso solo era verdad en `payments` (#801). Quien le creyó y pegó
+  // la llave de Zavu quedó con un secreto vivo en texto plano, en el campo
+  // que después cinco mensajes de error interpolan.
+  const credencial = input.credentialRef
+    ? exigirNombreDeVariable(input.credentialRef, 'la referencia de la credencial')
+    : null;
+  const secretoDelWebhook = input.webhookSecretRef
+    ? exigirNombreDeVariable(input.webhookSecretRef, 'la referencia del secreto del webhook')
+    : null;
   const r = await client.query(
     `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref, webhook_secret_ref, config)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
@@ -33,8 +44,8 @@ export async function createChannelAccount(
       input.tenantId,
       input.kind,
       input.name,
-      input.credentialRef ?? null,
-      input.webhookSecretRef ?? null,
+      credencial,
+      secretoDelWebhook,
       JSON.stringify(input.config ?? {}),
     ],
   );

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { refParaMostrar } from '@iaxti/core';
 import { claseDeAdjunto } from '@iaxti/module-channels';
 import type {
   ChannelAccountRef,
@@ -285,7 +286,7 @@ export function createZavuProvider(
     const apiKey = account.credentialRef ? process.env[account.credentialRef] : undefined;
     if (!apiKey) throw new ErrorPermanente(
       'Este canal no tiene su credencial configurada. Un administrador tiene que reconectarlo en Canales.',
-      `Falta la variable ${account.credentialRef ?? '(sin referencia)'} en el entorno.`,
+      `Falta la variable ${refParaMostrar(account.credentialRef)} en el entorno.`,
     );
     const senderId = account.config.senderId as string | undefined;
     if (!senderId) throw new ErrorPermanente(
@@ -344,7 +345,7 @@ export function createZavuProvider(
       const apiKey = account.credentialRef ? process.env[account.credentialRef] : undefined;
       if (!apiKey) throw new ErrorPermanente(
         'Este canal no tiene su credencial configurada. Un administrador tiene que reconectarlo en Canales.',
-        `Falta la variable ${account.credentialRef ?? '(sin referencia)'} en el entorno.`,
+        `Falta la variable ${refParaMostrar(account.credentialRef)} en el entorno.`,
       );
       const senderId = account.config.senderId as string | undefined;
       if (!senderId) throw new ErrorPermanente(

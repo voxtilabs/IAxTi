@@ -129,3 +129,58 @@ describe('cuentas de canal (rol de aplicación)', () => {
     }
   });
 });
+
+/**
+ * El runbook de producción decía que «los canales y los pagos» rechazaban una
+ * credencial pegada. Solo lo hacía payments; acá el INSERT guardaba lo que
+ * llegara (#801). Quien le creyó al runbook quedó con un secreto vivo en
+ * texto plano, en el campo que después cinco mensajes de error interpolan.
+ */
+describe('la credencial va por referencia y se comprueba (#801)', () => {
+  it('una llave pegada se rechaza, y la cuenta no se crea', async () => {
+    const antes = await admin.query(
+      'SELECT count(*)::int AS n FROM channel_accounts WHERE tenant_id = $1',
+      [tenant],
+    );
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        createChannelAccount(c, {
+          tenantId: tenant,
+          kind: 'whatsapp',
+          name: 'Con la llave pegada',
+          credentialRef: 'zv_live_ac73feebf3f29cd43fcd3222624272ecd2a854133b050eea',
+        }),
+      ),
+    ).rejects.toThrow(/NOMBRE de la variable/);
+    const despues = await admin.query(
+      'SELECT count(*)::int AS n FROM channel_accounts WHERE tenant_id = $1',
+      [tenant],
+    );
+    expect(despues.rows[0].n).toBe(antes.rows[0].n);
+  });
+
+  it('el secreto del webhook también, y el nombre de variable pasa', async () => {
+    await expect(
+      withTenant(admin, tenant, (c) =>
+        createChannelAccount(c, {
+          tenantId: tenant,
+          kind: 'webchat',
+          name: 'Con el secreto pegado',
+          credentialRef: 'ZAVU_API_KEY',
+          webhookSecretRef: 'whsec_9f8e7d6c5b4a',
+        }),
+      ),
+    ).rejects.toThrow(/NOMBRE de la variable/);
+
+    const buena = await withTenant(admin, tenant, (c) =>
+      createChannelAccount(c, {
+        tenantId: tenant,
+        kind: 'webchat',
+        name: 'Como se hace',
+        credentialRef: 'ZAVU_API_KEY',
+        webhookSecretRef: 'ZAVU_WEBHOOK_SECRET',
+      }),
+    );
+    expect(buena.credentialRef).toBe('ZAVU_API_KEY');
+  });
+});

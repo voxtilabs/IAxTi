@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { refParaMostrar } from '@iaxti/core';
 import { rastroDeWebhook, type RastroDeWebhook } from './rastro';
 import { findAccountById } from './accounts';
 import type { ChannelAccountRef } from '../domain/port';
@@ -326,10 +327,18 @@ function pasoDeLaCredencial(
     id: 'credencial',
     titulo: 'Credencial del proveedor',
     estado: hay ? 'bien' : 'mal',
-    // El NOMBRE de la variable, nunca el valor. Es lo que hay que ir a
-    // arreglar y no compromete nada.
-    detalle: hay ? `Presente en el ambiente (${ref}).` : `Falta ${ref} en el ambiente.`,
-    ...(hay ? {} : { queHacer: `Agrega ${ref} a las variables del despliegue y vuelve a desplegar.` }),
+    // El NOMBRE de la variable, nunca el valor. Eso era una premisa, no una
+    // comprobación: nada validaba qué se guardaba en ese campo, así que una
+    // cuenta con la credencial pegada la mostraba acá (#801). `refParaMostrar`
+    // imprime el nombre solo si tiene forma de nombre.
+    detalle: hay
+      ? `Presente en el ambiente (${refParaMostrar(ref)}).`
+      : `Falta ${refParaMostrar(ref)} en el ambiente.`,
+    ...(hay
+      ? {}
+      : {
+          queHacer: `Agrega ${refParaMostrar(ref)} a las variables del despliegue y vuelve a desplegar.`,
+        }),
   };
 }
 

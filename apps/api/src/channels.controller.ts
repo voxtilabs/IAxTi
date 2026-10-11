@@ -1,3 +1,4 @@
+import { refParaMostrar } from '@iaxti/core';
 import {
   BadRequestException,
   Body,
@@ -203,7 +204,7 @@ export class ChannelsController {
       throw new ServiceUnavailableException({
         code: 'CREDENTIAL_MISSING',
         message:
-          `Este canal guarda su credencial como ${cuenta.credentialRef ?? '(sin referencia)'} y esa ` +
+          `Este canal guarda su credencial como ${refParaMostrar(cuenta.credentialRef)} y esa ` +
           'variable no está en este ambiente, así que no podemos preguntarle al proveedor qué ' +
           'emisores tiene.',
       });
@@ -277,7 +278,7 @@ export class ChannelsController {
       throw new ServiceUnavailableException({
         code: 'CREDENTIAL_MISSING',
         message:
-          `Este canal guarda su credencial como ${cuenta.credentialRef ?? '(sin referencia)'} y esa ` +
+          `Este canal guarda su credencial como ${refParaMostrar(cuenta.credentialRef)} y esa ` +
           'variable no está en este ambiente.',
       });
     }
