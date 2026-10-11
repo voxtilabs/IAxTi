@@ -19,5 +19,6 @@ tools: []
 nav:
   - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Configuración, seccion: Integraciones }
 widgets: []
-plan_min: base
+# Se vende desde el plan Crece (`plan_limits`): decía `base` (#834).
+plan_min: crece
 flag: module.integrations

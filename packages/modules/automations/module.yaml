@@ -34,5 +34,6 @@ nav:
   - { label: Automatizaciones, path: /ajustes/automatizaciones, permission: automations.manage, grupo: Configuración, seccion: Inteligencia }
   - { label: Campañas, path: /campanas, permission: automations.manage, grupo: Trabajo }
 widgets: []
-plan_min: base
+# Se vende desde el plan Crece (`plan_limits`): decía `base` (#834).
+plan_min: crece
 flag: module.automations

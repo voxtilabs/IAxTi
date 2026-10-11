@@ -30,5 +30,6 @@ tools:
 nav:
   - { label: Reportes, path: /reportes, permission: analytics.read, grupo: Trabajo }
 widgets: []
-plan_min: base
+# Se vende desde el plan Equipo (`plan_limits`): decía `base` y analítica no viene en el plan más barato (#834).
+plan_min: equipo
 flag: module.analytics

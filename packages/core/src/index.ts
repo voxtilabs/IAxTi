@@ -85,6 +85,9 @@ export {
 export type { DependenciaDelModulo } from './dependencias-declaradas';
 // El catálogo de eventos del SPEC y los manifiestos dicen lo mismo (#828).
 export { eventosDelCatalogo, eventosDelCatalogoEnArchivo } from './catalogo-de-eventos';
+// El plan_min del manifiesto nombra un plan que vende el módulo (#834).
+export { planesDelSeed, planMinQueMiente } from './plan-min-del-manifiesto';
+export type { PlanSembrado, PlanMinQueMiente } from './plan-min-del-manifiesto';
 // Barridos que recorren todos los tenants, con trinquete (#743).
 export { barridosDelRepo, llamadasDeBarrido } from './barridos-sin-lista';
 export type { LlamadaDeBarrido } from './barridos-sin-lista';
