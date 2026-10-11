@@ -48,21 +48,50 @@ export async function permisosDelActor(
   client: PoolClient,
   actor: Actor,
 ): Promise<Set<string>> {
+  return (await permisosDelActorConEstado(client, actor)).permisos;
+}
+
+/**
+ * Lo mismo, diciendo si el conjunto se pudo RESOLVER.
+ *
+ * `permisosDelActor` devuelve el conjunto vacío cuando los permisos de un rol
+ * propio no se pueden leer de la base, y para decidir si se deja pasar una
+ * petición eso es lo correcto: un rol que no se pudo resolver no se interpreta
+ * con generosidad.
+ *
+ * Pero para DIBUJAR no sirve, y la diferencia importa. Si el menú se filtra
+ * por este conjunto, un error transitorio de la base deja a la persona con un
+ * menú vacío y sin explicación — el mismo modo de falla que #789. «No tiene
+ * permisos» y «no pudimos averiguarlo» se ven iguales y son cosas distintas:
+ * la primera se dibuja, la segunda se degrada a mostrar todo y dejar que la
+ * API siga siendo la que manda (#814).
+ */
+export async function permisosDelActorConEstado(
+  client: PoolClient,
+  actor: Actor,
+): Promise<{ permisos: Set<string>; resuelto: boolean }> {
   if (actor.kind === 'apikey') {
-    return new Set((actor.scopes ?? []).filter((p) => catalog.has(p)));
+    return { permisos: new Set((actor.scopes ?? []).filter((p) => catalog.has(p))), resuelto: true };
   }
   // El soporte entra a mirar, nunca a configurar: su conjunto es fijo y de
   // solo lectura, sin importar el rol con el que figure.
   if (actor.kind === 'soporte') {
-    return new Set([...PERMISOS_DE_SOPORTE].filter((p) => catalog.has(p)));
+    return {
+      permisos: new Set([...PERMISOS_DE_SOPORTE].filter((p) => catalog.has(p))),
+      resuelto: true,
+    };
   }
   const rol = actor.role;
   if (isBaseRole(rol)) {
-    return new Set([...catalog].filter((p) => baseRoleHasPermission(rol, p, catalog)));
+    return {
+      permisos: new Set([...catalog].filter((p) => baseRoleHasPermission(rol, p, catalog))),
+      resuelto: true,
+    };
   }
-  // Rol propio del negocio: sus permisos viven en la base. Si no se puede
-  // resolver, el conjunto queda VACÍO — sin permisos no hay herramientas, y
-  // eso es lo correcto: un rol desconocido no se interpreta con generosidad.
+  // Rol propio del negocio: sus permisos viven en la base.
   const propios = await customRolePermissions(client, actor.tenantId, actor.role).catch(() => null);
-  return new Set((propios ?? []).filter((p) => catalog.has(p)));
+  return {
+    permisos: new Set((propios ?? []).filter((p) => catalog.has(p))),
+    resuelto: propios !== null,
+  };
 }

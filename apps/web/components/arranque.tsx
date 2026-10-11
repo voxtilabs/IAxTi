@@ -55,6 +55,15 @@ export interface Arranque {
    * negocio, y con API key el arranque entero daba 500—. Se queda en `/me`.
    */
   modulos: Array<{ id: string; nav: NavItem[]; widgets: unknown[] }>;
+  /**
+   * Lo que esta persona puede hacer, para que el menú no ofrezca callejones
+   * sin salida (#814).
+   *
+   * `null` = no se pudo resolver, y entonces el menú se dibuja completo. No es
+   * «ningún permiso»: la diferencia es la que hace que un error transitorio de
+   * la base no deje a nadie con la barra vacía.
+   */
+  permisos: string[] | null;
   acceso: Pieza<Array<{ id: string; acceso: 'completo' | 'solo_lectura' }>>;
   avisos: Pieza<{ items: unknown[]; unread: number }>;
   respuestasRapidas: Pieza<unknown[]>;

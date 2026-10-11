@@ -61,7 +61,7 @@ import { AgenteGeneral } from './agente-general';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
-import { queBarraMostrar, type NavItem } from '../lib/nav';
+import { destinosQuePuedeAbrir, queBarraMostrar, type NavItem } from '../lib/nav';
 import { rutasConCandado } from '../lib/candados';
 
 // El tipo vive en `lib/nav` para no cerrar un ciclo con las pestañas de
@@ -513,11 +513,28 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: 
   // La decisión de qué mostrar y cuándo avisar vive en `lib/nav.ts` y está
   // probada ahí (#679): las pruebas del web corren sin DOM, y una regla de tres
   // ramas escondida en este archivo no se probaría nunca.
-  const { items: nav, avisar: sinPoderPreguntar } = queBarraMostrar({
+  const { items: todosLosDestinos, avisar: sinPoderPreguntar } = queBarraMostrar({
     delServidor: navDelServidor,
     delNavegador: respaldo.nav,
     falloElNavegador: respaldo.fallo,
   });
+  /**
+   * Y de esos, los que esta persona puede abrir (#814).
+   *
+   * El `permission` de cada entrada estaba declarado en los 19 manifiestos,
+   * tipado, servido por el catálogo y redeclarado en `NavItem` — y no lo leía
+   * nadie. Un USER veía las 25 entradas y quince le devolvían 403 al entrar.
+   *
+   * `arranque.permisos` es `null` mientras el arranque no llega y cuando el
+   * conjunto no se pudo resolver: en los dos casos se muestra todo, que es
+   * exactamente lo de antes. La regla de las tres ramas vive en `lib/nav.ts`
+   * y está probada ahí.
+   */
+  const { arranque: arranqueDelShell } = useArranque();
+  const nav = useMemo(
+    () => destinosQuePuedeAbrir(todosLosDestinos, arranqueDelShell?.permisos ?? null),
+    [todosLosDestinos, arranqueDelShell],
+  );
   const ruta = usePathname();
   const pagina = nav.find((item) => item.path === ruta || ruta?.startsWith(`${item.path}/`));
   return (

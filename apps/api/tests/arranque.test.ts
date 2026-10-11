@@ -490,6 +490,43 @@ describe('arranque de una conversación (#761)', () => {
     expect(cuerpo.retencion).toEqual({ estado: 'sin-permiso' });
   });
 
+  /**
+   * El menú se filtra por el permiso de cada entrada (#814), así que el
+   * arranque tiene que decir qué puede hacer esta persona. Antes el campo
+   * `permission` de las 25 entradas de `nav` no lo leía nadie y el USER veía
+   * las 25, quince de ellas con 403 esperándolo del otro lado.
+   */
+  it('el arranque dice qué permisos tiene: el ADMIN muchos más que el USER', async () => {
+    const deLaDuena = await (await pedir(duena, '/arranque')).json();
+    const delVendedor = await (await pedir(vendedor, '/arranque')).json();
+
+    expect(Array.isArray(deLaDuena.permisos)).toBe(true);
+    expect(Array.isArray(delVendedor.permisos)).toBe(true);
+    expect(deLaDuena.permisos.length).toBeGreaterThan(delVendedor.permisos.length);
+
+    // Los concretos, que son los que deciden si la entrada se dibuja: sin
+    // estos nombres la aserción de arriba pasaría con dos listas cualesquiera.
+    expect(deLaDuena.permisos).toContain('audit.read');
+    expect(deLaDuena.permisos).toContain('roles.read');
+    expect(delVendedor.permisos).not.toContain('audit.read');
+    expect(delVendedor.permisos).not.toContain('roles.read');
+    // Y lo que el vendedor SÍ hace todo el día tiene que estar: una lista
+    // vacía también satisfaría los `not.toContain` de arriba.
+    expect(delVendedor.permisos).toContain('conversations.read');
+    expect(delVendedor.permisos).toContain('crm.contacts.read');
+
+    // Cada entrada del menú que el vendedor NO puede abrir se la esconde el
+    // front; acá se comprueba que el dato con el que lo decide sea coherente
+    // con lo que el catálogo declara.
+    const navDelCatalogo = deLaDuena.modulos.flatMap(
+      (m: { nav: Array<{ permission: string }> }) => m.nav,
+    );
+    expect(navDelCatalogo.length).toBeGreaterThan(20);
+    const puede = new Set<string>(delVendedor.permisos);
+    const escondidas = navDelCatalogo.filter((i: { permission: string }) => !puede.has(i.permission));
+    expect(escondidas.length).toBeGreaterThan(0);
+  });
+
   it('las rutas sueltas siguen funcionando: el arranque se AGREGA', async () => {
     // Quien recarga UNA cosa —las notas después de escribir una— no tiene por
     // qué volver a pedir los mensajes, la ficha y las secuencias.
