@@ -163,10 +163,32 @@ export class AuthzGuard implements CanActivate {
       return true;
     }
 
+    /**
+     * Esto NO es el plan, y el mensaje lo decía (#840).
+     *
+     * La condición es `!registry.isActive(moduleId)`: un interruptor GLOBAL
+     * del despliegue —`platform_module_flags`, el `enabled` del manifiesto, el
+     * kill switch de plataforma—, igual para todos los negocios. El plan es
+     * otra puerta, más abajo en este mismo guard, y tiene su propio código:
+     * `MODULE_NOT_IN_PLAN`.
+     *
+     * El mensaje decía «Revisa tu plan o pide activarlo». O sea que cuando la
+     * PLATAFORMA apaga un módulo, el negocio recibía un texto que lo manda a
+     * mirar su plan y a pagar más por algo que no está apagado por su plan, y
+     * que no se arregla cambiándolo. Y el soporte recibía el ticket
+     * equivocado.
+     *
+     * Es el defecto que #629 midió y vino a sacar —«el portón preguntaba
+     * `isActive()`, que es un flag global, mientras el mensaje hablaba de tu
+     * plan»—: se agregó el código nuevo para el plan y el mensaje viejo quedó
+     * tal cual, que es el único texto que el usuario llega a leer.
+     */
     if (moduleId && !this.registry.isActive(moduleId)) {
       throw new ForbiddenException({
         code: 'MODULE_DISABLED',
-        message: 'Este módulo no está activo para tu cuenta. Revisa tu plan o pide activarlo.',
+        message:
+          'Esta función está apagada en la plataforma, no en tu cuenta: no es algo que puedas ' +
+          'activar cambiando de plan. Escríbenos y te decimos cuándo vuelve.',
       });
     }
 

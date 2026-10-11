@@ -173,9 +173,12 @@ export class McpController {
               content: [
                 {
                   type: 'text',
+                  // «en esta cuenta» era la misma confusión del guard (#840):
+                  // que el módulo esté apagado es de la PLATAFORMA, no de la
+                  // cuenta, y no se arregla cambiando de plan ni de llave.
                   text:
                     `La herramienta "${nombre}" no está disponible para esta credencial: ` +
-                    'o su módulo no está activo en esta cuenta, o la API key no tiene ese permiso.',
+                    'o su módulo está apagado en la plataforma, o la API key no tiene ese permiso.',
                 },
               ],
             },
