@@ -35,6 +35,23 @@ updates:
       day: monday
       time: "09:00"
       timezone: America/Santiago
+    # Espera antes de proponer una versión recién publicada.
+    #
+    # Lo pidió Semgrep en el primer CI de este PR, y tenía razón: una versión
+    # comprometida de un paquete —cuenta del mantenedor tomada, publicación
+    # maliciosa— se detecta y se retira casi siempre en los primeros días. Un
+    # PR automático el mismo día nos pone justo en la ventana en que el ataque
+    # está vivo; esperar un poco significa que para cuando el PR llegue, esa
+    # versión ya no está.
+    #
+    # El cooldown NO se aplica a las actualizaciones de SEGURIDAD: ahí el
+    # riesgo es el contrario —quedarse en la versión vulnerable— y Dependabot
+    # las trata aparte. Por eso tienen su propio grupo acá abajo.
+    cooldown:
+      default-days: 5
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore
@@ -59,6 +76,8 @@ updates:
       day: monday
       time: "09:00"
       timezone: America/Santiago
+    cooldown:
+      default-days: 5
     open-pull-requests-limit: 3
     commit-message:
       prefix: chore

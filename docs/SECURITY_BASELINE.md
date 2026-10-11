@@ -39,7 +39,7 @@ implementa se cierre; entonces se anota el PR.
 | Rate limiting | Por tenant y por API key en Redis, cabeceras estándar | #12 | hecho |
 | Audit | Append-only, hash encadenado por tenant, misma transacción, sin UPDATE/DELETE | ADR-0008, #10 | hecho — con explorador y export firmado (#72) |
 | CI de seguridad | CodeQL, Gitleaks, Trivy (imagen); Semgrep y ZAP con usuarios reales | SPEC §37 | hecho — Semgrep BLOQUEA el PR; ZAP agendado contra staging (#81) |
-| Dependencias | Dependabot semanal (`.github/dependabot.yml`: npm y github-actions, agrupado); lockfile congelado en CI | SPEC §28 | **parcial** — el archivo se agregó el 11-10 (#817): hasta entonces la fila decía «hecho» y no existía, así que no se abrió un PR semanal nunca. Queda confirmar la primera corrida en el panel de Insights → Dependency graph → Dependabot |
+| Dependencias | Dependabot semanal (`.github/dependabot.yml`: npm y github-actions, agrupado, con cooldown de días antes de proponer una versión recién publicada); lockfile congelado en CI | SPEC §28 | **parcial** — el archivo se agregó el 11-10 (#817): hasta entonces la fila decía «hecho» y no existía, así que no se abrió un PR semanal nunca. Queda confirmar la primera corrida en el panel de Insights → Dependency graph → Dependabot |
 
 ## IA
 
