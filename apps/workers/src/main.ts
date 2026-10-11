@@ -16,7 +16,9 @@ import {
   enteroDeEntorno,
   textoDeEntorno,
   versionDelBuild,
+  programarRepetibles,
 } from '@iaxti/core';
+import { REPETIBLES } from './repetibles';
 import { sinSolaparse, candadoEnRedis } from './sin-solaparse';
 import { processInbound, type InboundJob } from './inbound';
 
@@ -95,7 +97,16 @@ import { campanasPorReencolar, procesarLoteDeCampana, type JobDeCampana } from '
 
 const service = textoDeEntorno('SERVICE', 'workers');
 const port = enteroDeEntorno('PORT', 3000);
+
 let consumersStarted = false;
+/**
+ * El motivo, mientras los repetibles no estén CONFIRMADOS (#807).
+ *
+ * Arranca con un motivo y no en `null`: así `/ready` dice «no todavía»
+ * mientras se programan, y no hay una ventana en la que el proceso se declare
+ * listo con cero tareas. Se limpia cuando Redis confirma que quedaron.
+ */
+let faltanRepetibles: string | null = 'programando las tareas repetibles';
 
 // Los consumidores reales se registran módulo a módulo en sus issues; el
 // despachador y las colas quedan operativos desde ya (issue #13).
@@ -543,97 +554,33 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
      */
     scheduledWorker.concurrency = enteroDeEntorno('WORKERS_SCHEDULED_CONCURRENCY', 5);
     trabajadores.push({ nombre: 'cola scheduled', worker: scheduledWorker });
-    // Repetibles (§39, zona America/Santiago): avisos cada minuto, cierre
-    // automático cada hora, archivo diario a las 03:00. add repetido con la
-    // misma pauta es idempotente entre reinicios.
-    void Promise.all([
-      scheduled.add('conversations.checks', { moduleId: 'conversations' }, { repeat: { every: 60_000 } }),
-      scheduled.add('crm.activities_due', { moduleId: 'crm' }, { repeat: { every: 60_000 } }),
-      scheduled.add(
-        'crm.stalled',
-        { moduleId: 'crm' },
-        { repeat: { pattern: '0 7 * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'conversations.auto_resolve',
-        { moduleId: 'conversations' },
-        { repeat: { pattern: '0 * * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'conversations.archive',
-        { moduleId: 'conversations' },
-        { repeat: { pattern: '0 3 * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'conversations.retention',
-        { moduleId: 'conversations' },
-        { repeat: { pattern: '0 4 * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'knowledge.expire',
-        { moduleId: 'knowledge' },
-        { repeat: { pattern: '30 * * * *', tz: 'America/Santiago' } },
-      ),
-      // Cada cinco minutos (#502). Va seguido porque mientras haya fuentes
-      // sin indexar el negocio tiene la IA sin conocimiento; y no más
-      // seguido porque el barrido pasa por todos los negocios y cada fuente
-      // reindexada le paga al proveedor.
-      scheduled.add(
-        'knowledge.reindex',
-        { moduleId: 'knowledge' },
-        { repeat: { every: 300_000 } },
-      ),
-      scheduled.add(
-        'automations.sweep',
-        { moduleId: 'automations' },
-        { repeat: { every: 300_000 } },
-      ),
-      scheduled.add(
-        'analytics.response_samples',
-        { moduleId: 'analytics' },
-        { repeat: { pattern: '15 * * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'payments.expire',
-        { moduleId: 'payments' },
-        { repeat: { pattern: '45 * * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'billing.sweep',
-        { moduleId: 'billing' },
-        { repeat: { pattern: '0 4 * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'api_usage.flush',
-        { moduleId: 'organizations' },
-        { repeat: { every: 300_000 } },
-      ),
-      scheduled.add(
-        'calendar.reminders',
-        { moduleId: 'calendar' },
-        { repeat: { every: 900_000 } },
-      ),
-      scheduled.add(
-        'idempotency.sweep',
-        // `organizations`, no 'core': el registro solo conoce módulos, y
-        // `isActive('core')` es false — el barrido no habría corrido nunca.
-        { moduleId: 'organizations' },
-        { repeat: { pattern: '20 * * * *', tz: 'America/Santiago' } },
-      ),
-      scheduled.add(
-        'whatsapp.templates.sync',
-        { moduleId: 'whatsapp' },
-        // Meta tarda de minutos a 24 h en revisar. Cada 30 min alcanza de
-        // sobra y no castiga al proveedor con preguntas cada minuto.
-        { repeat: { every: 1_800_000 } },
-      ),
-      scheduled.add(
-        'webhooks.deliver',
-        { moduleId: 'integrations' },
-        { repeat: { every: 60_000 } },
-      ),
-    ]).catch((err) => console.error('scheduled: no se pudieron programar los repetibles', err));
-    console.log('workers: worker de cola scheduled activo');
+    /**
+     * Esperado y COMPROBADO, no `void … .catch(console.error)`.
+     *
+     * Antes se disparaba sin `await` y la línea siguiente imprimía «worker de
+     * cola scheduled activo» pase lo que pase. Con cero repetibles
+     * programados el proceso seguía vivo, contestando `/ready` con 200, y
+     * dejaba de hacer lo que el negocio da por hecho: la prueba gratis no
+     * termina, el impago no suspende, `conversations.retention` no purga
+     * —compromiso legal— y `api_usage.flush` no cobra el consumo de API.
+     *
+     * El fallo NO mata el proceso: las colas de mensajes son más urgentes que
+     * los repetibles, y un worker que no entrega WhatsApp es peor que uno sin
+     * tareas programadas. Queda en `/ready` con su motivo, que es lo que el
+     * despliegue mira y lo que el runbook puede comprobar (#807).
+     */
+    void (async () => {
+      try {
+        const nombres = await programarRepetibles(scheduled, REPETIBLES);
+        faltanRepetibles = null;
+        console.log(
+          `workers: worker de cola scheduled activo · ${nombres.length} tareas programadas: ${nombres.join(', ')}`,
+        );
+      } catch (err) {
+        faltanRepetibles = (err as Error).message;
+        console.error(`workers: NO se programaron los repetibles — ${faltanRepetibles}`);
+      }
+    })();
 
     // El camino de entrada de mensajes (#35/#36): simulador y WhatsApp por
     // la misma cola. Los estados de entrega del webhook llegan aquí también.
@@ -857,7 +804,8 @@ const server = createServer((req, res) => {
     return;
   }
   if (req.url === '/ready') {
-    void consumerReadiness('workers', process.env, 2_000, consumersStarted).then(result => {
+    const arranque = faltanRepetibles ?? consumersStarted;
+    void consumerReadiness('workers', process.env, 2_000, arranque).then(result => {
       res.writeHead(result.statusCode, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify(result.body));
     });

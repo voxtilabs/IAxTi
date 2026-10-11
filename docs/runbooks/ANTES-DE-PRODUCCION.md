@@ -44,18 +44,53 @@ WHERE rolname = current_user;` — las dos banderas en `false`.
 
 ## 4. El worker de tareas programadas TIENE que estar corriendo
 
-De él dependen cosas que el negocio da por hechas:
+De él dependen cosas que el negocio da por hechas. **Son diecisiete**, y la
+lista vive en `apps/workers/src/main.ts` (`REPETIBLES`) — si acá dice otro
+número, el que manda es el código:
 
-| Tarea | Qué pasa si no corre |
-|---|---|
-| `billing.sweep` | la prueba gratis no termina, el impago no suspende, la cancelación no se hace efectiva |
-| `conversations.retention` | los datos no se purgan según el plan (y eso es un compromiso legal) |
-| `idempotency.sweep` | las llaves de reintento se acumulan para siempre |
-| `automations.sweep` | las reglas por tiempo ("2 días sin respuesta") no disparan |
-| `api_usage.flush` | el consumo de API no se cobra ni se muestra |
+| Tarea | Cada | Qué pasa si no corre |
+|---|---|---|
+| `billing.sweep` | 04:00 | la prueba gratis no termina, el impago no suspende, la cancelación no se hace efectiva |
+| `conversations.retention` | 04:00 | los datos no se purgan según el plan (y eso es un compromiso legal) |
+| `conversations.archive` | 03:00 | las conversaciones viejas no se archivan |
+| `conversations.auto_resolve` | cada hora | las conversaciones resueltas quedan abiertas para siempre |
+| `conversations.checks` | 1 min | los avisos de SLA y de conversación sin atender no salen |
+| `crm.activities_due` | 1 min | las actividades vencidas no avisan |
+| `crm.stalled` | 07:00 | las oportunidades estancadas no se marcan |
+| `idempotency.sweep` | :20 | las llaves de reintento se acumulan para siempre |
+| `automations.sweep` | 5 min | las reglas por tiempo ("2 días sin respuesta") no disparan |
+| `api_usage.flush` | 5 min | el consumo de API no se cobra ni se muestra |
+| `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
+| `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
+| `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |
+| `payments.expire` | :45 | los links de pago vencidos siguen cobrables |
+| `whatsapp.templates.sync` | 30 min | el estado de aprobación de Meta no se entera |
+| `webhooks.deliver` | 1 min | los webhooks salientes no salen |
+| `analytics.response_samples` | :15 | el tiempo de primera respuesta no se mide |
 
-Comprobación: en el log del worker tiene que aparecer `workers: despachador
-de outbox activo` y las colas declaradas.
+**Comprobación:** en el log del worker tiene que aparecer, con el número y la
+lista:
+
+```
+workers: worker de cola scheduled activo · 17 tareas programadas: conversations.checks, …
+```
+
+Y `GET /ready` del worker tiene que devolver `200` con `"startup": "ok"`. Si
+los repetibles no quedaron programados, devuelve `503` y el campo `startup`
+trae el motivo con los nombres que faltan.
+
+> Hasta #807 esta comprobación no podía ver el fallo que existe para evitar.
+> Mandaba a buscar dos líneas —`workers: despachador de outbox activo` y «las
+> colas declaradas»— y las dos se imprimen igual con CERO repetibles
+> programados: la primera unas cuatrocientas líneas antes de la programación,
+> la segunda justo después y sin preguntar nada. La programación era un
+> `void Promise.all([...]).catch(err => console.error(…))` sin `await`: si
+> Redis tosía en el arranque, el error quedaba en un `console.error` entre
+> cientos de líneas y el proceso seguía vivo diciendo «activo».
+>
+> Un operador que corriera la comprobación tal como estaba escrita concluía
+> que las tareas estaban cubiertas. Y la tabla nombraba cinco de diecisiete,
+> así que las otras doce no se echaban de menos.
 
 ## 5. WhatsApp: nunca el número real en un ambiente que no sea producción
 

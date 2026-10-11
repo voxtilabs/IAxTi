@@ -1,5 +1,5 @@
 import IORedis from 'ioredis';
-import { DelayedError, Queue, Worker, type Processor } from 'bullmq';
+import { DelayedError, Queue, Worker, type JobsOptions, type Processor } from 'bullmq';
 import { conContextoDeLog, conTrazaDelJob, contextoDeTraza } from '@iaxti/telemetry';
 import { textoDeEntorno } from './entorno';
 import type { ModuleRegistry } from './registry';
@@ -125,4 +125,58 @@ export function createModuleWorker(
     },
     { connection },
   );
+}
+
+/** Una tarea que se repite: nombre, módulo dueño y su pauta. */
+export interface Repetible {
+  nombre: string;
+  moduleId: string;
+  repeat: JobsOptions['repeat'];
+}
+
+/**
+ * Programar los repetibles y COMPROBAR que quedaron programados.
+ *
+ * ## Qué estaba mal
+ *
+ * El arranque hacía `void Promise.all([...]).catch(err => console.error(…))`,
+ * sin `await`, y en la línea siguiente imprimía «workers: worker de cola
+ * scheduled activo» pase lo que pase. Si Redis tosía en el arranque, se
+ * programaban CERO repetibles, el error quedaba en un `console.error` entre
+ * cientos de líneas, y el proceso seguía vivo diciendo que estaba activo.
+ *
+ * El runbook de producción manda a comprobar esto mirando dos líneas del log
+ * —«despachador de outbox activo» y las colas declaradas— y las dos se
+ * imprimen igual con cero repetibles: una 400 líneas ANTES de la
+ * programación, la otra justo después y sin preguntar. **La comprobación del
+ * §4 no podía ver el fallo que el §4 existe para evitar** (#807).
+ *
+ * Y lo que se cae es lo que el negocio da por hecho: la prueba gratis no
+ * termina, el impago no suspende, `conversations.retention` no purga —que el
+ * propio runbook marca como compromiso legal— y `api_usage.flush` no cobra el
+ * consumo de API.
+ *
+ * ## Qué hace ahora
+ *
+ * Programa, vuelve a LEER de Redis qué quedó, y compara contra la lista. Lo
+ * que falte se nombra. Devuelve los nombres programados para que el arranque
+ * los imprima: un log que dice «18 tareas programadas» y las lista es algo
+ * que un operador puede comprobar, y es la diferencia entre una señal y un
+ * adorno.
+ */
+export async function programarRepetibles(
+  cola: Queue,
+  repetibles: Repetible[],
+): Promise<string[]> {
+  await Promise.all(
+    repetibles.map((r) => cola.add(r.nombre, { moduleId: r.moduleId }, { repeat: r.repeat })),
+  );
+  const programados = new Set((await cola.getJobSchedulers()).map((s) => s.name));
+  const faltan = repetibles.map((r) => r.nombre).filter((n) => !programados.has(n));
+  if (faltan.length > 0) {
+    throw new Error(
+      `no quedaron programados ${faltan.length} de ${repetibles.length} repetibles: ${faltan.join(', ')}`,
+    );
+  }
+  return repetibles.map((r) => r.nombre);
 }

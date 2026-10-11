@@ -9,7 +9,7 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-node';
-import { createModuleWorker, createQueue, redisConnection } from '../src/queues';
+import { createModuleWorker, createQueue, programarRepetibles, redisConnection } from '../src/queues';
 import { ModuleRegistry } from '../src/registry';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { conTrazaDelJob } from '@iaxti/telemetry';
@@ -252,4 +252,57 @@ describe('encolar en lote (#17)', () => {
     for (const h of hijos) expect(h.spanContext().traceId).toBe(lote.spanContext().traceId);
 
   }, 30_000);
+});
+
+/**
+ * Programar los repetibles y COMPROBAR que quedaron (#807).
+ *
+ * El arranque hacía `void Promise.all([...]).catch(console.error)`, sin
+ * `await`, y en la línea siguiente imprimía «worker de cola scheduled activo»
+ * pase lo que pase. Con cero repetibles programados el proceso seguía vivo y
+ * contestando: la prueba gratis no terminaba, el impago no suspendía, la
+ * retención no purgaba y el consumo de API no se cobraba.
+ */
+describe('programarRepetibles comprueba lo que programó', () => {
+  const tres = [
+    { nombre: 'billing.sweep', moduleId: 'billing', repeat: { pattern: '0 4 * * *' } },
+    { nombre: 'api_usage.flush', moduleId: 'organizations', repeat: { every: 300_000 } },
+    { nombre: 'conversations.retention', moduleId: 'conversations', repeat: { pattern: '0 4 * * *' } },
+  ];
+
+  function colaFalsa(quedan: string[]) {
+    const pedidos: string[] = [];
+    return {
+      pedidos,
+      cola: {
+        add: async (nombre: string) => {
+          pedidos.push(nombre);
+        },
+        getJobSchedulers: async () => quedan.map((name) => ({ name })),
+      } as unknown as Parameters<typeof programarRepetibles>[0],
+    };
+  }
+
+  it('devuelve los nombres cuando Redis confirma los tres', async () => {
+    const { cola, pedidos } = colaFalsa(tres.map((r) => r.nombre));
+    const nombres = await programarRepetibles(cola, tres);
+    expect(nombres).toEqual(['billing.sweep', 'api_usage.flush', 'conversations.retention']);
+    expect(pedidos).toHaveLength(3);
+  });
+
+  /**
+   * La aserción que no existía. Un `Promise.all` que no se espera, con un
+   * `catch` que solo imprime, es indistinguible de uno que funcionó.
+   */
+  it('si uno no quedó, FALLA y lo nombra', async () => {
+    const { cola } = colaFalsa(['billing.sweep', 'api_usage.flush']);
+    await expect(programarRepetibles(cola, tres)).rejects.toThrow(
+      /1 de 3 repetibles: conversations\.retention/,
+    );
+  });
+
+  it('si no quedó ninguno, lo dice entero: es el caso de Redis caído al arrancar', async () => {
+    const { cola } = colaFalsa([]);
+    await expect(programarRepetibles(cola, tres)).rejects.toThrow(/3 de 3 repetibles/);
+  });
 });
