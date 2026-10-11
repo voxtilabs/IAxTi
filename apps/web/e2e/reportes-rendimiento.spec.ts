@@ -166,16 +166,27 @@ test('un SUPERVISOR no ve en el menú los destinos del ADMIN (#814)', async ({ p
   // Sin ámbito, como el resto del archivo: estos nombres existen una sola vez
   // y son enlaces de la barra.
   //
-  // `toHaveCount(1)` y no `toBeVisible`: lo que el filtro decide es si la
-  // entrada ESTÁ en el menú. Que se vea depende además de si la barra está
-  // plegada y de si el grupo está colapsado —dos cosas que esta prueba no
-  // está midiendo, y que a 360 px hicieron fallar la primera versión de esta
-  // línea por «Reportes» no visible.
-  //
-  // Esta mitad es la que importa: una barra vacía satisfaría igual los
-  // `toHaveCount(0)` de abajo, y quedarse sin menú por un error al resolver
-  // los permisos es peor que ver una puerta que se va a cerrar.
-  for (const suyo of ['Bandeja', 'Contactos', 'Oportunidades', 'Reportes']) {
+  /**
+   * `toHaveCount(1)` y no `toBeVisible`: lo que el filtro de permisos decide es
+   * si la entrada ESTÁ en el menú. Que se VEA depende además de si la barra
+   * está plegada y de si el grupo está colapsado, y eso no es lo que esto mide.
+   *
+   * Y las tres son del plan `base` a propósito. «Reportes» estaba en esta
+   * lista y fallaba: pide `analytics.read`, que el SUPERVISOR sí tiene, pero
+   * `analytics` solo viene en el plan `equipo` y este tenant no lo tiene — así
+   * que la entrada se dibuja CON CANDADO (#215), y una entrada con candado no
+   * es un `link`.
+   *
+   * Son dos mecanismos distintos sobre la misma barra y conviene no
+   * confundirlos: el candado por plan dice «esto se puede comprar» y se
+   * muestra a propósito (SPEC §6: bajar de plan no esconde); el permiso del
+   * rol dice «esto no es tuyo» y se esconde. Esta prueba mide el segundo.
+   *
+   * Esta mitad es la que importa: una barra vacía satisfaría igual los
+   * `toHaveCount(0)` de abajo, y quedarse sin menú por un error al resolver
+   * los permisos es peor que ver una puerta que se va a cerrar.
+   */
+  for (const suyo of ['Bandeja', 'Contactos', 'Oportunidades']) {
     await expect(page.getByRole('link', { name: suyo, exact: true })).toHaveCount(1);
   }
 
