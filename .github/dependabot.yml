@@ -47,11 +47,16 @@ updates:
     # El cooldown NO se aplica a las actualizaciones de SEGURIDAD: ahí el
     # riesgo es el contrario —quedarse en la versión vulnerable— y Dependabot
     # las trata aparte. Por eso tienen su propio grupo acá abajo.
+    # Siete y no cinco: cinco es lo que puse primero y Semgrep lo rechazó
+    # igual, porque su regla pide `default-days: 7` como mínimo. El número no
+    # lo elegí yo y está bien así — una ventana de días es una apuesta sobre
+    # cuánto tarda en descubrirse una publicación maliciosa, y conviene que la
+    # apuesta sea la del que mira muchos repos y no la mía.
     cooldown:
-      default-days: 5
-      semver-major-days: 14
-      semver-minor-days: 7
-      semver-patch-days: 3
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 14
+      semver-patch-days: 7
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore
@@ -77,7 +82,7 @@ updates:
       time: "09:00"
       timezone: America/Santiago
     cooldown:
-      default-days: 5
+      default-days: 7
     open-pull-requests-limit: 3
     commit-message:
       prefix: chore
