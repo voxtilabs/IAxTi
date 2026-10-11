@@ -55,7 +55,9 @@ export interface CampaignResults {
   porEstado: Record<string, number>;
   motivos: Array<{ motivo: string; n: number }>;
   entrega: Record<string, number>;
-  costoUsd: number;
+  /** null = ningún mensaje trae un monto legible. No es cero (#795). */
+  costoUsd: number | null;
+  costoMedido: { conMonto: number; sinMonto: number };
 }
 export interface CampaignTemplate {
   id: string;

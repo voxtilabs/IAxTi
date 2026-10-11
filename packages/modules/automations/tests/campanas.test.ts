@@ -256,7 +256,55 @@ describe('la campaña', () => {
     const r = await en((c) => resultadosDeCampana(c, { tenantId: tenant, campaignId: campana }));
     expect(r.porEstado.queued).toBe(2);
     expect(r.entrega.queued).toBe(2); // todavía en la cola
-    expect(r.costoUsd).toBe(0);
+    // Sin costo informado el total es null, no cero. La versión anterior de
+    // esta línea decía `toBe(0)` y era exactamente la prueba que protegía el
+    // defecto: el cero que afirmaba venía de una consulta que no sabía leer
+    // el costo, así que al arreglarla el test se ponía rojo y el arreglo
+    // parecía el error.
+    expect(r.costoUsd).toBeNull();
+    expect(r.costoMedido).toEqual({ conMonto: 0, sinMonto: 2 });
+  });
+
+  /**
+   * El costo de una campaña se mostraba como «US$0,00» para TODA campaña: la
+   * consulta hacía `SUM((meta->'costo'->>'amount')::numeric)` sobre el objeto
+   * crudo del proveedor —una sola llave de las seis que puede traer, y sin
+   * mirar la moneda— y el `COALESCE(…, 0)` convertía cada fallo en un cero
+   * creíble. La función que sabe leer ese objeto ya existía en analytics con
+   * la lección escrita, y no estaba exportada por el contrato (#795).
+   */
+  it('suma el costo leyendo la forma real del proveedor, y no mezcla monedas', async () => {
+    const mensajes = await admin.query(
+      `SELECT m.id FROM campaign_recipients r JOIN messages m ON m.id = r.message_id
+        WHERE r.campaign_id = $1 ORDER BY m.id`,
+      [campana],
+    );
+    expect(mensajes.rowCount).toBe(2);
+    // Lo que manda Meta en el webhook de estados: billable, sin monto.
+    await admin.query(
+      `UPDATE messages SET meta = meta || jsonb_build_object('costo',
+         '{"billable":true,"pricing_model":"CBP","category":"service"}'::jsonb) WHERE id = $1`,
+      [mensajes.rows[0].id],
+    );
+    await admin.query(
+      `UPDATE messages SET meta = meta || jsonb_build_object('costo',
+         '{"amount":"0.0098","currency":"USD","category":"marketing"}'::jsonb) WHERE id = $1`,
+      [mensajes.rows[1].id],
+    );
+    const r = await en((c) => resultadosDeCampana(c, { tenantId: tenant, campaignId: campana }));
+    expect(r.costoUsd).toBeCloseTo(0.0098, 6);
+    expect(r.costoMedido).toEqual({ conMonto: 1, sinMonto: 1 });
+
+    // Una moneda distinta NO se suma a un total en dólares: el campo se llama
+    // costoUsd y la pantalla lo rotula US$.
+    await admin.query(
+      `UPDATE messages SET meta = meta || jsonb_build_object('costo',
+         '{"amount":"900","currency":"CLP"}'::jsonb) WHERE id = $1`,
+      [mensajes.rows[1].id],
+    );
+    const enPesos = await en((c) => resultadosDeCampana(c, { tenantId: tenant, campaignId: campana }));
+    expect(enPesos.costoUsd).toBeNull();
+    expect(enPesos.costoMedido).toEqual({ conMonto: 0, sinMonto: 2 });
   });
 
   it('a quien no consintió se le SALTA con motivo, no se le manda', async () => {
