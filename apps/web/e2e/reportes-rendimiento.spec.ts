@@ -117,23 +117,68 @@ test('navegar por menú, pestañas y volver no recarga el documento ni duplica l
    */
   const counts = new Map<string, number>();
   page.on('response', (r) => { const path = new URL(r.url()).pathname; if (['/v1/arranque', '/v1/modules/catalogo', '/v1/me/modules/acceso'].includes(path)) counts.set(path, (counts.get(path) ?? 0) + 1); });
-  await page.goto('/ajustes/canales');
-  await expect(page.getByRole('navigation', { name: 'Ajustes de Canales' })).toBeVisible();
+  /**
+   * La sección es «Tu negocio» y no «Canales», y el cambio tiene motivo
+   * (#814). Esta persona entra como SUPERVISOR, y desde que el menú se filtra
+   * por el `permission` de cada entrada, las pestañas de Canales no son suyas:
+   * `channels.manage` y `whatsapp.templates.manage` son del ADMIN.
+   *
+   * Antes de #814 esta prueba navegaba ajustes de Canales como SUPERVISOR y
+   * afirmaba que el menú estaba ahí — y estaba, porque el `permission` no lo
+   * leía nadie. O sea que la prueba documentaba el defecto. Lo que mide de
+   * verdad es cuántas veces se pide el arranque al navegar, y eso no cambia:
+   * «Tu negocio» le da dos pestañas que SÍ son suyas, Roles y Equipo.
+   */
+  await page.goto('/ajustes/roles');
+  await expect(page.getByRole('navigation', { name: 'Ajustes de Tu negocio' })).toBeVisible();
   await expect.poll(() => counts.get('/v1/arranque')).toBe(1);
   // Y las dos viejas ya no se piden desde la pantalla: si vuelven, alguien
   // volvió a pedir por su cuenta lo que el arranque ya trae.
   expect(counts.get('/v1/me/modules/acceso')).toBeUndefined();
   await page.evaluate(() => { (window as unknown as Record<string, unknown>).__documento424 = 'mismo'; });
   let documents = 0; page.on('request', (r) => { if (r.isNavigationRequest() && r.resourceType() === 'document') documents++; });
-  await page.getByRole('navigation', { name: 'Ajustes de Canales' }).getByRole('link', { name: 'Plantillas', exact: true }).click();
-  await expect(page).toHaveURL(/\/ajustes\/plantillas$/);
+  await page.getByRole('navigation', { name: 'Ajustes de Tu negocio' }).getByRole('link', { name: 'Equipo', exact: true }).click();
+  await expect(page).toHaveURL(/\/ajustes\/equipo$/);
   await page.getByRole('link', { name: 'Contactos', exact: true }).click();
   await expect(page).toHaveURL(/\/contactos$/);
-  await page.goBack(); await expect(page).toHaveURL(/\/ajustes\/plantillas$/);
+  await page.goBack(); await expect(page).toHaveURL(/\/ajustes\/equipo$/);
   expect(documents).toBe(0);
   // Y el arranque sigue en uno después de tres navegaciones y un `goBack`.
   expect(counts.get('/v1/arranque')).toBe(1);
   expect(await page.evaluate(() => (window as unknown as Record<string, unknown>).__documento424)).toBe('mismo');
+});
+
+/**
+ * El menú no ofrece lo que esta persona no puede abrir (#814).
+ *
+ * Esta prueba nace de un accidente: al filtrar el menú por el `permission` de
+ * cada entrada, la prueba de arriba se puso roja porque navegaba ajustes de
+ * Canales como SUPERVISOR. O sea que el e2e estaba documentando el defecto.
+ * Dejarla arreglada y nada más habría tirado la evidencia, así que la
+ * propiedad queda escrita como prueba.
+ *
+ * Y es la única capa donde se puede comprobar: las pruebas del web corren sin
+ * DOM, así que «lo que se dibuja en la barra» solo se ve desde acá.
+ */
+test('un SUPERVISOR no ve en el menú los destinos del ADMIN (#814)', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/contactos');
+  // Sin ámbito, como el resto del archivo: estos nombres existen una sola vez
+  // y son enlaces de la barra.
+  //
+  // Lo que SÍ es suyo tiene que estar, y esa mitad es la que importa: una
+  // barra vacía satisfaría igual los `toHaveCount(0)` de abajo, y quedarse sin
+  // menú por un error al resolver los permisos es peor que ver una puerta que
+  // se va a cerrar.
+  for (const suyo of ['Bandeja', 'Contactos', 'Oportunidades', 'Reportes']) {
+    await expect(page.getByRole('link', { name: suyo, exact: true })).toBeVisible();
+  }
+
+  // Y lo que pide un permiso del ADMIN, no: `channels.manage`,
+  // `whatsapp.templates.manage`, `crm.fields.manage`, `tenant.settings`.
+  for (const ajeno of ['Canales', 'Plantillas', 'Campos', 'Embudos']) {
+    await expect(page.getByRole('link', { name: ajeno, exact: true })).toHaveCount(0);
+  }
 });
 
 test('API keys pide lista, permisos y consumo juntos, sin esperar tres viajes consecutivos', async ({ page }) => {
