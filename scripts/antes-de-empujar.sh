@@ -94,6 +94,7 @@ paso 'migraciones en base virgen'       node scripts/migraciones-en-base-virgen.
 # Los dos trinquetes con lista base: avisan si hay que bajar la marca.
 paso 'exports sin consumidor'            node scripts/exports-sin-consumidor.mjs
 paso 'columnas sin lector'               node scripts/columnas-sin-lector.mjs
+paso 'listas sin estado vacío'           node scripts/listas-sin-vacio.mjs
 
 # Los workflows, SOLO si los tocaste (#770).
 #

@@ -46,6 +46,8 @@ export {
 // pueda leerlo; no lo usa nada en producción, y eso está escrito en su lista.
 export { exportsSinConsumidor, valoresQuePublica } from './exports-sin-consumidor';
 export { entornoConCoalescencia } from './entorno-con-coalescencia';
+export { listasSinVacio, pantallasQueDesaparecen } from './listas-sin-estados';
+export type { ListaSinVacio, PantallaQueDesaparece } from './listas-sin-estados';
 export type { LecturaConCoalescencia } from './entorno-con-coalescencia';
 // Columnas que se escriben y nadie lee, con trinquete (#703). La familia de
 // autores (#697) es el mismo escáner con un filtro: `ES_DE_AUTOR`.

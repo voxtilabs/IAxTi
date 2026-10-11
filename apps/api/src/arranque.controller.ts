@@ -337,7 +337,6 @@ export class ArranqueController {
         analisis,
         contacto,
         etiquetasDelContacto,
-        secuencias,
         inscripciones,
       ] = await Promise.all([
           pieza(permisos, { modulo: 'conversations', permiso: 'conversations.notes' }, () =>
@@ -370,9 +369,6 @@ export class ArranqueController {
           contactId ? contactTags(c, actor.tenantId, contactId) : Promise.resolve([]),
         ),
         pieza(permisos, { modulo: 'automations', permiso: 'automations.enroll' }, () =>
-          listSequences(c, actor.tenantId),
-        ),
-        pieza(permisos, { modulo: 'automations', permiso: 'automations.enroll' }, () =>
           contactId ? enrollmentsForContact(c, actor.tenantId, contactId) : Promise.resolve([]),
         ),
       ]);
@@ -383,7 +379,6 @@ export class ArranqueController {
         analisis,
         contacto,
         etiquetasDelContacto,
-        secuencias,
         inscripciones,
       };
     });
@@ -441,6 +436,7 @@ export class ArranqueController {
         etiquetas,
         campos,
         empresas,
+        secuencias,
         retencion,
       ] = await Promise.all([
         pieza(permisos, { permiso: 'tenant.read' }, () =>
@@ -505,6 +501,21 @@ export class ArranqueController {
         pieza(permisos, { modulo: 'crm', permiso: 'crm.companies.read' }, () =>
           listCompanies(c, actor.tenantId, {}),
         ),
+        /**
+         * El catálogo de secuencias del negocio (#588).
+         *
+         * Estuvo en el arranque de la FICHA y de ahí salió un defecto de forma:
+         * al cambiar de conversación hay que descartar todo lo del contacto
+         * anterior, y si el catálogo viene por ese mismo camino hay que
+         * descartarlo también —con su parpadeo— para traer lo idéntico.
+         *
+         * Las INSCRIPCIONES sí son del contacto y se quedan allá. Un dato vive
+         * donde dice su alcance: ponerlo en el agregado del contacto obliga a
+         * tratarlo como si cambiara con el contacto.
+         */
+        pieza(permisos, { modulo: 'automations', permiso: 'automations.enroll' }, () =>
+          listSequences(c, actor.tenantId),
+        ),
         // Con su caché y su TTL, como su ruta suelta: comparten clave, así que
         // servir esto sin cachear no es «más fresco», es inconsistente.
         pieza(permisos, { permiso: 'tenant.settings' }, () =>
@@ -529,6 +540,7 @@ export class ArranqueController {
         etiquetas,
         campos,
         empresas,
+        secuencias,
         retencion,
       };
     });

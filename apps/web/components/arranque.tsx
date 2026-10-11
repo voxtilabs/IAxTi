@@ -61,6 +61,8 @@ export interface Arranque {
   etiquetas: Pieza<Array<{ id: string; name: string }>>;
   campos: Pieza<unknown[]>;
   empresas: Pieza<unknown[]>;
+  /** El catálogo de secuencias del negocio: igual para toda conversación. */
+  secuencias: Pieza<unknown[]>;
   retencion: Pieza<unknown>;
 }
 
