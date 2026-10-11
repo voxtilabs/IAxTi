@@ -94,10 +94,35 @@ export async function changeTenantState(
 /** Cambiar de plan recalcula límites (los límites SON la fila de plan_limits). */
 export async function changePlan(client: PoolClient, id: string, plan: string): Promise<PlanLimits> {
   const limits = await getPlanLimits(client, plan);
+  const antes = await client.query('SELECT plan FROM tenants WHERE id = $1', [id]);
+  const anterior = (antes.rows[0]?.plan as string | undefined) ?? null;
   await client.query('UPDATE tenants SET plan = $2 WHERE id = $1', [id, plan]);
   // Sin esto, subir de plan tardaría hasta cinco minutos en notarse: el
   // cliente paga y la función sigue negada (issue 209).
   olvidarPlan(id);
+  // `tenant.plan_changed` estaba declarado en el manifiesto desde el primer
+  // día, catalogado en SPEC §24, y con un consumidor REGISTRADO en
+  // `conversations` —el que difiere la purga 30 días y avisa con la cantidad
+  // exacta (§39)—. No lo publicaba nadie.
+  //
+  // Sin esta línea, bajar de Equipo (retención ilimitada) a Base (12 meses)
+  // borraba el historial en la corrida de las 04:00 del MISMO día: borrado
+  // FÍSICO de conversaciones, mensajes, notas y los objetos de R2, sin los 30
+  // días de gracia y sin el aviso. El camino peor es el automático: cuando la
+  // prueba se vence sin plan elegido, `billing` llama acá con 'base' sin que
+  // ninguna persona apriete nada.
+  //
+  // El aviso lo decide el consumidor y no esta función: cuánto retiene cada
+  // plan y cuántas conversaciones capturaría el corte nuevo es cosa de
+  // `conversations`. Acá solo se cuenta QUÉ cambió.
+  if (anterior !== plan) {
+    await publishEvent(client, {
+      name: 'tenant.plan_changed',
+      tenantId: id,
+      payload: { from: anterior, to: plan },
+      actor: 'system',
+    });
+  }
   return limits;
 }
 
