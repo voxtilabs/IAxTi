@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { PROVIDERS } from '../domain/config';
+import { ENV_KEYS } from '../application/models';
+
+/**
+ * La llave de cada proveedor LLEGA al proceso en local (#844).
+ *
+ * `docker-compose.yml` pasaba a los cinco servicios exactamente dos variables:
+ * `DATABASE_URL` y `REDIS_URL`. Ninguna llave de proveedor. Así que una llave
+ * puesta en el `.env` de la raíz no llegaba a ningún contenedor,
+ * `providerAvailable()` daba false para los cuatro, y la IA contestaba «no hay
+ * proveedor con credencial» **con la llave puesta en el archivo**.
+ *
+ * Es la forma de siempre —declarado en un lado, aplicado en ninguno— y acá lo
+ * declarado era el `.env`: el archivo donde uno pone las llaves, leído por
+ * nadie.
+ *
+ * Los dos compose del despliegue sí las pasan, y eso lo cuida
+ * `variables-del-despliegue.test.ts`. El local no lo cuidaba nadie, que es
+ * justo el que usa quien quiere probar.
+ */
+const RAIZ = join(__dirname, '..', '..', '..', '..');
+const COMPOSE_LOCAL = join(RAIZ, 'docker-compose.yml');
+
+describe('las llaves de los proveedores llegan al proceso', () => {
+  const compose = readFileSync(COMPOSE_LOCAL, 'utf8');
+
+  it('la guarda está mirando algo: hay proveedores y hay compose', () => {
+    // Anti-vacuidad: con `PROVIDERS` vacío el `for` de abajo no correría.
+    expect(PROVIDERS.length).toBeGreaterThanOrEqual(3);
+    expect(compose).toContain('environment: &app-env');
+  });
+
+  it('el compose local pasa la variable de cada proveedor', () => {
+    const faltan = PROVIDERS.filter((p) => !compose.includes(`${ENV_KEYS[p]}:`));
+    expect(
+      faltan.map((p) => `${p} → ${ENV_KEYS[p]}`),
+      'Estos proveedores son elegibles y su llave NO llega a los contenedores locales: ' +
+        'quien la ponga en `.env` va a ver «no hay proveedor con credencial» con la llave ' +
+        `puesta.\n  ${faltan.map((p) => ENV_KEYS[p]).join('\n  ')}`,
+    ).toEqual([]);
+  });
+
+  it('las pasa por REFERENCIA, nunca con el valor escrito', () => {
+    // Un secreto en el compose es un secreto en Git.
+    for (const p of PROVIDERS) {
+      const linea = new RegExp(`^\\s*${ENV_KEYS[p]}:\\s*(.+)$`, 'm').exec(compose);
+      expect(linea, `${ENV_KEYS[p]} no está en el compose local`).toBeTruthy();
+      expect(
+        linea![1].trim(),
+        `${ENV_KEYS[p]} tiene un valor escrito en el compose en vez de una referencia`,
+      ).toMatch(/^\$\{/);
+    }
+  });
+
+  it('y los procesos que no son Next cargan el .env si está', () => {
+    /**
+     * La otra mitad del mismo defecto. `apps/api`, `apps/workers` y
+     * `apps/agents` arrancan con `node dist/main.js` y **nada** cargaba el
+     * `.env`: solo `apps/web` lo lee, porque Next lo hace solo. O sea que ni
+     * siquiera corriendo fuera de Docker las llaves llegaban.
+     *
+     * `--env-file-if-exists` y no `--env-file`: en la imagen de producción no
+     * hay `.env` y `--env-file` revienta si falta. Y el entorno real GANA
+     * sobre el archivo —comprobado—, así que en producción esto no cambia nada.
+     */
+    for (const app of ['api', 'workers', 'agents']) {
+      const pkg = JSON.parse(
+        readFileSync(join(RAIZ, 'apps', app, 'package.json'), 'utf8'),
+      ) as { scripts: Record<string, string> };
+      expect(pkg.scripts.start, `apps/${app} no carga el .env al arrancar`).toContain(
+        '--env-file-if-exists',
+      );
+      // Y que no sea el que revienta cuando el archivo no está.
+      expect(pkg.scripts.start).not.toMatch(/--env-file=/);
+    }
+  });
+});

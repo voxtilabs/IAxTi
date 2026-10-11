@@ -12,6 +12,24 @@ x-app: &app
   environment: &app-env
     DATABASE_URL: postgres://iaxti:iaxti@postgres:5432/iaxti
     REDIS_URL: redis://redis:6379
+    # Las llaves de los proveedores de IA, POR REFERENCIA: el valor sale del
+    # `.env` de la raíz, que docker compose lee solo para sustituir acá.
+    #
+    # Sin estas líneas, una llave en `.env` no llegaba a ningún contenedor:
+    # este compose solo pasaba DATABASE_URL y REDIS_URL, así que
+    # `providerAvailable()` daba false para los cuatro y la IA contestaba
+    # «no hay proveedor con credencial» con la llave puesta en el archivo
+    # (#844). Es la forma de siempre: declarado en un lado, aplicado en
+    # ninguno — y acá lo declarado era el `.env`.
+    #
+    # Cada servicio tiene que LISTAR la variable: heredar el `&app-env` es
+    # justo lo que hace que esto alcance para los cinco de una vez.
+    GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    GLM_API_KEY: ${GLM_API_KEY:-}
+    GLM_API_BASE: ${GLM_API_BASE:-https://integrate.api.nvidia.com/v1}
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
 
 services:
   postgres:
