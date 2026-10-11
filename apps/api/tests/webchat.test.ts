@@ -6,6 +6,8 @@ import { createWidget, setWidgetActive } from '@iaxti/module-webchat';
 import type { Widget } from '@iaxti/module-webchat';
 import { Queue } from 'bullmq';
 import { redisConnection } from '@iaxti/core';
+import { randomUUID } from 'node:crypto';
+import { registry } from '../src/registry';
 import { createApp } from '../src/main';
 
 // El lado público del webchat (#46): token + dominio como autenticación.
@@ -110,6 +112,46 @@ describe('webchat público', () => {
     await withTenant(admin, tenant, (c) =>
       setWidgetActive(c, { tenantId: tenant, widgetId: widget.id, active: true }),
     );
+  });
+
+  /**
+   * El interruptor del módulo también apaga el widget público (#821).
+   *
+   * Las cuatro rutas públicas no llevan `@RequireModule` —son del visitante,
+   * que no tiene sesión— así que caían en la rama del guard que deja pasar lo
+   * que no pide nada. El controller administrativo del mismo módulo sí está
+   * cerrado, y el resultado era que el interruptor apagaba la mitad que AVISA
+   * y dejaba prendida la mitad que ESCRIBE: el dueño no podía ni listar sus
+   * widgets, y el widget de su sitio seguía abriendo sesiones y escribiendo
+   * mensajes en una bandeja que el equipo ya no podía abrir.
+   */
+  it('con el módulo apagado, el widget deja de abrir sesiones y de escribir', async () => {
+    const antes = (
+      await admin.query('SELECT count(*)::int AS n FROM messages WHERE tenant_id = $1', [tenant])
+    ).rows[0].n as number;
+
+    registry.disable('webchat');
+    try {
+      // 404 mudo, no MODULE_DISABLED: al otro lado hay un desconocido en el
+      // sitio de un cliente, y el estado interno de ese negocio no es suyo.
+      expect((await fetch(`${base}/webchat/${widget.id}/config?page=${encodeURIComponent(PAGE)}`)).status).toBe(404);
+      expect((await post('/sessions', {})).status).toBe(404);
+      expect(
+        (await post('/messages', { sessionId: randomUUID(), message: 'hola' })).status,
+      ).toBe(404);
+    } finally {
+      registry.enable('webchat');
+    }
+
+    // Y lo que importa de verdad: no escribió nada.
+    const despues = (
+      await admin.query('SELECT count(*)::int AS n FROM messages WHERE tenant_id = $1', [tenant])
+    ).rows[0].n as number;
+    expect(despues).toBe(antes);
+
+    // Con el módulo prendido vuelve a atender: si no, esta prueba pasaría
+    // igual con el widget roto para siempre.
+    expect((await fetch(`${base}/webchat/${widget.id}/config?page=${encodeURIComponent(PAGE)}`)).status).toBe(200);
   });
 
   it('el mensaje del visitante pide sugerencia al copiloto (#438)', async () => {

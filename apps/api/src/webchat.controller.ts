@@ -112,6 +112,28 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * decidiendo `domainAllowed` sobre la fila leída bajo RLS.
  */
 async function widgetValido(widgetId: string, pageUrl: string | undefined): Promise<Widget> {
+  /**
+   * El interruptor del módulo, acá (#821).
+   *
+   * Las cuatro rutas públicas del widget no llevan `@RequireModule` ni permiso
+   * —son del VISITANTE, que no tiene sesión—, así que caían en la rama del
+   * guard que deja pasar lo que no pide nada. El controller administrativo del
+   * mismo módulo sí está cerrado (`@RequireModule('webchat')` en
+   * `channels.controller.ts`), y el resultado era que el interruptor apagaba
+   * la mitad que AVISA y dejaba prendida la mitad que ESCRIBE: el dueño no
+   * podía ni listar sus widgets, y el widget incrustado en su sitio seguía
+   * abriendo sesiones y escribiendo en `conversations` y `messages`. Nadie
+   * podía detener el canal sin tocar la base o el DNS del cliente.
+   *
+   * Y responde el 404 mudo, no `MODULE_DISABLED`: al otro lado hay un
+   * desconocido en el sitio de un cliente, y «este módulo no está activo para
+   * tu cuenta» le cuenta del estado interno de un negocio que no es suyo. Es
+   * el mismo silencio que ya se le da a un widget desactivado dos líneas más
+   * abajo — desde su lado, las dos cosas son «acá no hay un chat». Al DUEÑO sí
+   * se le dice MODULE_DISABLED, por el controller administrativo, que es quien
+   * puede hacer algo con esa información.
+   */
+  if (!registry.isActive('webchat')) nadaPorAqui();
   // Sin esto, un id con cualquier forma llega al `uuid` de la consulta y
   // revienta con el error crudo de Postgres: un 500 donde esta ruta promete
   // silencio. No es una validación nueva, es el mismo 404 de siempre.
