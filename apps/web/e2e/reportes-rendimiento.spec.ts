@@ -159,41 +159,41 @@ test('navegar por menú, pestañas y volver no recarga el documento ni duplica l
  *
  * Y es la única capa donde se puede comprobar: las pruebas del web corren sin
  * DOM, así que «lo que se dibuja en la barra» solo se ve desde acá.
+ *
+ * ## Por DESTINO y no por etiqueta, que me costó dos corridas
+ *
+ * La primera versión afirmaba `getByRole('link', { name: 'Canales' })` y
+ * recibía 1. No era que el filtro no funcionara: la barra AGRUPA las entradas
+ * por sección, y el enlace que queda se llama como la sección y apunta a la
+ * primera pestaña que la persona sí puede abrir. El SUPERVISOR ve `Avisos`
+ * (`notifications.manage_own`), que vive en la sección Canales, así que quedaba
+ * un `link "Canales"` apuntando a `/ajustes/notificaciones`.
+ *
+ * O sea que el nombre visible no identifica el destino. El `href` sí.
  */
 test('un SUPERVISOR no ve en el menú los destinos del ADMIN (#814)', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/contactos');
-  // Sin ámbito, como el resto del archivo: estos nombres existen una sola vez
-  // y son enlaces de la barra.
-  //
+
   /**
-   * `toHaveCount(1)` y no `toBeVisible`: lo que el filtro de permisos decide es
-   * si la entrada ESTÁ en el menú. Que se VEA depende además de si la barra
-   * está plegada y de si el grupo está colapsado, y eso no es lo que esto mide.
+   * Lo que SÍ es suyo tiene que estar, y esta mitad es la que importa: una
+   * barra vacía satisfaría igual los `toHaveCount(0)` de abajo, y quedarse sin
+   * menú por un error al resolver los permisos es peor que ver una puerta que
+   * se va a cerrar.
    *
-   * Y las tres son del plan `base` a propósito. «Reportes» estaba en esta
-   * lista y fallaba: pide `analytics.read`, que el SUPERVISOR sí tiene, pero
-   * `analytics` solo viene en el plan `equipo` y este tenant no lo tiene — así
-   * que la entrada se dibuja CON CANDADO (#215), y una entrada con candado no
-   * es un `link`.
-   *
-   * Son dos mecanismos distintos sobre la misma barra y conviene no
-   * confundirlos: el candado por plan dice «esto se puede comprar» y se
-   * muestra a propósito (SPEC §6: bajar de plan no esconde); el permiso del
-   * rol dice «esto no es tuyo» y se esconde. Esta prueba mide el segundo.
-   *
-   * Esta mitad es la que importa: una barra vacía satisfaría igual los
-   * `toHaveCount(0)` de abajo, y quedarse sin menú por un error al resolver
-   * los permisos es peor que ver una puerta que se va a cerrar.
+   * Las tres son del plan `base`: el candado por plan (#215) es OTRO mecanismo
+   * sobre la misma barra, y una entrada con candado no se dibuja como enlace.
+   * Por eso no está «Reportes», que el SUPERVISOR sí puede por permiso y este
+   * tenant no tiene por plan.
    */
-  for (const suyo of ['Bandeja', 'Contactos', 'Oportunidades']) {
-    await expect(page.getByRole('link', { name: suyo, exact: true })).toHaveCount(1);
+  for (const suyo of ['/bandeja', '/contactos', '/oportunidades']) {
+    await expect(page.locator(`a[href="${suyo}"]`)).toHaveCount(1);
   }
 
-  // Y lo que pide un permiso del ADMIN, no: `channels.manage`,
-  // `whatsapp.templates.manage`, `crm.fields.manage`, `tenant.settings`.
-  for (const ajeno of ['Canales', 'Plantillas', 'Campos', 'Embudos']) {
-    await expect(page.getByRole('link', { name: ajeno, exact: true })).toHaveCount(0);
+  // Y los destinos que piden un permiso del ADMIN, no: `channels.manage`,
+  // `whatsapp.templates.manage`, `crm.fields.manage`, `crm.pipelines.manage`.
+  for (const ajeno of ['/ajustes/canales', '/ajustes/plantillas', '/ajustes/campos', '/ajustes/embudos']) {
+    await expect(page.locator(`a[href="${ajeno}"]`)).toHaveCount(0);
   }
 });
 
