@@ -41,8 +41,13 @@ Los métodos y rutas de `campaign-routes.generated.ts` se generan desde el
 OpenAPI publicado por la API. Para actualizarlo, guarda `/docs-json` de la API
 local y ejecuta desde la raíz:
 
+> Hasta #832 esta línea apuntaba a `packages/sdk/scripts/generate-campaigns.mjs`,
+> que era un segundo generador con doce operaciones: le faltaban `detener` y
+> `seguir`, así que seguir el README al pie de la letra borraba del SDK el botón
+> Detener y el Seguir de una campaña a medias. Ese script se borró.
+
 ```sh
-node packages/sdk/scripts/generate-campaigns.mjs /ruta/al/openapi.json
+node scripts/generate-campaigns.mjs /ruta/al/openapi.json
 pnpm --filter @iaxti/sdk build
 ```
 
