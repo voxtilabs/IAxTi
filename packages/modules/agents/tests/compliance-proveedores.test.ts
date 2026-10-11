@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROVIDERS } from '../domain/config';
+import { DEFAULT_TASK_MODELS, PROVIDERS, proveedorPermitidoParaTarea } from '../domain/config';
+import { ENV_KEYS } from '../application/models';
 
 /**
  * Cada proveedor de IA elegible tiene su fila de transferencia internacional
@@ -22,6 +23,7 @@ const NOMBRE_EN_LA_MATRIZ: Record<string, string> = {
   google: 'Google Gemini',
   anthropic: 'Anthropic',
   glm: 'GLM',
+  openai: 'OpenAI',
 };
 
 describe('la matriz de compliance y los proveedores de IA', () => {
@@ -48,6 +50,36 @@ describe('la matriz de compliance y los proveedores de IA', () => {
       expect(fila.toLowerCase(), `una fila afirma cumplimiento: ${fila.slice(0, 60)}`).not.toMatch(
         /cumple (con )?(la )?iso|certificad[oa] iso|iso[- ]?\d+ certificad/,
       );
+    }
+  });
+});
+
+/**
+ * OpenAI quedó elegible el 11-10 (#842), y estas dos fijan las dos cosas que
+ * NO son políticas sino hechos del adaptador.
+ */
+describe('openai como cuarto proveedor (#842)', () => {
+  it('está en PROVIDERS y tiene su variable', () => {
+    expect(PROVIDERS).toContain('openai');
+    expect(ENV_KEYS.openai).toBe('OPENAI_API_KEY');
+  });
+
+  it('`transcribir` NO pasa por openai: es capacidad, no preferencia', () => {
+    // El adaptador compatible habla `/chat/completions` y la transcripción de
+    // IAxTi manda el audio como file part. OpenAI sí sabe transcribir, por
+    // otra API — dárselo a esta tarea fallaría en cada audio recibido.
+    expect(proveedorPermitidoParaTarea('openai', 'transcribir')).toBe(false);
+    // Y las de texto sí, que es el punto de haberlo agregado.
+    for (const tarea of ['sugerir', 'responder', 'clasificar', 'analizar'] as const) {
+      expect(proveedorPermitidoParaTarea('openai', tarea)).toBe(true);
+    }
+  });
+
+  it('no es el proveedor por defecto: el defecto sigue siendo GLM (ADR-0025 §7)', () => {
+    // Agregar un proveedor no puede mover por dónde pasan los datos de los
+    // clientes de nuestros clientes sin que nadie lo decida.
+    for (const [, modelo] of Object.entries(DEFAULT_TASK_MODELS)) {
+      expect(modelo.provider).not.toBe('openai');
     }
   });
 });

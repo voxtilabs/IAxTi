@@ -96,6 +96,7 @@ export const ENV_KEYS: Record<Provider, string> = {
   google: 'GOOGLE_GENERATIVE_AI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
   glm: 'GLM_API_KEY',
+  openai: 'OPENAI_API_KEY',
 };
 
 export function providerAvailable(provider: Provider): boolean {
@@ -126,6 +127,24 @@ function languageModel(provider: Provider, model: string): LanguageModel {
         apiKey,
         // Vacía dejaba `baseURL: ''` y el SDK apuntaba a la API de OpenAI (#575).
         baseURL: textoDeEntorno('GLM_API_BASE', 'https://integrate.api.nvidia.com/v1'),
+      })(model);
+    case 'openai':
+      /**
+       * Por el adaptador compatible y no por `@ai-sdk/openai` (#842).
+       *
+       * El de OpenAI sabe de cosas suyas —la Responses API, los parámetros de
+       * razonamiento— y nada de eso lo usa el producto: lo que IAxTi pide son
+       * `/chat/completions` con herramientas, que es exactamente lo que este
+       * adaptador habla, y es la misma pieza que ya sirve GLM. Agregar una
+       * dependencia para lo mismo sería una segunda forma de hacer una cosa.
+       *
+       * `OPENAI_API_BASE` existe para un proxy o un gateway; sin eso, la API
+       * de OpenAI directo.
+       */
+      return createOpenAICompatible({
+        name: 'openai',
+        apiKey,
+        baseURL: textoDeEntorno('OPENAI_API_BASE', 'https://api.openai.com/v1'),
       })(model);
   }
 }

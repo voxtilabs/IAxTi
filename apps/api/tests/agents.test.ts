@@ -390,9 +390,18 @@ describe('los ajustes de IA del negocio se pueden escribir (#536)', () => {
   });
 
   it('un proveedor inventado se rechaza con los que existen', async () => {
+    /**
+     * El centinela era `'openai'`, y dejó de servir cuando OpenAI pasó a ser
+     * un proveedor de verdad (#842): el rechazo cambió de «tiene que ser uno
+     * de: …» a «en este ambiente no hay llave para openai», que es otra puerta.
+     *
+     * Vale anotarlo porque es una forma de envejecer que no se ve venir: un
+     * centinela deja de ser centinela cuando el producto crece hacia él. El de
+     * ahora es un proveedor que el producto no tiene ni planea tener.
+     */
     const r = await pedir(duena, '/agents/ajustes', {
       method: 'PUT',
-      body: JSON.stringify({ soloProveedor: 'openai' }),
+      body: JSON.stringify({ soloProveedor: 'mistral' }),
     });
     expect(r.status).toBe(400);
     expect((await r.json()).message).toContain('uno de:');

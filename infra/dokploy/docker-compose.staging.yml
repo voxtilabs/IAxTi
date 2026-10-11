@@ -66,6 +66,10 @@ x-env: &app-env
   # conocimiento desde #502. Sin esta llave `embeddingsAvailable()` es false,
   # indexar avisa y el job de reindexación se queda esperando.
   GLM_API_KEY: ${GLM_API_KEY}
+  # OpenAI como cuarto proveedor (#842). Por referencia, como todas: el valor
+  # vive en las variables del despliegue en Dokploy, nunca acá.
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
   GLM_API_BASE: ${GLM_API_BASE:-https://integrate.api.nvidia.com/v1}
   # Anthropic: el tercer proveedor que `ENV_KEYS` declara y el ÚNICO que no
   # estaba acá. La lectura es `process.env[ENV_KEYS[provider]]` —dinámica—, y el

@@ -38,6 +38,7 @@ const NOMBRE: Record<string, string> = {
   google: 'Google (Gemini)',
   anthropic: 'Anthropic (Claude)',
   glm: 'GLM',
+  openai: 'OpenAI (GPT)',
 };
 
 interface AjustesDto {

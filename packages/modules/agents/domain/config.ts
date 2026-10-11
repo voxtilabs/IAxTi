@@ -1,7 +1,7 @@
 // Configuración del runtime (#47, ADR-0011): proveedor y modelo POR TAREA,
 // sin deploy. Puro.
 
-export const PROVIDERS = ['google', 'anthropic', 'glm'] as const;
+export const PROVIDERS = ['google', 'anthropic', 'glm', 'openai'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 export const TASKS = [
@@ -146,8 +146,17 @@ export interface IaSettings {
  */
 const SIN_GARANTIA_DE_DATOS = new Set<string>([]);
 
-/** Proveedores cuyo endpoint no recibe audio ni archivos. */
-const SOLO_TEXTO = new Set<string>(['glm']);
+/**
+ * Proveedores cuyo endpoint no recibe audio ni archivos.
+ *
+ * `openai` entra acá por CAPACIDAD y no por política: lo servimos por el
+ * adaptador compatible (`/chat/completions`), y la transcripción de IAxTi
+ * manda el audio como *file part*. OpenAI sí sabe transcribir, pero por otra
+ * API (`/audio/transcriptions`), que es otra forma de petición. Dárselo a
+ * `transcribir` fallaría en cada audio recibido, así que esa tarea cae al por
+ * defecto — igual que con GLM (#842).
+ */
+const SOLO_TEXTO = new Set<string>(['glm', 'openai']);
 
 /**
  * La única tarea que sobrevive a la redacción.
@@ -194,6 +203,24 @@ const RESPALDO_POR_PROVEEDOR: Record<string, { liviano: string; pesado: string }
   google: { liviano: 'gemini-flash-latest', pesado: 'gemini-pro-latest' },
   anthropic: { liviano: 'claude-haiku-4-5-20251001', pesado: 'claude-haiku-4-5-20251001' },
   glm: { liviano: 'z-ai/glm-5.3-flash', pesado: 'z-ai/glm-5.3' },
+  /**
+   * Estos dos nombres NO los pude verificar contra el catálogo de OpenAI
+   * (#842): la llamada a `/v1/models` sale de esta máquina a un host externo y
+   * el sandbox la bloquea, así que están elegidos por ser los de familia más
+   * estable y no por haberlos visto en la cuenta.
+   *
+   * Si alguno ya no se sirve, OpenAI contesta 404 con el nombre adentro —el
+   * mismo modo de falla que documenta el comentario de los alias de Gemini más
+   * arriba—. Para comprobarlo:
+   *
+   *     curl -s https://api.openai.com/v1/models \
+   *       -H "Authorization: Bearer $OPENAI_API_KEY" | jq -r '.data[].id' | sort
+   *
+   * Y no hace falta tocar código para cambiarlos: un modelo elegido a mano en
+   * la pantalla de Ajustes → IA se respeta si es de este proveedor, que es lo
+   * que hace el `configurado?.provider === soloProveedor` de más abajo.
+   */
+  openai: { liviano: 'gpt-4o-mini', pesado: 'gpt-4o' },
 };
 
 /** Las que razonan de verdad: van con el modelo de gama alta. */
