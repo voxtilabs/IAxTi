@@ -10,12 +10,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/google": "^4.0.69",
+    "@ai-sdk/google": "^4.0.87",
     "@iaxti/core": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
-    "ai": "^7.0.99",
-    "pg": "^8.13.0",
+    "ai": "^7.0.127",
+    "pg": "^8.23.1",
     "@iaxti/db": "workspace:*"
   },
   "devDependencies": {

@@ -10,18 +10,18 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.53",
-    "@ai-sdk/google": "^4.0.69",
-    "@ai-sdk/openai-compatible": "^3.0.48",
+    "@ai-sdk/anthropic": "^4.0.71",
+    "@ai-sdk/google": "^4.0.87",
+    "@ai-sdk/openai-compatible": "^3.0.62",
     "@iaxti/core": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
-    "ai": "^7.0.99",
-    "langfuse": "^3.38.20",
-    "pg": "^8.13.0"
+    "ai": "^7.0.127",
+    "langfuse": "^3.39.2",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@iaxti/db": "workspace:*",

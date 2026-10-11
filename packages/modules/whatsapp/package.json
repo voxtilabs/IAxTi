@@ -12,8 +12,8 @@
   "dependencies": {
     "@iaxti/core": "workspace:*",
     "@iaxti/module-channels": "workspace:*",
-    "ioredis": "^5.4.0",
-    "pg": "^8.13.0"
+    "ioredis": "^6.0.0",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@iaxti/db": "workspace:*",
