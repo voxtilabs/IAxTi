@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 
 /**
  * Ningún `DELETE FROM payment_links` funcionaba, y en silencio (#625).
@@ -92,10 +92,11 @@ describe('borrar un link de pago (#625)', () => {
       ),
     ).rejects.toThrow(/inmutable/i);
     expect(await cuantos(id)).toBe(1);
-    // Se limpia por fuera del trigger, que es lo único que puede.
-    await admin.query('ALTER TABLE payment_links DISABLE TRIGGER payment_links_immutable_trg');
-    await admin.query('DELETE FROM payment_links WHERE id = $1', [id]);
-    await admin.query('ALTER TABLE payment_links ENABLE TRIGGER payment_links_immutable_trg');
+    // Se limpia por fuera del trigger, en ESTA sesión y no para toda la base:
+    // `ALTER TABLE … DISABLE TRIGGER` es de la tabla, y mientras duraba, otro
+    // archivo que corre en paralelo afirmaba que este mismo trigger rechaza un
+    // UPDATE y recibía un UPDATE aplicado (#803).
+    await sinTriggers(admin, (c) => c.query('DELETE FROM payment_links WHERE id = $1', [id]));
   });
 
   it('el UPDATE de un link pagado sigue prohibido: eso no cambió', async () => {
@@ -109,9 +110,7 @@ describe('borrar un link de pago (#625)', () => {
         ]),
       ),
     ).rejects.toThrow(/inmutable/i);
-    await admin.query('ALTER TABLE payment_links DISABLE TRIGGER payment_links_immutable_trg');
-    await admin.query('DELETE FROM payment_links WHERE id = $1', [id]);
-    await admin.query('ALTER TABLE payment_links ENABLE TRIGGER payment_links_immutable_trg');
+    await sinTriggers(admin, (c) => c.query('DELETE FROM payment_links WHERE id = $1', [id]));
   });
 
   it('y el UPDATE de uno no pagado sigue funcionando', async () => {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import {
   chequeoCrecimientoMensajes,
@@ -26,9 +26,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-  await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
-  await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+  await sinTriggers(admin, async (c) => {
+    await c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+  });
   await admin.query('DELETE FROM whatsapp_numbers WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
   await admin.end();

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { ensureContactByIdentity } from '../application/contacts';
 import { exportarTitular, suprimirTitular } from '../application/titular';
 
@@ -50,9 +50,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-  await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
-  await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+  await sinTriggers(admin, async (c) => {
+    await c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+  });
   for (const tabla of ['messages', 'conversations', 'contact_identities', 'contacts']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }

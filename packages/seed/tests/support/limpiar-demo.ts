@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { sinTriggers } from '@iaxti/db';
 
 /**
  * Deja el tenant demo como si nunca hubiera existido.
@@ -24,10 +25,12 @@ export async function limpiarDemo(admin: Pool, nombre: string): Promise<void> {
   const id = previo.rows[0].id as string;
 
   // El audit es append-only por trigger: para borrarlo hay que apagarlo, y
-  // por eso esta limpieza vive solo en las pruebas.
-  await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-  await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [id]);
-  await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+  // por eso esta limpieza vive solo en las pruebas. Apagado de SESIÓN, no de
+  // tabla: con los archivos corriendo en paralelo contra la misma base, el
+  // `ALTER TABLE` dejaba el libro sin protección para todos (#803).
+  await sinTriggers(admin, async (c) => {
+    await c.query('DELETE FROM audit_log WHERE tenant_id = $1', [id]);
+  });
 
   const r = await admin.query<{ tabla: string }>(
     `SELECT DISTINCT conrelid::regclass::text AS tabla

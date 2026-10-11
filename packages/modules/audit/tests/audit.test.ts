@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { writeAudit, verifyChain } from '../src/write';
 import { searchAudit } from '../src/search';
 
@@ -26,10 +26,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // La limpieza de un tenant de prueba borra su auditoría con rol admin y el
-  // trigger lo impide a propósito: se elimina el trigger solo aquí, en test.
-  await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-  await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
-  await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+  // trigger lo impide a propósito: se apaga solo para ESTA sesión. Antes era
+  // `ALTER TABLE … DISABLE TRIGGER`, que es de la tabla: mientras limpiaba,
+  // el libro no era append-only para nadie — incluida la prueba de acá arriba
+  // que afirma que lo es (#803).
+  await sinTriggers(admin, async (c) => {
+    await c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+  });
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });
@@ -92,14 +95,15 @@ describe('audit_log', () => {
   });
 
   it('una fila manipulada rompe la verificación de cadena', async () => {
-    // Simular manipulación directa en la base (deshabilitando el trigger como
-    // haría un atacante con acceso de superusuario): la cadena lo delata.
-    await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-    await admin.query(
-      "UPDATE audit_log SET result = 'alterado' WHERE tenant_id = $1 AND request_id = 'req_2'",
-      [tenant],
-    );
-    await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+    // Simular manipulación directa en la base (sin los triggers de esta
+    // sesión, como haría un atacante con acceso de superusuario): la cadena
+    // lo delata.
+    await sinTriggers(admin, async (c) => {
+      await c.query(
+        "UPDATE audit_log SET result = 'alterado' WHERE tenant_id = $1 AND request_id = 'req_2'",
+        [tenant],
+      );
+    });
 
     const check = await withTenant(admin, tenant, (c) => verifyChain(c, tenant));
     expect(check.valid).toBe(false);

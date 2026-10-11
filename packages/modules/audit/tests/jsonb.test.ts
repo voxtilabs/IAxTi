@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { writeAudit, verifyChain } from '../src/write';
 
 let pool: Pool;
@@ -49,10 +49,9 @@ describe('hash de la representación persistida (#375)', () => {
   });
   it('alterar un valor de metadata sigue rompiendo la cadena', async () => {
     await en(c => writeAudit(c, { ...base, tenantId, metadata: { z: 1, a: 2 } }));
-    await pool.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-    try {
-      await pool.query("UPDATE audit_log SET metadata = jsonb_set(metadata, '{z}', '999') WHERE tenant_id = $1", [tenantId]);
-    } finally { await pool.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete'); }
+    await sinTriggers(pool, (c) =>
+      c.query("UPDATE audit_log SET metadata = jsonb_set(metadata, '{z}', '999') WHERE tenant_id = $1", [tenantId]),
+    );
     expect((await en(c => verifyChain(c, tenantId))).valid).toBe(false);
   });
 });
