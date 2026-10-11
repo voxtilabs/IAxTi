@@ -220,42 +220,103 @@ describe('seguridad (#71)', () => {
     expect(snap.intentosDenegados).toBeGreaterThanOrEqual(3);
   });
 
-  it('una lista cortada DICE que está cortada (#734)', async () => {
-    // Era el patrón que `listarCampanas` ya había resuelto: «sin ese dato, una
-    // lista cortada se ve exactamente igual que una lista completa, y eso es
-    // mentir en silencio». Acá era peor, porque el número truncado alimentaba
-    // un semáforo de seguridad.
-    const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
-    for (const lista of [snap.permisosDenegados, snap.webhooksFallidos, snap.numerosEnRiesgo]) {
-      expect(lista.filas.length).toBeLessThanOrEqual(20);
-      expect(lista.total).toBeGreaterThanOrEqual(lista.filas.length);
-      expect(lista.truncado).toBe(lista.total > lista.filas.length);
-    }
-  });
+  /**
+   * Las dos de abajo necesitan una lista REALMENTE cortada, y no la había.
+   *
+   * Decían cuidar el defecto de #734 —el panel mostraba un número truncado
+   * como si fuera el total, y ese número alimenta un semáforo de seguridad—
+   * pero el fixture del archivo son tres filas de UN actor y el tope de la
+   * lista es veinte. Con un solo grupo, `truncado` era false en toda corrida
+   * limpia, y la aserción que distingue las dos aritméticas vivía dentro de
+   * `if (snap.permisosDenegados.truncado)`: un bloque que no se ejecutaba
+   * nunca.
+   *
+   * Peor: una de ellas afirmaba `expect(lista.truncado).toBe(lista.total >
+   * lista.filas.length)`, que es LA MISMA expresión de la implementación
+   * (`salud.ts:366`). Comparar un campo con su propia fórmula no puede
+   * fallar. Si alguien dejara `truncado: false` fijo, o calculara el total
+   * sumando las filas que se muestran, las dos seguían verdes (#812).
+   *
+   * Veinticinco actores de diez intentos: la lista corta en veinte y el total
+   * de la base es 250, así que sumar lo que se muestra da 200 — que es
+   * exactamente el error que #734 describe, con otros números.
+   */
+  describe('con el libro de verdad lleno (#734)', () => {
+    const ACTORES = 25;
+    const INTENTOS = 10;
 
-  it('el total de intentos NO se calcula sumando las filas que se muestran (#734)', async () => {
-    // Con treinta actores de diez intentos cada uno, sumar las veinte filas
-    // daba 200 y habían sido 300 — y ése es el número que enciende el semáforo.
-    const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
-    // El total tiene que calzar EXACTO con lo que hay en la base, contado
-    // aparte. Sumando las veinte filas calzaría solo si no hubiera más de
-    // veinte grupos, y es justo cuando hay más que el número importa.
-    const enLaBase = (
-      await admin.query(
-        `SELECT count(*)::int AS n FROM audit_log
-          WHERE action = 'permission.denied' AND occurred_at >= $1`,
-        [snap.desde],
-      )
-    ).rows[0].n as number;
-    expect(snap.intentosDenegados).toBe(enLaBase);
-    const chequeo = snap.chequeos.find((c) => c.id === 'permisos')!;
-    expect(chequeo.valor).toBe(snap.intentosDenegados);
-    // Y si la lista viene cortada, el total es ESTRICTAMENTE mayor que la suma
-    // de lo que se muestra: ahí está la mentira que esto saca.
-    if (snap.permisosDenegados.truncado) {
+    beforeAll(async () => {
+      await withTenant(admin, tenant, async (c) => {
+        for (let a = 0; a < ACTORES; a++) {
+          for (let i = 0; i < INTENTOS; i++) {
+            await writeAudit(c, {
+              tenantId: tenant,
+              actor: `curioso-${a}-${Date.now()}`.slice(0, 40),
+              actorKind: 'user',
+              action: 'permission.denied',
+              resource: 'payments.refund',
+              result: 'denied',
+              ip: `190.44.${a}.1`,
+            });
+          }
+        }
+      });
+    }, 60_000);
+
+    it('la lista viene cortada y lo DICE, con el total contado en la base', async () => {
+      const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
+      const lista = snap.permisosDenegados;
+
+      // Cortada de verdad: éste es el estado que antes no se alcanzaba nunca.
+      expect(lista.filas).toHaveLength(20);
+      expect(lista.truncado).toBe(true);
+
+      // El total se compara contra un conteo INDEPENDIENTE, no contra la
+      // fórmula de la implementación: cuántos grupos hay en la base.
+      const grupos = (
+        await admin.query(
+          `SELECT count(*)::int AS n FROM (
+             SELECT 1 FROM audit_log
+              WHERE action = 'permission.denied' AND occurred_at >= $1
+              GROUP BY tenant_id, actor, host(ip)
+           ) g`,
+          [snap.desde],
+        )
+      ).rows[0].n as number;
+      expect(lista.total).toBe(grupos);
+      expect(grupos).toBeGreaterThanOrEqual(ACTORES);
+    });
+
+    it('una lista que NO está cortada dice que no lo está', async () => {
+      // El otro lado del mismo campo. Sin esto, `truncado: true` fijo pasaría.
+      const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
+      for (const lista of [snap.webhooksFallidos, snap.numerosEnRiesgo]) {
+        expect(lista.filas.length).toBeLessThanOrEqual(20);
+        expect(lista.truncado).toBe(false);
+        expect(lista.total).toBe(lista.filas.length);
+      }
+    });
+
+    it('el total de intentos NO se calcula sumando las filas que se muestran (#734)', async () => {
+      const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
+      const enLaBase = (
+        await admin.query(
+          `SELECT count(*)::int AS n FROM audit_log
+            WHERE action = 'permission.denied' AND occurred_at >= $1`,
+          [snap.desde],
+        )
+      ).rows[0].n as number;
+      expect(snap.intentosDenegados).toBe(enLaBase);
+      const chequeo = snap.chequeos.find((c) => c.id === 'permisos')!;
+      expect(chequeo.valor).toBe(snap.intentosDenegados);
+
+      // Y acá está la mentira que esto saca, ahora SIN `if`: la lista está
+      // cortada, así que el total tiene que ser estrictamente mayor que la
+      // suma de las veinte filas que el panel muestra.
+      expect(snap.permisosDenegados.truncado).toBe(true);
       const sumaDeLasFilas = snap.permisosDenegados.filas.reduce((t, f) => t + f.n, 0);
       expect(snap.intentosDenegados).toBeGreaterThan(sumaDeLasFilas);
-    }
+    });
   });
 
   it('un número en rojo es "mal", no "atención": deja al cliente sin canal', async () => {
