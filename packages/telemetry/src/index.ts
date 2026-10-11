@@ -96,12 +96,65 @@ export function initObservability(serviceName: string): void {
     const sentryOtel = conSentry ? require('@sentry/opentelemetry') as typeof import('@sentry/opentelemetry') : null;
     const sampler = conSentry ? (require('./sampler-sentry') as typeof import('./sampler-sentry')).samplerConSentry() : undefined;
     /* eslint-enable @typescript-eslint/no-require-imports */
+    /**
+     * El lector de MÉTRICAS, que no estaba y por eso no salía ninguna (#17).
+     *
+     * `@opentelemetry/sdk-node` **crea el MeterProvider solo si recibe
+     * `metricReader` o `views`** (`build/src/sdk.js:112-115`). Este `NodeSDK` no
+     * recibía ninguno de los dos, así que el proceso corría con el proveedor
+     * NO-OP: todo `meter.createCounter(...)` devolvía un instrumento que no
+     * registra nada, sin un solo error.
+     *
+     * Lo que hacía que no se notara es que las TRAZAS sí salían. El panel de
+     * Grafana tenía datos, el issue #17 decía «OTel → Grafana Cloud» y lo
+     * cableado era la mitad. Y lo peor de esa mitad: una alerta configurada
+     * sobre una métrica no dispara nunca — no falla, no avisa, simplemente no
+     * hay serie. Un tablero que miente por omisión es peor que no tenerlo,
+     * porque se usa para decidir.
+     *
+     * 60 s es el intervalo por defecto del lector y se deja así a propósito: con
+     * cinco servicios, bajarlo multiplica el volumen que Grafana cobra sin
+     * mejorar ninguna decisión que se tome mirando el panel.
+     */
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { PeriodicExportingMetricReader } =
+      require('@opentelemetry/sdk-metrics') as typeof import('@opentelemetry/sdk-metrics');
+    const { OTLPMetricExporter } =
+      require('@opentelemetry/exporter-metrics-otlp-proto') as typeof import('@opentelemetry/exporter-metrics-otlp-proto');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+
+    /**
+     * El exportador va por http/protobuf, y si el entorno pidió otro protocolo
+     * se avisa en vez de callarse.
+     *
+     * Las trazas las exporta el SDK leyendo `OTEL_EXPORTER_OTLP_PROTOCOL` solo;
+     * las métricas las exporta esto, que es http/protobuf fijo. Si alguien
+     * configura `grpc`, las trazas irían por grpc y las métricas por protobuf:
+     * las dos pueden funcionar, pero es un reparto que nadie decidió y que
+     * aparece como «faltan métricas» en un panel, lejos de acá.
+     *
+     * El `.trim()` no es adorno: el compose pasa estas variables peladas
+     * (`${OTEL_EXPORTER_OTLP_PROTOCOL}`, sin `:-`), así que una variable de
+     * proyecto sin valor llega como cadena vacía y no como ausente (#575).
+     */
+    const protocolo = process.env.OTEL_EXPORTER_OTLP_PROTOCOL?.trim();
+    if (protocolo && protocolo !== 'http/protobuf') {
+      console.warn(
+        `telemetry: OTEL_EXPORTER_OTLP_PROTOCOL="${protocolo}", pero las métricas se ` +
+          'exportan por http/protobuf. Las trazas van a seguir ese protocolo y las ' +
+          'métricas no: si en el panel faltan series, es por acá.',
+      );
+    }
+
     const sdk = new NodeSDK({
       ...(sentryOtel ? {
         contextManager: new Sentry.SentryContextManager(),
         textMapPropagator: new sentryOtel.SentryPropagator(),
         sampler,
       } : {}),
+      metricReader: new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter(),
+      }),
       instrumentations: [
         getNodeAutoInstrumentations({
           // El fs genera ruido enorme y ningún diagnóstico útil aquí.
@@ -269,6 +322,60 @@ export function instalarApagadoOrdenado(): void {
 export function captureError(error: unknown, context?: Record<string, unknown>): void {
   if (!process.env.SENTRY_DSN) return;
   Sentry.captureException(error, context ? { extra: context } : undefined);
+}
+
+/**
+ * El gancho `onRequestError` de Next, escrito una vez para las dos apps (#17).
+ *
+ * ## Qué faltaba
+ *
+ * `Sentry.init` corría en `web` y en `admin`, pero ninguna de las dos exportaba
+ * `onRequestError`. En Next 15 ese es el gancho por el que pasan los errores del
+ * SERVIDOR —renderizado, Server Actions, route handlers— y sin él esos fallos no
+ * llegan a Sentry: el proceso los imprime en el log del contenedor y ahí mueren.
+ *
+ * O sea que la pantalla que se cae del lado servidor no genera ningún aviso,
+ * mientras los errores del navegador sí. Eso hace algo peor que no tener Sentry:
+ * da la impresión de que el front no falla.
+ *
+ * ## Por qué acá y no en cada app
+ *
+ * Porque son dos apps y una sola política. Anoche, cinco agentes escribiendo el
+ * mismo tipo de manejo de errores en cinco pantallas produjeron tres variantes
+ * del mismo defecto, y la conclusión fue que cuando N implementadores
+ * independientes cometen el mismo error, lo que falta es el camino compartido.
+ * Dos apps copiando este gancho es la versión chica del mismo problema.
+ *
+ * Usamos `@sentry/node`, no `@sentry/nextjs`, así que `captureRequestError` no
+ * existe: el contexto se arma acá, con los campos que Next entrega.
+ */
+export function errorDeRequestDeNext(
+  error: unknown,
+  request: { path?: string; method?: string; headers?: Record<string, string | string[] | undefined> },
+  contexto: { routerKind?: string; routePath?: string; routeType?: string },
+): void {
+  captureError(error, {
+    // La RUTA y no la URL completa: una URL lleva ids y a veces datos del
+    // cliente en la query, y esto va a un proveedor externo. La ruta
+    // (`/conversations/[id]`) agrupa los errores y no filtra nada.
+    ruta: contexto.routePath ?? request.path,
+    metodo: request.method,
+    tipoDeRuta: contexto.routeType,
+    router: contexto.routerKind,
+    // El `x-request-id` ata este error con los logs de la API y con la traza,
+    // que es lo que convierte un aviso de Sentry en algo que se puede seguir.
+    requestId: cabecera(request.headers, 'x-request-id'),
+    // El tenant NO se manda: iría a un proveedor externo sin que nadie lo haya
+    // decidido, y el `requestId` ya alcanza para encontrarlo en nuestro libro.
+  });
+}
+
+function cabecera(
+  headers: Record<string, string | string[] | undefined> | undefined,
+  nombre: string,
+): string | undefined {
+  const valor = headers?.[nombre];
+  return Array.isArray(valor) ? valor[0] : valor;
 }
 
 /** Vacía la cola de Sentry (útil antes de salir en procesos cortos). */
