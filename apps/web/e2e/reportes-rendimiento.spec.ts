@@ -166,12 +166,17 @@ test('un SUPERVISOR no ve en el menú los destinos del ADMIN (#814)', async ({ p
   // Sin ámbito, como el resto del archivo: estos nombres existen una sola vez
   // y son enlaces de la barra.
   //
-  // Lo que SÍ es suyo tiene que estar, y esa mitad es la que importa: una
-  // barra vacía satisfaría igual los `toHaveCount(0)` de abajo, y quedarse sin
-  // menú por un error al resolver los permisos es peor que ver una puerta que
-  // se va a cerrar.
+  // `toHaveCount(1)` y no `toBeVisible`: lo que el filtro decide es si la
+  // entrada ESTÁ en el menú. Que se vea depende además de si la barra está
+  // plegada y de si el grupo está colapsado —dos cosas que esta prueba no
+  // está midiendo, y que a 360 px hicieron fallar la primera versión de esta
+  // línea por «Reportes» no visible.
+  //
+  // Esta mitad es la que importa: una barra vacía satisfaría igual los
+  // `toHaveCount(0)` de abajo, y quedarse sin menú por un error al resolver
+  // los permisos es peor que ver una puerta que se va a cerrar.
   for (const suyo of ['Bandeja', 'Contactos', 'Oportunidades', 'Reportes']) {
-    await expect(page.getByRole('link', { name: suyo, exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: suyo, exact: true })).toHaveCount(1);
   }
 
   // Y lo que pide un permiso del ADMIN, no: `channels.manage`,
