@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 import { checkReadiness } from '../src/readiness';
 
@@ -77,11 +77,53 @@ describe('el detalle de /ready', () => {
   }, 20_000);
 
   it('cuando vuelve a andar, no arrastra el motivo viejo', async () => {
+    /**
+     * Tres sondas: falla, anda, y vuelve a fallar sin causa (#838).
+     *
+     * Esto afirmaba `detalle).toBeUndefined()` sobre una sonda EN VERDE, y la
+     * rama de éxito de `medir()` devuelve `{ nombre, ok: true, ms }` sin campo
+     * `detalle`, siempre, pase lo que pase con el mapa `ultimoFallo`. La
+     * aserción no podía fallar.
+     *
+     * El defecto que nombra se manifiesta en el SIGUIENTE fallo: con el
+     * `ultimoFallo.delete(nombre)` borrado, la sonda empezaría a culpar a una
+     * caída de hace horas —«no respondió en 2000 ms — la vez anterior: <error
+     * antiguo>»— y eso es lo que hay que comprobar.
+     *
+     * ## Con el módulo RECIÉN importado, y eso también es un hallazgo
+     *
+     * `ultimoFallo` es un `Map` a nivel de MÓDULO. La primera versión de esta
+     * prueba se puso roja con un motivo que no era el suyo —`getaddrinfo
+     * ENOTFOUND aws-0-sa-east-1.pooler.supabase.com`, un host que este caso
+     * nunca usa—, o sea que el mapa venía con la basura de otra prueba del
+     * mismo worker. Una prueba que mide estado compartido entre pruebas no
+     * mide lo que dice medir, y los `vi.resetModules()` del archivo no la
+     * tocaban porque nadie reimportaba.
+     */
+    vi.resetModules();
+    const { checkReadiness: sonda } = await import('../src/readiness');
+    const roto = poolQueTarda(100, new Error('connect ENOTFOUND db.vieja.invalid'));
+    await sonda(roto);
+    // 1 · el motivo quedó guardado: si esto no pasa, lo de abajo no prueba nada.
+    const conMotivo = await sonda(roto);
+    expect(conMotivo.dependencias[0].detalle).toMatch(/ENOTFOUND/);
+
+    // 2 · anda: el mapa se limpia.
     const sano = poolQueTarda(5);
-    const r = await checkReadiness(sano);
-    expect(r.dependencias[0].ok).toBe(true);
-    expect(r.dependencias[0].detalle).toBeUndefined();
-  }, 15_000);
+    const verde = await sonda(sano);
+    expect(verde.dependencias[0].ok).toBe(true);
+    expect(verde.dependencias[0].detalle).toBeUndefined();
+
+    // 3 · y el fallo siguiente, sin causa propia, NO nombra el de antes.
+    const mudo = poolQueTarda(4000);
+    const otraVez = await sonda(mudo);
+    expect(otraVez.dependencias[0].ok).toBe(false);
+    expect(otraVez.dependencias[0].detalle).toBe('no respondió en 2000 ms');
+    expect(
+      otraVez.dependencias[0].detalle,
+      'la sonda está culpando a una caída anterior: `ultimoFallo` no se limpió al andar',
+    ).not.toMatch(/ENOTFOUND|la vez anterior/);
+  }, 25_000);
 });
 
 describe('cuando postgres no conecta, dice a qué puerto (#241)', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
  * El catálogo de permisos no puede juntar polvo.
@@ -86,19 +87,27 @@ function verificados(): Set<string> {
       for (const m of contenido.matchAll(patron)) usados.add(m[1]);
     }
   }
-  // Los manifiestos también los usan: nav y tools declaran permisos.
-  for (const modulo of readdirSync(MODULOS)) {
-    try {
-      const crudo = readFileSync(join(MODULOS, modulo, 'module.yaml'), 'utf8');
-      for (const m of crudo.matchAll(/permission: *([a-z0-9._]+)/g)) usados.add(m[1]);
-      for (const m of crudo.matchAll(/^ {2}- ([a-z0-9._]+)$/gm)) {
-        // Las tools se declaran igual que los permisos; se cuentan aparte.
-        if (crudo.slice(0, m.index).includes('tools:')) usados.add(m[1]);
-      }
-    } catch {
-      // ya cubierto arriba
-    }
-  }
+  /**
+   * Los manifiestos NO cuentan, y antes sí (#838).
+   *
+   * Esto recorría los `module.yaml` sumando cada `permission: <x>` —o sea cada
+   * entrada de `nav` y cada `widget`— y cada nombre bajo `tools:`. Un permiso
+   * que solo aparecía en el `nav` de su propio módulo quedaba marcado como
+   * verificado **por el mismo archivo que lo declara**.
+   *
+   * Esta guarda existe para cazar un permiso del catálogo que ningún endpoint
+   * exige: uno que el ADMIN le reparte a un rol creyendo que abre algo. Que la
+   * declaración del propio manifiesto lo salve es exactamente la clase de
+   * declaración inerte que vino a cazar — el mismo agujero que este archivo
+   * documenta haber cerrado para `base-roles.ts` («repartir un permiso no es
+   * verificarlo»), dejado abierto para los manifiestos.
+   *
+   * Medido antes de sacarlo: de los 70 del catálogo, **66 los verifica el
+   * código** y los 4 que no están los cuatro en PENDIENTES. **Cero** se
+   * salvaban por el manifiesto, así que esto no cambia nada hoy y cierra el
+   * hueco de mañana: agregar una pantalla con un permiso nuevo y su entrada de
+   * `nav`, sin un solo endpoint que lo exija, ahora entra en la lista.
+   */
   return usados;
 }
 
@@ -200,5 +209,54 @@ describe('catálogo de permisos', () => {
       'Sácalos de PENDIENTES: o ya no están declarados, o ya se verifican:\n  ' +
         yaNoAplican.join('\n  '),
     ).toEqual([]);
+  });
+});
+
+/**
+ * Y lo que la guarda NO tiene que aceptar como verificación (#838).
+ *
+ * `verificados()` recorría los `module.yaml` sumando cada `permission: <x>`
+ * —cada entrada de `nav`, cada `widget`— y cada nombre bajo `tools:`. Un
+ * permiso que solo aparecía en el `nav` de su propio módulo quedaba marcado
+ * como verificado por el mismo archivo que lo declara.
+ *
+ * No hay centinela natural para probarlo con datos de hoy: medido, de los 70
+ * del catálogo el código verifica 66 y los 4 que faltan están los cuatro en
+ * PENDIENTES — **cero** se salvaban por el manifiesto. Así que la propiedad se
+ * fija sobre la función: que no vuelva a abrir un `module.yaml`.
+ *
+ * Con los marcadores comprobados antes de recortar, que es la lección de
+ * #823: un `indexOf` que devuelve -1 deja un bloque vacío y toda aserción
+ * negativa pasa.
+ */
+describe('declarar un permiso no es verificarlo (#838)', () => {
+  const ESTE = readFileSync(join(REPO, 'apps/api/tests/catalogo-permisos.test.ts'), 'utf8');
+
+  it('verificados() no lee los manifiestos', () => {
+    const desde = ESTE.indexOf('function verificados()');
+    const hasta = ESTE.indexOf('const PENDIENTES', desde);
+    expect(desde, 'no se encontró `function verificados()`').toBeGreaterThan(-1);
+    expect(hasta, 'no se encontró `const PENDIENTES` después').toBeGreaterThan(desde);
+    // LIMPIO, que es la regla de la casa (#569): el comentario que explica
+    // por qué los manifiestos no cuentan los nombra, y sin esto la guarda se
+    // pone roja por el texto que la explica. Pasó al escribirla.
+    const cuerpo = fuenteLimpia(ESTE.slice(desde, hasta));
+    expect(cuerpo.trim().length, 'el recorte quedó vacío').toBeGreaterThan(200);
+
+    expect(
+      cuerpo,
+      'Volvió a contar los manifiestos como verificación. Un permiso declarado en el `nav` de ' +
+        'su propio módulo, sin un endpoint que lo exija, abre una pantalla cuyas llamadas ' +
+        'funcionan para todos — y el ADMIN lo reparte creyendo que abre algo.',
+    ).not.toMatch(/module\.yaml/);
+  });
+
+  it('y sigue verificando por el código, que es la forma que vale', () => {
+    // Anti-vacuidad del de arriba: si `verificados()` devolviera poco, la
+    // guarda principal mandaría todo a PENDIENTES en vez de quedarse muda.
+    const usada = verificados();
+    expect(usada.size).toBeGreaterThan(60);
+    expect(usada.has('audit.read')).toBe(true);
+    expect(usada.has('crm.contacts.update')).toBe(true);
   });
 });
