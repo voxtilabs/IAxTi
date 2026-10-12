@@ -631,6 +631,23 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgentsController_probar": {
+    "metodo": "POST",
+    "ruta": "/v1/agents/probar",
+    "resumen": "Hace una llamada real al proveedor y dice exactamente qué pasó",
+    "permiso": "tenant.read",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "AgentsController_run": {
     "metodo": "POST",
     "ruta": "/v1/agents/{id}/run",
@@ -4706,6 +4723,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "ruta": "/v1/platform/tenants/por-borrar",
     "resumen": "Tenants suspendidos en cola de borrado (§6)",
     "permiso": "platform.tenants",
+    "modulo": "platform",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "PlatformController_probarLosProveedores": {
+    "metodo": "POST",
+    "ruta": "/v1/platform/ia/probar",
+    "resumen": "Le habla a cada proveedor de IA y dice cuáles contestan de verdad",
+    "permiso": "platform.ai",
     "modulo": "platform",
     "soloSesion": false,
     "argumentos": {

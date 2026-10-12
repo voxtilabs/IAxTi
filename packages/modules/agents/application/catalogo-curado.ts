@@ -55,6 +55,22 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   WebchatController_message: 'Ídem: entra un mensaje del visitante; fabricarlo sería lo mismo que el webhook (#46).',
   WebchatController_replies: 'Ídem: el sondeo del widget (#46).',
 
+  /**
+   * Probar la IA (#869). Y el motivo no es el costo, aunque cueste.
+   *
+   * Es que la herramienta sería inútil EXACTAMENTE en el caso en que haría
+   * falta: para que el agente la llame, el agente tiene que estar contestando
+   * —o sea, la IA ya funciona—; y si no contesta, no puede llamar nada. Una
+   * herramienta que solo se puede usar cuando no se necesita.
+   *
+   * Lo que sí hace falta es el botón, que lo aprieta una persona y no depende
+   * de que el modelo esté vivo. Por eso esto vive en una pantalla.
+   */
+  AgentsController_probar:
+    'Le hace una llamada real al proveedor para ver si contesta. Para que el agente la llame tendría que estar contestando ya, así que es inútil justo cuando haría falta: la aprieta una persona en su pantalla (#869).',
+  PlatformController_probarLosProveedores:
+    'Ídem, y además es de plataforma: prueba las cuatro llaves de IAxTi, no algo de un negocio. Quien puede cargar crédito lo mira en el SuperAdmin (#869).',
+
   // Simulador de entrada: existe para probar, y en producción ni se registra.
   SimuladorController_inbound:
     'Simula un mensaje entrante. Es la misma puerta que el webhook: fabricar clientes no es una función (#36).',
