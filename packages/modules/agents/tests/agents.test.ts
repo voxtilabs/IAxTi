@@ -108,7 +108,10 @@ describe('runtime (#47)', () => {
     );
     expect(res.text).toContain('Respuesta simulada');
     expect(res.traceId).toBe(requestId); // MISMO trace desde el request
-    expect(res.provider).toBe('glm'); // el default por tarea (sugerir, ADR-0025)
+    // El default por tarea de `sugerir`, no un nombre a mano: lo que esta
+    // prueba cuida es que la corrida use el defecto del producto, y fijar el
+    // nombre la obliga a editarse cada vez que el dueño cambia de proveedor.
+    expect(res.provider).toBe(DEFAULT_TASK_MODELS.sugerir.provider);
     expect(res.costUsd).toBeGreaterThan(0);
 
     const fila = await admin.query('SELECT * FROM agent_executions WHERE id = $1', [res.executionId]);

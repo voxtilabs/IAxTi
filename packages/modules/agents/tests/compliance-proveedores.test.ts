@@ -75,11 +75,37 @@ describe('openai como cuarto proveedor (#842)', () => {
     }
   });
 
-  it('no es el proveedor por defecto: el defecto sigue siendo GLM (ADR-0025 §7)', () => {
-    // Agregar un proveedor no puede mover por dónde pasan los datos de los
-    // clientes de nuestros clientes sin que nadie lo decida.
-    for (const [, modelo] of Object.entries(DEFAULT_TASK_MODELS)) {
-      expect(modelo.provider).not.toBe('openai');
+  /**
+   * Esta guarda decía «openai NO es el proveedor por defecto». Desde el 12-10
+   * lo es, por decisión del dueño, así que afirmar lo contrario sería una
+   * prueba protegiendo una decisión vieja — justo lo que no puede pasar.
+   *
+   * Lo que la guarda cuidaba de verdad era otra cosa: que por dónde pasan los
+   * datos de los clientes de nuestros clientes no se mueva **sin que nadie lo
+   * decida y lo escriba**. Eso se puede seguir exigiendo, y es más fuerte que
+   * fijar un nombre: el proveedor por defecto tiene que tener su fila en la
+   * matriz de compliance, diciendo que es el defecto.
+   */
+  it('el proveedor por DEFECTO tiene su fila en la matriz, y dice que es el defecto', () => {
+    const matriz = readFileSync(MATRIZ, 'utf8');
+    const porDefecto = [...new Set(Object.values(DEFAULT_TASK_MODELS).map((m) => m.provider))];
+    // Anti-vacuidad: si esto quedara vacío, el bucle de abajo no mediría nada.
+    expect(porDefecto.length).toBeGreaterThan(0);
+
+    for (const p of porDefecto) {
+      const fila = matriz
+        .split('\n')
+        .find((l) => l.startsWith('|') && new RegExp(`\\b${NOMBRE_EN_LA_MATRIZ[p]}\\b`, 'i').test(l));
+      expect(
+        fila,
+        `${p} es proveedor por defecto de alguna tarea y no tiene fila en COMPLIANCE_BASELINE.md. ` +
+          'El texto de las conversaciones de todos los negocios sale hacia allá: eso se escribe.',
+      ).toBeTruthy();
+      expect(
+        /por defecto/i.test(fila!),
+        `La fila de ${p} no dice que es el proveedor por defecto. Una fila que no distingue ` +
+          '«elegible» de «por defecto» no sirve para decidir nada.',
+      ).toBe(true);
     }
   });
 });

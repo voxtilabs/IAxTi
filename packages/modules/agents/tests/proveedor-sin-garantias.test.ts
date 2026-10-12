@@ -72,11 +72,33 @@ describe('la configuración del tenant, con GLM abierto', () => {
     expect(s.economico?.provider).toBe('glm');
   });
 
-  it('los por-defecto son GLM salvo transcribir', () => {
-    for (const [task, tm] of Object.entries(DEFAULT_TASK_MODELS)) {
-      if (task === 'transcribir') expect(tm.provider).toBe('google');
-      else expect(tm.provider, task).toBe('glm');
-    }
+  /**
+   * Era «los por-defecto son GLM salvo transcribir», y desde el 12-10 son
+   * OpenAI salvo transcribir (ADR-0025 §7, enmienda). Fijar el nombre del
+   * proveedor en una prueba la convierte en algo que hay que editar cada vez
+   * que el dueño decide, y lo que importa no es el nombre.
+   *
+   * Lo que importa: que TODAS las tareas de texto vayan al MISMO proveedor.
+   * Una tarea que se queda atrás es el defecto de verdad — el 11-10 pasó al
+   * revés, con ocho tareas en un proveedor sin llave y una en otro sin saldo,
+   * y lo que se vio fue «8 de 9 no pueden funcionar».
+   */
+  it('todas las tareas de texto comparten proveedor; transcribir es la única excepción', () => {
+    const porTarea = Object.entries(DEFAULT_TASK_MODELS);
+    expect(porTarea.length).toBeGreaterThan(5);
+
+    const deTexto = porTarea.filter(([t]) => t !== 'transcribir');
+    const proveedores = [...new Set(deTexto.map(([, tm]) => tm.provider))];
+    expect(
+      proveedores,
+      `Las tareas de texto están repartidas entre ${proveedores.join(' y ')}. Repartirlas no es ` +
+        'una decisión: es lo que pasa cuando se mueve el defecto y se olvida una tarea.',
+    ).toHaveLength(1);
+
+    // Y la excepción es por CAPACIDAD, no por preferencia: el proveedor de
+    // texto no puede recibir el audio.
+    expect(proveedorPermitidoParaTarea(proveedores[0], 'transcribir')).toBe(false);
+    expect(DEFAULT_TASK_MODELS.transcribir.provider).not.toBe(proveedores[0]);
   });
 
   it('«solo Gemini» cubre TODAS las tareas, incluidas las que no existían', () => {

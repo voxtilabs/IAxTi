@@ -185,6 +185,51 @@ GLM en esa tarea sin que nadie cambiara nada. Ahora es un ajuste propio
 un cliente que pide un proveedor por escrito no puede depender de que
 alguien se acuerde de ampliarle una lista en el próximo despliegue.
 
+### Enmienda 2026-10-12 · el proveedor pasa a OpenAI
+
+Decisión del dueño, en sus palabras: **«lo único que quiero es OpenAI, que
+tengo saldo»**. Se aplica a las ocho tareas de texto: `gpt-5-mini` para el
+volumen, `gpt-5` para las pesadas. GLM queda elegible y como primer respaldo.
+
+No es un cambio de gusto. Lo que lo sostiene, medido el mismo día contra las
+dos cuentas con los mismos prompts:
+
+| tarea | GLM (NVIDIA) | OpenAI |
+|---|---|---|
+| clasificar | 1,5 s | 2,6 s |
+| resumir | 16,4 s | — |
+| sugerir | **32,3 s** | **4,3 s** |
+| configurar / agente general | **54,9 s** | **3,0 s** |
+
+`sugerir` a 32 s no es lento, es inservible: #688 le puso un reloj de 60 s con
+el argumento de que «si tarda más de un minuto ya no sirve porque la persona
+contestó a mano», y a la mitad del reloj el argumento vale igual. El tope no
+salta, así que nada avisa, y la bandeja simplemente no se usa. El 90 % del
+presupuesto de salida de GLM se iba en razonar.
+
+Y la razón que decide: la cuenta de NVIDIA no tiene saldo sostenido y la de
+OpenAI sí. El 11-10 el producto quedó sin IA para todos los tenants porque el
+único proveedor con llave en el contenedor estaba sin crédito. Un proveedor
+por defecto sin plata detrás es el defecto esperando ocurrir.
+
+Los dos resguardos de §7 siguen en pie y ahora apuntan a OpenAI: el contrato
+—no-entrenamiento, plazo de retención, jurisdicción— sigue **sin revisar**, y
+ahora pesa más que cuando era opcional, porque hoy el texto de las
+conversaciones de todos los negocios sale hacia allá por defecto. Y el gate de
+evaluación manda igual.
+
+Lo que esta enmienda NO cambia:
+
+- **`transcribir` sigue en Google** por capacidad, no por política: el audio
+  entra como file part y el puerto habla `/chat/completions`. OpenAI sí
+  transcribe, por otra API que el puerto todavía no habla (#864). O sea: los
+  audios salen hacia un proveedor distinto que el texto, y esa es una fila
+  propia de compliance.
+- **El «solo este proveedor» por tenant** sigue existiendo tal cual. Lo que el
+  dueño descartó —y queda escrito acá para no volver a proponerlo— es que la
+  plataforma elija un modelo por defecto **distinto para cada tenant**: «no
+  tiene sentido». El defecto es uno, de la plataforma.
+
 ## Consecuencias
 
 - El costo de una función nueva baja a: ruta + herramienta + prueba. La
