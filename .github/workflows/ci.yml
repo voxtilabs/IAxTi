@@ -28,8 +28,11 @@ jobs:
     #    `public.ecr.aws/docker/library/*` sin ese cupo. Un espejo propio de
     #    algo ya espejado sería una pieza más por nada.
     #
-    # **No vuelvas a apuntar un `services:` a Docker Hub**, aunque sea una sola
-    # y aunque sea chica: el cupo lo comparte el job entero.
+    # **Ningún `services:` sin credenciales**, aunque sea una imagen oficial,
+    # aunque sea chica y aunque el registro no sea Docker Hub: el cupo lo
+    # comparte el job entero, y un cupo anónimo lo fija alguien que no somos
+    # nosotros. Decía «no vuelvas a apuntar a Docker Hub» y eso dejó pasar ECR
+    # público, que tiene su propio cupo y lo agotó el 12-10 (#877).
     services:
       postgres:
         image: ghcr.io/voxtilabs/postgres-pgvector:16
@@ -46,13 +49,30 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-      # Redis sale del espejo de AWS, no del nuestro: es una imagen OFICIAL y
-      # las oficiales están en `public.ecr.aws/docker/library/*`, que permite
-      # descargas anónimas sin el cupo de Docker Hub. Mantener un espejo propio
-      # de algo ya espejado sería una pieza más por nada. `pgvector` sí necesita
-      # el nuestro, porque es de la comunidad y no está ahí.
+      # Redis también sale de NUESTRO espejo (#877), y el camino hasta acá vale
+      # contarlo porque la lección no es la que parecía.
+      #
+      # #760 lo había puesto en `public.ecr.aws/docker/library/redis:7-alpine`
+      # con este argumento: «es una imagen OFICIAL y las oficiales están en
+      # ECR público, que permite descargas anónimas SIN EL CUPO DE DOCKER HUB.
+      # Mantener un espejo propio de algo ya espejado sería una pieza más por
+      # nada». Razonable, y con la premisa equivocada: ECR público no tiene el
+      # cupo de Docker Hub, tiene el suyo. El 12-10 lo agotó y el CI del PR que
+      # arreglaba la velocidad de la IA murió acá:
+      #
+      #   docker pull public.ecr.aws/docker/library/redis:7-alpine
+      #   Error response from daemon: toomanyrequests: Data limit exceeded
+      #
+      # Postgres bajó bien en el mismo job, porque sale de GHCR autenticado.
+      #
+      # Así que lo que de verdad se aprendió, y es lo que cuida la guarda de
+      # `tests/los-servicios-del-ci.test.ts`: **no dependas de un cupo anónimo
+      # que no controlás**, venga del registro que venga.
       redis:
-        image: public.ecr.aws/docker/library/redis:7-alpine
+        image: ghcr.io/voxtilabs/redis-ci:7
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
         ports: ["6379:6379"]
     env:
       DATABASE_URL: postgres://iaxti:iaxti@127.0.0.1:5432/iaxti
