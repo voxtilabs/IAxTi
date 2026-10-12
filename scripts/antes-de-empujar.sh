@@ -12,10 +12,48 @@
 # su secret— pero saca del camino todo lo que sí se puede ver acá.
 #
 # Uso:  scripts/antes-de-empujar.sh [filtros de turbo]
-#   sin argumentos: todo el monorepo (lento, pero es lo que corre CI)
+#   sin argumentos: solo los paquetes que esta rama cambió (ver abajo)
+#   TODO=1:         el monorepo entero, como CI con caché frío
 #   con filtros:    scripts/antes-de-empujar.sh --filter=@iaxti/module-crm
 set -uo pipefail
 cd "$(dirname "$0")/.."
+
+# Solo los paquetes que esta rama toca, y por qué eso no es aflojar la guarda.
+#
+# Medido el 12-10 sobre los diez commits anteriores: nueve tocaban **4
+# paquetes o menos** de 30, y uno los 30. O sea que correr el monorepo entero
+# en cada preflight gastaba ~10 minutos por cambio para re-verificar 26
+# paquetes que el cambio no puede haber roto —y eso es lo que turbo sabe
+# calcular solo—. Seis preflights de ese día: una hora, duplicando lo que CI
+# iba a hacer igual.
+#
+# Esto NO reemplaza a CI, que sigue corriendo todo con su caché: lo que se
+# saca de acá es el trabajo que la máquina local repite por nada.
+#
+# Dos cosas se quedan sin filtro a propósito, y están más abajo con su motivo:
+# `lint` y `depcruise` miran el repo entero por definición, igual que las tres
+# guardas del final.
+#
+# Si el cálculo falla —una rama sin upstream, un `origin/staging` que no está—
+# se corre TODO. Fallar hacia correr de más es la única dirección segura:
+# fallar hacia correr de menos sería una guarda que se apaga sola.
+if [ "$#" -eq 0 ] && [ "${TODO:-0}" != "1" ]; then
+  base="${BASE:-origin/staging}"
+  if git rev-parse --verify --quiet "$base" >/dev/null; then
+    afectados=$(npx turbo ls --filter="...[$base]" 2>/dev/null | grep -cE "packages/|apps/" || true)
+    total=$(npx turbo ls 2>/dev/null | grep -cE "packages/|apps/" || true)
+    if [ "${afectados:-0}" -gt 0 ] && [ "${afectados:-0}" -lt "${total:-0}" ]; then
+      set -- "--filter=...[$base]"
+      printf '\033[1mSolo lo que esta rama cambió: %s de %s paquetes.\033[0m ' "$afectados" "$total"
+      printf 'Con TODO=1 corre el monorepo entero.\n'
+    else
+      printf '\033[1mEsta rama afecta %s de %s paquetes: se corre todo.\033[0m\n' \
+        "${afectados:-?}" "${total:-?}"
+    fi
+  else
+    printf '\033[33mNo encuentro %s, así que se corre todo.\033[0m\n' "$base"
+  fi
+fi
 
 export DATABASE_URL="${DATABASE_URL:-postgres://iaxti:iaxti@127.0.0.1:5432/iaxti}"
 export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379}"
