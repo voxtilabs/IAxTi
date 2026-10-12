@@ -230,39 +230,14 @@ jobs:
             echo "Sin eso el deploy no cambia la imagen y el pipeline diría que salió bien."
             exit 1
           fi
-          # Las llaves de los proveedores de IA viajan como secretos de GitHub
-          # y el deploy las SIEMBRA en el env de Dokploy si faltan — así
-          # ningún humano las pega en el panel. Si ya están, manda la del
-          # panel: el operador puede haberla rotado ahí.
-          #
-          # En una LISTA y no una por una (#848). Estaba escrito a mano solo
-          # para GLM, así que agregar un proveedor —OpenAI, el 11-10— dejaba su
-          # llave sin camino hasta staging: había que editar este workflow o
-          # pegarla en el panel, que es justo lo que este bloque evita. Lo que
-          # faltaba no era la línea de OpenAI: era que fuera una lista.
-          # Se siembra cuando la variable FALTA o está presente y VACÍA (#850).
-          #
-          # La condición era `! grep -q "^${var}="`, o sea «no existe la
-          # línea». Y el env de Dokploy ya tenía `OPENAI_API_KEY=` sin valor
-          # —el compose la referencia desde #845, así que la línea aparece
-          # sola—, de modo que la siembra se saltaba y staging seguía
-          # diciendo «1 de 4 proveedores con credencial» con el secreto
-          # puesto en GitHub.
-          #
-          # Una línea vacía NO es «el operador la rotó en el panel»: es nada.
-          # Es el mismo defecto que `${VAR:-}` dando `""` en vez de undefined,
-          # una capa más arriba.
-          for var in GLM_API_KEY OPENAI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY ANTHROPIC_API_KEY; do
-            valor="${!var}"
-            [ -z "$valor" ] && continue
-            # Con valor en el panel manda el panel: el operador pudo rotarla ahí.
-            if printf '%s\n' "$env_nuevo" | grep -q "^${var}=."; then continue; fi
-            # Ausente, o presente y vacía: se quita la vacía y se agrega, para
-            # no dejar la variable dos veces.
-            env_nuevo=$(printf '%s\n' "$env_nuevo" | grep -v "^${var}=$")
-            env_nuevo=$(printf '%s\n%s=%s' "$env_nuevo" "$var" "$valor")
-            echo "sembrada en el env de Dokploy: ${var}"
-          done
+          # Las llaves de los proveedores de IA viajan como secretos de GitHub y
+          # el deploy las siembra en el env de Dokploy, así ningún humano las
+          # pega en el panel. La lógica —y la historia de las tres veces que se
+          # rompió: #848 una por una, #850 vacía ≠ ausente, #860 el valor
+          # equivocado— vive en el script, porque dentro del YAML no se puede
+          # probar y este bloque decide si staging tiene IA o no.
+          env_nuevo=$(printf '%s\n' "$env_nuevo" | scripts/sembrar-llaves.sh \
+            GLM_API_KEY OPENAI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY ANTHROPIC_API_KEY)
           # Raw no toma los cambios del YAML versionado (#396). Completar solo
           # los checks ausentes, preservando la configuración del operador.
           # El documento puede contener secretos: archivo privado, nunca logs.

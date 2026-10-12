@@ -71,7 +71,10 @@ describe('las llaves de los proveedores llegan al proceso', () => {
       join(RAIZ, '.github', 'workflows', 'deploy-staging.yml'),
       'utf8',
     );
-    const lista = /for var in ([A-Z_ ]+); do/.exec(workflow);
+    // La lista de llaves es el argumento del script que siembra (#860): el
+    // bloque salió del YAML para poder probarse, pero QUÉ se siembra sigue
+    // decidiéndose acá, y es lo que esta guarda cuida.
+    const lista = /sembrar-llaves\.sh\s*\\?\s*\n?\s*([A-Z_\s]+?)\)/.exec(workflow);
     expect(lista, 'no se encontró la lista de llaves a sembrar en el deploy').toBeTruthy();
     const sembradas = lista![1].trim().split(/\s+/);
     // Anti-vacuidad: si el recorte fallara, el filtro de abajo no mediría nada.
