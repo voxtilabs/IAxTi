@@ -123,6 +123,24 @@ export interface EjecucionIA {
   traceUrl: string | null;
   conversationId: string | null;
   createdAt: string;
+  /**
+   * Por qué falló, tal cual lo guardó quien la corrió (#866).
+   *
+   * Estaba en la fila desde siempre y la consulta no lo seleccionaba, así que
+   * el panel decía «falló» y nada más. El dueño miró 51 fallas de tres semanas
+   * ahí y tuvo que deducir las dos causas por la LATENCIA: 0 ms es una llamada
+   * que no se hizo —no había llave— y 1200 ms es una que salió y volvió con
+   * error. El motivo estaba escrito al lado.
+   *
+   * Va crudo y no traducido a propósito: traducirlo acá obligaría a `platform`
+   * a importar el clasificador de `agents`, que es una dependencia nueva sobre
+   * una consulta que ya cruza módulos (#784, sin decidir). Esto es el panel del
+   * dueño de la plataforma, no una pantalla de cliente: el texto del proveedor
+   * es exactamente lo que sirve para diagnosticar.
+   */
+  error: string | null;
+  /** Si la falla fue del proveedor o nuestra. También estaba y no se leía. */
+  errorDelProveedor: boolean | null;
 }
 
 /**
@@ -148,6 +166,7 @@ export async function aiExecutions(
   const r = await pool.query(
     `SELECT id, tenant_id, agent_id, task, provider, model, status,
             COALESCE(cost_usd, 0) AS cost_usd, latency_ms, trace_id,
+            error, error_del_proveedor,
             input->>'conversationId' AS conversation_id, created_at
        FROM agent_executions
        ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
@@ -169,6 +188,8 @@ export async function aiExecutions(
     traceUrl: traceUrl((row.trace_id as string) ?? null),
     conversationId: (row.conversation_id as string) ?? null,
     createdAt: (row.created_at as Date).toISOString(),
+    error: (row.error as string) ?? null,
+    errorDelProveedor: (row.error_del_proveedor as boolean) ?? null,
   }));
 }
 
