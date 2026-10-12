@@ -15,6 +15,22 @@
   - Tool de IA nueva → test de que pasa por el guard y de que no borra.
 - Cambio de prompt, modelo o proveedor de IA → corre el dataset de regresión
   del agente; no se mergea con score menor a la versión anterior (#53).
+- **Un proveedor se mide POR EL PUERTO del producto, nunca con `curl` (#870).**
+  «Probé el proveedor» y «probé el producto contra el proveedor» son
+  afirmaciones distintas, y solo la segunda dice algo. Lo que eso evita, que
+  costó una madrugada y un despliegue roto: #842 declaró OpenAI verificado y
+  #863 publicó la tabla de latencias que movió el proveedor por defecto del
+  producto entero, y las dos midieron con `curl` armado a mano —mandando el
+  parámetro que dice la documentación—. El puerto mandaba otro: el adaptador
+  compatible declara el tope como `max_tokens` y `gpt-5` contesta
+  `400 · Use 'max_completion_tokens' instead`. Cada llamada moría, con las dos
+  mediciones en verde. El mismo concepto tiene TRES nombres según el camino
+  —`max_tokens`, `max_completion_tokens`, `max_output_tokens`— y ninguna
+  medición de afuera distingue cuál se está usando.
+  La guarda que lo sostiene vive en
+  `agents/tests/el-cuerpo-que-sale-al-proveedor.test.ts`: intercepta `fetch` y
+  mira el cuerpo HTTP de cada proveedor de `PROVIDERS`. Al escribirla, `google`
+  y `anthropic` tampoco tenían corrida por el puerto.
 - Los tests usan el seed (#18) como base; datos anonimizados, jamás datos
   reales de clientes en fixtures.
 - `/tdd` cuando el criterio de aceptación lo permite: test primero.
