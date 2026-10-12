@@ -19,10 +19,10 @@
     "pg": "^8.13.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.5.1",
     "@types/pg": "^8.11.0",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0",
     "@iaxti/module-conversations": "workspace:*"
   }
 }
