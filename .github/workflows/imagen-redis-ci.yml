@@ -1,0 +1,120 @@
+# Espeja en GHCR el Redis que usa el CI (#877).
+#
+# ## Por qué, si #760 ya lo había sacado de Docker Hub
+#
+# #760 lo movió a `public.ecr.aws/docker/library/redis:7-alpine` con este
+# argumento, escrito en `ci.yml`:
+#
+#   «Redis sale del espejo de AWS, no del nuestro: es una imagen OFICIAL y las
+#   oficiales están en `public.ecr.aws/docker/library/*`, que permite descargas
+#   anónimas SIN EL CUPO DE DOCKER HUB. Mantener un espejo propio de algo ya
+#   espejado sería una pieza más por nada.»
+#
+# El razonamiento era bueno y la premisa era falsa: ECR público no tiene el cupo
+# de Docker Hub, tiene **el suyo**. Medido el 12-10 en el CI del PR #876:
+#
+#   Starting redis service container
+#   docker pull public.ecr.aws/docker/library/redis:7-alpine
+#   Error response from daemon: toomanyrequests: Data limit exceeded
+#   (tres intentos, los tres igual)
+#
+# Postgres, que sale de GHCR autenticado, bajó sin problema en el mismo job.
+#
+# ## Y la lección, que no es «ECR es malo»
+#
+# El problema nunca fue el registro: es **depender de un cupo anónimo que no
+# controlamos, en cada corrida del CI**. Un espejo propio cambia eso por una
+# descarga por semana, y las que de verdad importan —las de cada PR— pasan a
+# ser autenticadas contra GHCR, que no tiene cupo para nosotros.
+#
+# El efecto secundario es el que más vale: si esta corrida semanal falla porque
+# el cupo de ECR está agotado, **el CI sigue andando** con la copia anterior.
+# Hoy un cupo agotado deja rojo a todo PR que alguien abra.
+#
+# ## Cuándo corre
+#
+# Semanal, a mano, y cuando cambia este archivo. Igual que el de Postgres, y por
+# la misma razón que ese explica: la imagen tiene que EXISTIR antes de que
+# `ci.yml` le apunte. Por eso este workflow entra en un PR y el cambio de
+# `ci.yml` en otro.
+name: imagen-redis-ci
+
+on:
+  schedule:
+    # Lunes temprano, veinte minutos después del de Postgres: `redis:7-alpine`
+    # es una etiqueta móvil, así que la copia se refresca aunque nadie la toque.
+    - cron: '37 6 * * 1'
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/imagen-redis-ci.yml
+
+concurrency:
+  group: imagen-redis-ci
+  cancel-in-progress: true
+
+jobs:
+  espejar:
+    runs-on: ubuntu-latest
+    # Es una imagen de 15 MB: si en diez minutos no la copió, el problema está
+    # afuera y seguir colgado no lo arregla.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # Etiqueta móvil como las otras diecinueve del repositorio, con la regla
+      # silenciada y su motivo en #758: pinear una sola mientras el resto sigue
+      # móvil compra una convención partida en dos, no seguridad.
+      # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `docker pull` + `tag` + `push`, sin buildx y sin Dockerfile.
+      #
+      # No se construye nada: es la MISMA imagen oficial, en otro registro. Un
+      # Dockerfile con un `FROM` sería una capa vacía arriba y una pieza más que
+      # mantener — Postgres necesita el suyo porque le instala pgvector, que es
+      # de la comunidad y no está espejado en ninguna parte.
+      - name: Copiar redis a GHCR
+        env:
+          ORIGEN: public.ecr.aws/docker/library/redis:7-alpine
+          DESTINO: ghcr.io/voxtilabs/redis-ci:7
+        run: |
+          set -euo pipefail
+          docker pull "$ORIGEN"
+          docker tag "$ORIGEN" "$DESTINO"
+          docker push "$DESTINO"
+
+      - name: Comprobar que la copia RESPONDE
+        env:
+          DESTINO: ghcr.io/voxtilabs/redis-ci:7
+        run: |
+          set -euo pipefail
+          # Se comprueba lo que la imagen HACE y no que el push terminó, por lo
+          # mismo que el de Postgres: una copia que no arranca dejaría al CI
+          # fallando a mitad de la suite, lejos de acá.
+          docker run -d --name redis-ci "$DESTINO"
+          for intento in $(seq 1 15); do
+            if docker exec redis-ci redis-cli ping 2>/dev/null | grep -q PONG; then
+              echo "Redis respondió en el intento $intento (~$((intento * 2)) s)"
+              break
+            fi
+            sleep 2
+          done
+          # Y que de verdad conteste, no solo que el contenedor esté vivo: sin
+          # esto, un contenedor arrancado y un Redis sano se ven igual.
+          docker exec redis-ci redis-cli ping | grep -q PONG
+          version=$(docker exec redis-ci redis-cli INFO server | tr -d '\r' \
+            | awk -F: '/^redis_version:/{print $2}')
+          docker rm -f redis-ci >/dev/null
+          {
+            echo "## Redis del CI"
+            echo ""
+            echo "- Imagen: \`$DESTINO\`"
+            echo "- Versión: **$version**"
+            echo "- Responde \`PING\`: sí"
+          } >> "$GITHUB_STEP_SUMMARY"
