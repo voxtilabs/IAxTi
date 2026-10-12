@@ -435,7 +435,7 @@ export class AgenteGeneralController {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
       await verificarQueEsteEncendido(c, actor.tenantId);
-      const { modelo, provider, model } = await modeloDelAgenteGeneral(c, actor.tenantId);
+      const { modelo, provider, model, esfuerzo } = await modeloDelAgenteGeneral(c, actor.tenantId);
       if (!providerAvailable(provider as Provider)) {
         throw new ServiceUnavailableException({
           code: 'PROVIDER_UNAVAILABLE',
@@ -463,6 +463,10 @@ export class AgenteGeneralController {
             modelo,
             provider,
             model,
+            // El dial de razonamiento de la tarea (#874): sin esto el agente
+            // vuelve a pensar cuatro veces más de lo que hace falta, que es
+            // los 15 s por un «hola» que abrieron el issue.
+            ...(esfuerzo ? { esfuerzo } : {}),
             llamarApi: llamarLaPropiaApi(request),
             // La disponibilidad es de QUIEN atiende, no del negocio: se
             // pregunta por la persona que está conversando.

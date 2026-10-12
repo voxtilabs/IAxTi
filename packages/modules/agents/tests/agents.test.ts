@@ -67,7 +67,12 @@ describe('configuración (dominio, #47)', () => {
       // que este test comprueba es que el override MANDA, no la política.
       ia: { tasks: { sugerir: { provider: 'anthropic', model: 'claude-x' } }, redactPII: false },
     });
-    expect(conOverride.tasks.sugerir).toEqual({ provider: 'anthropic', model: 'claude-x' });
+    // El override manda en proveedor y modelo. El DIAL de razonamiento no:
+    // ése lo pone la plataforma (#874), porque cuánto piensa un modelo es de
+    // la misma familia que con qué modelo piensa, y el dueño decidió que eso
+    // es uno y de la plataforma (#858).
+    expect(conOverride.tasks.sugerir).toMatchObject({ provider: 'anthropic', model: 'claude-x' });
+    expect(conOverride.tasks.sugerir.esfuerzo).toBe(DEFAULT_TASK_MODELS.sugerir.esfuerzo);
     expect(conOverride.tasks.configurar).toEqual(DEFAULT_TASK_MODELS.configurar);
     expect(conOverride.redactPII).toBe(false);
     expect(iaSettings({ ia: { tasks: { sugerir: { provider: 'pirata' } } } }).tasks.sugerir.provider)
