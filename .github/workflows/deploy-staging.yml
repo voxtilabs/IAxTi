@@ -132,7 +132,13 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_STAGING }}
+          # Las llaves de los proveedores de IA, cada una desde su secreto.
+          # El deploy las SIEMBRA en el env de Dokploy si faltan: así ningún
+          # humano las pega en el panel (#848).
           GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           # Para comprobar QUÉ imagen quedó viva antes de dar el deploy por bueno
           # (#652). El Smoke la usa por su cuenta; acá hace falta porque forzar la
@@ -224,13 +230,23 @@ jobs:
             echo "Sin eso el deploy no cambia la imagen y el pipeline diría que salió bien."
             exit 1
           fi
-          # GLM (ADR-0025): la llave viaja como secreto de GitHub y el deploy
-          # la SIEMBRA en el env de Dokploy si falta — así ningún humano la
-          # pega en el panel. Si ya está, manda la del panel (el operador
-          # puede haberla rotado ahí).
-          if [ -n "${GLM_API_KEY}" ] && ! printf '%s\n' "$env_nuevo" | grep -q '^GLM_API_KEY='; then
-            env_nuevo=$(printf '%s\nGLM_API_KEY=%s' "$env_nuevo" "${GLM_API_KEY}")
-          fi
+          # Las llaves de los proveedores de IA viajan como secretos de GitHub
+          # y el deploy las SIEMBRA en el env de Dokploy si faltan — así
+          # ningún humano las pega en el panel. Si ya están, manda la del
+          # panel: el operador puede haberla rotado ahí.
+          #
+          # En una LISTA y no una por una (#848). Estaba escrito a mano solo
+          # para GLM, así que agregar un proveedor —OpenAI, el 11-10— dejaba su
+          # llave sin camino hasta staging: había que editar este workflow o
+          # pegarla en el panel, que es justo lo que este bloque evita. Lo que
+          # faltaba no era la línea de OpenAI: era que fuera una lista.
+          for var in GLM_API_KEY OPENAI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY ANTHROPIC_API_KEY; do
+            valor="${!var}"
+            if [ -n "$valor" ] && ! printf '%s\n' "$env_nuevo" | grep -q "^${var}="; then
+              env_nuevo=$(printf '%s\n%s=%s' "$env_nuevo" "$var" "$valor")
+              echo "sembrada en el env de Dokploy: ${var}"
+            fi
+          done
           # Raw no toma los cambios del YAML versionado (#396). Completar solo
           # los checks ausentes, preservando la configuración del operador.
           # El documento puede contener secretos: archivo privado, nunca logs.
