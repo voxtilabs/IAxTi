@@ -43,13 +43,23 @@ describe('healthchecks de Dokploy raw (#396)', () => {
     // Y desde #573 también se completa IAXTI_IMAGE, y desde #633
     // ANTHROPIC_API_KEY. Se quitan para que esta prueba siga afirmando lo suyo:
     // que NADA MÁS cambia. Que se completen es lo que prueban las suyas.
+    // Las cuatro llaves de proveedor, no solo Anthropic (#853): entró ella
+    // sola y sus hermanas quedaron fuera, y `GLM_API_KEY` es el proveedor por
+    // defecto de ocho de las nueve tareas.
     for (const service of Object.keys(updated.services)) {
       expect(updated.services[service].environment.IAXTI_IMAGE, service).toBe('${IMAGE}');
       delete updated.services[service].environment.IAXTI_IMAGE;
-      expect(updated.services[service].environment.ANTHROPIC_API_KEY, service).toBe(
-        '${ANTHROPIC_API_KEY}',
-      );
-      delete updated.services[service].environment.ANTHROPIC_API_KEY;
+      for (const llave of [
+        'GOOGLE_GENERATIVE_AI_API_KEY',
+        'ANTHROPIC_API_KEY',
+        'GLM_API_KEY',
+        'OPENAI_API_KEY',
+      ]) {
+        expect(updated.services[service].environment[llave], `${service} · ${llave}`).toBe(
+          `\${${llave}}`,
+        );
+        delete updated.services[service].environment[llave];
+      }
       // El servicio que no tenía `environment` queda con un mapa vacío; el que
       // tenía conserva lo suyo, que es lo que comprueba la comparación de abajo.
       if (Object.keys(updated.services[service].environment).length === 0) {
@@ -192,13 +202,32 @@ services:
    * repo sin detener el stack: agregar el renglón al repo, solo, no cambia nada
    * en el contenedor que ya está corriendo.
    */
-  it('completa ANTHROPIC_API_KEY en los cinco servicios', () => {
+  it('completa LAS CUATRO llaves de proveedor en los cinco servicios', () => {
+    /**
+     * Eran solo `ANTHROPIC_API_KEY` (#853). Entró ella sola —por la misma
+     * prueba que dejó entrar a `IAXTI_IMAGE`— y sus hermanas quedaron fuera,
+     * así que `GLM_API_KEY`, el proveedor por DEFECTO de ocho de las nueve
+     * tareas desde ADR-0025 §7, estaba declarada en el compose del repo y no
+     * llegaba al contenedor.
+     *
+     * Lo que costó, medido en staging el 11-10: el diagnóstico de la IA decía
+     * «hay 1 de 4 con credencial: google» y «8 de 9 no pueden funcionar», con
+     * el secreto de GLM puesto en GitHub y su valor en el env de Dokploy.
+     * Faltaba este renglón.
+     */
     const patch = parcheHealthchecks({ sourceType: 'raw', composeFile: sinVersion }, canonical);
     const updated = decode(patch.composeFile);
     for (const service of ['api', 'workers', 'agents', 'web', 'admin']) {
-      expect(updated.services[service].environment.ANTHROPIC_API_KEY, service).toBe(
-        '${ANTHROPIC_API_KEY}',
-      );
+      for (const llave of [
+        'GOOGLE_GENERATIVE_AI_API_KEY',
+        'ANTHROPIC_API_KEY',
+        'GLM_API_KEY',
+        'OPENAI_API_KEY',
+      ]) {
+        expect(updated.services[service].environment[llave], `${service} · ${llave}`).toBe(
+          `\${${llave}}`,
+        );
+      }
     }
   });
 

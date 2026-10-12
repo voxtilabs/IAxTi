@@ -92,6 +92,43 @@ describe('las llaves de los proveedores llegan al proceso', () => {
     }
   });
 
+  /**
+   * Y que la llave llegue al CONTENEDOR de staging (#853).
+   *
+   * El Compose raw de Dokploy no relee el YAML del repo sin detener el stack,
+   * así que el deploy completa las claves ausentes con
+   * `sincronizar-healthchecks.mjs` — y esa lista es corta a propósito (#573):
+   * completar una clave que hoy llega `undefined` y cae a su por-defecto por
+   * `??` la convertiría en `''`, que `??` no atrapa.
+   *
+   * Las llaves de proveedor pasan esa prueba —`providerAvailable` hace
+   * `Boolean(process.env[...])`, y `''` es falso igual que `undefined`— pero
+   * solo `ANTHROPIC_API_KEY` estaba en la lista. `GLM_API_KEY`, el proveedor
+   * por defecto de ocho de las nueve tareas, no: estaba en el compose del repo
+   * y no llegaba al contenedor. El diagnóstico de la IA en staging lo decía con
+   * todas las letras —«1 de 4 con credencial: google», «8 de 9 no pueden
+   * funcionar»— con el secreto puesto y el valor en el env de Dokploy.
+   */
+  it('el deploy completa la llave de cada proveedor en el Compose raw', () => {
+    const script = readFileSync(
+      join(RAIZ, 'scripts', 'sincronizar-healthchecks.mjs'),
+      'utf8',
+    );
+    const lista = /CLAVES_QUE_SE_COMPLETAN = new Set\(\[([\s\S]*?)\]\)/.exec(script);
+    expect(lista, 'no se encontró CLAVES_QUE_SE_COMPLETAN en el sincronizador').toBeTruthy();
+    const claves = [...lista![1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
+    // Anti-vacuidad: si el recorte fallara, el filtro de abajo no mediría nada.
+    expect(claves.length).toBeGreaterThanOrEqual(3);
+
+    const faltan = PROVIDERS.filter((p) => !claves.includes(ENV_KEYS[p]));
+    expect(
+      faltan.map((p) => `${p} → ${ENV_KEYS[p]}`),
+      'Estas llaves están en el compose del repo y NO se completan en el Compose raw de ' +
+        'Dokploy, que es el que se despliega: el contenedor no las va a ver nunca, tenga el ' +
+        `secreto o no.\n  ${faltan.map((p) => ENV_KEYS[p]).join('\n  ')}`,
+    ).toEqual([]);
+  });
+
   it('y los procesos que no son Next cargan el .env si está', () => {
     /**
      * La otra mitad del mismo defecto. `apps/api`, `apps/workers` y
