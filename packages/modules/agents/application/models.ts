@@ -3,6 +3,7 @@ import type { LanguageModel } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { createOpenAI } from '@ai-sdk/openai';
 import { enteroDeEntorno, textoDeEntorno } from '@iaxti/core';
 import type { Provider } from '../domain/config';
 import { FalloDeHerramienta, FalloDelProveedor, esDeHerramienta } from './fallo-del-proveedor';
@@ -130,19 +131,50 @@ function languageModel(provider: Provider, model: string): LanguageModel {
       })(model);
     case 'openai':
       /**
-       * Por el adaptador compatible y no por `@ai-sdk/openai` (#842).
+       * Por `@ai-sdk/openai` y NO por el adaptador compatible (#870).
        *
-       * El de OpenAI sabe de cosas suyas —la Responses API, los parámetros de
-       * razonamiento— y nada de eso lo usa el producto: lo que IAxTi pide son
-       * `/chat/completions` con herramientas, que es exactamente lo que este
-       * adaptador habla, y es la misma pieza que ya sirve GLM. Agregar una
-       * dependencia para lo mismo sería una segunda forma de hacer una cosa.
+       * #842 lo había puesto por el compatible, con este argumento: «el de
+       * OpenAI sabe de cosas suyas —la Responses API, los parámetros de
+       * razonamiento— y nada de eso lo usa el producto; lo que IAxTi pide son
+       * `/chat/completions` con herramientas, que es lo que este adaptador
+       * habla, y es la misma pieza que ya sirve GLM. Agregar una dependencia
+       * para lo mismo sería una segunda forma de hacer una cosa».
+       *
+       * Era razonable y era falso, y nadie lo midió contra la cuenta. La
+       * familia `gpt-5` razona, y DOS de esos «parámetros suyos» resultaron
+       * ser justo lo que el producto usa en cada llamada.
+       *
+       * El adaptador compatible manda `/chat/completions` con `max_tokens`, y
+       * OpenAI contesta:
+       *
+       *     400 · Unsupported parameter: 'max_tokens' is not supported with
+       *           this model. Use 'max_completion_tokens' instead.
+       *
+       * O sea: con el compatible, CADA llamada a gpt-5 muere en 400. Medido el
+       * 12-10 dentro del contenedor, con la llave real, 1451 ms para
+       * `gpt-5-mini` y 227 ms para `gpt-5`.
+       *
+       * Y el proveedor oficial no arregla eso cambiando el nombre del campo:
+       * va por la **Responses API** (`/v1/responses`), donde el tope se llama
+       * `max_output_tokens`. Tres nombres para el mismo concepto, uno por
+       * camino, y la Responses API era la otra «cosa suya» que el comentario
+       * de #842 dio por irrelevante.
+       *
+       * Verificado por el puerto, dentro del contenedor, el 12-10:
+       * `gpt-5-mini` 6,3 s con una sugerencia correcta, `gpt-5` 3,6 s, y el
+       * Agente General 15,2 s pidiendo tres herramientas y sin afirmar lo que
+       * no sabía.
+       *
+       * Lo que esto enseña y vale más que el arreglo: las pruebas de #842 y la
+       * medición de latencia de #863 pasaron las dos por `curl` armado a mano
+       * —con el parámetro correcto— y ninguna por el puerto del producto.
+       * «Probé el proveedor» y «probé el producto contra el proveedor» son
+       * afirmaciones distintas, y solo la segunda dice algo.
        *
        * `OPENAI_API_BASE` existe para un proxy o un gateway; sin eso, la API
        * de OpenAI directo.
        */
-      return createOpenAICompatible({
-        name: 'openai',
+      return createOpenAI({
         apiKey,
         baseURL: textoDeEntorno('OPENAI_API_BASE', 'https://api.openai.com/v1'),
       })(model);
