@@ -204,23 +204,38 @@ const RESPALDO_POR_PROVEEDOR: Record<string, { liviano: string; pesado: string }
   anthropic: { liviano: 'claude-haiku-4-5-20251001', pesado: 'claude-haiku-4-5-20251001' },
   glm: { liviano: 'z-ai/glm-5.3-flash', pesado: 'z-ai/glm-5.3' },
   /**
-   * Estos dos nombres NO los pude verificar contra el catálogo de OpenAI
-   * (#842): la llamada a `/v1/models` sale de esta máquina a un host externo y
-   * el sandbox la bloquea, así que están elegidos por ser los de familia más
-   * estable y no por haberlos visto en la cuenta.
+   * Verificados contra el catálogo de la cuenta el 11-10 (#846): 133 modelos,
+   * y la familia `gpt-5` está servida —`gpt-5`, `gpt-5-mini`, `gpt-5-nano`—
+   * además de `gpt-4.1`, `gpt-4o`, `o3` y `o4-mini`.
    *
-   * Si alguno ya no se sirve, OpenAI contesta 404 con el nombre adentro —el
-   * mismo modo de falla que documenta el comentario de los alias de Gemini más
-   * arriba—. Para comprobarlo:
+   * #842 había dejado `gpt-4o-mini`/`gpt-4o` elegidos a ciegas, porque la
+   * llamada a `/v1/models` sale a un host externo y el sandbox de esa sesión
+   * la bloqueaba. Existen —no estaba roto— pero son una generación atrás.
+   *
+   * `gpt-5-mini` para el volumen y `gpt-5` para las tres tareas que razonan,
+   * que es la misma partición de dos gamas que usan los otros tres
+   * proveedores. Para comprobarlos de nuevo:
    *
    *     curl -s https://api.openai.com/v1/models \
    *       -H "Authorization: Bearer $OPENAI_API_KEY" | jq -r '.data[].id' | sort
    *
-   * Y no hace falta tocar código para cambiarlos: un modelo elegido a mano en
-   * la pantalla de Ajustes → IA se respeta si es de este proveedor, que es lo
-   * que hace el `configurado?.provider === soloProveedor` de más abajo.
+   * Si alguno se retira, OpenAI contesta 404 con el nombre adentro, y el
+   * modelo se cambia desde Ajustes → IA sin tocar código.
+   *
+   * ## Y razonan, así que el tope de salida importa
+   *
+   * Medido el 11-10 con `gpt-5-mini` sobre una sugerencia real —un cliente
+   * preguntando precio y despacho—: **320 de 374 tokens de salida fueron de
+   * razonamiento**, el 86 %, y la respuesta visible fueron 54. Para «responde
+   * solo: listo» gastó 64 razonando.
+   *
+   * Es exactamente lo que advierte el comentario de
+   * `DEFAULT_TASK_OUTPUT_TOKENS` más abajo, y la razón por la que esos números
+   * no son un tope de respuesta sino un tope compartido entre pensar y
+   * escribir. Con `sugerir: 1500` sobra holgado, así que los presupuestos de
+   * hoy aguantan esta familia — comprobado, no supuesto.
    */
-  openai: { liviano: 'gpt-4o-mini', pesado: 'gpt-4o' },
+  openai: { liviano: 'gpt-5-mini', pesado: 'gpt-5' },
 };
 
 /** Las que razonan de verdad: van con el modelo de gama alta. */
