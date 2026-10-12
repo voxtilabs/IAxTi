@@ -136,6 +136,12 @@ export type { Herramienta, TratoDeLaHerramienta } from './application/catalogo';
 export { NO_SON_HERRAMIENTA, SIN_CONFIRMACION } from './application/catalogo-curado';
 
 export { motivoDelProveedor } from './application/motivo-del-proveedor';
+/**
+ * Probar la IA de verdad (#869). Sale por el contrato porque el controlador la
+ * llama: es la única forma de preguntarle al producto si la IA FUNCIONA, en vez
+ * de si está configurada.
+ */
+export { probarLaIa } from './application/probar-la-ia';
 // De quién fue el error (#684) NO se exporta. La marca la pone el puerto del
 // modelo y la leen el runtime y el traductor del fallo, los dos DENTRO de este
 // módulo. Las publiqué en el contrato por costumbre y el trinquete de #664 las
@@ -144,6 +150,7 @@ export { motivoDelProveedor } from './application/motivo-del-proveedor';
 // error, se agrega entonces y con su consumidor.
 export type { QuienFallo } from './application/motivo-del-proveedor';
 export type { MotivoDelProveedor, DiagnosticoDelProveedor } from './application/motivo-del-proveedor';
+export type { ResultadoDeLaPrueba } from './application/probar-la-ia';
 // Por qué esta conversación no tiene sugerencia (#436).
 export { porQueNoHaySugerencia, describirSinSugerencia } from './application/por-que-no-sugirio';
 export type { SinSugerencia, CodigoSinSugerencia } from './application/por-que-no-sugirio';
