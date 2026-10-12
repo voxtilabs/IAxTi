@@ -125,8 +125,31 @@ describe('guard de autorización (unidad, módulo apagado)', () => {
       await guard.canActivate(contexto());
       expect.unreachable('debió lanzar');
     } catch (error) {
-      const response = (error as { getResponse: () => { code: string } }).getResponse();
+      const response = (error as {
+        getResponse: () => { code: string; message: string };
+      }).getResponse();
       expect(response.code).toBe('MODULE_DISABLED');
+
+      /**
+       * Y el MENSAJE no manda a mirar el plan (#840).
+       *
+       * Lo que dispara esto es `registry.isActive()`, un interruptor GLOBAL
+       * del despliegue. El plan es otra puerta, con su propio código
+       * `MODULE_NOT_IN_PLAN`. El texto decía «Revisa tu plan o pide
+       * activarlo», así que cuando la plataforma apagaba un módulo el negocio
+       * salía a mirar su plan y a pagar más por algo que no se arregla
+       * cambiándolo — y el soporte recibía el ticket equivocado.
+       *
+       * Es el único texto que el usuario llega a leer, así que la aserción va
+       * sobre el texto y no solo sobre el código.
+       */
+      // Nombrar el plan está bien si es para decir que NO es el plan; lo que
+      // no puede hacer es mandar a cambiarlo.
+      expect(response.message, 'manda a cambiar de plan por algo que no es del plan').not.toMatch(
+        /revisa tu plan|cambia de plan|mejora tu plan|sube de plan/i,
+      );
+      expect(response.message).toMatch(/plataforma/i);
+      expect(response.message).toMatch(/no es algo que puedas activar cambiando de plan/i);
     }
   });
 });
