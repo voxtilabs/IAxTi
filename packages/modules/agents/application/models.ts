@@ -5,7 +5,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createOpenAI } from '@ai-sdk/openai';
 import { enteroDeEntorno, textoDeEntorno } from '@iaxti/core';
-import type { Provider } from '../domain/config';
+import type { Esfuerzo, Provider } from '../domain/config';
 import { FalloDeHerramienta, FalloDelProveedor, esDeHerramienta } from './fallo-del-proveedor';
 
 // El puerto de modelos (#47): Vercel AI SDK debajo, y una interfaz chica
@@ -53,6 +53,11 @@ export interface GenerateArgs {
    * sí. Y mientras tanto la petición retiene una conexión del pool.
    */
   esperaMaximaMs?: number;
+  /**
+   * Cuánto piensa antes de escribir (#874). Sin valor, el defecto del
+   * proveedor. Ver `Esfuerzo` en `domain/config.ts` para lo medido.
+   */
+  esfuerzo?: Esfuerzo;
   /**
    * Si vienen, el modelo puede pedirlas y la respuesta se arma con lo que
    * devuelvan. Sin herramientas, una sola llamada como siempre.
@@ -181,6 +186,41 @@ function languageModel(provider: Provider, model: string): LanguageModel {
   }
 }
 
+/**
+ * El dial de razonamiento, traducido al idioma de cada proveedor (#874).
+ *
+ * Los cuatro tienen un equivalente y ninguno lo llama igual. Se mapea SOLO
+ * donde está medido que el proveedor lo honra, porque un dial que se manda y
+ * se ignora es peor que no tenerlo: se cree configurado y no hace nada.
+ *
+ *  - **openai** → `reasoningEffort`. Medido el 12-10: entre 4 y 8 veces más
+ *    rápido, y en el despacho de herramientas también más preciso.
+ *  - **glm** (NVIDIA) → NO se mapea. Acepta `reasoning_effort` sin error y no
+ *    lo honra: medido una vez cada uno, con `low` razonó MÁS (99 tokens
+ *    contra 45) y tardó más (4475 ms contra 1775). No hay evidencia de que
+ *    haga nada, así que mandarlo sería declarar un dial que no existe.
+ *  - **google** → tiene `thinkingConfig.thinkingBudget` y **anthropic** tiene
+ *    `thinking.budgetTokens`, los dos en tokens y no en niveles. No se mapean
+ *    todavía porque no hay cuenta con saldo para medirlos, y en anthropic
+ *    además habilitar `thinking` donde hoy está apagado es un cambio de
+ *    comportamiento, no una calibración. Cuando haya con qué medir, acá.
+ *
+ * Dónde se ve lo que de verdad viaja: `el-cuerpo-que-sale-al-proveedor.test.ts`.
+ */
+function dialDelProveedor(
+  provider: Provider,
+  esfuerzo: Esfuerzo | undefined,
+): { openai: { reasoningEffort: string } } | undefined {
+  if (!esfuerzo || provider !== 'openai') return undefined;
+  const equivalente: Record<Esfuerzo, string> = {
+    minimo: 'minimal',
+    bajo: 'low',
+    medio: 'medium',
+    alto: 'high',
+  };
+  return { openai: { reasoningEffort: equivalente[esfuerzo] } };
+}
+
 /** El ModelPort real sobre el AI SDK. Los tests inyectan uno falso. */
 export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
   return {
@@ -222,6 +262,9 @@ export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
         generateText({
         abortSignal: AbortSignal.timeout(espera),
         model: languageModel(provider, model),
+        ...(dialDelProveedor(provider, args.esfuerzo)
+          ? { providerOptions: dialDelProveedor(provider, args.esfuerzo) }
+          : {}),
         system: args.system,
         // Un hilo si lo hay; si no, el prompt suelto de siempre.
         ...(args.mensajes?.length ? { messages: args.mensajes } : { prompt: args.prompt }),

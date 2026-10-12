@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { incrementUsage } from '@iaxti/module-organizations';
-import { DEFAULT_TASK_OUTPUT_TOKENS, estimateCostUsd, iaSettings, redactPII } from '../domain/config';
+import {
+  DEFAULT_TASK_OUTPUT_TOKENS,
+  estimateCostUsd,
+  iaSettings,
+  redactPII,
+  type Esfuerzo,
+} from '../domain/config';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { CATALOGO, herramientasPara, type Herramienta } from './catalogo';
 import { aiSdkModelPort, type HerramientaExpuesta, type ModelPort, providerAvailable } from './models';
@@ -126,6 +132,16 @@ export interface DepsDelAgenteGeneral {
   /** Con qué se generó, para el costo y el registro. */
   provider: string;
   model: string;
+  /**
+   * Cuánto piensa antes de contestar (#874).
+   *
+   * Acá pesa más que en ninguna otra tarea: son hasta seis pasos dentro de una
+   * sola llamada, así que el razonamiento se paga en cada uno. Medido el
+   * 12-10 con las tres herramientas que este agente manda de verdad, doce
+   * casos: en mínimo acertó 12/12 a 1112 ms por llamada, y por defecto 10/12
+   * a 4715 ms. El dueño esperaba 15 s por un «hola».
+   */
+  esfuerzo?: Esfuerzo;
   /**
    * Llama una ruta de la API con la identidad de quien conversa. La
    * implementación real es una llamada HTTP a la propia API con su token:
@@ -517,6 +533,7 @@ export async function conversarConElAgenteGeneral(
      */
     esperaMaximaMs: PASOS * MS_POR_PASO,
     maxOutputTokens: DEFAULT_TASK_OUTPUT_TOKENS.configuracion_conversada,
+    ...(deps.esfuerzo ? { esfuerzo: deps.esfuerzo } : {}),
   });
 
   const registro = await registrarCorrida(client, {
@@ -667,8 +684,8 @@ export async function aplicarPropuesta(
 export async function modeloDelAgenteGeneral(
   client: PoolClient,
   tenantId: string,
-): Promise<{ modelo: ModelPort; provider: string; model: string }> {
+): Promise<{ modelo: ModelPort; provider: string; model: string; esfuerzo?: Esfuerzo }> {
   const settings = iaSettings(await getTenantSettings(client, tenantId), providerAvailable);
-  const { provider, model } = settings.tasks.configuracion_conversada;
-  return { modelo: aiSdkModelPort(provider, model), provider, model };
+  const { provider, model, esfuerzo } = settings.tasks.configuracion_conversada;
+  return { modelo: aiSdkModelPort(provider, model), provider, model, ...(esfuerzo ? { esfuerzo } : {}) };
 }

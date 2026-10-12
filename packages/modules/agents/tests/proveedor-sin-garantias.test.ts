@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TASK_MODELS,
+  TASKS,
   iaSettings,
   proveedorPermitidoParaTarea,
   redactPII,
@@ -99,6 +100,40 @@ describe('la configuración del tenant, con GLM abierto', () => {
     // texto no puede recibir el audio.
     expect(proveedorPermitidoParaTarea(proveedores[0], 'transcribir')).toBe(false);
     expect(DEFAULT_TASK_MODELS.transcribir.provider).not.toBe(proveedores[0]);
+  });
+
+  /**
+   * El dial de razonamiento sobrevive al merge (#874).
+   *
+   * Las dos ramas de `iaSettings` que arman una tarea construyen el objeto de
+   * cero. La primera versión del dial no lo copiaba, así que quedaba declarado
+   * en `DEFAULT_TASK_MODELS` y aplicado en NINGUNA parte: ni con ajustes
+   * guardados, ni sin ellos, ni con proveedor único. Es el defecto de la
+   * semana cometido por quien lo venía sacando.
+   *
+   * La prueba del cuerpo HTTP no lo caza, porque llama al puerto directo y se
+   * saltea el merge. Tiene que estar acá.
+   */
+  it('el dial de razonamiento llega a la config efectiva por los tres caminos', () => {
+    const conDial = TASKS.filter((t) => DEFAULT_TASK_MODELS[t].esfuerzo);
+    // Anti-vacuidad: si ninguna tarea tuviera dial, lo de abajo no mide nada.
+    expect(conDial.length).toBeGreaterThan(4);
+
+    // 1. Sin ajustes guardados.
+    const limpio = iaSettings(null);
+    // 2. Con un modelo elegido a mano para una tarea.
+    const conOverride = iaSettings({
+      ia: { tasks: { sugerir: { provider: 'openai', model: 'gpt-5' } } },
+    });
+    // 3. Con proveedor único, que es la otra rama del merge.
+    const conSolo = iaSettings({ ia: { soloProveedor: 'openai' } });
+
+    for (const t of conDial) {
+      const esperado = DEFAULT_TASK_MODELS[t].esfuerzo;
+      expect(limpio.tasks[t].esfuerzo, `sin ajustes, ${t}`).toBe(esperado);
+      expect(conOverride.tasks[t].esfuerzo, `con un modelo a mano, ${t}`).toBe(esperado);
+      expect(conSolo.tasks[t].esfuerzo, `con proveedor único, ${t}`).toBe(esperado);
+    }
   });
 
   it('«solo Gemini» cubre TODAS las tareas, incluidas las que no existían', () => {

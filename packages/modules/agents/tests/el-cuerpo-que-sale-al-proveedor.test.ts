@@ -190,6 +190,55 @@ describe('el cuerpo que el producto manda al proveedor (#870)', () => {
     ).toEqual([]);
   });
 
+  /**
+   * El dial de razonamiento viaja (#874), y esta es la prueba que faltaba.
+   *
+   * La primera versión del dial lo declaraba en `DEFAULT_TASK_MODELS` y lo
+   * perdía en el merge de `iaSettings`: las dos ramas que arman la tarea
+   * construyen el objeto de cero con solo `provider` y `model`. O sea
+   * declarado en un lado y aplicado en ninguno —el defecto que llevamos una
+   * semana sacando del repo— y escrito por mí. Lo cazó mirar el merge antes de
+   * empujar; esto lo caza para siempre.
+   */
+  it('a OpenAI el dial de razonamiento viaja como reasoningEffort', async () => {
+    await aiSdkModelPort('openai', 'gpt-5-mini').generate({
+      system: 'x',
+      prompt: 'hola',
+      maxOutputTokens: 100,
+      esfuerzo: 'minimo',
+    });
+    expect(cuerpos).toHaveLength(1);
+    // El nombre del proveedor, no el nuestro: `minimo` → `minimal`.
+    expect(cuerpos[0].body.reasoning).toMatchObject({ effort: 'minimal' });
+  });
+
+  it('sin dial no se manda nada: ausente no es «medio»', async () => {
+    // Mandar un valor por defecto propio sería decidir por el proveedor algo
+    // que no medimos. Sin valor, manda él.
+    await aiSdkModelPort('openai', 'gpt-5-mini').generate({
+      system: 'x',
+      prompt: 'hola',
+      maxOutputTokens: 100,
+    });
+    expect(cuerpos[0].body).not.toHaveProperty('reasoning');
+  });
+
+  it('a GLM el dial NO se manda, porque está medido que no lo honra', async () => {
+    // NVIDIA acepta `reasoning_effort` sin error y no hace nada: medido el
+    // 12-10, con `low` razonó MÁS (99 tokens contra 45) y tardó más (4475 ms
+    // contra 1775). Mandarlo sería declarar un dial que no existe, que es
+    // justo la familia de defectos que esto evita.
+    await aiSdkModelPort('glm', 'z-ai/glm-5.3-flash').generate({
+      system: 'x',
+      prompt: 'hola',
+      maxOutputTokens: 100,
+      esfuerzo: 'minimo',
+    });
+    expect(cuerpos).toHaveLength(1);
+    expect(cuerpos[0].body).not.toHaveProperty('reasoning_effort');
+    expect(cuerpos[0].body).not.toHaveProperty('reasoning');
+  });
+
   it('el modelo que se pide es el que viaja', async () => {
     await aiSdkModelPort('openai', 'gpt-5').generate({
       system: 'x',

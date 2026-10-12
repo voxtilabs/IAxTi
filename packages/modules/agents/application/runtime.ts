@@ -134,6 +134,16 @@ export async function runAgentTask(
   const porTarea = settings.tasks[input.task];
   let provider = (porTarea?.provider ?? input.agent.provider) as Provider;
   let model = porTarea?.model ?? input.agent.model;
+  /**
+   * El dial de razonamiento de ESTA tarea (#874).
+   *
+   * Sale del mismo lugar que el proveedor y el modelo, y por la misma razón:
+   * es el tercer dial de la ruta. El agente no lo tiene como columna —a
+   * diferencia de `provider` y `model`— porque la elección es de la tarea, no
+   * del asistente: lo que hace a `clasificar` barato de pensar es que devuelve
+   * una etiqueta, y eso no cambia según quién sea el asistente.
+   */
+  let esfuerzo = porTarea?.esfuerzo;
   const traceId = input.requestId ?? randomUUID();
 
   // La cuota (#52): al 100 %, assist sigue con el modelo económico si el
@@ -144,6 +154,9 @@ export async function runAgentTask(
     if (settings.economico) {
       provider = settings.economico.provider;
       model = settings.economico.model;
+      // Y su dial si lo trae. Si no, se queda el de la tarea: lo que hace a
+      // `clasificar` barato de pensar no cambia porque el modelo sea otro.
+      esfuerzo = settings.economico.esfuerzo ?? esfuerzo;
       degraded = true;
     } else {
       const rechazo =
@@ -224,6 +237,7 @@ export async function runAgentTask(
       // El tope lo manda la TAREA, no un default único del puerto: lo que
       // necesita `configurar` y lo que necesita `resumir` no se parecen.
       maxOutputTokens: input.maxOutputTokens ?? DEFAULT_TASK_OUTPUT_TOKENS[input.task],
+      ...(esfuerzo ? { esfuerzo } : {}),
       ...(input.tools?.length ? { tools: input.tools } : {}),
     });
     const latencyMs = Date.now() - inicio;

@@ -41,9 +41,38 @@ export const TASKS = [
 ] as const;
 export type AgentTask = (typeof TASKS)[number];
 
+/**
+ * Cuánto piensa el modelo antes de escribir (#874).
+ *
+ * El tercer dial de cada ruta, junto al proveedor y al modelo, y el que más
+ * pesa en lo que una persona espera mirando la pantalla. Medido el 12-10
+ * contra la cuenta, con el prompt real de `sugerir`:
+ *
+ *     gpt-5-mini por defecto   7375 ms   razona 768, escribe  90
+ *     gpt-5-mini bajo          3830 ms   razona 256, escribe 119
+ *     gpt-5-mini mínimo        1544 ms   razona   0, escribe  69
+ *     gpt-5     por defecto    8049 ms   razona 640, escribe  73
+ *     gpt-5     mínimo         1944 ms   razona   0, escribe 117
+ *
+ * Entre 4 y 8 veces, y el 90 % del presupuesto de salida se iba en pensar —
+ * que además se cobra como salida, así que esto también es una línea de la
+ * factura.
+ *
+ * Hasta #870 ni siquiera se podía mandar: el adaptador compatible no lo
+ * pasaba. Es la segunda de las dos cosas que el comentario de #842 nombró
+ * para descartarlas («la Responses API, los parámetros de razonamiento»).
+ */
+export type Esfuerzo = 'minimo' | 'bajo' | 'medio' | 'alto';
+
 export interface TaskModel {
   provider: Provider;
   model: string;
+  /**
+   * Sin valor, manda el defecto del proveedor. Se pone solo donde está
+   * MEDIDO que no empeora: bajarlo a ciegas es cambiar latencia por calidad
+   * sin saber el precio.
+   */
+  esfuerzo?: Esfuerzo;
 }
 
 /**
@@ -106,16 +135,42 @@ export interface TaskModel {
  * API (`/audio/transcriptions`), que el puerto todavía no habla. Ver #864.
  */
 export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
-  clasificar: { provider: 'openai', model: 'gpt-5-mini' },
-  sugerir: { provider: 'openai', model: 'gpt-5-mini' },
-  responder: { provider: 'openai', model: 'gpt-5-mini' },
-  // La tarea pesada: entiende el negocio y propone su configuración.
-  configurar: { provider: 'openai', model: 'gpt-5' },
-  conocer: { provider: 'openai', model: 'gpt-5-mini' },
-  resumir: { provider: 'openai', model: 'gpt-5-mini' },
+  // Devuelve UNA etiqueta. Medido 5/5 en mínimo, bajo y por defecto: la misma
+  // precisión en los tres, así que pagar razonamiento acá no compra nada.
+  clasificar: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'minimo' },
+  // `bajo` y no `minimo`: en mínimo la sugerencia se degrada en FORMA —mete
+  // preámbulo y un `[Nombre vendedor]` de plantilla—, aunque ninguno de los
+  // tres niveles inventó precio, stock ni plazo. En bajo sale limpia y tarda
+  // la mitad. Esto es lo que mira quien atiende, así que la forma importa.
+  sugerir: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
+  responder: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
+  // La tarea pesada: entiende el negocio y propone su configuración. `bajo` y
+  // no `minimo` por lo mismo que `sugerir`: la salida es estructurada —cinco
+  // respuestas rápidas y tres plantillas— y en mínimo la forma se suelta.
+  configurar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
+  conocer: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
+  resumir: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
   transcribir: { provider: 'google', model: 'gemini-flash-latest' },
-  analizar: { provider: 'openai', model: 'gpt-5' },
-  configuracion_conversada: { provider: 'openai', model: 'gpt-5' },
+  analizar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
+  /**
+   * `minimo`, y esto contradice el comentario de `TAREAS_PESADAS` de abajo.
+   *
+   * Ese comentario dice que el Agente General «usa el modelo que más razona
+   * porque elegir mal una herramienta entre 195 es peor que responder lento».
+   * El principio sigue siendo cierto; la premisa —más razonamiento, mejor
+   * elección— es falsa acá, y está medida. Doce casos reales, con las tres
+   * herramientas que el agente manda de verdad:
+   *
+   *     mínimo      12/12 acertó   1112 ms por llamada
+   *     por defecto 10/12 acertó   4715 ms por llamada
+   *
+   * Más rápido Y más preciso. Las dos que falló el defecto fueron pedir
+   * `buscar_herramienta` donde correspondía `que_le_falta`; mínimo no llamó
+   * ninguna herramienta inventada ni se salteó la búsqueda cuando tocaba.
+   *
+   * Y el dueño esperaba 15 s por un «hola», que es el reporte que abrió esto.
+   */
+  configuracion_conversada: { provider: 'openai', model: 'gpt-5', esfuerzo: 'minimo' },
 };
 
 /**
@@ -342,6 +397,25 @@ export function iaSettings(
       ? (raw.soloProveedor as Provider)
       : null;
   const tasks = {} as Record<AgentTask, TaskModel>;
+  /**
+   * El dial de razonamiento SIEMPRE sale del defecto de la plataforma (#874).
+   *
+   * No se lee de los ajustes del negocio, y es a propósito: el dueño decidió
+   * el 12-10 que el defecto de IA es uno, de la plataforma, y que el cliente
+   * elija modelo por tarea «no tiene sentido» (#858). Cuánto piensa un modelo
+   * es de la misma familia que con qué modelo piensa.
+   *
+   * Y vive en un helper porque las dos ramas de abajo arman el objeto de cero.
+   * La primera versión de esto no lo tenía, y el dial quedaba declarado en
+   * `DEFAULT_TASK_MODELS` y aplicado en NINGUNA parte —ni con ajustes
+   * guardados, ni sin ellos—, que es exactamente el defecto que llevamos una
+   * semana sacando del repo. Lo cazó mirar el merge antes de empujar; la
+   * prueba de `el-cuerpo-que-sale-al-proveedor` lo habría cazado después.
+   */
+  const esfuerzoDeLaTarea = (task: AgentTask): { esfuerzo?: Esfuerzo } => {
+    const e = DEFAULT_TASK_MODELS[task].esfuerzo;
+    return e ? { esfuerzo: e } : {};
+  };
   for (const task of TASKS) {
     if (soloProveedor) {
       // Si la tarea no la acepta —`transcribir` con un proveedor de solo
@@ -358,6 +432,7 @@ export function iaSettings(
               ? configurado.model.trim()
               : (TAREAS_PESADAS.has(task) ? gama?.pesado : gama?.liviano) ??
                 DEFAULT_TASK_MODELS[task].model,
+          ...esfuerzoDeLaTarea(task),
         };
         continue;
       }
@@ -377,6 +452,7 @@ export function iaSettings(
     const elegido = hayLlave ? conCredencial(task, pedido, hayLlave) : pedido;
     tasks[task] = {
       provider: elegido,
+      ...esfuerzoDeLaTarea(task),
       // El modelo acompaña al proveedor: si el proveedor cayó al por
       // defecto, quedarse con `glm-4.6` apuntando a Google sería un 404 en
       // cada mensaje entrante.

@@ -230,6 +230,54 @@ Lo que esta enmienda NO cambia:
   plataforma elija un modelo por defecto **distinto para cada tenant**: «no
   tiene sentido». El defecto es uno, de la plataforma.
 
+### Enmienda 2026-10-12 (b) · cuánto piensa cada tarea
+
+El dueño: «ahora responde, pero muy lento». Medido contra la cuenta el mismo
+día, con los prompts reales:
+
+| tarea | antes | con el dial | |
+|---|---|---|---|
+| `sugerir` (`gpt-5-mini`) | 7375 ms | **3830 ms** | `bajo` |
+| `clasificar` | 6480 ms (5 casos) | **4918 ms** | `minimo`, 5/5 en los tres niveles |
+| Agente General (`gpt-5`) | 4715 ms/llamada, 10/12 acertó | **1112 ms/llamada, 12/12** | `minimo` |
+
+El 90 % del presupuesto de salida se iba en razonar, y eso se cobra como
+salida: el dial es latencia **y** factura.
+
+**Esto contradice un argumento de §7**, y conviene dejarlo escrito porque el
+argumento sigue siendo bueno: «el Agente General usa el modelo que más razona
+porque elegir mal una herramienta entre 195 es peor que responder lento». El
+principio es correcto; la premisa —más razonamiento, mejor elección— es falsa
+acá y está medida con doce casos reales. En mínimo acertó más y nunca pidió una
+herramienta inventada ni se salteó la búsqueda cuando tocaba.
+
+Lo que NO se hizo, con su motivo:
+
+- **No hay orquestador maestro.** El dueño lo propuso —un modelo barato que
+  clasifica y despacha—, y agregaría un viaje antes del que ya se hace. El
+  ruteo por tarea ya existe: `DEFAULT_TASK_MODELS` son nueve rutas. Lo que
+  faltaba era el tercer dial de cada una, no un despachador.
+- **No se mapea a GLM.** NVIDIA acepta `reasoning_effort` sin error y no lo
+  honra: medido, con `low` razonó MÁS (99 tokens contra 45). Un dial que se
+  manda y se ignora es peor que no tenerlo.
+- **No se mapea a Google ni Anthropic todavía.** Tienen equivalente, en tokens
+  y no en niveles, y no hay cuenta con saldo para medirlos. En Anthropic
+  además habilitar `thinking` donde está apagado es un cambio de
+  comportamiento, no una calibración.
+- **El dial NO es configurable por el negocio.** Cuánto piensa un modelo es de
+  la misma familia que con qué modelo piensa, y eso el dueño ya lo decidió: el
+  defecto es uno y de la plataforma (#858, «que yo pueda elegir el modelo
+  default de cada tenant no tiene sentido»).
+- **El streaming no era la solución**, aunque #859 lo recomendaba. Con un
+  modelo que razona la primera palabra llega a los 4157 ms de 4594 totales,
+  porque razona antes de escribir: el streaming compra 437 ms, el dial 2,5 s.
+
+Y el dataset de regresión (#53), que por regla debería decidir estos valores,
+**tiene cero casos** — salen del feedback humano sobre sugerencias, y como la
+IA nunca funcionó nadie calificó ninguna. Por eso los valores salen de
+mediciones a mano, declaradas en el código caso por caso, y se revisan cuando
+el dataset pueda correr.
+
 ## Consecuencias
 
 - El costo de una función nueva baja a: ruta + herramienta + prueba. La
