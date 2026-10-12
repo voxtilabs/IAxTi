@@ -55,6 +55,43 @@ describe('las llaves de los proveedores llegan al proceso', () => {
     }
   });
 
+  /**
+   * Y que la llave tenga camino hasta STAGING (#848).
+   *
+   * El deploy siembra las llaves en el env de Dokploy desde secretos de
+   * GitHub, «así ningún humano las pega en el panel». Estaba escrito a mano
+   * para GLM nada más, así que agregar un proveedor dejaba su llave sin
+   * camino: había que editar el workflow o pegarla en el panel, que es justo
+   * lo que ese bloque evita.
+   *
+   * Lo que faltaba no era la línea de OpenAI: era que fuera una lista.
+   */
+  it('el deploy de staging siembra la llave de cada proveedor', () => {
+    const workflow = readFileSync(
+      join(RAIZ, '.github', 'workflows', 'deploy-staging.yml'),
+      'utf8',
+    );
+    const lista = /for var in ([A-Z_ ]+); do/.exec(workflow);
+    expect(lista, 'no se encontró la lista de llaves a sembrar en el deploy').toBeTruthy();
+    const sembradas = lista![1].trim().split(/\s+/);
+    // Anti-vacuidad: si el recorte fallara, el filtro de abajo no mediría nada.
+    expect(sembradas.length).toBeGreaterThanOrEqual(3);
+
+    const faltan = PROVIDERS.filter((p) => !sembradas.includes(ENV_KEYS[p]));
+    expect(
+      faltan.map((p) => `${p} → ${ENV_KEYS[p]}`),
+      'Estas llaves no tienen camino hasta staging: el deploy no las siembra, así que habría ' +
+        'que pegarlas a mano en el panel de Dokploy — que es lo que ese bloque existe para ' +
+        `evitar.\n  ${faltan.map((p) => ENV_KEYS[p]).join('\n  ')}`,
+    ).toEqual([]);
+
+    // Y que cada una venga de un secreto, no escrita en el workflow.
+    for (const p of PROVIDERS) {
+      const linea = new RegExp(`^\\s*${ENV_KEYS[p]}: \\$\\{\\{ secrets\\.`, 'm');
+      expect(workflow, `${ENV_KEYS[p]} no viene de un secreto en el deploy`).toMatch(linea);
+    }
+  });
+
   it('y los procesos que no son Next cargan el .env si está', () => {
     /**
      * La otra mitad del mismo defecto. `apps/api`, `apps/workers` y
