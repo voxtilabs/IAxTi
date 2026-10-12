@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { tenantsOf } from '@iaxti/module-identity';
+import { PROVIDERS as PROVIDERS_DE_IA, probarLaIa } from '@iaxti/module-agents';
 import {
   adminChangePlan,
   adminCreateTenant,
@@ -820,6 +821,64 @@ class PlatformController {
       adminUser: request.user!.userId,
     });
     return { encendido: true };
+  }
+
+  /**
+   * Probar los CUATRO proveedores de una, a nivel plataforma (#869).
+   *
+   * La diferencia con `/ready` cabe en una línea y es la que costó tres
+   * semanas: `/ready` dice «3 de 4 proveedores con credencial», esto dice
+   * cuántos **contestan**. Son dos números distintos y durante tres semanas
+   * fueron 3 y 0.
+   *
+   * Es de plataforma y no de un negocio porque las llaves son de la
+   * plataforma: cuando una se queda sin saldo, se quedan sin IA todos los
+   * tenants a la vez, y eso lo tiene que ver quien puede cargar crédito.
+   *
+   * Los cuatro en paralelo: son cuatro llamadas chicas y en serie el peor caso
+   * es la suma de los cuatro timeouts.
+   */
+  @Post('ia/probar')
+  @RequireModule('platform')
+  @RequirePermission('platform.ai')
+  @ApiOperation({ summary: 'Le habla a cada proveedor de IA y dice cuáles contestan de verdad' })
+  async probarLosProveedores() {
+    const redis = apiRedis();
+    if (redis) {
+      try {
+        // Un minuto, y por costo: son cuatro llamadas pagadas por clic.
+        const puso = await redis.set('probar-ia:plataforma', '1', 'EX', 60, 'NX');
+        if (puso === null) {
+          throw new BadRequestException({
+            code: 'AI_TEST_TOO_SOON',
+            message:
+              'Ya probaste los proveedores hace menos de un minuto. Cada prueba le paga a los ' +
+              'cuatro, así que espera un poco antes de repetirla.',
+          });
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+      }
+    }
+    const resultados = await Promise.all(
+      PROVIDERS_DE_IA.map(async (proveedor) => {
+        // `soloProveedor` fija el proveedor a probar sin tocar la base: es el
+        // mismo camino que usaría un negocio que lo pidió por escrito, así que
+        // lo que se mide es el producto y no una ruta de prueba aparte.
+        // `soloProveedor` NO cae nunca a otro —es un compromiso escrito sobre
+        // por dónde pasan los datos—, así que `r.proveedor` es el que se pidió.
+        // Por eso no se agrega un segundo campo que diría lo mismo.
+        return probarLaIa({ settings: { ia: { soloProveedor: proveedor } } });
+      }),
+    );
+    const contestan = resultados.filter((r) => r.contesto).length;
+    return {
+      contestan,
+      total: resultados.length,
+      // La frase que `/ready` no puede decir, y la razón de este endpoint.
+      resumen: `${contestan} de ${resultados.length} proveedores contestan.`,
+      proveedores: resultados,
+    };
   }
 
   @Get('ia')

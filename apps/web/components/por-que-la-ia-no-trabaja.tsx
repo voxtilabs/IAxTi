@@ -50,6 +50,28 @@ interface DiagnosticoDto {
   pasos: PasoDto[];
 }
 
+/**
+ * Lo que vuelve de probar la IA de verdad (#869).
+ *
+ * El diagnóstico de arriba mira la configuración; esto le habla al proveedor.
+ * La diferencia costó tres semanas de corridas fallidas con todo en verde
+ * (#866) y, peor, un despliegue en el que cada llamada moría en 400 mientras
+ * cinco mediciones hechas con `curl` decían que el proveedor andaba (#870).
+ */
+interface PruebaDto {
+  contesto: boolean;
+  tarea: string;
+  proveedor: string;
+  modelo: string;
+  pedido: string | null;
+  latencyMs: number;
+  tokensIn: number;
+  tokensOut: number;
+  texto: string;
+  motivo: string | null;
+  mensaje: string;
+}
+
 const TONO_DEL_PASO: Record<PasoDto['estado'], { rol: BadgeRole; texto: string }> = {
   bien: { rol: 'good', texto: 'Bien' },
   atencion: { rol: 'warn', texto: 'Atención' },
@@ -61,6 +83,8 @@ export function PorQueLaIaNoTrabaja() {
   const { config, session } = useSession();
   const [tenant, setTenant] = useState<string | null>(null);
   const [datos, setDatos] = useState<DiagnosticoDto | null | undefined>();
+  const [prueba, setPrueba] = useState<PruebaDto | null | undefined>(null);
+  const [probando, setProbando] = useState(false);
   const [abierto, setAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,6 +122,37 @@ export function PorQueLaIaNoTrabaja() {
 
   useEffect(() => void mirar(), [mirar]);
 
+  /**
+   * Probar de verdad: una llamada al proveedor, a pedido.
+   *
+   * A pedido y no al entrar, a diferencia del diagnóstico, por la razón que ese
+   * mismo comentario deja escrita —«no le pregunta nada al proveedor»—: esto sí
+   * le pregunta, y cada pregunta se le paga. Un botón también significa que el
+   * costo lo decide quien mira.
+   */
+  const probar = useCallback(async () => {
+    if (!session || !tenant) return;
+    setProbando(true);
+    setPrueba(undefined);
+    setError(null);
+    try {
+      setPrueba(
+        await apiFetch<PruebaDto>(config, session, tenant, '/agents/probar', {
+          method: 'POST',
+          body: JSON.stringify({}),
+        }),
+      );
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : 'No pudimos probar la IA. Vuelve a intentarlo en un momento.',
+      );
+    } finally {
+      setProbando(false);
+    }
+  }, [config, session, tenant]);
+
   if (datos === null) return null;
   if (datos === undefined) return <Skeleton className="mt-6 h-16" />;
 
@@ -132,6 +187,14 @@ export function PorQueLaIaNoTrabaja() {
         )}
         <Button variant="secundario" size="chico" onClick={() => void mirar()}>
           Revisar de nuevo
+        </Button>
+        <Button
+          variant="secundario"
+          size="chico"
+          disabled={probando}
+          onClick={() => void probar()}
+        >
+          {probando ? 'Probando…' : 'Probar la IA ahora'}
         </Button>
       </div>
 
@@ -170,6 +233,29 @@ export function PorQueLaIaNoTrabaja() {
             );
           })}
         </ul>
+      )}
+
+      {prueba && (
+        <div className="mt-4 rounded-campo border border-line bg-bg p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge role={prueba.contesto ? 'good' : 'bad'}>
+              {prueba.contesto ? 'Contestó' : 'No contestó'}
+            </Badge>
+            <span className="dato text-xs text-ink">
+              {prueba.proveedor}/{prueba.modelo}
+            </span>
+            <span className="dato text-xs text-muted">{prueba.latencyMs} ms</span>
+            {prueba.tokensOut > 0 && (
+              <span className="dato text-xs text-faint">{prueba.tokensOut} tokens de salida</span>
+            )}
+          </div>
+          <p className="mt-1 max-w-prose text-sm text-body">{prueba.mensaje}</p>
+          {prueba.contesto && prueba.texto && (
+            <p className="mt-1 max-w-prose text-sm text-muted">
+              Contestó: <span className="text-body">{prueba.texto}</span>
+            </p>
+          )}
+        </div>
       )}
 
       {error && <AvisoResultado tono="error">{error}</AvisoResultado>}

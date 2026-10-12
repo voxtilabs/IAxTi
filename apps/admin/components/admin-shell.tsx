@@ -5,6 +5,7 @@ import { AvisoResultado } from '@iaxti/ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import {
   AuditExplorer,
+  Badge,
   MarcaJelly,
   ModeToggle,
   RequireSession,
@@ -1068,6 +1069,27 @@ const AGRUPACIONES = [
 
 const clp = (n: number) => `$${n.toLocaleString('es-CL')}`;
 
+/**
+ * Probar los proveedores de verdad (#869).
+ *
+ * `/ready` dice «3 de 4 proveedores con credencial». Esto dice cuántos
+ * **contestan**, y la diferencia costó tres semanas: durante tres semanas
+ * fueron 3 y 0, con todo en verde (#866).
+ */
+interface PruebaDeProveedoresDto {
+  contestan: number;
+  total: number;
+  resumen: string;
+  proveedores: Array<{
+    contesto: boolean;
+    proveedor: string;
+    modelo: string;
+    latencyMs: number;
+    motivo: string | null;
+    mensaje: string;
+  }>;
+}
+
 /** Centro de IA (#70): si el modelo barato conviene, se ve acá. */
 interface PorBorrarDto {
   id: string;
@@ -1545,6 +1567,8 @@ function CentroIA() {
   const [datos, setDatos] = useState<{ filas: FilaIADto[]; alertas: AlertaIADto[]; usdClp: number } | null>(null);
   const [ejecuciones, setEjecuciones] = useState<EjecucionIADto[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [prueba, setPrueba] = useState<PruebaDeProveedoresDto | null>(null);
+  const [probando, setProbando] = useState(false);
 
   useEffect(() => {
     if (!session) return;
@@ -1575,6 +1599,62 @@ function CentroIA() {
           {aviso}
         </AvisoResultado>
       )}
+      {/*
+        Probar los cuatro, a pedido (#869). A pedido porque son cuatro llamadas
+        pagadas por clic, y arriba de las métricas porque un gráfico en cero es
+        el síntoma y esto es la causa.
+      */}
+      <div className="mb-4 rounded-tarjeta border border-line bg-raised p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rotulo">Los proveedores contestan</span>
+          {prueba && (
+            <Badge role={prueba.contestan === prueba.total ? 'good' : prueba.contestan > 0 ? 'warn' : 'bad'}>
+              {prueba.contestan} de {prueba.total}
+            </Badge>
+          )}
+          <button
+            type="button"
+            disabled={probando}
+            onClick={() => {
+              if (!session) return;
+              setProbando(true);
+              setPrueba(null);
+              void fetch(`${config.apiUrl}/v1/platform/ia/probar`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              })
+                .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+                .then(setPrueba)
+                .catch((err: Error) => setAviso(`No pudimos probar los proveedores: ${err.message}`))
+                .finally(() => setProbando(false));
+            }}
+            className="rounded-boton border border-line bg-bg px-3 py-1.5 text-sm text-body disabled:text-faint"
+          >
+            {probando ? 'Probando…' : 'Probar los proveedores'}
+          </button>
+        </div>
+        <p className="mt-2 max-w-prose text-sm text-muted">
+          Tener credencial no es funcionar: esto le habla a cada proveedor y dice cuáles
+          responden. Cada prueba les paga, así que se puede una por minuto.
+        </p>
+        {prueba && (
+          <ul className="mt-3 flex flex-col gap-2">
+            {prueba.proveedores.map((p) => (
+              <li key={p.proveedor} className="rounded-campo border border-line bg-bg p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge role={p.contesto ? 'good' : 'bad'}>
+                    {p.contesto ? 'Contesta' : 'No contesta'}
+                  </Badge>
+                  <span className="dato text-xs text-ink">{p.proveedor}/{p.modelo}</span>
+                  <span className="dato text-xs text-muted">{p.latencyMs} ms</span>
+                </div>
+                <p className="mt-1 max-w-prose text-sm text-body">{p.mensaje}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="mb-3 flex flex-wrap gap-2">
         {AGRUPACIONES.map((g) => (
           <button

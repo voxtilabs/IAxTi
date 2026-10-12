@@ -28,6 +28,7 @@ import {
   listAgents,
   listExecutions,
   motivoDelProveedor,
+  probarLaIa,
   type QuienFallo,
   PROVIDERS,
   providerAvailable,
@@ -63,7 +64,7 @@ import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido, validar } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
-import { apiPool } from './db';
+import { apiPool, apiRedis } from './db';
 import { registry } from './registry';
 
 function pool() {
@@ -185,6 +186,71 @@ export class AgentsController {
       // si la variable EXISTE. Un diagnóstico es una pantalla que alguien va a
       // compartir para pedir ayuda.
       return diagnosticarLaIa({ settings });
+    });
+  }
+
+  /**
+   * Probá la IA AHORA y decime qué pasó (#869).
+   *
+   * El `/diagnostico` de arriba, de #614, vino a arreglar «no se puede ver por
+   * qué no funciona» — y lo arregló para una capa: la configuración. Qué
+   * proveedor tiene cada tarea, cuál tiene credencial, qué pidió el negocio.
+   *
+   * La misma frase volvió entera un piso más abajo, y esta vez del dueño del
+   * producto: «no puedes ver por qué demonios no funciona la IA dentro, si es
+   * el núcleo y nunca he podido conversar con ella». Tenía razón. Las tres
+   * verificaciones que había —`/ready`, este diagnóstico y `por-que-no-sugirio`—
+   * mirán la configuración, una corrida pasada, o una variable no vacía.
+   * Ninguna le habla al proveedor. Por eso 51 corridas fallidas en tres semanas
+   * convivieron con todo en verde (#866): el sistema no parecía roto, parecía
+   * vigilado.
+   *
+   * Esto hace UNA llamada de verdad, con el proveedor y modelo que esa tarea
+   * usaría —el efectivo, con el respaldo de #665 aplicado— y cuenta qué volvió.
+   * Es `POST` porque gasta plata, no porque cambie algo.
+   *
+   * El tope: una prueba por tenant cada minuto. Acá sí es por costo, a
+   * diferencia de `probar-envio`, donde era por no llenarle el teléfono a una
+   * persona. Y el mismo criterio que allá: si Redis no está, la prueba sale
+   * igual. Cambiar «no puedo diagnosticar» por «no tengo Redis» sería el peor
+   * negocio posible justo en la herramienta que existe para desatascar.
+   *
+   * Mismo permiso que el diagnóstico (`tenant.read`): quien paga la cuenta
+   * tiene derecho a saber si lo que paga funciona, sin poder cambiar con qué
+   * modelo se le contesta a sus clientes.
+   */
+  @Post('probar')
+  @RequireModule('agents')
+  @RequirePermission('tenant.read')
+  @ApiOperation({ summary: 'Hace una llamada real al proveedor y dice exactamente qué pasó' })
+  async probar(@Req() request: WithUser, @Body() body: { tarea?: string }) {
+    const actor = actorOf(request);
+    const redis = apiRedis();
+    if (redis) {
+      try {
+        // `NX` + `EX` en una sola operación: con un `get` y después un `set`,
+        // dos clics simultáneos pasan los dos y se paga dos veces.
+        const puso = await redis.set(`probar-ia:${actor.tenantId}`, '1', 'EX', 60, 'NX');
+        if (puso === null) {
+          throw new BadRequestException({
+            code: 'AI_TEST_TOO_SOON',
+            message:
+              'Ya probaste la IA hace menos de un minuto. Cada prueba le paga al proveedor, ' +
+              'así que espera un poco antes de repetirla.',
+          });
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+      }
+    }
+    const settings = await withTenant(pool(), actor.tenantId, (c) =>
+      getTenantSettings(c, actor.tenantId),
+    );
+    // Ninguna llave sale de acá, igual que en el diagnóstico: lo que vuelve es
+    // qué proveedor contestó y, si no contestó, el motivo ya clasificado.
+    return probarLaIa({
+      settings,
+      ...(TASKS.includes(body?.tarea as never) ? { tarea: body.tarea as never } : {}),
     });
   }
 

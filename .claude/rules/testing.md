@@ -31,6 +31,18 @@
   `agents/tests/el-cuerpo-que-sale-al-proveedor.test.ts`: intercepta `fetch` y
   mira el cuerpo HTTP de cada proveedor de `PROVIDERS`. Al escribirla, `google`
   y `anthropic` tampoco tenían corrida por el puerto.
+- **Una verificación que mira la configuración no verifica la función (#869).**
+  «Tiene credencial» no es «funciona»; «el proveedor anda» no es «el producto
+  le habla»; «la variable no está vacía» no es ninguna de las dos. Durante tres
+  semanas `/ready` dijo `ia ✓` con 51 corridas fallidas y cero exitosas, porque
+  las tres verificaciones que existían miraban la configuración, una corrida
+  pasada, o `Boolean(process.env[...])`.
+  Cuando lo declarado-y-no-aplicado es una **verificación**, el sistema no
+  parece roto: parece vigilado, y eso es más difícil de desarmar que una falla
+  a secas. Así que toda función que dependa de algo de afuera —un proveedor, un
+  canal, un pago— necesita una forma de EJERCITARLA a pedido, no solo de
+  describirla. El patrón del repo es `probar-envio` para canales y
+  `/agents/probar` para la IA.
 - Los tests usan el seed (#18) como base; datos anonimizados, jamás datos
   reales de clientes en fixtures.
 - `/tdd` cuando el criterio de aceptación lo permite: test primero.
