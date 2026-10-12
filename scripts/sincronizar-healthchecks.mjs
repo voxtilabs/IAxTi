@@ -45,7 +45,33 @@ const { parse, parseDocument } = require('yaml');
  * no relee el archivo del repo sin detener el stack: sin este parche, agregar el
  * renglón al repo no cambia nada en el contenedor que está corriendo.
  */
-const CLAVES_QUE_SE_COMPLETAN = new Set(['IAXTI_IMAGE', 'ANTHROPIC_API_KEY']);
+/**
+ * Y las OTRAS TRES llaves de proveedor, por el mismo argumento (#853).
+ *
+ * `ANTHROPIC_API_KEY` entró sola y sus hermanas quedaron fuera, así que
+ * `GLM_API_KEY` —el proveedor por DEFECTO de ocho de las nueve tareas desde
+ * ADR-0025 §7— estaba declarada en el compose del repo y no llegaba al
+ * contenedor. Medido en staging el 11-10: el diagnóstico de la IA decía «hay
+ * 1 de 4 con credencial: google» y «8 de 9 no pueden funcionar», con el
+ * secreto de GLM puesto en GitHub y su valor en el env de Dokploy. Faltaba
+ * esto: el renglón en el Compose raw.
+ *
+ * Pasan la misma prueba que dejó entrar a `ANTHROPIC_API_KEY`: las cuatro se
+ * leen con `providerAvailable`, que hace `Boolean(process.env[...])`. La
+ * cadena vacía es falsa igual que `undefined`, así que completarlas no
+ * convierte un «no está» en un «está vacío» que rompa un `??` — que es el
+ * riesgo por el que esta lista es corta y no general.
+ *
+ * Hay una guarda que cruza `PROVIDERS` contra esta lista: agregar un
+ * proveedor es una línea en un array, y este archivo está lejos de ahí.
+ */
+const CLAVES_QUE_SE_COMPLETAN = new Set([
+  'IAXTI_IMAGE',
+  'GOOGLE_GENERATIVE_AI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'GLM_API_KEY',
+  'OPENAI_API_KEY',
+]);
 
 /**
  * Parche mínimo para Compose raw; nunca reemplaza configuración del operador.
