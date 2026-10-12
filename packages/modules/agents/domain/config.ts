@@ -1,7 +1,20 @@
 // Configuración del runtime (#47, ADR-0011): proveedor y modelo POR TAREA,
 // sin deploy. Puro.
 
-export const PROVIDERS = ['google', 'anthropic', 'glm', 'openai'] as const;
+/**
+ * El ORDEN importa, y no es alfabético: es el orden en que `conCredencial`
+ * busca un respaldo cuando ni el proveedor elegido ni el por defecto de la
+ * tarea tienen llave. Primero el que la plataforma prefiere.
+ *
+ * Estaba `google` primero, de cuando Gemini era el defecto, y eso fue
+ * exactamente el defecto del 11-10: GLM no tenía llave en el contenedor, el
+ * respaldo recorrió esta lista, encontró google —la única con llave, y sin
+ * saldo— y las ocho tareas de texto murieron ahí mientras el diagnóstico
+ * decía `ia ✓`. Un orden de array decidiendo con qué proveedor se atiende.
+ * Ver #855: lo que falta de verdad es no volver a elegir al que acaba de
+ * fallar; mientras eso no esté, al menos que el primero sea el bueno.
+ */
+export const PROVIDERS = ['openai', 'glm', 'anthropic', 'google'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 export const TASKS = [
@@ -62,26 +75,47 @@ export interface TaskModel {
  * versión nueva rinde peor.
  */
 /**
- * Desde ADR-0025 §7 (2026-09-25) el proveedor por defecto es GLM — servido
- * por el catálogo de NVIDIA, ver `models.ts`. `z-ai/glm-5.3-flash` para el
- * volumen, `z-ai/glm-5.3` para las tareas pesadas.
+ * Desde el 2026-10-12 el proveedor por defecto es OpenAI (ADR-0025 §7,
+ * enmienda). Antes era GLM servido por NVIDIA, y el motivo del cambio es
+ * medido, no de gusto — las dos cosas se probaron contra las dos cuentas el
+ * mismo día, con los mismos prompts:
+ *
+ *     tarea        GLM (NVIDIA)   OpenAI
+ *     clasificar          1,5 s    2,6 s
+ *     resumir            16,4 s      —
+ *     sugerir            32,3 s    4,3 s
+ *     configurar         54,9 s    3,0 s
+ *
+ * `sugerir` a 32 s no es lento: es inservible. #688 le puso un reloj de 60 s
+ * con este argumento —«si tarda más de un minuto ya no sirve porque la
+ * persona contestó a mano»— y a la mitad del reloj el argumento vale igual.
+ * El tope no salta, así que nada avisa; la bandeja simplemente no se usa.
+ *
+ * Y la segunda razón, la que decide: la cuenta de NVIDIA no tiene saldo
+ * sostenido y la de OpenAI sí. Un proveedor por defecto sin plata detrás es
+ * el defecto de #855 esperando ocurrir.
+ *
+ * `gpt-5-mini` para el volumen, `gpt-5` para las tareas pesadas. Los dos
+ * razonan, y por eso los presupuestos de `DEFAULT_TASK_OUTPUT_TOKENS` más
+ * abajo no son topes de respuesta: con `sugerir: 1500` se midieron 448
+ * razonando y 81 escribiendo, así que sobra — comprobado, no supuesto.
  *
  * `transcribir` se queda en Google y no es política: es capacidad. La
- * transcripción entra como PARTE DE AUDIO (file part) y el endpoint de GLM
- * en NVIDIA es de texto. Configurarle GLM a esa tarea fallaría en cada
- * audio recibido.
+ * transcripción entra como PARTE DE AUDIO (file part) y los endpoints de
+ * texto de GLM y OpenAI no la reciben — OpenAI transcribe, pero por otra
+ * API (`/audio/transcriptions`), que el puerto todavía no habla. Ver #864.
  */
 export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
-  clasificar: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
-  sugerir: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
-  responder: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
+  clasificar: { provider: 'openai', model: 'gpt-5-mini' },
+  sugerir: { provider: 'openai', model: 'gpt-5-mini' },
+  responder: { provider: 'openai', model: 'gpt-5-mini' },
   // La tarea pesada: entiende el negocio y propone su configuración.
-  configurar: { provider: 'glm', model: 'z-ai/glm-5.3' },
-  conocer: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
-  resumir: { provider: 'glm', model: 'z-ai/glm-5.3-flash' },
+  configurar: { provider: 'openai', model: 'gpt-5' },
+  conocer: { provider: 'openai', model: 'gpt-5-mini' },
+  resumir: { provider: 'openai', model: 'gpt-5-mini' },
   transcribir: { provider: 'google', model: 'gemini-flash-latest' },
-  analizar: { provider: 'glm', model: 'z-ai/glm-5.3' },
-  configuracion_conversada: { provider: 'glm', model: 'z-ai/glm-5.3' },
+  analizar: { provider: 'openai', model: 'gpt-5' },
+  configuracion_conversada: { provider: 'openai', model: 'gpt-5' },
 };
 
 /**
@@ -199,7 +233,7 @@ export function proveedorPermitidoParaTarea(provider: string, task: AgentTask): 
  * que se agrega una tarea, que es exactamente el error que esto viene a
  * arreglar.
  */
-const RESPALDO_POR_PROVEEDOR: Record<string, { liviano: string; pesado: string }> = {
+export const RESPALDO_POR_PROVEEDOR: Record<string, { liviano: string; pesado: string }> = {
   google: { liviano: 'gemini-flash-latest', pesado: 'gemini-pro-latest' },
   anthropic: { liviano: 'claude-haiku-4-5-20251001', pesado: 'claude-haiku-4-5-20251001' },
   glm: { liviano: 'z-ai/glm-5.3-flash', pesado: 'z-ai/glm-5.3' },
@@ -409,6 +443,15 @@ const PRECIOS_BASE: Record<string, { in: number; out: number }> = {
   // Se corrige sin deploy por AGENT_PRICES_JSON.
   'glm:z-ai/glm-5.3': { in: 0.6, out: 2.2 },
   'glm:z-ai/glm-5.3-flash': { in: 0.1, out: 0.4 },
+  // Los por defecto desde el 12-10 (#863). Lista de precios pública de
+  // OpenAI; se confirman contra la primera factura de la cuenta y se corrigen
+  // sin deploy por AGENT_PRICES_JSON.
+  //
+  // Y ojo con el de salida en esta familia: razona, y los tokens de
+  // razonamiento se cobran como salida. En `sugerir` se midieron 448
+  // razonando y 81 escribiendo — el 85 % de lo que se paga no se lee.
+  'openai:gpt-5': { in: 1.25, out: 10 },
+  'openai:gpt-5-mini': { in: 0.25, out: 2 },
 };
 
 export function estimateCostUsd(

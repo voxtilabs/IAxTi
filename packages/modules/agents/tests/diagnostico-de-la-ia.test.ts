@@ -92,6 +92,28 @@ describe('con una sola llave, se distingue lo que sí de lo que no (#614)', () =
     expect(['bien', 'atencion']).toContain(tareas.estado);
   });
 
+  /**
+   * El paso de tareas mira lo que el producto HACE, no lo que está escrito.
+   *
+   * Esta prueba nació roja al mover el proveedor por defecto (#863) y lo que
+   * encontró no fue el cambio: fue que `diagnosticarLaIa` llamaba a
+   * `iaSettings(settings)` sin pasarle `hayLlave`, así que el respaldo de #665
+   * no se aplicaba y el paso contaba como rotas las tareas que el producto
+   * estaba atendiendo bien. El comentario de tres pantallas más abajo afirmaba
+   * lo contrario desde entonces.
+   */
+  it('cuenta las tareas por el proveedor que de verdad las atiende, no por el escrito', () => {
+    // Con UNA sola llave, el respaldo manda todas las tareas de texto ahí.
+    // Lo único que queda sin atender es el audio, por capacidad.
+    const tareas = d.pasos.find((p) => p.id === 'tareas')!;
+    expect(tareas.detalle).toContain('1 de 9');
+    expect(tareas.detalle).toContain('audio');
+    expect(tareas.estado).toBe('atencion');
+    // Y la prueba no puede pasar por omisión: si contara lo escrito, con el
+    // defecto apuntando a otro proveedor diría «9 de 9».
+    expect(tareas.detalle).not.toContain('9 de 9');
+  });
+
   it('avisa de los que no tienen llave, sin exigirlos todos', () => {
     const q = d.pasos.find((p) => p.id === 'proveedores')!.queHacer ?? '';
     expect(q).toContain('No hace falta tenerlos todos');

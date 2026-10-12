@@ -59,7 +59,27 @@ export function diagnosticarLaIa(input: {
   hayLlave?: (provider: Provider) => boolean;
 }): DiagnosticoDeLaIa {
   const hayLlave = input.hayLlave ?? providerAvailable;
-  const ia = iaSettings(input.settings);
+  /**
+   * La configuración EFECTIVA, o sea con el respaldo de #665 aplicado.
+   *
+   * Decía `iaSettings(input.settings)`, sin `hayLlave` — y el comentario del
+   * paso 4, tres pantallas más abajo, afirmaba que «los tres pasos de arriba
+   * miran la configuración efectiva, que desde #665 ya cae a un proveedor con
+   * credencial». No la miraban. El respaldo solo se aplica si se le pasa quién
+   * tiene llave, y no se le pasaba.
+   *
+   * Lo que eso hacía, y es peor que un número equivocado: el diagnóstico mentía
+   * en las DOS direcciones. El 11-10, con GLM por defecto sin llave y google
+   * con llave, dijo «8 de 9 no pueden funcionar» mientras el producto mandaba
+   * las nueve a google — que estaba sin saldo, que es otra falla y no la que
+   * decía la pantalla. Y al revés: con un proveedor por defecto sin llave y el
+   * respaldo sano, decía «9 de 9» con el producto funcionando entero.
+   *
+   * El dueño leyó esa pantalla para decidir qué arreglar. Un diagnóstico que
+   * no mira lo que el producto hace de verdad no es un diagnóstico: es una
+   * segunda cosa que hay que diagnosticar.
+   */
+  const ia = iaSettings(input.settings, hayLlave);
   const pasos: PasoDeLaIa[] = [];
 
   // 1. Lo primero, porque si no hay ninguna llave nada más importa.
@@ -143,7 +163,8 @@ export function diagnosticarLaIa(input: {
   // 4. ¿A qué proveedor apunta lo que el negocio TIENE GUARDADO? (#665)
   //
   // Los tres pasos de arriba miran la configuración efectiva, que desde #665 ya
-  // cae a un proveedor con credencial. Este mira lo GUARDADO, que es lo que
+  // cae a un proveedor con credencial — y desde #863 eso es verdad de verdad, no
+  // solo en este comentario. Este mira lo GUARDADO, que es lo que
   // alguien eligió alguna vez — y es donde estuvo el problema: los ajustes
   // apuntaban a un proveedor de antes de que ADR-0025 moviera el texto a GLM, el
   // ambiente tenía GLM, y este diagnóstico decía que todo estaba bien mientras
