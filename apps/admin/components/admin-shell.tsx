@@ -1054,6 +1054,9 @@ interface EjecucionIADto {
   traceUrl: string | null;
   conversationId: string | null;
   createdAt: string;
+  /** Por qué falló (#866): estaba en la fila y la consulta no lo traía. */
+  error: string | null;
+  errorDelProveedor: boolean | null;
 }
 
 const AGRUPACIONES = [
@@ -1650,7 +1653,7 @@ function CentroIA() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line bg-rest text-left">
-                  {['Cuándo', 'Tenant', 'Tarea', 'Modelo', 'Latencia', 'Estado', 'Trace'].map((h) => (
+                  {['Cuándo', 'Tenant', 'Tarea', 'Modelo', 'Latencia', 'Estado', 'Por qué', 'Trace'].map((h) => (
                     <th key={h} className="rotulo px-3 py-2 font-normal">{h}</th>
                   ))}
                 </tr>
@@ -1670,6 +1673,23 @@ function CentroIA() {
                         <span className="text-good-text">ok</span>
                       ) : (
                         <span className="text-bad-text">falló</span>
+                      )}
+                    </td>
+                    {/*
+                      Por qué falló (#866). Estaba en la misma fila y la consulta
+                      no lo traía: el panel decía «falló» y punto, 51 veces en
+                      tres semanas, y las dos causas había que deducirlas por la
+                      latencia. Va crudo porque es el panel del dueño de la
+                      plataforma y el texto del proveedor es lo que diagnostica.
+                    */}
+                    <td className="px-3 py-2 text-xs">
+                      {e.error ? (
+                        <span className="text-bad-text" title={e.error}>
+                          {e.errorDelProveedor === true ? 'del proveedor · ' : ''}
+                          {e.error.length > 70 ? `${e.error.slice(0, 70)}…` : e.error}
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
                       )}
                     </td>
                     <td className="dato px-3 py-2 text-xs">
