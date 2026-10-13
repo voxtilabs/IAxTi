@@ -61,6 +61,29 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    # Los MAYORES van aparte de los menores, y esto no es orden: es lo que
+    # hace que el PR se pueda mergear (#881).
+    #
+    # Los grupos eran `patterns: ["*"]` por tipo de dependencia, sin mirar el
+    # nivel de semver. Resultado medido el 12-10: el PR `produccion` traía
+    # **22 bumps con tres cambios incompatibles adentro**, y llevaba días en
+    # rojo porque mergearlo pedía tres migraciones distintas:
+    #
+    #   - `@opentelemetry/core` 2.11 eliminó `getEnv()`, que el sampler usaba
+    #     para leer la configuración de muestreo CON el valor por defecto de
+    #     la especificación. Leer `process.env` pelado cambiaba el muestreo de
+    #     los cinco servicios y ensuciaba el log en cada arranque.
+    #   - `bullmq` 6 reemplazó los repetibles (`add` con `repeat`) por Job
+    #     Schedulers (`upsertJobScheduler`). Es el corazón de #807.
+    #   - `@tanstack/react-table` 9 renombró su API entera.
+    #
+    # Tres trabajos de verdad, cada uno con su riesgo, en un PR de «chore».
+    # Y al lado, diecinueve bumps inofensivos que no podían entrar porque
+    # viajaban con ellos. Un PR imposible de mergear envejece igual que una
+    # dependencia sin actualizar: es el mismo defecto por otra puerta.
+    #
+    # Separados, los parches y menores entran solos en verde, y cada mayor
+    # llega en su PR con su migración y su propia decisión.
     groups:
       seguridad:
         applies-to: security-updates
@@ -69,10 +92,22 @@ updates:
         applies-to: version-updates
         dependency-type: production
         patterns: ["*"]
+        update-types: ["patch", "minor"]
+      produccion-mayores:
+        applies-to: version-updates
+        dependency-type: production
+        patterns: ["*"]
+        update-types: ["major"]
       desarrollo:
         applies-to: version-updates
         dependency-type: development
         patterns: ["*"]
+        update-types: ["patch", "minor"]
+      desarrollo-mayores:
+        applies-to: version-updates
+        dependency-type: development
+        patterns: ["*"]
+        update-types: ["major"]
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -86,6 +121,13 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: chore
+    # Igual que npm, y acá pesa más: una acción que sube de mayor puede cambiar
+    # las entradas que espera, y mezclarla con ocho bumps de parche deja el
+    # workflow roto sin saber cuál de los nueve fue.
     groups:
       acciones:
         patterns: ["*"]
+        update-types: ["patch", "minor"]
+      acciones-mayores:
+        patterns: ["*"]
+        update-types: ["major"]
