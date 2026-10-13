@@ -82,15 +82,15 @@ jobs:
       # bloquear SOLO lo que el PR introduce, y para eso necesita el commit base
       # en el clon. Con el clon de un commit —el defecto— ese commit no existe y
       # la comparación no se puede hacer.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 12.4.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -99,7 +99,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Cache de Turborepo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
@@ -229,7 +229,7 @@ jobs:
       # mirar. Y con retención corta, porque una traza sirve el mismo día.
       - name: Traza del e2e cuando falla
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-traza-${{ github.run_attempt }}
           path: |
