@@ -8,11 +8,14 @@ import {
   iaSettings,
   redactPII,
   type Esfuerzo,
+  type Provider,
 } from '../domain/config';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { CATALOGO, herramientasPara, type Herramienta } from './catalogo';
 import { aiSdkModelPort, type HerramientaExpuesta, type ModelPort, providerAvailable } from './models';
 import { esDelProveedor } from './fallo-del-proveedor';
+import { castigar, estaCastigado, perdonar } from './castigados';
+import { motivoDelProveedor } from './motivo-del-proveedor';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 
@@ -623,6 +626,12 @@ export async function conversarConElAgenteGeneral(
   } catch (err) {
     const delProveedor = esDelProveedor(err);
     const mensaje = err instanceof Error ? err.message : String(err);
+    // Si no se arregla reintentando, se aparta al proveedor (#855). Igual que
+    // en `runtime.ts`: acá el error todavía tiene su marca y se puede clasificar.
+    castigar(
+      deps.provider as Provider,
+      motivoDelProveedor(err, { provider: deps.provider, model: deps.model, delProveedor }).motivo,
+    );
     const fila = await registrarFallo(client, {
       tenantId: input.tenantId,
       provider: deps.provider,
@@ -676,6 +685,9 @@ export async function conversarConElAgenteGeneral(
     actorUserId: input.actorUserId,
     pasos,
   });
+
+  // Contestó: se le levanta el castigo si lo tenía (#855).
+  perdonar(deps.provider as Provider);
 
   return {
     status: 'ok',
@@ -807,7 +819,7 @@ async function registrarCorrida(
     requestId: datos.traceId,
   });
   // A Langfuse va REDACTADO según la política del tenant (SPEC §13).
-  const settings = iaSettings(await getTenantSettings(client, datos.tenantId), providerAvailable);
+  const settings = iaSettings(await getTenantSettings(client, datos.tenantId), providerAvailable, estaCastigado);
   traceGeneration({
     traceId: datos.traceId,
     tenantId: datos.tenantId,
@@ -865,7 +877,7 @@ export async function modeloDelAgenteGeneral(
   client: PoolClient,
   tenantId: string,
 ): Promise<{ modelo: ModelPort; provider: string; model: string; esfuerzo?: Esfuerzo }> {
-  const settings = iaSettings(await getTenantSettings(client, tenantId), providerAvailable);
+  const settings = iaSettings(await getTenantSettings(client, tenantId), providerAvailable, estaCastigado);
   const { provider, model, esfuerzo } = settings.tasks.configuracion_conversada;
   return { modelo: aiSdkModelPort(provider, model), provider, model, ...(esfuerzo ? { esfuerzo } : {}) };
 }

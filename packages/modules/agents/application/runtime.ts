@@ -1,4 +1,6 @@
 import { esDelProveedor } from './fallo-del-proveedor';
+import { castigar, estaCastigado, perdonar } from './castigados';
+import { motivoDelProveedor } from './motivo-del-proveedor';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { ModuleRegistry } from '@iaxti/core';
@@ -129,7 +131,11 @@ export async function runAgentTask(
   input: RunInput,
   modelPortFactory: ModelPortFactory = aiSdkModelPort,
 ): Promise<RunResult> {
-  const settings = iaSettings(await getTenantSettings(client, input.tenantId), providerAvailable);
+  const settings = iaSettings(
+    await getTenantSettings(client, input.tenantId),
+    providerAvailable,
+    estaCastigado,
+  );
   // Por tarea manda la configuración del tenant; el agente es el fallback.
   const porTarea = settings.tasks[input.task];
   let provider = (porTarea?.provider ?? input.agent.provider) as Provider;
@@ -314,6 +320,16 @@ export async function runAgentTask(
       tokensOut: res.tokensOut,
       latencyMs,
     });
+    /**
+     * Contestó: se le levanta el castigo si lo tenía (#855).
+     *
+     * En CADA éxito y no solo cuando hay castigo, porque el caso que importa
+     * es la carrera: dos mensajes a la vez, uno falla y castiga, el otro
+     * andaba y perdona. Que gane el que funcionó es lo correcto — el castigo
+     * existe para no insistir con algo roto, no para castigar.
+     */
+    perdonar(provider);
+
     return {
       status: 'ok',
       ...(res.truncada ? { truncada: true } : {}),
@@ -336,6 +352,18 @@ export async function runAgentTask(
     // su marca, porque en la columna es texto y ahí ya no se puede saber. Y se
     // guarda para que la bandeja no tenga que adivinarlo leyendo palabras.
     const delProveedor = esDelProveedor(err);
+    /**
+     * Si falló por algo que no se arregla reintentando, se lo aparta (#855).
+     *
+     * Acá y no en el controlador, porque acá el error todavía es un objeto con
+     * su marca y `motivoDelProveedor` puede clasificarlo. `castigar` ignora
+     * los motivos reintentables —un límite de tasa no es un proveedor roto—
+     * así que pasarle todo es seguro.
+     *
+     * Lo que esto evita es lo del 11-10: el respaldo volvió a elegir, mensaje
+     * tras mensaje, al único proveedor con llave… que estaba sin saldo.
+     */
+    castigar(provider, motivoDelProveedor(err, { provider, model, delProveedor }).motivo);
     const fila = await client.query(
       `INSERT INTO agent_executions
          (tenant_id, agent_id, task, provider, model, input, latency_ms, trace_id, status, error, explanation, error_del_proveedor)
