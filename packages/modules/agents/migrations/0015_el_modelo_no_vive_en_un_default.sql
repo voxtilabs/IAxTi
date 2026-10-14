@@ -1,0 +1,40 @@
+-- El nombre de un modelo no vive en un sitio que nadie revalida (#861).
+--
+-- `0001` dejó estos dos valores por defecto:
+--
+--     provider  text NOT NULL DEFAULT 'google',
+--     model     text NOT NULL DEFAULT 'gemini-2.5-flash',
+--
+-- y `gemini-2.5-flash` es exactamente el modelo que el propio repo registra
+-- como retirado, en el comentario de `domain/config.ts`:
+--
+--     404 · This model models/gemini-2.5-flash is no longer available
+--           to new users
+--
+-- O sea: el valor por defecto de la base apunta a un modelo que no existe.
+--
+-- ## Por qué un DEFAULT es el peor lugar para un nombre de modelo
+--
+-- Porque no se vuelve a leer nunca. Un modelo en el código lo ve quien pasa
+-- por ahí; uno en un `DEFAULT` solo aparece el día que alguien inserta sin
+-- nombrarlo, y ese día ya es tarde. Envejeció sin que nadie se enterara.
+--
+-- ## Quién lo alcanzaba
+--
+-- La aplicación NO: `crearAgent` resuelve el modelo de la tarea `sugerir` y lo
+-- pasa explícito con `COALESCE($5,$16)`, desde que GLM pasó a ser el proveedor
+-- (ADR-0025 §7). Lo alcanzaban dos PRUEBAS que crean agentes por SQL sin
+-- nombrar modelo, y esos agentes nacían en un proveedor y un modelo que ningún
+-- agente del producto tiene — con `evaluation.ts` corriendo el dataset de
+-- regresión contra un 404, que se lee como «la IA empeoró».
+--
+-- ## Qué hace quitar el DEFAULT
+--
+-- La columna sigue siendo NOT NULL, así que un INSERT que no nombre el modelo
+-- ahora FALLA en vez de inventarse uno retirado. Es estrictamente mejor: un
+-- error en la prueba que lo escribió, en vez de un 404 tres capas más abajo.
+--
+-- Aditiva y sin pérdida: ninguna fila cambia, y la versión anterior de la app
+-- funciona igual porque siempre pasó los dos valores.
+ALTER TABLE agents ALTER COLUMN model DROP DEFAULT;
+ALTER TABLE agents ALTER COLUMN provider DROP DEFAULT;
