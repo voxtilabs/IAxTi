@@ -2,7 +2,9 @@ import {
   BadRequestException,
   ConflictException,
   Controller,
+  Get,
   Post,
+  Query,
   Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -16,6 +18,7 @@ import {
   type LoQueFalta,
   conversarConElAgenteGeneral,
   modeloDelAgenteGeneral,
+  sugerenciasPara,
   nombreDePantalla,
   motivoDelProveedor,
   providerAvailable,
@@ -424,6 +427,42 @@ export class AgenteGeneralController {
    * sesión guardada, y eso es a propósito — una conversación de
    * configuración no es un dato del negocio que haya que retener.
    */
+  /**
+   * Qué ofrecerle a quien abre el popup y no sabe qué pedir (#584).
+   *
+   * Sale del servidor y no de una lista en el navegador, y eso es el issue
+   * entero: las sugerencias vivían en `apps/web/lib/donde-estoy.ts`, fijas por
+   * pantalla, y el propio issue había advertido que eso sería «otra cosa
+   * declarada en un lado».
+   *
+   * Medido: `USER_PERMS` no tiene `automations.manage`, así que un vendedor en
+   * la bandeja veía «Deriva a una persona cuando el cliente se enoja» y el
+   * agente le contestaba que no puede. Una sugerencia que el producto ofrece y
+   * después no cumple.
+   *
+   * El filtro es el MISMO que el agente usa para sus 195 herramientas, así que
+   * si el agente no va a tenerla, la sugerencia no se ofrece.
+   *
+   * Mismo permiso que conversar: quien puede usar el copiloto puede saber qué
+   * pedirle. Y el id de pantalla se valida contra la lista cerrada igual que
+   * en `conversar` — este valor no entra en ningún prompt, pero aceptar texto
+   * libre del navegador para después usarlo de clave no se hace por costumbre.
+   */
+  @Get('sugerencias')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Qué puede pedirle esta persona al Agente General desde esta pantalla' })
+  async sugerencias(@Req() request: WithUser, @Query('pantalla') pantalla?: string) {
+    const actor = actorOf(request);
+    const sugerencias = await withTenant(pool(), actor.tenantId, async (c) => {
+      return sugerenciasPara({
+        pantalla: nombreDePantalla(pantalla) ? (pantalla ?? null) : null,
+        permisos: await permisosDelActor(c, actor),
+        modulosActivos: modulosActivos(),
+      });
+    });
+    return { sugerencias };
+  }
+
   @Post()
   @RequirePermission('agents.use')
   @ApiOperation({ summary: 'Le habla al Agente General, que configura el negocio conversando' })

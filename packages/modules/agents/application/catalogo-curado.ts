@@ -66,6 +66,19 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
    * Lo que sí hace falta es el botón, que lo aprieta una persona y no depende
    * de que el modelo esté vivo. Por eso esto vive en una pantalla.
    */
+  /**
+   * Las sugerencias de arranque (#584). Y el motivo no es el costo: es que
+   * sería una segunda forma de hacer una cosa.
+   *
+   * Esto le dice a una PANTALLA qué ofrecerle a quien no sabe qué pedir. El
+   * agente ya sabe qué puede hacer —`buscar_herramienta` recorre sus 195 y le
+   * dice cuáles tiene— así que preguntárselo por acá sería pedirle que se
+   * consulte a sí mismo por otra puerta, y con una lista de frases curadas que
+   * no cubre ni la décima parte de lo que puede.
+   */
+  AgenteGeneralController_sugerencias:
+    'Le dice a la pantalla qué ofrecerle a quien no sabe qué pedir. El agente ya sabe qué puede hacer con buscar_herramienta: esto sería una segunda forma de hacer una cosa, y más pobre (#584).',
+
   AgentsController_probar:
     'Le hace una llamada real al proveedor para ver si contesta. Para que el agente la llame tendría que estar contestando ya, así que es inútil justo cuando haría falta: la aprieta una persona en su pantalla (#869).',
   PlatformController_probarLosProveedores:

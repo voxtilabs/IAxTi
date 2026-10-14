@@ -18,6 +18,7 @@ import {
   Message,
   MessageContent,
   Textarea,
+  toast,
   useSession,
 } from '@iaxti/ui/react';
 import { apiFetch } from '../lib/api';
@@ -190,6 +191,46 @@ export function AgenteGeneral() {
   // EN la pantalla entra en el contexto por estar a la vista.
   const ruta = usePathname() ?? '/';
   const pantalla = useMemo(() => pantallaDe(ruta), [ruta]);
+  /**
+   * Las sugerencias salen del SERVIDOR, no de una lista en el navegador (#584).
+   *
+   * Estaban en `donde-estoy.ts`, fijas por pantalla, y el propio issue había
+   * advertido que eso sería «otra cosa declarada en un lado». Medido: un
+   * vendedor en la bandeja veía «Deriva a una persona cuando el cliente se
+   * enoja» —que necesita `automations.manage`, y `USER_PERMS` no lo tiene— y
+   * el agente le contestaba que no puede.
+   *
+   * El servidor las filtra con el MISMO criterio con que el agente filtra sus
+   * 195 herramientas, así que no hay sugerencia que falle al tocarla.
+   *
+   * Arranca en `null` y no en una lista de respaldo a propósito: un respaldo
+   * sería volver a la lista fija, con su mismo defecto, justo el día que la
+   * red falla. Mientras no lleguen, no se ofrece ninguna — la frase de arriba
+   * ya dice qué se puede pedir.
+   */
+  const [sugerencias, setSugerencias] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!abierto || !session) return;
+    // El tenant se lee al abrir, igual que en `preguntar`: puede cambiar con
+    // el selector sin que este componente se vuelva a montar.
+    const tenant = selectedTenant();
+    if (!tenant) return;
+    let vigente = true;
+    void apiFetch<{ sugerencias: string[] }>(
+      config,
+      session,
+      tenant,
+      `/agente-general/sugerencias?pantalla=${encodeURIComponent(pantalla.id)}`,
+    )
+      .then((r) => vigente && setSugerencias(r.sugerencias))
+      // Un fallo acá no se le muestra: es una ayuda, no el producto. Lo que NO
+      // se hace es caer a una lista fija, que es el defecto que esto saca.
+      .catch(() => vigente && setSugerencias([]));
+    return () => {
+      vigente = false;
+    };
+  }, [abierto, session, config, pantalla.id]);
 
   // Ctrl+I / ⌘I lo abre desde cualquier pantalla: es la misma tecla en toda
   // la app y por eso está acá y no en cada página.
@@ -343,7 +384,7 @@ export function AgenteGeneral() {
                   reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.
                 </p>
                 <ul className="flex flex-col gap-2">
-                  {pantalla.ejemplos.map((e) => (
+                  {(sugerencias ?? []).map((e) => (
                     <li key={e}>
                       <Button variant="secundario" size="chico" onClick={() => void preguntar(e)}>
                         {e}
@@ -374,6 +415,39 @@ export function AgenteGeneral() {
                   </ul>
                 )}
                 <MessageContent>{t.content}</MessageContent>
+                {/*
+                  Copiar lo que redactó (#584).
+                  
+                  El agente escribe cosas para pegar en otra parte —un texto
+                  para mandarle a un cliente, una descripción, un horario— y
+                  hasta ahora había que seleccionarlo a mano dentro de un
+                  popup, que es justo donde seleccionar sale mal.
+                  
+                  Solo en lo que dice ÉL: copiar lo que uno mismo escribió no
+                  le sirve a nadie, y un botón que no sirve en la mitad de los
+                  mensajes enseña a no mirar los botones.
+                  
+                  Mismo patrón que el rastro del error en la bandeja: con
+                  confirmación de que se copió, y con el caso del navegador
+                  que no deja —que existe, en contextos sin HTTPS o con el
+                  permiso denegado— dicho en vez de callado.
+                */}
+                {t.role === 'assistant' && t.content.trim() !== '' && (
+                  <button
+                    type="button"
+                    className="self-start text-rotulo text-action-text underline"
+                    onClick={() => {
+                      void navigator.clipboard
+                        ?.writeText(t.content)
+                        .then(() => toast.success('Copiado.'))
+                        .catch(() =>
+                          toast.error('Tu navegador no dejó copiar. Selecciónalo a mano.'),
+                        );
+                    }}
+                  >
+                    Copiar
+                  </button>
+                )}
                 {t.propuesta && (
                   <Propuesta
                     propuesta={t.propuesta}

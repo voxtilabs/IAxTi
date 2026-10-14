@@ -334,6 +334,24 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgenteGeneralController_sugerencias": {
+    "metodo": "GET",
+    "ruta": "/v1/agente-general/sugerencias",
+    "resumen": "Qué puede pedirle esta persona al Agente General desde esta pantalla",
+    "permiso": "agents.use",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "pantalla": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "AgentsController_ajustesDeIa": {
     "metodo": "GET",
     "ruta": "/v1/agents/ajustes",
