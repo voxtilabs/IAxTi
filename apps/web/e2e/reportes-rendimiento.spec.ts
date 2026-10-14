@@ -19,7 +19,17 @@ function respuesta(route: Route, conversaciones: number) {
     primeraRespuesta: { medianaSeg: 45, p90Seg: 150, muestras: 9 }, sinResponderAhora: 2, tasaCierre: .6,
     porDia: [{ day: url.searchParams.get('from')!, conversaciones: 0, resueltas: 0, oportunidades: 0 },
       { day: url.searchParams.get('to')!, conversaciones, resueltas: 12, oportunidades: 8 }],
-    definiciones: { conversaciones_nuevas: 'Conversaciones creadas en el rango.', resueltas: 'Conversaciones resueltas.', primera_respuesta: 'Tiempo hasta la primera respuesta.' } };
+    definiciones: { conversaciones_nuevas: 'Conversaciones creadas en el rango.', resueltas: 'Conversaciones resueltas.', primera_respuesta: 'Tiempo hasta la primera respuesta.' },
+    // El período anterior va en el simulacro aunque ninguna de estas pruebas
+    // mire la comparación (#588, punto 5): un stub que no tiene la forma de la
+    // respuesta real deja de proteger justo cuando la respuesta cambia. Si
+    // pintar la tendencia tirara, estas pruebas fallarían, que es lo que un
+    // simulacro fiel tiene que hacer. El vacío de `estados-vacios.spec.ts` NO
+    // lo lleva, a propósito: ahí se prueba el otro lado, que la pantalla
+    // aguante una API que todavía no devuelve el campo.
+    anterior: { from: '2025-08-01', to: '2025-08-07', comparable: true,
+      metrics: { conversaciones_nuevas: Math.max(0, conversaciones - 10), resueltas: 10 },
+      primeraRespuesta: { medianaSeg: 60, muestras: 7 }, tasaCierre: .5 } };
 }
 const cifra = (page: Page) => page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Conversaciones', exact: true }) }).locator('strong');
 function dias(route: Route) {
