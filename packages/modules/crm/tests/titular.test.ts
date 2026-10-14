@@ -248,7 +248,11 @@ describe('la supresión no deja copias (issue 235)', () => {
 
     // Una ejecución de IA con el texto adentro, que es como pasa de verdad.
     const agente = await admin.query(
-      `INSERT INTO agents (tenant_id, name, default_mode) VALUES ($1, 'Copiloto', 'assist') RETURNING id`,
+      // Proveedor y modelo EXPLÍCITOS desde #861: la columna ya no tiene valor por
+      // defecto, porque el que tenía nombraba un modelo retirado y esta prueba lo
+      // heredaba sin saberlo.
+      `INSERT INTO agents (tenant_id, name, default_mode, provider, model)
+         VALUES ($1, 'Copiloto', 'assist', 'openai', 'gpt-5-mini') RETURNING id`,
       [tenant],
     );
     const eje = await admin.query(

@@ -20,8 +20,10 @@ beforeAll(async () => {
   );
   tenant = t.rows[0].id;
   const a = await admin.query(
-    `INSERT INTO agents (tenant_id, name, prompt_name, prompt_version)
-     VALUES ($1, 'Copiloto', 'copiloto-sugerencia', '3') RETURNING id`,
+    // Proveedor y modelo EXPLÍCITOS desde #861: la columna ya no tiene valor
+    // por defecto, porque el que tenía nombraba un modelo retirado.
+    `INSERT INTO agents (tenant_id, name, prompt_name, prompt_version, provider, model)
+     VALUES ($1, 'Copiloto', 'copiloto-sugerencia', '3', 'openai', 'gpt-5-mini') RETURNING id`,
     [tenant],
   );
   agente = a.rows[0].id;
