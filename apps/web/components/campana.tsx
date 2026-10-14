@@ -11,6 +11,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  toast,
   useSession,
 } from '@iaxti/ui/react';
 import { usePieza } from './arranque';
@@ -100,10 +101,15 @@ export function Campana() {
               className="text-xs text-action-text"
               onClick={() => {
                 if (!session || !tenant) return;
+                // Por sonner y no por un aviso en el panel: esto vive en un
+                // desplegable que se cierra, así que un mensaje dibujado acá
+                // se iría con él (#588, punto 4).
                 void apiFetch(config, session, tenant, '/notifications/read', {
                   method: 'POST',
                   body: JSON.stringify({}),
-                }).then(cargar);
+                })
+                  .then(cargar)
+                  .catch(() => toast.error('No pudimos marcar los avisos como leídos.'));
               }}
             >
               Marcar todo leído
@@ -122,10 +128,24 @@ export function Campana() {
                   className="block rounded-campo px-3 py-2 transition-colors hover:bg-rest"
                   onClick={() => {
                     if (!session || !tenant || n.readAt) return;
+                    /**
+                     * Este SÍ se traga el fallo, y con motivo.
+                     *
+                     * El clic también sigue el enlace: un milisegundo después
+                     * esta pantalla no existe, así que no hay dónde mostrar un
+                     * error ni nada que reintentar desde acá. Lo peor que pasa
+                     * es que el aviso siga marcado como no leído, y eso se ve
+                     * —el punto se queda— y se arregla volviendo a entrar.
+                     *
+                     * El `catch` vacío no es para esconderlo: es para que la
+                     * promesa no quede rechazada sin dueño, que en el
+                     * navegador es un error en la consola sin relación visible
+                     * con lo que la persona hizo.
+                     */
                     void apiFetch(config, session, tenant, '/notifications/read', {
                       method: 'POST',
                       body: JSON.stringify({ ids: [n.id] }),
-                    });
+                    }).catch(() => {});
                   }}
                 >
                   <span className="flex items-center gap-2">
