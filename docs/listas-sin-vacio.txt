@@ -38,6 +38,43 @@
 # empeorando, es la guarda viendo algo que antes no veía.
 #
 # Cuántas más hay escondidas por esa puerta: no está medido.
+#
+# ## Y no todas las que figuran pueden estar vacías (medido el 14-10)
+#
+# La guarda cuenta colecciones que se dibujan SIN estado vacío, y eso es
+# mecánicamente cierto. Lo que no puede saber es si el vacío es ALCANZABLE.
+#
+# `preferencias-avisos.tsx#prefs` es el caso claro: el servidor hace
+# `NOTIFICATION_TYPES.map(...)` sobre una lista fija del código
+# (`notifications.ts:162`), así que devuelve una fila por tipo de aviso
+# SIEMPRE. Un `prefs` vacío solo pasaría si el catálogo quedara vacío, y si eso
+# pasara el problema no sería el estado vacío. Escribirle uno sería una
+# pantalla que nadie va a ver nunca, y haría creer que el caso existe.
+#
+# De las 35, **24 ya distinguen cargando de vacío** y están acá solo por no
+# usar el componente `EstadoVacio`; **11 tienen el pixel ambiguo**.
+#
+# Antes de escribirle un vacío a cualquiera de esas once, conviene preguntarse
+# si puede estar vacía. Miré tres y **solo una lo necesitaba**:
+#
+#  - `embudos.tsx#pipelines` — SÍ. Con cero embudos se veía el título y nada
+#    más: el formulario de «Agregar una etapa» vive dentro de cada tarjeta, así
+#    que no había forma de crear el primero. Y es alcanzable: los embudos los
+#    crea el configurador, así que un negocio nuevo que entre antes de terminar
+#    el setup caía en el callejón. Arreglado.
+#  - `preferencias-avisos.tsx#prefs` — NO. El servidor hace
+#    `NOTIFICATION_TYPES.map(...)` sobre una lista fija del código
+#    (`notifications.ts:162`): devuelve una fila por tipo SIEMPRE.
+#  - `crm/ficha-contacto.tsx#campos` y `#catalogo` — NO. `campos` son las
+#    definiciones de campos PROPIOS del negocio, dibujadas dentro de un
+#    formulario que ya muestra nombre, RUT y el resto: con cero campos propios
+#    no hay callejón, hay un formulario completo. Y `catalogo` ya está guardado
+#    con `catalogo.length > 0 &&`, así que el menú de etiquetas no aparece si
+#    no hay ninguna — que es lo correcto.
+#
+# Dos de tres hipótesis eran falsas. Vale la pena medirlo antes de escribir:
+# un estado vacío para un caso inalcanzable es una pantalla que nadie va a ver,
+# y peor, hace creer que el caso existe.
 
 agente-general.tsx#sugerencias
 agente-general.tsx#turnos
@@ -63,7 +100,6 @@ crm/historia-conversaciones.tsx#items
 crm/historia-de-etapas.tsx#pasos
 dar-una-hora.tsx#contactos
 dar-una-hora.tsx#huecos
-embudos.tsx#pipelines
 empresas.tsx#items
 etiquetas.tsx#items
 evaluaciones.tsx#corridas

@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   EncabezadoDePagina,
+  EstadoVacio,
   Input,
   Skeleton,
   useSession,
@@ -123,6 +124,36 @@ export function Embudos() {
       />
 
       {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
+
+      {/*
+        Con cero embudos esta pantalla era un callejon (#588).
+
+        Se veia el titulo, el apoyo, y nada mas: el formulario de «Agregar una
+        etapa» vive DENTRO de cada tarjeta de embudo, asi que sin embudos no
+        hay nada que apretar. Ni una via para crear el primero.
+
+        Y es alcanzable, medido: los embudos los crea el configurador
+        (`configurator.ts`) o el seed. Un negocio nuevo que entre aca antes de
+        terminar el setup ve la nada — el peor momento posible para un
+        callejon, porque son sus primeros cinco minutos.
+
+        La accion es pedirselo al Agente General, y no por comodidad: es la via
+        del producto para esto (ADR-0025), el agente tiene la herramienta
+        (`deals.pipelines`), y «Arma un embudo para arriendos» es literalmente
+        una de las sugerencias que esa pantalla le ofrece (#584).
+      */}
+      {pipelines.length === 0 ? (
+        <EstadoVacio
+          titulo="Todavía no tienes embudos"
+          descripcion={
+            'Un embudo son las etapas por las que pasa una oportunidad hasta cerrarse, y son las ' +
+            'columnas de tu tablero. Cuando tengas uno, acá podrás renombrar sus etapas y agregar ' +
+            'las que te falten.'
+          }
+          accion={{ etiqueta: 'Ver el tablero', href: '/oportunidades' }}
+          pideleAIAxTi="Arma un embudo para arriendos"
+        />
+      ) : null}
 
       {pipelines.map((p) => (
         <div key={p.id} className="flex flex-col gap-3 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
