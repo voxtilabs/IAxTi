@@ -1,5 +1,15 @@
 import { PROVIDERS, TASKS, iaSettings, type AgentTask, type Provider } from '../domain/config';
 import { ENV_KEYS, providerAvailable } from './models';
+import { losCastigados } from './castigados';
+import type { MotivoDelProveedor } from './motivo-del-proveedor';
+
+/** El motivo, en la voz del producto. El nombre interno no le dice nada a nadie. */
+const EN_CASTELLANO_EL_MOTIVO: Partial<Record<MotivoDelProveedor, string>> = {
+  sin_saldo: 'se quedó sin saldo',
+  sin_llave: 'no tiene credencial en este ambiente',
+  llave_invalida: 'rechazó la credencial',
+  modelo_no_disponible: 'no tiene el modelo que se le pidió',
+};
 
 /**
  * ¿Por qué la IA no hace nada? (#614)
@@ -57,6 +67,8 @@ export function diagnosticarLaIa(input: {
   settings: Record<string, unknown> | null | undefined;
   /** Para no depender del entorno en las pruebas. */
   hayLlave?: (provider: Provider) => boolean;
+  /** Quién está apartado por haber fallado hace poco (#855). Idem. */
+  castigados?: () => Array<{ provider: Provider; motivo: MotivoDelProveedor }>;
 }): DiagnosticoDeLaIa {
   const hayLlave = input.hayLlave ?? providerAvailable;
   /**
@@ -79,7 +91,11 @@ export function diagnosticarLaIa(input: {
    * no mira lo que el producto hace de verdad no es un diagnóstico: es una
    * segunda cosa que hay que diagnosticar.
    */
-  const ia = iaSettings(input.settings, hayLlave);
+  const apartadosAhora = input.castigados ? input.castigados() : losCastigados();
+  const castigado = (p: Provider) => apartadosAhora.some((c) => c.provider === p);
+  // Con el castigo aplicado: la configuración efectiva es la que el producto
+  // usaría AHORA, y desde #855 eso incluye saltar al que acaba de fallar.
+  const ia = iaSettings(input.settings, hayLlave, castigado);
   const pasos: PasoDeLaIa[] = [];
 
   // 1. Lo primero, porque si no hay ninguna llave nada más importa.
@@ -159,6 +175,37 @@ export function diagnosticarLaIa(input: {
             'el proveedor de esa tarea en los ajustes de IA.',
         }),
   });
+
+  /**
+   * 3.5 · Quién acaba de fallar (#855).
+   *
+   * Esta es la frase que faltaba toda la semana. El paso 1 dice «3 de 4 con
+   * credencial» y es cierto; lo que no decía nadie es que uno de esos tres
+   * acaba de contestar que no tiene saldo. Los dos números fueron 3 y 0
+   * durante tres semanas.
+   *
+   * Va después de las tareas y antes de lo guardado, porque es la causa de lo
+   * que el paso anterior muestra como síntoma.
+   */
+  const apartados = apartadosAhora;
+  if (apartados.length > 0) {
+    pasos.push({
+      id: 'proveedor_castigado',
+      titulo: 'Quién falló hace poco',
+      // `atencion` y no `mal`: el respaldo ya está trabajando con otro, así
+      // que la IA funciona. Pintarlo rojo cuando anda enseña a no mirar.
+      estado: rotas.length === TASKS.length ? 'mal' : 'atencion',
+      detalle:
+        `${apartados.length === 1 ? 'Un proveedor falló' : `${apartados.length} proveedores fallaron`} ` +
+        'hace poco por algo que no se arregla reintentando: ' +
+        apartados.map((c) => `${c.provider} (${EN_CASTELLANO_EL_MOTIVO[c.motivo] ?? c.motivo})`).join(', ') +
+        '. Mientras tanto se usa otro.',
+      queHacer:
+        'Se vuelve a probar solo en unos minutos: si cargaste crédito o arreglaste la llave, ' +
+        'el asistente vuelve sin que toques nada acá. Si sigue apareciendo, el problema está ' +
+        'en la cuenta de ese proveedor.',
+    });
+  }
 
   // 4. ¿A qué proveedor apunta lo que el negocio TIENE GUARDADO? (#665)
   //

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { probarLaIa, PROMPT_DE_PRUEBA } from '../application/probar-la-ia';
 import type { ModelPortFactory } from '../application/models';
 import type { Provider } from '../domain/config';
@@ -51,7 +51,43 @@ const queContesta = (texto: string, extra: Record<string, unknown> = {}): ModelP
   },
 });
 
+import { castigar, estaCastigado, olvidarLosCastigos } from '../application/castigados';
+
+beforeEach(() => olvidarLosCastigos());
+
 describe('probar la IA de verdad (#869)', () => {
+  /**
+   * El botón es lo que alguien aprieta DESPUÉS de cargar crédito (#855).
+   *
+   * Si la prueba dijera «contesta» y el producto siguiera saltando ese
+   * proveedor por un castigo de hace tres minutos, la herramienta de
+   * diagnóstico estaría contradiciendo al producto — que es justo lo que vino
+   * a arreglar. Así que un éxito perdona.
+   */
+  it('contestar levanta el castigo, que es para lo que se aprieta el botón', async () => {
+    castigar('openai', 'sin_saldo');
+    expect(estaCastigado('openai')).toBe(true);
+    const r = await probarLaIa(
+      { settings: null },
+      { hayLlave: SOLO('openai'), modelPortFactory: queContesta('listo') },
+    );
+    expect(r.contesto).toBe(true);
+    expect(estaCastigado('openai'), 'contestó y sigue apartado').toBe(false);
+  });
+
+  it('y fallar por algo que no se arregla reintentando lo aparta', async () => {
+    const r = await probarLaIa(
+      { settings: null },
+      {
+        hayLlave: SOLO('openai'),
+        modelPortFactory: queFalla('429 RESOURCE_EXHAUSTED · credits are depleted'),
+      },
+    );
+    expect(r.motivo).toBe('sin_saldo');
+    // Una prueba a mano es una llamada real: vale como evidencia.
+    expect(estaCastigado('openai')).toBe(true);
+  });
+
   it('tiene credencial y NO tiene saldo: lo dice, en vez de contar como disponible', async () => {
     const r = await probarLaIa(
       { settings: null },

@@ -13,6 +13,7 @@ import {
   type ModelPortFactory,
 } from './models';
 import { motivoDelProveedor, type MotivoDelProveedor } from './motivo-del-proveedor';
+import { castigar, estaCastigado, perdonar } from './castigados';
 
 /**
  * «Probá la IA ahora y decime qué pasó» (#869).
@@ -118,7 +119,7 @@ export async function probarLaIa(
   // que importa que funcione.
   const tarea: AgentTask = entrada.tarea && TASKS.includes(entrada.tarea) ? entrada.tarea : 'sugerir';
 
-  const efectiva = iaSettings(entrada.settings, hayLlave).tasks[tarea];
+  const efectiva = iaSettings(entrada.settings, hayLlave, estaCastigado).tasks[tarea];
   const escrita = iaSettings(entrada.settings).tasks[tarea];
   const pedido = escrita.provider !== efectiva.provider ? escrita.provider : null;
 
@@ -201,6 +202,17 @@ export async function probarLaIa(
       };
     }
 
+    /**
+     * Contestó: se le levanta el castigo de #855.
+     *
+     * Y acá importa más que en ningún otro lado: este botón es justo el que
+     * alguien aprieta después de cargar crédito, para comprobar que volvió.
+     * Si la prueba dijera «contesta» y el producto siguiera saltándolo por un
+     * castigo de hace tres minutos, la herramienta de diagnóstico estaría
+     * contradiciendo al producto — que es exactamente lo que vino a arreglar.
+     */
+    perdonar(efectiva.provider);
+
     return {
       contesto: true,
       tarea,
@@ -223,6 +235,9 @@ export async function probarLaIa(
     // llave no sirve». Lo que faltaba era alguien que la invocara a propósito
     // en vez de solo al pasar, cuando un usuario ya se quedó sin respuesta.
     const d = motivoDelProveedor(err, { provider: efectiva.provider, model: efectiva.model });
+    // Y si falló por algo que no se arregla reintentando, se lo aparta: una
+    // prueba a mano es una llamada real, así que vale como evidencia.
+    castigar(efectiva.provider, d.motivo);
     return {
       contesto: false,
       tarea,

@@ -352,14 +352,49 @@ function conCredencial(
   task: AgentTask,
   elegido: Provider,
   hayLlave: (p: Provider) => boolean,
+  /**
+   * Quién acaba de fallar por algo que no se arregla reintentando (#855).
+   *
+   * Entra como predicado porque `domain/` no lee el ambiente ni la memoria de
+   * nadie, y porque sin poder falsearlo el caso que costó la noche del 11-10
+   * —credencial presente, cuenta sin saldo— no se puede probar.
+   *
+   * Sin el argumento nada cambia: es el comportamiento de antes.
+   */
+  estaCastigado: (p: Provider) => boolean = () => false,
 ): Provider {
+  /**
+   * El castigo mueve el RESPALDO, no la elección.
+   *
+   * Si el proveedor elegido tiene llave, se usa — castigado o no. Dos razones:
+   * quien lo eligió a mano merece ver SU error con el nombre de SU proveedor,
+   * y si está castigado por error (una caída de un minuto, un 402 de una
+   * tarjeta que ya se arregló) cambiarlo en silencio sería peor que fallar.
+   *
+   * Lo que el castigo evita es lo otro: que el respaldo, al elegir por su
+   * cuenta entre varios, meta la cabeza en el que acaba de morir.
+   */
   if (hayLlave(elegido)) return elegido;
   const porDefecto = DEFAULT_TASK_MODELS[task].provider;
-  if (hayLlave(porDefecto) && proveedorPermitidoParaTarea(porDefecto, task)) return porDefecto;
-  const otro = PROVIDERS.find((p) => hayLlave(p) && proveedorPermitidoParaTarea(p, task));
-  // Sin ninguno, se devuelve el elegido: que falle con su mensaje, que nombra el
-  // proveedor. Inventar uno sin llave sería cambiar un error claro por otro.
-  return otro ?? elegido;
+  const sirve = (p: Provider) => hayLlave(p) && proveedorPermitidoParaTarea(p, task);
+  if (sirve(porDefecto) && !estaCastigado(porDefecto)) return porDefecto;
+  const otro = PROVIDERS.find((p) => sirve(p) && !estaCastigado(p));
+  if (otro) return otro;
+  /**
+   * Nadie sano. Antes de rendirse, se prueba con los castigados.
+   *
+   * Un castigado es mejor que nada: el castigo dice «acaba de fallar», no
+   * «está roto para siempre», y el único que puede desmentirlo es él mismo.
+   * Si no se le vuelve a hablar nunca, el castigo se vuelve permanente y la
+   * promesa del mensaje de `sin_saldo` —«el asistente vuelve solo»— es falsa.
+   */
+  const castigadoPeroPosible = sirve(porDefecto)
+    ? porDefecto
+    : PROVIDERS.find((p) => sirve(p));
+  // Y sin ninguno con llave, se devuelve el elegido: que falle con su mensaje,
+  // que nombra el proveedor. Inventar uno sin llave sería cambiar un error
+  // claro por otro.
+  return castigadoPeroPosible ?? elegido;
 }
 
 export function iaSettings(
@@ -373,6 +408,14 @@ export function iaSettings(
    * sigan viendo lo que el negocio eligió y no lo que este ambiente puede.
    */
   hayLlave?: (p: Provider) => boolean,
+  /**
+   * Quién acaba de fallar por algo que no se arregla reintentando (#855).
+   *
+   * Solo cambia a quién elige el RESPALDO. El proveedor que el negocio fijó
+   * con `soloProveedor` NO se mueve nunca —es un compromiso escrito sobre por
+   * dónde pasan sus datos— y el que tiene llave tampoco: ver `conCredencial`.
+   */
+  estaCastigado?: (p: Provider) => boolean,
 ): IaSettings {
   const raw = (settings?.ia ?? {}) as Partial<{
     tasks: Partial<Record<AgentTask, Partial<TaskModel>>>;
@@ -449,7 +492,7 @@ export function iaSettings(
     // `soloProveedor` NO se cae nunca —esa rama está arriba—: es un compromiso
     // escrito sobre por dónde pasan los datos del cliente, y cambiarlo en
     // silencio sería romperlo sin que nadie se entere.
-    const elegido = hayLlave ? conCredencial(task, pedido, hayLlave) : pedido;
+    const elegido = hayLlave ? conCredencial(task, pedido, hayLlave, estaCastigado) : pedido;
     tasks[task] = {
       provider: elegido,
       ...esfuerzoDeLaTarea(task),
