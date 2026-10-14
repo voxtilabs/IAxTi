@@ -141,6 +141,12 @@ export { motivoDelProveedor } from './application/motivo-del-proveedor';
  * de si está configurada.
  */
 export { probarLaIa } from './application/probar-la-ia';
+/**
+ * Las sugerencias de arranque que ESTE actor puede ejecutar (#584). Sale por
+ * el contrato porque la llama el controlador: el filtro es el mismo que el
+ * agente usa para sus herramientas, así que no hay sugerencia que falle.
+ */
+export { sugerenciasPara } from './application/catalogo';
 // De quién fue el error (#684) NO se exporta. La marca la pone el puerto del
 // modelo y la leen el runtime y el traductor del fallo, los dos DENTRO de este
 // módulo. Las publiqué en el contrato por costumbre y el trinquete de #664 las

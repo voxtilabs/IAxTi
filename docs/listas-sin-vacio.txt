@@ -23,7 +23,23 @@
 # Las que NO son colecciones —transcripciones, resultados de búsqueda,
 # sublistas de una ficha— viven en `packages/core/tests/listas-sin-estados.test.ts`
 # con su motivo, porque ahí el porqué es información que no está en el código.
+#
+# ## Un punto ciego, medido el 13-10 (#584)
+#
+# La guarda escanea `apps/web/components` y `packages/ui/src/react`, y busca
+# arreglos DEL COMPONENTE. Una lista cuyos datos vienen de `apps/web/lib` y se
+# dibujan con `algo.propiedad.map(...)` no la ve: no es un arreglo del
+# componente ni vive en una raíz escaneada.
+#
+# Se descubrió al mover las sugerencias del Agente General del navegador al
+# servidor: la lista fija de `lib/donde-estoy.ts` llevaba semanas dibujándose
+# sin estado vacío y nunca figuró acá. Al pasar a ser estado del componente,
+# apareció — o sea que este número subiendo de 35 a 36 no es el producto
+# empeorando, es la guarda viendo algo que antes no veía.
+#
+# Cuántas más hay escondidas por esa puerta: no está medido.
 
+agente-general.tsx#sugerencias
 agente-general.tsx#turnos
 api-keys.tsx#keys
 api-keys.tsx#scopes

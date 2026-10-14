@@ -24,9 +24,30 @@ export interface Pantalla {
    * instrucciones. Acá va el id y nada más.
    */
   id: string;
-  /** Lo que se le ofrece a alguien parado acá. */
-  ejemplos: string[];
 }
+
+/*
+ * Acá vivían los `ejemplos`, y se fueron con #584.
+ *
+ * Eran tres frases fijas por pantalla, y el issue las había advertido antes
+ * de que existieran: «tres pastillas escritas a mano serían otra cosa
+ * declarada en un lado; una sugerencia que falla al tocarla es peor que
+ * ninguna». Se escribieron igual, y el aviso quedó sin aplicar.
+ *
+ * Medido el 12-10: `USER_PERMS` tiene `agents.use` y NO `automations.manage`,
+ * así que un vendedor parado en la bandeja veía «Deriva a una persona cuando
+ * el cliente se enoja», la tocaba, y el agente le contestaba que no puede —
+ * sus herramientas se filtran por permiso antes de llegar al modelo.
+ *
+ * Ahora las sirve `GET /v1/agente-general/sugerencias`, filtradas con el
+ * MISMO criterio que el agente usa para sus 195 herramientas. La lista vive
+ * en `agents/domain/sugerencias.ts` y cada frase nombra la herramienta que la
+ * cumpliría, así que el permiso sale del catálogo —que se genera del código— y
+ * no de una anotación que alguien tenga que mantener al día.
+ *
+ * Lo que este archivo sigue teniendo es lo que sí le corresponde: desde qué
+ * pantalla se está hablando. Eso es ruteo, y es del navegador.
+ */
 
 /**
  * Las rutas más específicas van ARRIBA: `/ajustes/conocimiento` antes que
@@ -37,188 +58,108 @@ const PANTALLAS: Array<{ ruta: string; pantalla: Pantalla }> = [
     ruta: '/bandeja',
     pantalla: {
       id: 'bandeja',
-      ejemplos: [
-        'Contéstale a los que llevan más de un día esperando',
-        'Deriva a una persona cuando el cliente se enoja',
-        'Arma una respuesta rápida para el precio del despacho',
-      ],
     },
   },
   {
     ruta: '/oportunidades',
     pantalla: {
       id: 'oportunidades',
-      ejemplos: [
-        'Avísame si una cotización lleva 2 días parada',
-        'Agrega una etapa de "esperando pago" antes del cierre',
-        '¿En qué etapa se me caen más los negocios?',
-      ],
     },
   },
   {
     ruta: '/contactos',
     pantalla: {
       id: 'contactos',
-      ejemplos: [
-        'Etiqueta como "mayorista" a los que compran más de 5 unidades',
-        'Sácame la cartera en un Excel',
-        '¿A cuántos contactos nuevos llegué este mes?',
-      ],
     },
   },
   {
     ruta: '/agenda',
     pantalla: {
       id: 'agenda',
-      ejemplos: [
-        'Quiero atender los sábados en la mañana',
-        'Recuérdale la hora al cliente el día antes',
-        'Deja 15 minutos entre una hora y la siguiente',
-      ],
     },
   },
   {
     ruta: '/campanas',
     pantalla: {
       id: 'campanas',
-      ejemplos: [
-        'Mándale la promoción a los que compraron hace más de 3 meses',
-        '¿A cuánta gente le llegaría ese segmento?',
-        'Arma una plantilla para avisar que llegó el pedido',
-      ],
     },
   },
   {
     ruta: '/reportes',
     pantalla: {
       id: 'reportes',
-      ejemplos: [
-        '¿Cuánto gasté en IA este mes?',
-        '¿Cuánto se demora mi equipo en contestar?',
-        '¿Cuánto vendí este mes contra el pasado?',
-      ],
     },
   },
   {
     ruta: '/pendientes',
     pantalla: {
       id: 'pendientes',
-      ejemplos: [
-        '¿Qué tengo que hacer hoy?',
-        'Recuérdame llamar a los que cotizaron y no respondieron',
-      ],
     },
   },
   {
     ruta: '/ajustes/conocimiento',
     pantalla: {
       id: 'conocimiento',
-      ejemplos: [
-        'Aquí va mi lista de precios',
-        '¿Qué le falta saber al asistente para contestar bien?',
-        'Mis horarios de atención son de 10 a 19',
-      ],
     },
   },
   {
     ruta: '/ajustes/ia',
     pantalla: {
       id: 'asistente',
-      ejemplos: [
-        'Quiero un segundo asistente solo para postventa',
-        'Que sea más breve y trate de usted',
-        '¿Cómo le está yendo a mi asistente?',
-      ],
     },
   },
   {
     ruta: '/ajustes/automatizaciones',
     pantalla: {
       id: 'automatizaciones',
-      ejemplos: [
-        'Avísame si una cotización lleva 2 días parada',
-        'Cuando alguien pregunte por precios, mándale la lista',
-        'Etiqueta solo a los que preguntan por arriendo',
-      ],
     },
   },
   {
     ruta: '/ajustes/canales',
     pantalla: {
       id: 'canales',
-      ejemplos: [
-        'Quiero conectar mi WhatsApp',
-        'Pon el chat en mi sitio web',
-        '¿Por qué no me llegan los mensajes?',
-      ],
     },
   },
   {
     ruta: '/ajustes/plantillas',
     pantalla: {
       id: 'plantillas',
-      ejemplos: [
-        'Arma una plantilla para avisar que llegó el pedido',
-        'Mándale la plantilla de seguimiento a quien cotizó ayer',
-      ],
     },
   },
   {
     ruta: '/ajustes/embudos',
     pantalla: {
       id: 'embudos',
-      ejemplos: [
-        'Arma un embudo para arriendos',
-        'Agrega una etapa de "esperando pago" antes del cierre',
-      ],
     },
   },
   {
     ruta: '/ajustes/equipo',
     pantalla: {
       id: 'equipo',
-      ejemplos: [
-        'Invita a alguien que solo atienda conversaciones',
-        'Quiero que María pueda ver los reportes',
-      ],
     },
   },
   {
     ruta: '/ajustes/pagos',
     pantalla: {
       id: 'cobros',
-      ejemplos: [
-        'Quiero cobrar por el chat',
-        'Mándale un link de pago a quien cerró ayer',
-      ],
     },
   },
   {
     ruta: '/ajustes/facturacion',
     pantalla: {
       id: 'facturacion',
-      ejemplos: ['¿Qué incluye mi plan?', '¿Cuánto gasté en IA este mes?'],
     },
   },
   {
     ruta: '/empresas',
     pantalla: {
       id: 'empresas',
-      ejemplos: [
-        'Junta a estos contactos bajo la misma empresa',
-        '¿Cuánto me compró esta empresa en total?',
-      ],
     },
   },
   {
     ruta: '/ajustes',
     pantalla: {
       id: 'ajustes',
-      ejemplos: [
-        '¿Qué me falta configurar?',
-        'Quiero atender los sábados en la mañana',
-        'Avísame si una cotización lleva 2 días parada',
-      ],
     },
   },
 ];
@@ -226,12 +167,6 @@ const PANTALLAS: Array<{ ruta: string; pantalla: Pantalla }> = [
 /** La pantalla de inicio: los ejemplos de siempre, que son los de partida. */
 export const INICIO: Pantalla = {
   id: 'inicio',
-  ejemplos: [
-    '¿Qué me falta para empezar a vender?',
-    'Avísame si una cotización lleva 2 días parada',
-    'Quiero atender los sábados en la mañana',
-    '¿Cuánto gasté en IA este mes?',
-  ],
 };
 
 export function pantallaDe(ruta: string): Pantalla {

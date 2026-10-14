@@ -51,17 +51,24 @@ const RUTAS = [
 ];
 
 describe('desde dónde se abrió el Agente General (#509)', () => {
-  it('cada pantalla ofrece lo suyo, no los mismos cuatro de siempre', () => {
-    // El defecto que esto viene a cazar: el popup ofrecía «¿cuánto gasté en IA
-    // este mes?» también en la pantalla de plantillas, y ahí se lee como una
-    // curiosidad en vez de la forma de trabajar.
-    const porRuta = new Map(RUTAS.map((r) => [r, pantallaDe(r).ejemplos.join(' | ')]));
+  /**
+   * Esta prueba afirmaba que «cada pantalla ofrece lo suyo», mirando los
+   * `ejemplos` de este archivo. Siguen importando, pero ya no viven acá: con
+   * #584 las sirve el servidor filtradas por los permisos del actor, porque
+   * una lista fija ofrecía cosas que la persona no podía hacer.
+   *
+   * La afirmación se mudó a `agents/tests/sugerencias-que-se-pueden-cumplir`,
+   * que es donde está la lista. Lo que sigue siendo de este archivo es el
+   * RUTEO: que cada ruta diga desde dónde se está hablando, y que no todas
+   * digan lo mismo.
+   */
+  it('cada ruta dice desde dónde se habla, y no todas lo mismo', () => {
+    const porRuta = new Map(RUTAS.map((r) => [r, pantallaDe(r).id]));
     const distintos = new Set(porRuta.values());
-    expect(distintos.size, `Hay ${RUTAS.length} rutas y solo ${distintos.size} juegos de ejemplos`)
+    expect(distintos.size, `Hay ${RUTAS.length} rutas y solo ${distintos.size} pantallas`)
       .toBeGreaterThanOrEqual(12);
-    // Y ninguna se queda sin nada que ofrecer.
-    for (const [ruta, ejemplos] of porRuta) {
-      expect(ejemplos.length, `${ruta} sin ejemplos`).toBeGreaterThan(0);
+    for (const [ruta, id] of porRuta) {
+      expect(id.length, `${ruta} sin id de pantalla`).toBeGreaterThan(0);
     }
   });
 
@@ -93,12 +100,28 @@ describe('desde dónde se abrió el Agente General (#509)', () => {
     expect(pantallaDe('/bandeja?conversacion=abc').id).toBe('bandeja');
   });
 
-  it('el popup usa los ejemplos de la pantalla y ya no una lista suelta', () => {
+  /**
+   * Esta prueba afirmaba que el popup usa `pantalla.ejemplos`, y eso dejó de
+   * existir con #584: las sugerencias las sirve el servidor, filtradas por los
+   * permisos del actor, porque la lista fija ofrecía cosas que la persona no
+   * podía hacer —medido: un vendedor veía «deriva a una persona», que necesita
+   * `automations.manage`, y `USER_PERMS` no lo tiene—.
+   *
+   * Lo que sigue cuidando, y es lo que de verdad importaba de #509: que lo que
+   * viaja al servidor sea el ID de la pantalla y no una frase del navegador.
+   * Ese valor termina en el system prompt del agente que tiene las 195
+   * herramientas, así que aceptar texto libre sería dejar que cualquiera con
+   * sesión le escriba instrucciones.
+   */
+  it('al servidor le viaja el ID de la pantalla, nunca una frase del navegador', () => {
     const fuente = readFileSync(join(__dirname, '..', 'components', 'agente-general.tsx'), 'utf8');
-    expect(fuente).toContain('pantalla.ejemplos');
-    expect(fuente, 'volvió la lista fija').not.toContain('const EJEMPLOS');
-    // Y manda el id, no la frase: la frase la tiene el servidor.
     expect(fuente).toContain('pantalla: pantalla.id');
+    // Y la lista fija no volvió por ninguna puerta: ni como constante local,
+    // ni leyendo los ejemplos de `donde-estoy`.
+    expect(fuente, 'volvió la lista fija').not.toContain('const EJEMPLOS');
+    expect(fuente, 'volvió a leer los ejemplos del navegador').not.toContain('.ejemplos');
+    // Las sugerencias vienen del servidor.
+    expect(fuente).toContain('/agente-general/sugerencias');
   });
 });
 

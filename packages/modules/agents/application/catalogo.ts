@@ -1,4 +1,5 @@
 import { OPERACIONES_DE_LA_API, type OperacionDeLaApi } from './catalogo.generated';
+import { SUGERENCIAS, SUGERENCIA_DE_ULTIMO_RECURSO } from '../domain/sugerencias';
 import { DESCRIPCIONES, NO_SON_HERRAMIENTA, SIN_CONFIRMACION } from './catalogo-curado';
 
 /**
@@ -103,4 +104,39 @@ export function herramientasPara(input: {
       (h.modulo === null || input.modulosActivos.has(h.modulo)) &&
       (h.permiso === null || input.permisos.has(h.permiso)),
   );
+}
+
+/**
+ * Las sugerencias de arranque que ESTE actor puede ejecutar (#584).
+ *
+ * Vive acá y no en `domain/sugerencias.ts` porque necesita el catálogo, que es
+ * generado: el dominio declara QUÉ se ofrece y con qué herramienta, y esto
+ * resuelve QUIÉN puede. La lista de permisos no se duplica en ninguna parte.
+ *
+ * El filtro es el MISMO `herramientasPara` que el agente usa para sus 195
+ * herramientas antes de ofrecérselas al modelo. Eso es lo que garantiza que no
+ * haya sugerencia que falle al tocarla: si el agente no va a tener la
+ * herramienta, la sugerencia no se ofrece.
+ */
+export function sugerenciasPara(input: {
+  pantalla: string | null;
+  permisos: ReadonlySet<string>;
+  modulosActivos: ReadonlySet<string>;
+  /** Cuántas devolver. Tres o cuatro: más es un menú, y un menú no invita. */
+  cuantas?: number;
+}): string[] {
+  const puede = new Set(herramientasPara(input).map((h) => h.nombre));
+  const deLaPantalla = SUGERENCIAS.filter(
+    (s) => s.pantalla === input.pantalla && puede.has(s.herramienta),
+  );
+  // Sin ninguna de su pantalla, el último recurso: «¿qué me falta configurar?»
+  // lo puede hasta el rol más básico, y es lo correcto para quien no puede
+  // casi nada. Devolver vacío sería una caja de texto sin pistas, que es
+  // exactamente el estado que este issue vino a sacar.
+  const elegidas = deLaPantalla.length > 0
+    ? deLaPantalla
+    : puede.has(SUGERENCIA_DE_ULTIMO_RECURSO.herramienta)
+      ? [SUGERENCIA_DE_ULTIMO_RECURSO]
+      : [];
+  return elegidas.slice(0, input.cuantas ?? 4).map((s) => s.texto);
 }
