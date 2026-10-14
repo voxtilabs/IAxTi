@@ -1,6 +1,8 @@
 'use client';
 
 import { AvisoResultado } from './ui/avisos';
+import { EstadoVacio } from './estado-vacio';
+import { Skeleton } from './ui/skeleton';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from './ui/badge';
@@ -87,6 +89,27 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
       .catch((err: Error) => setAviso(err.message))
       .finally(() => setCargando(false));
   }, [fetcher, limpios]);
+
+  /**
+   * La accion del estado vacio: quitar los filtros y volver a buscar (#588).
+   *
+   * Un estado vacio que solo dice «no hay nada» es un callejon, y la regla de
+   * Pulso pide la accion que lo provoca. Aca la accion correcta es la que
+   * deshace lo unico que pudo esconder las filas: los filtros.
+   *
+   * Y no se limpia sin buscar: dejar los campos en blanco y la tabla igual
+   * seria pedirle a la persona que adivine que ahora tiene que apretar Buscar.
+   */
+  const limpiarYBuscar = useCallback(() => {
+    setFiltros({});
+    setCargando(true);
+    setAviso(null);
+    fetcher
+      .search({})
+      .then(setFilas)
+      .catch((err: Error) => setAviso(err.message))
+      .finally(() => setCargando(false));
+  }, [fetcher]);
 
   // Primera carga sin filtros: el libro se abre en la última página escrita.
   // Solo al montar — después manda el botón, no cada tecla del filtro.
@@ -204,7 +227,22 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
             </tr>
           </thead>
           <tbody>
-            {(filas ?? []).map((f) => (
+            {/*
+              Mientras busca NO se muestran las filas viejas (#588).
+
+              Lo normal en una tabla es dejar el resultado anterior puesto
+              mientras llega el nuevo, y acá eso es peor: las filas que se ven
+              NO coinciden con los filtros que la persona acaba de escribir.
+              En un libro de auditoría, mostrar registros que no corresponden
+              a lo que se preguntó no es un detalle de estilo — es una
+              respuesta equivocada a una pregunta concreta, y alguien puede
+              concluir que algo pasó, o que no pasó, mirando filas de otra
+              consulta.
+
+              Así que durante la búsqueda manda el esqueleto de abajo, que no
+              afirma nada.
+            */}
+            {(cargando ? [] : filas ?? []).map((f) => (
               <tr key={String(f.id)} className="border-b border-line last:border-0">
                 <td className="dato whitespace-nowrap px-3 py-2 text-xs text-muted">
                   {new Date(f.occurred_at).toLocaleString('es-CL')}
@@ -235,8 +273,49 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
             ))}
           </tbody>
         </table>
-        {filas !== null && filas.length === 0 && (
-          <p className="px-4 py-6 text-sm text-muted">No hay entradas con esos filtros.</p>
+        {/*
+          Tres pixeles distintos para tres cosas distintas (#588).
+
+          Antes había uno: la tabla en blanco servía para «cargando», para
+          «no busqué todavía» y para «no hay nada». El issue lo anotó así —
+          «es la pantalla donde alguien va a buscar qué pasó, y no distingue
+          no hay registros de no cargó»— y la excepción de la guarda lo decía
+          con más precisión: «el mismo pixel sirve para buscando y para no hay
+          nada».
+
+          Y eso duele acá más que en otras pantallas: el libro de auditoría es
+          donde alguien entra cuando algo pasó y necesita saber qué. Una tabla
+          vacía que puede significar «nadie hizo nada» o «no cargó» no sirve
+          para decidir nada, y en la segunda lectura es peor que un error:
+          parece una respuesta.
+
+          `filas === null` es solo la primera carga, porque el `useEffect` de
+          arriba busca al abrir. Así que no hay estado «todavía no buscaste».
+        */}
+        {cargando && (
+          <div aria-busy="true" aria-label="Buscando en el libro de auditoría" className="flex flex-col gap-2 px-3 py-3">
+            {/*
+              Del alto de una fila de verdad, y cinco, que es lo que se ve en
+              una pantalla. Un esqueleto más corto que el contenido hace que la
+              página brinque cuando llegan los datos — el punto 3 de #588.
+            */}
+            {[0, 1, 2, 3, 4].map((n) => (
+              <Skeleton key={n} className="h-8 w-full" />
+            ))}
+          </div>
+        )}
+        {!cargando && filas !== null && filas.length === 0 && (
+          <EstadoVacio
+            compacto
+            className="m-3"
+            titulo="No hay nada registrado con esos filtros"
+            descripcion={
+              'El libro guarda cada acción importante con quién, cuándo y desde dónde. Si esperabas ' +
+              'ver algo, prueba con un rango de fechas más amplio o quita algún filtro: lo que no ' +
+              'coincide no aparece, y el libro no se puede editar ni borrar.'
+            }
+            accion={{ etiqueta: 'Buscar sin filtros', onClick: limpiarYBuscar }}
+          />
         )}
       </div>
     </div>
