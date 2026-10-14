@@ -89,9 +89,16 @@ function PermisoPush() {
     if (!session) return;
     setAviso(null);
     try {
-      const clave = await fetch(`${config.apiUrl}/v1/notifications/push/clave`, {
+      // Mirar la respuesta antes del `.json()`, y acá no es por prolijidad:
+      // iba directo al cuerpo, así que un 500 caía en el `if` de abajo y el
+      // usuario leía «el servidor todavía no tiene el push configurado» —un
+      // diagnóstico falso, que manda a revisar una configuración que está
+      // bien. No pudimos PREGUNTAR y no está CONFIGURADO son dos cosas.
+      const respuesta = await fetch(`${config.apiUrl}/v1/notifications/push/clave`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
-      }).then((r) => r.json() as Promise<{ publicKey: string | null }>);
+      });
+      if (!respuesta.ok) throw new Error('No pudimos preguntarle al servidor por los avisos.');
+      const clave = (await respuesta.json()) as { publicKey: string | null };
       if (!clave.publicKey) throw new Error('El servidor todavía no tiene el push configurado.');
 
       const permiso = await Notification.requestPermission();
@@ -125,6 +132,19 @@ function PermisoPush() {
    * en el navegador y borrar la suscripción en el servidor. Si solo se
    * hiciera lo segundo, el navegador seguiría suscrito y el servidor le
    * mandaría a una suscripción que ya no reconoce.
+   *
+   * El comentario de arriba decía «las dos cosas» y el código solo
+   * comprobaba una (#588, punto 4): el DELETE iba sin mirar `res.ok`, así
+   * que un rechazo del servidor terminaba igual en «listo». El resultado
+   * era el caso inverso al que el comentario se cuidaba — el navegador
+   * dado de baja y el servidor con el registro vivo.
+   *
+   * Qué se hace con eso importa, porque las dos mitades no valen lo
+   * mismo. Lo que de verdad apaga los avisos es `unsubscribe()`: sin él
+   * el navegador sigue recibiendo. Así que la baja local se hace siempre,
+   * incluso si el servidor falla — abortarla dejaría al usuario con los
+   * avisos encendidos después de haber pedido apagarlos. Lo que se avisa
+   * es la otra mitad: que quedó un registro muerto allá.
    */
   async function desactivar() {
     if (!session) return;
@@ -132,8 +152,9 @@ function PermisoPush() {
     try {
       const registro = await navigator.serviceWorker.getRegistration();
       const suscripcion = await registro?.pushManager.getSubscription();
+      let servidorLimpio = true;
       if (suscripcion) {
-        await fetch(`${config.apiUrl}/v1/notifications/push`, {
+        const res = await fetch(`${config.apiUrl}/v1/notifications/push`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${session.access_token}`,
@@ -142,9 +163,15 @@ function PermisoPush() {
           },
           body: JSON.stringify({ endpoint: suscripcion.endpoint }),
         });
+        servidorLimpio = res.ok;
         await suscripcion.unsubscribe();
       }
       setEstado('listo');
+      if (!servidorLimpio) {
+        setAviso(
+          'Este navegador ya no recibe avisos, pero no pudimos borrar el registro en el servidor. Vuelve a intentarlo más tarde.',
+        );
+      }
     } catch (err) {
       setAviso((err as Error).message);
     }

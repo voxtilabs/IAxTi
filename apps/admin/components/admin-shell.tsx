@@ -303,6 +303,7 @@ function RetencionDelTenant({ tenantId, nombre }: { tenantId: string; nombre: st
   const [datos, setDatos] = useState<{ months: number | null; cutoff: string | null; wouldPurge: number } | null>(null);
   const [valor, setValor] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!session) return;
@@ -315,14 +316,29 @@ function RetencionDelTenant({ tenantId, nombre }: { tenantId: string; nombre: st
     setValor(cuerpo.months === null ? '' : String(cuerpo.months));
   }, [session, config.apiUrl, tenantId]);
 
+  /**
+   * Mirar la respuesta, y acá pesa más que en el tope de API (#588, punto 4).
+   *
+   * Era `await fetch(...)` y despues `await cargar()`, sin `res.ok` y sin
+   * `catch`. Un rechazo hacia que el numero volviera al anterior sin decir
+   * nada, igual que en `TopePropio`.
+   *
+   * La diferencia es qué número es. La retención de conversaciones es un
+   * compromiso de cuánto tiempo se guardan los datos de los clientes de un
+   * cliente: el runbook la marca como compromiso legal. Un cambio que se
+   * rechaza en silencio deja a alguien creyendo que puso 24 meses cuando
+   * siguen siendo los del plan — y eso no se descubre hasta que alguien
+   * pregunta por un dato que ya se purgó.
+   */
   const guardar = async () => {
     if (!session) return;
     setGuardando(true);
+    setError(null);
     try {
       // Vacío significa «la del plan», y eso hay que poder volver a
       // elegirlo: un override que solo se pone obliga a recordar de
       // memoria el número que traía el plan.
-      await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/retention`, {
+      const res = await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/retention`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -330,7 +346,14 @@ function RetencionDelTenant({ tenantId, nombre }: { tenantId: string; nombre: st
         },
         body: JSON.stringify({ months: valor.trim() === '' ? null : Number(valor) }),
       });
+      if (!res.ok) {
+        const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(cuerpo?.message ?? 'No pudimos guardar la retención. Intenta de nuevo.');
+        return;
+      }
       await cargar();
+    } catch {
+      setError('No pudimos hablar con el servidor. Revisa la conexión.');
     } finally {
       setGuardando(false);
     }
@@ -369,12 +392,16 @@ function RetencionDelTenant({ tenantId, nombre }: { tenantId: string; nombre: st
       >
         {guardando ? '…' : 'Guardar'}
       </button>
-      {datos && (
-        <span className="text-xs text-muted">
-          {datos.months === null
-            ? 'sin límite'
-            : `${datos.months} meses · la próxima purga se llevaría ${datos.wouldPurge}`}
-        </span>
+      {error ? (
+        <span className="max-w-48 text-xs text-bad-text">{error}</span>
+      ) : (
+        datos && (
+          <span className="text-xs text-muted">
+            {datos.months === null
+              ? 'sin límite'
+              : `${datos.months} meses · la próxima purga se llevaría ${datos.wouldPurge}`}
+          </span>
+        )
       )}
     </span>
   );
@@ -392,10 +419,15 @@ function RetencionDelTenant({ tenantId, nombre }: { tenantId: string; nombre: st
  * Va acá y no en los ajustes del negocio porque es un CARGO CONTRATADO: un ADMIN
  * que pudiera moverlo estaría editando su propia factura.
  *
- * A diferencia de `TopePropio`, esto MUESTRA el error. Ese componente hace el
- * `fetch` y no mira la respuesta, así que un rechazo se ve igual que un guardado:
- * para un tope de requests es molesto, para un monto que va a una factura no es
- * aceptable. Queda anotado para arreglar el vecino aparte.
+ * Esto MUESTRA el error, y el motivo de que estuviera escrito acá es que su
+ * vecino `TopePropio` no lo hacía: el fetch sin mirar la respuesta, así que un
+ * rechazo se veía igual que un guardado. «Para un tope de requests es molesto,
+ * para un monto que va a una factura no es aceptable», decía esta nota, y
+ * quedaba anotado para arreglarlo aparte.
+ *
+ * Arreglado (#588, punto 4). Los dos miran `res.ok` y los dos atrapan el fallo
+ * de red, que es otra cosa: sin red `fetch` RECHAZA y nunca devuelve
+ * respuesta, así que un `try/finally` sin `catch` lo deja sin dueño.
  */
 function AmpliacionDeIa({
   tenantId,
@@ -434,6 +466,14 @@ function AmpliacionDeIa({
         return;
       }
       onGuardado();
+    } catch {
+      // Sin red, `fetch` RECHAZA y nunca devuelve respuesta, así que el
+      // `!res.ok` de arriba no lo ve. Faltaba acá también: este componente
+      // mira la respuesta desde que se escribió, pero un `try/finally` sin
+      // `catch` dejaba el fallo de red sin dueño — el spinner se apagaba y no
+      // pasaba nada más. Lo encontré al escribir, para el vecino, un
+      // comentario que afirmaba que los dos lo atrapaban (#588, punto 4).
+      setError('No pudimos hablar con el servidor. Revisa la conexión.');
     } finally {
       setGuardando(false);
     }
@@ -496,12 +536,33 @@ function TopePropio({
   const { session, config } = useSession();
   const [valor, setValor] = useState(actual === null ? '' : String(actual));
   const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Mirar la respuesta, que es lo que no hacia (#588, punto 4).
+   *
+   * Esto era `await fetch(...)` y despues `onGuardado()`, sin mirar `res.ok`.
+   * El vecino `AmpliacionDeIa` lo dejo anotado cuando se escribio: «ese
+   * componente hace el fetch y no mira la respuesta, asi que un rechazo se ve
+   * igual que un guardado».
+   *
+   * Y es peor que invisible. `onGuardado()` recarga la tabla, asi que un
+   * rechazo hacia que el numero VOLVIERA al anterior sin decir nada: no se
+   * veia como «no se pudo», se veia como que la interfaz no toma lo que
+   * escribis. Eso manda a alguien a probar otro navegador en vez de a leer el
+   * error que el servidor si estaba mandando.
+   *
+   * El `catch` tambien faltaba, y no es lo mismo que el `!res.ok`: sin red,
+   * `fetch` RECHAZA y nunca llega a devolver una respuesta. Con solo
+   * `try/finally`, eso era una promesa rechazada sin dueno — el spinner se
+   * apagaba y no pasaba nada mas.
+   */
   const guardar = async () => {
     if (!session) return;
     setGuardando(true);
+    setError(null);
     try {
-      await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/api-quota`, {
+      const res = await fetch(`${config.apiUrl}/v1/platform/tenants/${tenantId}/api-quota`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -509,13 +570,26 @@ function TopePropio({
         },
         body: JSON.stringify({ requestsMonth: valor.trim() === '' ? null : Number(valor) }),
       });
+      if (!res.ok) {
+        // El mensaje del servidor primero: viene con la voz del producto y
+        // dice QUE pasó. El nuestro es el respaldo para cuando el cuerpo no
+        // es JSON — un 502 del proxy, por ejemplo.
+        const cuerpo = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(cuerpo?.message ?? 'No pudimos guardar el tope. Intenta de nuevo.');
+        return;
+      }
       onGuardado();
+    } catch {
+      setError('No pudimos hablar con el servidor. Revisa la conexión.');
     } finally {
       setGuardando(false);
     }
   };
 
   return (
+    // Envoltorio en columna, igual que `AmpliacionDeIa`: el error va DEBAJO del
+    // control y no al lado, para que no empuje la columna de la tabla.
+    <span className="inline-flex flex-col items-end gap-1">
     <span className="flex items-center justify-end gap-1">
       <input
         aria-label={`Tope de API propio de ${nombre}`}
@@ -533,6 +607,8 @@ function TopePropio({
       >
         {guardando ? '…' : 'Guardar'}
       </button>
+    </span>
+      {error && <span className="max-w-48 text-right text-xs text-bad-text">{error}</span>}
     </span>
   );
 }

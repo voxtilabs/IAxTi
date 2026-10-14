@@ -129,6 +129,11 @@ paso 'catálogo de herramientas'          pnpm catalogo
 # acá y falla en CI: el runner aplica en orden topológico de dependencias.
 paso 'migraciones en base virgen'       node scripts/migraciones-en-base-virgen.mjs
 
+# Esta NO es un trinquete: es cero y se queda en cero. Un `fetch` que no mira
+# qué contestó el servidor no tiene versión aceptable — a diferencia de una
+# lista sin estado vacío, que es fea pero funciona.
+paso 'respuestas sin mirar'              node scripts/respuestas-sin-mirar.mjs
+
 # Los dos trinquetes con lista base: avisan si hay que bajar la marca.
 paso 'exports sin consumidor'            node scripts/exports-sin-consumidor.mjs
 paso 'columnas sin lector'               node scripts/columnas-sin-lector.mjs
