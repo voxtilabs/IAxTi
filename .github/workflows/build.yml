@@ -18,20 +18,67 @@ jobs:
       contents: read
       packages: write
     steps:
+      # Etiquetas móviles como las otras del repositorio, con la regla
+      # silenciada y su motivo en #758.
+      # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+
+      # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: infra/docker/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/voxtilabs/iaxti:${{ github.sha }}
-            ghcr.io/voxtilabs/iaxti:staging
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+
+      # `docker build` pelado, sin buildx y sin `build-push-action` (#765).
+      #
+      # ## Por qué: buildx baja su BuildKit de Docker Hub
+      #
+      # `setup-buildx-action` arranca BuildKit en un contenedor, y para eso
+      # descarga `moby/buildkit:buildx-stable-1` **de Docker Hub**. O sea que
+      # el workflow que publica la imagen de staging y producción dependía de
+      # un cupo anónimo que no controlamos. Y acá el costo no es un PR trancado
+      # como en #877: es un deploy que no sale, descubierto justo cuando
+      # alguien quiere desplegar.
+      #
+      # El demonio del runner trae BuildKit adentro: `docker build` no descarga
+      # nada para construir.
+      #
+      # ## Y el caché que se pierde era NEGATIVO, medido
+      #
+      # `cache-to: type=gha,mode=max` exportaba el caché de capas en cada
+      # build. Medido en la corrida del 13-10:
+      #
+      #     preparing build cache for export   28,4 s
+      #     sending cache export               56,0 s
+      #                                        ──────
+      #                                        84,4 s
+      #
+      # Y lo que compraba, en la misma corrida: **una capa**, `COPY apps`,
+      # medio segundo. Porque lo único caro del build es
+      # `RUN pnpm turbo build` —160 s, con «Cached: 0 cached, 30 total»— y esa
+      # capa no se puede cachear: cualquier cambio de código la invalida, y
+      # cada build es por un cambio de código.
+      #
+      # O sea que el 28 % del build se iba en exportar un caché que devolvía
+      # medio segundo. Sacarlo no es una concesión por quitar buildx: es la
+      # mejora más grande de este PR.
+      #
+      # Se pierde también el multi-arquitectura, que acá no hace falta: esta
+      # imagen la consume un VPS amd64, no una persona con un Mac.
+      - name: Construir y publicar
+        env:
+          SHA_TAG: ghcr.io/voxtilabs/iaxti:${{ github.sha }}
+          MOVIL: ghcr.io/voxtilabs/iaxti:staging
+        run: |
+          set -euo pipefail
+          docker build -f infra/docker/Dockerfile -t "$SHA_TAG" -t "$MOVIL" .
+          docker push "$SHA_TAG"
+          docker push "$MOVIL"
+          # Que la imagen EXISTA con su sha, que es lo que `release.yml`
+          # promueve: si el push del móvil fallara y el del sha no, un deploy
+          # podría quedar apuntando a la imagen anterior sin que nada avise
+          # (#851 es ese defecto por otra puerta).
+          docker manifest inspect "$SHA_TAG" >/dev/null
+          echo "publicada: $SHA_TAG"
+

@@ -99,3 +99,62 @@ describe('los servicios del CI no dependen de un cupo ajeno (#877)', () => {
     }
   });
 });
+
+/**
+ * Ningún workflow baja su herramienta de un cupo ajeno (#765).
+ *
+ * La guarda de arriba cuida los `services:`. Esta cuida lo otro: las ACCIONES
+ * que descargan un contenedor para funcionar.
+ *
+ * `docker/setup-buildx-action` arranca BuildKit en un contenedor y para eso
+ * descarga `moby/buildkit:buildx-stable-1` **de Docker Hub**. Un `services:`
+ * sin credenciales deja un PR rojo; esto dejaba sin publicar la imagen de
+ * staging y producción, y se descubría cuando alguien quería desplegar.
+ *
+ * Y el caché que buildx habilitaba estaba medido en NEGATIVO: 84,4 s
+ * exportando para comprar medio segundo, porque lo caro del build —turbo, con
+ * «0 cached, 30 total»— no se puede cachear por capas. Ver `build.yml`.
+ *
+ * El demonio del runner trae BuildKit adentro: `docker build` no descarga nada.
+ */
+describe('ninguna acción baja su contenedor de un cupo ajeno (#765)', () => {
+  /** Las que arrancan un contenedor propio para trabajar. */
+  const BAJAN_CONTENEDOR = [
+    { accion: 'docker/setup-buildx-action', baja: 'moby/buildkit, de Docker Hub' },
+    { accion: 'docker/build-push-action', baja: 'buildx, que a su vez baja moby/buildkit' },
+  ];
+
+  const archivos = readdirSync(WORKFLOWS).filter((f) => f.endsWith('.yml'));
+
+  it('la guarda está mirando algo', () => {
+    expect(archivos.length).toBeGreaterThan(5);
+    // Y que de verdad sepa leer un `uses:`, o no mediría nada.
+    const algunUses = archivos.some((f) =>
+      /^\s*-?\s*uses:/m.test(readFileSync(join(WORKFLOWS, f), 'utf8')),
+    );
+    expect(algunUses).toBe(true);
+  });
+
+  it.each(BAJAN_CONTENEDOR)('$accion no se usa en ningún workflow', ({ accion, baja }) => {
+    const culpables = archivos.filter((f) => {
+      // Solo el YAML, no los comentarios: los de `build.yml` y
+      // `imagen-postgres-ci.yml` NOMBRAN estas acciones a propósito para
+      // contar por qué no están. Mirarlos pondría la guarda roja por el texto
+      // que la explica — pasó cinco veces en este repo (#569).
+      const sql = readFileSync(join(WORKFLOWS, f), 'utf8')
+        .split('\n')
+        .filter((l) => !l.trimStart().startsWith('#'))
+        .join('\n');
+      return sql.includes(accion);
+    });
+    expect(
+      culpables,
+      `${accion} descarga ${baja}, o sea un cupo que fija alguien que no somos nosotros. ` +
+        'Un cupo agotado acá no deja un PR rojo: deja sin publicar la imagen de staging y ' +
+        'producción, y se descubre cuando alguien quiere desplegar. El demonio del runner trae ' +
+        'BuildKit adentro: `docker build` no descarga nada. El patrón está en `build.yml` y en ' +
+        '`imagen-postgres-ci.yml`, los dos con la medición de lo que cuesta el caché que se ' +
+        `pierde.\n  ${culpables.join('\n  ')}`,
+    ).toEqual([]);
+  });
+});
