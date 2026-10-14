@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCheck, Clock3, MessageSquare, MessagesSquare, RefreshCw, type LucideIcon } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, CheckCheck, Clock3, MessageSquare, MessagesSquare, RefreshCw, type LucideIcon } from 'lucide-react';
 import {
   AvisoResultado, Badge, Button, EncabezadoDePagina, EstadoVacio, GraficoCierre,
   Skeleton, Tabs, TabsList, TabsTrigger,
@@ -11,7 +11,7 @@ import { EmbudoDeVentas } from './embudo-de-ventas';
 import { PreguntaALosNumeros } from './pregunta-a-los-numeros';
 import { useReporte } from './use-reporte';
 import { fmtClp } from '../lib/api';
-import { diasDelReporte, fechaReporte } from '../lib/reportes';
+import { compararCifras, diasDelReporte, fechaReporte, rangoCorto, type Comparacion } from '../lib/reportes';
 
 /**
  * El gráfico se carga cuando hace falta, no antes (#525).
@@ -44,12 +44,25 @@ function fmtSeg(seg: number | null): string {
   return `${(seg / 3600).toFixed(1)} h`;
 }
 
-function Cifra({ rotulo, valor, definicion, alerta, icono: Icono, amplia }: {
-  rotulo: string; valor: string; definicion?: string; alerta?: boolean; icono?: LucideIcon; amplia?: boolean;
+function Cifra({ rotulo, valor, definicion, alerta, icono: Icono, amplia, comparacion }: {
+  rotulo: string; valor: string; definicion?: string; alerta?: boolean; icono?: LucideIcon;
+  amplia?: boolean; comparacion?: Comparacion;
 }) {
   return <article className={`pulso-report-metric pulso-panel rounded-tarjeta border border-line bg-raised ${amplia ? 'col-span-2 sm:col-span-1' : ''}`} title={definicion}>
     <h3 className="pulso-report-metric-label">{Icono && <Icono aria-hidden="true" />}{rotulo}</h3>
     <strong className={`pulso-report-metric-value font-mono ${alerta ? 'text-warn-text' : 'text-ink'}`}>{valor}</strong>
+    {/* La flecha va con `aria-hidden` y el texto dice «más» o «menos»: un
+        lector de pantalla que anuncia «flecha arriba 18 %» no transmite si eso
+        es bueno. Y el color tampoco alcanza solo —es la misma razón por la que
+        el texto lleva la dirección escrita. */}
+    {comparacion && <p className={`pulso-report-metric-trend ${
+      comparacion.tono === 'good' ? 'text-good-text' : comparacion.tono === 'bad' ? 'text-bad-text' : 'text-muted'
+    }`}>
+      {comparacion.sube !== null && (comparacion.sube
+        ? <ArrowUpRight aria-hidden="true" className="inline size-3" />
+        : <ArrowDownRight aria-hidden="true" className="inline size-3" />)}
+      {' '}{comparacion.texto}
+    </p>}
     {definicion && <details className="pulso-report-definition"><summary>Qué mide</summary><p>{definicion}</p></details>}
   </article>;
 }
@@ -60,6 +73,18 @@ export function Reportes() {
   const m = datos?.metrics;
   const d = datos?.definiciones;
   const serie = datos ? diasDelReporte(datos.porDia, rango.from, rango.to) : [];
+  // Las tarjetas comparan contra el período anterior que trae la API, con sus
+  // fechas a la vista: «18 % más que 1–7 oct» se puede verificar, «18 % más
+  // que antes» obliga a confiar.
+  const anterior = datos?.anterior;
+  const comparar = (actual: number | null, antes: number | null, mejorEsMenos = false) =>
+    anterior
+      ? compararCifras(actual, antes, {
+          comparable: anterior.comparable,
+          mejorEsMenos,
+          rango: rangoCorto(anterior.from, anterior.to),
+        })
+      : undefined;
   const movimiento = serie.some((dia) => dia.conversaciones > 0 || dia.resueltas > 0 || dia.oportunidades > 0);
   const etiquetas = serie.map((dia) => fechaReporte(dia.day));
 
@@ -84,10 +109,17 @@ export function Reportes() {
       cargando && <div className="mt-5 space-y-4" aria-label="Cargando reportes"><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{RANGOS.concat(1).map((n) => <Skeleton key={n} className="h-36" />)}</div><Skeleton className="h-80" /></div>
     ) : <div aria-busy={cargando}>
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Cifra rotulo="Conversaciones" valor={numero.format(m.conversaciones_nuevas)} definicion={d.conversaciones_nuevas} icono={MessagesSquare} />
-        <Cifra rotulo="Resueltas" valor={numero.format(m.resueltas)} definicion={d.resueltas} icono={CheckCheck} />
+        <Cifra rotulo="Conversaciones" valor={numero.format(m.conversaciones_nuevas)} definicion={d.conversaciones_nuevas} icono={MessagesSquare}
+          comparacion={comparar(m.conversaciones_nuevas, anterior?.metrics.conversaciones_nuevas ?? null)} />
+        <Cifra rotulo="Resueltas" valor={numero.format(m.resueltas)} definicion={d.resueltas} icono={CheckCheck}
+          comparacion={comparar(m.resueltas, anterior?.metrics.resueltas ?? null)} />
+        {/* Esta NO lleva comparación, y es a propósito: «ahora» es una foto de
+            este instante, no un total del período. Compararla contra los
+            treinta días anteriores sería comparar un semáforo con un promedio
+            —y la API tampoco devuelve un anterior para ella—. */}
         <Cifra rotulo="Sin responder ahora" valor={numero.format(datos.sinResponderAhora)} definicion={d.sin_responder_ahora} alerta={datos.sinResponderAhora > 0} icono={MessageSquare} />
         <Cifra rotulo="1ª respuesta (mediana)" valor={fmtSeg(datos.primeraRespuesta.medianaSeg)} icono={Clock3}
+          comparacion={comparar(datos.primeraRespuesta.medianaSeg, anterior?.primeraRespuesta.medianaSeg ?? null, true)}
           definicion={`${d.primera_respuesta} (${datos.primeraRespuesta.muestras} conversaciones medidas; p90 ${fmtSeg(datos.primeraRespuesta.p90Seg)})`} />
       </div>
 

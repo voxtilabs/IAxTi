@@ -223,3 +223,77 @@ describe('el costo del proveedor (issue del costo de Meta)', () => {
     expect(montoDelCosto({ amount: 900, currency: 'CLP' })).toBeNull();
   });
 });
+
+/**
+ * El período anterior (#588, punto 5).
+ *
+ * Se siembra `daily_metrics` directo y no por eventos: lo que se prueba es el
+ * recorte de la ventana, y emitir eventos solo puede sellarlos con el día de
+ * hoy. Con un tenant nuevo por prueba, no hay cruce con lo de arriba.
+ */
+describe('el período anterior', () => {
+  let t2: string;
+
+  async function sembrar(dia: string, metric: string, value: number) {
+    await admin.query(
+      `INSERT INTO daily_metrics (tenant_id, day, metric, owner_id, value)
+       VALUES ($1, $2::date, $3, '00000000-0000-0000-0000-000000000000', $4)
+       ON CONFLICT (tenant_id, day, metric, owner_id) DO UPDATE SET value = EXCLUDED.value`,
+      [t2, dia, metric, value],
+    );
+  }
+
+  beforeAll(async () => {
+    const t = await admin.query("INSERT INTO tenants (name) VALUES ('anterior-test') RETURNING id");
+    t2 = t.rows[0].id;
+  });
+
+  afterAll(async () => {
+    await admin.query('DELETE FROM daily_metrics WHERE tenant_id = $1', [t2]);
+    await admin.query('DELETE FROM tenants WHERE id = $1', [t2]);
+  });
+
+  it('toma la misma cantidad de días, pegada justo antes del rango pedido', async () => {
+    // Pedido: 08–14 (7 días). Anterior: 01–07, también 7.
+    await sembrar('2025-03-10', 'conversaciones_nuevas', 5);
+    await sembrar('2025-03-03', 'conversaciones_nuevas', 8);
+    // Un día MÁS viejo que el anterior, para que no se cuele por un `<=` flojo.
+    await sembrar('2025-02-27', 'conversaciones_nuevas', 99);
+
+    const r = await withTenant(admin, t2, (c) =>
+      getDashboard(c, { tenantId: t2, from: '2025-03-08', to: '2025-03-14' }),
+    );
+    expect(r.anterior.from).toBe('2025-03-01');
+    expect(r.anterior.to).toBe('2025-03-07');
+    expect(r.metrics.conversaciones_nuevas).toBe(5);
+    expect(r.anterior.metrics.conversaciones_nuevas).toBe(8);
+    // Hay datos desde febrero, así que la comparación se sostiene.
+    expect(r.anterior.comparable).toBe(true);
+  });
+
+  it('no es comparable cuando el negocio todavía no existía', async () => {
+    // El primer día con datos es el 27 de febrero. Se pide 20–26 feb para que
+    // el anterior (13–19) quede ENTERO antes de ese día: ahí la comparación no
+    // existe, y la tarjeta tiene que decirlo en vez de festejar un «+100 %».
+    const r = await withTenant(admin, t2, (c) =>
+      getDashboard(c, { tenantId: t2, from: '2025-02-20', to: '2025-02-26' }),
+    );
+    expect(r.anterior.from).toBe('2025-02-13');
+    expect(r.anterior.comparable).toBe(false);
+    // Y los totales vienen en cero, no en null: el cero es un número que se
+    // puede sumar, y `comparable` es lo que dice si significa algo.
+    expect(r.anterior.metrics.conversaciones_nuevas).toBe(0);
+  });
+
+  it('un cero del período anterior NO se confunde con la falta de datos', async () => {
+    // Marzo entero tiene datos, así que un mes sin conversaciones es un cero
+    // de verdad: el negocio existía y no vendió.
+    const r = await withTenant(admin, t2, (c) =>
+      getDashboard(c, { tenantId: t2, from: '2025-03-08', to: '2025-03-09' }),
+    );
+    expect(r.anterior.from).toBe('2025-03-06');
+    expect(r.anterior.to).toBe('2025-03-07');
+    expect(r.anterior.metrics.conversaciones_nuevas).toBe(0);
+    expect(r.anterior.comparable).toBe(true);
+  });
+});
