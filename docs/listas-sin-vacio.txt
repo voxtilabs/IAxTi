@@ -74,4 +74,3 @@ roles.tsx#roles
 webchat-chat.tsx#mensajes
 webhooks-salientes.tsx#eventos
 webhooks-salientes.tsx#webhooks
-ui/audit-explorer.tsx#filas

@@ -67,8 +67,6 @@ const SIN_ESQUELETO: Record<string, string> = {
   // correcta sería por estado de carga; mientras no exista, esto va escrito.
   'bandeja/bandeja.tsx#A_MANO':
     'A MANO: tiene un esqueleto para la lista y catorce estados nulos más; Chat y Ficha entran de golpe al abrir una conversación. La guarda no lo ve porque mide por componente y no por estado de carga.',
-  'ui/audit-explorer.tsx#A_MANO':
-    'A MANO: `cargando` solo apaga el botón Buscar; la tabla no tiene esqueleto, así que el mismo pixel sirve para «buscando» y para «no hay nada». Es lo que #588 anotó como auditoria.tsx, que solo le pasa el fetcher.',
 };
 
 describe('estados vacíos y esqueletos (#588)', () => {
