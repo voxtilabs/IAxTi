@@ -671,10 +671,19 @@ export function Canales() {
                   size="chico"
                   onClick={() => {
                     if (!session || !tenant) return;
+                    // El `catch` es lo que hace que un rechazo se vea
+                    // (#588, punto 4). `apiFetch` LANZA con un 4xx o un 5xx,
+                    // así que sin esto la promesa quedaba rechazada sin dueño:
+                    // `cargar()` no corría, la insignia seguía diciendo
+                    // «Activo» y nada explicaba por qué. Alguien aprieta
+                    // «Apagar», el widget sigue encendido y el único mensaje
+                    // está en la consola del navegador.
                     void apiFetch(config, session, tenant, `/webchat/widgets/${w.id}/toggle`, {
                       method: 'POST',
                       body: JSON.stringify({ active: !w.active }),
-                    }).then(cargar);
+                    })
+                      .then(cargar)
+                      .catch((err) => setAviso((err as Error).message));
                   }}
                 >
                   {w.active ? 'Apagar' : 'Encender'}
