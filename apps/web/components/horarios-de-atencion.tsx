@@ -15,6 +15,7 @@ import {
 } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
+import { PanelCargando } from './panel-cargando';
 
 /**
  * Los horarios en que atiendo (#460).
@@ -27,7 +28,10 @@ import { apiFetch } from '../lib/api';
  * La lectura y el borrado se agregaron con esta pantalla: sin verlos, cada
  * visita apilaba una franja más sobre las que ya estaban.
  */
-interface Franja {
+// Exportado para que `esqueletos-medidos.spec.ts` TIPE su simulacro: si
+// este DTO cambia, la prueba deja de compilar en vez de seguir midiendo
+// contra una forma que ya no existe.
+export interface Franja {
   id: string;
   weekday: number;
   inicio: string;
@@ -45,6 +49,7 @@ export function HorariosDeAtencion() {
   const [franjas, setFranjas] = useState<Franja[] | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(true);
   const [form, setForm] = useState({ weekday: 1, inicio: '09:00', fin: '18:00', duracion: 30, respiro: 0 });
 
   useEffect(() => setTenant(selectedTenant()), []);
@@ -56,6 +61,8 @@ export function HorariosDeAtencion() {
     } catch (err) {
       setAviso((err as Error).message);
       setFranjas([]);
+    } finally {
+      setCargando(false);
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
@@ -94,10 +101,20 @@ export function HorariosDeAtencion() {
     }
   }
 
-  if (!tenant || franjas === null) return null;
+  const marco = 'mt-8 rounded-campo border border-line bg-rest p-4';
+  const titulo = 'Horario de atención';
+
+  if (!tenant) return null;
+  // 798 px MEDIDOS, repartidos en cinco barras: el panel cargado con las
+  // cinco franjas de lunes a viernes mide 864. A ojo le había puesto 196 —se
+  // quedaba a 600 px del contenido—, y 600 px de salto no es un detalle: es la
+  // mitad de la pantalla de un celular moviéndose de golpe.
+  if (franjas === null) {
+    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={798} filas={5} superficie="rest" /> : null;
+  }
 
   return (
-    <section className="mt-8 rounded-campo border border-line bg-rest p-4">
+    <section aria-label={titulo} className={marco}>
       <p className="flex items-center gap-2">
         <CalendarClock aria-hidden className="size-4 text-muted" />
         <span className="rotulo">Horarios en que atiendes</span>

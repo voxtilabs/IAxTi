@@ -14,6 +14,7 @@ import {
 } from '@iaxti/ui/react';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
+import { PanelCargando } from './panel-cargando';
 
 // Con qué plantilla se le recuerda la hora al cliente (#59).
 //
@@ -26,14 +27,17 @@ import { apiFetch } from '../lib/api';
 // recordatorio que no sale mañana, y el negocio se entera cuando alguien no
 // llegó a su hora.
 
-interface PlantillaDto {
+export interface PlantillaDto {
   id: string;
   name: string;
   variables: number;
   body: string;
 }
 
-interface ConfigDto {
+// Exportado para que `esqueletos-medidos.spec.ts` TIPE su simulacro: si
+// este DTO cambia, la prueba deja de compilar en vez de seguir midiendo
+// contra una forma que ya no existe.
+export interface ConfigDto {
   /** Lo ELEGIDO: qué plantilla sale en cada aviso. */
   recordatorios: Record<'24h' | '2h', string | null>;
   /** Lo ELEGIBLE: las plantillas aprobadas del negocio. */
@@ -57,6 +61,7 @@ export function RecordatoriosDeCita() {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
@@ -70,11 +75,21 @@ export function RecordatoriosDeCita() {
       });
     } catch {
       /* sin permiso para configurar la agenda: la sección no aparece */
+    } finally {
+      setCargando(false);
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
 
-  if (!tenant || !datos) return null;
+  const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5';
+  const titulo = 'Recordatorios de cita';
+
+  if (!tenant) return null;
+  if (!datos) {
+    // 431 px MEDIDOS (el panel con una plantilla elegida mide 505). A ojo:
+    // 152. Las tres barras son los dos Select y su explicación.
+    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={431} filas={3} /> : null;
+  }
 
   const guardar = async () => {
     if (!session) return;
@@ -101,10 +116,7 @@ export function RecordatoriosDeCita() {
   const sinPlantillas = datos.plantillas.length === 0;
 
   return (
-    <section
-      aria-label="Recordatorios de cita"
-      className="pulso-panel rounded-tarjeta border border-line bg-raised p-5"
-    >
+    <section aria-label={titulo} className={marco}>
       <div className="flex items-center gap-2">
         <BellRing aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">Recordatorios de cita</h2>

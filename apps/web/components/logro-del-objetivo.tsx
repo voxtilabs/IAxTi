@@ -5,6 +5,7 @@ import { Target } from 'lucide-react';
 import { useSession } from '@iaxti/ui/react';
 import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
 import { apiFetch } from '../lib/api';
+import { PanelCargando } from './panel-cargando';
 
 /**
  * Si el asistente está logrando su objetivo (#460).
@@ -18,7 +19,10 @@ import { apiFetch } from '../lib/api';
  * 72% con ayuda» dice que sirve pero no solo; «70% él, 71% con ayuda» dice
  * que el equipo casi no está interviniendo.
  */
-interface TasaDto {
+// Exportado para que `esqueletos-medidos.spec.ts` TIPE su simulacro: si
+// este DTO cambia, la prueba deja de compilar en vez de seguir midiendo
+// contra una forma que ya no existe.
+export interface TasaDto {
   objetivo: string | null;
   cerrados: number;
   pendientes: number;
@@ -85,16 +89,31 @@ export function LogroDelObjetivo() {
   const [tasa, setTasa] = useState<TasaDto | null>(null);
   /** El detalle se pide al abrir: la mayoría mira el porcentaje y se va. */
   const [intentos, setIntentos] = useState<IntentosDto | null>(null);
+  const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
-    if (!session || !tenant || !agente) return;
+    if (!session || !tenant || !agente) {
+      // «No hay asistente» NO es «está cargando», y confundirlos deja el
+      // esqueleto puesto para siempre. Lo cazó la propia prueba que mide los
+      // altos: en Ajustes → IA los dos paneles seguían con la silueta a los
+      // doce segundos, porque esta rama vuelve antes de pedir nada y el
+      // `finally` que apaga `cargando` nunca corría. Un esqueleto eterno es
+      // peor que el `return null` que había: el hueco al menos terminaba.
+      //
+      // `asistentes !== null` es la señal de que la lista ya se resolvió: si
+      // se resolvió y aun así no hay elegido, no queda nada que esperar.
+      if (asistentes !== null) setCargando(false);
+      return;
+    }
     try {
       setTasa(await apiFetch<TasaDto>(config, session, tenant, `/agents/${agente.id}/objetivo`));
       setIntentos(null);
     } catch {
       /* sin permiso para ver el consumo del asistente: la sección no aparece */
+    } finally {
+      setCargando(false);
     }
-  }, [config, session, tenant, agente]);
+  }, [config, session, tenant, agente, asistentes]);
 
   const verDetalle = useCallback(
     async (abierto: boolean) => {
@@ -111,15 +130,25 @@ export function LogroDelObjetivo() {
   );
   useEffect(() => void cargar(), [cargar]);
 
-  if (!tenant || !agente || !tasa || tasa.objetivo === null) return null;
+  const marco = 'mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-5';
+  const titulo = 'Logro del objetivo';
+
+  if (!tenant) return null;
+  // Un objetivo en `null` NO es carga: es que el asistente no tiene objetivo
+  // puesto, y ahí la sección no corresponde. Solo se esquelesa mientras el
+  // dato no llegó.
+  if (!agente || !tasa) {
+    // 522 px MEDIDOS (el panel con objetivo y tasas mide 596). A ojo le había
+    // puesto 136: un cuarto. Las cuatro barras son el porcentaje, las dos
+    // tasas y el detalle plegado.
+    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={522} filas={4} /> : null;
+  }
+  if (tasa.objetivo === null) return null;
 
   const total = tasa.cerrados + tasa.pendientes;
 
   return (
-    <section
-      aria-label="Logro del objetivo"
-      className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-5"
-    >
+    <section aria-label={titulo} className={marco}>
       <div className="flex flex-wrap items-center gap-2">
         <Target aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">¿Está logrando lo suyo?</h2>

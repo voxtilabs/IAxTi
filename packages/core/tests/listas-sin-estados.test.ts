@@ -45,16 +45,12 @@ function corto(archivo: string): string {
  * empuja lo de abajo: el salto que el criterio 3 del issue prohíbe.
  */
 const SIN_ESQUELETO: Record<string, string> = {
-  'evaluaciones.tsx#corridas':
-    'El panel de Ajustes → IA no existe mientras cargan dos llamadas en cascada y después empuja lo de abajo. Entra en la tanda de #588.',
-  'horarios-de-atencion.tsx#franjas':
-    'Agenda se dibuja sin el panel de franjas y luego aparece, moviendo todo lo que está debajo. Entra en la tanda de #588.',
-  'logro-del-objetivo.tsx#tasa':
-    'Ya tiene un «Cargando…» de texto en el caso por caso, pero el panel entero falta mientras llega el dato. Entra en la tanda de #588.',
-  'recordatorios-de-cita.tsx#datos':
-    'Los dos Select de recordatorio aparecen de golpe en Agenda, sin título ni marco mientras cargan. Entra en la tanda de #588.',
-  'retencion-del-negocio.tsx#datos':
-    'La sección «Cuánto se guardan las conversaciones» de Ajustes no está y de pronto está. Entra en la tanda de #588.',
+  // Las cinco que estaban acá ya tienen esqueleto, y con el alto MEDIDO
+  // contra el panel cargado: `apps/web/e2e/esqueletos-medidos.spec.ts`
+  // compara los dos estados del mismo locator y falla si se separan más de
+  // 16 px. Lo que estaba a ojo no estaba cerca —al horario de atención le
+  // faltaban 600 px, media pantalla de celular moviéndose de golpe—, así que
+  // el «medido, no a ojo» del criterio 4 del issue no era una formalidad.
 
   // --- Lo que NO es un defecto, con su porqué ---
   'ui/session.tsx#session':

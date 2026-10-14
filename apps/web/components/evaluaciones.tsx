@@ -5,6 +5,7 @@ import { FlaskConical } from 'lucide-react';
 import { AvisoResultado, Badge, Button, useSession } from '@iaxti/ui/react';
 import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
 import { apiFetch } from '../lib/api';
+import { PanelCargando } from './panel-cargando';
 
 /**
  * Si el asistente mejoró o empeoró (#53, #447).
@@ -18,7 +19,10 @@ import { apiFetch } from '../lib/api';
  * anterior y con qué configuración se sacó cada una. Un 0,82 suelto no
  * dice nada; «0,82 con Flash, antes 0,79 con Pro» decide.
  */
-interface CorridaDto {
+// Exportado para que `esqueletos-medidos.spec.ts` TIPE su simulacro: si
+// este DTO cambia, la prueba deja de compilar en vez de seguir midiendo
+// contra una forma que ya no existe.
+export interface CorridaDto {
   id: string;
   provider: string;
   model: string;
@@ -61,21 +65,47 @@ export function Evaluaciones() {
   const [corridas, setCorridas] = useState<CorridaDto[] | null>(null);
   const [corriendo, setCorriendo] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant || !agente) {
-      if (asistentes !== null) setCorridas([]);
+      // «No hay asistente» NO es «está cargando», y confundirlos deja el
+      // esqueleto puesto para siempre. Lo cazó la propia prueba que mide los
+      // altos: en Ajustes → IA los dos paneles seguían con la silueta a los
+      // doce segundos, porque esta rama vuelve antes de pedir nada y el
+      // `finally` que apaga `cargando` nunca corría. Un esqueleto eterno es
+      // peor que el `return null` que había: el hueco al menos terminaba.
+      //
+      // `asistentes !== null` es la señal de que la lista ya se resolvió: si
+      // se resolvió y aun así no hay elegido, no queda nada que esperar.
+      if (asistentes !== null) {
+        setCorridas([]);
+        setCargando(false);
+      }
       return;
     }
     try {
       setCorridas(await apiFetch<CorridaDto[]>(config, session, tenant, `/agents/${agente.id}/evals`));
     } catch {
       /* sin permiso para ver el consumo del asistente: la sección no aparece */
+    } finally {
+      setCargando(false);
     }
   }, [config, session, tenant, agente, asistentes]);
   useEffect(() => void cargar(), [cargar]);
 
-  if (!tenant || !agente || corridas === null) return null;
+  const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5';
+  const titulo = 'Evaluaciones del asistente';
+
+  // Dos llamadas en cascada —los asistentes y después SUS corridas—, así que
+  // esta es la que más se notaba: el panel de Ajustes → IA no existía durante
+  // las dos y después empujaba todo lo de abajo.
+  if (!tenant) return null;
+  if (!agente || corridas === null) {
+    // 336 px MEDIDOS (el panel con dos corridas mide 410). A ojo: 168, la
+    // mitad.
+    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={336} filas={3} /> : null;
+  }
 
   const evaluar = async () => {
     if (!session) return;
@@ -95,10 +125,7 @@ export function Evaluaciones() {
   const configuracionActual = ultima && ultima.provider === agente.provider && ultima.model === agente.model;
 
   return (
-    <section
-      aria-label="Evaluaciones del asistente"
-      className="pulso-panel rounded-tarjeta border border-line bg-raised p-5"
-    >
+    <section aria-label={titulo} className={marco}>
       <div className="flex flex-wrap items-center gap-2">
         <FlaskConical aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">¿Mejoró o empeoró?</h2>
