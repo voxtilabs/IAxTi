@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Archive } from 'lucide-react';
 import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
+import { PanelCargando } from './panel-cargando';
 import { selectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
@@ -17,7 +18,10 @@ import { apiFetch } from '../lib/api';
  * Nunca se puede alargar más que el plan: eso lo decide el servidor, que
  * es el único que sabe qué plan tiene este negocio hoy.
  */
-interface RetencionDto {
+// Exportado para que `esqueletos-medidos.spec.ts` TIPE su simulacro: si
+// este DTO cambia, la prueba deja de compilar en vez de seguir midiendo
+// contra una forma que ya no existe.
+export interface RetencionDto {
   months: number | null;
   cutoff: string | null;
   deferredUntil: string | null;
@@ -36,6 +40,7 @@ export function RetencionDelNegocio() {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [purga, setPurga] = useState<GuardadoDto['purgeNotice']>(null);
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => setTenant(selectedTenant()), []);
 
@@ -47,6 +52,8 @@ export function RetencionDelNegocio() {
       setValor(r.months === null ? '' : String(r.months));
     } catch (err) {
       setAviso((err as Error).message);
+    } finally {
+      setCargando(false);
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
@@ -72,13 +79,50 @@ export function RetencionDelNegocio() {
     }
   }
 
-  if (!tenant || !datos) return null;
+  // El marco va en una constante porque lo usan los TRES estados, y si el
+  // esqueleto no lleva el mismo `mt-10 border-t pt-8` salta igual que antes
+  // —con el alto de adentro clavado al milímetro—.
+  const marco = 'mt-10 border-t border-line pt-8';
+  const titulo = 'Cuánto se guardan las conversaciones';
+
+  // Sin negocio elegido no hay nada que esquelesar: la sección no es de este
+  // tenant todavía, no está cargando.
+  if (!tenant) return null;
+  if (!datos) {
+    // 159 px MEDIDOS contra el panel cargado, no estimados: el panel entero
+    // mide 224 px y el marco se come 65. Lo comprueba
+    // `esqueletos-medidos.spec.ts` comparando los dos estados del MISMO
+    // locator, con 16 px de tolerancia.
+    //
+    // El primer valor que puse acá fue 128, a ojo. Estaba 31 px corto, que es
+    // exactamente el tipo de error que el criterio del issue prohíbe.
+    if (cargando) return <PanelCargando etiqueta={titulo} className={marco} alto={159} />;
+    /**
+     * Y si la carga falló, el aviso se VE.
+     *
+     * El `catch` de arriba siempre puso el mensaje en `aviso`, y dos líneas
+     * después `return null` lo tiraba a la basura: la sección entera
+     * desaparecía y el error no llegaba a ninguna parte. Alguien que abría
+     * Ajustes no veía «no pudimos leer la retención», veía que esa
+     * configuración no existe — y la retención es cuánto tiempo se guardan
+     * los datos de sus clientes.
+     *
+     * `horarios-de-atencion` ya lo hacía bien por otro camino: su `catch`
+     * pone `setFranjas([])` para que la guarda pase y el aviso se dibuje.
+     */
+    return (
+      <section aria-label={titulo} className={marco}>
+        <h2 className="text-base font-bold text-ink">{titulo}</h2>
+        {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
+      </section>
+    );
+  }
 
   return (
-    <section className="mt-10 border-t border-line pt-8">
+    <section aria-label={titulo} className={marco}>
       <p className="flex items-center gap-2">
         <Archive aria-hidden className="size-4 text-muted" />
-        <h2 className="text-base font-bold text-ink">Cuánto se guardan las conversaciones</h2>
+        <h2 className="text-base font-bold text-ink">{titulo}</h2>
       </p>
       <p className="mt-1 max-w-prose text-sm text-muted">
         Tu plan guarda {datos.months === null ? 'sin límite' : `${datos.months} meses`}. Puedes
