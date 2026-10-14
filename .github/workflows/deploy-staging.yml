@@ -46,6 +46,75 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Un deploy que NO corre tiene que decirlo (#851).
+  #
+  # ## Lo que pasó, medido
+  #
+  # El `if:` del deploy exige `conclusion == 'success'` del build, que es
+  # correcto: sin imagen no hay nada que desplegar. Pero cuando el build falla,
+  # el job entero se **salta** — y un paso saltado no es rojo para nadie.
+  #
+  # La noche del 13-10 el cupo anónimo de ECR agotado mató dos builds en 24 s
+  # (#765, #877). Sus dos deploys quedaron en `skipped`, y staging siguió
+  # sirviendo `3c40776` con el código de `staging` dos commits adelante. Nada
+  # avisó. Se descubrió a mano, comparando `/health` con `git rev-parse`.
+  #
+  # Es la misma forma que `esperar-deploy.sh` ya había aprendido dos veces
+  # (#573, #661): **un paso que da verde sin haber hecho nada es peor que uno
+  # rojo**. Acá no era ni verde — era gris, que es aún más fácil de no ver.
+  #
+  # ## Por qué un job y no un `if` dentro del deploy
+  #
+  # Porque el deploy necesita el `environment: staging` y sus secretos, y un
+  # job que solo avisa no debería poder tocar nada. Este solo lee la URL
+  # pública, que ya es pública.
+  sin-imagen:
+    if: >-
+      ${{ github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion != 'success' &&
+          github.event.workflow_run.head_branch == 'staging' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Decir que staging quedó atrás
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          BASE: ${{ vars.STAGING_BASE_URL || 'https://api-staging.iaxti.cl' }}
+        run: |
+          set -uo pipefail
+          # Qué está sirviendo de verdad. Sin credenciales: `/health` es
+          # público a propósito, para que esto se pueda comprobar desde
+          # cualquier parte.
+          sirviendo=$(curl -sS --max-time 20 "${BASE}/health" 2>/dev/null             | grep -oE '"sha":"[a-f0-9]+' | cut -d'"' -f4)
+          corto=$(printf '%.12s' "${SHA}")
+          {
+            echo "## Staging NO se actualizó"
+            echo ""
+            echo "El build de \`${corto}\` no publicó imagen, así que el deploy no corrió."
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| el código de \`staging\` es | \`${corto}\` |"
+            echo "| staging está sirviendo | \`${sirviendo:-no se pudo leer}\` |"
+            echo ""
+            echo "Mientras no haya un build verde, staging sigue en la imagen anterior."
+            echo "Lo que se arregla es el BUILD; esto solo lo dice."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${sirviendo:-}" = "$corto" ]; then
+            # Puede pasar: un build que falla DESPUÉS de publicar, o un
+            # reintento que ya dejó la imagen. No es un problema y decir que lo
+            # es enseñaría a ignorar este aviso.
+            echo "::warning title=Build fallido, pero staging ya tiene este commit::El build de ${corto} falló y staging igual está sirviendo ${sirviendo}. No hay nada atrasado."
+            exit 0
+          fi
+
+          # Y sí es rojo: el consecuente de un build roto es que lo que está
+          # corriendo no es lo que dice el repositorio, y eso no puede ser gris.
+          echo "::error title=Staging quedó atrás::El código de staging es ${corto} y staging está sirviendo ${sirviendo:-desconocido}. El build no publicó imagen, así que el deploy se saltó."
+          exit 1
+
   deploy:
     runs-on: ubuntu-latest
     environment: staging
@@ -168,8 +237,45 @@ jobs:
                 echo "Hay que revivir Dokploy en el VPS; lo primero a mirar es el disco."
                 ;;
               401|403)
-                echo "Dokploy responde pero rechaza las credenciales: revisa DOKPLOY_API_KEY"
-                echo "y las dos de Cloudflare Access."
+                # QUIÉN rechazó, y no «revisá las tres» (#851).
+                #
+                # Un 401 acá puede venir de dos lados con arreglos distintos:
+                # Cloudflare Access rechazando el token de servicio, o Dokploy
+                # rechazando su `x-api-key`. El mensaje decía «revisa
+                # DOKPLOY_API_KEY y las dos de Cloudflare Access», que es
+                # honesto y manda a revisar tres cosas para arreglar una.
+                #
+                # Se distinguen con una segunda llamada: el panel de Dokploy
+                # (`/dashboard/home`) NO pide `x-api-key` —redirige al login—
+                # así que pasar por ahí prueba Cloudflare Access SOLO. Si eso
+                # anda, Access está bien y el problema es la llave de Dokploy.
+                #
+                # Medido el 14-10, directo contra el VPS: la API sin
+                # credenciales da 401 y el panel da 307. O sea que un 307 o un
+                # 200 en el panel significan «Access me dejó entrar».
+                panel=$(curl -sS -o /dev/null -w '%{http_code}' \
+                  -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+                  -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+                  "${DOKPLOY_URL}/dashboard/home" 2>/dev/null || echo '000')
+                case "$panel" in
+                  200|30[0-9])
+                    echo "Cloudflare Access SÍ deja pasar (el panel respondió ${panel})."
+                    echo "Entonces el que rechaza es Dokploy: hay que rotar DOKPLOY_API_KEY."
+                    echo "Se saca del panel de Dokploy, en el perfil del usuario, y se"
+                    echo "pone con: gh secret set DOKPLOY_API_KEY --env staging"
+                    ;;
+                  401|403)
+                    echo "Cloudflare Access rechaza también el panel (HTTP ${panel})."
+                    echo "Entonces el problema son las dos de Access, no la de Dokploy:"
+                    echo "CF_ACCESS_CLIENT_ID y CF_ACCESS_CLIENT_SECRET. Los tokens de"
+                    echo "servicio de Cloudflare VENCEN, así que esto pasa solo con el"
+                    echo "tiempo. Se renuevan en Zero Trust → Access → Service Auth."
+                    ;;
+                  *)
+                    echo "El panel respondió ${panel}, que no distingue nada."
+                    echo "Revisa DOKPLOY_API_KEY y las dos de Cloudflare Access."
+                    ;;
+                esac
                 ;;
               000)
                 echo "Ni siquiera hubo respuesta: DNS, red o la URL cambió."
