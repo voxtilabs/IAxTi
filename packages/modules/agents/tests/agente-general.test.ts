@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { CATALOGO } from '../application/catalogo';
+import { FalloDelProveedor } from '../application/fallo-del-proveedor';
 import {
-  CuotaDeIaAgotada,
   aplicarPropuesta,
   conversarConElAgenteGeneral,
   repartirArgumentos,
@@ -506,10 +506,51 @@ describe('el interruptor del panel corta la conversación (#496)', () => {
   });
 });
 
-describe('la cuota corta antes de gastar', () => {
-  it('al 100 % no genera y lo dice', async () => {
+/**
+ * Todo fallo deja fila, y la fila SOBREVIVE a la transacción (#867).
+ *
+ * Lo que costó: el Agente General registraba solo sus éxitos. Si el proveedor
+ * fallaba, el error subía, el controlador lo traducía a 409 y la corrida no
+ * dejaba rastro en ninguna parte. El dueño usó «Pídeselo a IAxTi»
+ * repetidamente la noche del 11-10 y recibió un 409 cada vez: ninguno de esos
+ * intentos existe, y tuvo que leer el error en la consola del navegador.
+ *
+ * Y el arreglo no era escribir en el `catch`: `withTenant` hace ROLLBACK ante
+ * cualquier throw, así que el propio fallo borraba su registro. La regla ya
+ * estaba escrita en `RunResult` de `runtime.ts` —«el fallo SE DEVUELVE, no se
+ * lanza… un throw lo revertiría»— y este camino era el que no la cumplía.
+ *
+ * Por eso estas pruebas usan `withTenant` DE VERDAD y leen la fila después,
+ * con la conexión `admin`, que es otra. Mirarla desde dentro de la misma
+ * transacción pasaría con el defecto puesto: la fila existe hasta el rollback.
+ */
+describe('todo fallo del Agente General deja rastro (#867)', () => {
+  /** Corre una vuelta en una transacción real, como el controlador. */
+  const unaVuelta = (quien: string, modelo: ModelPort) =>
+    withTenant(admin, quien, (c) =>
+      conversarConElAgenteGeneral(
+        c as Parameters<typeof conversarConElAgenteGeneral>[0],
+        {
+          tenantId: quien,
+          turnos: [{ role: 'user', content: 'hola' }],
+          permisos: TODOS_LOS_PERMISOS,
+          modulosActivos: TODOS_LOS_MODULOS,
+        },
+        { provider: 'openai', model: 'gpt-5', modelo, llamarApi: async () => ({ ok: true, estado: 200, datos: {} }) },
+      ),
+    );
+
+  /** La fila, leída con OTRA conexión y con la transacción ya cerrada. */
+  const filaDe = async (id: string) =>
+    (
+      await admin.query(
+        'SELECT status, error, error_del_proveedor, latency_ms, trace_id, output FROM agent_executions WHERE id = $1',
+        [id],
+      )
+    ).rows[0];
+
+  it('la cuota agotada se DEVUELVE, no se lanza, y deja fila', async () => {
     const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('sin-cuota-ag') RETURNING id")).rows[0].id;
-    // Plan con cero corridas: cualquier uso ya está al 100 %.
     await admin.query(
       `INSERT INTO usage_meters (tenant_id, metric, period_start, value)
        VALUES ($1, 'ia_executions', date_trunc('month', now()), 999999)
@@ -517,30 +558,110 @@ describe('la cuota corta antes de gastar', () => {
       [otro],
     );
     let genero = false;
-    await expect(
-      conversarConElAgenteGeneral(
-        await conexion(otro),
-        {
-          tenantId: otro,
-          turnos: [{ role: 'user', content: 'hola' }],
-          permisos: TODOS_LOS_PERMISOS,
-          modulosActivos: TODOS_LOS_MODULOS,
-        },
-        {
-          provider: 'glm',
-          model: 'z-ai/glm-5.3',
-          modelo: {
-            async generate() {
-              genero = true;
-              return { text: 'no debería', tokensIn: 0, tokensOut: 0 };
-            },
-          },
-          llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
-        },
-      ),
-    ).rejects.toThrow(CuotaDeIaAgotada);
-    // No se gasta: el rechazo va ANTES de la generación.
+    const r = await unaVuelta(otro, {
+      async generate() {
+        genero = true;
+        return { text: 'no debería', tokensIn: 0, tokensOut: 0 };
+      },
+    });
+
+    expect(r.status).toBe('failed');
+    expect(r.cuotaAgotada).toBe(true);
+    // No se gasta: el rechazo va ANTES de la generación. Eso no cambia.
     expect(genero).toBe(false);
+
+    const fila = await filaDe(r.executionId);
+    expect(fila, 'la fila del rechazo por cuota no sobrevivió a la transacción').toBeTruthy();
+    expect(fila.status).toBe('failed');
+    expect(fila.error).toContain('cuota');
+    // No es del proveedor: es una regla nuestra, y confundirlas manda a
+    // alguien a cargar crédito en una cuenta sana.
+    expect(fila.error_del_proveedor).toBe(false);
+  });
+
+  it('un fallo del proveedor se devuelve con su motivo, y la fila queda', async () => {
+    const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('falla-prov-ag') RETURNING id")).rows[0].id;
+    const r = await unaVuelta(otro, {
+      async generate() {
+        throw FalloDelProveedor.de(new Error('429 RESOURCE_EXHAUSTED · credits are depleted'));
+      },
+    });
+
+    expect(r.status).toBe('failed');
+    expect(r.error).toContain('depleted');
+    expect(r.errorDelProveedor).toBe(true);
+
+    const fila = await filaDe(r.executionId);
+    expect(fila, 'la fila del fallo del proveedor no sobrevivió a la transacción').toBeTruthy();
+    expect(fila.status).toBe('failed');
+    expect(fila.error_del_proveedor).toBe(true);
+    expect(fila.trace_id).toBeTruthy();
+  });
+
+  it('un fallo NUESTRO no se le cuelga al proveedor', async () => {
+    const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('falla-nuestra-ag') RETURNING id")).rows[0].id;
+    const r = await unaVuelta(otro, {
+      async generate() {
+        // Un `Error` pelado: no viene marcado, así que no se puede afirmar que
+        // sea del proveedor (#684). Afirmarlo manda a arreglar una cuenta sana.
+        throw new Error('undefined is not a function');
+      },
+    });
+    expect(r.status).toBe('failed');
+    expect(r.errorDelProveedor).toBe(false);
+    expect((await filaDe(r.executionId)).error_del_proveedor).toBe(false);
+  });
+
+  /**
+   * Las ACCIONES que alcanzó a completar antes de fallar, no las búsquedas.
+   *
+   * Escribí esta prueba afirmando que buscar también quedaba registrado, y es
+   * falso: `buscar_herramienta` no empuja paso, y está bien que no lo haga —
+   * esa lista es la que la ficha del contacto muestra como «AGENDÓ», «ENVIÓ
+   * LINK», o sea lo que el agente HIZO. Una búsqueda no es algo que pasó en el
+   * negocio.
+   *
+   * Así que lo que distingue «falló tras hacer algo» de «falló sin hacer
+   * nada» son las acciones, y eso sí importa: si dejó una propuesta a medias o
+   * ejecutó una llamada y después se cortó, el que mira necesita saberlo antes
+   * de volver a pedir lo mismo.
+   */
+  it('guarda las ACCIONES que alcanzó a completar antes de fallar', async () => {
+    const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('pasos-ag') RETURNING id")).rows[0].id;
+    const r = await unaVuelta(otro, {
+      async generate(args) {
+        const preparar = (args.tools ?? []).find((t) => t.name === 'preparar_accion');
+        const alguna = CATALOGO.find((h) => h.metodo === 'POST' && h.permiso)!;
+        if (preparar) await preparar.ejecutar({ herramienta: alguna.nombre, argumentos: {} });
+        throw FalloDelProveedor.de(new Error('se cortó a mitad'));
+      },
+    });
+    expect(r.status).toBe('failed');
+    // Anti-vacuidad: si el doble no llegara a ejecutar nada, lo de abajo no
+    // mediría que los pasos se guardan — mediría que no había ninguno.
+    expect(r.pasos.length).toBeGreaterThan(0);
+    const fila = await filaDe(r.executionId);
+    expect(fila.output?.pasos ?? []).toEqual(r.pasos.map((p) => p.herramienta));
+  });
+
+  it('y el fallo NO consume cuota: se registra el intento, no el consumo', async () => {
+    const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('cuota-intacta-ag') RETURNING id")).rows[0].id;
+    const antes = await admin.query(
+      "SELECT COALESCE(value,0) AS v FROM usage_meters WHERE tenant_id = $1 AND metric = 'ia_executions'",
+      [otro],
+    );
+    await unaVuelta(otro, {
+      async generate() {
+        throw FalloDelProveedor.de(new Error('sin saldo'));
+      },
+    });
+    const despues = await admin.query(
+      "SELECT COALESCE(value,0) AS v FROM usage_meters WHERE tenant_id = $1 AND metric = 'ia_executions'",
+      [otro],
+    );
+    // Cobrarle por una corrida que no le devolvió nada sería cobrarle por
+    // nuestra falla. Y es lo que impide que una noche de fallos le agote el mes.
+    expect(Number(despues.rows[0]?.v ?? 0)).toBe(Number(antes.rows[0]?.v ?? 0));
   });
 });
 

@@ -11,7 +11,6 @@ import type { PoolClient } from 'pg';
 import { withTenant } from '@iaxti/db';
 import { enteroDeEntorno } from '@iaxti/core';
 import {
-  CuotaDeIaAgotada,
   aplicarPropuesta,
   type DiagnosticoDelNegocio,
   type LoQueFalta,
@@ -433,7 +432,7 @@ export class AgenteGeneralController {
     @Cuerpo(VueltaDeConversacion) body: z.infer<typeof VueltaDeConversacion>,
   ) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, async (c) => {
+    const conversacion = await withTenant(pool(), actor.tenantId, async (c) => {
       await verificarQueEsteEncendido(c, actor.tenantId);
       const { modelo, provider, model, esfuerzo } = await modeloDelAgenteGeneral(c, actor.tenantId);
       if (!providerAvailable(provider as Provider)) {
@@ -442,8 +441,18 @@ export class AgenteGeneralController {
           message: 'El proveedor de IA todavía no tiene llave configurada en este ambiente.',
         });
       }
-      try {
-        return await conversarConElAgenteGeneral(
+      /**
+       * El fallo llega como VALOR, no como excepción (#867).
+       *
+       * Antes esto era un `try/catch`, y traducía bien — pero el throw salía
+       * de la transacción de `withTenant`, que hace ROLLBACK, así que la fila
+       * que explicaba el fallo se borraba con él. Ninguno de los 409 que vio
+       * el dueño la noche del 11-10 dejó rastro.
+       *
+       * El proveedor y el modelo salen con el resultado porque la traducción
+       * los necesita y ocurre afuera de la transacción.
+       */
+      const respuesta = await conversarConElAgenteGeneral(
           c,
           {
             tenantId: actor.tenantId,
@@ -473,26 +482,34 @@ export class AgenteGeneralController {
             diagnosticar: () => queLeFalta(c, actor.tenantId, actor.userId),
           },
         );
-      } catch (err) {
-        if (err instanceof CuotaDeIaAgotada) {
-          throw new ConflictException({ code: 'IA_QUOTA_EXHAUSTED', message: err.message });
-        }
-        // Sin saldo, llave vencida o el proveedor caído: se dice con nombre
-        // (#402) en vez de caer en un genérico que no ayuda a nadie.
-        // Con quién falló (#677): acá `provider` y `model` están a la vista y el
-        // mensaje decía «el proveedor de IA» sin nombre. Desde #666 ese
-        // proveedor puede no ser el que el negocio tiene elegido.
-        const d = motivoDelProveedor(err, { provider, model });
-        if (d.motivo !== 'desconocido') {
-          const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
-          if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
-          throw new ConflictException(cuerpo);
-        }
-        throw new BadRequestException({
-          code: 'AGENTE_GENERAL_FALLO',
-          message: 'No pudo responder esta vez. Vuelve a preguntarle.',
-        });
-      }
+      return { respuesta, provider, model };
+    });
+
+    // Acá la transacción YA commiteó, con la fila del fallo adentro.
+    const { respuesta: r, provider, model } = conversacion;
+    if (r.status === 'ok') return r;
+
+    if (r.cuotaAgotada) {
+      throw new ConflictException({ code: 'IA_QUOTA_EXHAUSTED', message: r.error });
+    }
+    // Sin saldo, llave vencida o el proveedor caído: se dice con nombre
+    // (#402) en vez de caer en un genérico que no ayuda a nadie.
+    // Con quién falló (#677): acá `provider` y `model` están a la vista y el
+    // mensaje decía «el proveedor de IA» sin nombre. Desde #666 ese
+    // proveedor puede no ser el que el negocio tiene elegido.
+    const d = motivoDelProveedor(new Error(r.error ?? ''), {
+      provider,
+      model,
+      delProveedor: r.errorDelProveedor,
+    });
+    if (d.motivo !== 'desconocido') {
+      const cuerpo = { code: `PROVIDER_${d.motivo.toUpperCase()}`, message: d.message };
+      if (d.reintentable) throw new ServiceUnavailableException(cuerpo);
+      throw new ConflictException(cuerpo);
+    }
+    throw new BadRequestException({
+      code: 'AGENTE_GENERAL_FALLO',
+      message: 'No pudo responder esta vez. Vuelve a preguntarle.',
     });
   }
 

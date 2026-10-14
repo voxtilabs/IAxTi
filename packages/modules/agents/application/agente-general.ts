@@ -12,6 +12,7 @@ import {
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { CATALOGO, herramientasPara, type Herramienta } from './catalogo';
 import { aiSdkModelPort, type HerramientaExpuesta, type ModelPort, providerAvailable } from './models';
+import { esDelProveedor } from './fallo-del-proveedor';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 
@@ -52,8 +53,18 @@ const MS_POR_PASO = 30_000;
  *     cosas configuradas que nadie pidió.
  */
 
-/** La cuota del mes se acabó: el controlador la traduce a 409, no a un 500. */
-export class CuotaDeIaAgotada extends Error {}
+/*
+ * Acá vivía `CuotaDeIaAgotada`, y se fue con #867.
+ *
+ * Era una excepción para decir «la cuota del mes se acabó», y desde que el
+ * fallo se DEVUELVE en vez de lanzarse —porque un throw dentro de
+ * `withTenant` hace ROLLBACK y borra la fila que lo explica— no la lanza
+ * nadie. Un `export` del contrato que nadie usa es el mismo defecto que este
+ * repo caza con `la-puerta-publica`: se borra, no se deja «por si acaso».
+ *
+ * Lo que la reemplaza es `cuotaAgotada: true` en `RespuestaDelAgente`, que el
+ * controlador traduce al mismo 409 leyendo un campo en vez de atrapando algo.
+ */
 
 export interface PasoDelAgente {
   herramienta: string;
@@ -74,6 +85,26 @@ export interface PropuestaDelAgente {
 }
 
 export interface RespuestaDelAgente {
+  /**
+   * El fallo SE DEVUELVE, no se lanza (#867).
+   *
+   * La regla ya estaba escrita en `RunResult` de `runtime.ts`, con su razón:
+   * «la Execution fallida y su evento viven en la misma transacción, y un
+   * throw los revertiría». `runtime.ts` la cumple; este camino no la cumplía,
+   * y por eso NINGÚN fallo del Agente General dejaba rastro.
+   *
+   * No alcanzaba con insertar la fila en el `catch`: `withTenant` abre una
+   * transacción y hace ROLLBACK al propagarse el error, así que el propio
+   * fallo borraba su registro. Lo que hay que cambiar no es dónde se escribe,
+   * es cómo se comunica.
+   *
+   * Lo que costó: el dueño usó «Pídeselo a IAxTi» repetidamente la noche del
+   * 11-10 y recibió un 409 cada vez. Ninguno de esos intentos existe en
+   * ninguna parte — tuvo que leer el error en la consola del navegador porque
+   * el producto no había guardado nada. La función que estaba depurando era
+   * la única que no deja rastro al fallar.
+   */
+  status: 'ok' | 'failed';
   texto: string;
   pasos: PasoDelAgente[];
   /** Lo que espera el visto bueno de la persona. `null` = nada que aplicar. */
@@ -84,6 +115,16 @@ export interface RespuestaDelAgente {
   /** La corrida en `agent_executions`: costo, latencia y trace. */
   executionId: string;
   costUsd: number | null;
+  /**
+   * Si falló, qué pasó. El controlador lo traduce al error HTTP con
+   * `motivoDelProveedor`, igual que antes — lo que cambia es que ahora lee un
+   * campo en vez de atrapar una excepción.
+   */
+  error?: string;
+  /** Si el fallo fue del proveedor o nuestro. Va a `agent_executions`. */
+  errorDelProveedor?: boolean;
+  /** La cuota del mes se acabó: el controlador lo traduce a 409, no a 500. */
+  cuotaAgotada?: boolean;
 }
 
 /**
@@ -331,15 +372,49 @@ export async function conversarConElAgenteGeneral(
   // con explicación y sin gastar. No cae al modelo económico como las tareas
   // de atención — configurar el negocio puede esperar a mañana; contestarle
   // a un cliente que está escribiendo, no.
+  const inicio = Date.now();
+  const traceId = input.requestId ?? randomUUID();
   const cuota = await getQuota(client, input.tenantId);
   if (cuota.exhausted) {
-    throw new CuotaDeIaAgotada(
+    const rechazo =
       `La cuota de IA del mes está completa (${cuota.used} de ${cuota.limit}). ` +
-        'Sube de plan para seguir configurando por conversación.',
-    );
+      'Sube de plan para seguir configurando por conversación.';
+    /**
+     * Se DEVUELVE y deja fila, como hace `runtime.ts` con el mismo caso.
+     *
+     * Antes lanzaba `CuotaDeIaAgotada`, el controlador la traducía a 409, y
+     * el rechazo no quedaba registrado en ninguna parte. O sea que la pantalla
+     * de consumo no podía mostrar «esta corrida se rechazó por cuota», que es
+     * justo el dato que explica por qué el mes se cortó.
+     */
+    const fila = await registrarFallo(client, {
+      tenantId: input.tenantId,
+      provider: deps.provider,
+      model: deps.model,
+      turnos: input.turnos,
+      error: rechazo,
+      errorDelProveedor: false,
+      latencyMs: 0,
+      traceId,
+      pasos: [],
+      explicacion: `Rechazada por cuota (${cuota.used}/${cuota.limit}).`,
+    });
+    return {
+      status: 'failed',
+      texto: '',
+      pasos: [],
+      propuesta: null,
+      tokensIn: 0,
+      tokensOut: 0,
+      truncada: false,
+      executionId: fila,
+      costUsd: null,
+      error: rechazo,
+      errorDelProveedor: false,
+      cuotaAgotada: true,
+    };
   }
 
-  const inicio = Date.now();
   const pasos: PasoDelAgente[] = [];
   let propuesta: PropuestaDelAgente | null = null;
 
@@ -508,33 +583,85 @@ export async function conversarConElAgenteGeneral(
       ].join('\n')
     : base;
 
-  const res = await deps.modelo.generate({
-    system,
-    prompt: '',
-    mensajes: input.turnos,
-    tools: queFalta ? [buscar, preparar, queFalta] : [buscar, preparar],
-    // Buscar, a veces mirar de nuevo, preparar, y contestar.
-    maxSteps: PASOS,
-    /**
-     * Su propio presupuesto, porque son seis viajes y no uno (#712).
-     *
-     * #688 le puso un reloj a toda llamada al proveedor —60 s— pensado para UNA
-     * respuesta: el copiloto sugiere mientras alguien mira la bandeja, y si
-     * tarda más de un minuto ya no sirve porque la persona contestó a mano.
-     *
-     * Acá los pasos ocurren DENTRO de una sola llamada a `generate`, así que
-     * comparten el mismo presupuesto. Con el proveedor sano sobra; con NVIDIA
-     * encolando —medido el 28/09: 139 s y 178 s para un «di hola» sin
-     * herramientas— el primer paso se comía el presupuesto entero y la
-     * conversación se cortaba antes de empezar.
-     *
-     * Subir el global en vez de esto le devolvería al copiloto el spinner mudo
-     * que #688 vino a sacar.
-     */
-    esperaMaximaMs: PASOS * MS_POR_PASO,
-    maxOutputTokens: DEFAULT_TASK_OUTPUT_TOKENS.configuracion_conversada,
-    ...(deps.esfuerzo ? { esfuerzo: deps.esfuerzo } : {}),
-  });
+  /**
+   * El fallo del proveedor se atrapa ACÁ, con el cliente de la transacción
+   * todavía vivo, y se devuelve (#867).
+   *
+   * Si se deja propagar, `withTenant` hace ROLLBACK y la fila que explica el
+   * fallo desaparece con él. Por eso no alcanza con escribir en el `catch`
+   * del controlador: hay que no salir de la transacción con un throw.
+   */
+  let res: Awaited<ReturnType<typeof deps.modelo.generate>>;
+  try {
+    res = await deps.modelo.generate({
+      system,
+      prompt: '',
+      mensajes: input.turnos,
+      tools: queFalta ? [buscar, preparar, queFalta] : [buscar, preparar],
+      // Buscar, a veces mirar de nuevo, preparar, y contestar.
+      maxSteps: PASOS,
+      /**
+       * Su propio presupuesto, porque son seis viajes y no uno (#712).
+       *
+       * #688 le puso un reloj a toda llamada al proveedor —60 s— pensado para UNA
+       * respuesta: el copiloto sugiere mientras alguien mira la bandeja, y si
+       * tarda más de un minuto ya no sirve porque la persona contestó a mano.
+       *
+       * Acá los pasos ocurren DENTRO de una sola llamada a `generate`, así que
+       * comparten el mismo presupuesto. Con el proveedor sano sobra; con NVIDIA
+       * encolando —medido el 28/09: 139 s y 178 s para un «di hola» sin
+       * herramientas— el primer paso se comía el presupuesto entero y la
+       * conversación se cortaba antes de empezar.
+       *
+       * Subir el global en vez de esto le devolvería al copiloto el spinner mudo
+       * que #688 vino a sacar.
+       */
+      esperaMaximaMs: PASOS * MS_POR_PASO,
+      maxOutputTokens: DEFAULT_TASK_OUTPUT_TOKENS.configuracion_conversada,
+      ...(deps.esfuerzo ? { esfuerzo: deps.esfuerzo } : {}),
+    });
+  } catch (err) {
+    const delProveedor = esDelProveedor(err);
+    const mensaje = err instanceof Error ? err.message : String(err);
+    const fila = await registrarFallo(client, {
+      tenantId: input.tenantId,
+      provider: deps.provider,
+      model: deps.model,
+      turnos: input.turnos,
+      error: mensaje,
+      errorDelProveedor: delProveedor,
+      latencyMs: Date.now() - inicio,
+      traceId,
+      // Las ACCIONES que alcanzó a completar antes de fallar. No las
+      // búsquedas: `buscar_herramienta` no empuja paso, y está bien que no lo
+      // haga —esta lista es la que la ficha muestra como «AGENDÓ» o «ENVIÓ
+      // LINK», o sea lo que pasó en el negocio—. Lo que distingue «falló tras
+      // hacer algo» de «falló sin hacer nada» son las acciones, y eso sí
+      // importa: si dejó una propuesta a medias o ejecutó una llamada y
+      // después se cortó, el que mira necesita saberlo antes de volver a
+      // pedir lo mismo.
+      pasos,
+      explicacion:
+        `El Agente General falló con ${deps.provider}/${deps.model}` +
+        (pasos.length
+          ? ` tras completar: ${pasos.map((p) => p.herramienta).join(', ')}`
+          : ' sin alcanzar a completar ninguna acción') +
+        '.',
+    });
+    return {
+      status: 'failed',
+      texto: '',
+      pasos,
+      propuesta,
+      tokensIn: 0,
+      tokensOut: 0,
+      truncada: false,
+      executionId: fila,
+      costUsd: null,
+      error: mensaje,
+      errorDelProveedor: delProveedor,
+    };
+  }
 
   const registro = await registrarCorrida(client, {
     tenantId: input.tenantId,
@@ -545,12 +672,13 @@ export async function conversarConElAgenteGeneral(
     tokensIn: res.tokensIn,
     tokensOut: res.tokensOut,
     latencyMs: Date.now() - inicio,
-    traceId: input.requestId ?? randomUUID(),
+    traceId,
     actorUserId: input.actorUserId,
     pasos,
   });
 
   return {
+    status: 'ok',
     texto: res.text,
     pasos,
     propuesta,
@@ -560,6 +688,58 @@ export async function conversarConElAgenteGeneral(
     executionId: registro.executionId,
     costUsd: registro.costUsd,
   };
+}
+
+/**
+ * La corrida que FALLÓ, con el mismo formato que la que anduvo (#867).
+ *
+ * Mismo formato y no uno propio, a propósito: el panel de ejecuciones (#866)
+ * las muestra juntas, y un caso especial ahí sería una columna que a veces
+ * está. Así que `status: 'failed'`, el motivo en `error`, de quién fue en
+ * `error_del_proveedor`, la latencia real y el trace — igual que `runtime.ts`.
+ *
+ * Y NO incrementa la cuota, a diferencia de la que anduvo. Lo que se registra
+ * es el intento, no el consumo: cobrarle a un negocio por una corrida que no
+ * le devolvió nada sería cobrarle por nuestra falla. Es también lo que impide
+ * que una noche de fallos —como la del 11-10— le agote el mes.
+ */
+async function registrarFallo(
+  client: PoolClient,
+  datos: {
+    tenantId: string;
+    provider: string;
+    model: string;
+    turnos: Array<{ role: string; content: string }>;
+    error: string;
+    errorDelProveedor: boolean;
+    latencyMs: number;
+    traceId: string;
+    pasos: PasoDelAgente[];
+    explicacion: string;
+  },
+): Promise<string> {
+  const fila = await client.query(
+    `INSERT INTO agent_executions
+       (tenant_id, agent_id, task, provider, model, input, output, latency_ms,
+        trace_id, status, error, error_del_proveedor, explanation)
+     VALUES ($1,NULL,'configuracion_conversada',$2,$3,$4,$5,$6,$7,'failed',$8,$9,$10)
+     RETURNING id`,
+    [
+      datos.tenantId,
+      datos.provider,
+      datos.model,
+      JSON.stringify({ turnos: datos.turnos.length, ultima: datos.turnos.at(-1)?.content ?? '' }),
+      // Las acciones completadas van en `output` y no se pierden: son la
+      // diferencia entre «falló tras hacer algo» y «falló sin hacer nada».
+      JSON.stringify({ pasos: datos.pasos.map((p) => p.herramienta) }),
+      datos.latencyMs,
+      datos.traceId,
+      datos.error,
+      datos.errorDelProveedor,
+      datos.explicacion,
+    ],
+  );
+  return fila.rows[0].id as string;
 }
 
 /**

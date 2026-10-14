@@ -116,7 +116,6 @@ export {
   aplicarPropuesta,
   modeloDelAgenteGeneral,
   repartirArgumentos,
-  CuotaDeIaAgotada,
   nombreDePantalla,
   PANTALLAS,
 } from './application/agente-general';
