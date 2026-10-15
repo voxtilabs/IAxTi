@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { comoAdmin } from './como-admin';
 import type { Franja } from '../components/horarios-de-atencion';
 import type { RetencionDto } from '../components/retencion-del-negocio';
 import type { ConfigDto } from '../components/recordatorios-de-cita';
@@ -134,6 +135,10 @@ async function alto(page: Page, titulo: string): Promise<number> {
 
 for (const panel of PANELES) {
   test(`el esqueleto de «${panel.titulo}» tiene el alto del contenido`, async ({ page }) => {
+    // Los cinco paneles viven en pantallas de configuración, o sea de ADMIN.
+    // Hasta #815 daba igual —la pantalla se dibujaba sin el permiso— y estas
+    // pruebas medían el alto de algo que la usuaria del seed no podía ver.
+    await comoAdmin(page, auth);
     for (const previa of panel.previas ?? []) {
       await page.route(previa.ruta, (r) => r.fulfill({ json: previa.cuerpo }));
     }
@@ -178,6 +183,7 @@ for (const panel of PANELES) {
 for (const modo of ['dia', 'noche']) {
   test(`el esqueleto a 360 px en ${modo} no desborda ni se pierde en el fondo`, async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 900 });
+    await comoAdmin(page, auth);
     await page.route('**/v1/agenda/disponibilidad', async (r) => {
       await new Promise((listo) => setTimeout(listo, DEMORA));
       await r.fulfill({ json: FRANJAS });
@@ -204,34 +210,65 @@ for (const modo of ['dia', 'noche']) {
 }
 
 /**
- * Un 403 no lleva «Reintentar», y una caída sí (#788).
+ * Sin el permiso la pantalla NO se dibuja, y lo que aparece tampoco ofrece
+ * reintentar (#788 y #815).
  *
- * Es la mitad del issue, y lo que lo hizo urgente: tres pantallas dibujaban
- * «algo salió mal, intenta de nuevo» a quien simplemente no tiene el permiso.
- * La persona lo intenta, vuelve a fallar, y no hay nada que pueda hacer desde
- * ahí — un botón que no puede funcionar nunca hace creer que el producto está
- * roto en vez de que esa parte no es suya.
+ * Esta prueba cambió de sujeto con #815, y vale la pena contar por qué. Antes
+ * entraba a `/ajustes/bandeja` con la usuaria del seed —SUPERVISOR, sin
+ * `tenant.settings`—, la pantalla se dibujaba igual, y lo que comprobaba era
+ * que el PANEL de retención no ofreciera «Reintentar» al recibir el 403 de su
+ * propia petición.
  *
- * El 403 no se simula: el usuario del e2e NO tiene `tenant.settings` ni
- * `calendar.read`, así que estas rutas contestan 403 de verdad. Eso es mejor
- * que un simulacro — prueba el camino con la respuesta que da el servidor.
+ * Eso era medir el segundo piso con la puerta de abajo abierta: la pantalla no
+ * tenía por qué estar ahí. #815 tapó el agujero —el shell ya no monta una
+ * pantalla cuyo permiso no tenés— así que acá se afirma lo que de verdad
+ * importa: que la puerta cierra, y que lo que se ve en su lugar no es un botón
+ * que no puede funcionar.
+ *
+ * Nada de esto se simula: esta usuaria no tiene `tenant.settings` ni
+ * `calendar.read` de verdad.
  */
-test('un 403 real no ofrece reintentar lo que no se puede reintentar', async ({ page }) => {
+test('sin el permiso, la pantalla no se dibuja ni ofrece reintentar', async ({ page }) => {
+  await page.goto('/ajustes/bandeja');
+  await expect(
+    page.getByRole('region', { name: 'Cuánto se guardan las conversaciones' }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
+
+  await page.goto('/agenda');
+  await expect(page.getByRole('region', { name: 'Horario de atención' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
+});
+
+/**
+ * Y el 403 de un PANEL se prueba donde sigue ocurriendo: dentro de una
+ * pantalla que la persona sí puede abrir.
+ *
+ * Pasa en dos casos reales: cuando el permiso de la sección y el del panel no
+ * son el mismo, y cuando a alguien le quitan un permiso a mitad de sesión —el
+ * arranque se pide una vez por sesión y negocio, así que el navegador le sigue
+ * diciendo que lo tiene—. Acá sí se simula la respuesta, porque es un estado
+ * que no se puede provocar con una cuenta fija.
+ */
+test('un 403 de un panel, dentro de una pantalla que sí se abre, no ofrece reintentar', async ({ page }) => {
+  await comoAdmin(page, auth);
+  await page.route('**/v1/settings/retencion', (r) =>
+    r.fulfill({
+      status: 403,
+      json: { code: 'FORBIDDEN', message: 'No tienes permiso para esto.', requestId: 'req_pruebita' },
+    }),
+  );
   await page.goto('/ajustes/bandeja');
   const retencion = page.getByRole('region', { name: 'Cuánto se guardan las conversaciones' });
   await expect(retencion).toBeVisible();
   await expect(retencion.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
-
-  await page.goto('/agenda');
-  const horario = page.getByRole('region', { name: 'Horario de atención' });
-  await expect(horario).toBeVisible();
-  // Este sí lleva frase, porque una agenda que no muestra su horario y
-  // tampoco dice por qué deja a alguien buscando una configuración que existe.
-  await expect(horario).toContainText('quien administra la agenda');
-  await expect(horario.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
+  // Y no muestra el mensaje crudo del servidor: sin permiso, la sección
+  // simplemente no ofrece nada (la convención de los widgets del inicio).
+  await expect(retencion).not.toContainText('No tienes permiso para esto.');
 });
 
 test('una caída sí ofrece reintentar, con el identificador para pedir ayuda', async ({ page }) => {
+  await comoAdmin(page, auth);
   await page.route('**/v1/settings/retencion', (r) =>
     r.fulfill({
       status: 500,
@@ -264,6 +301,7 @@ test('una caída sí ofrece reintentar, con el identificador para pedir ayuda', 
  * escucha, este disparo no hace nada y la petición nueva nunca sale.
  */
 test('al cambiar de negocio, la pantalla vuelve a preguntar', async ({ page }) => {
+  await comoAdmin(page, auth);
   const pedidos: string[] = [];
   await page.route('**/v1/settings/retencion', (r) => {
     pedidos.push(r.request().headers()['x-tenant-id'] ?? '');

@@ -61,8 +61,9 @@ import { AgenteGeneral } from './agente-general';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
-import { destinosQuePuedeAbrir, queBarraMostrar, type NavItem } from '../lib/nav';
+import { destinosQuePuedeAbrir, puedeAbrirLaRuta, queBarraMostrar, type NavItem } from '../lib/nav';
 import { rutasConCandado } from '../lib/candados';
+import { SinPermiso } from './sin-permiso';
 
 // El tipo vive en `lib/nav` para no cerrar un ciclo con las pestañas de
 // ajustes, que el propio shell renderiza. Se re-exporta porque las páginas
@@ -537,6 +538,30 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: 
   );
   const ruta = usePathname();
   const pagina = nav.find((item) => item.path === ruta || ruta?.startsWith(`${item.path}/`));
+  /**
+   * Y esta ruta, ¿se puede abrir? (#815)
+   *
+   * #814 sacó del menú los destinos sin permiso y con eso creímos haber
+   * cerrado algo: no. Entrar por URL —un enlace pasado entre compañeros de
+   * distinto rol, un favorito— montaba la pantalla igual, y ninguna `page.tsx`
+   * comprueba nada, así que terminaba mostrando el 403 de su primera petición
+   * como si el producto se hubiera roto.
+   *
+   * Va acá, una vez, y no en un `<ConPermiso>` por pantalla: la variante por
+   * pantalla se puede olvidar en la siguiente, y de hecho se olvidó en las 31
+   * que ya existen.
+   *
+   * `todosLosDestinos` y NO `nav`, que es el filtrado. Es el punto entero: con
+   * el filtrado, «no tengo el permiso» y «ninguna entrada cubre esta ruta»
+   * serían el mismo caso y la guarda no cerraría nada. La regla vive en
+   * `lib/nav.ts` —las pruebas del web corren sin DOM— junto con la lista de
+   * las cuatro rutas que a propósito no tienen regla.
+   */
+  const puerta = puedeAbrirLaRuta({
+    destinos: todosLosDestinos,
+    ruta,
+    permisos: arranqueDelShell?.permisos ?? null,
+  });
   return (
     <>
         {/* La bandeja es a ancho completo y la barra arranca plegada: es la
@@ -588,8 +613,21 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: 
                   la página, y la página es la que renderiza este shell.
                   Puestas acá, una pantalla de ajustes nueva las tiene sin
                   que nadie se acuerde. */}
-              <PestanasAjustes items={nav} candados={candados} />
-              {children}
+              {puerta.puede ? (
+                <>
+                  <PestanasAjustes items={nav} candados={candados} />
+                  {children}
+                </>
+              ) : (
+                /* En lugar de la página, no encima: montarla y taparla la
+                   dejaría pedir sus datos igual —un 403 por petición en los
+                   registros, y un parpadeo de contenido antes del aviso—. El
+                   `p-6` es para la bandeja, que va a ancho completo y sin
+                   contenedor: sin eso el panel quedaría pegado al borde. */
+                <div className={sinMargen ? 'p-6' : ''}>
+                  <SinPermiso que={puerta.destino.label} />
+                </div>
+              )}
             </div>
           </SidebarInset>
         </SidebarProvider>

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { elegirPorValor } from './select';
+import { comoAdmin } from './como-admin';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -55,6 +56,8 @@ test('oportunidades sin embudo indican dónde configurarlo', async ({ page }) =>
 });
 
 test('plantillas y automatizaciones enfocan el control que inicia la tarea', async ({ page }) => {
+  // Las dos son pantallas de configuración, o sea de ADMIN (#815).
+  await comoAdmin(page, auth);
   await page.route('**/v1/plantillas', (r) => r.fulfill({ json: [] }));
   await page.goto('/ajustes/plantillas');
   await page.getByRole('button', { name: 'Escribir una plantilla' }).click();

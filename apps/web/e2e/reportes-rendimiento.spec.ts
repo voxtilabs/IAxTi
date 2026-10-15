@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { comoAdmin } from './como-admin';
 import { join } from 'node:path';
 
 const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
@@ -208,6 +209,11 @@ test('un SUPERVISOR no ve en el menú los destinos del ADMIN (#814)', async ({ p
 });
 
 test('API keys pide lista, permisos y consumo juntos, sin esperar tres viajes consecutivos', async ({ page }) => {
+  // `/ajustes/api` pide `apikeys.manage`, que es del ADMIN (#815). La prueba
+  // de acá arriba comprueba justamente que esta usuaria NO vea esos destinos
+  // en el menú, así que el cambio de negocio va por prueba y no en el
+  // `beforeEach`: las dos cosas tienen que seguir siendo ciertas.
+  await comoAdmin(page, auth);
   const pendientes = new Map<string, Route>();
   for (const path of ['/apikeys', '/apikeys/scopes', '/api-usage']) await page.route('**/v1'+path, (r) => { pendientes.set(path, r); });
   await page.goto('/ajustes/api');
