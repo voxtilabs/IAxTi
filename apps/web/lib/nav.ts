@@ -311,7 +311,18 @@ export function puedeAbrirLaRuta(entrada: {
   const destino = destinoQueCubre(entrada.destinos, entrada.ruta);
   // Sin entrada que la cubra se permite, y el motivo de cada una de esas rutas
   // está escrito arriba, en `RUTAS_SIN_REGLA_DE_PERMISO`.
+  //
+  // `!destino.permission` parece inalcanzable mirando el tipo —`NavItem.permission`
+  // es `string` obligatorio— y no lo es: estos destinos llegan como JSON desde
+  // `GET /modules/catalogo`, así que el tipo describe lo que esperamos, no lo
+  // que llega. Un manifiesto nuevo con la línea de `nav` incompleta haría
+  // `undefined` acá, y comparar `undefined` contra la lista de permisos daría
+  // «no puede» para todo el mundo: una entrada mal escrita dejaría a todos
+  // afuera de su propia pantalla. Se prefiere abrir.
   if (destino === null || !destino.permission) return { puede: true };
+  // `includes` y no un `Set` como hace `destinosQuePuedeAbrir`: ahí se filtran
+  // N destinos y el Set se amortiza; acá se mira UN permiso, y construir el
+  // Set cuesta más que el recorrido que evita.
   return entrada.permisos.includes(destino.permission)
     ? { puede: true }
     : { puede: false, destino };

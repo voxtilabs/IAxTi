@@ -183,8 +183,15 @@ describe('toda pantalla tiene su permiso o su motivo escrito (#815)', () => {
    * `nav`, que es el menú ya filtrado por permiso, y pasárselo se lee igual de
    * bien. Pero entonces «me falta el permiso» y «ninguna entrada cubre esta
    * ruta» serían el mismo caso —ninguna calza—, el defecto permisivo abriría
-   * todo y la guarda no cerraría nada. No hay prueba de comportamiento que lo
-   * cace: las pruebas del web corren sin DOM, así que se mira la llamada.
+   * todo y la guarda no cerraría nada.
+   *
+   * La prueba de COMPORTAMIENTO sí existe y vive en el e2e
+   * (`esqueletos-medidos.spec.ts`, «sin el permiso, la pantalla no se
+   * dibuja»): con la lista filtrada, la ruta que la persona no puede abrir
+   * deja de tener entrada, cae en el defecto permisivo y la pantalla vuelve a
+   * dibujarse — o sea que el e2e se pondría rojo. Esta de acá es la que caza
+   * el cambio ANTES de los doce minutos de CI, y por eso mira la llamada: las
+   * pruebas del web corren sin DOM.
    *
    * `fuenteLimpia` (#569) para que el comentario que explica esto no sea lo que
    * la hace pasar.
@@ -205,6 +212,21 @@ describe('toda pantalla tiene su permiso o su motivo escrito (#815)', () => {
         ' ya filtrado por permiso, toda ruta cerrada se vuelve indistinguible de' +
         ' una ruta sin regla y la guarda no cierra nada.',
     ).toContain('destinos: todosLosDestinos');
+
+    // Y que el resultado se USE. Llamarla e ignorar lo que devuelve deja la
+    // guarda en el código, en verde, y la puerta abierta — que es la forma
+    // que más veces tomó el defecto endémico de este repo: declarado en un
+    // lado, aplicado en ninguno.
+    expect(
+      shell,
+      'El shell llama a `puedeAbrirLaRuta` y no usa la respuesta: la pantalla' +
+        ' se dibuja igual y la guarda solo parece estar vigilando (#815).',
+    ).toMatch(/puerta\.puede\s*\?/);
+    expect(
+      shell,
+      'La rama cerrada no dibuja `SinPermiso`: sin eso, quedarse sin permiso' +
+        ' se ve como una pantalla en blanco (#815).',
+    ).toContain('<SinPermiso');
   });
 
   it('las cuatro anotadas son las medidas, y cada motivo dice algo', () => {
