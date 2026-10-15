@@ -215,9 +215,15 @@ describe('un export no sale truncado: sale completo o no sale', () => {
   });
 
   afterAll(async () => {
-    await admin.query('ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete');
-    await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
-    await admin.query('ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete');
+    // Igual que el `afterAll` de arriba y que el de `audit.test.ts`: el trigger
+    // se apaga para ESTA sesión (#803). Este `describe` se quedó con el
+    // `ALTER TABLE … DISABLE TRIGGER` cuando se migró el resto del archivo, y
+    // eso es de la TABLA: mientras limpiaba, el libro no era append-only para
+    // nadie — incluida `audit.test.ts`, que corre en paralelo contra esta misma
+    // base y afirma que sí lo es.
+    await sinTriggers(admin, async (c) => {
+      await c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+    });
     await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
     await admin.end();
   });
