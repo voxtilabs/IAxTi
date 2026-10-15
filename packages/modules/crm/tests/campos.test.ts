@@ -117,6 +117,123 @@ describe('campos personalizados', () => {
   });
 });
 
+describe('el rastro de los campos propios (#534)', () => {
+  // Un campo propio puede guardar datos personales —el convenio de salud, el
+  // número de ficha—, así que quién lo declaró y quién lo borró es justo lo
+  // que el libro de auditoría tiene que contestar, y el archivo entero no
+  // tenía un solo `writeAudit`.
+  let convenio: string;
+
+  it('declarar un campo queda en audit_log con quién lo declaró', async () => {
+    const campo = await en((c) =>
+      createCustomField(c, {
+        tenantId: tenant,
+        entity: 'contact',
+        label: 'Convenio',
+        type: 'texto',
+        visibleIa: false,
+        actor: 'u-sofia',
+        requestId: 'req-534',
+      }),
+    );
+    convenio = campo.id;
+
+    const r = await admin.query(
+      `SELECT actor, actor_kind, action, resource, result, request_id, metadata
+         FROM audit_log WHERE tenant_id = $1 AND resource_id = $2`,
+      [tenant, campo.id],
+    );
+    expect(r.rowCount).toBe(1);
+    expect(r.rows[0].actor).toBe('u-sofia');
+    expect(r.rows[0].actor_kind).toBe('user');
+    expect(r.rows[0].action).toBe('fields.create');
+    expect(r.rows[0].resource).toBe('custom_field');
+    expect(r.rows[0].result).toBe('ok');
+    expect(r.rows[0].request_id).toBe('req-534');
+    // `visibleIa` es el que decide qué sale del negocio hacia el asistente:
+    // sin él en el metadata, el registro no dice qué se decidió.
+    expect(r.rows[0].metadata).toMatchObject({
+      entity: 'contact',
+      key: 'convenio',
+      label: 'Convenio',
+      type: 'texto',
+      required: false,
+      visibleIa: false,
+    });
+  });
+
+  it('un campo rechazado no deja rastro: el ROLLBACK se lleva la fila', async () => {
+    // `withTenant` es una transacción: la entrada de auditoría va DESPUÉS del
+    // INSERT y muere con él. Si alguien moviera el `writeAudit` antes, este
+    // segundo intento dejaría un «se declaró Convenio» de un campo que no se
+    // declaró.
+    await expect(
+      en((c) =>
+        createCustomField(c, {
+          tenantId: tenant,
+          entity: 'contact',
+          label: 'Convenio',
+          type: 'texto',
+          actor: 'u-sofia',
+        }),
+      ),
+    ).rejects.toThrow(/Ya existe un campo/);
+
+    const r = await admin.query(
+      `SELECT count(*)::int AS n FROM audit_log
+        WHERE tenant_id = $1 AND action = 'fields.create' AND metadata ->> 'key' = 'convenio'`,
+      [tenant],
+    );
+    expect(r.rows[0].n).toBe(1);
+  });
+
+  it('borrar registra la definición completa y a cuántas fichas les quitó el piso', async () => {
+    await en((c) =>
+      updateContact(c, {
+        tenantId: tenant,
+        contactId: contacto,
+        custom: { ficha: 42, convenio: 'Caja Los Andes' },
+      }),
+    );
+
+    await en((c) => deleteCustomField(c, { tenantId: tenant, fieldId: convenio, actor: 'u-sofia' }));
+
+    const r = await admin.query(
+      `SELECT actor, action, metadata FROM audit_log
+        WHERE tenant_id = $1 AND resource_id = $2 AND action = 'fields.delete'`,
+      [tenant, convenio],
+    );
+    expect(r.rowCount).toBe(1);
+    expect(r.rows[0].actor).toBe('u-sofia');
+    // La definición ya no existe en la base: si el metadata no la repitiera,
+    // el registro sería un id que no resuelve a nada.
+    expect(r.rows[0].metadata).toMatchObject({
+      entity: 'contact',
+      key: 'convenio',
+      label: 'Convenio',
+      visibleIa: false,
+    });
+    // «Se borró el campo Convenio» no dice si se perdió el dato de una ficha
+    // o de tres mil.
+    expect(r.rows[0].metadata.fichasConValor).toBe(1);
+  });
+
+  it('borrar un campo que no existe no deja rastro de nada', async () => {
+    const antes = await admin.query(
+      `SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'fields.delete'`,
+      [tenant],
+    );
+    await expect(
+      en((c) => deleteCustomField(c, { tenantId: tenant, fieldId: convenio, actor: 'u-sofia' })),
+    ).rejects.toThrow(/no existe en este negocio/);
+    const despues = await admin.query(
+      `SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'fields.delete'`,
+      [tenant],
+    );
+    expect(despues.rows[0].n).toBe(antes.rows[0].n);
+  });
+});
+
 describe('exportación de contactos a CSV (issue 248)', () => {
   it('trae las columnas base, las etiquetas y los campos declarados', async () => {
     const { exportarContactos } = await import('../application/exportar-contactos');

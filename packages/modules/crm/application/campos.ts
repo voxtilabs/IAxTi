@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 
 /**
  * Campos personalizados (SPEC §10 y §23, issue 248).
@@ -18,6 +19,21 @@ export type TipoDeCampo = (typeof TIPOS_DE_CAMPO)[number];
 
 export const ENTIDADES_CON_CAMPOS = ['contact', 'company', 'deal'] as const;
 export type EntidadConCampos = (typeof ENTIDADES_CON_CAMPOS)[number];
+
+/**
+ * Dónde vive el `custom` de cada entidad, para poder contar a cuántas fichas
+ * les quita el piso un borrado.
+ *
+ * Es un mapa literal y no el nombre que venga en el input a propósito: el
+ * nombre de la tabla se interpola en el SQL —no hay parámetro de Postgres
+ * para un identificador—, así que lo único interpolable tiene que ser uno de
+ * estos tres valores escritos acá. El `key` sí viaja como parámetro.
+ */
+const TABLA_DE_ENTIDAD: Record<EntidadConCampos, string> = {
+  contact: 'contacts',
+  company: 'companies',
+  deal: 'deals',
+};
 
 export interface CampoPersonalizado {
   id: string;
@@ -75,6 +91,23 @@ export async function listCustomFields(
   return r.rows.map(aCampo);
 }
 
+/**
+ * Declarar un campo es una decisión del negocio, no un detalle de forma, y
+ * hasta #534 no dejaba rastro: el archivo entero no tenía un solo
+ * `writeAudit`. Dos de estas banderas cambian lo que el producto hace con los
+ * datos de personas —`required` le exige el dato a quien carga la ficha y
+ * `visibleIa` decide si sale hacia el asistente (#528)—, así que «quién
+ * declaró este campo y cuándo» es justo lo que un libro de auditoría tiene
+ * que poder contestar, y no podía.
+ *
+ * La entrada de auditoría va DESPUÉS del INSERT y dentro de la misma
+ * transacción de `withTenant`, que es lo que pide CLAUDE.md §3: si el INSERT
+ * choca con la llave única, el throw hace ROLLBACK y no queda ni el campo ni
+ * el registro de que se creó. Por lo mismo, los rechazos de acá arriba
+ * —entidad desconocida, tipo desconocido, lista sin opciones— NO se auditan:
+ * una fila escrita antes del throw se iría con el ROLLBACK, y auditar un
+ * intento fallido tendría que hacerse fuera de esta transacción.
+ */
 export async function createCustomField(
   client: PoolClient,
   input: {
@@ -85,6 +118,9 @@ export async function createCustomField(
     required?: boolean;
     visibleIa?: boolean;
     options?: string[];
+    actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
   },
 ): Promise<CampoPersonalizado> {
   if (!(ENTIDADES_CON_CAMPOS as readonly string[]).includes(input.entity)) {
@@ -117,21 +153,94 @@ export async function createCustomField(
     }
     throw err;
   });
-  return aCampo(r.rows[0]);
+  const campo = aCampo(r.rows[0]);
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? 'user',
+    action: 'fields.create',
+    resource: 'custom_field',
+    resourceId: campo.id,
+    result: 'ok',
+    requestId: input.requestId,
+    // Lo que hace falta para reconstruir la decisión sin ir a mirar la tabla
+    // —que para entonces puede estar borrada—. `visibleIa` es el que más
+    // importa: es el que cambia qué información del negocio sale hacia la IA.
+    metadata: {
+      entity: campo.entity,
+      key: campo.key,
+      label: campo.label,
+      type: campo.type,
+      required: campo.required,
+      visibleIa: campo.visibleIa,
+    },
+  });
+  return campo;
 }
 
+/**
+ * Quitar la definición de un campo propio.
+ *
+ * Es el borrado que más necesitaba rastro y era el que no tenía ninguno
+ * (#534): el campo puede guardar datos personales, y una vez quitada la
+ * definición no queda en la base ni cómo se llamaba. De ahí que el metadata
+ * repita la definición completa —`entity`, `key`, `label`, `visibleIa`— en
+ * vez de solo el id: un id que ya no resuelve a nada no contesta «qué era el
+ * campo Convenio».
+ *
+ * `fichasConValor` es la otra mitad de la respuesta. «Se borró el campo
+ * Convenio» no dice si el negocio perdió de vista el dato de 3 fichas o de
+ * 3.000, y esa diferencia es la que decide si hay que avisarle a alguien.
+ */
 export async function deleteCustomField(
   client: PoolClient,
-  input: { tenantId: string; fieldId: string },
+  input: {
+    tenantId: string;
+    fieldId: string;
+    actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
+  },
 ): Promise<void> {
-  const r = await client.query('DELETE FROM custom_fields WHERE tenant_id = $1 AND id = $2', [
-    input.tenantId,
-    input.fieldId,
-  ]);
+  const r = await client.query(
+    'DELETE FROM custom_fields WHERE tenant_id = $1 AND id = $2 RETURNING *',
+    [input.tenantId, input.fieldId],
+  );
   if (r.rowCount === 0) throw new Error('Ese campo no existe en este negocio.');
+  const campo = aCampo(r.rows[0]);
+
   // Lo ya guardado en `custom` NO se toca: borrar la definición no puede
   // borrarle datos al negocio sin avisar. Queda como valor suelto hasta que
   // alguien lo edite.
+  //
+  // Se cuenta DESPUÉS del DELETE y da lo mismo: el DELETE es de
+  // `custom_fields` y la cuenta es de la tabla de la entidad, y las dos van en
+  // la misma transacción.
+  const conValor = await client.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM ${TABLA_DE_ENTIDAD[campo.entity]}
+      WHERE tenant_id = $1 AND coalesce(custom ->> $2, '') <> ''`,
+    [input.tenantId, campo.key],
+  );
+
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? 'user',
+    action: 'fields.delete',
+    resource: 'custom_field',
+    resourceId: campo.id,
+    result: 'ok',
+    requestId: input.requestId,
+    metadata: {
+      entity: campo.entity,
+      key: campo.key,
+      label: campo.label,
+      type: campo.type,
+      required: campo.required,
+      visibleIa: campo.visibleIa,
+      fichasConValor: conValor.rows[0].n,
+    },
+  });
 }
 
 /**

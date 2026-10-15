@@ -123,6 +123,11 @@ export class CamposController {
           required: body?.required,
           visibleIa: body?.visibleIa,
           options: body?.options,
+          // Quién declaró el campo (#534). Antes el caso de uso no recibía
+          // actor, así que el registro no era incompleto: no existía.
+          actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+          requestId: request.requestId,
         }),
       );
     } catch (err) {
@@ -143,7 +148,13 @@ export class CamposController {
     try {
       await olvidarCampos(actor.tenantId);
       await withTenant(pool(), actor.tenantId, (c) =>
-        deleteCustomField(c, { tenantId: actor.tenantId, fieldId: id }),
+        deleteCustomField(c, {
+          tenantId: actor.tenantId,
+          fieldId: id,
+          actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+          requestId: request.requestId,
+        }),
       );
       return { ok: true };
     } catch (err) {
