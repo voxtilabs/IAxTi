@@ -14,7 +14,18 @@ permissions:
 events:
   publishes:
     - webhook.failed
-  consumes: []
+  # `'*'` no es un evento llamado así: nombra el CATÁLOGO ENTERO. El fan-out de
+  # webhooks salientes se registra con `webhookConsumers(registry.eventsCatalog())`
+  # (apps/workers/src/main.ts), así que entrega cualquier evento publicado al que
+  # el tenant le haya suscrito un endpoint: este módulo consume todo.
+  #
+  # Decía `[]`, y por eso no se podía responder «¿este evento es huérfano?»: con
+  # el único consumidor universal declarado en cero, los 52 eventos publicados
+  # que ningún manifiesto dice consumir se leían como eventos que se publican al
+  # vacío, y no lo son — son entregables por webhook (#783). Si alguien lo
+  # vuelve a `[]`, la cuenta vuelve a mentir y el próximo que la haga va a creer
+  # que encontró 52 hallazgos.
+  consumes: ['*']
 tools: []
 nav:
   - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Configuración, seccion: Integraciones }

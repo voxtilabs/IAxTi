@@ -310,7 +310,9 @@ No se apagan nunca. Todo lo demás depende de ellos.
   tenant + objeto cuando aplica (sección 27). El catálogo se regenera al arrancar y
   nunca se escribe a mano.
 - **Permisos:** `roles.read`, `roles.manage`, `apikeys.manage`.
-- **Eventos:** `role.created`, `role.assigned`, `permission.denied` (a seguridad).
+- **Eventos:** `role.created`, `role.assigned`. El rechazo de permiso NO es un
+  evento: se escribe en `audit_log` como `action = 'permission.denied'` y el panel
+  de seguridad lo lee de ahí (#793).
 
 ### audit
 
@@ -847,7 +849,7 @@ Todo evento lleva sobre: `id`, `name`, `tenant_id`, `occurred_at`, `actor`,
 identity        user.registered · user.invited · user.joined_tenant · user.login_failed
 organizations   tenant.created · tenant.plan_changed · tenant.state_changed
                 usage.threshold_reached · tenant.settings_changed
-authorization   role.created · role.assigned · permission.denied
+authorization   role.created · role.assigned
 crm             contact.created · contact.updated · contact.merged · contact.opted_out
                 deal.created · deal.stage_changed · deal.won · deal.lost · deal.stalled
                 activity.due

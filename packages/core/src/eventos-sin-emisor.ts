@@ -35,10 +35,15 @@ import { fuenteLimpia } from './testing/fuente-limpia';
  * en un archivo que de verdad emite (llama a `publishEvent`), en una posición
  * que no es ninguna de las dos formas ajenas de arriba.
  *
- * El filtro por archivo solo ya descarta a `permission.denied`: ni
- * `registrar-rechazo.ts` ni `salud.ts` publican nada. La posición hace falta
- * para `tenant.plan_changed`, porque `retention.ts` —donde vive el registro
- * del consumidor— sí publica otros eventos.
+ * El filtro por archivo solo ya descartaba a `permission.denied`: ni
+ * `registrar-rechazo.ts` ni `salud.ts` publican nada. (Ese ya no llega hasta
+ * acá: #793 lo sacó de `events.publishes` porque no era un evento sino la
+ * acción de auditoría del mismo nombre, y lo que esta guarda recibe son los
+ * declarados. El ejemplo se queda escrito porque la acción sigue existiendo y
+ * el criterio tiene que seguir distinguiéndola si alguien vuelve a
+ * declararla.) La posición hace falta para `tenant.plan_changed`, porque
+ * `retention.ts` —donde vive el registro del consumidor— sí publica otros
+ * eventos.
  *
  * ## Por qué no se exige `name: '<evento>'`
  *
