@@ -211,7 +211,10 @@ function poolQueCuenta(real: Pool): Pool {
  * pruebas que abren la ventana, y la otra quedó sin nada que la delatara: si
  * alguien volvía a provocar la falla con un `ALTER TABLE`, la mitad de abajo
  * del archivo lo dejaba pasar. Con la ventana detrás de una función hay un
- * solo lugar donde ponerla, y las dos la pagan.
+ * solo lugar donde ponerla, y la pagan todas las que la usen — hoy tres, y ese
+ * «hoy» es a propósito: la primera versión de este párrafo decía «las dos» y
+ * quedó vieja en el mismo cambio que agregó la tercera. Un número de llamadas
+ * clavado en un comentario envejece a la primera prueba nueva.
  *
  * La guarda: mientras la ventana está abierta, `admin` —OTRA conexión y otro
  * `Pool`, como los de los otros 62 archivos que corren en paralelo contra esta
@@ -225,7 +228,10 @@ function poolQueCuenta(real: Pool): Pool {
  * `workers/tests/outbound-vigencia.test.ts` CREAN un trigger sobre `outbox` y
  * sobre `messages` para provocar su falla, y crear un trigger no tiene
  * equivalente de sesión —`session_replication_role` apaga, no crea—, así que
- * no se arreglan copiando nada de acá. Necesitan su propio issue.
+ * no se arreglan copiando nada de acá. Las dos están en **#910**, con el
+ * riesgo medido: filtran por tenant, así que mientras existen no le pasa nada
+ * a nadie; lo que dejan si el proceso muere en el medio es basura en la base,
+ * apuntando a un tenant que ya no existe.
  */
 async function conNotasRotas(cuerpo: () => Promise<void>): Promise<void> {
   notasRotas = true;
@@ -569,6 +575,20 @@ describe('arranque de una conversación (#761)', () => {
     });
   });
 
+
+  it('y el arranque URGENTE sobrevive a eso: el hilo se puede leer igual', async () => {
+    // Lo urgente no toca `internal_notes`, así que la falla de la ficha no lo
+    // alcanza. Es la razón de haberlos partido en dos endpoints y no solo en dos
+    // llamadas: una transacción envenenada no cruza de uno al otro.
+    await conNotasRotas(async () => {
+      const res = await pedir(duena, `/conversations/${conversationId}/arranque`);
+      expect(res.status).toBe(200);
+      const cuerpo = await res.json();
+      expect(cuerpo.conversacion.id).toBe(conversationId);
+      expect(cuerpo.mensajes.estado).toBe('ok');
+    });
+  });
+
   /**
    * El arnés mismo, medido.
    *
@@ -605,19 +625,6 @@ describe('arranque de una conversación (#761)', () => {
       await expect(contado.query('SELECT 1 FROM internal_notes')).rejects.toThrow(
         /internal_notes_que_no_existe/,
       );
-    });
-  });
-
-  it('y el arranque URGENTE sobrevive a eso: el hilo se puede leer igual', async () => {
-    // Lo urgente no toca `internal_notes`, así que la falla de la ficha no lo
-    // alcanza. Es la razón de haberlos partido en dos endpoints y no solo en dos
-    // llamadas: una transacción envenenada no cruza de uno al otro.
-    await conNotasRotas(async () => {
-      const res = await pedir(duena, `/conversations/${conversationId}/arranque`);
-      expect(res.status).toBe(200);
-      const cuerpo = await res.json();
-      expect(cuerpo.conversacion.id).toBe(conversationId);
-      expect(cuerpo.mensajes.estado).toBe('ok');
     });
   });
 
