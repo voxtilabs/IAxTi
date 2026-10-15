@@ -20,6 +20,19 @@
 # Se regenera con:  node scripts/listas-sin-vacio.mjs --escribir
 # Y sin argumentos muestra qué cambió.
 #
+# ## Bajó de 34 a 32 el 14-10, sin tocar ninguna lista (#788)
+#
+# `evaluaciones` y `horarios-de-atencion` salieron de acá al migrar a
+# `useCarga`, y no porque se les escribiera un estado vacío: ya lo tenían. Lo
+# que las tenía listadas era la AMBIGÜEDAD — la colección en `null` significaba
+# «cargando o vacío» según por dónde se hubiera llegado, y el escáner no puede
+# distinguir una rama de vacío que además cubre el cargando. Con los cinco
+# estados nombrados, `null` dejó de significar dos cosas.
+#
+# Vale anotarlo porque explica cómo se vacía esta lista de verdad: de las 32
+# que quedan, la mayoría no le falta el vacío, le falta que su carga no sea
+# ambigua.
+#
 # Las que NO son colecciones —transcripciones, resultados de búsqueda,
 # sublistas de una ficha— viven en `packages/core/tests/listas-sin-estados.test.ts`
 # con su motivo, porque ahí el porqué es información que no está en el código.
@@ -102,8 +115,6 @@ dar-una-hora.tsx#contactos
 dar-una-hora.tsx#huecos
 empresas.tsx#items
 etiquetas.tsx#items
-evaluaciones.tsx#corridas
-horarios-de-atencion.tsx#franjas
 pagos.tsx#proveedores
 preferencias-avisos.tsx#prefs
 roles.tsx#roles

@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import { AvisoResultado, Badge, Button, useSession } from '@iaxti/ui/react';
 import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
 import { apiFetch } from '../lib/api';
+import { AvisoDeCarga } from './aviso-de-carga';
 import { PanelCargando } from './panel-cargando';
+import { useCarga } from './use-carga';
 
 /**
  * Si el asistente mejoró o empeoró (#53, #447).
@@ -62,37 +64,26 @@ export function Evaluaciones() {
   // asistentes con modelos distintos tienen scores distintos, y mostrar los
   // de uno bajo el nombre del otro es peor que no mostrar nada (#494).
   const { tenant, asistentes, elegido: agente, elegir } = useAsistenteElegido<AgenteDto>();
-  const [corridas, setCorridas] = useState<CorridaDto[] | null>(null);
+  /**
+   * La ruta en `null` mientras no haya asistente (#788).
+   *
+   * Acá vivía la versión a mano de este estado, y era la parte más delicada:
+   * «no hay asistente» NO es «está cargando», y confundirlos dejaba el
+   * esqueleto puesto PARA SIEMPRE —doce segundos en la prueba que mide los
+   * altos, y en la pantalla, hasta que alguien se fuera—. La rama volvía antes
+   * de pedir nada, así que el `finally` que apagaba `cargando` nunca corría.
+   *
+   * Con la ruta en `null` el hook contesta `nada-que-pedir` y el bug no se
+   * puede escribir: no hay un `finally` del que acordarse.
+   */
+  const { carga, recargando, reintentar } = useCarga<CorridaDto[]>(
+    agente ? `/agents/${agente.id}/evals` : null,
+  );
   const [corriendo, setCorriendo] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
 
-  const cargar = useCallback(async () => {
-    if (!session || !tenant || !agente) {
-      // «No hay asistente» NO es «está cargando», y confundirlos deja el
-      // esqueleto puesto para siempre. Lo cazó la propia prueba que mide los
-      // altos: en Ajustes → IA los dos paneles seguían con la silueta a los
-      // doce segundos, porque esta rama vuelve antes de pedir nada y el
-      // `finally` que apaga `cargando` nunca corría. Un esqueleto eterno es
-      // peor que el `return null` que había: el hueco al menos terminaba.
-      //
-      // `asistentes !== null` es la señal de que la lista ya se resolvió: si
-      // se resolvió y aun así no hay elegido, no queda nada que esperar.
-      if (asistentes !== null) {
-        setCorridas([]);
-        setCargando(false);
-      }
-      return;
-    }
-    try {
-      setCorridas(await apiFetch<CorridaDto[]>(config, session, tenant, `/agents/${agente.id}/evals`));
-    } catch {
-      /* sin permiso para ver el consumo del asistente: la sección no aparece */
-    } finally {
-      setCargando(false);
-    }
-  }, [config, session, tenant, agente, asistentes]);
-  useEffect(() => void cargar(), [cargar]);
+  const cargar = reintentar;
+  const corridas = carga.estado === 'ok' ? carga.dato : null;
 
   const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5';
   const titulo = 'Evaluaciones del asistente';
@@ -101,10 +92,21 @@ export function Evaluaciones() {
   // esta es la que más se notaba: el panel de Ajustes → IA no existía durante
   // las dos y después empujaba todo lo de abajo.
   if (!tenant) return null;
-  if (!agente || corridas === null) {
+  // La lista de asistentes todavía en vuelo cuenta como cargando: es la
+  // primera de las dos llamadas, y sin esto el panel desaparecería durante
+  // ella para volver a aparecer un instante después.
+  if (asistentes === null || carga.estado === 'cargando') {
     // 336 px MEDIDOS (el panel con dos corridas mide 410). A ojo: 168, la
     // mitad.
-    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={336} filas={3} /> : null;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={336} filas={3} />;
+  }
+  // Sin asistente no hay evaluaciones de nadie, y eso no es un error.
+  if (carga.estado === 'nada-que-pedir' || !agente) return null;
+  if (carga.estado !== 'ok' || corridas === null) {
+    // El 403 sigue sin dibujar nada —estaba escrito: «sin permiso para ver el
+    // consumo del asistente, la sección no aparece»—, pero una caída ya no se
+    // esconde detrás de esa decisión.
+    return <AvisoDeCarga carga={carga} onReintentar={reintentar} />;
   }
 
   const evaluar = async () => {
@@ -125,7 +127,7 @@ export function Evaluaciones() {
   const configuracionActual = ultima && ultima.provider === agente.provider && ultima.model === agente.model;
 
   return (
-    <section aria-label={titulo} className={marco}>
+    <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <div className="flex flex-wrap items-center gap-2">
         <FlaskConical aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">¿Mejoró o empeoró?</h2>

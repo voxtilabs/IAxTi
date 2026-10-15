@@ -34,6 +34,20 @@ describe('horarios de atención', () => {
   });
 
   it('el choque entre franjas lo rechaza el servidor', () => {
-    expect(HORARIOS).toContain('setAviso((err as Error).message)');
+    /**
+     * Lo que esta prueba protege es que el motivo lo ponga el SERVIDOR: dos
+     * franjas que se pisan el mismo día duplican los huecos, y la explicación
+     * de por qué se rechaza vive allá, no acá.
+     *
+     * Estaba escrita contra la ortografía exacta —`setAviso((err as
+     * Error).message)`— y por eso se puso roja cuando #788 cambió esa línea a
+     * `avisoDe(err).texto`, que hace lo MISMO y además conserva el
+     * `code · requestId`. Una prueba que falla porque mejoró lo que vigila no
+     * está vigilando lo que dice.
+     *
+     * Acepta las dos formas porque las dos cumplen la propiedad; lo que no
+     * acepta es un texto inventado en el cliente.
+     */
+    expect(HORARIOS).toMatch(/setAviso\((?:avisoDe\(err\)\.texto|\(err as Error\)\.message)\)/);
   });
 });

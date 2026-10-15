@@ -1,0 +1,126 @@
+# Avisos que tiran el `code · requestId` del error (#788).
+#
+# Trinquete, no lista de tareas: la guarda falla si el total SUBE, y falla
+# pidiendo bajar la marca si alguno se arregla y nadie la actualiza. Se
+# regenera con `pnpm avisos --escribir`.
+#
+# Cada línea es un `setAviso(err.message)` o equivalente: el texto del error
+# entra al estado sin pasar por `avisoDe()`, que es lo que conserva el
+# identificador de la petición (#659). Sin ese identificador, quien atiende
+# lee «algo salió mal» y no tiene nada que pasarle a quien puede mirar los
+# registros.
+#
+# La lista NO lleva motivos, a diferencia de la de columnas sin lector. Acá no
+# hay nada que explicar por entrada: son 115 líneas que dicen lo mismo, y
+# ninguna es una excepción legítima — todas se arreglan igual, cambiando
+# `err.message` por `avisoDe(err)`. Escribir 115 motivos distintos para el
+# mismo defecto sería trabajo sin información.
+
+apps/web/components/agenda.tsx:102
+apps/web/components/agenda.tsx:121
+apps/web/components/agente-general.tsx:312
+apps/web/components/agente-general.tsx:347
+apps/web/components/ajustes-de-ia.tsx:91
+apps/web/components/api-keys.tsx:57
+apps/web/components/api-keys.tsx:83
+apps/web/components/api-keys.tsx:93
+apps/web/components/arranque.tsx:165
+apps/web/components/asistente.tsx:74
+apps/web/components/asistente.tsx:133
+apps/web/components/atajos-de-respuesta.tsx:35
+apps/web/components/atajos-de-respuesta.tsx:56
+apps/web/components/atajos-de-respuesta.tsx:70
+apps/web/components/automatizaciones.tsx:115
+apps/web/components/automatizaciones.tsx:131
+apps/web/components/bandeja/reasignaciones.tsx:37
+apps/web/components/bandeja/secuencias-ficha.tsx:126
+apps/web/components/campanas.tsx:114
+apps/web/components/campanas.tsx:144
+apps/web/components/campos.tsx:53
+apps/web/components/campos.tsx:83
+apps/web/components/campos.tsx:97
+apps/web/components/canales.tsx:207
+apps/web/components/canales.tsx:285
+apps/web/components/canales.tsx:477
+apps/web/components/canales.tsx:489
+apps/web/components/canales.tsx:505
+apps/web/components/canales.tsx:646
+apps/web/components/cancelar-suscripcion.tsx:73
+apps/web/components/configurador.tsx:99
+apps/web/components/configurador.tsx:122
+apps/web/components/conocimiento.tsx:137
+apps/web/components/conocimiento.tsx:168
+apps/web/components/conocimiento.tsx:206
+apps/web/components/conocimiento.tsx:218
+apps/web/components/conocimiento.tsx:230
+apps/web/components/conocimiento.tsx:256
+apps/web/components/consumo-ia.tsx:61
+apps/web/components/consumo-ia.tsx:71
+apps/web/components/crm/contactos.tsx:55
+apps/web/components/crm/contactos.tsx:95
+apps/web/components/crm/contactos.tsx:116
+apps/web/components/crm/derechos-del-titular.tsx:64
+apps/web/components/crm/derechos-del-titular.tsx:87
+apps/web/components/crm/ficha-contacto.tsx:206
+apps/web/components/crm/ficha-contacto.tsx:259
+apps/web/components/crm/ficha-contacto.tsx:276
+apps/web/components/crm/ficha-contacto.tsx:292
+apps/web/components/crm/ficha-contacto.tsx:310
+apps/web/components/crm/ficha-contacto.tsx:318
+apps/web/components/crm/fusionar-duplicado.tsx:66
+apps/web/components/crm/fusionar-duplicado.tsx:102
+apps/web/components/crm/historia-de-etapas.tsx:27
+apps/web/components/crm/importar.tsx:66
+apps/web/components/crm/importar.tsx:81
+apps/web/components/crm/oportunidades.tsx:112
+apps/web/components/crm/oportunidades.tsx:138
+apps/web/components/crm/oportunidades.tsx:159
+apps/web/components/crm/oportunidades.tsx:190
+apps/web/components/crm/pendientes.tsx:85
+apps/web/components/crm/pendientes.tsx:102
+apps/web/components/dar-una-hora.tsx:59
+apps/web/components/dar-una-hora.tsx:77
+apps/web/components/dar-una-hora.tsx:98
+apps/web/components/embudo-de-ventas.tsx:65
+apps/web/components/embudos.tsx:60
+apps/web/components/embudos.tsx:77
+apps/web/components/empresas.tsx:48
+apps/web/components/empresas.tsx:70
+apps/web/components/empresas.tsx:88
+apps/web/components/empresas.tsx:108
+apps/web/components/empresas.tsx:123
+apps/web/components/equipo.tsx:108
+apps/web/components/equipo.tsx:128
+apps/web/components/equipo.tsx:143
+apps/web/components/equipo.tsx:157
+apps/web/components/etiquetas.tsx:42
+apps/web/components/etiquetas.tsx:61
+apps/web/components/etiquetas.tsx:78
+apps/web/components/etiquetas.tsx:92
+apps/web/components/evaluaciones.tsx:120
+apps/web/components/facturacion.tsx:74
+apps/web/components/llevarse-los-datos.tsx:85
+apps/web/components/modo-autonomo.tsx:57
+apps/web/components/pagos.tsx:115
+apps/web/components/pagos.tsx:163
+apps/web/components/pagos.tsx:179
+apps/web/components/pagos.tsx:206
+apps/web/components/plantillas.tsx:62
+apps/web/components/plantillas.tsx:93
+apps/web/components/plantillas.tsx:107
+apps/web/components/preferencias-avisos.tsx:126
+apps/web/components/preferencias-avisos.tsx:176
+apps/web/components/preferencias-avisos.tsx:267
+apps/web/components/preferencias-avisos.tsx:289
+apps/web/components/pregunta-a-los-numeros.tsx:106
+apps/web/components/puesta-en-marcha.tsx:87
+apps/web/components/roles.tsx:61
+apps/web/components/roles.tsx:82
+apps/web/components/roles.tsx:97
+apps/web/components/webchat-chat.tsx:135
+apps/web/components/webhooks-salientes.tsx:62
+apps/web/components/webhooks-salientes.tsx:77
+apps/admin/components/admin-shell.tsx:1030
+apps/admin/components/admin-shell.tsx:1425
+apps/admin/components/admin-shell.tsx:1452
+apps/admin/components/admin-shell.tsx:1663

@@ -18,6 +18,7 @@
     "catalogo": "turbo build --filter=@iaxti/api && node scripts/dump-openapi.mjs /tmp/iaxti-openapi.json && node scripts/generar-catalogo-herramientas.mjs /tmp/iaxti-openapi.json",
     "columnas": "node scripts/columnas-sin-lector.mjs",
     "respuestas": "node scripts/respuestas-sin-mirar.mjs",
+    "avisos": "node scripts/avisos-sin-rastro.mjs",
     "migraciones:virgen": "node scripts/migraciones-en-base-virgen.mjs"
   },
   "devDependencies": {

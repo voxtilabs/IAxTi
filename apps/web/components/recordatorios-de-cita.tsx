@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BellRing } from 'lucide-react';
 import {
   AvisoResultado,
@@ -12,9 +12,11 @@ import {
   SelectValue,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { useSelectedTenant } from './tenant-switcher';
+import { apiFetch, avisoDe } from '../lib/api';
+import { AvisoDeCarga } from './aviso-de-carga';
 import { PanelCargando } from './panel-cargando';
+import { useCarga } from './use-carga';
 
 // Con qué plantilla se le recuerda la hora al cliente (#59).
 //
@@ -55,44 +57,53 @@ const NINGUNA = 'ninguna';
 
 export function RecordatoriosDeCita() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
-  const [datos, setDatos] = useState<ConfigDto | null>(null);
-  const [elegidas, setElegidas] = useState<Record<'24h' | '2h', string>>({ '24h': NINGUNA, '2h': NINGUNA });
+  const tenant = useSelectedTenant();
+  const { carga, recargando, reintentar } = useCarga<ConfigDto>('/agenda/recordatorios');
+  /**
+   * Solo lo ELEGIDO a mano, y lo del servidor se lee al dibujar (#788).
+   *
+   * Antes esto se copiaba del servidor a un `useState` dentro de la carga.
+   * Copiar obliga a acordarse de copiar otra vez en cada recarga, y una
+   * respuesta que llega tarde pisa lo que la persona acababa de elegir.
+   */
+  const [escritas, setEscritas] = useState<Partial<Record<'24h' | '2h', string>>>({});
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
-  const [cargando, setCargando] = useState(true);
-
-  useEffect(() => setTenant(selectedTenant()), []);
-  const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
-    try {
-      const r = await apiFetch<ConfigDto>(config, session, tenant, '/agenda/recordatorios');
-      setDatos(r);
-      setElegidas({
-        '24h': r.recordatorios['24h'] ?? NINGUNA,
-        '2h': r.recordatorios['2h'] ?? NINGUNA,
-      });
-    } catch {
-      /* sin permiso para configurar la agenda: la sección no aparece */
-    } finally {
-      setCargando(false);
-    }
-  }, [config, session, tenant]);
-  useEffect(() => void cargar(), [cargar]);
 
   const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5';
   const titulo = 'Recordatorios de cita';
 
-  if (!tenant) return null;
-  if (!datos) {
+  const datos = carga.estado === 'ok' ? carga.dato : null;
+  const elegidas: Record<'24h' | '2h', string> = {
+    '24h': escritas['24h'] ?? datos?.recordatorios['24h'] ?? NINGUNA,
+    '2h': escritas['2h'] ?? datos?.recordatorios['2h'] ?? NINGUNA,
+  };
+  const setElegidas = (cambio: (previas: Record<'24h' | '2h', string>) => Record<'24h' | '2h', string>) =>
+    setEscritas(cambio(elegidas));
+
+  if (carga.estado === 'nada-que-pedir') return null;
+  if (carga.estado === 'cargando') {
     // 431 px MEDIDOS (el panel con una plantilla elegida mide 505). A ojo:
     // 152. Las tres barras son los dos Select y su explicación.
-    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={431} filas={3} /> : null;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={431} filas={3} />;
+  }
+  if (carga.estado !== 'ok' || datos === null) {
+    /**
+     * El 403 sigue sin dibujar nada, y eso NO es un descuido heredado.
+     *
+     * Estaba escrito desde que se escribió el componente —«sin permiso para
+     * configurar la agenda: la sección no aparece»— y es la misma convención
+     * de los widgets del inicio. Lo que cambia es que antes el `catch` vacío
+     * se comía TODO: un 500 o un corte de red desaparecían igual que un 403,
+     * así que la sección faltaba y nadie podía saber si era por permisos o
+     * porque algo se cayó. Ahora el 403 desaparece y la caída se ve.
+     */
+    return <AvisoDeCarga carga={carga} onReintentar={reintentar} />;
   }
 
   const guardar = async () => {
-    if (!session) return;
+    if (!session || !tenant) return;
     setAviso(null);
     setGuardado(false);
     setGuardando(true);
@@ -105,9 +116,11 @@ export function RecordatoriosDeCita() {
         }),
       });
       setGuardado(true);
-      await cargar();
+      setEscritas({});
+      reintentar();
     } catch (e) {
-      setAviso(e instanceof Error ? e.message : 'No pudimos guardarlo.');
+      // `avisoDe` conserva `code · requestId` (#659, #788).
+      setAviso(avisoDe(e).texto);
     } finally {
       setGuardando(false);
     }
@@ -116,7 +129,7 @@ export function RecordatoriosDeCita() {
   const sinPlantillas = datos.plantillas.length === 0;
 
   return (
-    <section aria-label={titulo} className={marco}>
+    <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <div className="flex items-center gap-2">
         <BellRing aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">Recordatorios de cita</h2>

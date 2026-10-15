@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Archive } from 'lucide-react';
 import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
+import { AvisoDeCarga } from './aviso-de-carga';
 import { PanelCargando } from './panel-cargando';
-import { selectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { useCarga } from './use-carga';
+import { useSelectedTenant } from './tenant-switcher';
+import { apiFetch, avisoDe } from '../lib/api';
 
 /**
  * Cuánto tiempo guarda el negocio sus conversaciones (#480).
@@ -34,29 +36,28 @@ interface GuardadoDto {
 
 export function RetencionDelNegocio() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
-  const [datos, setDatos] = useState<RetencionDto | null>(null);
-  const [valor, setValor] = useState('');
+  const tenant = useSelectedTenant();
+  // Los cinco estados por el camino compartido (#788). Lo que había acá era
+  // `datos`, `cargando` y `aviso` por separado: tres fuentes de verdad para
+  // una sola pregunta, y la combinación «datos en null, cargando en false»
+  // significaba dos cosas distintas según por dónde se hubiera llegado.
+  const { carga, recargando, reintentar } = useCarga<RetencionDto>('/settings/retencion');
+  /**
+   * `null` es «no lo tocó todavía», y por eso no hay efecto que sincronice.
+   *
+   * La versión anterior copiaba el valor del servidor a un `useState` dentro
+   * de la carga. Eso obliga a recordar copiarlo de nuevo en cada recarga, y si
+   * una respuesta vieja llega tarde, pisa lo que la persona estaba
+   * escribiendo. Guardando solo lo ESCRITO, el campo muestra el dato del
+   * servidor hasta que alguien escribe, y a partir de ahí lo suyo manda.
+   */
+  const [escrito, setEscrito] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [purga, setPurga] = useState<GuardadoDto['purgeNotice']>(null);
-  const [cargando, setCargando] = useState(true);
 
-  useEffect(() => setTenant(selectedTenant()), []);
-
-  const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
-    try {
-      const r = await apiFetch<RetencionDto>(config, session, tenant, '/settings/retencion');
-      setDatos(r);
-      setValor(r.months === null ? '' : String(r.months));
-    } catch (err) {
-      setAviso((err as Error).message);
-    } finally {
-      setCargando(false);
-    }
-  }, [config, session, tenant]);
-  useEffect(() => void cargar(), [cargar]);
+  const datos = carga.estado === 'ok' ? carga.dato : null;
+  const valor = escrito ?? (datos?.months === null || datos === null ? '' : String(datos.months));
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
@@ -71,9 +72,13 @@ export function RetencionDelNegocio() {
       // difiere 30 días justamente para que se pueda deshacer.
       setPurga(r.purgeNotice);
       setAviso(null);
-      await cargar();
+      setEscrito(null);
+      reintentar();
     } catch (err) {
-      setAviso((err as Error).message);
+      // `avisoDe` conserva `code · requestId` (#659, #788): era
+      // `(err as Error).message`, que tira justo el dato con el que alguien
+      // puede ir a buscar en los registros qué pasó.
+      setAviso(avisoDe(err).texto);
     } finally {
       setGuardando(false);
     }
@@ -85,10 +90,16 @@ export function RetencionDelNegocio() {
   const marco = 'mt-10 border-t border-line pt-8';
   const titulo = 'Cuánto se guardan las conversaciones';
 
-  // Sin negocio elegido no hay nada que esquelesar: la sección no es de este
-  // tenant todavía, no está cargando.
-  if (!tenant) return null;
-  if (!datos) {
+  /**
+   * Los cinco estados, cada uno con lo suyo (#788).
+   *
+   * Antes esto eran dos `if` encadenados sobre `datos` y `cargando`, y el caso
+   * «falló la carga» salía por el mismo agujero que «no hay negocio»: un
+   * `return null` que se tragaba el error entero. Con el estado nombrado, cada
+   * rama tiene que decidirse a mano y ninguna se cae por descarte.
+   */
+  if (carga.estado === 'nada-que-pedir') return null;
+  if (carga.estado === 'cargando') {
     // 159 px MEDIDOS contra el panel cargado, no estimados: el panel entero
     // mide 224 px y el marco se come 65. Lo comprueba
     // `esqueletos-medidos.spec.ts` comparando los dos estados del MISMO
@@ -96,30 +107,35 @@ export function RetencionDelNegocio() {
     //
     // El primer valor que puse acá fue 128, a ojo. Estaba 31 px corto, que es
     // exactamente el tipo de error que el criterio del issue prohíbe.
-    if (cargando) return <PanelCargando etiqueta={titulo} className={marco} alto={159} />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={159} />;
+  }
+  if (carga.estado !== 'ok' || datos === null) {
     /**
-     * Y si la carga falló, el aviso se VE.
+     * Sin permiso y caída se ven por el camino compartido, y se ven distinto.
      *
-     * El `catch` de arriba siempre puso el mensaje en `aviso`, y dos líneas
-     * después `return null` lo tiraba a la basura: la sección entera
-     * desaparecía y el error no llegaba a ninguna parte. Alguien que abría
-     * Ajustes no veía «no pudimos leer la retención», veía que esa
-     * configuración no existe — y la retención es cuánto tiempo se guardan
-     * los datos de sus clientes.
+     * Acá había un `AvisoResultado` armado a mano que mostraba `err.message`
+     * pelado, sin `code · requestId` y sin forma de reintentar. Y antes de
+     * #897 no mostraba nada: el `catch` llenaba `aviso` y el `return null` de
+     * abajo lo tiraba, así que una caída se veía igual que «esta
+     * configuración no existe» — y la retención es cuánto tiempo se guardan
+     * los datos de los clientes de este negocio.
      *
-     * `horarios-de-atencion` ya lo hacía bien por otro camino: su `catch`
-     * pone `setFranjas([])` para que la guarda pase y el aviso se dibuje.
+     * El 403 no lleva frase: quien no tiene `tenant.settings` no decide la
+     * retención, y una sección que explica lo que no vas a poder hacer es
+     * ruido. Lo que NO puede pasar —y pasaba— es que lleve «Reintentar».
      */
     return (
       <section aria-label={titulo} className={marco}>
         <h2 className="text-base font-bold text-ink">{titulo}</h2>
-        {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
+        <div className="mt-2">
+          <AvisoDeCarga carga={carga} onReintentar={reintentar} />
+        </div>
       </section>
     );
   }
 
   return (
-    <section aria-label={titulo} className={marco}>
+    <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <p className="flex items-center gap-2">
         <Archive aria-hidden className="size-4 text-muted" />
         <h2 className="text-base font-bold text-ink">{titulo}</h2>
@@ -144,7 +160,7 @@ export function RetencionDelNegocio() {
               className="dato w-24"
               placeholder="lo del plan"
               value={valor}
-              onChange={(e) => setValor(e.target.value)}
+              onChange={(e) => setEscrito(e.target.value)}
             />
             <span className="text-body">meses</span>
           </span>
