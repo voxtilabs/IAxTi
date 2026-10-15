@@ -135,9 +135,14 @@ paso 'migraciones en base virgen'       node scripts/migraciones-en-base-virgen.
 paso 'respuestas sin mirar'              node scripts/respuestas-sin-mirar.mjs
 paso 'el negocio se sigue'               node scripts/el-negocio-se-sigue.mjs
 
-# Los dos trinquetes con lista base: avisan si hay que bajar la marca.
+# Los trinquetes con lista base: avisan si hay que bajar la marca.
 paso 'exports sin consumidor'            node scripts/exports-sin-consumidor.mjs
 paso 'columnas sin lector'               node scripts/columnas-sin-lector.mjs
+# Los cruces de tablas entre módulos (#784). La guarda de verdad vive en
+# `packages/core/tests` y ya corrió arriba; esto está acá por lo mismo que las
+# otras dos listas base: cuando el trinquete manda a bajar la marca, lo que hace
+# falta es el comando que la baja, no una edición a mano del .txt.
+paso 'consultas entre módulos'           node scripts/consultas-entre-modulos.mjs
 paso 'listas sin estado vacío'           node scripts/listas-sin-vacio.mjs
 paso 'avisos sin rastro'                 node scripts/avisos-sin-rastro.mjs
 
