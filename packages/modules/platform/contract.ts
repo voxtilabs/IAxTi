@@ -53,5 +53,6 @@ export {
   promptsActivos,
   alertasCosto,
   traceUrl,
+  AGRUPACIONES_VALIDAS,
 } from './application/centro-ia';
 export type { FilaIA, EjecucionIA, PromptActivo, AlertaCosto, Agrupacion } from './application/centro-ia';

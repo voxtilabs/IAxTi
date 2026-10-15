@@ -1164,6 +1164,9 @@ const AGRUPACIONES = [
   { id: 'modelo', label: 'Por modelo' },
   { id: 'tenant', label: 'Por tenant' },
   { id: 'tarea', label: 'Por tarea' },
+  // El cruce: «por tarea» dice que `sugerir` tarda 32 s y esto dice con cuál
+  // proveedor, que es lo único que se puede cambiar (#858).
+  { id: 'tarea-proveedor', label: 'Por tarea y proveedor' },
 ] as const;
 
 const clp = (n: number) => `$${n.toLocaleString('es-CL')}`;
@@ -1871,8 +1874,10 @@ function CentroIA() {
     <div className="mt-10">
       <h2 className="mb-1 text-xl font-bold text-ink">Centro de IA</h2>
       <p className="mb-4 text-sm text-muted">
-        Costo, éxito y latencia por modelo. El p95 importa más que el promedio: un agente que se
-        cuelga una de cada veinte veces se ve normal en la media y pésimo en la práctica.
+        Costo, éxito y latencia. El p95 importa más que el promedio: un agente que se cuelga una
+        de cada veinte veces se ve normal en la media y pésimo en la práctica. «Por tarea y
+        proveedor» es la vista que contesta qué conviene cambiar: una tarea lenta no dice nada
+        hasta saber con quién.
       </p>
       {aviso && (
         <AvisoResultado>

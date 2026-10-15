@@ -53,6 +53,7 @@ import {
   tenantRetentionPreview,
   updatePlan,
   platformAudit,
+  AGRUPACIONES_VALIDAS,
 } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
@@ -1018,13 +1019,15 @@ class PlatformController {
   ) {
     const ventana = dias ? Math.min(Math.max(Number(dias), 1), 90) : 30;
     const desde = new Date(Date.now() - ventana * 86_400_000);
-    const agrupacion = (['dia', 'tenant', 'modelo', 'agente', 'tarea'] as const).find(
-      (g) => g === groupBy,
-    );
+    // La lista sale del módulo y no de una copia acá: tenía la suya escrita a
+    // mano, así que agregar una agrupación en `centro-ia.ts` no alcanzaba —la
+    // ruta la rechazaba y el síntoma no se parecía a la causa (#858)—. Y el
+    // mensaje se arma de la misma lista, para que no pueda quedar viejo.
+    const agrupacion = AGRUPACIONES_VALIDAS.find((g) => g === groupBy);
     if (groupBy && !agrupacion) {
       throw new BadRequestException({
         code: 'GROUPBY_INVALID',
-        message: 'Se agrupa por dia, tenant, modelo, agente o tarea.',
+        message: `Se agrupa por ${AGRUPACIONES_VALIDAS.join(', ')}.`,
       });
     }
     const pool = platformPool();
