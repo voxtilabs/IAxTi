@@ -56,6 +56,73 @@ const vendedor = randomUUID();
 let retiros = 0;
 
 /**
+ * Mientras está en `true`, toda consulta que salga por el pool de la API
+ * contra `internal_notes` se manda apuntando a una tabla que no existe.
+ *
+ * ## Por qué ya no se renombra la tabla (#804)
+ *
+ * La falla se provocaba con `ALTER TABLE internal_notes RENAME TO
+ * internal_notes_escondida`, y un rename es del CATÁLOGO de Postgres: mientras
+ * la ventana estaba abierta, `internal_notes` no existía PARA NADIE. Vitest
+ * corre los archivos de prueba en paralelo contra la misma base —63 en la
+ * corrida del 11/10— así que el arranque de otros archivos dejó en el log la
+ * pieza de notas caída y las cuatro que se van con ella, por una falla que
+ * este archivo estaba provocando a propósito. Un rojo que no habla del cambio
+ * enseña a correr CI de nuevo hasta que pase.
+ *
+ * Y lo peor no era el rojo prestado: si el proceso muere entre el rename y el
+ * `finally` —un Ctrl-C, un OOM, un timeout de la suite— la tabla se queda
+ * llamándose `internal_notes_escondida` y la base queda rota para todas las
+ * corridas siguientes hasta que alguien la arregle a mano.
+ *
+ * Un `ALTER TABLE … RENAME` no tiene equivalente de SESIÓN como el
+ * `session_replication_role` de #803 —`search_path` lo resolvería, pero exige
+ * un esquema propio por archivo y migrarlo— así que la falla se provoca donde
+ * nace la consulta: reescribiendo el nombre de la tabla en el texto que sale
+ * por ESTA conexión. El esquema no se toca y nadie más lo nota.
+ *
+ * ## Por qué se reescribe el SQL y no se lanza el error desde el arnés
+ *
+ * Porque lo que esta prueba fija, además de la degradación, es la CASCADA: una
+ * consulta caída deja la transacción abortada y se lleva a las otras piezas que
+ * la comparten. Eso solo ocurre si el error lo pone Postgres. Un `throw` del
+ * cliente dejaría la transacción sana, las demás piezas volverían `ok` y la
+ * prueba terminaría afirmando lo contrario de lo que pasa en producción.
+ */
+let notasRotas = false;
+
+/**
+ * El nombre al que se desvía la consulta. Tiene que NO existir: así el error es
+ * `relation "…" does not exist`, el mismo que llegaba con la tabla renombrada.
+ */
+const NOTAS_INEXISTENTES = 'internal_notes_que_no_existe';
+
+/**
+ * Un cliente cuyas consultas a `internal_notes` se pueden desviar.
+ *
+ * El desvío va en el CLIENTE y no en `pool.query` porque las piezas del
+ * arranque consultan con el cliente de la transacción —de ahí viene toda la
+ * ganancia de #761— y un arnés que solo mirara `pool.query` no vería ninguna.
+ */
+function clienteConNotasRompibles(cliente: PoolClient): PoolClient {
+  const consultar = cliente.query.bind(cliente) as unknown as (...args: unknown[]) => unknown;
+  return new Proxy(cliente, {
+    get(destino, prop, receptor) {
+      if (prop !== 'query') return Reflect.get(destino, prop, receptor);
+      return (...args: unknown[]) => {
+        const [texto, ...resto] = args;
+        if (notasRotas && typeof texto === 'string') {
+          // El `\b` del final deja fuera `internal_notes_…`: `_` es carácter de
+          // palabra, así que un nombre ya desviado no vuelve a calzar.
+          return consultar(texto.replace(/\binternal_notes\b/g, NOTAS_INEXISTENTES), ...resto);
+        }
+        return consultar(...args);
+      };
+    },
+  });
+}
+
+/**
  * Un pool que cuenta transacciones.
  *
  * No mide tiempo, a propósito: medir milisegundos en esta máquina sería medir
@@ -83,9 +150,16 @@ function poolQueCuenta(real: Pool): Pool {
         return (cb?: (err: Error | undefined, cliente?: PoolClient, liberar?: () => void) => void) => {
           retiros += 1;
           if (typeof cb === 'function') {
-            return (destino.connect as (c: typeof cb) => void)(cb);
+            /**
+             * El cliente se envuelve en las DOS formas, por lo mismo que `connect`
+             * tiene que honrarlas: envolver solo la de promesa dejaría sin desviar
+             * las consultas de cualquier `pool.query`, que es la forma de callback.
+             */
+            return (destino.connect as (c: typeof cb) => void)((err, cliente, liberar) =>
+              cb(err, cliente ? clienteConNotasRompibles(cliente) : cliente, liberar),
+            );
           }
-          return destino.connect();
+          return destino.connect().then(clienteConNotasRompibles);
         };
       }
       return Reflect.get(destino, prop, receptor);
@@ -381,9 +455,12 @@ describe('arranque de una conversación (#761)', () => {
    * conversación sin abrir. Antes no pasaba porque cada llamada tenía su propio
    * `.catch` en el front.
    *
-   * Se rompe la pieza de notas desde la BASE —renombrando su tabla un instante—
-   * y no con un mock, porque lo que hay que comprobar es que el endpoint
-   * sobrevive a una falla de verdad.
+   * Se rompe la pieza de notas desde la BASE —Postgres rechaza su consulta de
+   * verdad— y no con un mock del caso de uso, porque lo que hay que comprobar
+   * es que el endpoint sobrevive a una falla real y la deja marcada. Lo que
+   * cambió en #804 es el ALCANCE del daño, no su autenticidad: antes se
+   * renombraba la tabla para toda la base, ahora se desvía el nombre en el
+   * texto que sale por esta conexión (ver `notasRotas`).
    *
    * ## Y acá quedó medido algo que el `catch` por pieza NO arregla
    *
@@ -400,8 +477,26 @@ describe('arranque de una conversación (#761)', () => {
    * por su ruta suelta, que se quedó para esto.
    */
   it('una pieza que se cae no da 500: el arranque contesta con las piezas marcadas (#761)', async () => {
-    await admin.query('ALTER TABLE internal_notes RENAME TO internal_notes_escondida');
+    notasRotas = true;
     try {
+      /**
+       * Y mientras la ventana está abierta, la tabla sigue existiendo PARA TODOS.
+       *
+       * Es la mitad de #804 que no se ve leyendo el código de abajo: `admin` es
+       * OTRA conexión, igual que los otros 62 archivos de prueba que corren en
+       * paralelo contra esta misma base. Con el `ALTER TABLE … RENAME` que había
+       * acá, esta consulta devolvía `null` y a ellos les fallaba el arranque por
+       * una falla que este archivo estaba provocando a propósito.
+       *
+       * Si alguien vuelve a provocar la falla tocando el esquema, esto se pone
+       * rojo antes de que el rojo prestado aparezca en el archivo de otro.
+       */
+      const desdeOtraConexion = await admin.query("SELECT to_regclass('internal_notes') AS existe");
+      expect(
+        desdeOtraConexion.rows[0].existe,
+        'una prueba no puede esconder una tabla compartida: el resto del run la usa',
+      ).toBe('internal_notes');
+
       const res = await pedir(duena, `/conversations/${conversationId}/arranque/ficha`);
       expect(res.status, 'una pieza caída no puede dar 500 en todo el arranque').toBe(200);
       const cuerpo = await res.json();
@@ -417,7 +512,7 @@ describe('arranque de una conversación (#761)', () => {
       expect(cuerpo.analisis.estado).toBe('falla');
       expect(cuerpo.contacto.estado).toBe('falla');
     } finally {
-      await admin.query('ALTER TABLE internal_notes_escondida RENAME TO internal_notes');
+      notasRotas = false;
     }
   });
 
@@ -425,7 +520,7 @@ describe('arranque de una conversación (#761)', () => {
     // Lo urgente no toca `internal_notes`, así que la falla de la ficha no lo
     // alcanza. Es la razón de haberlos partido en dos endpoints y no solo en dos
     // llamadas: una transacción envenenada no cruza de uno al otro.
-    await admin.query('ALTER TABLE internal_notes RENAME TO internal_notes_escondida');
+    notasRotas = true;
     try {
       const res = await pedir(duena, `/conversations/${conversationId}/arranque`);
       expect(res.status).toBe(200);
@@ -433,7 +528,7 @@ describe('arranque de una conversación (#761)', () => {
       expect(cuerpo.conversacion.id).toBe(conversationId);
       expect(cuerpo.mensajes.estado).toBe('ok');
     } finally {
-      await admin.query('ALTER TABLE internal_notes_escondida RENAME TO internal_notes');
+      notasRotas = false;
     }
   });
 
