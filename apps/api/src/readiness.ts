@@ -42,7 +42,124 @@ export interface Readiness {
 }
 
 /** Tope duro: una sonda que espera es una sonda que miente sobre el estado. */
-const TIMEOUT_MS = 2000;
+export const TIMEOUT_MS = 2000;
+
+/**
+ * La sonda de salida tiene su propio tope, y más largo que el de la base (#852).
+ *
+ * Compartían los 2 s, y eso rompía justo lo que la sonda viene a hacer. Un
+ * arranque en frío hace tardar a las DOS por el mismo motivo —el contenedor
+ * recién levantado—, así que las dos agotaban el tope juntas y salía la
+ * lectura «443 no + 6543 no», que es «el contenedor no tiene salida»: la más
+ * alarmante de las tres y la que manda a mirar la red del VPS, el firewall y
+ * Cloudflare. Medido en staging: `ms: 2003`, y veinte segundos después todo en
+ * verde. No había nada roto.
+ *
+ * El trabajo de esta sonda es DISTINGUIR, y para distinguir necesita
+ * completarse: cortarla al mismo tiempo que la base la deja sin respuesta
+ * precisamente cuando más se la necesita.
+ *
+ * ## Por qué CINCO y no otro número
+ *
+ * Decía acá que «es lo que el pool de Postgres se da a sí mismo», y esa
+ * paridad no la sostiene nadie: el tope del pool sale de
+ * `DB_CONNECT_TIMEOUT_MS` (packages/db/src/client.ts:32-42), que es una
+ * variable de entorno que alguien puede mover mañana sin enterarse de que acá
+ * hay un número que decía copiarla. Coincidir con un 5000 que está en otro
+ * paquete, que mide otra cosa —conseguir una conexión TCP+TLS a Postgres, no
+ * un GET por 443— y que es configurable, no es una razón: es un parecido.
+ *
+ * La razón propia: tiene que alcanzar para un handshake TLS completo desde un
+ * contenedor que acaba de levantarse (DNS sin caché + TCP + TLS contra
+ * Supabase), y tiene que caber holgado en los 10 s de `periodSeconds` de la
+ * readinessProbe del chart para que una sonda no se solape con la siguiente.
+ * Entre esos dos bordes, 5 s es el lugar cómodo.
+ *
+ * ## Lo que cuesta
+ *
+ * En rojo, `/ready` puede tardar hasta 7 s en vez de 4 (la base agota sus 2 s
+ * y después ésta los suyos), y se paga solo en el camino que ya falló: en
+ * verde no se llama a nadie.
+ *
+ * Quien lo paga NO es Kubernetes. `infra/helm/iaxti/templates/deployments.yaml:63-66`
+ * no fija `timeoutSeconds`, así que rige el defecto de Kubernetes —1 s— y la
+ * probe ya se rendía mucho antes de los 4 s: para el orquestador esto no
+ * cambia nada, ni para bien ni para mal. Lo paga la persona que hace `curl
+ * /ready` para entender qué pasa, y es la que quiere la respuesta completa.
+ *
+ * Si alguien lo vuelve a igualar a TIMEOUT_MS, vuelve el falso «no tiene
+ * salida» en cada arranque en frío. Eso lo cuida una prueba sobre estas dos
+ * constantes, que por eso se exportan.
+ */
+export const TIMEOUT_SALIDA_MS = 5000;
+
+/**
+ * Hasta cuándo «recién levantado» explica una lentitud (#852).
+ *
+ * El criterio 3 del issue pide usar la señal de arranque para no publicar un
+ * diagnóstico de red con el contenedor recién encendido. En `/ready` de la API
+ * no hay un campo `startup` que mirar —ese vive en el readiness de los
+ * workers, `packages/core/src/consumer-readiness.ts:75`, y lo alimenta el
+ * arranque de BullMQ—, así que acá la señal es `process.uptime()`, que
+ * contesta la misma pregunta sin inventar un estado nuevo que mantener.
+ *
+ * Un minuto, y es a propósito más que de sobra: la probe pega la primera vez a
+ * los 5 s y después cada 10 (chart, `deployments.yaml:63-66`), y el caso del
+ * issue estaba verde veinte segundos después. Pasado el minuto, «acaba de
+ * arrancar» deja de explicar nada y se vuelve una excusa.
+ *
+ * Los dos errores no cuestan igual: de más, se calla un corte real durante el
+ * primer minuto de vida del pod —y a los 60 s lo grita—; de menos, se grita
+ * «el contenedor no tiene salida» en cada despliegue, que es el bug.
+ */
+const VENTANA_DE_ARRANQUE_MS = 60_000;
+
+/**
+ * Hace cuánto arrancó este proceso, EN MILISEGUNDOS.
+ *
+ * Está afuera y exportada para que exista una forma de probarla, y eso no es
+ * ceremonia: era la única línea del mecanismo nuevo que de verdad corre en
+ * producción, y no la tocaba ninguna prueba —las 19 inyectan
+ * `levantadoHaceMs` a mano—. Lo midió la revisión: cambiando esto a
+ * `process.uptime()` pelado, sin el `* 1000`, los 34 tests de readiness
+ * quedaban VERDES. En producción ese error de unidades marcaría cada pod como
+ * «arrancando» durante sus primeras 16,7 horas, y la rama que dice «sale a
+ * internet: NO» no se emitiría nunca. La mitad del arreglo apagada, en
+ * silencio y sin un solo rojo.
+ *
+ * `process.uptime()` devuelve SEGUNDOS con decimales; la ventana de arranque y
+ * todos los topes de este archivo están en milisegundos. Mezclar las dos
+ * unidades es el error más fácil de cometer acá y el más difícil de ver.
+ */
+export function levantadoHaceMs(): number {
+  return process.uptime() * 1000;
+}
+
+/**
+ * Ajustes de la sonda. En producción NO los pasa nadie.
+ *
+ * El controlador llama `checkReadiness(apiPool(), 'api')` y se lleva los
+ * valores de arriba (`app.module.ts:124`). Existen por dos cosas que las
+ * pruebas no pueden conseguir de otra forma:
+ *
+ *  · Los topes, para poder ejercitar la RELACIÓN entre los dos —que es lo que
+ *    falló— sin gastar siete segundos de reloj real por caso. Con los números
+ *    de fábrica, este archivo solo se llevaba quince segundos del paquete y
+ *    dejaba sin CPU a las pruebas de los demás, que se caen por su propio tope
+ *    de 5 s. Los números de fábrica los fija su propia prueba, que es barata.
+ *
+ *  · El uptime, porque si no lo decide cuánto hace que arrancó el worker de
+ *    vitest: la misma prueba daría «arrancando» a los 3 s de vida del worker y
+ *    «levantado hace rato» al minuto. Una prueba que cambia de resultado según
+ *    el momento en que le toca correr no prueba nada.
+ */
+export interface OpcionesDeSonda {
+  topeMs?: number;
+  topeDeSalidaMs?: number;
+  ventanaDeArranqueMs?: number;
+  /** Por omisión, `process.uptime()`. */
+  levantadoHaceMs?: number;
+}
 
 /**
  * El motivo del último fallo de cada dependencia.
@@ -63,7 +180,11 @@ const TIMEOUT_MS = 2000;
  */
 const ultimoFallo = new Map<string, string>();
 
-async function medir(nombre: string, fn: () => Promise<unknown>): Promise<Dependencia> {
+async function medir(
+  nombre: string,
+  fn: () => Promise<unknown>,
+  topeMs = TIMEOUT_MS,
+): Promise<Dependencia> {
   const t0 = Date.now();
   const real = fn();
   // Se le engancha el catch ANTES de la carrera: si no, una promesa que
@@ -77,7 +198,7 @@ async function medir(nombre: string, fn: () => Promise<unknown>): Promise<Depend
     await Promise.race([
       real,
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`no respondió en ${TIMEOUT_MS} ms`)), TIMEOUT_MS).unref?.(),
+        setTimeout(() => reject(new Error(`no respondió en ${topeMs} ms`)), topeMs).unref?.(),
       ),
     ]);
     return { nombre, ok: true, ms: Date.now() - t0 };
@@ -96,6 +217,60 @@ async function medir(nombre: string, fn: () => Promise<unknown>): Promise<Depend
 let redisSonda: ReturnType<typeof redisConnection> | null = null;
 
 /**
+ * Hace cuánto, en algo que se lee de un vistazo.
+ *
+ * Va en el detalle que lee una persona a las tres de la mañana: «14 min» se
+ * entiende sin dividir, «840000 ms» no.
+ */
+function haceCuanto(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 90) return `${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 90) return `${m} min`;
+  return `${Math.round(m / 60)} h`;
+}
+
+/**
+ * El motivo de red, desenterrado de donde `undici` lo deja.
+ *
+ * MEDIDO en este Node (v22.22), que es lo que corre en el contenedor:
+ *
+ *   fetch('http://127.0.0.1:9999/x')
+ *     → name: 'TypeError', message: 'fetch failed'
+ *       cause: { message: 'connect ECONNREFUSED 127.0.0.1:9999', code: 'ECONNREFUSED' }
+ *
+ * O sea que `err.message` NO es el motivo: es la tapa. Publicarlo —que es lo
+ * que se hacía— dejaba «sale a internet: NO (fetch failed)», que es
+ * exactamente el detalle que no dice nada que #241 vino a cerrar, con la
+ * agravante de sonar a conclusión. Y cuando el host resuelve a varias
+ * direcciones, undici junta los intentos en un `AggregateError` y el motivo
+ * baja un piso más, a `cause.errors[0]`.
+ *
+ * Se publica el CÓDIGO y no el mensaje a propósito: el código es la parte
+ * accionable —`ENOTFOUND` es DNS, `ECONNREFUSED` es que no hay nadie
+ * escuchando, `EHOSTUNREACH` es ruteo— y el mensaje trae pegada la IP a la
+ * que estamos marcando. Misma regla que `puertoDeLaBase()` acá abajo: un
+ * diagnóstico no justifica publicar a dónde nos conectamos.
+ */
+function motivoDeRed(err: unknown): string {
+  const vistos = new Set<unknown>();
+  let actual: unknown = err;
+  let codigo: string | undefined;
+  let mensaje: string | undefined;
+  while (actual && typeof actual === 'object' && !vistos.has(actual)) {
+    vistos.add(actual);
+    const e = actual as { code?: unknown; message?: unknown; cause?: unknown; errors?: unknown };
+    if (typeof e.code === 'string' && e.code !== '') codigo = e.code;
+    if (typeof e.message === 'string' && e.message !== '' && e.message !== 'fetch failed') {
+      mensaje = e.message;
+    }
+    // Primero el AggregateError de las varias direcciones, después la tapa.
+    actual = Array.isArray(e.errors) && e.errors.length > 0 ? e.errors[0] : e.cause;
+  }
+  return codigo ?? mensaje?.slice(0, 60) ?? 'sin motivo';
+}
+
+/**
  * Cuando Postgres no conecta: ¿es ESE puerto, o el contenedor no tiene salida?
  *
  * Es la pregunta que se quedó sin responder durante horas con staging caído.
@@ -109,29 +284,81 @@ let redisSonda: ReturnType<typeof redisConnection> | null = null;
  *   443 ok  + 6543 no  → sale a internet, le bloquean el puerto de Postgres
  *   443 no  + 6543 no  → no tiene salida y el puerto no tiene nada que ver
  *
+ * ## La tercera lectura, y por qué NO es «todo timeout es no concluyente» (#852)
+ *
+ * El issue pedía que un tope agotado dejara de reportarse como «NO». Hecho,
+ * pero no para cualquier tope agotado, y el matiz es la mitad del arreglo.
+ *
+ * Medido en este Node: un corte de red de los comunes —el firewall que
+ * descarta los paquetes en vez de rechazarlos, que es EXACTAMENTE el
+ * incidente que este módulo nombra como fundador (#241: «los paquetes no
+ * llegaban a Supabase»)— no da `ECONNREFUSED`: da silencio hasta que lo corta
+ * nuestro propio tope, o sea `AbortError`. Si todo `AbortError` fuera «no se
+ * pudo comprobar», el corte que motivó todo esto pasaría a reportarse como un
+ * encogimiento de hombros. Habríamos cambiado un ruido por un silencio, que
+ * no es mejor: es el mismo error con otro signo.
+ *
+ * Lo que de verdad separa «arranque en frío» de «corte» no es el error, que
+ * es el mismo: es hace cuánto que el proceso está vivo. Por eso el criterio 3
+ * del issue —usar la señal de arranque— no es un adorno, es lo que hace
+ * posible el criterio 1 sin romper #241:
+ *
+ *   443 sin respuesta + proceso recién levantado → no se pudo comprobar
+ *   443 sin respuesta + proceso levantado hace rato → NO, y con el uptime
+ *     a la vista para que se pueda discutir
+ *
  * Solo corre cuando Postgres YA falló: en verde no se le hace ni una llamada
  * a nadie. Y NO decide la salud — una sonda de diagnóstico que tumbe el
  * servicio sería peor que el problema que viene a explicar.
  */
-async function salidaAInternet(): Promise<string | null> {
+async function salidaAInternet(
+  topeMs: number,
+  arrancando: boolean,
+  levantadoHaceMs: number,
+): Promise<string | null> {
   const base = process.env.SUPABASE_URL;
   if (!base) return null;
   const inicio = Date.now();
+  const control = new AbortController();
+  const corte = setTimeout(() => control.abort(), topeMs);
   try {
-    const control = new AbortController();
-    const corte = setTimeout(() => control.abort(), 2000);
-    try {
-      await fetch(`${base.replace(/\/$/, '')}/auth/v1/health`, {
-        method: 'GET',
-        signal: control.signal,
-      });
-      return `sale a internet: sí (Supabase por 443 en ${Date.now() - inicio} ms)`;
-    } finally {
-      clearTimeout(corte);
-    }
+    await fetch(`${base.replace(/\/$/, '')}/auth/v1/health`, {
+      method: 'GET',
+      signal: control.signal,
+    });
+    return `sale a internet: sí (Supabase por 443 en ${Date.now() - inicio} ms)`;
   } catch (err) {
-    // Cualquier fallo sirve igual: lo que importa es que tampoco por 443.
-    return `sale a internet: NO (${(err as Error).name === 'AbortError' ? 'timeout' : (err as Error).message.slice(0, 60)})`;
+    // Se mira el `signal` y no el nombre del error: «lo cortamos nosotros» es
+    // un hecho que conocemos sin tener que adivinarlo del `err` que nos
+    // devuelvan. Cualquier otro fallo llega con la pila de red todavía
+    // hablando, y eso sí concluye.
+    if (control.signal.aborted) {
+      if (arrancando) {
+        // El caso del issue: `ms: 2003` y todo verde veinte segundos después.
+        // Las dos sondas tardan por lo mismo —el contenedor acaba de
+        // levantarse—, así que el 443 mudo no distingue nada y decir «no
+        // tiene salida» sería inventar la conclusión más alarmante de las
+        // tres. No concluir NO es afirmar que hay salida: el fallo de
+        // postgres sigue siendo un fallo y `/ready` sigue devolviendo 503;
+        // lo único que se retira es la parte que no se ganó.
+        return (
+          `sale a internet: no se pudo comprobar (443 tampoco contestó en ${topeMs} ms, ` +
+          'y con el proceso recién levantado eso no distingue un corte de un arranque en frío)'
+        );
+      }
+      // Levantado hace rato y 443 mudo: «acaba de arrancar» ya no explica
+      // nada, y esto es la firma del corte de #241. Va como NO, que es el
+      // aviso que hace falta, pero con el uptime adentro para que quien lo
+      // lea pueda estar en desacuerdo con el razonamiento y no solo con la
+      // conclusión.
+      return (
+        `sale a internet: NO (443 no contestó en ${topeMs} ms y el proceso lleva ` +
+        `${haceCuanto(levantadoHaceMs)} levantado: no es un arranque en frío)`
+      );
+    }
+    return `sale a internet: NO (${motivoDeRed(err)})`;
+  } finally {
+    clearTimeout(corte);
   }
 }
 
@@ -158,21 +385,39 @@ function puertoDeLaBase(): string | null {
   }
 }
 
-export async function checkReadiness(pool: Pool | null, service = 'api'): Promise<Readiness> {
+export async function checkReadiness(
+  pool: Pool | null,
+  service = 'api',
+  opciones: OpcionesDeSonda = {},
+): Promise<Readiness> {
+  const topeMs = opciones.topeMs ?? TIMEOUT_MS;
+  const topeDeSalidaMs = opciones.topeDeSalidaMs ?? TIMEOUT_SALIDA_MS;
+  const desdeQueArranco = opciones.levantadoHaceMs ?? levantadoHaceMs();
+  const arrancando = desdeQueArranco < (opciones.ventanaDeArranqueMs ?? VENTANA_DE_ARRANQUE_MS);
   const dependencias: Dependencia[] = [];
 
   if (pool) {
-    const sonda = await medir('postgres', () => pool.query('SELECT 1'));
+    const sonda = await medir('postgres', () => pool.query('SELECT 1'), topeMs);
     if (sonda.ok) {
       dependencias.push(sonda);
     } else {
-      // En rojo, las dos cosas que hacen falta para saber a quién llamar: a
-      // qué puerto intentó, y si el contenedor sale a internet siquiera.
+      // En rojo, las tres cosas que hacen falta para saber a quién llamar: a
+      // qué puerto intentó, si el contenedor sale a internet siquiera, y
+      // —criterio 3 de #852— si todo esto está pasando con el proceso recién
+      // encendido. Esa última va suelta y no pegada al diagnóstico de red
+      // porque vale igual cuando no hay sonda de salida que publicar: «la
+      // base no contesta» y «la base no contesta y el proceso tiene tres
+      // segundos de vida» mandan a hacer cosas distintas, y la segunda es
+      // casi siempre «esperá y volvé a pedir». Que es, literalmente, lo que
+      // el issue cuenta que pasó: veinte segundos después estaba todo verde.
       const puerto = puertoDeLaBase();
-      const salida = await salidaAInternet();
+      const salida = await salidaAInternet(topeDeSalidaMs, arrancando, desdeQueArranco);
       const partes = [
         sonda.detalle ?? 'no conecta',
         puerto ? `puerto ${puerto}` : null,
+        arrancando
+          ? `el proceso lleva ${haceCuanto(desdeQueArranco)} levantado: todavía está arrancando`
+          : null,
         salida,
       ].filter(Boolean);
       dependencias.push({ ...sonda, detalle: partes.join(' · ') });
@@ -189,7 +434,7 @@ export async function checkReadiness(pool: Pool | null, service = 'api'): Promis
 
   if (process.env.REDIS_URL) {
     redisSonda ??= redisConnection();
-    dependencias.push(await medir('redis', () => redisSonda!.ping()));
+    dependencias.push(await medir('redis', () => redisSonda!.ping(), topeMs));
   } else {
     // En desarrollo se corre sin Redis a propósito; no es motivo para
     // sacar la instancia de rotación.
