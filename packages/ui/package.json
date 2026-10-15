@@ -14,7 +14,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
-    "tsc-alias": "^1.8.10",
+    "tsc-alias": "^1.9.7",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
