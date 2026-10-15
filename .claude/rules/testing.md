@@ -43,6 +43,39 @@
   canal, un pago— necesita una forma de EJERCITARLA a pedido, no solo de
   describirla. El patrón del repo es `probar-envio` para canales y
   `/agents/probar` para la IA.
+- **Leer el código fuente y RENDERIZAR el componente son dos instrumentos
+  distintos, y los dos hacen falta (#564).**
+  - Una guarda de **fuente** (`*.test.ts` con `fuenteLimpia`) vigila que algo
+    declarado en un lado esté aplicado en el otro: que una tabla no tenga
+    copias, que no haya hex suelto, que un fallo esté clasificado, que el
+    manifiesto no prometa un evento que nadie emite. Es el instrumento del
+    defecto más común de este repo y no se reemplaza.
+  - Una prueba de **comportamiento** (`*.test.tsx`, con
+    `// @vitest-environment jsdom` en la primera línea) monta el componente y
+    lo usa. Es el único instrumento para lo que solo se ve al usarlo: que
+    arrastrar sobre un hijo no apague el resaltado, que pegar texto siga
+    pegando texto, que un envío fallido no borre el borrador.
+  - **Cuál usar**: si la pregunta es «¿está escrito?», fuente. Si es «¿qué
+    pasa cuando alguien hace esto?», comportamiento. Una guarda de fuente que
+    intenta contestar la segunda se vuelve frágil al refactor —cambiar
+    `if (await onResponder(` por una variable intermedia la pone roja sin que
+    nada se haya roto— y eso enseña a apagarla, que es lo peor que le puede
+    pasar a una prueba.
+  - El entorno va **por archivo** y no en la configuración: las pruebas de
+    fuente no necesitan DOM y montarlo para todas sería pagar su arranque por
+    nada. Medido con un archivo vacío: 4,0 s con jsdom contra 3,2 s sin él.
+  - `jsdom` y no `happy-dom`, aunque happy-dom arranque ~24 % más rápido: su
+    `DataTransfer` no lleva `files`, que es el dato del que dependen las
+    pruebas de arrastrar y pegar. Un entorno más rápido que no puede expresar
+    el caso no sirve.
+  - Costo medido al agregarlas: `apps/web` 330 pruebas en 11,8 s y
+    `packages/ui` 84 en 5,9 s. Las de DOM suman ~2 s a cada suite, muy por
+    debajo del minuto que obligaría a sacarlas a otro job.
+  - Dónde vive la prueba: **junto a la fuente que prueba**. Una prueba de
+    `apps/web` sobre un hook de `packages/ui` corre contra su `dist`
+    compilado, así que un defecto metido en la fuente la deja verde. Lo
+    comprobé escribiéndola en el lugar equivocado primero: inyecté dos
+    defectos y pasó las dos veces.
 - Los tests usan el seed (#18) como base; datos anonimizados, jamás datos
   reales de clientes en fixtures.
 - `/tdd` cuando el criterio de aceptación lo permite: test primero.
