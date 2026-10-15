@@ -1538,6 +1538,43 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "CamposController_actualizar": {
+    "metodo": "PATCH",
+    "ruta": "/v1/campos/{id}",
+    "resumen": "Cambia la etiqueta, la obligatoriedad, la visibilidad para la IA o las opciones",
+    "permiso": "crm.fields.manage",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "visibleIa": {
+          "type": "boolean"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "CamposController_create": {
     "metodo": "POST",
     "ruta": "/v1/campos",

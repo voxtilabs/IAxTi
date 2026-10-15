@@ -77,6 +77,7 @@ export type { ExportacionTitular, ResultadoSupresion } from './application/titul
 export {
   listCustomFields,
   createCustomField,
+  updateCustomField,
   deleteCustomField,
   validarCustom,
   paraLaIa,
