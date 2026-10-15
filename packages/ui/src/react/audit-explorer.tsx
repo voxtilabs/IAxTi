@@ -42,6 +42,16 @@ export interface SignedExportDto {
 
 export interface AuditFetcher {
   search(params: Record<string, string>): Promise<AuditRow[]>;
+  /**
+   * La misma búsqueda, con el cursor de la página siguiente (#799).
+   *
+   * Opcional porque el explorador se usa en dos lados y el `search` de
+   * siempre sigue siendo válido: sin esto, no hay «ver más» y se ve lo mismo
+   * que antes. Con esto, el libro deja de cortarse en cien sin decirlo.
+   */
+  searchPaginado?(
+    params: Record<string, string>,
+  ): Promise<{ entries: AuditRow[]; nextCursor: string | null }>;
   verify(tenantId?: string): Promise<ChainCheckDto>;
   exportar(format: 'csv' | 'json', params: Record<string, string>): Promise<SignedExportDto>;
   /** Solo el explorador global trae el filtro por tenant. */
@@ -70,6 +80,9 @@ const TIPO_ACTOR: Record<string, string> = {
 export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
   const [filtros, setFiltros] = useState<Record<string, string>>({});
   const [filas, setFilas] = useState<AuditRow[] | null>(null);
+  /** Desde dónde sigue; `null` es «no hay más» y `undefined` «todavía no sé». */
+  const [siguiente, setSiguiente] = useState<string | null>(null);
+  const [trayendoMas, setTrayendoMas] = useState(false);
   const [cadena, setCadena] = useState<ChainCheckDto | null>(null);
   const [firma, setFirma] = useState<SignedExportDto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -80,15 +93,54 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
     [filtros],
   );
 
+  /**
+   * Una búsqueda, por el camino paginado si el fetcher lo tiene.
+   *
+   * El `cursor: ''` no sobra: la ruta devuelve la forma nueva solo cuando el
+   * parámetro está PRESENTE, y en la primera página todavía no hay desde
+   * dónde seguir. Mandarlo vacío es cómo se pide la primera.
+   */
+  const traer = useCallback(
+    async (params: Record<string, string>) => {
+      if (!fetcher.searchPaginado) {
+        setSiguiente(null);
+        return fetcher.search(params);
+      }
+      const r = await fetcher.searchPaginado({ ...params, cursor: '' });
+      setSiguiente(r.nextCursor);
+      return r.entries;
+    },
+    [fetcher],
+  );
+
   const buscar = useCallback(() => {
     setCargando(true);
     setAviso(null);
-    fetcher
-      .search(limpios())
+    traer(limpios())
       .then(setFilas)
       .catch((err: Error) => setAviso(err.message))
       .finally(() => setCargando(false));
-  }, [fetcher, limpios]);
+  }, [traer, limpios]);
+
+  /**
+   * La página siguiente se AGREGA abajo, no reemplaza.
+   *
+   * Reemplazar obligaría a volver atrás para releer lo de arriba, y acá se
+   * está siguiendo el rastro de un hecho: lo que se lee es la secuencia.
+   */
+  const verMas = useCallback(() => {
+    if (!fetcher.searchPaginado || !siguiente) return;
+    setTrayendoMas(true);
+    setAviso(null);
+    fetcher
+      .searchPaginado({ ...limpios(), cursor: siguiente })
+      .then((r) => {
+        setFilas((previas) => [...(previas ?? []), ...r.entries]);
+        setSiguiente(r.nextCursor);
+      })
+      .catch((err: Error) => setAviso(err.message))
+      .finally(() => setTrayendoMas(false));
+  }, [fetcher, limpios, siguiente]);
 
   /**
    * La accion del estado vacio: quitar los filtros y volver a buscar (#588).
@@ -104,12 +156,11 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
     setFiltros({});
     setCargando(true);
     setAviso(null);
-    fetcher
-      .search({})
+    traer({})
       .then(setFilas)
       .catch((err: Error) => setAviso(err.message))
       .finally(() => setCargando(false));
-  }, [fetcher]);
+  }, [traer]);
 
   // Primera carga sin filtros: el libro se abre en la última página escrita.
   // Solo al montar — después manda el botón, no cada tecla del filtro.
@@ -316,6 +367,23 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
             }
             accion={{ etiqueta: 'Buscar sin filtros', onClick: limpiarYBuscar }}
           />
+        )}
+        {/* Cuántas se están viendo, y cómo traer más (#799).
+            El conteo va SIEMPRE que haya filas, no solo cuando falta página:
+            «100 entradas» sin más contexto es justo lo que hacía creer que el
+            libro tenía cien y nada más. */}
+        {!cargando && filas !== null && filas.length > 0 && (
+          <p className="flex flex-wrap items-center gap-3 border-t border-line p-3 text-sm text-muted">
+            <span>
+              {filas.length === 1 ? '1 entrada' : `${filas.length} entradas`}
+              {siguiente ? ' — hay más' : ''}
+            </span>
+            {siguiente && (
+              <Button variant="fantasma" size="chico" onClick={verMas} disabled={trayendoMas}>
+                {trayendoMas ? 'Trayendo…' : 'Ver más'}
+              </Button>
+            )}
+          </p>
         )}
       </div>
     </div>

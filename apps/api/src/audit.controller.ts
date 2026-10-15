@@ -17,6 +17,8 @@ import {
   ExportDemasiadoGrande,
   searchAudit,
   searchAuditGlobal,
+  searchAuditPaginado,
+  searchAuditGlobalPaginado,
   signExport,
   TOPE_EXPORT,
   verifyChain,
@@ -71,7 +73,27 @@ function filtrosDe(q: Consulta): AuditFilter {
     from: fecha(q.from, 'desde'),
     to: fecha(q.to, 'hasta'),
     limit: q.limit ? Number(q.limit) : undefined,
+    cursor: q.cursor || undefined,
   };
+}
+
+/**
+ * Si el cliente PIDIÓ paginar, aunque sea con el cursor vacío.
+ *
+ * La forma de la respuesta cambia según esto, y la alternativa era peor. La
+ * regla de API dice que un cambio incompatible abre `/v2`, y acá hay 36 rutas
+ * de listado devolviendo arrays pelados (#799): abrir `/v2` por el libro, para
+ * un producto que todavía no tiene clientes de API, es mucho andamio para una
+ * ruta. Así que `/v1` conserva su forma para quien no pregunta, y la forma
+ * nueva va a quien la pide.
+ *
+ * Por qué «presente aunque esté vacío» y no un `?paginar=1`: el cliente que
+ * pagina manda `cursor` en TODAS las páginas menos conceptualmente la primera,
+ * y obligarlo a mandar dos parámetros distintos según la página es la clase de
+ * detalle que se implementa mal una vez y se arrastra.
+ */
+function pidioPaginar(q: Consulta): boolean {
+  return q.cursor !== undefined;
 }
 
 /**
@@ -102,6 +124,15 @@ const FILTROS_DEL_LIBRO = [
   { name: 'from', description: 'Desde cuándo, AAAA-MM-DD.' },
   { name: 'to', description: 'Hasta cuándo, AAAA-MM-DD (inclusive).' },
   { name: 'limit', description: 'Cuántas entradas, hasta 100.', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+  {
+    name: 'cursor',
+    description:
+      'Desde dónde seguir. MANDALO VACÍO para pedir la primera página: con el ' +
+      'parámetro presente la respuesta es `{ entries, nextCursor }` en vez del ' +
+      'array, y `nextCursor` en null significa que no hay más. Sin el ' +
+      'parámetro, la respuesta es el array de siempre y se corta en `limit` sin ' +
+      'decirlo.',
+  },
 ] as const;
 
 /**
@@ -179,7 +210,17 @@ export class AuditController {
   @ConFiltrosDelLibro()
   async search(@Req() request: WithUser, @Query() q: Consulta) {
     const actor = actorOf(request);
-    return withTenant(pool(), actor.tenantId, (c) => searchAudit(c, filtrosDe(q)));
+    const filtros = filtrosDe(q);
+    // El tipo de la unión se anota a mano: `withTenant` infiere del primer
+    // brazo del ternario y después se queja del segundo.
+    type Filas = Awaited<ReturnType<typeof searchAudit>>;
+    // El tipo de la unión se anota a mano: `withTenant` infiere del primer
+    // brazo del ternario y después se queja del segundo.
+    return withTenant<Filas | { entries: Filas; nextCursor: string | null }>(
+      pool(),
+      actor.tenantId,
+      (c) => (pidioPaginar(q) ? searchAuditPaginado(c, filtros) : searchAudit(c, filtros)),
+    );
   }
 
   @Post('verify')
@@ -218,7 +259,10 @@ export class PlatformAuditController {
   async search(@Query() q: Consulta) {
     const client = await pool().connect();
     try {
-      return await searchAuditGlobal(client, { ...filtrosDe(q), tenantId: q.tenantId || undefined });
+      const filtros = { ...filtrosDe(q), tenantId: q.tenantId || undefined };
+      return pidioPaginar(q)
+        ? await searchAuditGlobalPaginado(client, filtros)
+        : await searchAuditGlobal(client, filtros);
     } finally {
       client.release();
     }

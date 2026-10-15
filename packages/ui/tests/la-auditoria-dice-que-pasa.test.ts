@@ -77,6 +77,18 @@ describe('el libro de auditoría no confunde sus estados (#588)', () => {
     // igual le pediría a la persona que adivine que ahora hay que apretar
     // Buscar.
     expect(FUENTE).toMatch(/limpiarYBuscar = useCallback\(\(\) => \{[\s\S]{0,200}setFiltros\(\{\}\)/);
-    expect(FUENTE).toMatch(/limpiarYBuscar = useCallback\(\(\) => \{[\s\S]{0,400}search\(\{\}\)/);
+    /**
+     * Y que busque sin filtros, escrito como esté escrito.
+     *
+     * La primera versión exigía `search({})` literal y se puso roja cuando
+     * #799 metió la paginación y la llamada pasó por `traer({})`. No se había
+     * roto nada: la acción sigue limpiando y buscando. Una guarda de fuente
+     * que se cae porque mejoró lo que vigila enseña a apagarla, que es lo peor
+     * que le puede pasar a una prueba (`.claude/rules/testing.md`).
+     *
+     * Lo que importa es que la llamada vaya SIN filtros —el `({})`—, no cómo
+     * se llame la función que la hace.
+     */
+    expect(FUENTE).toMatch(/limpiarYBuscar = useCallback\(\(\) => \{[\s\S]{0,400}\w+\(\{\}\)/);
   });
 });

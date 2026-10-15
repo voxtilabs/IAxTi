@@ -12,6 +12,39 @@ export interface AuditFilter {
   from?: Date;
   to?: Date;
   limit?: number;
+  /**
+   * Desde dónde seguir, en la forma que devolvió la página anterior.
+   *
+   * Keyset sobre `(occurred_at, id)`, nunca offset: con `OFFSET 100` una fila
+   * escrita entre las dos páginas corre todo y la 101 se salta. En un libro de
+   * auditoría eso es una entrada que nadie ve jamás, y es justo la que se está
+   * buscando cuando alguien pagina.
+   */
+  cursor?: string;
+}
+
+/**
+ * El cursor: `occurred_at|id` en base64url.
+ *
+ * Opaco en el sentido de «no lo armes a mano»: la forma es nuestra y puede
+ * cambiar. NO está firmado ni cifrado, y es deliberado — el `id` que lleva
+ * adentro viene en cada fila de la respuesta, así que no expone nada que el
+ * cliente no tenga ya. Firmarlo costaría una llave y su rotación para proteger
+ * un dato que entregamos de todas formas.
+ *
+ * Manipularlo tampoco abre nada: el filtro por tenant y RLS se aplican igual,
+ * así que lo más que consigue quien lo edite es empezar su propia página en
+ * otro punto de los datos que ya podía leer.
+ */
+export function armarCursor(fila: { occurred_at: Date; id: string | number }): string {
+  return Buffer.from(`${fila.occurred_at.toISOString()}|${fila.id}`).toString('base64url');
+}
+
+function leerCursor(cursor: string): { occurredAt: Date; id: string } | null {
+  const [fecha, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (!fecha || !id) return null;
+  const occurredAt = new Date(fecha);
+  return Number.isNaN(occurredAt.getTime()) ? null : { occurredAt, id };
 }
 
 /**
@@ -43,6 +76,25 @@ function armarFiltro(filter: AuditFilter & { tenantId?: string }): {
   if (filter.result) add('result = ?', filter.result);
   if (filter.from) add('occurred_at >= ?', filter.from);
   if (filter.to) add('occurred_at <= ?', filter.to);
+  if (filter.cursor) {
+    const desde = leerCursor(filter.cursor);
+    // Un cursor ilegible se ignora en vez de reventar: lo peor que pasa es que
+    // alguien vuelva a ver la primera página, y eso se nota. Un 400 por un
+    // cursor viejo pegado en una URL sería peor que volver a empezar.
+    if (desde) {
+      params.push(desde.occurredAt, desde.id);
+      // Por la TUPLA y no columna por columna, porque el orden es
+      // `occurred_at DESC, id DESC`: con dos filas del mismo instante —y las
+      // hay, porque una transacción escribe varias— comparar solo la fecha se
+      // saltea las hermanas o las repite.
+      // `::bigint` y no `::uuid`: el `id` de `audit_log` es
+      // `bigint GENERATED ALWAYS AS IDENTITY`, no un uuid como el de casi
+      // todas las otras tablas del repo. Con el cast equivocado Postgres
+      // contesta «operator does not exist: bigint < uuid», que al menos es un
+      // error ruidoso y no una página silenciosamente vacía.
+      where.push(`(occurred_at, id) < ($${params.length - 1}::timestamptz, $${params.length}::bigint)`);
+    }
+  }
   return { where, params };
 }
 
@@ -62,11 +114,44 @@ function consulta(where: string[], posicionDelTope: number): string {
 const POR_PAGINA = 100;
 
 /** Búsqueda dentro del tenant en contexto (RLS acota; permiso audit.read). */
-export async function searchAudit(client: PoolClient, filter: AuditFilter = {}) {
+/**
+ * Una página, y desde dónde sigue la próxima.
+ *
+ * `siguiente` en `null` significa «no hay más» y se sabe de verdad: se piden
+ * `tope + 1` filas y se devuelven `tope`. Deducirlo de «vinieron exactamente
+ * 100, deben quedar más» obliga a una página vacía al final, y decir «hay más»
+ * cuando no hay es tan malo como lo contrario: las dos hacen que nadie le
+ * crea al «no hay más».
+ */
+async function pagina(
+  client: PoolClient,
+  filter: AuditFilter & { tenantId?: string },
+  porDefecto: number,
+) {
   const { where, params } = armarFiltro(filter);
-  params.push(Math.min(filter.limit ?? 50, POR_PAGINA));
+  const tope = Math.min(filter.limit ?? porDefecto, POR_PAGINA);
+  params.push(tope + 1);
   const result = await client.query(consulta(where, params.length), params);
-  return result.rows;
+  const hayMas = result.rows.length > tope;
+  const filas = hayMas ? result.rows.slice(0, tope) : result.rows;
+  return { filas, siguiente: hayMas ? armarCursor(filas[filas.length - 1]) : null };
+}
+
+export async function searchAudit(client: PoolClient, filter: AuditFilter = {}) {
+  return (await pagina(client, filter, 50)).filas;
+}
+
+/**
+ * Lo mismo, con el cursor de la página siguiente.
+ *
+ * Convive con `searchAudit` en vez de reemplazarla porque la forma de la
+ * respuesta de `/v1` no se rompe —la regla de API dice que un cambio
+ * incompatible abre `/v2`—. La ruta sigue devolviendo el array de siempre, y
+ * la forma nueva va solo a quien la pide con `?cursor=`.
+ */
+export async function searchAuditPaginado(client: PoolClient, filter: AuditFilter = {}) {
+  const { filas, siguiente } = await pagina(client, filter, 50);
+  return { entries: filas, nextCursor: siguiente };
 }
 
 /**
@@ -78,10 +163,15 @@ export async function searchAuditGlobal(
   client: PoolClient,
   filter: AuditFilter & { tenantId?: string } = {},
 ) {
-  const { where, params } = armarFiltro(filter);
-  params.push(Math.min(filter.limit ?? POR_PAGINA, POR_PAGINA));
-  const result = await client.query(consulta(where, params.length), params);
-  return result.rows;
+  return (await pagina(client, filter, POR_PAGINA)).filas;
+}
+
+export async function searchAuditGlobalPaginado(
+  client: PoolClient,
+  filter: AuditFilter & { tenantId?: string } = {},
+) {
+  const { filas, siguiente } = await pagina(client, filter, POR_PAGINA);
+  return { entries: filas, nextCursor: siguiente };
 }
 
 /**

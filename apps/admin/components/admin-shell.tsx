@@ -934,6 +934,9 @@ function AuditGlobal() {
   const fetcher: AuditFetcher = {
     global: true,
     search: (p) => llamar(`/platform/audit?${qs(p)}`),
+    // El camino paginado (#799): la ruta cambia de forma solo si `cursor`
+    // viene en la consulta, y el explorador lo manda —vacío la primera vez—.
+    searchPaginado: (p) => llamar(`/platform/audit?${qs(p)}`),
     verify: (tenantId) =>
       llamar(`/platform/audit/verify?tenantId=${tenantId ?? ''}`, { method: 'POST', body: '{}' }),
     exportar: (format, p) => llamar(`/platform/audit/export?${qs({ ...p, format })}`),

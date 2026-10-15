@@ -978,6 +978,11 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string",
           "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
           "x-iaxti-en": "query"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Desde dónde seguir. MANDALO VACÍO para pedir la primera página: con el parámetro presente la respuesta es `{ entries, nextCursor }` en vez del array, y `nextCursor` en null significa que no hay más. Sin el parámetro, la respuesta es el array de siempre y se corta en `limit` sin decirlo.",
+          "x-iaxti-en": "query"
         }
       },
       "additionalProperties": false
@@ -1047,6 +1052,11 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "minimum": 1,
           "maximum": 100,
           "description": "Cuántas entradas, hasta 100.",
+          "x-iaxti-en": "query"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Desde dónde seguir. MANDALO VACÍO para pedir la primera página: con el parámetro presente la respuesta es `{ entries, nextCursor }` en vez del array, y `nextCursor` en null significa que no hay más. Sin el parámetro, la respuesta es el array de siempre y se corta en `limit` sin decirlo.",
           "x-iaxti-en": "query"
         }
       },
@@ -4349,6 +4359,11 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string",
           "description": "Hasta cuándo, AAAA-MM-DD (inclusive).",
           "x-iaxti-en": "query"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Desde dónde seguir. MANDALO VACÍO para pedir la primera página: con el parámetro presente la respuesta es `{ entries, nextCursor }` en vez del array, y `nextCursor` en null significa que no hay más. Sin el parámetro, la respuesta es el array de siempre y se corta en `limit` sin decirlo.",
+          "x-iaxti-en": "query"
         }
       },
       "additionalProperties": false
@@ -4418,6 +4433,11 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "minimum": 1,
           "maximum": 100,
           "description": "Cuántas entradas, hasta 100.",
+          "x-iaxti-en": "query"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Desde dónde seguir. MANDALO VACÍO para pedir la primera página: con el parámetro presente la respuesta es `{ entries, nextCursor }` en vez del array, y `nextCursor` en null significa que no hay más. Sin el parámetro, la respuesta es el array de siempre y se corta en `limit` sin decirlo.",
           "x-iaxti-en": "query"
         }
       },
