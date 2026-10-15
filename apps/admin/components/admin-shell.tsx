@@ -7,6 +7,7 @@ import {
   AuditExplorer,
   Badge,
   Button,
+  Input,
   MarcaJelly,
   ModeToggle,
   RequireSession,
@@ -1794,25 +1795,28 @@ function FilaDelDefecto({
         {tarea}
       </th>
       <td className="p-3">
-        <select
-          aria-label={`Proveedor de ${tarea}`}
-          className="min-h-control rounded-campo border border-line bg-bg px-2 text-sm text-ink"
-          value={provider}
-          onChange={(e) => setProvider(e.target.value)}
-        >
-          {/* El de la fila va siempre, aunque ya no se pueda elegir: una tarea
-              que quedó en un proveedor retirado tiene que poder verse. */}
-          {[...new Set([defecto.provider, ...proveedores])].map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+        {/* El `Select` del sistema y no uno nativo: un desplegable nativo no
+            se puede tematizar y en modo noche queda blanco sobre oscuro. Lo
+            cazó la guarda de #293 en CI — escribí los dos nativos sin mirar. */}
+        <Select value={provider} onValueChange={setProvider}>
+          <SelectTrigger aria-label={`Proveedor de ${tarea}`} className="h-8 w-32 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* El de la fila va siempre, aunque ya no se pueda elegir: una
+                tarea que quedó en un proveedor retirado tiene que verse. */}
+            {[...new Set([defecto.provider, ...proveedores])].map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="p-3">
-        <input
+        <Input
           aria-label={`Modelo de ${tarea}`}
-          className="dato min-h-control w-44 rounded-campo border border-line bg-bg px-2 text-sm text-ink"
+          className="dato h-8 w-44 text-xs"
           value={model}
           onChange={(e) => setModel(e.target.value)}
         />
