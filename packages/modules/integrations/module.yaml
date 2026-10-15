@@ -20,11 +20,17 @@ events:
   # el tenant le haya suscrito un endpoint: este módulo consume todo.
   #
   # Decía `[]`, y por eso no se podía responder «¿este evento es huérfano?»: con
-  # el único consumidor universal declarado en cero, los 52 eventos publicados
-  # que ningún manifiesto dice consumir se leían como eventos que se publican al
+  # el único consumidor universal declarado en cero, los eventos publicados que
+  # ningún manifiesto dice consumir se leían como eventos que se publican al
   # vacío, y no lo son — son entregables por webhook (#783). Si alguien lo
   # vuelve a `[]`, la cuenta vuelve a mentir y el próximo que la haga va a creer
-  # que encontró 52 hallazgos.
+  # que encontró un hallazgo por cada uno.
+  #
+  # A propósito sin cifra: la primera versión de este comentario decía «52», que
+  # era la cuenta del árbol de ANTES del mismo commit que lo escribió —todavía
+  # con `permission.denied` publicado—. Hoy son 51 y mañana son otros. Un número
+  # clavado en un comentario envejece sin que nadie lo note; el que quiera la
+  # cuenta de hoy la saca de los manifiestos, que es de donde salía.
   consumes: ['*']
 tools: []
 nav:

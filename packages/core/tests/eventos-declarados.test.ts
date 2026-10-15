@@ -181,8 +181,12 @@ describe('los eventos declarados tienen quien los publique', () => {
  * comprueba, y la lección de `eventos-sin-emisor.ts` es justo ésa: una guarda
  * que no mide no se ve apagada, se ve verde. Lo que sostiene el `'*'` es que el
  * fan-out universal esté REGISTRADO en el despachador; si desaparece de ahí,
- * `integrations` deja de consumir todo y los 52 eventos que ningún manifiesto
+ * `integrations` deja de consumir todo y los eventos que ningún manifiesto
  * nombra vuelven a ser huérfanos de verdad. Eso es lo que se exige.
+ *
+ * (Sin cifra a propósito: acá decía «52», contado sobre el árbol de antes del
+ * commit que escribió esta línea. Hoy son 51. Un número clavado en un
+ * comentario envejece solo.)
  *
  * ## Lo que esto deja escrito, que era el tercer criterio de #783
  *

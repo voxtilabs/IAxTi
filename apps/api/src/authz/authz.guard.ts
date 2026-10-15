@@ -124,13 +124,17 @@ function ipDe(request: WithRequestId): string | undefined {
  * desarrollo por headers X-User-Id/X-Tenant-Id/X-Role — se retira en
  * hardening (#79-#84).
  *
- * El rechazo NO sale al outbox: va al libro de auditoría como
- * `action = 'permission.denied'` (`registrar-rechazo.ts`), y el panel de
- * seguridad lo cuenta de ahí. Una fuente, no dos (#72). Acá decía que «el
- * evento permission.denied al outbox llega cuando la API tenga pool cableado»,
- * y eso no va a pasar: no hay quien reaccione a un rechazo, y emitir uno por
- * cada 403 le pone al outbox un volumen que nadie lee y que un cliente infla a
- * voluntad golpeando una ruta negada (#793).
+ * El rechazo NO sale al outbox. Un rechazo POR PERMISO —con tenant y usuario
+ * ya resueltos— va al libro de auditoría como `action = 'permission.denied'`
+ * (`registrar-rechazo.ts`), y el panel de seguridad lo cuenta de ahí: una
+ * fuente, no dos (#72). Un rechazo de AUTENTICACIÓN no puede ir ahí, porque
+ * todavía no hay tenant contra el cual escribir la fila; ése solo incrementa
+ * un contador en Redis, y por eso el panel lo muestra aparte.
+ *
+ * Acá decía que «el evento permission.denied al outbox llega cuando la API
+ * tenga pool cableado», y eso no va a pasar: no hay quien reaccione a un
+ * rechazo, y emitir uno por cada 403 le pone al outbox un volumen que nadie lee
+ * y que un cliente infla a voluntad golpeando una ruta negada (#793).
  */
 function request0(context: ExecutionContext): { method: string } {
   return context.switchToHttp().getRequest<{ method: string }>();

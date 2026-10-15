@@ -843,7 +843,13 @@ auditado con `actor_kind = superadmin`.
 ## 24. Catálogo de eventos
 
 Todo evento lleva sobre: `id`, `name`, `tenant_id`, `occurred_at`, `actor`,
-`request_id`, `version`, `payload`. Se publican por outbox, se consumen por nombre.
+`request_id`, `version`, `payload`. Se publican por outbox, se consumen por nombre
+— con una excepción declarada: un módulo puede poner `consumes: ['*']` en su
+manifiesto para decir que consume el catálogo ENTERO. Hoy lo usa solo
+`integrations`, porque el fan-out de webhooks salientes entrega cualquier evento
+publicado al que el tenant le haya suscrito un endpoint (#783). No es un evento
+llamado `*`: es la forma de que el manifiesto no mienta cuando el consumo es
+universal.
 
 ```
 identity        user.registered · user.invited · user.joined_tenant · user.login_failed
@@ -951,6 +957,8 @@ depends_on:
 permissions: [automations.read, automations.manage]
 events:
   publishes: [automation.ran, automation.failed, automation.paused]
+  # Nombres del catálogo (§24), o `['*']` si el módulo consume el catálogo
+  # entero — hoy solo `integrations`, por el fan-out de webhooks salientes.
   consumes: [conversation.created, deal.stage_changed, appointment.created, message.received]
 tools: [automations.create_rule, automations.list_rules]
 nav: [{ label: Automatizaciones, path: /automations, permission: automations.read }]
