@@ -63,6 +63,13 @@ const cruce = (parcial: Partial<Cruce>): Cruce => ({
   declarado: false,
   escribe: false,
   tablas: ['conversations'],
+  // Por omisión el cruce LEE: si el caso quiere una escritura, pasa `escribe`
+  // y `escribe_en` juntos. Que haya que pasar los dos es a propósito —
+  // `nombreDelCruce` mira las listas, no el booleano, así que un caso que
+  // pusiera solo `escribe: true` estaría probando algo que el escáner no
+  // produce nunca.
+  lee: ['conversations'],
+  escribe_en: [],
   archivos: [],
   consultas: 1,
   escrituras: 0,
@@ -178,7 +185,7 @@ describe('el escáner distingue leer de escribir (#784)', () => {
     // .txt dejan de calzar y el trinquete manda a reescribirlas todas. Queda
     // fijado acá para que ese cambio sea una decisión y no un descuido.
     expect(
-      nombreDelCruce(cruce({ escribe: true, tablas: ['conversations', 'messages'] })),
+      nombreDelCruce(cruce({ escribe: true, lee: [], escribe_en: ['conversations', 'messages'], tablas: ['conversations', 'messages'] })),
     ).toBe('crm→conversations (escribe: conversations, messages)');
   });
 
@@ -187,11 +194,20 @@ describe('el escáner distingue leer de escribir (#784)', () => {
     // concedida absorbía crecimiento sin límite —`platform→agents (lee)` cubría
     // tres tablas y treinta mañana sin que la marca se moviera—. Lo concedido
     // fue el alcance medido el día que se concedió; ampliarlo es una decisión.
-    const tres = nombreDelCruce(cruce({ tablas: ['agent_executions', 'agents', 'eval_runs'] }));
+    const leidas = ['agent_executions', 'agents', 'eval_runs'];
+    const tres = nombreDelCruce(cruce({ tablas: leidas, lee: leidas }));
     const cuatro = nombreDelCruce(
-      cruce({ tablas: ['agent_executions', 'agents', 'eval_runs', 'agent_proposals'] }),
+      cruce({ tablas: [...leidas, 'agent_proposals'], lee: [...leidas, 'agent_proposals'] }),
     );
     expect(cuatro).not.toBe(tres);
+
+    // Y la otra mitad del mismo agujero, que es la que encontró la revisión:
+    // la MISMA tabla pasando de leída a escrita.
+    const soloLee = nombreDelCruce(cruce({ tablas: ['agents'], lee: ['agents'] }));
+    const ahoraEscribe = nombreDelCruce(
+      cruce({ tablas: ['agents'], lee: [], escribe_en: ['agents'], escribe: true }),
+    );
+    expect(ahoraEscribe).not.toBe(soloLee);
   });
 
   it('lo que NO ve, escrito: el nombre de la tabla interpolado', () => {
@@ -252,7 +268,7 @@ describe('las dos mitades de la regla (#784)', () => {
     // que gana es la guarda, porque es la que se pone roja.
     expect(
       crucesFueraDeLaRegla([
-        cruce({ modulo: 'billing', dueno: 'organizations', declarado: true, escribe: true, tablas: ['tenants'] }),
+        cruce({ modulo: 'billing', dueno: 'organizations', declarado: true, escribe: true, lee: [], escribe_en: ['tenants'], tablas: ['tenants'] }),
       ]),
     ).toEqual(['billing→organizations (escribe: tenants)']);
   });
@@ -263,7 +279,7 @@ describe('la medición del criterio 2: cuántas de las que cruzan son escrituras
     expect(
       medicionDeCruces([
         cruce({ declarado: true, escribe: false, consultas: 5, escrituras: 0 }),
-        cruce({ modulo: 'crm', dueno: 'agents', escribe: true, consultas: 3, escrituras: 2 }),
+        cruce({ modulo: 'crm', dueno: 'agents', escribe: true, lee: [], escribe_en: ['conversations'], consultas: 3, escrituras: 2 }),
       ]),
     ).toEqual({
       pares: 2,
@@ -304,7 +320,18 @@ describe('la lista base de cruces fuera de la regla (#784)', () => {
     // Las dos cosas van en el nombre a propósito: un par que hoy lee y mañana
     // escribe entra como entrada NUEVA, y uno que hoy toca tres tablas y
     // mañana treinta, también.
-    const malFormadas = base.filter((e) => !/ \((lee|escribe): [a-z_]+(, [a-z_]+)*\)$/.test(e.par));
+    //
+    // Y las tablas van SEPARADAS POR VERBO, que es lo que cerró el agujero
+    // que encontró la revisión: con una sola lista y un `escribe` del par, un
+    // `UPDATE` nuevo sobre una tabla que el par ya leía no cambiaba el
+    // nombre. Medido: `UPDATE plan_limits` desde `conversations` —una
+    // escritura ajena de verdad— daba «sin cambios» y salida 0.
+    // La forma admite las dos mitades, y en ese orden: `escribe` primero
+    // porque es la que la regla prohíbe, así que es lo que hay que leer antes.
+    const tabla = '[a-z_]+(, [a-z_]+)*';
+    const mitad = `(escribe|lee): ${tabla}`;
+    const forma = new RegExp(` \\(${mitad}( · ${mitad})?\\)$`);
+    const malFormadas = base.filter((e) => !forma.test(e.par));
     expect(malFormadas.map((e) => e.par)).toEqual([]);
   });
 

@@ -131,6 +131,21 @@ export interface Cruce {
   declarado: boolean;
   /** Alguna de las consultas del par escribe, no solo lee. */
   escribe: boolean;
+  /**
+   * Las tablas, separadas POR VERBO, y eso no es cosmético.
+   *
+   * La primera versión guardaba una sola lista y un `escribe` del par, y con
+   * eso el trinquete no cerraba lo que la mitad nueva de la regla prohíbe: un
+   * `UPDATE` nuevo sobre una tabla que el par ya leía no cambiaba el nombre de
+   * la entrada, así que pasaba en silencio. Lo midió la revisión agregando una
+   * escritura cruzada de verdad —`UPDATE plan_limits` desde `conversations`—:
+   * el script dijo «sin cambios», salió 0, y las 26 pruebas quedaron verdes.
+   *
+   * Con la tabla anotada bajo su verbo, esa misma tabla pasando de `lee` a
+   * `escribe` cambia el nombre y la guarda la ve.
+   */
+  lee: string[];
+  escribe_en: string[];
   tablas: string[];
   archivos: string[];
   /**
@@ -267,8 +282,13 @@ export function duenosDeTabla(raizModulos: string): Map<string, string> {
  * TABLAS también van en el nombre» arriba.
  */
 export function nombreDelCruce(cruce: Cruce): string {
-  const marca = cruce.escribe ? 'escribe' : 'lee';
-  return `${cruce.modulo}→${cruce.dueno} (${marca}: ${cruce.tablas.join(', ')})`;
+  // Las dos mitades por separado: una tabla que pasa de leída a escrita cambia
+  // el nombre, que es lo único que hace que el trinquete la vea.
+  const partes = [
+    cruce.escribe_en.length > 0 ? `escribe: ${cruce.escribe_en.join(', ')}` : null,
+    cruce.lee.length > 0 ? `lee: ${cruce.lee.join(', ')}` : null,
+  ].filter(Boolean);
+  return `${cruce.modulo}→${cruce.dueno} (${partes.join(' · ')})`;
 }
 
 /** El par solo, sin marca ni tablas: la llave de «esta entrada ya existía». */
@@ -295,6 +315,8 @@ export function crucesEntreModulos(
             dueno,
             declarado: modulo.declaradas.includes(dueno),
             escribe: false,
+            lee: [],
+            escribe_en: [],
             tablas: [],
             archivos: [],
             consultas: 0,
@@ -308,6 +330,11 @@ export function crucesEntreModulos(
         cruce.consultas += 1;
         if (escribe) cruce.escrituras += 1;
         if (!cruce.tablas.includes(tabla)) cruce.tablas.push(tabla);
+        // Una tabla que se lee Y se escribe va en las dos listas: lo que la
+        // regla prohíbe es la escritura, y esconderla porque además se lee
+        // sería volver al agujero de la versión anterior.
+        const lista = escribe ? cruce.escribe_en : cruce.lee;
+        if (!lista.includes(tabla)) lista.push(tabla);
         if (!cruce.archivos.includes(archivo)) cruce.archivos.push(archivo);
         pares.set(clave, cruce);
       }
@@ -315,6 +342,8 @@ export function crucesEntreModulos(
   }
   for (const cruce of pares.values()) {
     cruce.tablas.sort();
+    cruce.lee.sort();
+    cruce.escribe_en.sort();
     cruce.archivos.sort();
   }
   return [...pares.entries()]
