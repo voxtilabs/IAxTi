@@ -7,6 +7,8 @@ export {
   searchAudit,
   searchAuditGlobal,
   exportAudit,
+  searchAuditPaginado,
+  searchAuditGlobalPaginado,
   ExportDemasiadoGrande,
   TOPE_EXPORT,
 } from './src/search';

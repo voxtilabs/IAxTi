@@ -18,6 +18,10 @@ export function Auditoria() {
     const qs = (p: Record<string, string>) => new URLSearchParams(p).toString();
     return {
       search: (p) => apiFetch(config, session, tenant, `/audit?${qs(p)}`),
+      // El camino paginado (#799). La ruta devuelve `{ entries, nextCursor }`
+      // solo cuando el parámetro `cursor` viene presente, y `qs` lo manda
+      // porque el explorador lo pone —vacío en la primera página—.
+      searchPaginado: (p) => apiFetch(config, session, tenant, `/audit?${qs(p)}`),
       verify: () =>
         apiFetch(config, session, tenant, '/audit/verify', { method: 'POST', body: '{}' }),
       exportar: (format, p) =>
