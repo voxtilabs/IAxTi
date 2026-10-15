@@ -15,7 +15,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { usePieza } from './arranque';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // La campana (#55): no-leídos visibles desde cualquier pantalla.
@@ -33,11 +33,10 @@ interface AvisoDto {
 
 export function Campana() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [items, setItems] = useState<AvisoDto[]>([]);
   const [unread, setUnread] = useState(0);
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   /**
    * La primera tanda sale del arranque; después se sondea (#761).

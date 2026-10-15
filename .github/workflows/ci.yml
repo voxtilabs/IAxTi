@@ -114,6 +114,22 @@ jobs:
       - name: Dependency-cruiser (fronteras de módulos)
         run: pnpm depcruise
 
+      # Las guardas que solo leen archivos, acá y no solo en el preflight.
+      #
+      # Esto se agregó por un caso concreto: la lista base de #788 entró a
+      # staging DESACTUALIZADA por uno. La generé, después un rebase trajo un
+      # `catch` nuevo de otro PR, y la lista quedó corta — y CI no lo vio,
+      # porque estas guardas vivían solo en `antes-de-empujar.sh`. Una guarda
+      # que no corre en CI la saltea cualquier PR que no corra el preflight
+      # después de rebasar, que es justo cuando el total cambia.
+      #
+      # Son segundos: no tocan base ni red, solo escanean el repo.
+      - name: Guardas de pantalla (respuestas, avisos, negocio)
+        run: |
+          node scripts/respuestas-sin-mirar.mjs
+          node scripts/avisos-sin-rastro.mjs
+          node scripts/el-negocio-se-sigue.mjs
+
       # ADR-0008: prohibido condicionar por rol; el único traductor
       # rol → permisos es domain/base-roles.ts del módulo authorization.
       #

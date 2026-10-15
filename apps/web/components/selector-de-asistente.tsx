@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 /**
@@ -28,11 +28,10 @@ export interface AsistenteBase {
 
 export function useAsistenteElegido<T extends AsistenteBase>() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [asistentes, setAsistentes] = useState<T[] | null>(null);
   const [elegidoId, setElegidoId] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;

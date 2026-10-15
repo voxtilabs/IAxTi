@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { AuditExplorer, EncabezadoDePagina, type AuditFetcher, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // El libro del PROPIO negocio (#72): el mismo explorador del SuperAdmin,
@@ -11,8 +11,7 @@ import { apiFetch } from '../lib/api';
 
 export function Auditoria() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
-  useEffect(() => setTenant(selectedTenant()), []);
+  const tenant = useSelectedTenant();
 
   const fetcher = useMemo<AuditFetcher | null>(() => {
     if (!session || !tenant) return null;

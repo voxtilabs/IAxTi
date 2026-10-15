@@ -8,7 +8,7 @@ import {
 } from '@iaxti/sdk';
 import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { nombreDeQuien, QuienLoHizo } from './quien-lo-hizo';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
 const ESTADOS: Record<Campaign['status'], string> = {
@@ -43,14 +43,13 @@ const CALIDAD: Record<string, { nombre: string; rol: BadgeRole }> = {
 const TODOS = 'todos';
 
 export function Campanas() {
-  const [tenant, setTenant] = useState<string | null>(null);
-  useEffect(() => {
-    const actualizar = () => setTenant(selectedTenant());
-    actualizar();
-    window.addEventListener('storage', actualizar);
-    window.addEventListener('iaxti-tenant-changed', actualizar);
-    return () => { window.removeEventListener('storage', actualizar); window.removeEventListener('iaxti-tenant-changed', actualizar); };
-  }, []);
+  // Esto eran ocho líneas que hacían EXACTAMENTE lo que `useSelectedTenant`:
+  // leer el negocio, escuchar `storage` y `iaxti-tenant-changed`, y limpiar
+  // las dos escuchas al desmontar. Era la única pantalla que seguía al
+  // selector, y lo hacía con su propia copia del hook (#789). Una copia
+  // correcta sigue siendo una copia: el día que al hook se le agregue un
+  // evento, esta no lo tiene.
+  const tenant = useSelectedTenant();
   if (!tenant) return <p className="text-muted">Elige un negocio para ver sus campañas.</p>;
   return <CampanasDelNegocio key={tenant} tenant={tenant} />;
 }

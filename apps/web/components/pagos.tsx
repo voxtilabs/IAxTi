@@ -15,7 +15,7 @@ import {
   Skeleton,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
 import type { Quien } from '@iaxti/sdk';
 import { QuienLoHizo } from './quien-lo-hizo';
@@ -70,7 +70,7 @@ const ESTADO_LINK: Record<LinkDto['status'], { label: string; role: 'good' | 'ne
 
 export function Pagos() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [proveedores, setProveedores] = useState<ProveedorDto[] | null>(null);
   const [links, setLinks] = useState<LinkDto[]>([]);
   const [kind, setKind] = useState('flow');
@@ -88,7 +88,6 @@ export function Pagos() {
   const [etapaPagado, setEtapaPagado] = useState(SIN_MOVER);
   const [etapasDisponibles, setEtapasDisponibles] = useState<string[]>([]);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

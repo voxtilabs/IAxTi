@@ -133,6 +133,7 @@ paso 'migraciones en base virgen'       node scripts/migraciones-en-base-virgen.
 # qué contestó el servidor no tiene versión aceptable — a diferencia de una
 # lista sin estado vacío, que es fea pero funciona.
 paso 'respuestas sin mirar'              node scripts/respuestas-sin-mirar.mjs
+paso 'el negocio se sigue'               node scripts/el-negocio-se-sigue.mjs
 
 # Los dos trinquetes con lista base: avisan si hay que bajar la marca.
 paso 'exports sin consumidor'            node scripts/exports-sin-consumidor.mjs

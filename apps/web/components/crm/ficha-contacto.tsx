@@ -22,7 +22,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
+import { useSelectedTenant } from '../tenant-switcher';
 import { DerechosDelTitular } from './derechos-del-titular';
 import { usePieza } from '../arranque';
 import { FusionarDuplicado } from './fusionar-duplicado';
@@ -144,7 +144,7 @@ export function FichaContacto({
   esperandoPrecarga?: boolean;
 }) {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [campos, setCampos] = useState<CampoDto[]>([]);
   const [etiquetas, setEtiquetas] = useState<EtiquetaDto[]>([]);
@@ -165,7 +165,6 @@ export function FichaContacto({
   const [tipo, setTipo] = useState<'llamada' | 'reunion' | 'tarea' | 'nota'>('tarea');
   const [vence, setVence] = useState('');
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   /**
    * Las tres listas del NEGOCIO salen del arranque del shell (#761).

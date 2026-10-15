@@ -4,7 +4,7 @@ import { AvisoResultado, EncabezadoDePagina, Formulario, Select, SelectContent, 
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, type EtiquetaDto } from '../lib/api';
 
 // Etiquetas (#35, SPEC §29). La API estaba completa —crear, renombrar,
@@ -26,7 +26,7 @@ const ROLES: Array<{ v: EtiquetaDto['role']; texto: string; para: string }> = [
 
 export function Etiquetas() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [items, setItems] = useState<EtiquetaDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', role: 'neutral' as EtiquetaDto['role'] });

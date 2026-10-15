@@ -4,7 +4,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Input, Skeleton, Switch, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // Webhooks salientes (#76): tus sistemas reaccionan a lo que pasa en
@@ -38,7 +38,7 @@ const ESTADO_ENTREGA: Record<EntregaDto['status'], { label: string; role: 'good'
 
 export function WebhooksSalientes() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [webhooks, setWebhooks] = useState<WebhookDto[] | null>(null);
   const [eventos, setEventos] = useState<string[]>([]);
   const [entregas, setEntregas] = useState<EntregaDto[]>([]);
@@ -46,7 +46,6 @@ export function WebhooksSalientes() {
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

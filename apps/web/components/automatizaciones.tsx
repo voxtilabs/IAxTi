@@ -18,7 +18,7 @@ import {
   Switch,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // Automatizaciones (#62, SPEC §15): que el seguimiento que hoy no se
@@ -78,7 +78,7 @@ function cuando(r: ReglaDto): string {
 
 export function Automatizaciones() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [reglas, setReglas] = useState<ReglaDto[] | null>(null);
   const [runs, setRuns] = useState<RunDto[]>([]);
   const [vertical, setVertical] = useState('otro');
@@ -101,7 +101,6 @@ export function Automatizaciones() {
     texto: '',
   });
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

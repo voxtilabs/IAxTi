@@ -4,7 +4,7 @@ import { AvisoResultado, EncabezadoDePagina, Formulario, Select, SelectContent, 
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // El equipo (#28, SPEC §22): quién entra al negocio y con qué rol.
@@ -42,7 +42,7 @@ function cuando(iso: string): string {
 
 export function Equipo() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [datos, setDatos] = useState<{ miembros: MiembroDto[]; invitaciones: InvitacionDto[] } | null>(null);
   const [roles, setRoles] = useState<RolDisponible[]>([]);
   const [error, setError] = useState<string | null>(null);

@@ -13,7 +13,7 @@ import {
   SelectValue,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
+import { useSelectedTenant } from '../tenant-switcher';
 import { apiFetch } from '../../lib/api';
 import type { Quien } from '@iaxti/sdk';
 import { QuienLoHizo } from '../quien-lo-hizo';
@@ -74,13 +74,12 @@ export function SecuenciasFicha({
   esperandoPrecarga?: boolean;
 }) {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [secuencias, setSecuencias] = useState<SecuenciaDto[]>([]);
   const [inscripciones, setInscripciones] = useState<InscripcionDto[]>([]);
   const [elegida, setElegida] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

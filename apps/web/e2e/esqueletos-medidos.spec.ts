@@ -247,3 +247,50 @@ test('una caída sí ofrece reintentar, con el identificador para pedir ayuda', 
   await expect(retencion.getByRole('button', { name: 'Reintentar' })).toBeVisible();
   await expect(retencion.getByRole('button', { name: 'Copiar' })).toBeVisible();
 });
+
+/**
+ * La pantalla sigue al selector de negocio (#789).
+ *
+ * El defecto era `useEffect(() => setTenant(selectedTenant()), [])`: corre UNA
+ * vez al montar, así que si `localStorage` todavía no tenía el negocio en ese
+ * instante —primer login, o la carrera con el selector— la pantalla se quedaba
+ * sin negocio PARA SIEMPRE, y al cambiar de negocio seguía mostrando los datos
+ * del anterior. Lo segundo es peor que un hueco: son los datos de un cliente
+ * bajo el nombre de otro.
+ *
+ * Se prueba por el evento y no cambiando de negocio en el selector, porque lo
+ * que hay que verificar es que la pantalla ESCUCHE: el selector dispara
+ * `iaxti-tenant-changed` y eso es todo lo que recibe. Si la pantalla no
+ * escucha, este disparo no hace nada y la petición nueva nunca sale.
+ */
+test('al cambiar de negocio, la pantalla vuelve a preguntar', async ({ page }) => {
+  const pedidos: string[] = [];
+  await page.route('**/v1/settings/retencion', (r) => {
+    pedidos.push(r.request().headers()['x-tenant-id'] ?? '');
+    return r.fulfill({ json: { months: 24, cutoff: null, deferredUntil: null } });
+  });
+  await page.goto('/ajustes/bandeja');
+  await expect(page.getByRole('region', { name: 'Cuánto se guardan las conversaciones' })).toBeVisible();
+  expect(pedidos).toHaveLength(1);
+
+  // El otro negocio, y el aviso que da el selector.
+  await page.evaluate(() => {
+    localStorage.setItem('iaxti-tenant', '00000000-0000-4000-8000-00000000b002');
+    window.dispatchEvent(new Event('iaxti-tenant-changed'));
+  });
+  /**
+   * Lo que se afirma es que SALIÓ una petición por el negocio nuevo, no un
+   * total de peticiones.
+   *
+   * Escrita contra el total daba tres, y la tercera enseñó algo: el selector
+   * de negocio también escucha el evento, ve que este id no es de los que
+   * este usuario tiene, y lo devuelve al válido. O sea que la pantalla siguió
+   * los DOS cambios —el falso y la corrección—, que es exactamente lo que
+   * tiene que hacer. Contar peticiones habría convertido ese acierto en rojo.
+   */
+  await expect(async () => {
+    expect(pedidos).toContain('00000000-0000-4000-8000-00000000b002');
+  }).toPass({ timeout: 5_000 });
+  // Y la primera fue por el negocio de la sesión, no por el inventado.
+  expect(pedidos[0]).not.toBe('00000000-0000-4000-8000-00000000b002');
+});

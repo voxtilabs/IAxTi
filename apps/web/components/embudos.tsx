@@ -11,7 +11,7 @@ import {
   Skeleton,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, type PipelineDto, type StageDto } from '../lib/api';
 
 /**
@@ -35,14 +35,13 @@ const TIPO: Record<StageDto['type'], string> = {
 
 export function Embudos() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [pipelines, setPipelines] = useState<PipelineDto[] | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [nombres, setNombres] = useState<Record<string, string>>({});
   const [nueva, setNueva] = useState<Record<string, string>>({});
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;

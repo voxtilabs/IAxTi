@@ -6,7 +6,7 @@ import { Bot } from 'lucide-react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 import type { Quien } from '@iaxti/sdk';
 import { QuienLoHizo } from './quien-lo-hizo';
@@ -57,7 +57,7 @@ const TIPO_LABEL: Record<string, string> = {
 
 export function Configurador() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [descripcion, setDescripcion] = useState('');
   const [vertical, setVertical] = useState('otro');
   const [propuesta, setPropuesta] = useState<PropuestaDto | null>(null);
@@ -66,7 +66,6 @@ export function Configurador() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [aplicado, setAplicado] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

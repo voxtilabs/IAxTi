@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { AvisoResultado, Button, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiDescargarBinario, apiFetch } from '../lib/api';
 
 /**
@@ -29,7 +29,7 @@ interface Exportacion {
 
 export function LlevarseLosDatos() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ultima, setUltima] = useState<Exportacion | null>(null);

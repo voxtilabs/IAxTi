@@ -4,7 +4,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
 
 // Consumo de IA (#52): asistencias para el equipo, pesos para quien
@@ -46,13 +46,12 @@ interface CorridaDto {
 
 export function ConsumoIA() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [uso, setUso] = useState<UsoDto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   /** Las corridas una por una; se piden al abrir el detalle, no antes. */
   const [corridas, setCorridas] = useState<CorridaDto[] | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

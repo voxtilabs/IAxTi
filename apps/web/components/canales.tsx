@@ -5,7 +5,7 @@ import { AvisoResultado, EncabezadoDePagina, EstadoVacio, Formulario } from '@ia
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // La pantalla de canales (#45): el estado del número EXPLICADO — un número
@@ -86,7 +86,7 @@ const CALIDAD: Record<string, { label: string; role: BadgeRole; ayuda: string }>
  */
 function ProbarSinNumero() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [telefono, setTelefono] = useState('+56961234567');
   const [texto, setTexto] = useState('Hola! Tienen hora para mañana?');
   const [estado, setEstado] = useState<'inicial' | 'enviando' | 'listo' | 'error'>('inicial');
@@ -190,7 +190,7 @@ const TONO_DEL_PASO: Record<PasoDto['estado'], { rol: BadgeRole; texto: string }
  */
 function Diagnostico({ accountId }: { accountId: string }) {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [datos, setDatos] = useState<DiagnosticoDto | null>(null);
   const [mirando, setMirando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -263,7 +263,7 @@ function Diagnostico({ accountId }: { accountId: string }) {
  */
 function ProbarEnvio({ accountId }: { accountId: string }) {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [telefono, setTelefono] = useState('');
   const [probando, setProbando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoPruebaDto | null>(null);
@@ -372,7 +372,7 @@ function CambiarEmisor({
   onError: (mensaje: string) => void;
 }) {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [emisores, setEmisores] = useState<EmisorDto[] | null>(null);
   const [cargando, setCargando] = useState(false);
   const [cambiando, setCambiando] = useState<string | null>(null);
@@ -457,13 +457,12 @@ function CambiarEmisor({
 
 export function Canales() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [canales, setCanales] = useState<CanalDto[] | null>(null);
   const [widgets, setWidgets] = useState<WidgetDto[]>([]);
   const [dominio, setDominio] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Formulario, Input, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // Crear el asistente eligiendo su objetivo (#385, SPEC §14–16).
@@ -46,7 +46,7 @@ const NOMBRE_MODULO: Record<string, string> = {
 
 export function Asistente() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [agentes, setAgentes] = useState<AgenteDto[] | null>(null);
   const [objetivos, setObjetivos] = useState<ObjetivoDto[]>([]);
   const [elegido, setElegido] = useState<ObjetivoDto | null>(null);

@@ -43,11 +43,27 @@ test.beforeEach(async ({ page }) => {
  * Esta prueba mira las dos anchuras y cuenta destinos de verdad.
  */
 async function destinos(page: import('@playwright/test').Page): Promise<string[]> {
-  const enlaces = page.locator('[data-sidebar="menu-button"]');
-  const n = await enlaces.count();
-  const salida: string[] = [];
-  for (let i = 0; i < n; i++) salida.push(((await enlaces.nth(i).textContent()) ?? '').trim());
-  return salida.filter((t) => t !== '');
+  /**
+   * Una sola pasada por el DOM, y no `count()` y después leer uno por uno.
+   *
+   * La versión anterior hacía N+1 viajes al navegador: contaba, y después
+   * pedía el texto de cada índice. Si la barra se vuelve a dibujar entre el
+   * conteo y la lectura —y se vuelve a dibujar, el armazón reacciona al
+   * negocio— el índice que ya se tenía apunta a un nodo que quedó desprendido,
+   * Playwright se queda esperándolo y la prueba muere en el timeout de 60 s.
+   *
+   * Lo vi en #789: la prueba pasó 1 de 3 corridas y el rojo decía «waiting for
+   * locator(...).nth(11)» sobre una barra que tiene 11 destinos. No era la
+   * barra, era la forma de leerla — y el síntoma apuntaba al menú, que es lo
+   * caro de un rojo así.
+   *
+   * `evaluateAll` resuelve el locator y lee los textos en el mismo instante,
+   * así que lo que vuelve es una foto coherente.
+   */
+  const items = await page
+    .locator('[data-sidebar="menu-button"]')
+    .evaluateAll((nodos) => nodos.map((n) => (n.textContent ?? '').trim()));
+  return items.filter((t) => t !== '');
 }
 
 test.describe('la barra lateral tiene destinos', () => {
