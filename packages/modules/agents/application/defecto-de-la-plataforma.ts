@@ -121,7 +121,20 @@ export async function defectosDeLaPlataforma(
  * En proceso y no en Redis, igual que los castigos (#855): son nueve filas y
  * cada instancia puede tener su copia unos segundos sin que nadie lo note.
  */
-const VENTANA_MS = Number(process.env.IA_DEFECTO_CACHE_MS ?? 15_000);
+/**
+ * Quince segundos, y sin variable de entorno.
+ *
+ * La primera versión lo hacía configurable con `IA_DEFECTO_CACHE_MS`. Dos
+ * guardas del repo lo rechazaron y las dos tenían razón: la de #575 porque
+ * `??` sobre una variable de entorno cae al defecto solo con `undefined` y no
+ * con la cadena vacía que deja un compose con `${VAR:-}`, y la del compose
+ * porque toda variable que el código lee tiene que estar declarada allá.
+ *
+ * Pero el arreglo correcto no era usar el ayudante: era no tener la variable.
+ * Nadie pidió poder ajustar esto, y una perilla sin dueño es una forma de
+ * configuración que hay que documentar, pasar por el compose y mantener.
+ */
+const VENTANA_MS = 15_000;
 let cache: { leidoEn: number; valor: Record<AgentTask, TaskModel> } | null = null;
 
 export async function semillaCacheada(
