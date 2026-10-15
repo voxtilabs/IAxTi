@@ -28,6 +28,11 @@ export type EntidadConCampos = (typeof ENTIDADES_CON_CAMPOS)[number];
  * nombre de la tabla se interpola en el SQL —no hay parámetro de Postgres
  * para un identificador—, así que lo único interpolable tiene que ser uno de
  * estos tres valores escritos acá. El `key` sí viaja como parámetro.
+ *
+ * Las tres entradas se ejercitan en `tests/campos.test.ts` («la cuenta mira
+ * la tabla de ESA entidad»), con la misma llave declarada en las tres: un
+ * nombre de tabla equivocado acá no da un número raro, da un error de
+ * Postgres o el conteo de otra entidad.
  */
 const TABLA_DE_ENTIDAD: Record<EntidadConCampos, string> = {
   contact: 'contacts',
@@ -44,6 +49,64 @@ export interface CampoPersonalizado {
   required: boolean;
   visibleIa: boolean;
   options: string[];
+}
+
+/**
+ * Quién hizo esto, en un par que no se contradiga.
+ *
+ * Existe porque el par por defecto decía dos cosas distintas: `actor` caía en
+ * `'system'` y `actorKind` en `'user'`, así que el libro quedaba afirmando
+ * que un USUARIO llamado «system» declaró el campo — y eso es peor que no
+ * saber, porque se lee como un dato. Sin actor no hubo persona: el tipo es
+ * `'system'`.
+ *
+ * Con actor y sin tipo, `'user'`: el único camino que manda actor sin tipo es
+ * una llamada interna con el id de quien pidió. Los controladores mandan los
+ * dos (`apikey` cuando entra por API key).
+ */
+function quienFue(input: { actor?: string; actorKind?: ActorKind }): {
+  actor: string;
+  actorKind: ActorKind;
+} {
+  if (!input.actor) return { actor: 'system', actorKind: input.actorKind ?? 'system' };
+  return { actor: input.actor, actorKind: input.actorKind ?? 'user' };
+}
+
+/**
+ * La definición del campo tal como queda escrita en el libro: TODO lo que
+ * tiene `CampoPersonalizado` menos el id, que ya viaja en `resourceId`.
+ *
+ * Es una función y no un objeto escrito en cada `writeAudit` para que
+ * «completa» siga siendo cierto cuando alguien agregue una columna: si
+ * mañana el campo gana una bandera, se agrega acá y las tres acciones la
+ * registran. `options` entra por lo mismo que el resto — las opciones de una
+ * lista son parte de qué era el campo, y después de borrarlo no quedan en
+ * ningún lado.
+ */
+function definicion(campo: CampoPersonalizado): Record<string, unknown> {
+  return {
+    entity: campo.entity,
+    key: campo.key,
+    label: campo.label,
+    type: campo.type,
+    required: campo.required,
+    visibleIa: campo.visibleIa,
+    options: campo.options,
+  };
+}
+
+/**
+ * La mitad editable de la definición, que es la que tiene sentido mostrar en
+ * un antes/después: `entity`, `key` y `type` no se pueden cambiar (ver
+ * `updateCustomField`), y repetirlas en los dos lados haría creer que sí.
+ */
+function loEditable(campo: CampoPersonalizado): Record<string, unknown> {
+  return {
+    label: campo.label,
+    required: campo.required,
+    visibleIa: campo.visibleIa,
+    options: campo.options,
+  };
 }
 
 function aCampo(row: Record<string, unknown>): CampoPersonalizado {
@@ -156,23 +219,121 @@ export async function createCustomField(
   const campo = aCampo(r.rows[0]);
   await writeAudit(client, {
     tenantId: input.tenantId,
-    actor: input.actor ?? 'system',
-    actorKind: input.actorKind ?? 'user',
+    ...quienFue(input),
     action: 'fields.create',
     resource: 'custom_field',
+    // El id lo genera la base en el INSERT: que esté acá es lo que prueba
+    // que esta escritura va DESPUÉS de la mutación y no antes.
     resourceId: campo.id,
     result: 'ok',
     requestId: input.requestId,
     // Lo que hace falta para reconstruir la decisión sin ir a mirar la tabla
     // —que para entonces puede estar borrada—. `visibleIa` es el que más
     // importa: es el que cambia qué información del negocio sale hacia la IA.
+    metadata: definicion(campo),
+  });
+  return campo;
+}
+
+/**
+ * Cambiar un campo ya declarado (#534).
+ *
+ * El issue lo nombra en el título —«crear, EDITAR o borrar»— y su primer
+ * criterio pide que la edición reciba actor y audite. De las tres, era la
+ * única que ni siquiera existía: se podía declarar un campo y quitarlo, no
+ * corregirlo. O sea que marcar mal «visible para la IA» al declararlo
+ * obligaba a borrar el campo y volver a crearlo, y borrar es justo la
+ * operación que deja a las fichas con el valor suelto. Arreglar la
+ * auditoría de una edición que no se puede hacer no cierra el criterio: lo
+ * deja sin sujeto.
+ *
+ * Lo editable es `label`, `required`, `visibleIa` y `options`. Lo que NO se
+ * puede cambiar, con su motivo:
+ *
+ * - `key`: es la llave con la que el valor está guardado en el `custom` de
+ *   cada ficha. Cambiarla dejaría el dato de todas las fichas colgando de un
+ *   nombre que ya no existe —perdido sin avisar—, que es exactamente lo que
+ *   `deleteCustomField` se cuida de no hacer. Por eso cambiar la ETIQUETA no
+ *   recalcula la llave: la etiqueta es lo que se lee, la llave es dónde está
+ *   el dato.
+ * - `type` y `entity`: el valor que ya está guardado se validó contra el
+ *   tipo viejo y vive en la tabla de esa entidad. Cambiarlos convertiría
+ *   datos buenos en datos que `validarCustom` rechaza, en fichas que nadie
+ *   está mirando.
+ */
+export async function updateCustomField(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    fieldId: string;
+    label?: string;
+    required?: boolean;
+    visibleIa?: boolean;
+    options?: string[];
+    actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
+  },
+): Promise<CampoPersonalizado> {
+  // `FOR UPDATE` porque esto es leer-modificar-escribir y el «antes» que se
+  // registra tiene que ser el que de verdad había: sin el candado, dos
+  // ediciones a la vez pueden leer el mismo estado viejo y dejar dos entradas
+  // que dicen que partieron del mismo lado. El libro contaría una historia
+  // que no pasó. Dura lo que dura la transacción de `withTenant`.
+  const previo = await client.query(
+    'SELECT * FROM custom_fields WHERE tenant_id = $1 AND id = $2 FOR UPDATE',
+    [input.tenantId, input.fieldId],
+  );
+  if (previo.rowCount === 0) throw new Error('Ese campo no existe en este negocio.');
+  const antes = aCampo(previo.rows[0]);
+
+  const label = input.label === undefined ? antes.label : input.label.trim();
+  if (!label) throw new Error('El campo necesita un nombre.');
+  const options =
+    input.options === undefined
+      ? antes.options
+      : input.options.map((o) => String(o).trim()).filter(Boolean);
+  // Mismo rechazo que al declararlo: una lista sin opciones no se puede
+  // llenar. Dejarla vacía por edición sería la misma ruta al mismo campo
+  // inservible, entrando por la puerta de al lado.
+  if (antes.type === 'lista' && options.length === 0) {
+    throw new Error('Un campo de lista necesita sus opciones.');
+  }
+
+  const r = await client.query(
+    `UPDATE custom_fields SET label = $3, required = $4, visible_ia = $5, options = $6::jsonb
+      WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    [
+      input.tenantId,
+      input.fieldId,
+      label,
+      input.required ?? antes.required,
+      input.visibleIa ?? antes.visibleIa,
+      JSON.stringify(options),
+    ],
+  );
+  const campo = aCampo(r.rows[0]);
+
+  // Se escribe aunque no haya cambiado nada, y es a propósito: «alguien abrió
+  // esto y lo dejó igual» es una respuesta, y decidir no registrarlo obligaría
+  // a comparar objetos acá para ahorrar una fila.
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    ...quienFue(input),
+    action: 'fields.update',
+    resource: 'custom_field',
+    resourceId: campo.id,
+    result: 'ok',
+    requestId: input.requestId,
+    // `entity` y `key` una sola vez —no cambian— y el resto en antes/después,
+    // porque en una edición la pregunta no es qué quedó sino qué se movió:
+    // «`visibleIa` pasó de false a true» es el renglón que alguien va a venir
+    // a buscar.
     metadata: {
       entity: campo.entity,
       key: campo.key,
-      label: campo.label,
-      type: campo.type,
-      required: campo.required,
-      visibleIa: campo.visibleIa,
+      antes: loEditable(antes),
+      despues: loEditable(campo),
     },
   });
   return campo;
@@ -184,9 +345,9 @@ export async function createCustomField(
  * Es el borrado que más necesitaba rastro y era el que no tenía ninguno
  * (#534): el campo puede guardar datos personales, y una vez quitada la
  * definición no queda en la base ni cómo se llamaba. De ahí que el metadata
- * repita la definición completa —`entity`, `key`, `label`, `visibleIa`— en
- * vez de solo el id: un id que ya no resuelve a nada no contesta «qué era el
- * campo Convenio».
+ * repita la definición entera —la que arma `definicion()`: todo lo que tenía
+ * la fila menos el id— en vez de solo el id: un id que ya no resuelve a nada
+ * no contesta «qué era el campo Convenio».
  *
  * `fichasConValor` es la otra mitad de la respuesta. «Se borró el campo
  * Convenio» no dice si el negocio perdió de vista el dato de 3 fichas o de
@@ -213,9 +374,12 @@ export async function deleteCustomField(
   // borrarle datos al negocio sin avisar. Queda como valor suelto hasta que
   // alguien lo edite.
   //
-  // Se cuenta DESPUÉS del DELETE y da lo mismo: el DELETE es de
-  // `custom_fields` y la cuenta es de la tabla de la entidad, y las dos van en
-  // la misma transacción.
+  // La cuenta va después del DELETE porque la llave con la que se cuenta sale
+  // de la fila borrada (`RETURNING *`): antes no se sabe cuál es el campo.
+  // Puede ir después sin mentir porque el DELETE es de `custom_fields` y esto
+  // lee la tabla de la entidad —el número no lo movió el borrado—, y las dos
+  // van en la misma transacción: si algo falla más abajo, no queda ni el
+  // borrado ni el número.
   const conValor = await client.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM ${TABLA_DE_ENTIDAD[campo.entity]}
       WHERE tenant_id = $1 AND coalesce(custom ->> $2, '') <> ''`,
@@ -224,22 +388,13 @@ export async function deleteCustomField(
 
   await writeAudit(client, {
     tenantId: input.tenantId,
-    actor: input.actor ?? 'system',
-    actorKind: input.actorKind ?? 'user',
+    ...quienFue(input),
     action: 'fields.delete',
     resource: 'custom_field',
     resourceId: campo.id,
     result: 'ok',
     requestId: input.requestId,
-    metadata: {
-      entity: campo.entity,
-      key: campo.key,
-      label: campo.label,
-      type: campo.type,
-      required: campo.required,
-      visibleIa: campo.visibleIa,
-      fichasConValor: conValor.rows[0].n,
-    },
+    metadata: { ...definicion(campo), fichasConValor: conValor.rows[0].n },
   });
 }
 

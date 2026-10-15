@@ -7,6 +7,7 @@ import {
   listCustomFields,
   llaveDeCampo,
   paraLaIa,
+  updateCustomField,
   validarCustom,
 } from '../application/campos';
 import { updateContact } from '../application/contacts';
@@ -119,9 +120,9 @@ describe('campos personalizados', () => {
 
 describe('el rastro de los campos propios (#534)', () => {
   // Un campo propio puede guardar datos personales —el convenio de salud, el
-  // número de ficha—, así que quién lo declaró y quién lo borró es justo lo
-  // que el libro de auditoría tiene que contestar, y el archivo entero no
-  // tenía un solo `writeAudit`.
+  // número de ficha—, así que quién lo declaró, quién lo cambió y quién lo
+  // borró es justo lo que el libro de auditoría tiene que contestar, y el
+  // archivo entero no tenía un solo `writeAudit`.
   let convenio: string;
 
   it('declarar un campo queda en audit_log con quién lo declaró', async () => {
@@ -138,12 +139,18 @@ describe('el rastro de los campos propios (#534)', () => {
     );
     convenio = campo.id;
 
+    // Buscar POR `resource_id` no es un detalle de la consulta: ese id lo
+    // generó la base en el INSERT, así que una entrada que lo lleva solo pudo
+    // escribirse DESPUÉS de la mutación. Ésta es la prueba que se pone roja si
+    // alguien mueve el `writeAudit` antes del INSERT —ahí no hay id que poner—,
+    // y no la del intento rechazado, que de eso no se entera.
     const r = await admin.query(
-      `SELECT actor, actor_kind, action, resource, result, request_id, metadata
+      `SELECT actor, actor_kind, action, resource, resource_id, result, request_id, metadata
          FROM audit_log WHERE tenant_id = $1 AND resource_id = $2`,
       [tenant, campo.id],
     );
     expect(r.rowCount).toBe(1);
+    expect(r.rows[0].resource_id).toBe(campo.id);
     expect(r.rows[0].actor).toBe('u-sofia');
     expect(r.rows[0].actor_kind).toBe('user');
     expect(r.rows[0].action).toBe('fields.create');
@@ -159,14 +166,63 @@ describe('el rastro de los campos propios (#534)', () => {
       type: 'texto',
       required: false,
       visibleIa: false,
+      options: [],
     });
   });
 
-  it('un campo rechazado no deja rastro: el ROLLBACK se lleva la fila', async () => {
-    // `withTenant` es una transacción: la entrada de auditoría va DESPUÉS del
-    // INSERT y muere con él. Si alguien moviera el `writeAudit` antes, este
-    // segundo intento dejaría un «se declaró Convenio» de un campo que no se
-    // declaró.
+  it('sin actor, el libro no inventa un usuario llamado «system»', async () => {
+    // El par tiene que ser coherente: `actor: 'system'` con `actorKind: 'user'`
+    // deja el libro afirmando que hubo una PERSONA llamada «system», que es un
+    // dato falso y se lee como verdadero. Sin actor no hubo persona.
+    const campo = await en((c) =>
+      createCustomField(c, { tenantId: tenant, entity: 'contact', label: 'Patente', type: 'texto' }),
+    );
+    const r = await admin.query(
+      'SELECT actor, actor_kind FROM audit_log WHERE tenant_id = $1 AND resource_id = $2',
+      [tenant, campo.id],
+    );
+    expect(r.rows[0]).toEqual({ actor: 'system', actor_kind: 'system' });
+  });
+
+  it('el campo y su rastro caen juntos: la auditoría va en la MISMA transacción', async () => {
+    // CLAUDE.md §3 pide la auditoría en la transacción de la mutación, y eso
+    // solo se ve haciendo fallar la transacción DESPUÉS de que el caso de uso
+    // terminó bien: ahí el ROLLBACK tiene algo que llevarse.
+    //
+    // Lo que esto caza —y nada más de este archivo lo caza— es un `writeAudit`
+    // escrito por otra conexión: un pool propio, un `after` del caso de uso,
+    // un cliente que no es el de `withTenant`. Esa fila sobrevive al ROLLBACK
+    // y queda diciendo que se declaró un campo que no existe. Probado: con el
+    // `writeAudit` hablando por un pool aparte, esta prueba se pone roja y las
+    // otras dieciséis siguen verdes.
+    //
+    // El orden entre mutación y auditoría lo cuida la primera prueba, por el
+    // id; un rechazo del INSERT no dice nada de ninguna de las dos cosas,
+    // porque ahí el caso de uso ni llega a auditar.
+    await expect(
+      en(async (c) => {
+        await createCustomField(c, {
+          tenantId: tenant,
+          entity: 'contact',
+          label: 'Tarjeta de convenio',
+          type: 'texto',
+          actor: 'u-sofia',
+        });
+        throw new Error('algo se cae después de declarar el campo');
+      }),
+    ).rejects.toThrow(/se cae después/);
+
+    const campos = await en((c) => listCustomFields(c, tenant, 'contact'));
+    expect(campos.some((f) => f.key === 'tarjeta_de_convenio')).toBe(false);
+    const r = await admin.query(
+      `SELECT count(*)::int AS n FROM audit_log
+        WHERE tenant_id = $1 AND metadata ->> 'key' = 'tarjeta_de_convenio'`,
+      [tenant],
+    );
+    expect(r.rows[0].n).toBe(0);
+  });
+
+  it('un campo repetido se rechaza con el mensaje del negocio, no con el de Postgres', async () => {
     await expect(
       en((c) =>
         createCustomField(c, {
@@ -178,13 +234,89 @@ describe('el rastro de los campos propios (#534)', () => {
         }),
       ),
     ).rejects.toThrow(/Ya existe un campo/);
+  });
+
+  it('editar registra el antes y el después, y la llave no se mueve', async () => {
+    // La edición es el criterio de #534 que no existía: no es que auditara mal,
+    // es que no se podía corregir un campo. Y la llave NO sigue a la etiqueta:
+    // es donde está guardado el valor en cada ficha.
+    const campo = await en((c) =>
+      createCustomField(c, {
+        tenantId: tenant,
+        entity: 'contact',
+        label: 'Nota del convenio',
+        type: 'texto',
+        required: true,
+        visibleIa: false,
+        actor: 'u-sofia',
+      }),
+    );
+
+    const editado = await en((c) =>
+      updateCustomField(c, {
+        tenantId: tenant,
+        fieldId: campo.id,
+        label: 'Convenio de salud',
+        visibleIa: true,
+        required: false,
+        actor: 'u-marta',
+        requestId: 'req-edicion',
+      }),
+    );
+    expect(editado.key).toBe('nota_del_convenio');
+    expect(editado.label).toBe('Convenio de salud');
+    expect(editado.visibleIa).toBe(true);
 
     const r = await admin.query(
-      `SELECT count(*)::int AS n FROM audit_log
-        WHERE tenant_id = $1 AND action = 'fields.create' AND metadata ->> 'key' = 'convenio'`,
-      [tenant],
+      `SELECT actor, actor_kind, action, request_id, metadata FROM audit_log
+        WHERE tenant_id = $1 AND resource_id = $2 AND action = 'fields.update'`,
+      [tenant, campo.id],
     );
-    expect(r.rows[0].n).toBe(1);
+    expect(r.rowCount).toBe(1);
+    expect(r.rows[0].actor).toBe('u-marta');
+    expect(r.rows[0].actor_kind).toBe('user');
+    expect(r.rows[0].request_id).toBe('req-edicion');
+    // El renglón que alguien va a venir a buscar es «`visibleIa` pasó de false
+    // a true»: con solo el estado final no se sabe si lo cambió esta edición o
+    // ya venía así.
+    expect(r.rows[0].metadata).toMatchObject({
+      entity: 'contact',
+      key: 'nota_del_convenio',
+      antes: { label: 'Nota del convenio', required: true, visibleIa: false, options: [] },
+      despues: { label: 'Convenio de salud', required: false, visibleIa: true, options: [] },
+    });
+  });
+
+  it('la edición no puede dejar una lista sin opciones, ni a medias', async () => {
+    const lista = await en((c) =>
+      createCustomField(c, {
+        tenantId: tenant,
+        entity: 'contact',
+        label: 'Sucursal',
+        type: 'lista',
+        options: ['Centro', 'Mall'],
+        actor: 'u-sofia',
+      }),
+    );
+    await expect(
+      en((c) =>
+        updateCustomField(c, { tenantId: tenant, fieldId: lista.id, label: 'Local', options: [] }),
+      ),
+    ).rejects.toThrow(/opciones/);
+
+    // Ni el campo ni el libro se movieron: el rechazo es antes del UPDATE y
+    // además va dentro de la misma transacción.
+    const quedo = (await en((c) => listCustomFields(c, tenant, 'contact'))).find(
+      (f) => f.key === 'sucursal',
+    )!;
+    expect(quedo.label).toBe('Sucursal');
+    expect(quedo.options).toEqual(['Centro', 'Mall']);
+    const r = await admin.query(
+      `SELECT count(*)::int AS n FROM audit_log
+        WHERE tenant_id = $1 AND resource_id = $2 AND action = 'fields.update'`,
+      [tenant, lista.id],
+    );
+    expect(r.rows[0].n).toBe(0);
   });
 
   it('borrar registra la definición completa y a cuántas fichas les quitó el piso', async () => {
@@ -211,26 +343,50 @@ describe('el rastro de los campos propios (#534)', () => {
       entity: 'contact',
       key: 'convenio',
       label: 'Convenio',
+      type: 'texto',
+      required: false,
       visibleIa: false,
+      options: [],
     });
     // «Se borró el campo Convenio» no dice si se perdió el dato de una ficha
     // o de tres mil.
     expect(r.rows[0].metadata.fichasConValor).toBe(1);
   });
 
-  it('borrar un campo que no existe no deja rastro de nada', async () => {
-    const antes = await admin.query(
-      `SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'fields.delete'`,
+  it('la cuenta mira la tabla de ESA entidad: empresas y oportunidades', async () => {
+    // Las tres entidades usan la misma llave a propósito. El contacto de más
+    // arriba tiene `convenio` con valor, así que si el mapa entidad→tabla
+    // apuntara a la tabla equivocada, estos dos números saldrían con el conteo
+    // de contactos y no con el suyo. Es el único lugar donde corren las ramas
+    // 'company' y 'deal' —el nombre de la tabla se interpola en el SQL, así
+    // que un valor malo acá no es un número raro: es un error de Postgres—.
+    await admin.query(
+      `INSERT INTO companies (tenant_id, name, custom) VALUES
+         ($1, 'Ferretería Lo Prado', '{"convenio": "Caja Los Andes"}'::jsonb),
+         ($1, 'Panadería San Juan', '{"convenio": "Caja 18"}'::jsonb),
+         ($1, 'Sin convenio', '{}'::jsonb)`,
       [tenant],
     );
-    await expect(
-      en((c) => deleteCustomField(c, { tenantId: tenant, fieldId: convenio, actor: 'u-sofia' })),
-    ).rejects.toThrow(/no existe en este negocio/);
-    const despues = await admin.query(
-      `SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'fields.delete'`,
-      [tenant],
+
+    const deEmpresa = await en((c) =>
+      createCustomField(c, { tenantId: tenant, entity: 'company', label: 'Convenio', type: 'texto' }),
     );
-    expect(despues.rows[0].n).toBe(antes.rows[0].n);
+    const deOportunidad = await en((c) =>
+      createCustomField(c, { tenantId: tenant, entity: 'deal', label: 'Convenio', type: 'texto' }),
+    );
+    await en((c) => deleteCustomField(c, { tenantId: tenant, fieldId: deEmpresa.id }));
+    await en((c) => deleteCustomField(c, { tenantId: tenant, fieldId: deOportunidad.id }));
+
+    const r = await admin.query(
+      `SELECT resource_id, metadata FROM audit_log
+        WHERE tenant_id = $1 AND action = 'fields.delete' AND resource_id = ANY($2::text[])`,
+      [tenant, [deEmpresa.id, deOportunidad.id]],
+    );
+    const por = Object.fromEntries(r.rows.map((f) => [f.resource_id, f.metadata]));
+    expect(por[deEmpresa.id]).toMatchObject({ entity: 'company', fichasConValor: 2 });
+    // Ninguna oportunidad en este negocio: cero, aunque haya un contacto y dos
+    // empresas con `convenio` cargado.
+    expect(por[deOportunidad.id]).toMatchObject({ entity: 'deal', fichasConValor: 0 });
   });
 });
 
