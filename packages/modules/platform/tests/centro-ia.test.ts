@@ -78,6 +78,28 @@ describe('métricas (#70)', () => {
     expect(porTarea[0].clave).toBe('sugerir');
     expect(porTarea[0].ejecuciones).toBe(4);
 
+    /**
+     * El cruce tarea × proveedor, que es el que contesta qué cambiar (#858).
+     *
+     * «Por tarea» dice que `sugerir` tarda; no dice con cuál proveedor, que
+     * es lo único que se puede mover. Acá las cuatro corridas son de la misma
+     * tarea y de dos proveedores: google responde en ~1 s y zhipu en ~2,8 s.
+     * Agrupadas por tarea serían una fila con la latencia promediada entre
+     * los dos —la lectura que esconde el problema—; separadas, se ve cuál es.
+     *
+     * Es la medición que el 12-10 movió el defecto del producto entero, y
+     * para tenerla hubo que medir a mano contra las dos cuentas.
+     */
+    const cruce = await aiMetrics(admin, { tenantId: tenant, groupBy: 'tarea-proveedor' });
+    expect(cruce).toHaveLength(2);
+    const claves = cruce.map((f) => f.clave).sort();
+    expect(claves).toEqual(['sugerir · google', 'sugerir · zhipu']);
+    const google = cruce.find((f) => f.clave === 'sugerir · google')!;
+    const zhipu = cruce.find((f) => f.clave === 'sugerir · zhipu')!;
+    expect(google.latenciaP50).toBeLessThan(zhipu.latenciaP50!);
+    // Y el costo va al lado, que es el otro medio dato: el lento es el barato.
+    expect(google.costUsd).toBeGreaterThan(zhipu.costUsd);
+
     const porAgente = await aiMetrics(admin, { tenantId: tenant, groupBy: 'agente' });
     expect(porAgente[0].clave).toBe(agente);
   });

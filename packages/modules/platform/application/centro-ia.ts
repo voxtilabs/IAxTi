@@ -9,7 +9,7 @@ import type { Pool } from 'pg';
 // sería tener dos verdades. Langfuse es el enlace profundo al trace, a la
 // generación y a la tool call — que es justo lo que no guardamos.
 
-export type Agrupacion = 'dia' | 'tenant' | 'modelo' | 'agente' | 'tarea';
+export type Agrupacion = 'dia' | 'tenant' | 'modelo' | 'agente' | 'tarea' | 'tarea-proveedor';
 
 const COLUMNA: Record<Agrupacion, string> = {
   dia: "date_trunc('day', e.created_at)::date::text",
@@ -17,7 +17,31 @@ const COLUMNA: Record<Agrupacion, string> = {
   modelo: "e.provider || '/' || e.model",
   agente: 'COALESCE(e.agent_id::text, sin_agente)',
   tarea: 'e.task',
+  /**
+   * El cruce, que es el que contesta la pregunta accionable (#858).
+   *
+   * «Por tarea» dice que `sugerir` tarda 32 s, que es la mitad del dato: la
+   * otra mitad es con cuál proveedor, porque eso es lo que se puede cambiar.
+   * El 12-10 esa respuesta —`sugerir` 32,3 s con GLM contra 4,3 s con
+   * OpenAI— movió el defecto del producto entero, y para tenerla hubo que
+   * medir a mano contra las dos cuentas.
+   *
+   * Y por proveedor y no por modelo: lo que se decide es a qué empresa se le
+   * manda el texto. El modelo se elige después, dentro de esa decisión.
+   */
+  'tarea-proveedor': "e.task || ' · ' || e.provider",
 };
+
+/**
+ * Las agrupaciones válidas, DERIVADAS del mapa de columnas.
+ *
+ * El controlador tenía su propia copia escrita a mano —`['dia', 'tenant',
+ * 'modelo', 'agente', 'tarea']`— así que agregar una acá no alcanzaba: la
+ * ruta la rechazaba con `GROUPBY_INVALID` y el síntoma no se parecía a la
+ * causa. Tres declaraciones de lo mismo (el tipo, el mapa y la ruta) y la
+ * que mandaba era la que estaba más lejos.
+ */
+export const AGRUPACIONES_VALIDAS = Object.keys(COLUMNA) as Agrupacion[];
 
 export interface FilaIA {
   clave: string;
