@@ -1,0 +1,52 @@
+# Módulos que consultan tablas de un módulo que NO declaran en `depends_on` (#784).
+#
+# La regla de `.claude/rules/db.md` decía «consultas de otro módulo:
+# prohibidas», y esa no era la regla: medido el 14/10, cruzan 35 pares de
+# módulos y 16 cruzan hacia algo que ya declaran. Lo prohibido era la práctica
+# mayoritaria, así que la regla escrita pasó a ser la que de verdad rige —
+# cruzar hacia lo que declarás se permite, hacia lo que no declarás no— y esta
+# lista es lo que quedó FUERA de la regla nueva el día que se escribió.
+#
+# Esta lista es un TRINQUETE, no una lista de tareas: la guarda falla si
+# aparece un par nuevo sin declarar, y falla pidiendo bajar la marca si uno de
+# éstos deja de cruzar y nadie lo saca de acá. No afirma que este estado esté
+# bien — impide que empeore.
+#
+# La marca `(lee)` / `(escribe)` es parte del nombre de la entrada a propósito:
+# un par que hoy solo lee y mañana escribe en la tabla ajena aparece como
+# entrada NUEVA y hay que justificarlo. Un `SELECT` que cruza es una
+# dependencia de lectura sobre un esquema ajeno; un `UPDATE` rompe sus
+# invariantes y su auditoría sin pasar por su código, y eso es otra cosa.
+#
+# Declarar la dependencia en `depends_on` es el arreglo de casi todas estas
+# entradas, y es barato: solo `required` entra en el orden topológico de las
+# migraciones (`packages/db/src/migrate.ts`) y en la regla 4 del registry, así
+# que una lectura declarada en `optional` no reordena nada ni bloquea ningún
+# apagado. No se hizo en #784 a propósito: esto mide, y el PR que declare cada
+# par es el que tiene que mirar si ese módulo de verdad degrada sin el otro.
+#
+# Se regenera con: node scripts/consultas-entre-modulos.mjs --escribir
+# (conserva los motivos que ya estaban; los nuevos quedan con SIN MOTIVO y la
+#  guarda falla hasta que alguien escriba el porqué)
+# Y con `--detalle` imprime las tablas y los archivos de cada par, que es lo
+# que hace falta para escribir ese motivo.
+
+analytics→conversations (lee) — El tablero cuenta conversaciones y mide el primer tiempo de respuesta: los dos salen de `conversations` y `messages`, y se agregan a `daily_metrics` en el barrido. Por contrato habría que traerse el mes a memoria para contarlo, que es peor por donde se lo mire; lo que falta es que `analytics` declare `conversations`.
+billing→analytics (lee) — El costo de Meta del período se lee de `daily_metrics` (#66), que ya lo tiene agregado por día. Pedirlo otra vez a `analytics` por contrato sería tener dos verdades del mismo número; el cruce es el correcto y lo que falta es declararlo.
+conversations→authorization (lee) — El round-robin de asignación necesita saber a quién se le puede asignar, y eso son los `user_roles` del tenant. ADR-0008 dice que el único traductor rol → permisos es `authorization`, así que el arreglo es un contrato «usuarios con este permiso» allá; mientras no exista, el cruce vive acá.
+conversations→webchat (escribe) — La purga por retención (SPEC §39) pone en NULL `webchat_sessions.conversation_id` antes de borrar la conversación: es el FK el que obliga, no una regla de negocio. Un contrato de `webchat` para soltar esas conversaciones tendría que correr DENTRO de la misma transacción, o la purga deja huérfanas.
+crm→agents (escribe) — Supresión del titular (Ley 21.719, #81): `suggestions` es el único puente hacia `agent_executions`, y ahí está el texto de la conversación tal como se le mandó al modelo. Borrar los mensajes y dejar esa copia no es una supresión. Las cuatro escrituras de `titular.ts` van en UNA transacción a propósito: repartidas en cuatro contratos, un fallo deja la supresión a medias y eso hay que poder demostrarlo ante quien lo pregunte.
+crm→conversations (escribe) — Supresión y exportación del titular: sus conversaciones y el contenido de sus mensajes también son suyos. La conversación queda vacía y archivada en vez de borrada porque el negocio tiene que seguir sabiendo que hubo un trato, aunque ya no sepa con quién.
+crm→integrations (escribe) — Supresión del titular: el `payload` de la entrega de webhook lleva los datos de la persona tal como salieron hacia afuera. Vaciarlo es parte de la supresión, y en la misma transacción que el resto.
+crm→payments (escribe) — Supresión del titular: el `concept` del link de pago es texto escrito a mano y suele nombrar a la persona. Montos, estados y fechas se conservan por obligación legal de guarda, así que se vacía la columna y no la fila.
+identity→authorization (escribe) — Aceptar una invitación ES asignar un rol: busca en `roles` el rol del negocio o el base, e inserta en `user_roles`. `authorization` ya tiene `assignRole` y pasar por ahí es el arreglo; hoy lo hace sola para que aceptar sea una sola transacción — si el rol se asigna y la invitación no se marca aceptada, la persona queda dentro con una invitación viva que nadie puede volver a usar.
+identity→organizations (lee) — La pantalla «mis negocios» lista los tenants de la persona CON su nombre, así que la consulta que recorre `user_roles` hace `JOIN tenants`. Es un dato de presentación y `organizations` es del núcleo, pero el esquema que se lee es suyo igual.
+notifications→authorization (lee) — A quién se le avisa no es autorización (ADR-0008 gobierna permisos; el ruteo de avisos es otra pregunta), pero para rutear igual pregunta quiénes son ADMIN y SUPERVISOR, y eso vive en `user_roles` y `roles`. Es el mismo contrato que falta para la asignación de `conversations`.
+notifications→conversations (lee) — El aviso de un pago se le manda al dueño de la conversación, y el `owner_id` no viene en el payload del evento: el consumidor lo va a buscar a la tabla. Acá el arreglo no es un contrato sino el evento — `payment.received` tendría que traer a quién le corresponde.
+platform→agents (lee) — El Centro de IA del SuperAdmin (#70, §22) compara costo por modelo y por tenant desde `agent_executions`, que es la tabla que factura, y el panel del Agente General mira lo mismo. La regla del panel es que ningún número se invente: cada uno sale de su fuente real.
+platform→audit (lee) — Los chequeos de salud (#71, §22) cuentan eventos del `audit_log` para decir si algo está pasando. Por el mismo motivo: una fuente que no está conectada tiene que DECIRLO en vez de mostrar un cero tranquilizador, y para eso hay que mirar la fuente.
+platform→channels (lee) — El panel de salud y la ficha del tenant muestran en qué estado quedaron las cuentas de canal. Es diagnóstico de plataforma, no operación del módulo.
+platform→conversations (lee) — La vista previa de la purga por retención por tenant (#69) cuenta cuántas conversaciones se borrarían, para que el SuperAdmin vea exactamente qué borraría antes de tocar el botón.
+platform→integrations (lee) — El chequeo de salud mide los fallos del reparto de webhooks sobre `webhook_deliveries`: es lo que dice si las integraciones de los negocios están entregando.
+platform→whatsapp (lee) — El chequeo de salud cuenta los números conectados y en qué estado están. Mismo caso que el resto del panel.
+whatsapp→conversations (escribe) — El mensaje se crea POR CONTRATO (`deps.crearMensaje`, inyectado) y el sello de la plantilla se pega con SQL porque ese contrato no tiene dónde recibirlo: el adaptador necesita el `providerId` para mandarla como plantilla y no como texto, y un reintento de la cola tiene que mandar exactamente la misma. El arreglo acá es un parámetro en el contrato, no un cruce.

@@ -91,3 +91,15 @@ export type { PlanSembrado, PlanMinQueMiente } from './plan-min-del-manifiesto';
 // Barridos que recorren todos los tenants, con trinquete (#743).
 export { barridosDelRepo, llamadasDeBarrido } from './barridos-sin-lista';
 export type { LlamadaDeBarrido } from './barridos-sin-lista';
+// Qué módulo consulta las tablas de qué otro, con trinquete (#784). Se exporta
+// para que la guarda y el regenerador de la lista lean el MISMO escáner: dos
+// implementaciones del mismo cruce se desincronizan, y ya pasó con el `.sha`
+// del despliegue (#675).
+export {
+  crucesEntreModulos,
+  crucesSinDeclarar,
+  duenosDeTabla,
+  nombreDelCruce,
+  tablasQueConsulta,
+} from './consultas-entre-modulos';
+export type { Cruce, ModuloQueConsulta, TablaConsultada } from './consultas-entre-modulos';
