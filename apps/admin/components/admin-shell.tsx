@@ -1679,14 +1679,21 @@ function DefectoDeIA() {
 
   useEffect(() => {
     if (!session) return;
+    // Los dos fallos se escriben acá y no se lanzan para atraparlos abajo:
+    // lanzar un mensaje propio para volver a leerlo en el `catch` es un rodeo,
+    // y ahí dentro `err.message` mezcla lo nuestro con el texto crudo de un
+    // fallo de red. Son dos cosas distintas y se leen distinto (#788).
     void fetch(`${config.apiUrl}/v1/platform/ia/defectos`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error(`No pudimos leer el defecto de IA (HTTP ${r.status}).`);
+        if (!r.ok) {
+          setAviso(`No pudimos leer el defecto de IA (HTTP ${r.status}).`);
+          return;
+        }
         setDatos((await r.json()) as DefectosDeIaDto);
       })
-      .catch((err: Error) => setAviso(err.message));
+      .catch(() => setAviso('No pudimos hablar con el servidor. Revisa la conexión.'));
   }, [session, config.apiUrl, recarga]);
 
   const guardar = async (tarea: string, cambio: { provider: string; model: string }) => {
