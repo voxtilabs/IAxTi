@@ -14,7 +14,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { apiFetch } from '../lib/api';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 
 /**
  * Los ajustes de IA del negocio (#536).
@@ -49,14 +49,13 @@ interface AjustesDto {
 
 export function AjustesDeIa() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [ajustes, setAjustes] = useState<AjustesDto | null | undefined>();
   const [proveedor, setProveedor] = useState(CUALQUIERA);
   const [taparPii, setTaparPii] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

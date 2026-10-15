@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Merge } from 'lucide-react';
 import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
+import { useSelectedTenant } from '../tenant-switcher';
 import { apiFetch, type FichaContacto } from '../../lib/api';
 
 /**
@@ -38,7 +38,7 @@ export function FusionarDuplicado({
   onFusionado: () => void;
 }) {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [abierto, setAbierto] = useState(false);
   const [q, setQ] = useState('');
   const [candidatos, setCandidatos] = useState<Candidato[] | null>(null);

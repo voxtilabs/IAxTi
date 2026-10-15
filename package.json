@@ -19,6 +19,7 @@
     "columnas": "node scripts/columnas-sin-lector.mjs",
     "respuestas": "node scripts/respuestas-sin-mirar.mjs",
     "avisos": "node scripts/avisos-sin-rastro.mjs",
+    "negocio": "node scripts/el-negocio-se-sigue.mjs",
     "migraciones:virgen": "node scripts/migraciones-en-base-virgen.mjs"
   },
   "devDependencies": {

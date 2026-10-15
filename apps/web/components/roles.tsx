@@ -15,7 +15,7 @@ import {
   Skeleton,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // Roles personalizados (#73): "recepcionista", "contador", "socio" —
@@ -38,7 +38,7 @@ interface PermisoDto {
 
 export function Roles() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [roles, setRoles] = useState<RolDto[] | null>(null);
   const [catalogo, setCatalogo] = useState<PermisoDto[]>([]);
   const [nombre, setNombre] = useState('');
@@ -47,7 +47,6 @@ export function Roles() {
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
+import { useSelectedTenant } from '../tenant-switcher';
 import { apiFetch, type ConversacionItem } from '../../lib/api';
 import { ESTADOS } from '../bandeja/estado';
 
@@ -10,10 +10,9 @@ import { ESTADOS } from '../bandeja/estado';
  *  resueltas y archivadas incluidas — nada se borra, todo se encuentra. */
 export function HistoriaConversaciones({ contactId }: { contactId: string }) {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [items, setItems] = useState<ConversacionItem[] | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

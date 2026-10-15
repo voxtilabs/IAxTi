@@ -4,7 +4,7 @@ import { AvisoResultado, Select, SelectContent, SelectItem, SelectTrigger, Selec
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // Pantalla del ADMIN (#38, según Pulso §39): campos de 46 px con el número
@@ -49,12 +49,11 @@ const MODOS: { value: Ajustes['assignmentMode']; label: string; ayuda: string }[
 
 export function AjustesBandeja() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [ajustes, setAjustes] = useState<Ajustes | null>(null);
   const [aviso, setAviso] = useState<{ tono: 'ok' | 'error'; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;

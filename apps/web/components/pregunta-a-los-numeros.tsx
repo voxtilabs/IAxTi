@@ -10,7 +10,7 @@ import {
   Textarea,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // Preguntarle a los números (#410).
@@ -51,7 +51,7 @@ const DE_DONDE: Record<string, string> = {
 
 export function PreguntaALosNumeros() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [agente, setAgente] = useState<AgenteDto | null>(null);
   const [cargado, setCargado] = useState(false);
   const [pregunta, setPregunta] = useState('');
@@ -60,7 +60,6 @@ export function PreguntaALosNumeros() {
   const [aviso, setAviso] = useState<string | null>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;

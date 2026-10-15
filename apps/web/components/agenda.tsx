@@ -7,7 +7,7 @@ import {
   Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader,
   DialogTitle, Input, Skeleton, useSession, type BadgeRole,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { RecordatoriosDeCita } from './recordatorios-de-cita';
 import { HorariosDeAtencion } from './horarios-de-atencion';
 import { DarUnaHora } from './dar-una-hora';
@@ -77,7 +77,7 @@ function hora(iso: string): string {
 
 export function Agenda() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [citas, setCitas] = useState<CitaDto[] | null>(null);
   const [porCancelar, setPorCancelar] = useState<CitaDto | null>(null);
   const [motivo, setMotivo] = useState('');

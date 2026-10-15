@@ -13,7 +13,7 @@ import {
   Input,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 /**
@@ -37,7 +37,7 @@ interface RespuestaCancelacion {
 
 export function CancelarSuscripcion({ onCancelada }: { onCancelada?: () => void }) {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [abierto, setAbierto] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [ocupado, setOcupado] = useState(false);

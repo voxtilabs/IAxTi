@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from '../tenant-switcher';
+import { useSelectedTenant } from '../tenant-switcher';
 import { apiFetch } from '../../lib/api';
 
 /**
@@ -29,7 +29,7 @@ interface ResultadoSupresion {
 
 export function DerechosDelTitular({ contactId, nombre }: { contactId: string; nombre: string | null }) {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [ocupado, setOcupado] = useState<'exportar' | 'suprimir' | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [motivo, setMotivo] = useState('');

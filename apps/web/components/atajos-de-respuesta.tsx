@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AvisoResultado, Badge, Button, Formulario, Input, Skeleton, Textarea, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, renderQuickReply, type QuickReplyDto } from '../lib/api';
 
 /**
@@ -18,14 +18,13 @@ import { apiFetch, renderQuickReply, type QuickReplyDto } from '../lib/api';
  */
 export function AtajosDeRespuesta() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [items, setItems] = useState<QuickReplyDto[] | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState({ shortcut: '', body: '', scope: 'mio' as 'mio' | 'negocio' });
   const [creando, setCreando] = useState(false);
   const [borrando, setBorrando] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;

@@ -10,7 +10,7 @@ import {
   type BadgeRole,
 } from '@iaxti/ui/react';
 import { ApiError, apiFetch } from '../lib/api';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 
 /**
  * Por qué la IA no está trabajando (#614).
@@ -81,14 +81,13 @@ const TONO_DEL_PASO: Record<PasoDto['estado'], { rol: BadgeRole; texto: string }
 
 export function PorQueLaIaNoTrabaja() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [datos, setDatos] = useState<DiagnosticoDto | null | undefined>();
   const [prueba, setPrueba] = useState<PruebaDto | null | undefined>(null);
   const [probando, setProbando] = useState(false);
   const [abierto, setAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   const mirar = useCallback(async () => {
     if (!session || !tenant) return;

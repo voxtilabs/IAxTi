@@ -4,7 +4,11 @@ import { AvisoResultado, Checkbox, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+// Las dos: `useSelectedTenant` para el render —que tiene que seguir al
+// selector y no puede leer `localStorage` mientras dibuja— y `selectedTenant`
+// suelto para los manejadores, donde se lee en el momento de la acción y
+// siempre es el valor vigente (#789).
+import { selectedTenant, useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // Preferencias de avisos (#55): cada quien elige por tipo y canal; las
@@ -254,11 +258,10 @@ interface SaludPushDto {
 
 export function PreferenciasAvisos() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [prefs, setPrefs] = useState<PrefDto[] | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

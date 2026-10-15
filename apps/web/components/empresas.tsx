@@ -4,7 +4,7 @@ import { AvisoResultado, Checkbox, EncabezadoDePagina, Formulario } from '@iaxti
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, type EmpresaDto } from '../lib/api';
 
 // Empresas (#36, SPEC §10): el CRM cuando quien te compra no es una persona
@@ -22,7 +22,7 @@ interface Contacto {
 
 export function Empresas() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [items, setItems] = useState<EmpresaDto[] | null>(null);
   const [buscar, setBuscar] = useState('');
   const [verArchivadas, setVerArchivadas] = useState(false);

@@ -4,7 +4,7 @@ import { AvisoResultado, EncabezadoDePagina, Formulario } from '@iaxti/ui/react'
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, EstadoVacio, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, type PlantillaDto } from '../lib/api';
 
 // Plantillas de WhatsApp (#44, SPEC §12).
@@ -39,7 +39,7 @@ function variablesDe(texto: string): number[] {
 
 export function Plantillas() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [items, setItems] = useState<PlantillaDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);

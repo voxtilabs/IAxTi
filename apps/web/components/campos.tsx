@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, type CampoDto } from '../lib/api';
 
 // Campos propios del negocio (#34, SPEC §10).
@@ -31,7 +31,7 @@ const ENTIDADES: Array<{ v: CampoDto['entity']; texto: string }> = [
 
 export function Campos() {
   const { config, session } = useSession();
-  const tenant = selectedTenant();
+  const tenant = useSelectedTenant();
   const [campos, setCampos] = useState<CampoDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);

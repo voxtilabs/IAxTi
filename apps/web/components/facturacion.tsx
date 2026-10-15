@@ -4,7 +4,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { LlevarseLosDatos } from './llevarse-los-datos';
 import { CancelarSuscripcion } from './cancelar-suscripcion';
 import { apiFetch, fmtClp } from '../lib/api';
@@ -61,11 +61,10 @@ const ESTADO: Record<string, { label: string; role: 'good' | 'warn' | 'bad' | 'n
 
 export function Facturacion() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [datos, setDatos] = useState<FacturacionDto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

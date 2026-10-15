@@ -16,7 +16,7 @@ import {
   Textarea,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
 import { SubirPdf } from './conocimiento-pdf';
 
@@ -109,7 +109,7 @@ interface ResumenImportacion {
 
 export function Conocimiento() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [fuentes, setFuentes] = useState<FuenteDto[] | null>(null);
   const [kind, setKind] = useState<FuenteDto['kind']>('texto');
   const [nombre, setNombre] = useState('');
@@ -128,7 +128,6 @@ export function Conocimiento() {
   const [productos, setProductos] = useState<ProductoDto[] | null>(null);
   const [resultado, setResultado] = useState<BusquedaDto | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

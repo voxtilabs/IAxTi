@@ -4,7 +4,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 // API keys (#24, SPEC §7/§8): el cliente se integra solo. El token se ve
@@ -31,7 +31,7 @@ interface KeyDto {
 
 export function ApiKeys() {
   const { session, config } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [keys, setKeys] = useState<KeyDto[] | null>(null);
   const [scopes, setScopes] = useState<string[]>([]);
   const [nombre, setNombre] = useState('');
@@ -41,7 +41,6 @@ export function ApiKeys() {
   const [consumo, setConsumo] = useState<ConsumoDto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
     try {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarPlus } from 'lucide-react';
 import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
+import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
 /**
@@ -37,7 +37,7 @@ function hoy(): string {
 
 export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
+  const tenant = useSelectedTenant();
   const [abierto, setAbierto] = useState(false);
   const [dia, setDia] = useState(hoy());
   const [huecos, setHuecos] = useState<Hueco[] | null>(null);
@@ -47,7 +47,6 @@ export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [agendando, setAgendando] = useState<string | null>(null);
 
-  useEffect(() => setTenant(selectedTenant()), []);
 
   const cargarHuecos = useCallback(async () => {
     if (!session || !tenant || !abierto) return;
