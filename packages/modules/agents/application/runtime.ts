@@ -20,6 +20,7 @@ import { aiSdkModelPort, type HerramientaExpuesta, type ModelPortFactory, provid
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 import type { Agent } from './agents';
+import { semillaCacheada } from './defecto-de-la-plataforma';
 
 // El runtime (#47, SPEC §13): una corrida = una Execution completa —
 // entrada, decisión, tokens, costo, latencia, trace y explicación legible.
@@ -135,6 +136,7 @@ export async function runAgentTask(
     await getTenantSettings(client, input.tenantId),
     providerAvailable,
     estaCastigado,
+    await semillaCacheada(client),
   );
   // Por tarea manda la configuración del tenant; el agente es el fallback.
   const porTarea = settings.tasks[input.task];

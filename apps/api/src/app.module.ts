@@ -16,7 +16,16 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { tenantsOf } from '@iaxti/module-identity';
-import { PROVIDERS as PROVIDERS_DE_IA, probarLaIa } from '@iaxti/module-agents';
+import {
+  PROVIDERS as PROVIDERS_DE_IA,
+  PROVEEDORES_QUE_PUEDEN_SER_DEFECTO,
+  ProveedorSinFilaDeCompliance,
+  TareaQueElProveedorNoAtiende,
+  defectosDeLaPlataforma,
+  fijarDefectoDeLaTarea,
+  probarLaIa,
+  type AgentTask,
+} from '@iaxti/module-agents';
 import {
   adminChangePlan,
   adminCreateTenant,
@@ -43,6 +52,7 @@ import {
   tenantDetail,
   tenantRetentionPreview,
   updatePlan,
+  platformAudit,
 } from '@iaxti/module-platform';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
 import type { WithUser } from './authz/authz.guard';
@@ -427,6 +437,25 @@ class ModulesController {
  * dice qué hacer. `null` es cómo se da de baja la ampliación — no un cero, que en
  * una factura se lee como «se cobró $0» en vez de «no se cobró».
  */
+/**
+ * El cuerpo del cambio de defecto (#858).
+ *
+ * `strictObject` como el de #534: un campo que se recibe y se descarta hace
+ * creer que el cambio entró. Y el proveedor se valida contra la lista que de
+ * verdad bloquea, no contra `PROVIDERS`: hay proveedores que un tenant puede
+ * elegir y que NO pueden ser el defecto de la plataforma, porque su fila de la
+ * matriz de compliance no lo declara.
+ */
+const DefectoDeIa = z.strictObject({
+  provider: z.enum(PROVEEDORES_QUE_PUEDEN_SER_DEFECTO as unknown as [string, ...string[]]),
+  model: z.string().min(1),
+  esfuerzo: z.enum(['minimo', 'bajo', 'medio', 'alto']).nullish(),
+}) as unknown as z.ZodType<{
+  provider: (typeof PROVEEDORES_QUE_PUEDEN_SER_DEFECTO)[number];
+  model: string;
+  esfuerzo?: 'minimo' | 'bajo' | 'medio' | 'alto' | null;
+}>;
+
 const AmpliacionDeIa = z.object({
   montoClp: z
     .number({ error: 'Dinos el monto mensual en pesos, o null para quitar la ampliación.' })
@@ -438,6 +467,103 @@ const AmpliacionDeIa = z.object({
 @ApiTags('platform')
 @Controller('platform')
 class PlatformController {
+  /**
+   * El defecto de IA de la plataforma: qué proveedor y modelo atiende cada
+   * tarea (#858).
+   *
+   * Vivía compilado en `DEFAULT_TASK_MODELS`. Moverlo —como el 12-10, cuando
+   * pasó de GLM a OpenAI— era editar un `.ts`, abrir un PR y esperar un
+   * despliegue: media hora de CI para la decisión más caliente del producto,
+   * justo el día en que un proveedor se cae o se queda sin saldo.
+   *
+   * Es de la PLATAFORMA y no del tenant, y eso lo decidió el dueño: «que yo
+   * pueda elegir el modelo default de cada tenant no tiene sentido». Un
+   * defecto por negocio multiplica las combinaciones que hay que probar para
+   * resolver un problema que nadie tiene, y deja el dataset de regresión
+   * midiendo algo que nadie usa.
+   */
+  @Get('ia/defectos')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Proveedor y modelo por tarea de la plataforma' })
+  async defectosDeIa() {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const client = await pool.connect();
+    try {
+      return {
+        tareas: await defectosDeLaPlataforma(client),
+        // Para que el panel ofrezca solo lo que el cambio va a aceptar, en vez
+        // de dejar elegir y rechazar después.
+        proveedoresPermitidos: PROVEEDORES_QUE_PUEDEN_SER_DEFECTO,
+      };
+    } finally {
+      client.release();
+    }
+  }
+
+  @Put('ia/defectos/:tarea')
+  @RequireModule('platform')
+  @RequirePermission('platform.plans')
+  @ApiOperation({ summary: 'Cambia el proveedor y modelo por defecto de una tarea' })
+  async cambiarDefectoDeIa(
+    @Req() request: WithUser,
+    @Param('tarea') tarea: string,
+    @Cuerpo(DefectoDeIa) body: z.infer<typeof DefectoDeIa>,
+  ) {
+    const pool = apiPool();
+    if (!pool) {
+      throw new ServiceUnavailableException({
+        code: 'DB_NOT_CONFIGURED',
+        message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+      });
+    }
+    const quien = request.user!.userId;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const r = await fijarDefectoDeLaTarea(client, {
+        task: tarea as AgentTask,
+        provider: body.provider,
+        model: body.model,
+        esfuerzo: body.esfuerzo ?? null,
+        actor: quien,
+        /**
+         * El rastro lo escribe ACÁ, y en la misma transacción que el cambio.
+         *
+         * `platform_audit` es del módulo `platform` y el caso de uso vive en
+         * `agents`: escribirla desde allá sería una escritura a tabla ajena,
+         * que la regla de `db.md` prohíbe aunque el módulo esté declarado —
+         * rompería sus invariantes sin pasar por su código—. El controlador es
+         * la capa que conoce a los dos.
+         */
+        auditar: (c, cambio) => platformAudit(c, quien, 'ia.defecto_cambiado', cambio),
+      });
+      await client.query('COMMIT');
+      return r;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      // 400 y no 500: las dos son decisiones mal pedidas, no fallas. Y con
+      // códigos distintos porque los motivos no se parecen —uno es de datos
+      // personales y el otro de capacidad del adaptador— y quien los lea tiene
+      // que poder distinguirlos.
+      if (err instanceof ProveedorSinFilaDeCompliance) {
+        throw new BadRequestException({ code: 'PROVEEDOR_SIN_COMPLIANCE', message: err.message });
+      }
+      if (err instanceof TareaQueElProveedorNoAtiende) {
+        throw new BadRequestException({ code: 'TAREA_NO_SOPORTADA', message: err.message });
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   /** Lista read-only para el SuperAdmin (SPEC §22). Mutaciones llegan con #68. */
   @Get('tenants')
   @RequireModule('platform')

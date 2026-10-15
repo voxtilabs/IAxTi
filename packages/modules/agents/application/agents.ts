@@ -4,6 +4,7 @@ import { getTenantSettings } from '@iaxti/module-organizations';
 import { PROVIDERS, iaSettings, type Provider } from '../domain/config';
 import { esObjetivo, type Objetivo } from '../domain/objetivo';
 import { providerAvailable } from './models';
+import { semillaCacheada } from './defecto-de-la-plataforma';
 
 // Agent (#47): el asistente del tenant, con TODO configurable.
 
@@ -96,6 +97,8 @@ export async function createAgent(
   const porDefecto = iaSettings(
     await getTenantSettings(client, input.tenantId),
     providerAvailable,
+    undefined,
+    await semillaCacheada(client),
   ).tasks.sugerir;
   const r = await client.query(
     `INSERT INTO agents

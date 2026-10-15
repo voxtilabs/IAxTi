@@ -4592,6 +4592,56 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "PlatformController_cambiarDefectoDeIa": {
+    "metodo": "PUT",
+    "ruta": "/v1/platform/ia/defectos/{tarea}",
+    "resumen": "Cambia el proveedor y modelo por defecto de una tarea",
+    "permiso": "platform.plans",
+    "modulo": "platform",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "google"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "esfuerzo": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "minimo",
+                "bajo",
+                "medio",
+                "alto"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "tarea",
+        "provider",
+        "model"
+      ],
+      "additionalProperties": false
+    }
+  },
   "PlatformController_createTenant": {
     "metodo": "POST",
     "ruta": "/v1/platform/tenants",
@@ -4612,6 +4662,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string"
         }
       },
+      "additionalProperties": false
+    }
+  },
+  "PlatformController_defectosDeIa": {
+    "metodo": "GET",
+    "ruta": "/v1/platform/ia/defectos",
+    "resumen": "Proveedor y modelo por tarea de la plataforma",
+    "permiso": "platform.plans",
+    "modulo": "platform",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     }
   },

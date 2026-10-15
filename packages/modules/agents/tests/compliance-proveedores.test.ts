@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_TASK_MODELS, PROVIDERS, proveedorPermitidoParaTarea } from '../domain/config';
+import { PROVEEDORES_QUE_PUEDEN_SER_DEFECTO } from '../application/defecto-de-la-plataforma';
 import { ENV_KEYS } from '../application/models';
 
 /**
@@ -106,6 +107,67 @@ describe('openai como cuarto proveedor (#842)', () => {
         `La fila de ${p} no dice que es el proveedor por defecto. Una fila que no distingue ` +
           '«elegible» de «por defecto» no sirve para decidir nada.',
       ).toBe(true);
+    }
+  });
+});
+
+/**
+ * La lista que BLOQUEA y el documento que la explica, atados (#858).
+ *
+ * `PROVEEDORES_QUE_PUEDEN_SER_DEFECTO` impide, en runtime, hacer defecto de la
+ * plataforma a un proveedor cuya fila de la matriz no lo declare. Es una
+ * constante y no una lectura del documento porque la matriz NO viaja en la
+ * imagen —el Dockerfile copia `apps` y `packages`, no `docs`—, así que leerla
+ * en producción fallaría y la guarda quedaría declarada y no aplicada.
+ *
+ * El precio de esa decisión es que la constante puede separarse del
+ * documento. Esto es lo que lo impide, en las dos direcciones.
+ */
+describe('quién puede ser el defecto de la plataforma (#858)', () => {
+  const fila = (proveedor: string) => {
+    const texto = readFileSync(MATRIZ, 'utf8');
+    const nombre = NOMBRE_EN_LA_MATRIZ[proveedor];
+    return texto.split('\n').find((l) => l.startsWith(`| Transferencia internacional · ${nombre}`)) ?? '';
+  };
+
+  /** «es el proveedor por defecto», en presente. El pasado no habilita nada. */
+  const SE_DECLARA_DEFECTO = /\bes el proveedor por defecto\b/i;
+
+  it('cada uno de la lista tiene su fila diciendo que es el defecto', () => {
+    for (const proveedor of PROVEEDORES_QUE_PUEDEN_SER_DEFECTO) {
+      expect(
+        fila(proveedor),
+        `"${proveedor}" puede fijarse como defecto y su fila de COMPLIANCE_BASELINE.md no dice ` +
+          'que lo sea. Escribila primero: esto decide hacia qué empresa y qué país sale el ' +
+          'texto de las conversaciones de todos los negocios.',
+      ).toMatch(SE_DECLARA_DEFECTO);
+    }
+  });
+
+  it('y ninguno de los otros lo dice: la lista no se quedó corta', () => {
+    // La otra dirección, que es la que se olvida: si alguien escribe la fila
+    // de un proveedor nuevo declarándolo defecto y no lo agrega a la lista,
+    // el documento promete algo que el código rechaza.
+    for (const proveedor of PROVIDERS) {
+      if (PROVEEDORES_QUE_PUEDEN_SER_DEFECTO.includes(proveedor)) continue;
+      expect(
+        fila(proveedor),
+        `la fila de "${proveedor}" dice que es el proveedor por defecto y la lista de ` +
+          '`PROVEEDORES_QUE_PUEDEN_SER_DEFECTO` no lo incluye: el documento promete algo que ' +
+          'el código bloquea.',
+      ).not.toMatch(SE_DECLARA_DEFECTO);
+    }
+  });
+
+  it('el defecto compilado de cada tarea está permitido por la lista', () => {
+    // La semilla del código tiene que poder ser, ella misma, un defecto
+    // válido. Si no, el producto arranca con una configuración que su propia
+    // guarda rechazaría.
+    for (const [tarea, modelo] of Object.entries(DEFAULT_TASK_MODELS)) {
+      expect(
+        PROVEEDORES_QUE_PUEDEN_SER_DEFECTO,
+        `la semilla de "${tarea}" usa "${modelo.provider}", que la guarda no deja fijar`,
+      ).toContain(modelo.provider);
     }
   });
 });

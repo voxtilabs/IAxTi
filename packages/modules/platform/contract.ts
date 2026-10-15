@@ -22,6 +22,7 @@ export {
   applyModuleFlags,
   tenantRetentionPreview,
   setRetentionOverridePlatform,
+  platformAudit,
 } from './application/planes';
 export type { PlanRow, ModuleAdminRow } from './application/planes';
 // El centro de control del Agente General (#496, ADR-0025): verlo y poder

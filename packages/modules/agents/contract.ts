@@ -167,3 +167,18 @@ export type { DiagnosticoDeLaIa, PasoDeLaIa } from './application/diagnostico-ia
 // bandeja mostraba solo el modo.
 export { modoConQuienLoPuso } from './application/autonomous';
 export type { ModoDeLaConversacion } from './application/autonomous';
+
+// El defecto de IA de la PLATAFORMA, fuera del código (#858). El panel del
+// SuperAdmin lo lee y lo cambia; el rastro lo escribe quien llama, porque
+// `platform_audit` es de otro módulo.
+export {
+  defectosDeLaPlataforma,
+  fijarDefectoDeLaTarea,
+  semillaEfectiva,
+  semillaCacheada,
+  olvidarLaSemilla,
+  PROVEEDORES_QUE_PUEDEN_SER_DEFECTO,
+  ProveedorSinFilaDeCompliance,
+  TareaQueElProveedorNoAtiende,
+} from './application/defecto-de-la-plataforma';
+export type { DefectoDeLaTarea } from './application/defecto-de-la-plataforma';
