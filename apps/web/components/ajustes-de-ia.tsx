@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   AvisoResultado,
+  Badge,
   Button,
   Select,
   SelectContent,
@@ -45,6 +46,8 @@ interface AjustesDto {
   soloProveedor: string | null;
   redactPII: boolean;
   disponibles: string[];
+  /** Con qué se está atendiendo DE VERDAD cada tarea, ahora (#858). */
+  atendiendo?: Record<string, { provider: string; model: string }>;
 }
 
 export function AjustesDeIa() {
@@ -146,7 +149,66 @@ export function AjustesDeIa() {
           Este ambiente todavía no tiene ningún proveedor configurado.
         </p>
       )}
+
+      <ConQuienTeAtiende atendiendo={ajustes.atendiendo} />
       {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
     </section>
+  );
+}
+
+/**
+ * Con qué se está atendiendo, de verdad (#858).
+ *
+ * Lo que el negocio ELIGE y lo que el producto USA no siempre coinciden, y
+ * las tres razones pasan sin que nadie las anuncie:
+ *
+ * - el defecto de la plataforma, que no es una preferencia suya;
+ * - el respaldo, cuando el proveedor elegido no tiene credencial acá;
+ * - la transcripción, que no puede ir a un proveedor de solo texto aunque el
+ *   negocio haya pedido ese y nada más.
+ *
+ * El caso que esto resuelve: alguien pidió «solo Gemini», ve que sus notas de
+ * voz llegan transcritas igual, y no tiene cómo saber si eso es un error o
+ * está previsto. Decirlo acá es más barato que explicarlo después.
+ *
+ * Se agrupa POR PROVEEDOR y no se lista tarea por tarea: nueve filas con
+ * nombres internos —`configuracion_conversada`— no es información para un
+ * dueño de pyme. Lo que le importa es hacia qué empresas salen sus datos.
+ */
+function ConQuienTeAtiende({
+  atendiendo,
+}: {
+  atendiendo?: Record<string, { provider: string; model: string }>;
+}) {
+  // Ausente y no vacío: una API vieja —durante un despliegue, el front nuevo
+  // convive un rato con ella— no manda el campo, y mostrar «no te atiende
+  // nadie» sería peor que no mostrar nada.
+  if (!atendiendo || Object.keys(atendiendo).length === 0) return null;
+
+  const porProveedor = new Map<string, number>();
+  for (const { provider } of Object.values(atendiendo)) {
+    porProveedor.set(provider, (porProveedor.get(provider) ?? 0) + 1);
+  }
+  const total = Object.keys(atendiendo).length;
+  const ordenados = [...porProveedor.entries()].sort((a, b) => b[1] - a[1]);
+
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      <span className="rotulo">Hoy te atiende</span>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {ordenados.map(([proveedor, cuantas]) => (
+          <li key={proveedor}>
+            <Badge role="neutral">
+              {NOMBRE[proveedor] ?? proveedor}
+              {cuantas === total ? ' · en todo' : ` · ${cuantas} de ${total}`}
+            </Badge>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 max-w-prose text-rotulo text-muted">
+        Esto es lo que el asistente usa ahora mismo, que puede no ser lo que elegiste: si un
+        proveedor no está disponible acá, se usa otro para que tu negocio no deje de responder.
+      </p>
+    </div>
   );
 }

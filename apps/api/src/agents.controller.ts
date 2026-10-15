@@ -1,4 +1,4 @@
-import { diagnosticarLaIa } from '@iaxti/module-agents';
+import { diagnosticarLaIa, semillaCacheada } from '@iaxti/module-agents';
 import {
   BadRequestException,
   Body,
@@ -263,12 +263,33 @@ export class AgentsController {
       getTenantSettings(c, actor.tenantId),
     );
     const ia = iaSettings(settings);
+    /**
+     * Con qué se está atendiendo DE VERDAD, ahora (#858).
+     *
+     * `iaSettings(settings)` a secas devuelve lo que el negocio eligió. Esto
+     * otro aplica lo que el producto de verdad hace: el defecto de la
+     * plataforma —que desde #858 vive en la base—, el respaldo cuando falta
+     * una credencial, y la transcripción que no puede ir a un proveedor de
+     * solo texto aunque el negocio lo haya pedido.
+     *
+     * La pantalla lo necesita porque las tres cosas pasan sin que nadie las
+     * anuncie: alguien que pidió «solo Gemini» y ve sus notas de voz
+     * transcritas no tiene cómo saber que eso es correcto y está previsto.
+     */
+    const efectiva = await withTenant(pool(), actor.tenantId, async (c) =>
+      iaSettings(settings, providerAvailable, undefined, await semillaCacheada(c)),
+    );
+    const atendiendo: Record<string, { provider: string; model: string }> = {};
+    for (const [tarea, modelo] of Object.entries(efectiva.tasks)) {
+      atendiendo[tarea] = { provider: modelo.provider, model: modelo.model };
+    }
     return {
       soloProveedor: ia.soloProveedor,
       redactPII: ia.redactPII,
       // Cuáles tienen llave EN ESTE ambiente: elegir uno sin llave deja al
       // asistente sin contestar, y la pantalla tiene que poder decirlo antes.
       disponibles: PROVIDERS.filter((p) => providerAvailable(p)),
+      atendiendo,
     };
   }
 
