@@ -97,9 +97,16 @@ export type { LlamadaDeBarrido } from './barridos-sin-lista';
 // del despliegue (#675).
 export {
   crucesEntreModulos,
-  crucesSinDeclarar,
+  crucesFueraDeLaRegla,
   duenosDeTabla,
+  medicionDeCruces,
   nombreDelCruce,
+  parDelCruce,
   tablasQueConsulta,
 } from './consultas-entre-modulos';
-export type { Cruce, ModuloQueConsulta, TablaConsultada } from './consultas-entre-modulos';
+export type {
+  Cruce,
+  MedicionDeCruces,
+  ModuloQueConsulta,
+  TablaConsultada,
+} from './consultas-entre-modulos';
