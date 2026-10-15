@@ -219,3 +219,103 @@ describe('cuando falla, dice si el contenedor sale a internet (#241)', () => {
   });
 });
 
+/**
+ * El tope agotado no es un corte de red (#852).
+ *
+ * El discriminador de #241 tiene tres lecturas y antes solo publicaba dos: el
+ * `AbortError` del propio tope entraba por el mismo `catch` que un
+ * `ECONNREFUSED` y salía como «sale a internet: NO (timeout)». Un NO rotundo
+ * sobre algo que nunca se comprobó.
+ *
+ * Y las dos sondas compartían el tope de 2 s, así que un arranque en frío
+ * —que hace tardar a las dos por el mismo motivo— producía exactamente la
+ * lectura «no tiene salida», la que manda a mirar la red del VPS, el firewall
+ * y Cloudflare. Staging contestó eso con `ms: 2003` y veinte segundos después
+ * estaba todo en verde; con ese detalle en la mano se le dijo al dueño que la
+ * base estaba caída, y no lo estaba.
+ *
+ * Estas pruebas tardan porque ejercitan los topes de verdad. Con temporizador
+ * falso no probarían nada de lo que falló: lo que falló fue la relación entre
+ * dos topes reales.
+ */
+describe('tope agotado vs. sin salida: dos cosas distintas (#852)', () => {
+  const FETCH_REAL = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = FETCH_REAL;
+    delete process.env.SUPABASE_URL;
+  });
+
+  /**
+   * Un `fetch` que tarda `ms` y que OBEDECE el `signal`, como undici.
+   *
+   * Lo segundo es la mitad que importa, y se aprendió al revés: la primera
+   * versión de este doble resolvía a los 3 s ignorando el `signal`, así que
+   * «443 contesta pasado el tope de la base» pasaba igual con el tope
+   * compartido de 2 s — la prueba del tope propio no probaba el tope. Un doble
+   * que no aborta convierte cualquier tope en ninguno.
+   */
+  function fetchQueTarda(ms: number): typeof fetch {
+    return ((_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise((resolver, rechazar) => {
+        const t = setTimeout(() => resolver(new Response('ok')), ms);
+        init?.signal?.addEventListener('abort', () => {
+          clearTimeout(t);
+          rechazar(new DOMException('This operation was aborted', 'AbortError'));
+        });
+      })) as unknown as typeof fetch;
+  }
+
+  it('las dos sondas agotan su tope a la vez: no concluye nada sobre la red', async () => {
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    // Nunca llega a contestar: solo lo corta el tope. Es el arranque en frío.
+    globalThis.fetch = fetchQueTarda(60_000);
+    // El pooler frío no contesta y el 443 tampoco: el caso que mentía.
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+
+    const r = await checkReadiness(pool);
+    const pg = r.dependencias.find((d) => d.nombre === 'postgres')!;
+
+    expect(pg.detalle).toContain('no se pudo comprobar');
+    expect(pg.detalle).toContain('no concluyente');
+    // Esto es lo que se arregló: antes decía justo esto, y era falso.
+    expect(pg.detalle).not.toContain('sale a internet: NO');
+    // Y lo que NO se aflojó: el fallo de la base sigue siendo un fallo. Si
+    // esto se pusiera en verde, la sonda de diagnóstico habría empezado a
+    // decidir la salud y un corte real se publicaría como instancia lista.
+    expect(pg.ok).toBe(false);
+    expect(r.status).toBe('degraded');
+  }, 20_000);
+
+  it('un corte de verdad sigue siendo un NO: el ruido no se cambió por silencio', async () => {
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    // Sin salida, la pila de red contesta rápido y con nombre propio: eso sí
+    // concluye. Es la mitad de la distinción que la otra prueba no cubre.
+    globalThis.fetch = (async () => {
+      throw Object.assign(new Error('connect ECONNREFUSED 10.0.0.1:443'), { code: 'ECONNREFUSED' });
+    }) as unknown as typeof fetch;
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    expect(pg.detalle).toContain('sale a internet: NO');
+    expect(pg.detalle).toContain('ECONNREFUSED');
+    expect(pg.detalle).not.toContain('no se pudo comprobar');
+  }, 20_000);
+
+  it('la sonda de salida tiene más tope que la base: alcanza a contestar y distingue', async () => {
+    process.env.SUPABASE_URL = 'https://proyecto.supabase.co';
+    process.env.DATABASE_URL = 'postgres://u:p@db.ejemplo.com:6543/postgres';
+    // 443 contesta a los 3 s: pasado el tope de la base, dentro del propio.
+    // Con el tope compartido de 2 s esto se reportaba como «no tiene salida»,
+    // que era la lectura más alarmante de las tres y la equivocada.
+    globalThis.fetch = fetchQueTarda(3000);
+    const pool = { query: () => new Promise(() => {}) } as unknown as Pool;
+
+    const pg = (await checkReadiness(pool)).dependencias.find((d) => d.nombre === 'postgres')!;
+    // La lectura útil: sale a internet, le bloquean ESE puerto.
+    expect(pg.detalle).toContain('sale a internet: sí');
+    expect(pg.detalle).toContain('puerto 6543');
+  }, 20_000);
+});
+

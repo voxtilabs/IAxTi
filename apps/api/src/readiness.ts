@@ -45,6 +45,30 @@ export interface Readiness {
 const TIMEOUT_MS = 2000;
 
 /**
+ * La sonda de salida tiene su propio tope, y más largo que el de la base (#852).
+ *
+ * Compartían los 2 s, y eso rompía justo lo que la sonda viene a hacer. Un
+ * arranque en frío hace tardar a las DOS por el mismo motivo —el contenedor
+ * recién levantado—, así que las dos agotaban el tope juntas y salía la
+ * lectura «443 no + 6543 no», que es «el contenedor no tiene salida»: la más
+ * alarmante de las tres y la que manda a mirar la red del VPS, el firewall y
+ * Cloudflare. Medido en staging: `ms: 2003`, y veinte segundos después todo en
+ * verde. No había nada roto.
+ *
+ * El trabajo de esta sonda es DISTINGUIR, y para distinguir necesita
+ * completarse: cortarla al mismo tiempo que la base la deja sin respuesta
+ * precisamente cuando más se la necesita. Cinco segundos es lo que el pool de
+ * Postgres se da a sí mismo antes de rendirse, así que no es un número nuevo.
+ *
+ * Lo que cuesta: en rojo, `/ready` puede tardar hasta 7 s en vez de 4 (la base
+ * agota sus 2 s y después ésta los suyos). Se paga solo en el camino que ya
+ * falló —en verde no se llama a nadie— y la readinessProbe del chart ya no
+ * espera tanto de todos modos. Si alguien lo vuelve a igualar a TIMEOUT_MS,
+ * vuelve el falso «no tiene salida» en cada arranque en frío.
+ */
+const TIMEOUT_SALIDA_MS = 5000;
+
+/**
  * El motivo del último fallo de cada dependencia.
  *
  * El tope corta a los 2 s y el error de verdad llega después —el pool se
@@ -108,6 +132,10 @@ let redisSonda: ReturnType<typeof redisConnection> | null = null;
  *
  *   443 ok  + 6543 no  → sale a internet, le bloquean el puerto de Postgres
  *   443 no  + 6543 no  → no tiene salida y el puerto no tiene nada que ver
+ *   443 sin respuesta  → no se pudo comprobar; de la red no se dice nada
+ *
+ * Esa tercera lectura existe porque faltaba (#852): sin ella, el tope agotado
+ * se publicaba como la segunda, que es la alarmante.
  *
  * Solo corre cuando Postgres YA falló: en verde no se le hace ni una llamada
  * a nadie. Y NO decide la salud — una sonda de diagnóstico que tumbe el
@@ -117,21 +145,37 @@ async function salidaAInternet(): Promise<string | null> {
   const base = process.env.SUPABASE_URL;
   if (!base) return null;
   const inicio = Date.now();
+  const control = new AbortController();
+  const corte = setTimeout(() => control.abort(), TIMEOUT_SALIDA_MS);
   try {
-    const control = new AbortController();
-    const corte = setTimeout(() => control.abort(), 2000);
-    try {
-      await fetch(`${base.replace(/\/$/, '')}/auth/v1/health`, {
-        method: 'GET',
-        signal: control.signal,
-      });
-      return `sale a internet: sí (Supabase por 443 en ${Date.now() - inicio} ms)`;
-    } finally {
-      clearTimeout(corte);
-    }
+    await fetch(`${base.replace(/\/$/, '')}/auth/v1/health`, {
+      method: 'GET',
+      signal: control.signal,
+    });
+    return `sale a internet: sí (Supabase por 443 en ${Date.now() - inicio} ms)`;
   } catch (err) {
-    // Cualquier fallo sirve igual: lo que importa es que tampoco por 443.
-    return `sale a internet: NO (${(err as Error).name === 'AbortError' ? 'timeout' : (err as Error).message.slice(0, 60)})`;
+    // «No contestó a tiempo» y «no hay salida» son dos cosas, y acá se
+    // reportaban igual: el AbortError del tope entraba por el mismo `catch` que
+    // un ECONNREFUSED y salía como «NO (timeout)» — un NO rotundo sobre algo
+    // que nunca se comprobó. Eso es peor que el detalle vacío que #241 vino a
+    // cerrar: un diagnóstico que dice algo y es falso se cree, y manda a
+    // revisar la red por un problema que no es de red. Pasó: con este texto en
+    // la mano se le dijo al dueño que staging estaba caído de la base, y no lo
+    // estaba.
+    //
+    // No concluyente NO es afirmar que hay salida: sigue siendo el fallo de
+    // postgres y sigue devolviendo 503. Lo único que se retira es la
+    // conclusión sobre la red, que es la parte que no se ganó. Si alguien
+    // junta otra vez las dos ramas, un corte real y un arranque en frío
+    // vuelven a verse iguales.
+    if ((err as Error).name === 'AbortError') {
+      return `sale a internet: no se pudo comprobar (no concluyente: 443 tampoco contestó en ${TIMEOUT_SALIDA_MS} ms)`;
+    }
+    // Un fallo con nombre propio sí concluye: hubo respuesta de la red y fue
+    // que no se llega.
+    return `sale a internet: NO (${(err as Error).message.slice(0, 60)})`;
+  } finally {
+    clearTimeout(corte);
   }
 }
 
