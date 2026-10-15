@@ -115,6 +115,27 @@ export const TIMEOUT_SALIDA_MS = 5000;
 const VENTANA_DE_ARRANQUE_MS = 60_000;
 
 /**
+ * Hace cuánto arrancó este proceso, EN MILISEGUNDOS.
+ *
+ * Está afuera y exportada para que exista una forma de probarla, y eso no es
+ * ceremonia: era la única línea del mecanismo nuevo que de verdad corre en
+ * producción, y no la tocaba ninguna prueba —las 19 inyectan
+ * `levantadoHaceMs` a mano—. Lo midió la revisión: cambiando esto a
+ * `process.uptime()` pelado, sin el `* 1000`, los 34 tests de readiness
+ * quedaban VERDES. En producción ese error de unidades marcaría cada pod como
+ * «arrancando» durante sus primeras 16,7 horas, y la rama que dice «sale a
+ * internet: NO» no se emitiría nunca. La mitad del arreglo apagada, en
+ * silencio y sin un solo rojo.
+ *
+ * `process.uptime()` devuelve SEGUNDOS con decimales; la ventana de arranque y
+ * todos los topes de este archivo están en milisegundos. Mezclar las dos
+ * unidades es el error más fácil de cometer acá y el más difícil de ver.
+ */
+export function levantadoHaceMs(): number {
+  return process.uptime() * 1000;
+}
+
+/**
  * Ajustes de la sonda. En producción NO los pasa nadie.
  *
  * El controlador llama `checkReadiness(apiPool(), 'api')` y se lleva los
@@ -371,8 +392,8 @@ export async function checkReadiness(
 ): Promise<Readiness> {
   const topeMs = opciones.topeMs ?? TIMEOUT_MS;
   const topeDeSalidaMs = opciones.topeDeSalidaMs ?? TIMEOUT_SALIDA_MS;
-  const levantadoHaceMs = opciones.levantadoHaceMs ?? process.uptime() * 1000;
-  const arrancando = levantadoHaceMs < (opciones.ventanaDeArranqueMs ?? VENTANA_DE_ARRANQUE_MS);
+  const desdeQueArranco = opciones.levantadoHaceMs ?? levantadoHaceMs();
+  const arrancando = desdeQueArranco < (opciones.ventanaDeArranqueMs ?? VENTANA_DE_ARRANQUE_MS);
   const dependencias: Dependencia[] = [];
 
   if (pool) {
@@ -390,12 +411,12 @@ export async function checkReadiness(
       // casi siempre «esperá y volvé a pedir». Que es, literalmente, lo que
       // el issue cuenta que pasó: veinte segundos después estaba todo verde.
       const puerto = puertoDeLaBase();
-      const salida = await salidaAInternet(topeDeSalidaMs, arrancando, levantadoHaceMs);
+      const salida = await salidaAInternet(topeDeSalidaMs, arrancando, desdeQueArranco);
       const partes = [
         sonda.detalle ?? 'no conecta',
         puerto ? `puerto ${puerto}` : null,
         arrancando
-          ? `el proceso lleva ${haceCuanto(levantadoHaceMs)} levantado: todavía está arrancando`
+          ? `el proceso lleva ${haceCuanto(desdeQueArranco)} levantado: todavía está arrancando`
           : null,
         salida,
       ].filter(Boolean);

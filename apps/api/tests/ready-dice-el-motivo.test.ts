@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
-import { checkReadiness, TIMEOUT_MS, TIMEOUT_SALIDA_MS } from '../src/readiness';
+import { checkReadiness, levantadoHaceMs, TIMEOUT_MS, TIMEOUT_SALIDA_MS } from '../src/readiness';
 
 /**
  * `/ready` tiene que decir POR QUÉ, no solo que no llegó (#241).
@@ -503,5 +503,51 @@ describe('el detalle avisa cuando el proceso recién arrancó (#852)', () => {
       globalThis.fetch = anterior;
       delete process.env.SUPABASE_URL;
     }
+  });
+});
+
+/**
+ * La única línea del mecanismo que corre en producción.
+ *
+ * Las 19 pruebas de arriba inyectan `levantadoHaceMs` a mano, así que ninguna
+ * ejercita el valor por omisión — y ése es el que decide, en el servidor de
+ * verdad, si un 443 mudo se lee como «todavía está arrancando» o como «no hay
+ * salida».
+ *
+ * Lo midió la revisión de este cambio: con `process.uptime()` pelado, sin el
+ * `* 1000`, los 34 tests quedaban VERDES. En producción ese error de unidades
+ * marcaría cada pod como «arrancando» durante sus primeras 16,7 horas y la
+ * rama del «NO» no se emitiría nunca: la mitad del arreglo apagada, en
+ * silencio y sin un solo rojo.
+ *
+ * `process.uptime()` devuelve SEGUNDOS con decimales y todo lo demás de este
+ * archivo está en milisegundos. Es el error más fácil de cometer acá y el más
+ * difícil de ver.
+ */
+describe('hace cuánto arrancó el proceso (#852)', () => {
+  it('viene en milisegundos, no en segundos', async () => {
+    // Se espera a tener más de dos segundos de vida para que la comparación no
+    // dependa de cuán rápido arrancó vitest: con el defecto de unidades, el
+    // valor sería ~2 y la aserción de abajo pide ~2000.
+    while (process.uptime() < 2.2) await new Promise((listo) => setTimeout(listo, 100));
+
+    const ms = levantadoHaceMs();
+    const segundos = process.uptime();
+
+    // En la misma unidad que la ventana de arranque y que los topes: si esto
+    // devolviera segundos, `ms / 1000` daría milésimas de segundo y quedaría
+    // muy por debajo.
+    expect(ms / 1000).toBeGreaterThan(segundos - 2);
+    expect(ms / 1000).toBeLessThan(segundos + 2);
+    // Y el piso duro, que es lo que de verdad caza el `* 1000` perdido: un
+    // proceso con más de dos segundos de vida tiene más de dos mil
+    // milisegundos.
+    expect(ms).toBeGreaterThan(2000);
+  });
+
+  it('crece, o sea que mide ESTE proceso y no un número fijo', async () => {
+    const antes = levantadoHaceMs();
+    await new Promise((listo) => setTimeout(listo, 60));
+    expect(levantadoHaceMs()).toBeGreaterThan(antes);
   });
 });
