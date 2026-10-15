@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AuditExplorer,
   Badge,
+  Button,
   MarcaJelly,
   ModeToggle,
   RequireSession,
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
   SessionProvider,
+  Skeleton,
   useSession,
   useMarcaSvg,
   type AuditFetcher,
@@ -1100,6 +1102,23 @@ function SeguridadYSalud() {
 }
 
 
+/** Lo que devuelve `GET /platform/ia/defectos` (#858). */
+interface DefectoDeTareaDto {
+  provider: string;
+  model: string;
+  esfuerzo: string | null;
+  /** `false` cuando sale de la semilla del código y nadie lo cambió. */
+  desdeLaBase: boolean;
+  cambiadoPor: string | null;
+  cambiadoEl: string | null;
+}
+
+interface DefectosDeIaDto {
+  tareas: Record<string, DefectoDeTareaDto>;
+  /** Los que la matriz de compliance declara como defecto, y nada más. */
+  proveedoresPermitidos: string[];
+}
+
 interface FilaIADto {
   clave: string;
   ejecuciones: number;
@@ -1640,6 +1659,177 @@ function AgenteGeneralPanel() {
   );
 }
 
+/**
+ * El defecto de IA de la plataforma, editable sin desplegar (#858).
+ *
+ * Vivía compilado: moverlo era un PR y media hora de CI, justo el día en que
+ * un proveedor se cae o se queda sin saldo. Va arriba del Centro de IA porque
+ * esto es la causa de lo que ese panel mide.
+ *
+ * Solo se ofrecen los proveedores que la matriz de compliance declara como
+ * defecto, y la lista la manda el servidor: dejar elegir y rechazar después
+ * sería enseñarle a alguien una opción que no existe.
+ */
+function DefectoDeIA() {
+  const { session, config } = useSession();
+  const [datos, setDatos] = useState<DefectosDeIaDto | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
+
+  useEffect(() => {
+    if (!session) return;
+    void fetch(`${config.apiUrl}/v1/platform/ia/defectos`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`No pudimos leer el defecto de IA (HTTP ${r.status}).`);
+        setDatos((await r.json()) as DefectosDeIaDto);
+      })
+      .catch((err: Error) => setAviso(err.message));
+  }, [session, config.apiUrl, recarga]);
+
+  const guardar = async (tarea: string, cambio: { provider: string; model: string }) => {
+    if (!session) return;
+    setGuardando(tarea);
+    setAviso(null);
+    try {
+      const r = await fetch(`${config.apiUrl}/v1/platform/ia/defectos/${tarea}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...cambio,
+          esfuerzo: datos?.tareas[tarea]?.esfuerzo ?? null,
+        }),
+      });
+      if (!r.ok) {
+        // El mensaje del servidor y no uno nuestro: cuando rechaza, explica
+        // POR QUÉ —la fila de compliance que falta, o la tarea que ese
+        // proveedor no atiende— y eso es lo que hay que leer.
+        const cuerpo = (await r.json().catch(() => null)) as { message?: string } | null;
+        setAviso(cuerpo?.message ?? `No pudimos guardarlo (HTTP ${r.status}).`);
+        return;
+      }
+      setRecarga((n) => n + 1);
+    } catch {
+      setAviso('No pudimos hablar con el servidor. Revisa la conexión.');
+    } finally {
+      setGuardando(null);
+    }
+  };
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-xl font-bold text-ink">Con qué atiende cada tarea</h2>
+      <p className="mb-4 max-w-prose text-sm text-muted">
+        El proveedor y modelo por defecto de la plataforma, para todos los negocios. Cambiarlo
+        tiene efecto en segundos y queda en el libro con quién fue. Solo aparecen los proveedores
+        cuya fila de la matriz de compliance los declara como defecto: esto decide hacia qué
+        empresa y qué país sale el texto de las conversaciones.
+      </p>
+      {aviso && <AvisoResultado>{aviso}</AvisoResultado>}
+      {datos === null ? (
+        <Skeleton className="h-64" />
+      ) : (
+        <div className="overflow-x-auto rounded-tarjeta border border-line bg-raised">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-line text-rotulo text-muted">
+                {['Tarea', 'Proveedor', 'Modelo', 'Esfuerzo', 'Quién lo cambió', ''].map((h) => (
+                  <th key={h} className="p-3 font-normal" scope="col">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(datos.tareas).map(([tarea, d]) => (
+                <FilaDelDefecto
+                  key={tarea}
+                  tarea={tarea}
+                  defecto={d}
+                  proveedores={datos.proveedoresPermitidos}
+                  guardando={guardando === tarea}
+                  onGuardar={(cambio) => void guardar(tarea, cambio)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilaDelDefecto({
+  tarea,
+  defecto,
+  proveedores,
+  guardando,
+  onGuardar,
+}: {
+  tarea: string;
+  defecto: DefectoDeTareaDto;
+  proveedores: string[];
+  guardando: boolean;
+  onGuardar: (cambio: { provider: string; model: string }) => void;
+}) {
+  const [provider, setProvider] = useState(defecto.provider);
+  const [model, setModel] = useState(defecto.model);
+  const cambiado = provider !== defecto.provider || model !== defecto.model;
+
+  return (
+    <tr className="border-b border-line last:border-0">
+      <th className="p-3 font-normal text-ink" scope="row">
+        {tarea}
+      </th>
+      <td className="p-3">
+        <select
+          aria-label={`Proveedor de ${tarea}`}
+          className="min-h-control rounded-campo border border-line bg-bg px-2 text-sm text-ink"
+          value={provider}
+          onChange={(e) => setProvider(e.target.value)}
+        >
+          {/* El de la fila va siempre, aunque ya no se pueda elegir: una tarea
+              que quedó en un proveedor retirado tiene que poder verse. */}
+          {[...new Set([defecto.provider, ...proveedores])].map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="p-3">
+        <input
+          aria-label={`Modelo de ${tarea}`}
+          className="dato min-h-control w-44 rounded-campo border border-line bg-bg px-2 text-sm text-ink"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+        />
+      </td>
+      <td className="dato p-3 text-xs text-muted">{defecto.esfuerzo ?? '—'}</td>
+      <td className="p-3 text-xs text-muted">
+        {/* «Viene del código» no es lo mismo que «nadie lo cambió nunca»: lo
+            primero dice que lo que se ve es la semilla del repo. */}
+        {defecto.desdeLaBase ? (defecto.cambiadoPor ?? 'alguien') : 'viene del código'}
+      </td>
+      <td className="p-3 text-right">
+        <Button
+          variant="fantasma"
+          size="chico"
+          disabled={!cambiado || guardando}
+          onClick={() => onGuardar({ provider, model })}
+        >
+          {guardando ? 'Guardando…' : 'Guardar'}
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
 function CentroIA() {
   const { session, config } = useSession();
   const [groupBy, setGroupBy] = useState<string>('modelo');
@@ -1908,6 +2098,7 @@ export function AdminShell({ config, marcaSvg }: { config: PublicConfig; marcaSv
                 crítica, y su interruptor es lo primero que alguien busca
                 cuando algo va mal (#496). */}
             <AgenteGeneralPanel />
+            <DefectoDeIA />
             <CentroIA />
             <PromptsVivos />
             <ColaDeBorrado />
