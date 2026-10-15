@@ -20,7 +20,9 @@ misma transacción.
 ## Consecuencias
 - Prohibido condicionar por rol en código; verificable con grep en CI.
 - El SuperAdmin es cross-tenant y cada acción suya queda en audit.
-- `permission.denied` es un evento que alimenta el panel de seguridad.
+- El rechazo de permiso va al libro de auditoría (`action = 'permission.denied'`)
+  y el panel de seguridad lo lee de ahí: una fuente, no dos. No es un evento del
+  catálogo; esta línea decía que sí y nadie lo publicaba ni lo consumía (#793).
 
 ## Se revisa cuando
 Nunca el principio; el catálogo evoluciona con los manifiestos.

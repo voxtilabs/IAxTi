@@ -94,7 +94,7 @@ flowchart LR
   RID --> M{"@RequireModule<br/>¿activo para el tenant?"}
   M -->|no| MD[403 MODULE_DISABLED]
   M -->|sí| PERM{"@RequirePermission<br/>rol → paquete de permisos"}
-  PERM -->|no| DEN[403 + evento permission.denied]
+  PERM -->|no| DEN["403 + audit_log<br/>action permission.denied"]
   PERM -->|sí| TEN{tenant context<br/>SET app.tenant_id}
   TEN --> OBJ{¿dueño / equipo<br/>del objeto?}
   OBJ -->|no| DEN

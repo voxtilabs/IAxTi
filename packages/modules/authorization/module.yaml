@@ -13,7 +13,15 @@ events:
   publishes:
     - role.created
     - role.assigned
-    - permission.denied
+    # Acá estuvo `permission.denied` y no lo publicaba nadie (#793). Lo que
+    # existe con ese nombre es una ACCIÓN de auditoría: el guard la escribe en
+    # `audit_log` (apps/api/src/auth/registrar-rechazo.ts) y el panel de
+    # seguridad la cuenta de ahí con un `WHERE action = ...`. Una fuente, no
+    # dos (#72). Declararlo como evento prometía algo que nunca llega: quien
+    # cablee un consumidor leyendo este manifiesto —o un webhook saliente, que
+    # recibe el catálogo entero— espera para siempre, sin error y sin aviso.
+    # Si alguna vez hay que REACCIONAR a un rechazo (bloquear al actor, avisar
+    # al ADMIN del tenant), se vuelve a declarar Y se emite, en ese orden.
   consumes: []
 tools: []
 nav:

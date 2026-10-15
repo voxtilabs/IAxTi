@@ -24,9 +24,11 @@ async update(@Tenant() t, @Actor() a, @Param('id') id, dto) {
 }
 ```
 
-Sin permiso → 403 con formato único + evento `permission.denied`. Módulo
-apagado → `MODULE_DISABLED`. RLS es la segunda cerradura: el guard nunca la
-reemplaza ni al revés.
+Sin permiso → 403 con formato único + una fila en `audit_log` con
+`action = 'permission.denied'`, que es de donde el panel de seguridad cuenta los
+rechazos. No hay evento del catálogo con ese nombre: acá decía que sí y nadie lo
+publicaba (#793). Módulo apagado → `MODULE_DISABLED`. RLS es la segunda
+cerradura: el guard nunca la reemplaza ni al revés.
 
 ## Quién porta permisos
 
