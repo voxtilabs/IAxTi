@@ -216,3 +216,103 @@ export function destinosQuePuedeAbrir(
   const tiene = new Set(permisos);
   return items.filter((item) => tiene.has(item.permission));
 }
+
+/**
+ * Las rutas de `apps/web/app` que ninguna entrada del `nav` cubre, con su
+ * motivo (#815).
+ *
+ * La guarda de abajo tiene defecto PERMITIR, y eso es a propósito: negar por
+ * omisión convertiría cada pantalla nueva en un «esto no es para ti» hasta que
+ * alguien se acordara de declararla en el manifiesto, y el día que
+ * `GET /modules/catalogo` no conteste —que pasa, #679— dejaría a todo el mundo
+ * sin producto en vez de sin menú.
+ *
+ * El costo de ese defecto es que una ruta sin regla no se distingue de un
+ * olvido. Esta lista es lo que lo hace mirable: están escritas, con el motivo
+ * por el que ninguna puede exigir un permiso.
+ *
+ * Medido el 14/10: `apps/web/app` tiene 31 `page.tsx` y los 19 manifiestos
+ * declaran 25 entradas de `nav`, que cubren 27 de ellas —`/contactos/[id]` y
+ * `/contactos/importar` quedan dentro de `/contactos`—. Estas son las cuatro
+ * que faltan.
+ *
+ * `apps/web/tests/menu-lleva-a-alguna-parte.test.ts` mantiene la lista honesta
+ * en los dos sentidos: una pantalla nueva que ningún `nav` cubra y que no esté
+ * anotada acá pone la prueba roja, y una anotación que ya sobra también.
+ */
+export const RUTAS_SIN_REGLA_DE_PERMISO: Record<string, string> = {
+  '/': 'La puesta en marcha, que es a donde llega quien recién entró: no puede exigir nada. Cada widget que trae sí comprueba el suyo, por su cuenta (#517).',
+  '/login': 'Se abre SIN sesión. Acá todavía no hay permisos que consultar, y de hecho es donde se consiguen.',
+  '/invitacion/[token]': 'Quien acepta una invitación todavía no es parte del negocio: la credencial es el token del enlace, no un rol.',
+  '/webchat/[widgetId]': 'El widget público, que carga en el sitio del cliente para un visitante anónimo: no hay sesión ni negocio elegido.',
+};
+
+/**
+ * Qué entrada del menú cubre una ruta, si alguna (#815).
+ *
+ * El criterio de pertenencia es el que el shell ya usaba para rotular la barra
+ * —`/contactos/abc-123` está «en» `/contactos`—, así que una ficha o un detalle
+ * hereda el permiso de su sección en vez de quedar sin regla.
+ *
+ * Gana la entrada MÁS específica y no la primera que calce: si algún día
+ * conviven `/ajustes` y `/ajustes/roles`, abrir roles tiene que exigir
+ * `roles.read` y no el permiso de la pantalla de ajustes, que es el más barato
+ * de los dos. Resolverlo por orden de llegada haría que el permiso efectivo
+ * dependiera del orden en que el catálogo concatena los módulos.
+ */
+export function destinoQueCubre(destinos: NavItem[], ruta: string | null): NavItem | null {
+  if (!ruta) return null;
+  let elegido: NavItem | null = null;
+  for (const destino of destinos) {
+    // `${path}/` y no `path` a secas: sin la barra, `/ajustes/banderas` quedaría
+    // «dentro» de `/ajustes/bandeja` el día que exista.
+    if (destino.path !== ruta && !ruta.startsWith(`${destino.path}/`)) continue;
+    if (elegido === null || destino.path.length > elegido.path.length) elegido = destino;
+  }
+  return elegido;
+}
+
+/**
+ * Si esta persona puede ABRIR esta ruta, no solo verla en el menú (#815).
+ *
+ * `destinosQuePuedeAbrir` escondió del menú los destinos sin permiso (#814), y
+ * esconder la puerta no es cerrarla: entrar por URL a `/ajustes/roles` siendo
+ * USER seguía montando la pantalla, que pedía sus datos, comía un 403 y
+ * mostraba el texto crudo del error. O sea decía «algo se rompió» donde lo que
+ * pasa es «esto no es para ti». Los datos nunca estuvieron en riesgo —la API
+ * exige el permiso en cada ruta y eso no cambia— pero un enlace pasado entre
+ * compañeros de distinto rol llevaba a esa pantalla siempre.
+ *
+ * ## Las dos ramas donde esto se escribe mal
+ *
+ * **Se cruza contra la lista SIN filtrar.** Si se le pasara el `nav` ya
+ * filtrado por `destinosQuePuedeAbrir`, una ruta cuyo permiso falta y una ruta
+ * que ninguna entrada cubre serían el MISMO caso —ninguna calza— y con defecto
+ * permitir la guarda no cerraría absolutamente nada: compilaría, pasaría una
+ * prueba escrita de memoria y dejaría el agujero intacto.
+ *
+ * **`permisos === null` permite.** Es «no pudimos averiguarlo», no «ningún
+ * permiso»: el arranque en vuelo manda `null` en el primer render de cada
+ * carga. Negar ahí le parpadearía un «esto no es para ti» en cada recarga a
+ * quien sí tiene acceso, y dejaría a todo el mundo fuera cuando el conjunto no
+ * se pueda resolver. Un conjunto VACÍO sí es una respuesta y sí cierra: un rol
+ * sin permisos no tiene a dónde ir. Misma regla de tres ramas que el menú, por
+ * el mismo motivo.
+ */
+export function puedeAbrirLaRuta(entrada: {
+  /** Todos los destinos del catálogo, SIN filtrar por permiso. */
+  destinos: NavItem[];
+  /** La ruta actual (`usePathname()`), o `null` si todavía no se sabe. */
+  ruta: string | null;
+  /** Lo que esta persona puede hacer, o `null` si no se pudo averiguar. */
+  permisos: readonly string[] | null;
+}): { puede: true } | { puede: false; destino: NavItem } {
+  if (entrada.permisos === null) return { puede: true };
+  const destino = destinoQueCubre(entrada.destinos, entrada.ruta);
+  // Sin entrada que la cubra se permite, y el motivo de cada una de esas rutas
+  // está escrito arriba, en `RUTAS_SIN_REGLA_DE_PERMISO`.
+  if (destino === null || !destino.permission) return { puede: true };
+  return entrada.permisos.includes(destino.permission)
+    ? { puede: true }
+    : { puede: false, destino };
+}

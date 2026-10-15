@@ -16,7 +16,8 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { ApiError, apiFetch } from '../lib/api';
+import { SinPermiso } from './sin-permiso';
 
 // Roles personalizados (#73): "recepcionista", "contador", "socio" —
 // clonar un base y marcar permisos del catálogo. Los permisos de módulos
@@ -46,9 +47,14 @@ export function Roles() {
   const [editando, setEditando] = useState<RolDto | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [aviso, setAviso] = useState<string | null>(null);
+  const [sinPermiso, setSinPermiso] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
+    // Se limpia antes de pedir: los permisos son POR negocio, así que quedarse
+    // con el «esto no es para ti» del anterior dejaría la pantalla cerrada en
+    // uno donde sí se puede, hasta que alguien recargue.
+    setSinPermiso(false);
     try {
       const [nuevosRoles, nuevosCatalogo] = await Promise.all([
         apiFetch<RolDto[]>(config, session, tenant, '/roles'),
@@ -57,12 +63,31 @@ export function Roles() {
       setRoles(nuevosRoles);
       setCatalogo(nuevosCatalogo);
     } catch (err) {
+      /**
+       * Un 403 no es una caída (#815).
+       *
+       * Esto dibujaba `(err as Error).message` en un aviso de error: el texto
+       * crudo que escribió el servidor, que para un USER que entró por URL era
+       * lo único que veía de esta pantalla. La guarda del shell ya no deja
+       * llegar hasta acá, pero sigue habiendo un camino: el arranque se pide
+       * UNA vez por sesión y negocio, así que a quien le quitan el permiso a
+       * mitad de sesión el navegador le sigue diciendo que lo tiene. Ese caso
+       * tiene que verse igual que el otro, no como un fallo.
+       *
+       * Por `status` y no por el texto del mensaje: el texto lo escribe el
+       * servidor y cambia, el código no.
+       */
+      if (err instanceof ApiError && err.status === 403) {
+        setSinPermiso(true);
+        return;
+      }
       setAviso((err as Error).message);
       setRoles([]);
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
 
+  if (sinPermiso) return <SinPermiso que="Roles" />;
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
 
   const clonar = async () => {
