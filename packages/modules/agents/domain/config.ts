@@ -2,20 +2,49 @@
 // sin deploy. Puro.
 
 /**
- * El ORDEN importa, y no es alfabético: es el orden en que `conCredencial`
- * busca un respaldo cuando ni el proveedor elegido ni el por defecto de la
- * tarea tienen llave. Primero el que la plataforma prefiere.
+ * Qué proveedores se pueden usar. El ORDEN de esta lista ya no decide nada
+ * (#858): a quién se recurre cuando falta una llave lo dice
+ * `ORDEN_DE_RESPALDO`, acá abajo.
  *
- * Estaba `google` primero, de cuando Gemini era el defecto, y eso fue
- * exactamente el defecto del 11-10: GLM no tenía llave en el contenedor, el
- * respaldo recorrió esta lista, encontró google —la única con llave, y sin
- * saldo— y las ocho tareas de texto murieron ahí mientras el diagnóstico
- * decía `ia ✓`. Un orden de array decidiendo con qué proveedor se atiende.
- * Ver #855: lo que falta de verdad es no volver a elegir al que acaba de
- * fallar; mientras eso no esté, al menos que el primero sea el bueno.
+ * Esta separación la pagó un incidente: el 11-10 esta lista tenía `google`
+ * primero, de cuando Gemini era el defecto. GLM no tenía llave en el
+ * contenedor, el respaldo recorrió la lista, encontró google —la única con
+ * llave, y sin saldo— y las ocho tareas de texto murieron ahí mientras el
+ * diagnóstico decía `ia ✓`. Un orden de array decidiendo con qué proveedor se
+ * atiende, y nadie lo había decidido.
  */
 export const PROVIDERS = ['openai', 'glm', 'anthropic', 'google'] as const;
 export type Provider = (typeof PROVIDERS)[number];
+
+/**
+ * A quién se recurre, y en qué orden, cuando el elegido no tiene llave (#858).
+ *
+ * Esto era el orden de `PROVIDERS`, y el comentario de arriba lo decía con
+ * todas las letras: «un orden de array decidiendo con qué proveedor se
+ * atiende». El problema no es que el orden esté mal —hoy está bien— sino que
+ * no es una decisión declarada: agregar un proveedor a la lista de elegibles
+ * cambiaba a quién se recurre, en silencio, sin que nadie lo hubiera pensado.
+ * Es el defecto del 11-10 entrando por otra puerta.
+ *
+ * Ahora son dos listas con dos preguntas distintas. `PROVIDERS` contesta
+ * «¿se puede usar?»; ésta contesta «¿a quién recurro?», y cada puesto tiene
+ * su porqué:
+ *
+ * 1. `openai` — es el defecto de la plataforma (ADR-0025 §7, enmienda) y la
+ *    cuenta con saldo sostenido. Un respaldo sin plata detrás es el defecto
+ *    de #855 esperando a ocurrir.
+ * 2. `glm` — fue el defecto hasta el 12-10, así que los prompts están
+ *    afinados contra él y el dataset de regresión lo midió.
+ * 3. `google` — solo transcribe de los cuatro, y para texto es el que menos
+ *    se midió. Antes estaba primero, de cuando Gemini era el defecto, y eso
+ *    fue exactamente lo que mató las ocho tareas de texto el 11-10.
+ * 4. `anthropic` — último porque su fila de compliance es la más flaca: está
+ *    declarado elegible y nunca se midió contra el dataset.
+ *
+ * Una guarda exige que estén los cuatro: agregar un proveedor elegible sin
+ * decidir dónde cae obliga a pensarlo, que es lo único que esto compra.
+ */
+export const ORDEN_DE_RESPALDO: readonly Provider[] = ['openai', 'glm', 'google', 'anthropic'];
 
 export const TASKS = [
   'clasificar',
@@ -380,7 +409,7 @@ function conCredencial(
   const porDefecto = defectos[task].provider;
   const sirve = (p: Provider) => hayLlave(p) && proveedorPermitidoParaTarea(p, task);
   if (sirve(porDefecto) && !estaCastigado(porDefecto)) return porDefecto;
-  const otro = PROVIDERS.find((p) => sirve(p) && !estaCastigado(p));
+  const otro = ORDEN_DE_RESPALDO.find((p) => sirve(p) && !estaCastigado(p));
   if (otro) return otro;
   /**
    * Nadie sano. Antes de rendirse, se prueba con los castigados.
@@ -392,7 +421,7 @@ function conCredencial(
    */
   const castigadoPeroPosible = sirve(porDefecto)
     ? porDefecto
-    : PROVIDERS.find((p) => sirve(p));
+    : ORDEN_DE_RESPALDO.find((p) => sirve(p));
   // Y sin ninguno con llave, se devuelve el elegido: que falle con su mensaje,
   // que nombra el proveedor. Inventar uno sin llave sería cambiar un error
   // claro por otro.
