@@ -7,6 +7,7 @@ import type { ModelPortFactory } from './models';
 import { aiSdkModelPort, providerAvailable } from './models';
 import type { Agent } from './agents';
 import { traceGeneration } from './langfuse';
+import { semillaCacheada } from './defecto-de-la-plataforma';
 
 // Evaluación (#53): cambiar prompt, modelo o proveedor sin evaluar es
 // cambiar el producto a ciegas. El juez puntúa contra criterios; el gate
@@ -149,7 +150,12 @@ export async function runEvaluation(
   judgeFactory: ModelPortFactory = aiSdkModelPort,
 ): Promise<EvalRun> {
   if (input.cases.length === 0) throw new Error('No hay casos que evaluar todavía.');
-  const settings = iaSettings(await getTenantSettings(client, input.tenantId), providerAvailable);
+  const settings = iaSettings(
+    await getTenantSettings(client, input.tenantId),
+    providerAvailable,
+    undefined,
+    await semillaCacheada(client),
+  );
   const juezModelo = settings.tasks.configurar;
   const candidato = candidateFactory(input.agent.provider, input.agent.model);
   const juez = judgeFactory(juezModelo.provider, juezModelo.model);

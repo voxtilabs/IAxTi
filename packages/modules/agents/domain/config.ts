@@ -362,6 +362,8 @@ function conCredencial(
    * Sin el argumento nada cambia: es el comportamiento de antes.
    */
   estaCastigado: (p: Provider) => boolean = () => false,
+  /** El defecto de la plataforma, que desde #858 puede venir de la base. */
+  defectos: Record<AgentTask, TaskModel> = DEFAULT_TASK_MODELS,
 ): Provider {
   /**
    * El castigo mueve el RESPALDO, no la elección.
@@ -375,7 +377,7 @@ function conCredencial(
    * cuenta entre varios, meta la cabeza en el que acaba de morir.
    */
   if (hayLlave(elegido)) return elegido;
-  const porDefecto = DEFAULT_TASK_MODELS[task].provider;
+  const porDefecto = defectos[task].provider;
   const sirve = (p: Provider) => hayLlave(p) && proveedorPermitidoParaTarea(p, task);
   if (sirve(porDefecto) && !estaCastigado(porDefecto)) return porDefecto;
   const otro = PROVIDERS.find((p) => sirve(p) && !estaCastigado(p));
@@ -416,6 +418,16 @@ export function iaSettings(
    * dónde pasan sus datos— y el que tiene llave tampoco: ver `conCredencial`.
    */
   estaCastigado?: (p: Provider) => boolean,
+  /**
+   * El defecto de la PLATAFORMA, que desde #858 vive en la base.
+   *
+   * Por omisión es la semilla compilada, y eso no es comodidad: `domain/` no
+   * lee la base, así que quien tiene cliente le pasa lo guardado y quien no
+   * —validar unos ajustes que todavía no se escribieron, por ejemplo— sigue
+   * viendo lo que dice el repo. Las dos respuestas son correctas para su
+   * pregunta.
+   */
+  defectos: Record<AgentTask, TaskModel> = DEFAULT_TASK_MODELS,
 ): IaSettings {
   const raw = (settings?.ia ?? {}) as Partial<{
     tasks: Partial<Record<AgentTask, Partial<TaskModel>>>;
@@ -456,7 +468,7 @@ export function iaSettings(
    * prueba de `el-cuerpo-que-sale-al-proveedor` lo habría cazado después.
    */
   const esfuerzoDeLaTarea = (task: AgentTask): { esfuerzo?: Esfuerzo } => {
-    const e = DEFAULT_TASK_MODELS[task].esfuerzo;
+    const e = defectos[task].esfuerzo;
     return e ? { esfuerzo: e } : {};
   };
   for (const task of TASKS) {
@@ -474,12 +486,12 @@ export function iaSettings(
             configurado?.provider === soloProveedor && configurado.model?.trim()
               ? configurado.model.trim()
               : (TAREAS_PESADAS.has(task) ? gama?.pesado : gama?.liviano) ??
-                DEFAULT_TASK_MODELS[task].model,
+                defectos[task].model,
           ...esfuerzoDeLaTarea(task),
         };
         continue;
       }
-      tasks[task] = { ...DEFAULT_TASK_MODELS[task] };
+      tasks[task] = { ...defectos[task] };
       continue;
     }
     const t = raw.tasks?.[task];
@@ -487,12 +499,14 @@ export function iaSettings(
       PROVIDERS.includes(t?.provider as Provider) &&
       proveedorPermitidoParaTarea(t!.provider as Provider, task)
         ? (t!.provider as Provider)
-        : DEFAULT_TASK_MODELS[task].provider;
+        : defectos[task].provider;
     // Sin credencial en este ambiente, cae a uno que la tenga (#665). Con
     // `soloProveedor` NO se cae nunca —esa rama está arriba—: es un compromiso
     // escrito sobre por dónde pasan los datos del cliente, y cambiarlo en
     // silencio sería romperlo sin que nadie se entere.
-    const elegido = hayLlave ? conCredencial(task, pedido, hayLlave, estaCastigado) : pedido;
+    const elegido = hayLlave
+      ? conCredencial(task, pedido, hayLlave, estaCastigado, defectos)
+      : pedido;
     tasks[task] = {
       provider: elegido,
       ...esfuerzoDeLaTarea(task),
@@ -505,8 +519,8 @@ export function iaSettings(
         elegido !== (t?.provider as Provider)
           ? (TAREAS_PESADAS.has(task)
               ? RESPALDO_POR_PROVEEDOR[elegido]?.pesado
-              : RESPALDO_POR_PROVEEDOR[elegido]?.liviano) ?? DEFAULT_TASK_MODELS[task].model
-          : t?.model?.trim() || DEFAULT_TASK_MODELS[task].model,
+              : RESPALDO_POR_PROVEEDOR[elegido]?.liviano) ?? defectos[task].model
+          : t?.model?.trim() || defectos[task].model,
     };
   }
   // El económico (#52) sirve para CUALQUIER tarea cuando la cuota llega al

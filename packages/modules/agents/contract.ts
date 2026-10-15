@@ -167,3 +167,20 @@ export type { DiagnosticoDeLaIa, PasoDeLaIa } from './application/diagnostico-ia
 // bandeja mostraba solo el modo.
 export { modoConQuienLoPuso } from './application/autonomous';
 export type { ModoDeLaConversacion } from './application/autonomous';
+
+// El defecto de IA de la PLATAFORMA, fuera del código (#858). El panel del
+// SuperAdmin lo lee y lo cambia; el rastro lo escribe quien llama, porque
+// `platform_audit` es de otro módulo.
+// Solo lo que se consume DESDE AFUERA: `semillaEfectiva`, `semillaCacheada` y
+// `olvidarLaSemilla` las usan el propio módulo y sus pruebas, que importan del
+// archivo. Exportar de más por si acaso es lo que la guarda de la puerta
+// pública (#664) viene a impedir: un contrato dice qué promete el módulo, y
+// una promesa que nadie usa igual hay que sostenerla.
+export {
+  defectosDeLaPlataforma,
+  fijarDefectoDeLaTarea,
+  PROVEEDORES_QUE_PUEDEN_SER_DEFECTO,
+  ProveedorSinFilaDeCompliance,
+  TareaQueElProveedorNoAtiende,
+} from './application/defecto-de-la-plataforma';
+export type { DefectoDeLaTarea } from './application/defecto-de-la-plataforma';

@@ -18,6 +18,7 @@ import { castigar, estaCastigado, perdonar } from './castigados';
 import { motivoDelProveedor } from './motivo-del-proveedor';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
+import { semillaCacheada } from './defecto-de-la-plataforma';
 
 /**
  * Cuántos viajes al proveedor da una vuelta de conversación, y cuánto se le
@@ -819,7 +820,12 @@ async function registrarCorrida(
     requestId: datos.traceId,
   });
   // A Langfuse va REDACTADO según la política del tenant (SPEC §13).
-  const settings = iaSettings(await getTenantSettings(client, datos.tenantId), providerAvailable, estaCastigado);
+  const settings = iaSettings(
+    await getTenantSettings(client, datos.tenantId),
+    providerAvailable,
+    estaCastigado,
+    await semillaCacheada(client),
+  );
   traceGeneration({
     traceId: datos.traceId,
     tenantId: datos.tenantId,
@@ -877,7 +883,12 @@ export async function modeloDelAgenteGeneral(
   client: PoolClient,
   tenantId: string,
 ): Promise<{ modelo: ModelPort; provider: string; model: string; esfuerzo?: Esfuerzo }> {
-  const settings = iaSettings(await getTenantSettings(client, tenantId), providerAvailable, estaCastigado);
+  const settings = iaSettings(
+    await getTenantSettings(client, tenantId),
+    providerAvailable,
+    estaCastigado,
+    await semillaCacheada(client),
+  );
   const { provider, model, esfuerzo } = settings.tasks.configuracion_conversada;
   return { modelo: aiSdkModelPort(provider, model), provider, model, ...(esfuerzo ? { esfuerzo } : {}) };
 }

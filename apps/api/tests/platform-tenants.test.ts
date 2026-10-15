@@ -56,6 +56,11 @@ beforeAll(async () => {
       .setIssuer(ISSUER)
       .setExpirationTime('5m')
       .sign(privateKey);
+  // El defecto de IA es del DESPLIEGUE, así que su tabla no tiene tenant y no
+  // la limpia el `afterAll` de abajo. Sin esto, la prueba del rastro depende
+  // de si otra corrida dejó una fila —y `veniaDelCodigo` da distinto—, que es
+  // el patrón de #911: una prueba que solo pasa con la base virgen.
+  await admin.query('DELETE FROM agent_task_defaults');
   app = await createApp({
     jwtVerify: async (token) => {
       const { payload } = await jwtVerify(token, jwks, { issuer: ISSUER });
@@ -73,6 +78,8 @@ afterAll(async () => {
   for (const tabla of ['platform_support_sessions', 'user_roles', 'invitations', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
+  // Sin `tenant_id`: se limpia entera, y por eso también se limpia al entrar.
+  await admin.query('DELETE FROM agent_task_defaults');
   await admin.end();
 });
 
@@ -132,3 +139,70 @@ describe('/v1/platform/tenants (#68)', () => {
     expect(audit.rows[0].n).toBeGreaterThanOrEqual(5);
   });
 });
+
+/**
+ * El defecto de IA de la plataforma, por HTTP (#858).
+ *
+ * Lo que estas pruebas cuidan es la puerta: el caso de uso tiene las suyas en
+ * `module-agents`, pero el actor real y el rastro solo entran por acá.
+ */
+describe('/v1/platform/ia/defectos (#858)', () => {
+  it('el ADMIN de un tenant no lo ve ni lo cambia; el SUPERADMIN sí', async () => {
+    expect((await pedir(duena, '/platform/ia/defectos')).status).toBe(403);
+    const r = await pedir(superadmin, '/platform/ia/defectos');
+    expect(r.status).toBe(200);
+    const cuerpo = await r.json();
+    // Las nueve tareas, aunque nadie haya cambiado ninguna: una tarea sin fila
+    // no es un hueco, es «nadie la tocó».
+    expect(Object.keys(cuerpo.tareas).length).toBeGreaterThanOrEqual(9);
+    expect(cuerpo.tareas.sugerir.desdeLaBase).toBe(false);
+    // Y el panel recibe qué puede ofrecer, en vez de dejar elegir y que el
+    // servidor rechace después.
+    expect(cuerpo.proveedoresPermitidos).toContain('openai');
+    expect(cuerpo.proveedoresPermitidos).not.toContain('anthropic');
+  });
+
+  it('cambiarlo lo guarda y deja el rastro en platform_audit', async () => {
+    const r = await pedir(superadmin, '/platform/ia/defectos/resumir', {
+      method: 'PUT',
+      body: JSON.stringify({ provider: 'openai', model: 'gpt-5', esfuerzo: 'medio' }),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ provider: 'openai', model: 'gpt-5', desdeLaBase: true });
+
+    const rastro = await admin.query(
+      `SELECT admin_user, metadata FROM platform_audit
+        WHERE action = 'ia.defecto_cambiado' ORDER BY id DESC LIMIT 1`,
+    );
+    expect(rastro.rows[0].admin_user).toBe(superadmin);
+    // De qué a qué: un registro que solo dice el valor nuevo no permite
+    // reconstruir por qué el producto se comportó como se comportó.
+    expect(rastro.rows[0].metadata).toMatchObject({
+      tarea: 'resumir',
+      despues: { provider: 'openai', model: 'gpt-5', esfuerzo: 'medio' },
+      veniaDelCodigo: true,
+    });
+  });
+
+  it('un proveedor sin fila de compliance se rechaza con su código', async () => {
+    const r = await pedir(superadmin, '/platform/ia/defectos/conocer', {
+      method: 'PUT',
+      body: JSON.stringify({ provider: 'anthropic', model: 'claude-x' }),
+    });
+    // 400 y no 500: es una decisión de datos mal pedida, no una falla.
+    expect(r.status).toBe(400);
+    const { code } = await r.json();
+    // El cuerpo lo rechaza el esquema antes de llegar al caso de uso, y eso
+    // está bien: las dos puertas dicen lo mismo.
+    expect(['VALIDATION_ERROR', 'PROVEEDOR_SIN_COMPLIANCE']).toContain(code);
+  });
+
+  it('un campo de más se rechaza: recibirlo y descartarlo hace creer que entró', async () => {
+    const r = await pedir(superadmin, '/platform/ia/defectos/conocer', {
+      method: 'PUT',
+      body: JSON.stringify({ provider: 'openai', model: 'gpt-5-mini', tenantId: 'algo' }),
+    });
+    expect(r.status).toBe(400);
+  });
+});
+
