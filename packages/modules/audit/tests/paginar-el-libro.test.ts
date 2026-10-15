@@ -21,9 +21,20 @@ const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:
 let admin: Pool;
 let tenant: string;
 
-/** Todas en el MISMO instante a propósito: ver la prueba de los empates. */
-const MISMO_INSTANTE = new Date('2026-03-10T12:00:00Z');
-
+/**
+ * Las siete se escriben en UNA transacción, y eso les da el mismo instante.
+ *
+ * No hace falta forzarlo: `now()` en Postgres es la hora de inicio de la
+ * TRANSACCIÓN, no del statement, así que las siete filas comparten
+ * `occurred_at` al microsegundo. Es exactamente lo que pasa en producción
+ * —una mutación del producto escribe varias filas de auditoría en su
+ * transacción— y es el caso que rompe un cursor que compare solo la fecha.
+ *
+ * La primera versión de esta prueba le pasaba un `occurredAt` a `writeAudit`
+ * para forzarlo. No existe ese parámetro: el runtime lo ignoraba en silencio
+ * y el typecheck del monorepo lo cazó. El caso se daba igual, por el motivo
+ * de arriba, que además es más fiel a lo que ocurre de verdad.
+ */
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
   await runMigrations(admin);
@@ -39,7 +50,6 @@ beforeAll(async () => {
         resource: 'cosa',
         resourceId: `r-${i}`,
         result: 'ok',
-        occurredAt: MISMO_INSTANTE,
       });
     }
   });
@@ -132,8 +142,9 @@ describe('paginar el libro (#799)', () => {
         action: 'prueba.paginar',
         resource: 'cosa',
         resourceId: 'r-intruso',
+        // Va en su propia transacción, así que su `now()` es posterior al de
+        // las siete: es la fila que llega DESPUÉS de la primera página.
         result: 'ok',
-        occurredAt: new Date('2026-03-11T12:00:00Z'),
       }),
     );
     const p2 = await withTenant(admin, tenant, (c) =>
