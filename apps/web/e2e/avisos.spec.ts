@@ -24,6 +24,8 @@ interface Auth {
   accessToken: string;
   userId: string;
   tenantId: string;
+  /** El negocio donde esta misma usuaria es ADMIN (#815). */
+  tableTenantId: string;
 }
 const auth: Auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
 
@@ -49,7 +51,10 @@ for (const modo of ['dia', 'noche'] as const) {
           document.documentElement.setAttribute('data-mode', m),
         );
       },
-      ['sb-127-auth-token', JSON.stringify(sesion), auth.tenantId, modo] as const,
+      // El tenant donde esta usuaria es ADMIN: las etiquetas son
+      // configuración del negocio, y desde #815 el shell no dibuja una
+      // pantalla cuyo permiso no tenés.
+      ['sb-127-auth-token', JSON.stringify(sesion), auth.tableTenantId, modo] as const,
     );
     await page.setViewportSize({ width: 1280, height: 860 });
     await page.goto('/ajustes/etiquetas');
