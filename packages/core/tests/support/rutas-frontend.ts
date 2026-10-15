@@ -55,6 +55,16 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
     const siguientes = new Set(vistos).add(node);
     const leer = (n: ts.Node | undefined) => valores(n, siguientes);
     if (ts.isStringLiteralLike(node)) return [node.text];
+    // `null` y `undefined` en el lugar de la ruta NO son una ruta dinámica:
+    // son «no pidas nada». `useCarga(agente ? \`/agents/${id}/evals\` : null)`
+    // es la forma de decir que todavía no hay a quién preguntarle (#788), y
+    // darlos por valor dinámico inventaba una ruta «valor» que no está
+    // declarada en ninguna API — un rojo por una rama que no llama.
+    //
+    // Esto AFINA la guarda en vez de aflojarla: un literal `null` se sabe con
+    // certeza, al contrario de una expresión cualquiera.
+    if (node.kind === ts.SyntaxKind.NullKeyword) return [];
+    if (ts.isIdentifier(node) && node.text === 'undefined') return [];
     if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node)) {
       return leer(node.expression);
     }
@@ -116,8 +126,8 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
    * en `apiFetch`/`fetch`. Sin objeto, es un GET — que es lo que hacen los
    * dos por defecto.
    */
-  function metodoDeLaLlamada(call: ts.CallExpression, api: boolean): string | undefined {
-    const init = call.arguments[api ? 4 : 1];
+  function metodoDeLaLlamada(call: ts.CallExpression, dondeVaLaRuta: number): string | undefined {
+    const init = call.arguments[dondeVaLaRuta + 1];
     if (!init) return 'GET';
     if (!ts.isObjectLiteralExpression(init)) return undefined;
     // `{ ...init }` puede traer el método adentro: no se sabe. Dar por
@@ -143,14 +153,29 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
   // guarda igual la dio por huérfana. Un ayudante nuevo que no se registre acá
   // hace que TODA ruta llamada por él parezca sin pantalla — y el aviso manda a
   // construir lo que ya existe, que es la forma más cara de equivocarse.
-  const AYUDANTES = new Set(['apiFetch', 'apiDescargar', 'apiDescargarBinario']);
+  //
+  // `useCarga` entró con #788 y recibe la ruta en el PRIMER argumento, no en
+  // el cuarto: es un hook, no un ayudante de `fetch`. Por eso esto dejó de ser
+  // un conjunto de nombres y pasó a ser «nombre → en qué argumento viene la
+  // ruta». Sin registrarlo, las cinco pantallas que migraron a él dejaron a
+  // sus cinco rutas GET sin consumidor aparente, y esta guarda las denunció —
+  // que es precisamente lo que el párrafo de arriba avisa que pasa.
+  const AYUDANTES = new Map([
+    ['apiFetch', 3],
+    ['apiDescargar', 3],
+    ['apiDescargarBinario', 3],
+    ['useCarga', 0],
+  ]);
   for (const call of calls.filter((c) => !c.getSourceFile().fileName.includes('/api/'))) {
     const nombre = call.expression.getText();
-    const api = AYUDANTES.has(nombre);
+    const dondeVaLaRuta = AYUDANTES.get(nombre);
+    const api = dondeVaLaRuta !== undefined;
     if (!api && nombre !== 'fetch') continue;
-    // La implementación central de apiFetch se cubre en sus sitios de uso.
-    if (!api && /\/lib\/api\.ts$/.test(call.getSourceFile().fileName)) continue;
-    for (const valor of valores(call.arguments[api ? 3 : 0])) {
+    // La implementación central de apiFetch se cubre en sus sitios de uso, y
+    // la de `useCarga` también: adentro la ruta es un parámetro, así que leída
+    // ahí da un valor dinámico que no corresponde a ninguna ruta.
+    if (/\/lib\/api\.ts$|\/components\/use-carga\.ts$/.test(call.getSourceFile().fileName)) continue;
+    for (const valor of valores(call.arguments[api ? dondeVaLaRuta : 0])) {
       const version = valor.indexOf('/v1');
       if (!api && (version < 0 || !/^\/v1(?:\/|«|$)/.test(valor.slice(version)))) continue;
       const ruta = (api ? valor : valor.slice(version + 3)).split(/[?#]/)[0].replace(/\/$/, '') || '/';
@@ -158,7 +183,7 @@ export function inventario(fuentes: Record<string, string>): InventarioRutas {
         archivo: call.getSourceFile().fileName,
         linea: call.getSourceFile().getLineAndCharacterOfPosition(call.getStart()).line + 1,
         ruta,
-        metodo: metodoDeLaLlamada(call, api),
+        metodo: metodoDeLaLlamada(call, api ? dondeVaLaRuta : 0),
       });
     }
   }

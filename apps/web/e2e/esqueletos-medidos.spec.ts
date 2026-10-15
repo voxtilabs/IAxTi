@@ -46,6 +46,15 @@ import { join } from 'node:path';
  * Si un panel no llega a cargar, la prueba FALLA diciéndolo: un `skip`
  * silencioso acá dejaría el criterio «medido» cumplido en el papel y sin
  * medir nada.
+ *
+ * ## Lo que se agregó después
+ *
+ * El archivo se llama por el esqueleto porque nació para medirlo, pero al
+ * final cubre las cuatro ramas de una carga: el esqueleto, el día y la noche
+ * a 360 px, el 403 que NO ofrece reintentar y la caída que sí, con su
+ * `code · requestId` (#788). Las cuatro son la misma pregunta —qué ve alguien
+ * mientras y cuando algo no sale— y separarlas en archivos distintos haría
+ * que la próxima pantalla copiara una y se olvidara de las otras tres.
  */
 
 const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
@@ -193,3 +202,48 @@ for (const modo of ['dia', 'noche']) {
     expect(colores.barra).not.toBe('rgba(0, 0, 0, 0)');
   });
 }
+
+/**
+ * Un 403 no lleva «Reintentar», y una caída sí (#788).
+ *
+ * Es la mitad del issue, y lo que lo hizo urgente: tres pantallas dibujaban
+ * «algo salió mal, intenta de nuevo» a quien simplemente no tiene el permiso.
+ * La persona lo intenta, vuelve a fallar, y no hay nada que pueda hacer desde
+ * ahí — un botón que no puede funcionar nunca hace creer que el producto está
+ * roto en vez de que esa parte no es suya.
+ *
+ * El 403 no se simula: el usuario del e2e NO tiene `tenant.settings` ni
+ * `calendar.read`, así que estas rutas contestan 403 de verdad. Eso es mejor
+ * que un simulacro — prueba el camino con la respuesta que da el servidor.
+ */
+test('un 403 real no ofrece reintentar lo que no se puede reintentar', async ({ page }) => {
+  await page.goto('/ajustes/bandeja');
+  const retencion = page.getByRole('region', { name: 'Cuánto se guardan las conversaciones' });
+  await expect(retencion).toBeVisible();
+  await expect(retencion.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
+
+  await page.goto('/agenda');
+  const horario = page.getByRole('region', { name: 'Horario de atención' });
+  await expect(horario).toBeVisible();
+  // Este sí lleva frase, porque una agenda que no muestra su horario y
+  // tampoco dice por qué deja a alguien buscando una configuración que existe.
+  await expect(horario).toContainText('quien administra la agenda');
+  await expect(horario.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
+});
+
+test('una caída sí ofrece reintentar, con el identificador para pedir ayuda', async ({ page }) => {
+  await page.route('**/v1/settings/retencion', (r) =>
+    r.fulfill({
+      status: 500,
+      json: { code: 'INTERNAL', message: 'No pudimos leer la retención.', requestId: 'req_pruebita' },
+    }),
+  );
+  await page.goto('/ajustes/bandeja');
+  const retencion = page.getByRole('region', { name: 'Cuánto se guardan las conversaciones' });
+  await expect(retencion).toContainText('No pudimos leer la retención.');
+  // `code · requestId` (#659): el dato con el que alguien puede ir a buscar en
+  // los registros qué pasó. Es lo que `err.message` tiraba a la basura.
+  await expect(retencion).toContainText('INTERNAL · req_pruebita');
+  await expect(retencion.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+  await expect(retencion.getByRole('button', { name: 'Copiar' })).toBeVisible();
+});

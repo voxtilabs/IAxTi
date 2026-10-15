@@ -138,6 +138,7 @@ paso 'respuestas sin mirar'              node scripts/respuestas-sin-mirar.mjs
 paso 'exports sin consumidor'            node scripts/exports-sin-consumidor.mjs
 paso 'columnas sin lector'               node scripts/columnas-sin-lector.mjs
 paso 'listas sin estado vacío'           node scripts/listas-sin-vacio.mjs
+paso 'avisos sin rastro'                 node scripts/avisos-sin-rastro.mjs
 
 # Los workflows, SOLO si los tocaste (#770).
 #

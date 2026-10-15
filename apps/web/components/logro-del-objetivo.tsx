@@ -5,7 +5,9 @@ import { Target } from 'lucide-react';
 import { useSession } from '@iaxti/ui/react';
 import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
 import { apiFetch } from '../lib/api';
+import { AvisoDeCarga } from './aviso-de-carga';
 import { PanelCargando } from './panel-cargando';
+import { useCarga } from './use-carga';
 
 /**
  * Si el asistente está logrando su objetivo (#460).
@@ -86,34 +88,21 @@ export function LogroDelObjetivo() {
   // no se miden con la misma vara, y mostrar la tasa de uno bajo el nombre
   // del otro es peor que no mostrarla (#494).
   const { tenant, asistentes, elegido: agente, elegir } = useAsistenteElegido<AgenteDto>();
-  const [tasa, setTasa] = useState<TasaDto | null>(null);
+  // La ruta en `null` mientras no haya asistente: con eso el hook contesta
+  // `nada-que-pedir` y el esqueleto eterno de #897 no se puede escribir
+  // (#788). Acá vivía la versión a mano de ese estado.
+  const { carga, recargando, reintentar } = useCarga<TasaDto>(
+    agente ? `/agents/${agente.id}/objetivo` : null,
+  );
   /** El detalle se pide al abrir: la mayoría mira el porcentaje y se va. */
   const [intentos, setIntentos] = useState<IntentosDto | null>(null);
-  const [cargando, setCargando] = useState(true);
 
-  const cargar = useCallback(async () => {
-    if (!session || !tenant || !agente) {
-      // «No hay asistente» NO es «está cargando», y confundirlos deja el
-      // esqueleto puesto para siempre. Lo cazó la propia prueba que mide los
-      // altos: en Ajustes → IA los dos paneles seguían con la silueta a los
-      // doce segundos, porque esta rama vuelve antes de pedir nada y el
-      // `finally` que apaga `cargando` nunca corría. Un esqueleto eterno es
-      // peor que el `return null` que había: el hueco al menos terminaba.
-      //
-      // `asistentes !== null` es la señal de que la lista ya se resolvió: si
-      // se resolvió y aun así no hay elegido, no queda nada que esperar.
-      if (asistentes !== null) setCargando(false);
-      return;
-    }
-    try {
-      setTasa(await apiFetch<TasaDto>(config, session, tenant, `/agents/${agente.id}/objetivo`));
-      setIntentos(null);
-    } catch {
-      /* sin permiso para ver el consumo del asistente: la sección no aparece */
-    } finally {
-      setCargando(false);
-    }
-  }, [config, session, tenant, agente, asistentes]);
+  const tasa = carga.estado === 'ok' ? carga.dato : null;
+  // Al cambiar de asistente, el detalle del anterior deja de corresponder.
+  const cargar = useCallback(() => {
+    setIntentos(null);
+    reintentar();
+  }, [reintentar]);
 
   const verDetalle = useCallback(
     async (abierto: boolean) => {
@@ -134,21 +123,26 @@ export function LogroDelObjetivo() {
   const titulo = 'Logro del objetivo';
 
   if (!tenant) return null;
-  // Un objetivo en `null` NO es carga: es que el asistente no tiene objetivo
-  // puesto, y ahí la sección no corresponde. Solo se esquelesa mientras el
-  // dato no llegó.
-  if (!agente || !tasa) {
+  if (asistentes === null || carga.estado === 'cargando') {
     // 522 px MEDIDOS (el panel con objetivo y tasas mide 596). A ojo le había
     // puesto 136: un cuarto. Las cuatro barras son el porcentaje, las dos
     // tasas y el detalle plegado.
-    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={522} filas={4} /> : null;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={522} filas={4} />;
   }
+  if (carga.estado === 'nada-que-pedir' || !agente) return null;
+  if (carga.estado !== 'ok' || tasa === null) {
+    return <AvisoDeCarga carga={carga} onReintentar={reintentar} />;
+  }
+  // Un objetivo en `null` NO es carga ni fallo: es que este asistente no tiene
+  // objetivo puesto, y ahí la sección no corresponde. Antes esto estaba
+  // mezclado con la condición del esqueleto, así que un asistente sin objetivo
+  // y un dato que no llegó salían por la misma rama.
   if (tasa.objetivo === null) return null;
 
   const total = tasa.cerrados + tasa.pendientes;
 
   return (
-    <section aria-label={titulo} className={marco}>
+    <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <div className="flex flex-wrap items-center gap-2">
         <Target aria-hidden className="size-4 text-action-text" />
         <h2 className="font-display text-seccion font-bold text-ink">¿Está logrando lo suyo?</h2>

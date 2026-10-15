@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { CalendarClock } from 'lucide-react';
 import {
   AvisoResultado,
@@ -13,9 +13,11 @@ import {
   SelectValue,
   useSession,
 } from '@iaxti/ui/react';
-import { selectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { useSelectedTenant } from './tenant-switcher';
+import { apiFetch, avisoDe } from '../lib/api';
+import { AvisoDeCarga } from './aviso-de-carga';
 import { PanelCargando } from './panel-cargando';
+import { useCarga } from './use-carga';
 
 /**
  * Los horarios en que atiendo (#460).
@@ -45,27 +47,24 @@ const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', '
 
 export function HorariosDeAtencion() {
   const { config, session } = useSession();
-  const [tenant, setTenant] = useState<string | null>(null);
-  const [franjas, setFranjas] = useState<Franja[] | null>(null);
+  const tenant = useSelectedTenant();
+  /**
+   * Los cinco estados por el camino compartido (#788).
+   *
+   * Lo que había acá era un apaño que FUNCIONABA y por un motivo escrito: el
+   * `catch` de la carga hacía `setFranjas([])` para que la guarda de abajo
+   * pasara y el aviso llegara a dibujarse. Era la única de las cinco que no se
+   * tragaba el error de carga. El precio era que una caída se veía EXACTAMENTE
+   * igual que un horario vacío: cero franjas, el formulario listo, y el aviso
+   * al lado. Con los estados nombrados, «no hay franjas» y «no se pudieron
+   * leer» dejan de ser el mismo dibujo.
+   */
+  const { carga, recargando, reintentar } = useCarga<Franja[]>('/agenda/disponibilidad');
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
-  const [cargando, setCargando] = useState(true);
   const [form, setForm] = useState({ weekday: 1, inicio: '09:00', fin: '18:00', duracion: 30, respiro: 0 });
 
-  useEffect(() => setTenant(selectedTenant()), []);
-
-  const cargar = useCallback(async () => {
-    if (!session || !tenant) return;
-    try {
-      setFranjas(await apiFetch<Franja[]>(config, session, tenant, '/agenda/disponibilidad'));
-    } catch (err) {
-      setAviso((err as Error).message);
-      setFranjas([]);
-    } finally {
-      setCargando(false);
-    }
-  }, [config, session, tenant]);
-  useEffect(() => void cargar(), [cargar]);
+  const cargar = reintentar;
 
   async function agregar(e: FormEvent) {
     e.preventDefault();
@@ -77,11 +76,12 @@ export function HorariosDeAtencion() {
         body: JSON.stringify(form),
       });
       setAviso(null);
-      await cargar();
+      cargar();
     } catch (err) {
       // Dos franjas que se pisan el mismo día duplican los huecos: el
-      // servidor lo rechaza y lo explica.
-      setAviso((err as Error).message);
+      // servidor lo rechaza y lo explica. Con `avisoDe` la explicación llega
+      // con su `code · requestId` (#659, #788).
+      setAviso(avisoDe(err).texto);
     } finally {
       setOcupado(null);
     }
@@ -93,9 +93,9 @@ export function HorariosDeAtencion() {
     try {
       await apiFetch(config, session, tenant, `/agenda/disponibilidad/${f.id}`, { method: 'DELETE' });
       setAviso(null);
-      await cargar();
+      cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(avisoDe(err).texto);
     } finally {
       setOcupado(null);
     }
@@ -104,17 +104,36 @@ export function HorariosDeAtencion() {
   const marco = 'mt-8 rounded-campo border border-line bg-rest p-4';
   const titulo = 'Horario de atención';
 
-  if (!tenant) return null;
+  if (carga.estado === 'nada-que-pedir') return null;
   // 798 px MEDIDOS, repartidos en cinco barras: el panel cargado con las
   // cinco franjas de lunes a viernes mide 864. A ojo le había puesto 196 —se
   // quedaba a 600 px del contenido—, y 600 px de salto no es un detalle: es la
   // mitad de la pantalla de un celular moviéndose de golpe.
-  if (franjas === null) {
-    return cargando ? <PanelCargando etiqueta={titulo} className={marco} alto={798} filas={5} superficie="rest" /> : null;
+  if (carga.estado === 'cargando') {
+    return <PanelCargando etiqueta={titulo} className={marco} alto={798} filas={5} superficie="rest" />;
   }
+  if (carga.estado !== 'ok') {
+    // El 403 lleva frase acá, y es el único de los cinco paneles que la lleva:
+    // el horario de atención es lo que decide cuándo la agenda ofrece horas,
+    // así que una agenda que no muestra su horario y tampoco dice por qué deja
+    // a alguien buscando una configuración que sí existe pero no es suya.
+    return (
+      <section aria-label={titulo} className={marco}>
+        <h2 className="text-base font-bold text-ink">{titulo}</h2>
+        <div className="mt-2">
+          <AvisoDeCarga
+            carga={carga}
+            onReintentar={reintentar}
+            sinPermiso="El horario de atención lo configura quien administra la agenda."
+          />
+        </div>
+      </section>
+    );
+  }
+  const franjas = carga.dato;
 
   return (
-    <section aria-label={titulo} className={marco}>
+    <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <p className="flex items-center gap-2">
         <CalendarClock aria-hidden className="size-4 text-muted" />
         <span className="rotulo">Horarios en que atiendes</span>
