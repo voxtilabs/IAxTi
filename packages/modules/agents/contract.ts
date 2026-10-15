@@ -179,6 +179,10 @@ export type { ModoDeLaConversacion } from './application/autonomous';
 export {
   defectosDeLaPlataforma,
   fijarDefectoDeLaTarea,
+  // La usa el controlador de ajustes para decirle al negocio con qué se está
+  // atendiendo: sin el defecto de la base, mostraría el del código y mentiría
+  // justo donde el cliente va a mirar.
+  semillaCacheada,
   PROVEEDORES_QUE_PUEDEN_SER_DEFECTO,
   ProveedorSinFilaDeCompliance,
   TareaQueElProveedorNoAtiende,

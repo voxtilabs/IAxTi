@@ -400,6 +400,46 @@ describe('los ajustes de IA del negocio se pueden escribir (#536)', () => {
     expect(cuerpo.message).toContain('dejaría de contestar');
   });
 
+  /**
+   * Lo que se MUESTRA es lo efectivo, no lo elegido (#858).
+   *
+   * Es la diferencia que el cliente no puede deducir: pidió «solo Gemini» y
+   * sus notas de voz llegan transcritas igual —porque la transcripción no
+   * puede ir a un proveedor de solo texto—, o eligió uno que en este ambiente
+   * no tiene credencial y el producto está usando otro para que su negocio no
+   * deje de responder. Las dos cosas son correctas y ninguna se anuncia sola.
+   */
+  it('`atendiendo` dice con qué se atiende de verdad, no lo que el negocio eligió', async () => {
+    /**
+     * El ambiente se arma para que lo ELEGIDO y lo EFECTIVO no coincidan, que
+     * es lo único que prueba algo acá.
+     *
+     * Sin llave de OpenAI y con la de Google, el defecto compilado de
+     * `sugerir` —OpenAI— no se puede usar y el producto cae a Google para que
+     * el negocio no deje de responder. Si esta ruta devolviera lo elegido en
+     * vez de lo efectivo, diría «openai» y el cliente miraría una pantalla que
+     * no describe su producto.
+     *
+     * La primera versión de esta prueba no distinguía las dos cosas: afirmaba
+     * `openai`, que es lo que da por los dos caminos. Pasaba con la
+     * implementación correcta y con la equivocada.
+     */
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.GLM_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'llave-de-prueba-no-se-llama-a-nadie';
+    try {
+      const r = await (await pedir(duena, '/agents/ajustes')).json();
+      expect(Object.keys(r.atendiendo).length).toBeGreaterThanOrEqual(9);
+      expect(r.atendiendo.sugerir.provider).toBe('google');
+      // Y el modelo acompaña al proveedor: quedarse con el de OpenAI
+      // apuntando a Google sería un 404 en cada llamada.
+      expect(r.atendiendo.sugerir.model).not.toContain('gpt');
+    } finally {
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    }
+  });
+
   it('con la llave, el dueño elige proveedor único por la ruta y queda guardado', async () => {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = 'llave-de-prueba-no-se-llama-a-nadie';
     try {
