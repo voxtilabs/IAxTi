@@ -289,6 +289,38 @@ export async function updateCustomField(
 
   const label = input.label === undefined ? antes.label : input.label.trim();
   if (!label) throw new Error('El campo necesita un nombre.');
+  /**
+   * Dos campos de la misma entidad no pueden llamarse igual, y esto NO es una
+   * prolijidad: `paraLaIa` arma lo que el asistente ve indexando por ETIQUETA
+   * (`campos.ts`, la función de más abajo), y `exportarContactos` arma las
+   * columnas del CSV con la misma etiqueta. Con dos homónimos, uno pisa al
+   * otro.
+   *
+   * Medido antes de poner esto: declarás «Convenio» y «Nota interna», le
+   * cambiás la etiqueta al segundo a «Convenio», y el asistente recibe
+   * `{ Convenio: <el valor de la nota interna> }` — el valor real desaparece
+   * y el que no correspondía sale a nombre del otro. Si la nota interna era
+   * algo que no se muestra, se muestra.
+   *
+   * Hasta que existió la edición no podía pasar: la llave se derivaba de la
+   * etiqueta y el UNIQUE `(tenant_id, entity, key)` rechazaba el duplicado.
+   * La puerta nueva cambia la etiqueta sin tocar la llave, así que el UNIQUE
+   * ya no alcanza y la comprobación tiene que estar acá.
+   *
+   * Sin acento ni mayúsculas: «Convenio» y «convenio» se leen como el mismo
+   * nombre en una ficha, y quien los ve no va a distinguir cuál es cuál.
+   */
+  if (input.label !== undefined) {
+    const homonimo = await client.query(
+      `SELECT 1 FROM custom_fields
+        WHERE tenant_id = $1 AND entity = $2 AND id <> $3 AND lower(label) = lower($4)
+        LIMIT 1`,
+      [input.tenantId, antes.entity, input.fieldId, label],
+    );
+    if (homonimo.rowCount && homonimo.rowCount > 0) {
+      throw new Error(`Ya hay otro campo que se llama «${label}» en esta ficha.`);
+    }
+  }
   const options =
     input.options === undefined
       ? antes.options

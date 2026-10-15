@@ -422,4 +422,44 @@ describe('exportación de contactos a CSV (issue 248)', () => {
     expect(lineas).toHaveLength(3);
     expect(csv).toContain('"Pérez, Ana ""la jefa"""');
   });
+
+  /**
+   * Dos campos homónimos en la misma ficha, y por qué es grave.
+   *
+   * Lo que el asistente ve lo arma `paraLaIa` indexando por ETIQUETA, no por
+   * llave. Con dos campos que se llaman igual, uno pisa al otro: el valor
+   * real desaparece y el del otro campo sale bajo ese nombre. La reproducción
+   * exacta —«Convenio» y «Nota interna», PATCH de la etiqueta del segundo— la
+   * encontró la revisión del cambio que agregó la edición.
+   *
+   * No podía pasar antes de que existiera el PATCH: la llave se derivaba de
+   * la etiqueta y el UNIQUE `(tenant_id, entity, key)` lo rechazaba. La
+   * puerta nueva cambia la etiqueta sin tocar la llave.
+   */
+  it('la edición no deja dos campos de la misma ficha con el mismo nombre', async () => {
+    // Tenant propio: las etiquetas chocan por (tenant, entidad), así que un
+    // campo declarado por otra prueba de este archivo cambiaría el resultado.
+    const t = (await admin.query("INSERT INTO tenants (name) VALUES ('homonimos') RETURNING id"))
+      .rows[0].id as string;
+    await withTenant(admin, t, async (c) => {
+      await createCustomField(c, { tenantId: t, entity: 'contact', label: 'Convenio', type: 'texto' });
+      const nota = await createCustomField(c, {
+        tenantId: t, entity: 'contact', label: 'Nota interna', type: 'texto',
+      });
+      await expect(
+        updateCustomField(c, { tenantId: t, fieldId: nota.id, label: 'Convenio' }),
+      ).rejects.toThrow(/Ya hay otro campo que se llama/);
+    });
+
+    // Y el mismo nombre en OTRA ficha sí se puede: el choque es por entidad,
+    // porque `paraLaIa` arma la ficha de una entidad por vez.
+    await withTenant(admin, t, async (c) => {
+      const deEmpresa = await createCustomField(c, {
+        tenantId: t, entity: 'company', label: 'Rubro', type: 'texto',
+      });
+      await expect(
+        updateCustomField(c, { tenantId: t, fieldId: deEmpresa.id, label: 'Convenio' }),
+      ).resolves.toMatchObject({ label: 'Convenio' });
+    });
+  });
 });
