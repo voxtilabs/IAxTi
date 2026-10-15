@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, type CampoDto } from '../lib/api';
+import { apiFetch, avisoDe, type CampoDto } from '../lib/api';
 
 // Campos propios del negocio (#34, SPEC §10).
 //
@@ -36,6 +36,7 @@ export function Campos() {
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [quitando, setQuitando] = useState<string | null>(null);
+  const [cambiando, setCambiando] = useState<string | null>(null);
   const [form, setForm] = useState({
     entity: 'contact' as CampoDto['entity'],
     label: '',
@@ -83,6 +84,40 @@ export function Campos() {
       setError((err as Error).message);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  /**
+   * Mostrar u ocultar el campo al asistente, sin borrarlo.
+   *
+   * Hasta que existió `PATCH /campos/:id` (#534), la ÚNICA forma de cambiar
+   * esto era quitar el campo y declararlo de nuevo — y quitarlo deja su valor
+   * suelto en cada ficha de contacto, porque el valor se guarda contra la
+   * llave. O sea que corregir un «visible al asistente» marcado por error
+   * costaba los datos de todos los contactos que lo tenían lleno.
+   *
+   * Es el único de los cuatro atributos editables que llega a la pantalla por
+   * ahora, y a propósito: es el que decide qué información del negocio sale
+   * hacia el modelo, así que es el que de verdad duele mal puesto. El nombre
+   * se puede cambiar por la API y todavía no por acá.
+   *
+   * Y queda auditado con quién lo hizo: eso es lo que #534 vino a arreglar.
+   */
+  async function cambiarVisibleIa(c: CampoDto) {
+    if (!session || !tenant || cambiando) return;
+    setCambiando(c.id);
+    try {
+      await apiFetch(config, session, tenant, `/campos/${c.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ visibleIa: !c.visibleIa }),
+      });
+      setError(null);
+      await cargar();
+    } catch (err) {
+      // `avisoDe` conserva `code · requestId` (#659).
+      setError(avisoDe(err).texto);
+    } finally {
+      setCambiando(null);
     }
   }
 
@@ -232,6 +267,18 @@ export function Campos() {
                       <span className="text-xs text-muted">{c.options.join(' · ')}</span>
                     )}
                     {!c.visibleIa && <Badge role="warn">Oculto al asistente</Badge>}
+                    <Button
+                      variant="fantasma"
+                      size="chico"
+                      disabled={cambiando === c.id}
+                      onClick={() => void cambiarVisibleIa(c)}
+                    >
+                      {cambiando === c.id
+                        ? '…'
+                        : c.visibleIa
+                          ? 'Ocultar al asistente'
+                          : 'Mostrar al asistente'}
+                    </Button>
                     <Button
                       variant="fantasma"
                       size="chico"
