@@ -46,10 +46,10 @@ async function armarCobro(canal: 'whatsapp' | 'webchat'): Promise<string> {
   return link.rows[0].id;
 }
 
-const confirmar = (linkId: string) =>
+const confirmar = (linkId: string, envolver = (c: PoolClient): PoolClient => c) =>
   withTenant(admin, tenant, (c: PoolClient) =>
     confirmPayment(
-      c,
+      envolver(c),
       { tenantId: tenant, linkId, status: 'paid', amountClp: 15000 },
     ),
   );
@@ -131,24 +131,36 @@ describe('el aviso de pago recibido', () => {
   it('si no se puede guardar el pedido durable, revierte el pago para reintentar el webhook', async () => {
     const link = await armarCobro('whatsapp');
     const antes = (await pedidos()).length;
-    await admin.query(`CREATE OR REPLACE FUNCTION test_payment_outbox_failure() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        IF NEW.tenant_id='${tenant}'::uuid AND NEW.name='message.delivery_requested' THEN
-          RAISE EXCEPTION 'fallo simulado al persistir pedido';
-        END IF;
-        RETURN NEW;
-      END $$`);
-    await admin.query('CREATE TRIGGER test_payment_outbox_failure BEFORE INSERT ON outbox FOR EACH ROW EXECUTE FUNCTION test_payment_outbox_failure()');
-    try {
-      await expect(confirmar(link)).rejects.toThrow('fallo simulado');
-      expect((await admin.query('SELECT status FROM payment_links WHERE id=$1', [link])).rows[0].status).toBe('sent');
-      expect((await admin.query('SELECT id FROM payments WHERE link_id=$1', [link])).rowCount).toBe(0);
-      expect(await avisoDe(link)).toBeUndefined();
-      expect((await pedidos()).length).toBe(antes);
-    } finally {
-      await admin.query('DROP TRIGGER test_payment_outbox_failure ON outbox');
-      await admin.query('DROP FUNCTION test_payment_outbox_failure()');
-    }
+    let fallos = 0;
+    // #910: falla solo ESTE cliente; no se crean objetos que queden en el
+    // esquema compartido si el proceso muere antes de un finally.
+    const conFallo = (c: PoolClient): PoolClient => new Proxy(c, {
+      get(destino, prop) {
+        if (prop !== 'query') {
+          const valor = Reflect.get(destino, prop);
+          return typeof valor === 'function' ? valor.bind(destino) : valor;
+        }
+        const consultar = destino.query.bind(destino) as (...args: unknown[]) => unknown;
+        return async (...args: unknown[]) => {
+          const config = args[0] as { text?: string; values?: unknown[] } | string;
+          const sql = typeof config === 'string' ? config : config.text ?? '';
+          const valores = (typeof config === 'string' ? args[1] : config.values) as unknown[] | undefined;
+          if (/INSERT\s+INTO\s+outbox\b/i.test(sql) &&
+              valores?.[0] === 'message.delivery_requested' && valores[1] === tenant) {
+            fallos += 1;
+            throw new Error('fallo simulado al persistir pedido');
+          }
+          return consultar(...args);
+        };
+      },
+    });
+    await expect(confirmar(link, conFallo)).rejects.toThrow('fallo simulado');
+    expect(fallos).toBe(1); // no puede pasar por un fallo anterior al que medimos
+    expect((await admin.query('SELECT status FROM payment_links WHERE id=$1', [link])).rows[0].status).toBe('sent');
+    expect((await admin.query('SELECT id FROM payments WHERE link_id=$1', [link])).rowCount).toBe(0);
+    expect((await admin.query("SELECT id FROM audit_log WHERE tenant_id=$1 AND resource_id=$2 AND action='payments.confirmed'", [tenant, link])).rowCount).toBe(0);
+    expect(await avisoDe(link)).toBeUndefined();
+    expect((await pedidos()).length).toBe(antes);
     expect((await confirmar(link)).outcome).toBe('paid');
     expect((await pedidos()).length).toBe(antes + 1);
   });

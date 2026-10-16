@@ -223,15 +223,12 @@ function poolQueCuenta(real: Pool): Pool {
  * Lo que la guarda NO es: un cuidado del repo. Mira UNA tabla y solo mientras
  * una de estas ventanas está abierta. El criterio 1 del issue —«ningún archivo
  * de prueba modifica el esquema de una tabla compartida»— no lo sostiene esta
- * aserción; lo sostiene cada archivo, uno por uno. Al cerrar #804 quedaron dos
- * fuera, y a propósito: `payments/tests/aviso-de-pago.test.ts` y
- * `workers/tests/outbound-vigencia.test.ts` CREAN un trigger sobre `outbox` y
- * sobre `messages` para provocar su falla, y crear un trigger no tiene
- * equivalente de sesión —`session_replication_role` apaga, no crea—, así que
- * no se arreglan copiando nada de acá. Las dos están en **#910**, con el
- * riesgo medido: filtran por tenant, así que mientras existen no le pasa nada
- * a nadie; lo que dejan si el proceso muere en el medio es basura en la base,
- * apuntando a un tenant que ya no existe.
+ * aserción; lo sostiene cada archivo, uno por uno. En #910 las pruebas de
+ * payments/aviso-de-pago y workers/outbound-vigencia también pasaron a clientes
+ * que fallan. `to_regclass` NO detectaría un trigger o una función nuevos:
+ * la tabla seguiría existiendo. La guarda complementaria de fuente está en
+ * core/tests/fallos-sin-objetos-compartidos.test.ts y vigila esos dos arneses,
+ * con casos positivos para comprobar que reconoce el DDL que evita.
  */
 async function conNotasRotas(cuerpo: () => Promise<void>): Promise<void> {
   notasRotas = true;
