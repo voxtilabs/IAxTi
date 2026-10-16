@@ -39,6 +39,8 @@ export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
   calendar_google_watches: 'Credenciales y leases del transporte push de Google; no son datos del negocio.',
   calendar_freebusy_cache: 'Caché temporal de ocupación de calendarios personales; se reconstruye desde Google.',
 
+  initial_business_registrations:
+    'Referencia interna para no duplicar el alta inicial al reintentar. El negocio y sus miembros se exportan en tenants y user_roles; esta referencia no concede acceso.',
   audit_log:
     'Tiene su propia exportación firmada y encadenada (#72): meterla acá sin la firma la degrada.',
   outbox: 'Cola de eventos: mecánica nuestra, no datos del negocio.',

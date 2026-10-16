@@ -44,3 +44,22 @@ negocio para conservar a quien administra. Identity añade perfiles y nombres;
 conversations pide `conversations.reply` y notifications pide
 `conversations.assign` o `tenant.settings`, según el aviso. Los roles propios
 con esos permisos participan sin tener que llamarse ADMIN o SUPERVISOR.
+
+## Alta inicial autenticada (#56)
+
+`POST /onboarding/registro` extiende ese bootstrap: exige JWT incluso en
+desarrollo y no acepta ids, roles ni plan del cuerpo. Antes de que exista un
+negocio no puede exigirse un permiso de ese negocio. Un bloqueo transaccional
+por usuario serializa el alta; si ya es miembro, conserva su pertenencia y rol.
+Para un usuario nuevo, el servidor genera el id y fija el contexto de tenant
+antes de crear outbox, perfil, membresía ADMIN y auditoría en la misma transacción.
+Crece y los 14 días de trial son las reglas existentes de SPEC §6.
+
+`initial_business_registrations` conserva la referencia del alta inicial para
+reintentos, incluso tras recibir otras invitaciones. Tiene RLS por tenant y
+lectura de la referencia propia desde `app.user_id`, sin abrir datos del negocio.
+La referencia no concede membresía: si su acceso fue revocado, el reintento
+devuelve rechazo y no lo reincorpora. Ni cookies ni API keys ni headers de
+desarrollo pueden activar este bootstrap. No se usa `BYPASSRLS` ni una función
+con privilegios del dueño. La descripción queda en la configuración del negocio;
+no se publica como configuración aplicada antes de revisar el diff.

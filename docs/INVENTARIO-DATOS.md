@@ -21,6 +21,12 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 
 ## Personas que le escriben al negocio
 
+El alta inicial conserva una referencia operativa propia del equipo:
+
+| Tabla | Qué guarda | PII | De quién | Exporta | Suprime |
+|---|---|---|---|---|---|
+| `initial_business_registrations` | id del usuario autenticado y negocio de su alta inicial; evita duplicados y no concede acceso | indirecta | equipo | no: referencia interna; tenant y membresías se exportan por sus tablas | se elimina al borrar físicamente el tenant; revocar membresía conserva la referencia y no restaura acceso |
+
 | Tabla | Qué guarda | PII | De quién | Exporta | Suprime |
 |---|---|---|---|---|---|
 | `contacts` | nombre, teléfono, correo, RUT, campos propios del negocio, consentimiento y su evidencia | directa | cliente final | sí | se despersonaliza: la fila queda, la persona no |

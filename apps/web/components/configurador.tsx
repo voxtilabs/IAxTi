@@ -4,12 +4,14 @@ import { AvisoResultado } from '@iaxti/ui/react';
 
 import { Bot } from 'lucide-react';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, avisoDe, type Aviso } from '../lib/api';
 import type { Quien } from '@iaxti/sdk';
+import { onboardingBusiness } from '@iaxti/sdk';
 import { QuienLoHizo } from './quien-lo-hizo';
+import { OnboardingCostos } from './onboarding-costos';
 
 // El configurador (#50): "cuéntanos tu negocio y el CRM se arma solo" —
 // la propuesta llega como diff ANTES/DESPUÉS (dispositivo Pulso) y el
@@ -56,35 +58,67 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 export function Configurador() {
-  const { session, config } = useSession();
+  const { session } = useSession();
   const tenant = useSelectedTenant();
+  return session && tenant ? <ConfiguradorDelNegocio key={`${session.user.id}:${tenant}`} tenant={tenant} /> : null;
+}
+
+function ConfiguradorDelNegocio({ tenant }: { tenant: string }) {
+  const { session, config } = useSession();
   const [descripcion, setDescripcion] = useState('');
   const [vertical, setVertical] = useState('otro');
   const [propuesta, setPropuesta] = useState<PropuestaDto | null>(null);
   const [quien, setQuien] = useState<QuienDto | null>(null);
   const [pensando, setPensando] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
   const [aplicado, setAplicado] = useState<string | null>(null);
+  const [decidiendo, setDecidiendo] = useState(false);
+  const ocupada = useRef(false);
+  const solicitudAccion = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const controllers = solicitudAccion;
+    return () => controllers.current?.abort();
+  }, []);
+  const editado = useRef(false);
+  useEffect(() => {
+    if (!session || !tenant) return;
+    const controller = new AbortController();
+    void onboardingBusiness({ apiUrl: config.apiUrl, token: session.access_token, tenantId: tenant }, controller.signal)
+      .then((negocio) => {
+        if (controller.signal.aborted || editado.current) return;
+        setDescripcion(negocio.description); setVertical(negocio.vertical);
+      }).catch((err: unknown) => {
+        if (!controller.signal.aborted) setAviso(avisoDe(err));
+      });
+    return () => controller.abort();
+  }, [config.apiUrl, session, tenant]);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (signal: AbortSignal) => {
     if (!session || !tenant) return;
     try {
       const [p, q] = await Promise.all([
-        apiFetch<PropuestaDto | null>(config, session, tenant, '/agents/configurador'),
-        apiFetch<QuienDto>(config, session, tenant, '/agents/configurador/quien'),
+        apiFetch<PropuestaDto | null>(config, session, tenant, '/agents/configurador', { signal }),
+        apiFetch<QuienDto>(config, session, tenant, '/agents/configurador/quien', { signal }),
       ]);
+      if (signal.aborted) return;
       setPropuesta(p);
       setQuien(q);
-    } catch {
-      /* sin permiso agents.configure: la sección simplemente no opera */
+    } catch (err) {
+      if (!signal.aborted) setAviso(avisoDe(err));
     }
   }, [config, session, tenant]);
-  useEffect(() => void cargar(), [cargar]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void cargar(controller.signal);
+    return () => controller.abort();
+  }, [cargar]);
 
   if (!tenant) return null;
 
   const proponer = async () => {
-    if (!session) return;
+    if (!session || ocupada.current) return;
+    ocupada.current = true;
+    const controller = new AbortController(); solicitudAccion.current = controller;
     setAviso(null);
     setAplicado(null);
     setPensando(true);
@@ -92,24 +126,29 @@ export function Configurador() {
       const p = await apiFetch<PropuestaDto>(config, session, tenant, '/agents/configurador', {
         method: 'POST',
         body: JSON.stringify({ description: descripcion, vertical }),
+        signal: controller.signal,
       });
-      setPropuesta(p);
+      if (!controller.signal.aborted) setPropuesta(p);
     } catch (err) {
-      setAviso((err as Error).message);
+      if (!controller.signal.aborted) setAviso(avisoDe(err));
     } finally {
-      setPensando(false);
+      ocupada.current = false;
+      if (!controller.signal.aborted) setPensando(false);
     }
   };
 
   const decidir = async (accion: 'aplicar' | 'descartar') => {
-    if (!session || !propuesta) return;
+    if (!session || !propuesta || ocupada.current) return;
+    ocupada.current = true; setDecidiendo(true);
+    const controller = new AbortController(); solicitudAccion.current = controller;
     setAviso(null);
     try {
       const res = await apiFetch<{ creado?: { pipeline: boolean; quickReplies: number } }>(
         config, session, tenant,
         `/agents/configurador/${propuesta.id}/${accion}`,
-        { method: 'POST' },
+        { method: 'POST', signal: controller.signal },
       );
+      if (controller.signal.aborted) return;
       setPropuesta(null);
       if (accion === 'aplicar') {
         const c = res.creado;
@@ -118,7 +157,10 @@ export function Configurador() {
         );
       }
     } catch (err) {
-      setAviso((err as Error).message);
+      if (!controller.signal.aborted) setAviso(avisoDe(err));
+    } finally {
+      ocupada.current = false;
+      if (!controller.signal.aborted) setDecidiendo(false);
     }
   };
 
@@ -150,7 +192,7 @@ export function Configurador() {
         <>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="text-sm text-body">Rubro</span>
-            <Select value={vertical} onValueChange={setVertical}>
+            <Select value={vertical} onValueChange={(value) => { editado.current = true; setVertical(value); }}>
               <SelectTrigger aria-label="Rubro" className="w-56">
                 <SelectValue />
               </SelectTrigger>
@@ -167,7 +209,7 @@ export function Configurador() {
             rows={3}
             placeholder="Ej: Somos una barbería en Ñuñoa, 3 barberos, atendemos con y sin reserva…"
             value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
+            onChange={(e) => { editado.current = true; setDescripcion(e.target.value); }}
           />
           <Button
             className="mt-3"
@@ -223,10 +265,10 @@ export function Configurador() {
             canal esté conectado.
           </p>
           <div className="mt-4 flex gap-2">
-            <Button onClick={() => void decidir('aplicar')} data-testid="configurador-aplicar">
-              Aplicar lo nuevo
+            <Button disabled={decidiendo} onClick={() => void decidir('aplicar')} data-testid="configurador-aplicar">
+              {decidiendo ? 'Guardando…' : 'Aplicar lo nuevo'}
             </Button>
-            <Button variant="secundario" onClick={() => void decidir('descartar')}>
+            <Button disabled={decidiendo} variant="secundario" onClick={() => void decidir('descartar')}>
               Descartar
             </Button>
           </div>
@@ -234,9 +276,10 @@ export function Configurador() {
       )}
 
       {aplicado && <AvisoResultado tono="success">{aplicado}</AvisoResultado>}
+      {(aplicado || propuesta?.status === 'applied') && <div className="mt-4"><OnboardingCostos tenant={tenant} /></div>}
       {aviso && (
         <AvisoResultado>
-          {aviso}
+          {aviso.texto}{aviso.rastro && <span className="dato block break-all text-xs">{aviso.rastro}</span>}
         </AvisoResultado>
       )}
     </div>

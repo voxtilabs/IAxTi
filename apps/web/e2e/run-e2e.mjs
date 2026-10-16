@@ -21,9 +21,9 @@ const aqui = dirname(fileURLToPath(import.meta.url));
 const raiz = resolve(aqui, '../../..');
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
-const JWKS_PORT = Number(process.env.E2E_JWKS_PORT ?? 4012);
-const API_PORT = Number(process.env.E2E_API_PORT ?? 4010);
-const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 4011);
+const JWKS_PORT = Number(process.env.E2E_JWKS_PORT?.trim() || 4012);
+const API_PORT = Number(process.env.E2E_API_PORT?.trim() || 4010);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT?.trim() || 4011);
 const ISSUER = `http://127.0.0.1:${JWKS_PORT}/auth/v1`;
 
 const hijos = [];
@@ -209,6 +209,15 @@ async function main() {
   const restrictedToken = await new SignJWT({ email: `${restrictedUser}@e2e.cl`, aud: 'authenticated' })
     .setProtectedHeader({ alg: 'ES256', kid: 'e2e' }).setSubject(restrictedUser)
     .setIssuer(ISSUER).setIssuedAt().setExpirationTime('1h').sign(privateKey);
+  // Sin tenant ni membresía: ejercitan el alta auténtica de #56, no un seed.
+  const registrations = [];
+  for (const mode of ['dia', 'noche']) {
+    const userId = randomUUID();
+    const token = await new SignJWT({ email: `alta-${mode}@e2e.cl`, aud: 'authenticated' })
+      .setProtectedHeader({ alg: 'ES256', kid: 'e2e' }).setSubject(userId).setIssuer(ISSUER)
+      .setIssuedAt().setExpirationTime('1h').sign(privateKey);
+    registrations.push({ mode, userId, accessToken: token });
+  }
   writeFileSync(
     join(aqui, '.auth.json'),
     JSON.stringify({
@@ -223,13 +232,15 @@ async function main() {
       campaignTenantId,
       conversationId: conversation.id,
       webUrl: `http://127.0.0.1:${WEB_PORT}`,
+      apiUrl: `http://127.0.0.1:${API_PORT}`,
+      registrations,
     }),
   );
 
   // 4 · API real contra el JWKS local.
   lanzar('api', 'node', ['apps/api/dist/main.js'], {
     PORT: `${API_PORT}`,
-    DATABASE_URL,
+    DATABASE_URL: process.env.E2E_APP_DATABASE_URL?.trim() || DATABASE_URL,
     REDIS_URL,
     SUPABASE_JWKS_URL: `${ISSUER}/.well-known/jwks.json`,
     IAXTI_ENV: 'e2e',
@@ -324,7 +335,7 @@ async function main() {
   // Los argumentos extra pasan a Playwright: `node e2e/run-e2e.mjs barra-lateral`
   // corre un solo spec en vez de la suite entera. Sin esto, revisar UNA pantalla
   // obliga a levantar todo y esperar dos minutos.
-  const pw = lanzar('playwright', 'npx', ['playwright', 'test', ...process.argv.slice(2)], {}, webDir);
+  const pw = lanzar('playwright', 'npx', ['playwright', 'test', ...process.argv.slice(2)], { E2E_WEB_PORT: String(WEB_PORT) }, webDir);
   pw.on('exit', (code) => {
     jwks.close();
     // En local la base persiste entre corridas: los eventos del e2e quedan

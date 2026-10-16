@@ -90,6 +90,7 @@ import { ContactoEmpresaController, EmpresasController } from './empresas.contro
 import { TagsController } from './tags.controller';
 import { SettingsController } from './settings.controller';
 import { OnboardingController } from './onboarding.controller';
+import { OnboardingRegistrationController } from './onboarding-registration.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
 import { ContactsController } from './contacts.controller';
 import { DealsController } from './deals.controller';
@@ -1254,6 +1255,7 @@ const controllers = [
   ContactoEmpresaController,
   SettingsController,
   OnboardingController,
+  OnboardingRegistrationController,
   QuickRepliesController,
   EquipoController,
   ContactsController,

@@ -4218,6 +4218,78 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "OnboardingRegistrationController_business": {
+    "metodo": "GET",
+    "ruta": "/v1/onboarding/negocio",
+    "resumen": "Descripción y prueba del negocio para retomar la puesta en marcha",
+    "permiso": "tenant.settings",
+    "modulo": "organizations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "OnboardingRegistrationController_costs": {
+    "metodo": "GET",
+    "ruta": "/v1/onboarding/costos",
+    "resumen": "Consumo registrado de Meta e IA sin crear cobros ni suscripción",
+    "permiso": "tenant.billing",
+    "modulo": "billing",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "OnboardingRegistrationController_register": {
+    "metodo": "POST",
+    "ruta": "/v1/onboarding/registro",
+    "resumen": "Crea una sola vez el negocio inicial de la sesión",
+    "permiso": null,
+    "modulo": "organizations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 4000
+        },
+        "vertical": {
+          "type": "string",
+          "enum": [
+            "belleza",
+            "salud",
+            "inmobiliaria",
+            "retail",
+            "servicios",
+            "otro"
+          ]
+        }
+      },
+      "required": [
+        "displayName",
+        "name",
+        "description",
+        "vertical"
+      ],
+      "additionalProperties": false
+    }
+  },
   "PaymentsController_addProvider": {
     "metodo": "POST",
     "ruta": "/v1/payments/providers",

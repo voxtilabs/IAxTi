@@ -147,6 +147,17 @@ async function metaSpentUsd(
   return Number(r.rows[0].total);
 }
 
+/** Consumo registrado del mes, también durante el trial sin suscripción (#56).
+ * Leer costos no da de alta cobros. Comparte el agregado de Meta de facturación.
+ */
+export async function metaCostThisCycle(client: PoolClient, tenantId: string) {
+  const period = await client.query(`SELECT to_char(date_trunc('month', now()), 'YYYY-MM-DD') AS start,
+    to_char(date_trunc('month', now()) + interval '1 month', 'YYYY-MM-DD') AS finish`);
+  const periodStart = period.rows[0].start as string;
+  const periodEnd = period.rows[0].finish as string;
+  return { periodStart, periodEnd, metaUsd: await metaSpentUsd(client, tenantId, periodStart, periodEnd), usdClpRate: usdClpRate() };
+}
+
 export interface CostosDelCiclo {
   periodStart: string;
   periodEnd: string;

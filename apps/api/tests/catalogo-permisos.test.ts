@@ -121,6 +121,8 @@ const PENDIENTES: Record<string, string> = {
   // se declaran en el bloque `tools:` del manifiesto y no son permisos —
   // el registry las filtra por módulo activo. No van acá.
   'tenant.billing': 'Ver y cambiar el plan desde la app; hoy lo hace el SuperAdmin (#69).',
+  'calendar.connect':
+    'Conectar Google Calendar: necesita las credenciales de OAuth (#57). La agenda funciona sin él, con la disponibilidad configurada.',
   'whatsapp.numbers.manage':
     'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',
   // `crm.contacts.update` y `crm.deals.close` estaban acá y YA SE EXIGEN:

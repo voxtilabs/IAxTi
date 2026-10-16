@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, useSession } from '@iaxti/ui/react';
+import { myBusinesses } from '@iaxti/sdk';
 
 interface Membership {
   tenantId: string;
@@ -10,6 +11,12 @@ interface Membership {
 }
 
 const STORAGE_KEY = 'iaxti-tenant';
+
+export function selectTenant(tenantId: string | null) {
+  if (tenantId) localStorage.setItem(STORAGE_KEY, tenantId);
+  else localStorage.removeItem(STORAGE_KEY);
+  window.dispatchEvent(new Event('iaxti-tenant-changed'));
+}
 
 export function selectedTenant(): string | null {
   try {
@@ -40,25 +47,31 @@ export function TenantSwitcher() {
   const { session, config } = useSession();
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [selected, setSelected] = useState<string>('');
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setRevision((value) => value + 1);
+    window.addEventListener('iaxti-memberships-changed', refresh);
+    return () => window.removeEventListener('iaxti-memberships-changed', refresh);
+  }, []);
 
   useEffect(() => {
     if (!session) return;
-    void fetch(`${config.apiUrl}/v1/me`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-      .then((res) => (res.ok ? res.json() : { tenants: [] }))
-      .then((me: { tenants: Membership[] }) => {
+    const controller = new AbortController();
+    void myBusinesses({ apiUrl: config.apiUrl, token: session.access_token }, controller.signal)
+      .then((me) => {
+        if (controller.signal.aborted) return;
         setMemberships(me.tenants);
         const guardado = selectedTenant();
         const inicial =
           me.tenants.find((t) => t.tenantId === guardado)?.tenantId ?? me.tenants[0]?.tenantId ?? '';
         setSelected(inicial);
-        if (inicial) {
-          localStorage.setItem(STORAGE_KEY, inicial);
-          window.dispatchEvent(new Event('iaxti-tenant-changed'));
-        }
+        selectTenant(inicial || null);
+      }).catch(() => {
+        // El alta tiene su estado de error. Un fallo no prueba que esté vacío
+        // ni debe borrar la selección que todavía no se pudo comprobar.
       });
-  }, [session, config.apiUrl]);
+    return () => controller.abort();
+  }, [session, config.apiUrl, revision]);
 
   if (memberships.length === 0) return null;
 
@@ -69,8 +82,7 @@ export function TenantSwitcher() {
         value={selected}
         onValueChange={(valor) => {
           setSelected(valor);
-          localStorage.setItem(STORAGE_KEY, valor);
-          window.dispatchEvent(new Event('iaxti-tenant-changed'));
+          selectTenant(valor);
         }}
       >
         <SelectTrigger className="h-control w-full bg-field" aria-label="Negocio">
