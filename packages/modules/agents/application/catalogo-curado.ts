@@ -20,6 +20,17 @@
  * es una función que falte: es una puerta que no debe existir.
  */
 export const NO_SON_HERRAMIENTA: Record<string, string> = {
+  DriveController_estado: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_iniciar: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_completar: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_revocar: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_selector: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_seleccionar: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_permisoIa: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_adjuntos: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_carpeta: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+  DriveController_estadoCarpeta: 'Pantalla de consentimiento personal de Google Drive; el agente solo usa drive.search y drive.attach con identidad humana (#64).',
+
   GoogleCalendarController_estado: 'Estado de la conexión OAuth personal para su pantalla; el agente usa agenda.huecos, no credenciales (#57).',
   GoogleCalendarController_iniciar: 'Consentimiento del navegador con state, nonce y PKCE; solo lo inicia la persona (#57).',
   GoogleCalendarController_completar: 'Canje de código OAuth y verifier de una pestaña; nunca son argumentos de una herramienta de IA (#57).',
@@ -136,6 +147,8 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
  * pidiendo permiso.
  */
 export const SIN_CONFIRMACION = new Set<string>([
+  'DriveController_search', // Lectura personal paginada; no altera archivos ni permisos.
+
   // Quedan adentro del negocio y se deshacen: una actividad se cancela, una
   // oportunidad se marca perdida, un atajo se borra.
   'ContactsController_crear', // una actividad en la ficha (POST /contacts/:id/activities)

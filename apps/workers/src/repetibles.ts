@@ -13,6 +13,7 @@ import type { Repetible } from '@iaxti/core';
 export const REPETIBLES: Repetible[] = [
   { nombre: 'conversations.checks', moduleId: 'conversations', repeat: { every: 60_000 } },
   { nombre: 'crm.activities_due', moduleId: 'crm', repeat: { every: 60_000 } },
+  { nombre: 'integrations.drive.sync', moduleId: 'integrations', repeat: { every: 60_000 } },
   { nombre: 'webhooks.deliver', moduleId: 'integrations', repeat: { every: 60_000 } },
   // Cada cinco minutos (#502). Va seguido porque mientras haya fuentes sin
   // indexar el negocio tiene la IA sin conocimiento; y no más seguido porque

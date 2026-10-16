@@ -47,6 +47,8 @@ const USER_PERMS = new Set([
   'payments.read',
   'calendar.read',
   'calendar.connect',
+  'integrations.read',
+  'integrations.connect', // Consentimiento y opciones personales de Google (§18).
   'calendar.manage_availability', // Horario propio; el caso de uso verifica dueño (§23).
 ]);
 

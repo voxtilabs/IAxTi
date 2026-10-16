@@ -6,3 +6,6 @@ export { createGoogleCalendarClient } from './calendar';
 export type { GoogleCalendarClient, GoogleBusyInterval, GoogleFreebusyInput, GoogleWatchInput, GoogleWatchChannel } from './calendar';
 export { GoogleIntegrationError } from './http';
 export type { GoogleErrorCode, GoogleTransportOptions, GoogleRequestOptions } from './http';
+
+export { createGoogleDriveClient, GOOGLE_DRIVE_MAX_UPLOAD_BYTES, GOOGLE_DRIVE_MAX_READ_BYTES } from './drive';
+export type { GoogleDriveClient, GoogleDriveFile } from './drive';

@@ -7,9 +7,11 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [identity, organizations, audit]
-  optional: []
+  required: [identity, organizations, authorization, audit]
+  optional: [conversations, crm, knowledge]
 permissions:
+  - integrations.read
+  - integrations.connect
   - webhooks.manage
 events:
   publishes:
@@ -32,8 +34,9 @@ events:
   # clavado en un comentario envejece sin que nadie lo note; el que quiera la
   # cuenta de hoy la saca de los manifiestos, que es de donde salía.
   consumes: ['*']
-tools: []
+tools: [drive.search, drive.attach]
 nav:
+  - { label: Google Drive, path: /ajustes/drive, permission: integrations.read, grupo: Configuración, seccion: Integraciones }
   - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Configuración, seccion: Integraciones }
 widgets: []
 # Se vende desde el plan Crece (`plan_limits`): decía `base` (#834).

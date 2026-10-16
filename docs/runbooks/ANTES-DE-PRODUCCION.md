@@ -86,6 +86,7 @@ número, el que manda es el código:
 | `api_usage.flush` | 5 min | el consumo de API no se cobra ni se muestra |
 | `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
+| `integrations.drive.sync` | Cada minuto | Las copias opt-in de adjuntos recibidos quedan pendientes; el outbox e IDs durables permiten reintentar sin duplicar archivos. Revisar permisos Google, R2 y configuración Drive. |
 | `identity.google.cleanup` | Cada 15 min | Quedan versiones revocadas pendientes de destrucción en Secret Manager; el acceso local sigue bloqueado. Corre aunque Calendar esté apagado. |
 | `calendar.google.maintain` | Cada 15 min | Vencen las suscripciones push de Google; la agenda consulta disponibilidad viva y muestra las notificaciones pendientes. |
 | `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |

@@ -32,6 +32,9 @@ const COLUMNAS_PROHIBIDAS: Record<string, string[]> = {
 
 /** Tabla → por qué NO se exporta. */
 export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
+  drive_files: 'Selección y consentimiento IA del Drive personal; solo las referencias publicadas al equipo se exportan en drive_attachments.',
+  drive_contact_folders: 'Preferencia personal y carpeta de copia en la cuenta Google; no concede acceso al negocio.',
+  drive_uploads: 'Cola interna de copias de adjuntos; los mensajes y adjuntos originales se exportan por sus tablas.',
   google_oauth_attempts: 'Intentos de consentimiento OAuth de cada persona: hashes y datos de autenticación efímeros.',
   google_oauth_grants: 'Custodia del consentimiento personal de Google: referencias a secretos, no configuración del negocio.',
   google_secret_versions: 'Cola interna de destrucción de credenciales de Google.',
@@ -70,6 +73,7 @@ export const TABLAS_EXPORTADAS = [
   'custom_fields',
   'conversations',
   'messages',
+  'drive_attachments',
   'internal_notes',
   'assignments',
   'quick_replies',

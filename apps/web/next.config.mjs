@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const nextConfig = {
   output: 'standalone',
   async headers() {
-    return [{ source: '/agenda/google/callback', headers: [
+    return [{ source: '/integraciones/drive/callback', headers: [{ key: 'Referrer-Policy', value: 'no-referrer' },{key:'Cache-Control',value:'no-store'}] },{ source:'/ajustes/drive',headers:[{key:'Referrer-Policy',value:'no-referrer'},{key:'Content-Security-Policy',value:"script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; frame-src https://accounts.google.com https://docs.google.com; object-src 'none'; base-uri 'self'"}] },{ source: '/agenda/google/callback', headers: [
       { key: 'Referrer-Policy', value: 'no-referrer' },
       { key: 'Cache-Control', value: 'no-store' },
     ] }];

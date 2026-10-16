@@ -42,7 +42,7 @@ export default defineConfig({
   workers: 2,
   reporter: process.env.CI ? 'line' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4011',
+    baseURL: `http://127.0.0.1:${process.env.E2E_WEB_PORT?.trim() || 4011}`,
     trace: 'retain-on-failure',
   },
   projects: [

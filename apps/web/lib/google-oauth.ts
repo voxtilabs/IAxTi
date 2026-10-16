@@ -1,5 +1,5 @@
 const PREFIX = 'iaxti-google-oauth:';
-export interface GooglePending { tenantId: string; userId: string; nonce: string; verifier: string; createdAt: number; key: string }
+export interface GooglePending { service?: 'calendar' | 'drive' | 'gmail'; tenantId: string; userId: string; nonce: string; verifier: string; createdAt: number; key: string }
 function base64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

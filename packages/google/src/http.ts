@@ -38,13 +38,14 @@ export function bearer(value: string): string { return `Bearer ${inputText(value
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
-export function createTransport(options: GoogleTransportOptions = {}) {
+/** Respuesta acotada para JSON, documentos y sesiones resumibles. */
+export function createResponseTransport(options: GoogleTransportOptions = {}) {
   const send = options.fetch ?? globalThis.fetch;
   const timeout = options.timeoutMs ?? 10000;
   if (!Number.isFinite(timeout) || timeout <= 0 || timeout > 120000) {
     throw new GoogleIntegrationError('GOOGLE_CONFIGURATION_INVALID');
   }
-  return async (url: string, init: RequestInit, request: GoogleRequestOptions = {}): Promise<unknown> => {
+  return async (url: string, init: RequestInit, request: GoogleRequestOptions & { maxBytes?: number } = {}): Promise<{ bytes: Buffer; headers: Headers; status: number }> => {
     const abort = new AbortController();
     let timedOut = false;
     const cancel = () => abort.abort();
@@ -62,14 +63,15 @@ export function createTransport(options: GoogleTransportOptions = {}) {
           const { done, value } = await reader.read();
           if (done) break;
           length += value.byteLength;
-          if (length > MAX_BODY_BYTES) {
+          if (length > (request.maxBytes ?? MAX_BODY_BYTES)) {
             await reader.cancel();
             return invalidResponse();
           }
           chunks.push(value);
         }
       }
-      const raw = Buffer.concat(chunks).toString('utf8');
+      const bytes = Buffer.concat(chunks);
+      const raw = response.ok ? '' : bytes.toString('utf8');
       let body: unknown;
       try { body = raw ? JSON.parse(raw) : null; } catch { body = null; }
       if (!response.ok) {
@@ -82,8 +84,7 @@ export function createTransport(options: GoogleTransportOptions = {}) {
           : response.status === 409 ? 'GOOGLE_ALREADY_EXISTS' : 'GOOGLE_REQUEST_FAILED';
         throw new GoogleIntegrationError(code, response.status);
       }
-      if (raw && body === null) return invalidResponse();
-      return body;
+      return {bytes,headers:response.headers,status:response.status};
     } catch (error) {
       if (error instanceof GoogleIntegrationError) throw error;
       throw new GoogleIntegrationError(timedOut ? 'GOOGLE_TIMEOUT'
@@ -92,5 +93,15 @@ export function createTransport(options: GoogleTransportOptions = {}) {
       clearTimeout(timer);
       request.signal?.removeEventListener('abort', cancel);
     }
+  };
+}
+
+export function createTransport(options: GoogleTransportOptions = {}) {
+  const response = createResponseTransport(options);
+  return async (url: string, init: RequestInit, request: GoogleRequestOptions = {}): Promise<unknown> => {
+    const {bytes}=await response(url,init,request);
+    if (!bytes.length) return null;
+    try { return JSON.parse(bytes.toString('utf8')) as unknown; }
+    catch { return invalidResponse(); }
   };
 }

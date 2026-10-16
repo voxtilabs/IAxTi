@@ -374,7 +374,7 @@ historia, y que cada intención de compra sea una oportunidad con etapa y dueño
 `crm.activities.manage`. `USER` ve solo sus contactos y oportunidades salvo que el
 ADMIN habilite "ver todo el equipo".
 
-**Eventos:** `contact.created`, `contact.updated`, `contact.merged`,
+**Eventos:** `contact.created`, `contact.updated`, `contact.anonymized`, `contact.merged`,
 `contact.opted_out`, `deal.created`, `deal.stage_changed`, `deal.won`, `deal.lost`,
 `deal.stalled`, `activity.due`.
 
@@ -857,7 +857,7 @@ identity        user.registered · user.invited · user.joined_tenant · user.lo
 organizations   tenant.created · tenant.plan_changed · tenant.state_changed
                 usage.threshold_reached · tenant.settings_changed
 authorization   role.created · role.assigned
-crm             contact.created · contact.updated · contact.merged · contact.opted_out
+crm             contact.created · contact.updated · contact.anonymized · contact.merged · contact.opted_out
                 deal.created · deal.stage_changed · deal.won · deal.lost · deal.stalled
                 activity.due
 conversations   conversation.created · conversation.assigned · conversation.state_changed

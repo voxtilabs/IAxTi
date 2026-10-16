@@ -325,6 +325,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "argumentos": {
       "type": "object",
       "properties": {
+        "contextoPersonal": {
+          "type": "boolean"
+        },
         "turnos": {
           "type": "array",
           "items": {}
@@ -3079,6 +3082,319 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "permiso": "audit.read",
     "modulo": "audit",
     "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "DriveController_adjuntos": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/adjuntos",
+    "resumen": "Ver las referencias de Drive publicadas en esta conversación o ficha",
+    "permiso": "integrations.read",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "context": {
+          "type": "object",
+          "properties": {
+            "contactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "conversationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "context"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_attach": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/adjuntar",
+    "resumen": "Adjuntar una referencia de Drive a una conversación o ficha sin enviar ni cambiar permisos Google",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "contactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "conversationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "context"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_carpeta": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/carpeta",
+    "resumen": "Activar o detener las copias de nuevos adjuntos recibidos por este contacto",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "contactId",
+        "enabled"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_completar": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/completar",
+    "resumen": "Completar una vez el consentimiento personal de Drive",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "verifier": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "pattern": "^[^\\r\\n\\0]+$"
+        }
+      },
+      "required": [
+        "state",
+        "nonce",
+        "verifier",
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_estado": {
+    "metodo": "GET",
+    "ruta": "/v1/integraciones/drive",
+    "resumen": "Estado de mi conexión personal a Google Drive",
+    "permiso": "integrations.read",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "DriveController_estadoCarpeta": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/carpeta/estado",
+    "resumen": "Ver el estado de mis copias de adjuntos por contacto",
+    "permiso": "integrations.read",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "contactId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_iniciar": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/iniciar",
+    "resumen": "Iniciar consentimiento personal incremental de Drive con PKCE",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "challenge": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "challenge"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_permisoIa": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/permiso-ia",
+    "resumen": "Permitir o retirar lectura por IA de un documento personal autorizado",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "allowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "allowed"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_revocar": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/revocar",
+    "resumen": "Revocar todos los servicios de la cuenta Google conectada",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "DriveController_search": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/buscar",
+    "resumen": "Buscar archivos personales autorizados en Drive y pasajes permitidos para IA",
+    "permiso": "integrations.read",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "default": "",
+          "type": "string",
+          "maxLength": 200
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "contactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "conversationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "readDocuments": {
+          "default": false,
+          "type": "boolean"
+        },
+        "after": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "DriveController_seleccionar": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/seleccionar",
+    "resumen": "Autorizar un archivo seleccionado de mi Drive, verificándolo en Google",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "fileId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,200}$"
+        },
+        "aiAllowed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fileId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DriveController_selector": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/drive/selector",
+    "resumen": "Abrir el selector oficial con configuración pública, sin tokens del servidor",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
     "argumentos": {
       "type": "object",
       "properties": {},

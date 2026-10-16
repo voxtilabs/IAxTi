@@ -1,3 +1,4 @@
+import { DriveController, GOOGLE_DRIVE_HTTP, googleDriveHttp } from './google-drive.controller';
 import {
   Controller,
   Get,
@@ -1277,6 +1278,7 @@ const controllers = [
   PaymentsController,
   PaymentWebhooksController,
   BillingController,
+  DriveController,
   GoogleCalendarController,
   GoogleCalendarWebhookController,
   ArranqueController,
@@ -1288,5 +1290,6 @@ const controllers = [
   ...(esProduccion() ? [] : [SimuladorController]),
 ];
 
-@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }] })
+@Module({ controllers, providers: [
+    { provide: GOOGLE_DRIVE_HTTP, useValue: googleDriveHttp },{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }] })
 export class AppModule {}

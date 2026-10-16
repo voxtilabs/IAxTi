@@ -21,9 +21,9 @@ const aqui = dirname(fileURLToPath(import.meta.url));
 const raiz = resolve(aqui, '../../..');
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
-const JWKS_PORT = 4012;
-const API_PORT = 4010;
-const WEB_PORT = 4011;
+const JWKS_PORT = Number(process.env.E2E_JWKS_PORT?.trim() || 4012);
+const API_PORT = Number(process.env.E2E_API_PORT?.trim() || 4010);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT?.trim() || 4011);
 const ISSUER = `http://127.0.0.1:${JWKS_PORT}/auth/v1`;
 
 const hijos = [];
