@@ -55,6 +55,18 @@ async function esperar(url, intentos = 60) {
   throw new Error(`e2e: ${url} nunca respondió`);
 }
 
+// #902: cada negocio necesita un ADMIN antes de incorporar otros roles.
+// Es otra identidad: la usuaria que recorre Bandeja/Teclado sigue SUPERVISOR.
+async function crearAdminDeFixture(pool, tenantId) {
+  const userId = randomUUID();
+  await withTenant(pool, tenantId, async (client) => {
+    const invitation = await createInvitation(client, {
+      tenantId, email: `admin-${userId}@e2e.cl`, roleName: 'ADMIN',
+    });
+    await acceptInvitation(client, { token: invitation.token, userId });
+  });
+}
+
 async function main() {
   // 1 · Llaves y "Supabase Auth" local: un JWKS estático por HTTP.
   const { publicKey, privateKey } = await generateKeyPair('ES256');
@@ -77,6 +89,7 @@ async function main() {
   );
   const tenant =
     t.rows[0]?.id ?? (await pool.query("SELECT id FROM tenants WHERE name = 'E2E Bandeja'")).rows[0].id;
+  await crearAdminDeFixture(pool, tenant);
   const inv = await withTenant(pool, tenant, (c) =>
     createInvitation(c, { tenantId: tenant, email: `sup-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }),
   );
@@ -105,6 +118,7 @@ async function main() {
   }
   const conversation = conversaciones[0];
   const keyTenant = (await pool.query("INSERT INTO tenants(name) VALUES ('E2E Teclado') RETURNING id")).rows[0].id;
+  await crearAdminDeFixture(pool, keyTenant);
   const keyInvitation = await withTenant(pool, keyTenant, (c) => createInvitation(c, { tenantId: keyTenant, email: `teclado-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }));
   await withTenant(pool, keyTenant, (c) => acceptInvitation(c, { token: keyInvitation.token, userId: supervisora }));
   const keyConversations = [];
