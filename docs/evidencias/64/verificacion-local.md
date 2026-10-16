@@ -59,6 +59,25 @@ Las bases de trinquetes no cambiaron: 194 exports sin consumidor, 18 columnas
 sin lector, 22 cruces SQL inventariados, 32 listas pendientes y 109 avisos
 pendientes. Ninguna excepción nueva oculta cambios de esta issue.
 
+## Corrección del presupuesto de llamadas (#711)
+
+La combinación de funciones detectó una consulta contextual de Drive al abrir
+cada conversación. La ficha ahora muestra **Ver archivos de Drive** y monta
+su contenido solo al abrirla. Cambiar negocio, usuario, sesión, contacto o
+conversación reinicia el panel cerrado; las respuestas del contexto anterior
+no se muestran. Mis archivos en ajustes mantiene su carga habitual.
+
+La prueba existente de presupuesto vuelve a medir cuatro endpoints en bandeja
+y seis con conversación, sin cambiar su techo. La regresión DOM tiene 14 casos,
+incluidos cinco cambios de contexto. Build web con dependencias, typecheck y
+lint dirigido pasaron. Navegador: tres casos correctos (presupuesto y Drive en
+día/noche); el recorrido contextual comprueba cero consultas antes de abrir,
+carga al pulsar, cierre, foco por teclado, control de 46 px y ausencia de scroll
+horizontal a 360 CSS px. Cuatro capturas `drive-contexto-*-360-*.png` se
+inspeccionaron. Se conservan los fallos de preparación de la prueba: tenant sin
+conversación visible y foco programático sin activar `:focus-visible`; se
+corrigieron el fixture y la navegación por Tab, sin alterar estilos ni límites.
+
 ## Reproducir
 
 Desde la raíz del repositorio con PostgreSQL y Redis exclusivos de pruebas:
@@ -71,7 +90,7 @@ pnpm --filter @iaxti/api exec vitest run tests/google-drive.test.ts tests/person
 pnpm --filter @iaxti/web exec vitest run tests/google-drive.test.tsx tests/google-picker.test.ts tests/agente-general-personal.test.tsx
 pnpm --filter @iaxti/module-agents exec vitest run tests/drive-tools.test.ts tests/tools-que-existen.test.ts tests/google-personal-context.test.ts
 TODO=1 bash scripts/antes-de-empujar.sh
-E2E_API_PORT=4031 E2E_WEB_PORT=4032 E2E_JWKS_PORT=4033 pnpm --filter @iaxti/web e2e google-drive
+E2E_API_PORT=4031 E2E_WEB_PORT=4032 E2E_JWKS_PORT=4033 pnpm --filter @iaxti/web e2e cuantas-llamadas google-drive
 ```
 
 La corrida local usó PostgreSQL de pruebas en 55432, Redis 56379/12 y las bases

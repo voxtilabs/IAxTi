@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { googleDriveClient, GoogleDriveSdkError, type DriveSearchResult, type DriveContext, type DriveReference, type DriveFolderState } from '@iaxti/sdk';
 import { AvisoResultado, Button, Checkbox, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { useArranque } from './arranque';
@@ -84,5 +84,12 @@ export function DriveFiles({apiUrl,token,tenantId,canConnect,context}:Props){
 export function DriveContextFiles({contactId,conversationId}:{contactId:string;conversationId?:string}){
   const {config,session}=useSession();const tenantId=useSelectedTenant();const {arranque}=useArranque();
   if(!session||!tenantId||!arranque?.permisos?.includes('integrations.read')||!arranque.modulos.some(module=>module.id==='integrations'))return null;
-  return <DriveFiles key={`${tenantId}|${session.user.id}|${session.access_token}|${contactId}|${conversationId??''}`} apiUrl={config.apiUrl} token={session.access_token} tenantId={tenantId} context={{contactId,...(conversationId?{conversationId}:{})}} canConnect={arranque.permisos.includes('integrations.connect')} />;
+  return <DriveContextPanel key={`${config.apiUrl}|${tenantId}|${session.user.id}|${session.access_token}|${contactId}|${conversationId??''}`} apiUrl={config.apiUrl} token={session.access_token} tenantId={tenantId} context={{contactId,...(conversationId?{conversationId}:{})}} canConnect={arranque.permisos.includes('integrations.connect')} />;
+}
+function DriveContextPanel(props:Props){
+  const [open,setOpen]=useState(false);const panelId=useId();
+  return <div className="mt-4 min-w-0">
+    <Button variant="secundario" aria-expanded={open} aria-controls={panelId} onClick={()=>setOpen(value=>!value)}>{open?'Ocultar archivos de Drive':'Ver archivos de Drive'}</Button>
+    <div id={panelId} hidden={!open}>{open&&<DriveFiles {...props}/>}</div>
+  </div>;
 }

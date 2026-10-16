@@ -49,12 +49,25 @@ it('sin permiso conectar mantiene lectura y deshabilita consentimiento',async()=
 });
 it('ficha publica referencias sin conexión personal ni autoriza IA al equipo',async()=>{
   fetcher.mockImplementation(async url=>String(url).endsWith('/adjuntos')?json([{id:'ref',name:'Referencia compartida',url:file.url,mimeType:'text/plain',own:false}]):json(disconnected));
-  render(<DriveContextFiles contactId="contact-a"/>);await screen.findByRole('link',{name:'Referencia compartida'});expect(screen.queryByRole('checkbox')).toBeNull();expect(fetcher.mock.calls.some(([url])=>String(url).endsWith('/buscar'))).toBe(false);
+  render(<DriveContextFiles contactId="contact-a"/>);expect(fetcher).not.toHaveBeenCalled();const open=screen.getByRole('button',{name:'Ver archivos de Drive'});expect(open).toHaveAttribute('aria-expanded','false');fireEvent.click(open);await screen.findByRole('link',{name:'Referencia compartida'});expect(open).toHaveAttribute('aria-expanded','true');expect(screen.queryByRole('checkbox')).toBeNull();expect(fetcher.mock.calls.some(([url])=>String(url).endsWith('/buscar'))).toBe(false);
 });
 it('adjuntar y copias por contacto requieren acciones separadas; explica responsabilidad sobre copias',async()=>{
   let enabled=false;fetcher.mockImplementation(async(url,init)=>{const path=String(url);if(path.endsWith('/buscar'))return json({...empty,files:[file]});if(path.endsWith('/adjuntos'))return json([]);if(path.endsWith('/carpeta/estado'))return json({enabled,pending:0,retrying:0,uploaded:0,folderUrl:null});if(path.endsWith('/carpeta')){enabled=JSON.parse(String(init?.body)).enabled;return json({enabled});}if(path.endsWith('/adjuntar'))return json({attached:true,created:true});return json(active);});
-  render(<DriveContextFiles contactId="contact-a" conversationId="conversation-a"/>);fireEvent.click(await screen.findByRole('button',{name:'Adjuntar Contrato personal'}));await screen.findByText('Referencia adjuntada. No se envió ningún mensaje.');expect(enabled).toBe(false);
+  render(<DriveContextFiles contactId="contact-a" conversationId="conversation-a"/>);expect(fetcher).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Ver archivos de Drive'}));fireEvent.click(await screen.findByRole('button',{name:'Adjuntar Contrato personal'}));await screen.findByText('Referencia adjuntada. No se envió ningún mensaje.');expect(enabled).toBe(false);
   expect(screen.getByText(/copias que tú administras en Google Drive/)).toBeTruthy();const checkbox=screen.getByRole('checkbox');fireEvent.click(checkbox);await waitFor(()=>expect(checkbox).toBeChecked());
+});
+
+it.each(['tenant','user','token','contact','conversation'] as const)('cambio de %s cierra Drive contextual y descarta la respuesta anterior sin cargar el nuevo contexto',async(change)=>{
+  let finish!:(value:Response)=>void;
+  fetcher.mockReturnValueOnce(new Promise(resolve=>{finish=resolve;})).mockImplementation(async url=>String(url).endsWith('/adjuntos')?json([]):json(disconnected));
+  const view=render(<DriveContextFiles contactId="contact-a" conversationId="conversation-a"/>);
+  fireEvent.click(screen.getByRole('button',{name:'Ver archivos de Drive'}));expect(fetcher).toHaveBeenCalledTimes(1);
+  if(change==='tenant')auth.tenant='tenant-b';if(change==='user')auth.user='user-b';if(change==='token')auth.token='session-b';
+  view.rerender(<DriveContextFiles contactId={change==='contact'?'contact-b':'contact-a'} conversationId={change==='conversation'?'conversation-b':'conversation-a'}/>);
+  expect(screen.getByRole('button',{name:'Ver archivos de Drive'})).toHaveAttribute('aria-expanded','false');expect(fetcher).toHaveBeenCalledTimes(1);
+  await act(async()=>finish(json([{id:'old-ref',name:'Archivo del contexto anterior',url:file.url,mimeType:'text/plain',own:false}])));
+  expect(screen.queryByRole('link',{name:'Archivo del contexto anterior'})).toBeNull();expect(screen.queryByRole('region',{name:'Archivos de Drive en esta ficha'})).toBeNull();
+  const before=fetcher.mock.calls.length;fireEvent.click(screen.getByRole('button',{name:'Ver archivos de Drive'}));await screen.findByText('Las referencias que adjuntes aparecerán aquí.');expect(fetcher.mock.calls.length).toBeGreaterThan(before);
 });
 
 it('abre GIS desde el clic sin esperar la segunda acreditación del servidor; no selecciona antes de ambas',async()=>{
