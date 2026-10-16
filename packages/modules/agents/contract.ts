@@ -188,3 +188,5 @@ export {
   TareaQueElProveedorNoAtiende,
 } from './application/defecto-de-la-plataforma';
 export type { DefectoDeLaTarea } from './application/defecto-de-la-plataforma';
+
+export { MAX_AUDIO_BYTES } from './domain/audio';

@@ -922,6 +922,23 @@ export async function updateSummary(
   );
 }
 
+/** Resuelve el adjunto del mensaje real antes de firmar/descargar un audio (#864). */
+export async function incomingAudioAttachment(
+  client: PoolClient,
+  input: { tenantId: string; conversationId: string; messageId: string; key: string },
+): Promise<{ key: string; contentType: string } | null> {
+  if (!input.key.startsWith(`${input.tenantId}/`) || input.key.split('/').some(p => p === '..' || p === '.')) return null;
+  const r = await client.query<{ attachments: unknown }>(
+    "SELECT attachments FROM messages WHERE tenant_id=$1 AND conversation_id=$2 AND id=$3 AND type='audio' AND direction='in'",
+    [input.tenantId, input.conversationId, input.messageId],
+  );
+  const attachments = r.rows[0]?.attachments;
+  if (!Array.isArray(attachments)) return null;
+  const adjunto = attachments.find((a: unknown) => a && typeof a === 'object' && (a as { key?: unknown }).key === input.key) as { key: string; contentType?: unknown } | undefined;
+  if (!adjunto || typeof adjunto.contentType !== 'string' || !adjunto.contentType.startsWith('audio/')) return null;
+  return { key: adjunto.key, contentType: adjunto.contentType };
+}
+
 /** La transcripción del audio queda como texto BUSCABLE (#48; el índice
  *  de búsqueda de #39 ya la incluye). */
 export async function updateTranscription(

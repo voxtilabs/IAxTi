@@ -4,7 +4,6 @@ import { createPool, runMigrations } from '@iaxti/db';
 import { DEFAULT_TASK_MODELS } from '../domain/config';
 import {
   ProveedorSinFilaDeCompliance,
-  TareaQueElProveedorNoAtiende,
   defectosDeLaPlataforma,
   fijarDefectoDeLaTarea,
   semillaEfectiva,
@@ -123,19 +122,11 @@ describe('el defecto de la plataforma (#858)', () => {
     expect((await defectosDeLaPlataforma(client)).resumir.desdeLaBase).toBe(false);
   });
 
-  it('un proveedor que no atiende esa tarea tampoco, y el motivo es otro', async () => {
-    // `transcribir` manda el audio como file part y el adaptador compatible de
-    // OpenAI no lo recibe (#864). No es política: es capacidad, y el error lo
-    // dice distinto para que nadie lo lea como una decisión de compliance.
-    await expect(
-      fijarDefectoDeLaTarea(client, {
-        task: 'transcribir',
-        provider: 'openai',
-        model: 'whisper-1',
-        actor: 'admin-1',
-        auditar: auditor(),
-      }),
-    ).rejects.toBeInstanceOf(TareaQueElProveedorNoAtiende);
+  it('el defecto de transcribir acepta el puerto OpenAI y conserva la auditoría', async () => {
+    const auditar = auditor();
+    const r = await fijarDefectoDeLaTarea(client, { task: 'transcribir', provider: 'openai', model: 'gpt-4o-mini-transcribe', actor: 'admin-1', auditar });
+    expect(r.model).toBe('gpt-4o-mini-transcribe');
+    expect(auditar).toHaveBeenCalledOnce();
   });
 
   it('una fila con un proveedor que ya no existe se ignora y vuelve la semilla', async () => {

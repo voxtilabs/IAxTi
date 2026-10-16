@@ -5,7 +5,8 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createOpenAI } from '@ai-sdk/openai';
 import { enteroDeEntorno, textoDeEntorno } from '@iaxti/core';
-import type { Esfuerzo, Provider } from '../domain/config';
+import { DEFAULT_TASK_MODELS, DEFAULT_TASK_OUTPUT_TOKENS, type Esfuerzo, type Provider, type TaskModel } from '../domain/config';
+import { AudioNoAdmitido, modeloPuedeTranscribir, validarAudio, usoDeAudioOpenAi, type ResultadoDeTranscripcion } from '../domain/audio';
 import { FalloDeHerramienta, FalloDelProveedor, esDeHerramienta } from './fallo-del-proveedor';
 
 // El puerto de modelos (#47): Vercel AI SDK debajo, y una interfaz chica
@@ -106,7 +107,7 @@ export const ENV_KEYS: Record<Provider, string> = {
 };
 
 export function providerAvailable(provider: Provider): boolean {
-  return Boolean(process.env[ENV_KEYS[provider]]);
+  return Boolean(process.env[ENV_KEYS[provider]]?.trim());
 }
 
 function languageModel(provider: Provider, model: string): LanguageModel {
@@ -315,7 +316,7 @@ export const ESPERA_MAXIMA_MS = enteroDeEntorno('IA_ESPERA_MAXIMA_MS', 60_000);
  * Un fallo de herramienta pasa tal cual: ya viene marcado como nuestro desde el
  * `execute`, y volver a envolverlo lo convertiría en lo contrario de lo que es.
  */
-async function conLaMarcaDelProveedor<T>(hacer: () => Promise<T>): Promise<T> {
+async function conLaMarcaDelProveedor<T>(hacer: () => PromiseLike<T>): Promise<T> {
   try {
     return await hacer();
   } catch (err) {
@@ -326,51 +327,54 @@ async function conLaMarcaDelProveedor<T>(hacer: () => Promise<T>): Promise<T> {
 
 export type ModelPortFactory = (provider: Provider, model: string) => ModelPort;
 
-/** Transcripción de audio (#48): Gemini multimodal. Inyectable en tests. */
+/** Transcripción de audio (#48/#864), con uso real y puerto inyectable. */
 export interface TranscribePort {
-  /** Quién transcribió de verdad, para que la corrida no mienta el costo. */
   proveedor: string;
   modelo: string;
-  transcribe(audio: { bytes: Uint8Array; contentType: string }): Promise<string>;
+  transcribe(audio: { bytes: Uint8Array; contentType: string; esperaMaximaMs?: number }): Promise<ResultadoDeTranscripcion>;
 }
 
-/**
- * La transcripción es la ÚNICA tarea que no corre en GLM, y no es una
- * preferencia: es capacidad (ADR-0025 §7).
- *
- * El audio entra como parte de archivo y el catálogo de NVIDIA que sirve GLM
- * no publica ningún modelo de audio —se revisó el 25-09: cero ASR entre sus
- * 82 modelos—. Forzarla a GLM haría fallar cada nota de voz recibida.
- *
- * Sin llave de Google, esto lanza y `transcribeInboundAudio` devuelve null:
- * la nota de voz llega igual, sin texto buscable. Es una degradación
- * aceptada, no una falla — y por eso el proveedor de verdad usado queda
- * registrado en la corrida, en vez de escribirse a mano.
- */
-export const PROVEEDOR_DE_TRANSCRIPCION = { provider: 'google' as const, model: 'gemini-flash-latest' };
-
-export function aiSdkTranscriber(model = PROVEEDOR_DE_TRANSCRIPCION.model): TranscribePort {
+/** Puerto de AUDIO. No se manda ningún archivo a chat/completions o Responses. */
+export function aiSdkTranscriber(elegido: TaskModel = DEFAULT_TASK_MODELS.transcribir): TranscribePort {
+  const { provider, model } = elegido;
   return {
-    proveedor: PROVEEDOR_DE_TRANSCRIPCION.provider,
+    proveedor: provider,
     modelo: model,
     async transcribe(audio) {
-      const res = await generateText({
-        model: languageModel(PROVEEDOR_DE_TRANSCRIPCION.provider, model),
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'file', data: audio.bytes, mediaType: audio.contentType },
-              {
-                type: 'text',
-                text: 'Transcribe este audio al español tal cual se dice, sin comentarios.',
-              },
-            ],
-          },
-        ],
-        maxOutputTokens: 2048,
-      });
-      return res.text.trim();
+      const mediaType = validarAudio(provider, audio);
+      if (!modeloPuedeTranscribir(provider, model)) throw new AudioNoAdmitido('El modelo configurado no tiene capacidad de transcripción en el puerto de audio. Revisa el modelo de la tarea.');
+      if (!providerAvailable(provider)) throw new AudioNoAdmitido(`No hay credencial configurada para transcribir con ${provider}. Revisa ${ENV_KEYS[provider]}.`);
+      const abortSignal = AbortSignal.timeout(audio.esperaMaximaMs ?? ESPERA_MAXIMA_MS);
+      if (provider === 'openai') {
+        // doGenerate conserva usage y MIME. El helper genérico transcribe del SDK
+        // instalado descarta usage; tampoco permite declarar el MIME del archivo.
+        const apiKey = process.env[ENV_KEYS.openai]?.trim();
+        if (!apiKey) throw new AudioNoAdmitido('No hay credencial configurada para transcribir con OpenAI.');
+        const puerto = createOpenAI({ apiKey, baseURL: textoDeEntorno('OPENAI_API_BASE', 'https://api.openai.com/v1') }).transcription(model);
+        const res = await conLaMarcaDelProveedor(() => puerto.doGenerate({
+          audio: audio.bytes, mediaType, abortSignal,
+          providerOptions: { openai: { language: 'es', responseFormat: 'json', timestampGranularities: [] } },
+        }));
+        return { text: res.text.trim(), ...usoDeAudioOpenAi(model, res.usage) };
+      }
+      // Google conserva su API multimodal; no pasa por el endpoint de chat de OpenAI.
+      const res = await conLaMarcaDelProveedor(() => generateText({
+        model: languageModel(provider, model),
+        messages: [{ role: 'user', content: [
+          { type: 'file', data: audio.bytes, mediaType },
+          { type: 'text', text: 'Transcribe este audio al español tal cual se dice, sin comentarios.' },
+        ] }],
+        maxOutputTokens: DEFAULT_TASK_OUTPUT_TOKENS.transcribir,
+        abortSignal,
+        maxRetries: 0,
+      }));
+      return {
+        text: res.text.trim(), tokensIn: res.usage.inputTokens ?? null,
+        tokensOut: res.usage.outputTokens ?? null,
+        // La tarifa de entrada de texto no es la de audio. Sin desglose/tarifa
+        // verificada para el modelo Google elegido no se inventa un costo cero.
+        costUsd: null, truncada: res.finishReason === 'length',
+      };
     },
   };
 }

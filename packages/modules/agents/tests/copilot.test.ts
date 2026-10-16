@@ -170,7 +170,7 @@ describe('el copiloto (#48)', () => {
         {
           proveedor: 'google',
           modelo: 'gemini-flash-latest',
-          transcribe: async () => 'Hola, quiero confirmar la hora de mañana por favor.',
+          transcribe: async () => ({ text: 'Hola, quiero confirmar la hora de mañana por favor.', tokensIn: 7, tokensOut: 8, costUsd: null }),
         },
       ),
     );
@@ -202,7 +202,7 @@ describe('el copiloto (#48)', () => {
       transcribeInboundAudio(
         c,
         { tenantId: tenant, messageId: otro.rows[0].id, bytes: new Uint8Array(4), contentType: 'audio/ogg' },
-        { proveedor: 'inventado', modelo: 'modelo-x', transcribe: async () => 'algo dijo' },
+        { proveedor: 'inventado', modelo: 'modelo-x', transcribe: async () => ({ text: 'algo dijo', tokensIn: null, tokensOut: null, costUsd: null }) },
       ),
     );
     const fila = await admin.query(

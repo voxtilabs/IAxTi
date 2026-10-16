@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { usoDeAudioOpenAi } from '../domain/audio';
 import {
   DEFAULT_TASK_MODELS,
   RESPALDO_POR_PROVEEDOR,
@@ -24,11 +25,13 @@ import {
 describe('todo modelo elegible por el producto tiene precio', () => {
   const caminos = [
     ...Object.entries(DEFAULT_TASK_MODELS).map(([tarea, m]) => ({
+      audio: tarea === 'transcribir',
       porque: `es el por defecto de "${tarea}"`,
       ...m,
     })),
     ...Object.entries(RESPALDO_POR_PROVEEDOR).flatMap(([provider, gama]) =>
       (['liviano', 'pesado'] as const).map((g) => ({
+        audio: false,
         porque: `es el respaldo ${g} de "${provider}"`,
         provider,
         model: gama[g],
@@ -42,8 +45,12 @@ describe('todo modelo elegible por el producto tiene precio', () => {
     expect(caminos.length).toBeGreaterThan(10);
   });
 
-  it.each(caminos)('$provider/$model tiene precio, porque $porque', ({ provider, model }) => {
-    const costo = estimateCostUsd(provider, model, 1000, 1000);
+  it.each(caminos)('$provider/$model tiene precio, porque $porque', ({ provider, model, audio }) => {
+    // Audio tiene unidades/tarifa propias; exigir la tarifa de chat aquí
+    // reproduciría precisamente el costo incorrecto que esta guarda evita.
+    const costo = audio && provider === 'openai'
+      ? usoDeAudioOpenAi(model, { type: 'tokens', input_tokens: 1000, output_tokens: 1000 }).costUsd
+      : estimateCostUsd(provider, model, 1000, 1000);
     expect(
       costo,
       `No hay fila de precio para ${provider}:${model}. El producto puede elegirlo, así que ` +

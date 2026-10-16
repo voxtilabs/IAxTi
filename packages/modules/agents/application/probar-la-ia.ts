@@ -5,6 +5,7 @@ import {
   proveedorPermitidoParaTarea,
   type AgentTask,
   type Provider,
+  type TaskModel,
 } from '../domain/config';
 import {
   ENV_KEYS,
@@ -103,6 +104,7 @@ export interface ResultadoDeLaPrueba {
 export async function probarLaIa(
   entrada: {
     tarea?: AgentTask;
+    defectos?: Record<AgentTask, TaskModel>;
     settings: Record<string, unknown> | null | undefined;
   },
   deps: {
@@ -119,8 +121,8 @@ export async function probarLaIa(
   // que importa que funcione.
   const tarea: AgentTask = entrada.tarea && TASKS.includes(entrada.tarea) ? entrada.tarea : 'sugerir';
 
-  const efectiva = iaSettings(entrada.settings, hayLlave, estaCastigado).tasks[tarea];
-  const escrita = iaSettings(entrada.settings).tasks[tarea];
+  const efectiva = iaSettings(entrada.settings, hayLlave, estaCastigado, entrada.defectos).tasks[tarea];
+  const escrita = iaSettings(entrada.settings, undefined, undefined, entrada.defectos).tasks[tarea];
   const pedido = escrita.provider !== efectiva.provider ? escrita.provider : null;
 
   // Sin llave no hay a quién preguntarle, y gastar una llamada para
@@ -158,6 +160,14 @@ export async function probarLaIa(
           `${ENV_KEYS[efectiva.provider]} en el ambiente.`,
     };
   }
+
+  // Esta acción no recibe un archivo. Un ping de texto con un modelo de audio
+  // no prueba la transcripción y antes la presentaba como verificada (#864).
+  if (tarea === 'transcribir') return {
+    contesto: false, tarea, proveedor: efectiva.provider, modelo: efectiva.model, pedido,
+    latencyMs: 0, tokensIn: 0, tokensOut: 0, texto: '', motivo: null,
+    mensaje: 'La transcripción requiere un archivo de audio; esta prueba de texto no la verifica. Comprueba una nota de voz entrante y su ejecución de transcribir.',
+  };
 
   const t0 = ahora();
   try {

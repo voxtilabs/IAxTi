@@ -1,0 +1,32 @@
+{
+  "issue": 864,
+  "base_commit": "79936e77bfa57ebcfbcc16b81888af2fdb9983c7",
+  "verification": {
+    "preflight": "TODO=1 pnpm antes-de-empujar",
+    "status": "passed",
+    "tests": 2928,
+    "skipped_existing": 14,
+    "test_packages": 28,
+    "typecheck_tasks": 54,
+    "build_tasks": 30,
+    "preflight_log_sha256": "36eb5063b954ea821b24b6613fcf9dd5845e5140d16c04b2df92e72a0f063bf1",
+    "new_tests": 43,
+    "independent_repeated_tests": 43,
+    "external_api_calls": false,
+    "audio_fixture": "PCM sintético de silencio y bytes OGG de contrato, HTTP interceptado"
+  },
+  "acceptance": {
+    "C1": "implemented_local_contract_verified",
+    "C2": "implemented_local_verified",
+    "C3": "implemented_local_verified",
+    "C4": "pending_external_decision",
+    "C5": "pending_real_audio_api_test"
+  },
+  "limits": [
+    "No certifica calidad de transcripción real ni evaluación contra proveedor.",
+    "Sin consumo reportado o tarifa conocida, costo null.",
+    "Google audio no usa tarifa de texto.",
+    "Garantía de una llamada solo para transcripción confirmada; rollback local no deshace un cargo externo.",
+    "Sin cierre, merge ni deploy."
+  ]
+}
