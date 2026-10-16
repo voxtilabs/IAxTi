@@ -36,7 +36,7 @@ Para identificar los CSV consultados sin depender de URLs temporales del CDN:
 - USD, encabezado de vigencia `October 1, 2026`; SHA-256 `046ab0e99ef1c258d80285bcf1ddb443a63e5ab1f27abed691cafb980d6256a9`.
 - CLP, mismo encabezado; SHA-256 `6267153fbe8138a3addd25be4978cbf7bf2d6b84624f7d2bcb9734c34ca9981c`.
 
-Estos importes no son un precio final de IAxTi. [Kapso · precios de llamadas](https://docs.kapso.ai/docs/whatsapp/pricing-faq) separa Meta del runtime de voz, alojamiento y modelos. [Zavu · Voice Agents](https://docs.zavu.dev/guides/voice-agents/overview) factura minutos conectados más telefonía; no publica allí una cifra específica por minuto a Chile. Esa cifra, la divisa efectiva de la cuenta y eventuales cargos del intermediario quedan sin verificar.
+Estos importes no son un precio final de IAxTi. [Kapso · Calling, precios](https://docs.kapso.ai/docs/whatsapp/calling/overview) declara que no añade recargo de Calling. Su [FAQ de precios](https://docs.kapso.ai/docs/whatsapp/pricing-faq) separa las tarifas de Meta del plan Kapso y de los cargos del runtime de voz, alojamiento y modelos. [Zavu · Voice Agents](https://docs.zavu.dev/guides/voice-agents/overview) factura minutos conectados más telefonía; no publica allí una cifra específica por minuto a Chile. Esa cifra de Zavu, la divisa efectiva de la cuenta y el total con plan e infraestructura quedan sin verificar.
 
 ## Kapso y Zavu: contratos distintos
 
