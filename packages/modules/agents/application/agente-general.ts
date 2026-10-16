@@ -33,6 +33,15 @@ const HERRAMIENTAS_PERSONALES = new Set(['gmail.get_threads', 'drive.search', 'd
 /** Solo minimiza el registro; no concede autorización. */
 export const esHerramientaPersonal = (nombre: string): boolean => HERRAMIENTAS_PERSONALES.has(nombre);
 const CONTENIDO_PERSONAL = '[Contenido personal de Google omitido]';
+/** Conserva identificadores opacos necesarios para la siguiente tool; redacta
+ * texto de correo/documentos antes de que el puerto del modelo lo reciba. */
+function redactarResultadoPersonal(value: unknown, key = ''): unknown {
+  if (typeof value === 'string') return /^(?:id|.*Id|.*_id)$/.test(key) ? value : redactPII(value);
+  if (Array.isArray(value)) return value.map(item => redactarResultadoPersonal(item, key));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redactarResultadoPersonal(v, k)]));
+  return value;
+}
+
 const PASOS = 6;
 const MS_POR_PASO = 30_000;
 
@@ -429,6 +438,7 @@ export async function conversarConElAgenteGeneral(
     };
   }
 
+  const politica = iaSettings(await getTenantSettings(client, input.tenantId), providerAvailable, estaCastigado, await semillaCacheada(client));
   const pasos: PasoDelAgente[] = [];
   let propuesta: PropuestaDelAgente | null = null;
 
@@ -526,9 +536,10 @@ export async function conversarConElAgenteGeneral(
         // El error se le devuelve AL MODELO y no se lanza: un permiso que
         // falta o un dato inválido es información que necesita para
         // responder sin inventar.
-        return { error: (r.datos as { message?: string })?.message ?? `No se pudo (${r.estado}).` };
+        const message = (r.datos as { message?: string })?.message ?? `No se pudo (${r.estado}).`;
+        return { error: esHerramientaPersonal(h.nombre) && politica.redactPII ? redactPII(message) : message };
       }
-      return { estado: 'hecho', resultado: r.datos };
+      return { estado: 'hecho', resultado: esHerramientaPersonal(h.nombre) && politica.redactPII ? redactarResultadoPersonal(r.datos) : r.datos };
     },
   };
 
@@ -611,7 +622,7 @@ export async function conversarConElAgenteGeneral(
     res = await deps.modelo.generate({
       system,
       prompt: '',
-      mensajes: input.turnos,
+      mensajes: input.contextoPersonal && politica.redactPII ? input.turnos.map(turno => ({ ...turno, content: redactPII(turno.content) })) : input.turnos,
       tools: queFalta ? [buscar, preparar, queFalta] : [buscar, preparar],
       // Buscar, a veces mirar de nuevo, preparar, y contestar.
       maxSteps: PASOS,
