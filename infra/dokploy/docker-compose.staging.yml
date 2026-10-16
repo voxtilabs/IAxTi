@@ -38,6 +38,14 @@ x-env: &app-env
   ZAVU_API_KEY: ${ZAVU_API_KEY}
   ZAVU_API_BASE: ${ZAVU_API_BASE:-https://api.zavu.dev/v1}
   ZAVU_WEBHOOK_SECRET: ${ZAVU_WEBHOOK_SECRET}
+  # Invitación partner #56, apagada si falta configuración; nunca crea credenciales.
+  ZAVU_ENVIOS_REALES: ${ZAVU_ENVIOS_REALES:-0}
+  ZAVU_PARTNER_PROJECT_ID: ${ZAVU_PARTNER_PROJECT_ID:-}
+  ZAVU_PARTNER_CREDENTIAL_REF: ${ZAVU_PARTNER_CREDENTIAL_REF:-ZAVU_API_KEY}
+  ZAVU_PARTNER_API_URL: ${ZAVU_PARTNER_API_URL:-}
+  ZAVU_PARTNER_WEBHOOK_SECRET: ${ZAVU_PARTNER_WEBHOOK_SECRET:-}
+  GOOGLE_SECRET_PROJECT_ID: ${GOOGLE_SECRET_PROJECT_ID:-}
+  GOOGLE_SECRET_LOCATION: ${GOOGLE_SECRET_LOCATION:-}
 
   # Correo transaccional (#55). El usuario SMTP de Resend es literalmente
   # `resend` y NO es una dirección: el remitente va en SMTP_FROM con un

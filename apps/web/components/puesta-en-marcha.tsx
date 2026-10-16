@@ -9,6 +9,7 @@ import { WidgetsDelInicio } from './inicio/widgets';
 import type { WidgetItem } from '../lib/nav';
 import { RegistroInicial } from './registro-inicial';
 import { OnboardingCostos } from './onboarding-costos';
+import { WhatsAppInvitation } from './whatsapp-invitation';
 
 // La puesta en marcha (#56, SPEC §7).
 //
@@ -187,7 +188,8 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
                 )}
               </div>
               </div>
-              {p.ruta && !p.hecho && !p.bloqueado && (
+              {p.id === 'whatsapp_connected' && !p.hecho && !p.bloqueado && <WhatsAppInvitation tenant={tenant} primary={esSiguiente}/>}
+              {p.ruta && p.id !== 'whatsapp_connected' && !p.hecho && !p.bloqueado && (
                 <Link href={p.ruta}>
                   <Button variant={esSiguiente ? 'primario' : 'fantasma'} size="chico">
                     {esSiguiente ? 'Hacerlo ahora' : 'Ir'}

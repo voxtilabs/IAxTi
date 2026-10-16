@@ -1,3 +1,4 @@
+import { partnerPorts, processPartnerInvitation, maintainPartnerInvitations } from '@iaxti/module-whatsapp';
 import './instrument';
 import { createServer } from 'node:http';
 import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
@@ -347,6 +348,10 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
         // motivo era cierto cuando se escribió —hacía falta la plantilla
         // aprobada (#44) y el número conectado— y dejó de serlo sin que
         // nadie volviera a mirar.
+        case 'identity.partner.maintain': {
+          if (!process.env.ZAVU_PARTNER_PROJECT_ID?.trim()) return;
+          return maintainPartnerInvitations(pool, partnerPorts(() => registry.isActive('whatsapp') && registry.isActive('channels')));
+        }
         case 'calendar.google.maintain': {
           return mantenerWatchesGoogle(pool);
         }
@@ -597,6 +602,10 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
       'inbound',
       registry,
       async (job) => {
+        if (job.name === 'whatsapp.partner') {
+          const data=job.data as unknown as {tenantId:string;invitationId:string};
+          return processPartnerInvitation(pool,data.tenantId,data.invitationId,partnerPorts(()=>registry.isActive('whatsapp')&&registry.isActive('channels')));
+        }
         if (job.name === 'google-calendar.push') {
           return procesarPushGoogle(pool, job.data as unknown as { tenantId: string; channelId: string; resourceId: string; messageNumber: string });
         }

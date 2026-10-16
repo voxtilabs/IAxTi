@@ -11,6 +11,8 @@ import type { Repetible } from '@iaxti/core';
  * `add` repetido con la misma pauta es idempotente entre reinicios.
  */
 export const REPETIBLES: Repetible[] = [
+  // Recuperación de inbox durable y limpieza de secretos; limpiar sigue con WhatsApp apagado.
+  { nombre: 'identity.partner.maintain', moduleId: 'identity', repeat: { every: 60_000 } },
   { nombre: 'conversations.checks', moduleId: 'conversations', repeat: { every: 60_000 } },
   { nombre: 'crm.activities_due', moduleId: 'crm', repeat: { every: 60_000 } },
   { nombre: 'webhooks.deliver', moduleId: 'integrations', repeat: { every: 60_000 } },

@@ -56,9 +56,10 @@ export async function getChannelAccount(
   client: PoolClient,
   tenantId: string,
   accountId: string,
+  lock = false,
 ): Promise<ChannelAccountRef & { webhookSecretRef: string | null }> {
   const r = await client.query(
-    'SELECT * FROM channel_accounts WHERE tenant_id = $1 AND id = $2',
+    `SELECT * FROM channel_accounts WHERE tenant_id = $1 AND id = $2${lock ? ' FOR UPDATE' : ''}`,
     [tenantId, accountId],
   );
   if (r.rowCount === 0) throw new Error('No encontramos esa cuenta de canal.');

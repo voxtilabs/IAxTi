@@ -61,3 +61,12 @@ gatillo numérico (#82) y su plan de salida ensayado (#159).
 ## Se revisa cuando
 El gatillo numérico del #82 se cumpla, o cuando una capacidad que necesitemos
 —Flows de Meta (#85), Calling API (#86)— no exista detrás del intermediario.
+
+## Implementación de la invitación (#56, 16-10-2026)
+
+La [evidencia C4](../evidencias/56-partner/README.md) aplica esta decisión sin
+cambiar de proveedor: correlación durable, HMAC de proyecto y custodia del
+secreto generado por el emisor en Secret Manager (#57). Una respuesta perdida
+no inventa idempotencia de Zavu. La cuenta permanece `connecting` hasta verificar
+webhook y custodia; recuperación explícita antes de volver a rotar. Las pruebas
+HTTP locales no acreditan conexión, mensaje ni permisos de una cuenta real.

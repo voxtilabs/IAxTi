@@ -70,8 +70,8 @@ export async function createTenant(
   return tenant;
 }
 
-export async function getTenant(client: PoolClient, id: string): Promise<Tenant> {
-  const result = await client.query('SELECT * FROM tenants WHERE id = $1', [id]);
+export async function getTenant(client: PoolClient, id: string, lock = false): Promise<Tenant> {
+  const result = await client.query(`SELECT * FROM tenants WHERE id = $1${lock ? ' FOR UPDATE' : ''}`, [id]);
   if (result.rowCount === 0) throw new Error(`Tenant no encontrado: ${id}`);
   return rowToTenant(result.rows[0]);
 }

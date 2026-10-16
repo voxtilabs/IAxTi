@@ -86,6 +86,8 @@ export async function connectWhatsAppNumber(
     displayPhone?: string;
     credentialRef: string;
     webhookSecretRef: string;
+    /** El onboarding activa solo después de custodiar y confirmar su webhook. */
+    activar?: boolean;
     /**
      * Si esta conexión manda mensajes DE VERDAD (#593). Queda en la cuenta y no
      * solo en el log de quien conectó: el log se lee una vez, el canal lo lee
@@ -94,6 +96,7 @@ export async function connectWhatsAppNumber(
     enviosReales?: boolean;
   },
 ): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`whatsapp-numbers:${input.tenantId}`]);
   const propietario = await tenantDelEmisor(client, input.senderId);
   if (propietario && propietario !== input.tenantId) throw new Error('Ese emisor pertenece a otro negocio.');
   // Los desconectados NO cuentan para el cupo (#600): si contaran, un número
@@ -148,7 +151,7 @@ export async function connectWhatsAppNumber(
   }
   await reservarEmisor(client, { tenantId: input.tenantId, senderId: input.senderId, accountId: account.id });
   // Con webhook verificado el canal queda activo; #45 lo degrada por calidad.
-  const activa = await setChannelState(client, {
+  const activa = input.activar === false ? account : await setChannelState(client, {
     tenantId: input.tenantId,
     accountId: account.id,
     state: 'active',
