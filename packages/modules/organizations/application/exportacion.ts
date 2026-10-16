@@ -32,6 +32,8 @@ const COLUMNAS_PROHIBIDAS: Record<string, string[]> = {
 
 /** Tabla → por qué NO se exporta. */
 export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
+  initial_business_registrations:
+    'Referencia interna para no duplicar el alta inicial al reintentar. El negocio y sus miembros se exportan en tenants y user_roles; esta referencia no concede acceso.',
   audit_log:
     'Tiene su propia exportación firmada y encadenada (#72): meterla acá sin la firma la degrada.',
   outbox: 'Cola de eventos: mecánica nuestra, no datos del negocio.',

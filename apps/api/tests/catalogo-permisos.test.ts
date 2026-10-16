@@ -122,7 +122,6 @@ const PENDIENTES: Record<string, string> = {
   // el registry las filtra por módulo activo. No van acá.
   'calendar.connect':
     'Conectar Google Calendar: necesita las credenciales de OAuth (#57). La agenda funciona sin él, con la disponibilidad configurada.',
-  'tenant.billing': 'Ver y cambiar el plan desde la app; hoy lo hace el SuperAdmin (#69).',
   'whatsapp.numbers.manage':
     'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',
   // `crm.contacts.update` y `crm.deals.close` estaban acá y YA SE EXIGEN:

@@ -47,13 +47,15 @@ function rowToTenant(row: Record<string, unknown>): Tenant {
 /** El tenant nace en trial con fecha de fin y los módulos del plan Crece (SPEC §6). */
 export async function createTenant(
   client: PoolClient,
-  input: { name: string; rubro?: string },
+  input: { name: string; rubro?: string; id?: string; description?: string },
 ): Promise<Tenant> {
   const result = await client.query(
-    `INSERT INTO tenants (name, rubro, plan, state, trial_ends_at)
-     VALUES ($1, $2, 'crece', 'trial', now() + make_interval(days => $3))
+    `INSERT INTO tenants (name, rubro, plan, state, trial_ends_at, id, settings)
+     VALUES ($1, $2, 'crece', 'trial', now() + make_interval(days => $3),
+             COALESCE($4::uuid, gen_random_uuid()), $5::jsonb)
      RETURNING *`,
-    [input.name, input.rubro ?? null, TRIAL_DAYS],
+    [input.name, input.rubro ?? null, TRIAL_DAYS, input.id ?? null,
+      JSON.stringify(input.description ? { businessDescription: input.description } : {})],
   );
   const tenant = rowToTenant(result.rows[0]);
   // El manifiesto declara `tenant.created` desde el primer día y no lo

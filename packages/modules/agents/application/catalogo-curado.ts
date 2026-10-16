@@ -105,7 +105,7 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PlatformController_encenderAgente:
     'Ídem: encenderse solo después de que alguien lo apagó es exactamente lo que el interruptor viene a evitar (#496).',
 
-  // Las tres que solo piden SESIÓN, sin tenant ni permiso: son del acto de
+  // Las que solo piden SESIÓN, sin tenant ni permiso: son del acto de
   // entrar, no del negocio. Sin permiso no hay cómo filtrarlas por quien
   // habla, así que ninguna puede ser herramienta.
   MeController_modules:
@@ -113,6 +113,8 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   ModulesController_catalogo:
     'El catálogo de módulos del DESPLIEGUE, para dibujar el menú; el agente no dibuja menús (#629). Pública y sin permiso: devuelve lo mismo para todos y no hay nada del negocio que filtrar.',
   MeController_me: 'Dice quién es el usuario de la sesión; el agente ya actúa a nombre de alguien (#7).',
+  OnboardingRegistrationController_register:
+    'El alta inicial pertenece a la persona autenticada antes de elegir negocio; el agente ya actúa dentro de uno y no puede crearle otro ni asignarse ADMIN (#56).',
   InvitacionesController_aceptar:
     'Aceptar una invitación es un acto PERSONAL de quien la recibió, con su token; hacerlo por él no (#7).',
 };
