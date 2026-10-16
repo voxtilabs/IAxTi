@@ -4,7 +4,7 @@ module:
   core: false
 depends_on:
   required: [identity, organizations]
-  optional: []
+  optional: [integrations]
 permissions:
   - platform.tenants
   - platform.plans
