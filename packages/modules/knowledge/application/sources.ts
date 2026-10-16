@@ -5,6 +5,7 @@ import { writeAudit } from '@iaxti/module-audit';
 import { parseCsv } from '@iaxti/module-crm';
 import { splitIntoChunks, stripHtml, toVectorLiteral } from '../domain/chunking';
 import type { EmbedPort, PdfTextPort, UrlTextPort } from './embeddings';
+import { bloquearArchivo, marcarSinArchivo } from './file-deletions';
 import { nvidiaEmbedPort, geminiPdfTextPort, DIMENSIONES } from './embeddings';
 
 // Fuentes (#51, SPEC §14): lo que el negocio DICE. Con vigencia opcional —
@@ -218,12 +219,15 @@ export async function processSource(
   ports: ProcessPorts = {},
 ): Promise<Source> {
   const embed = ports.embed ?? nvidiaEmbedPort();
-  const r = await client.query('SELECT * FROM sources WHERE tenant_id = $1 AND id = $2', [
+  // Impide que un procesamiento tardío reviva delete_failed. El barrido omite
+  // la fila ocupada y conserva su intención para la siguiente pasada.
+  const r = await client.query('SELECT * FROM sources WHERE tenant_id = $1 AND id = $2 FOR UPDATE', [
     input.tenantId,
     input.sourceId,
   ]);
   if (r.rowCount === 0) throw new Error('No encontramos esa fuente.');
   const source = r.rows[0];
+  if (source.status === 'delete_failed') return rowToSource(source);
 
   // Reindexación limpia: chunks y productos viejos fuera (cascade no aplica
   // porque la fuente sigue viva).
@@ -444,12 +448,9 @@ export async function marcarFuentesUsadas(
  *
  * O sea: no es inconsistencia, es quién puede recibir la mala noticia.
  *
- * Queda un hueco chico y hay que decirlo: si el borrado en R2 sale bien y el
- * COMMIT falla después, la fila vuelve y los bytes ya no están — «fuente viva,
- * archivo destruido». La búsqueda del conocimiento no puede ver ese estado y
- * seguiría citando un PDF que nadie puede bajar. Necesita marca en la fila para
- * que el criterio de vigencia la excluya, y eso pide su migración: está pedido
- * aparte, no tapado.
+ * El contrato público `eliminarFuente` confirma una intención antes de esta
+ * transacción (#751). Si el proceso muere después de R2, el barrido comprueba
+ * el archivo con HEAD y marca la fuente sin destruir ningún objeto.
  */
 export async function deleteSource(
   client: PoolClient,
@@ -471,6 +472,9 @@ export async function deleteSource(
     almacen: AlmacenObjetos | null;
   },
 ): Promise<{ archivoDestruido: boolean }> {
+  const before = await client.query('SELECT r2_key FROM sources WHERE tenant_id = $1 AND id = $2', [input.tenantId, input.sourceId]);
+  const key = before.rows[0]?.r2_key as string | null | undefined;
+  if (key) await bloquearArchivo(client, input.tenantId, key);
   // RETURNING porque la llave del archivo se necesita DESPUÉS de borrar la
   // fila y después ya no hay dónde leerla.
   const r = await client.query(
@@ -554,26 +558,7 @@ export async function marcarFuenteSinArchivo(
   pool: Pool,
   input: { tenantId: string; sourceId: string },
 ): Promise<void> {
-  await withTenant(pool, input.tenantId, async (client) => {
-    await client.query(
-      `UPDATE sources
-          SET status = 'delete_failed',
-              error = 'Se eliminó el archivo guardado y la eliminación de la fuente no llegó a completarse. Vuelve a subir el documento o termina de borrar la fuente.',
-              updated_at = now()
-        WHERE tenant_id = $1 AND id = $2`,
-      [input.tenantId, input.sourceId],
-    );
-    await writeAudit(client, {
-      tenantId: input.tenantId,
-      actor: 'system',
-      actorKind: 'system',
-      action: 'knowledge.source.sin_archivo',
-      resource: 'source',
-      resourceId: input.sourceId,
-      result: 'ok',
-      metadata: { motivo: 'el archivo se borró y la transacción no confirmó' },
-    });
-  });
+  await withTenant(pool, input.tenantId, (client) => marcarSinArchivo(client, input));
 }
 
 /**
@@ -589,15 +574,10 @@ export async function marcarFuenteSinArchivo(
  * cada llamador tuviera que acordarse de marcar, el estado invisible volvería
  * por el primero que no se acordó.
  *
- * ## Lo que esto NO cubre, y la decisión
- *
- * Si el proceso MUERE entre el borrado en R2 y el commit, nadie marca nada: la
- * fila queda 'active' sin archivo y se cita igual. Taparlo pide anotar la
- * intención ANTES de tocar R2 y que un barrido reconcilie, y eso no se puede
- * hacer sobre la misma fila: la transacción que está borrando tiene el candado,
- * así que una conexión aparte se quedaría esperándola. Pide su propia tabla y su
- * propio barrido, y está en #751 con su riesgo residual nombrado en vez de
- * insinuado acá.
+ * #751: la intención se confirma antes de tocar R2. La segunda transacción
+ * relee esa intención bajo el lock del archivo; si un barrido la limpió en
+ * el intervalo, reintenta SIN tocar R2. No retiene conexiones ni locks de
+ * sesión entre transacciones: funciona con pool de tamaño 1 y pooler transaccional.
  */
 export async function eliminarFuente(
   pool: Pool,
@@ -611,18 +591,50 @@ export async function eliminarFuente(
 ): Promise<void> {
   let archivoDestruido = false;
   try {
-    await withTenant(pool, input.tenantId, async (client) => {
-      ({ archivoDestruido } = await deleteSource(client, input));
-    });
+    for (let intento = 0; intento < 3; intento += 1) {
+      const key = await withTenant(pool, input.tenantId, async (client) => {
+        const initial = await client.query('SELECT r2_key FROM sources WHERE tenant_id = $1 AND id = $2', [input.tenantId, input.sourceId]);
+        if (!initial.rowCount) throw new Error('No encontramos esa fuente.');
+        const r2Key = initial.rows[0].r2_key as string | null;
+        if (!r2Key) return null;
+        await bloquearArchivo(client, input.tenantId, r2Key);
+        const current = await client.query('SELECT r2_key FROM sources WHERE tenant_id = $1 AND id = $2 FOR UPDATE', [input.tenantId, input.sourceId]);
+        if (!current.rowCount) throw new Error('No encontramos esa fuente.');
+        if (current.rows[0].r2_key !== r2Key) throw new Error('El archivo de esta fuente cambió. Vuelve a intentarlo.');
+        await client.query(
+          `INSERT INTO pending_file_deletions(tenant_id, source_id, r2_key)
+           VALUES($1,$2,$3) ON CONFLICT(tenant_id,source_id) DO UPDATE
+           SET r2_key=EXCLUDED.r2_key, created_at=now(), confirmed_at=NULL`,
+          [input.tenantId, input.sourceId, r2Key],
+        );
+        return r2Key;
+      });
+      const completed = await withTenant(pool, input.tenantId, async (client) => {
+        if (key) {
+          await bloquearArchivo(client, input.tenantId, key);
+          const pending = await client.query(
+            `SELECT r2_key FROM pending_file_deletions
+             WHERE tenant_id=$1 AND source_id=$2 AND r2_key=$3 AND confirmed_at IS NULL FOR UPDATE`,
+            [input.tenantId, input.sourceId, key],
+          );
+          if (!pending.rowCount) return false;
+          const source = await client.query(
+            'SELECT r2_key FROM sources WHERE tenant_id=$1 AND id=$2 FOR UPDATE',
+            [input.tenantId, input.sourceId],
+          );
+          if (!source.rowCount) throw new Error('No encontramos esa fuente.');
+          if (source.rows[0].r2_key !== key) throw new Error('El archivo de esta fuente cambió. Vuelve a intentarlo.');
+        }
+        ({ archivoDestruido } = await deleteSource(client, input));
+        if (key) await client.query('UPDATE pending_file_deletions SET confirmed_at=now() WHERE tenant_id=$1 AND source_id=$2', [input.tenantId, input.sourceId]);
+        return true;
+      });
+      if (completed) return;
+    }
+    throw new Error('No pudimos iniciar el borrado del archivo. Vuelve a intentarlo.');
   } catch (error) {
-    // La marca va antes de propagar el error, y en su propia conexión. El orden
-    // importa: si se dejara para después del `throw`, no habría después.
-    //
-    // Y si la marca TAMPOCO se puede escribir —la base sigue caída—, el error
-    // que se propaga es el ORIGINAL: es el que explica qué pasó. Reemplazarlo
-    // por «no pude marcar la fuente» le cambiaría el problema a quien lo lee.
-    // Esa fila queda sin marcar, y es el mismo riesgo residual que el proceso
-    // que muere a medias: está nombrado arriba y en su issue, no tapado.
+    // Si el proceso sigue vivo, marca de inmediato. Si esta escritura falla o
+    // el proceso muere, la intención ya confirmada permite reconciliar después.
     if (archivoDestruido) await marcarFuenteSinArchivo(pool, input).catch(() => undefined);
     throw error;
   }

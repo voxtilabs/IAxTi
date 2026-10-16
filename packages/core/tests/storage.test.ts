@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   almacenR2,
+  consultarR2,
   attachmentKey,
   firmaPresignada,
   presignPutUrl,
@@ -183,5 +184,33 @@ describe('borrar objetos del bucket (Ley 21.719 y retención)', () => {
 
   it('sin almacenamiento configurado devuelve null: quien llama decide qué hacer', () => {
     expect(almacenR2(null)).toBeNull();
+  });
+});
+
+describe('HEAD conservador para reconciliar archivos (#751)', () => {
+  it.each([[200, 'presente'], [404, 'ausente'], [403, 'desconocido'], [500, 'desconocido']] as const)(
+    'HTTP %i significa %s y no borra nada', async (status, expected) => {
+      const calls: Array<{ url: string; method?: string }> = [];
+      const consulta = consultarR2(config, (async (url, init) => {
+        calls.push({ url: String(url), method: init?.method });
+        return new Response(null, { status });
+      }) as typeof fetch)!;
+      expect(await consulta.estado('t-1/conocimiento/a.pdf')).toBe(expected);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe('HEAD');
+      expect(calls[0].url).toContain('X-Amz-Signature=');
+      expect('borrar' in consulta).toBe(false);
+    },
+  );
+
+  it('un timeout real cancela HEAD y conserva el estado desconocido', async () => {
+    const consulta = consultarR2(config, ((_url, init) => new Promise((_resolve, reject) => {
+      init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason), { once: true });
+    })) as typeof fetch, 10)!;
+    expect(await consulta.estado('t-1/conocimiento/a.pdf')).toBe('desconocido');
+  });
+
+  it('sin configuración no inventa ausencia', () => {
+    expect(consultarR2(null)).toBeNull();
   });
 });

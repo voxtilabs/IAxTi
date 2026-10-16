@@ -87,7 +87,7 @@ const encodeRfc3986 = (s: string) =>
  * error aparece recién el día que un cliente manda una foto.
  */
 export function firmaPresignada(input: {
-  method: 'GET' | 'PUT' | 'DELETE';
+  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
   host: string;
   /** Ruta canónica YA codificada, con su `/` inicial. */
   canonicalUri: string;
@@ -161,7 +161,7 @@ export function firmaPresignada(input: {
  */
 export function presignUrl(
   config: StorageConfig,
-  method: 'GET' | 'PUT' | 'DELETE',
+  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD',
   key: string,
   expiresSeconds = 900,
   now: Date = new Date(),
@@ -279,6 +279,33 @@ export function almacenR2(
         }
       }
       return { borradas, fallidas };
+    },
+  };
+}
+
+/** Solo lectura: el reconciliador recibe este puerto, nunca AlmacenObjetos. */
+export interface ConsultaObjetos {
+  estado(key: string): Promise<'presente' | 'ausente' | 'desconocido'>;
+}
+
+/** Solo 404 demuestra ausencia; permisos, red y timeouts no son evidencia de borrado. */
+export function consultarR2(
+  config: StorageConfig | null = storageFromEnv(),
+  fetcher: typeof fetch = fetch,
+  timeoutMs = 5_000,
+): ConsultaObjetos | null {
+  if (!config) return null;
+  return {
+    async estado(key) {
+      try {
+        const result = await fetcher(presignUrl(config, 'HEAD', key), {
+          method: 'HEAD', signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (result.ok) return 'presente';
+        return result.status === 404 ? 'ausente' : 'desconocido';
+      } catch {
+        return 'desconocido';
+      }
     },
   };
 }
