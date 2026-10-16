@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
+import { randomUUID } from 'node:crypto';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { publishEvent } from '../src/events';
 import { OutboxDispatcher, type Consumer } from '../src/dispatcher';
@@ -33,6 +34,9 @@ const ADMIN_URL =
 let admin: Pool;
 let tenant: string;
 let registry: ModuleRegistry;
+let app: Pool;
+let otherTenant: string;
+const roleName = `outbox_test_${randomUUID().replaceAll('-', '')}`;
 
 function fixtureRegistry(): ModuleRegistry {
   const dir = registrarTemporal(mkdtempSync(join(tmpdir(), 'iaxti-outbox-')));
@@ -56,12 +60,29 @@ beforeAll(async () => {
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('test-outbox') RETURNING id");
   tenant = t.rows[0].id;
   registry = fixtureRegistry();
+  otherTenant = (await admin.query("INSERT INTO tenants (name) VALUES ('test-outbox-rls-other') RETURNING id")).rows[0].id;
+  // Identificador generado aquí, nunca entrada del usuario. Rol exclusivo de
+  // esta suite: no altera contraseñas ni permisos de la aplicación local.
+  await admin.query(`CREATE ROLE ${roleName} LOGIN PASSWORD '${roleName}' NOSUPERUSER NOBYPASSRLS`);
+  await admin.query(`GRANT USAGE ON SCHEMA public TO ${roleName}`);
+  await admin.query(`GRANT SELECT, UPDATE ON outbox TO ${roleName}`);
+  await admin.query(`GRANT SELECT, INSERT ON processed_events, idempotency_keys TO ${roleName}`);
+  const url = new URL(ADMIN_URL);
+  url.username = roleName;
+  url.password = roleName;
+  app = new Pool({ connectionString: url.toString(), max: 1 });
+  expect((await app.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user')).rows)
+    .toEqual([{ rolsuper: false, rolbypassrls: false }]);
 });
 
 afterAll(async () => {
-  await admin.query('DELETE FROM processed_events USING outbox WHERE outbox.id = processed_events.event_id AND outbox.tenant_id = $1', [tenant]);
-  await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
-  await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
+  await app?.end();
+  await admin.query('DELETE FROM processed_events USING outbox WHERE outbox.id = processed_events.event_id AND outbox.tenant_id = ANY($1::uuid[])', [[tenant, otherTenant]]);
+  await admin.query('DELETE FROM outbox WHERE tenant_id = ANY($1::uuid[])', [[tenant, otherTenant]]);
+  await admin.query('DELETE FROM idempotency_keys WHERE tenant_id = ANY($1::uuid[])', [[tenant, otherTenant]]);
+  await admin.query('DELETE FROM tenants WHERE id = ANY($1::uuid[])', [[tenant, otherTenant]]);
+  await admin.query(`DROP OWNED BY ${roleName}`);
+  await admin.query(`DROP ROLE ${roleName}`);
   await admin.end();
 });
 
@@ -161,5 +182,103 @@ async function drenar(): Promise<void> {
 
     expect(await dispatcher.tick()).toBe(1); // reintento exitoso
     expect(intentos).toBe(2);
+  });
+});
+
+/** Acota únicamente la selección del arnés; conserva transacciones y RLS reales. */
+function isolatedDispatcher(ids: number[], handler: Consumer['handler']): OutboxDispatcher {
+  const scoped = {
+    connect: async () => {
+      const client = await app.connect();
+      return new Proxy(client, {
+        get(target, key) {
+          if (key === 'query') return (sql: string, values?: unknown[]) => {
+            if (sql.includes('FROM outbox') && sql.includes('FOR UPDATE SKIP LOCKED')) {
+              return target.query(sql.replace('ORDER BY id', 'AND id = ANY($3::bigint[]) ORDER BY id'), [...values!, ids]);
+            }
+            return target.query(sql, values);
+          };
+          const value = Reflect.get(target, key);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      }) as PoolClient;
+    },
+  } as Pool;
+  return new OutboxDispatcher(scoped, registry, [{
+    name: 'audit.rls-regression', moduleId: 'audit', event: 'demo.rls', handler,
+  }]);
+}
+
+async function rlsEvents(): Promise<number[]> {
+  const ids: number[] = [];
+  for (const tenantId of [tenant, otherTenant]) {
+    const event = await admin.query(
+      "INSERT INTO outbox (name, tenant_id, payload, actor) VALUES ('demo.rls', $1, '{}', 'system') RETURNING id",
+      [tenantId],
+    );
+    ids.push(Number(event.rows[0].id));
+  }
+  return ids;
+}
+
+async function writeUnderRls(event: EventEnvelope, client: PoolClient): Promise<void> {
+  expect((await client.query("SELECT current_setting('app.tenant_id', true) AS tenant")).rows[0].tenant)
+    .toBe(event.tenantId);
+  // Consulta sin WHERE de tenant: es PostgreSQL, no un filtro del consumidor,
+  // quien impide leer la llave testigo del otro negocio.
+  const visible = await client.query('SELECT DISTINCT tenant_id FROM idempotency_keys');
+  expect(visible.rows.every(row => row.tenant_id === event.tenantId)).toBe(true);
+  await client.query(`INSERT INTO idempotency_keys (tenant_id, key, method, path, request_hash)
+    VALUES ($1, $2, 'POST', '/test/outbox', 'test')`, [event.tenantId, `event-${event.id}`]);
+}
+
+async function expectNoContext(): Promise<void> {
+  // max:1 vuelve a usar la conexión que acaba de devolver el dispatcher.
+  expect((await app.query("SELECT NULLIF(current_setting('app.tenant_id', true), '') AS tenant")).rows)
+    .toEqual([{ tenant: null }]);
+  expect((await app.query('SELECT tenant_id FROM idempotency_keys')).rowCount).toBe(0);
+}
+
+describe('contexto RLS por evento del dispatcher (#922)', () => {
+  it('entrega dos tenants con RLS real, limpia el contexto y conserva idempotencia', async () => {
+    const ids = await rlsEvents();
+    for (const tenantId of [tenant, otherTenant]) {
+      await admin.query(`INSERT INTO idempotency_keys (tenant_id, key, method, path, request_hash)
+        VALUES ($1, 'testigo', 'POST', '/test', 'test')`, [tenantId]);
+    }
+    const received: string[] = [];
+    const dispatcher = isolatedDispatcher(ids, async (event, client) => {
+      await writeUnderRls(event, client);
+      received.push(event.tenantId);
+    });
+    expect(await dispatcher.tick()).toBe(2);
+    expect(received).toEqual([tenant, otherTenant]);
+    await expectNoContext();
+    await admin.query('UPDATE outbox SET processed_at = NULL WHERE id = ANY($1::bigint[])', [ids]);
+    expect(await dispatcher.tick()).toBe(2);
+    expect(received).toEqual([tenant, otherTenant]);
+    expect((await admin.query('SELECT key FROM idempotency_keys WHERE key = ANY($1::text[])', [ids.map(id => `event-${id}`)])).rowCount).toBe(2);
+    await expectNoContext();
+  });
+
+  it('revierte escritura y claim fallidos, continúa con otro tenant y reintenta sin fugas', async () => {
+    const ids = await rlsEvents();
+    let fail = true;
+    const dispatcher = isolatedDispatcher(ids, async (event, client) => {
+      await writeUnderRls(event, client);
+      if (event.id === ids[0] && fail) throw new Error('fallo posterior a escritura RLS');
+    });
+    expect(await dispatcher.tick()).toBe(1);
+    expect((await admin.query('SELECT key FROM idempotency_keys WHERE key = ANY($1::text[])', [ids.map(id => `event-${id}`)])).rows)
+      .toEqual([{ key: `event-${ids[1]}` }]);
+    expect((await admin.query('SELECT event_id::text FROM processed_events WHERE event_id = ANY($1::bigint[])', [ids])).rows)
+      .toEqual([{ event_id: String(ids[1]) }]);
+    const failed = await admin.query('SELECT attempts, processed_at, last_error FROM outbox WHERE id = $1', [ids[0]]);
+    expect(failed.rows[0]).toMatchObject({ attempts: 1, processed_at: null, last_error: 'fallo posterior a escritura RLS' });
+    await expectNoContext();
+    fail = false;
+    expect(await dispatcher.tick()).toBe(1);
+    expect((await admin.query('SELECT key FROM idempotency_keys WHERE key = ANY($1::text[])', [ids.map(id => `event-${id}`)])).rowCount).toBe(2);
+    await expectNoContext();
   });
 });
