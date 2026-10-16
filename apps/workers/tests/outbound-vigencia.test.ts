@@ -19,6 +19,71 @@ let accountId: string;
 const send = vi.fn(async () => ({ providerMessageId: `wa-${randomUUID()}` }));
 const en = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(pool, tenantId, fn);
 
+/**
+ * La tabla a la que se desvía el UPDATE del rechazo. Tiene que NO existir:
+ * así el error lo pone Postgres y la transacción queda abortada de verdad,
+ * igual que cuando la base no está disponible.
+ */
+const MESSAGES_INEXISTENTE = 'messages_que_no_existe';
+
+/**
+ * Un pool al que se le cae la escritura del rechazo (#910).
+ *
+ * Antes esto se provocaba creando un trigger `BEFORE UPDATE ON messages` en el
+ * esquema COMPARTIDO y borrándolo en un `finally`. El filtro por tenant
+ * acotaba el daño, pero si el proceso muere en el medio —Ctrl-C, OOM, el
+ * timeout de la suite— el trigger y su función se quedan en la base para
+ * siempre, apuntando a un tenant que ya no existe. Nada falla y nadie se
+ * entera.
+ *
+ * Ahora se desvía el TEXTO de la consulta de ESTA conexión, como en #913: el
+ * catálogo no se toca y para los otros archivos que corren en paralelo
+ * `messages` nunca dejó de existir.
+ *
+ * Solo el `UPDATE`: el `SELECT … FOR UPDATE` con el que el despacho lee el
+ * mensaje tiene que funcionar, o el fallo pasaría ANTES de decidir el rechazo
+ * y la prueba dejaría de hablar de lo que dice su nombre.
+ */
+function poolSinEscrituraDeMensajes(real: Pool): Pool {
+  const desviar = (sql: string) =>
+    /update\s+messages\b/i.test(sql)
+      ? sql.replace(/\bmessages\b/gi, MESSAGES_INEXISTENTE)
+      : sql;
+  const envolver = (cliente: { query: unknown }) => {
+    const consultar = (cliente.query as (...a: unknown[]) => unknown).bind(cliente);
+    return new Proxy(cliente, {
+      get(destino, prop, receptor) {
+        if (prop !== 'query') return Reflect.get(destino, prop, receptor);
+        return (...args: unknown[]) => {
+          const [texto, ...resto] = args;
+          if (typeof texto === 'string') return consultar(desviar(texto), ...resto);
+          const config = texto as { text?: unknown } | null;
+          if (config && typeof config.text === 'string') {
+            return consultar({ ...config, text: desviar(config.text) }, ...resto);
+          }
+          return consultar(...args);
+        };
+      },
+    });
+  };
+  return new Proxy(real, {
+    get(destino, prop, receptor) {
+      if (prop !== 'connect') return Reflect.get(destino, prop, receptor);
+      // `connect` tiene DOS formas y hay que honrar las dos: `pool.query()` de
+      // `pg` usa la de CALLBACK, y una envoltura que solo devuelva promesa deja
+      // cualquier `pool.query` esperando a nadie (la trampa de #913).
+      return (cb?: (e: Error | undefined, c?: unknown, release?: unknown) => void) => {
+        if (typeof cb === 'function') {
+          return (destino.connect as unknown as (f: typeof cb) => unknown)((e, c, release) =>
+            cb(e, c ? envolver(c as { query: unknown }) : c, release),
+          );
+        }
+        return destino.connect().then((c) => envolver(c as unknown as { query: unknown }));
+      };
+    },
+  });
+}
+
 beforeAll(async () => {
   pool = createPool();
   redis = redisConnection();
@@ -152,17 +217,17 @@ describe('reglas vigentes al consumir la cola (#372)', () => {
   it('un fallo al persistir el rechazo no se oculta ni confirma el job', async () => {
     const j = await job();
     await en(c => optOut(c, { tenantId, contactId, reason: 'el contacto escribió STOP' }));
-    await pool.query(`CREATE OR REPLACE FUNCTION test_outbound_rechazo() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN IF NEW.tenant_id = '${tenantId}'::uuid THEN RAISE EXCEPTION 'persistencia no disponible'; END IF; RETURN NEW; END $$`);
-    await pool.query('CREATE TRIGGER test_outbound_rechazo BEFORE UPDATE ON messages FOR EACH ROW EXECUTE FUNCTION test_outbound_rechazo()');
-    try {
-      await expect(processOutbound(pool, redis, j)).rejects.toThrow('persistencia no disponible');
-      expect(send).not.toHaveBeenCalled();
-      expect((await pool.query('SELECT delivery_status FROM messages WHERE id = $1', [j.data.messageId])).rows[0].delivery_status).toBe('queued');
-    } finally {
-      await pool.query('DROP TRIGGER test_outbound_rechazo ON messages');
-      await pool.query('DROP FUNCTION test_outbound_rechazo()');
-    }
+
+    // El contacto dijo STOP, así que el despacho va a rechazar el envío — y al
+    // escribir ese rechazo se encuentra con que no puede.
+    await expect(
+      processOutbound(poolSinEscrituraDeMensajes(pool), redis, j),
+    ).rejects.toThrow(MESSAGES_INEXISTENTE);
+
+    // Ni se mandó, ni el job quedó confirmado con un estado que no se guardó:
+    // el mensaje sigue en cola, que es lo que hace que el reintento lo tome.
+    expect(send).not.toHaveBeenCalled();
+    expect((await pool.query('SELECT delivery_status FROM messages WHERE id = $1', [j.data.messageId])).rows[0].delivery_status).toBe('queued');
   });
   it.each(['sent', 'delivered', 'read', 'failed'] as const)('un mensaje %s no vuelve al proveedor', async status => {
     const j = await job();
