@@ -21,9 +21,9 @@ import { join } from 'node:path';
  *
  * Demora la petición y la contesta con un cuerpo propio. Lo primero que
  * intenté fue dejar pasar la real, para medir contra los datos sembrados: no
- * se puede, porque el usuario del e2e NO tiene los permisos de estos cinco
- * paneles —`tenant.settings`, `calendar.read`, `agents.configure`— y las cinco
- * rutas contestan 403. Medir el alto del estado «sin permiso» no es medir el
+ * se podía, porque el usuario del e2e NO tenía los permisos de estos cinco
+ * paneles. Desde #57 sí tiene agenda personal; configurar el negocio sigue
+ * requiriendo otro permiso. Medir el alto del estado «sin permiso» no es medir el
  * alto del contenido.
  *
  * La objeción a un simulacro es que envejece: el DTO cambia y la prueba sigue
@@ -62,13 +62,15 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
 const TOLERANCIA = 16;
 const DEMORA = 2_000;
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  const actor = testInfo.title === 'sin el permiso, la pantalla no se dibuja ni ofrece reintentar'
+    ? { ...auth, ...auth.restricted } : auth;
   await page.addInitScript((auth) => {
     localStorage.setItem('iaxti-tenant', auth.tenantId);
     localStorage.setItem('sb-127-auth-token', JSON.stringify({ access_token: auth.accessToken,
       token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600,
       refresh_token: 'e2e', user: { id: auth.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' } }));
-  }, auth);
+  }, actor);
 });
 
 /** Un negocio que atiende de lunes a viernes: cinco franjas, el caso típico. */
@@ -225,17 +227,22 @@ for (const modo of ['dia', 'noche']) {
  * importa: que la puerta cierra, y que lo que se ve en su lugar no es un botón
  * que no puede funcionar.
  *
- * Nada de esto se simula: esta usuaria no tiene `tenant.settings` ni
- * `calendar.read` de verdad.
+ * Nada de esto se simula: desde #57 se usa un rol propio con solo tenant.read;
+ * el SUPERVISOR del resto de la suite ahora sí puede abrir su agenda.
  */
 test('sin el permiso, la pantalla no se dibuja ni ofrece reintentar', async ({ page }) => {
+  const bootstrap = page.waitForResponse(response => new URL(response.url()).pathname === '/v1/arranque' && response.ok());
   await page.goto('/ajustes/bandeja');
+  const { permisos } = await (await bootstrap).json();
+  expect(permisos).toEqual(['tenant.read']);
+  await expect(page.getByText('Esto no es para ti', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('region', { name: 'Cuánto se guardan las conversaciones' }),
   ).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
 
   await page.goto('/agenda');
+  await expect(page.getByText('Esto no es para ti', { exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Horario de atención' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
 });
