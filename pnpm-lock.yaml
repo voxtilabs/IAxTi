@@ -1003,13 +1003,16 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@iaxti/google':
+        specifier: workspace:*
+        version: link:../../google
       pg:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2

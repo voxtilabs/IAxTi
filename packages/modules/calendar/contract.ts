@@ -38,3 +38,5 @@ export type { ConfiguracionDeAvisos } from './domain/aviso';
 export { estadoGoogleCalendar, iniciarGoogleCalendar, completarGoogleCalendar, revocarGoogleCalendar,
   mantenerWatchesGoogle, limpiarSecretosGoogle,
   autenticarPushGoogle, procesarPushGoogle, huecosConGoogle } from './application/google';
+
+export { googleCalendarConsumers } from './application/google-revoked';

@@ -6,6 +6,7 @@ const AUTHORIZATION = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN = 'https://oauth2.googleapis.com/token';
 const REVOKE = 'https://oauth2.googleapis.com/revoke';
 const CERTIFICATES = 'https://www.googleapis.com/oauth2/v1/certs';
+export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events.freebusy';
 
 export interface GoogleOAuthConfig { clientId: string; clientSecret: string; redirectUri: string }

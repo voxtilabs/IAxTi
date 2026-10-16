@@ -18,7 +18,7 @@ events:
     - appointment.attended
     - appointment.no_show
     - appointment.cancelled
-  consumes: []
+  consumes: [integration.revoked]
 tools:
   - calendar.get_slots
   - calendar.book

@@ -1,4 +1,4 @@
-export { createGoogleOAuth, GOOGLE_CALENDAR_SCOPE } from './oauth';
+export { createGoogleOAuth, GOOGLE_CALENDAR_SCOPE, GOOGLE_DRIVE_SCOPE } from './oauth';
 export type { GoogleOAuth, GoogleOAuthConfig, GoogleTokens, GoogleIdentity, GoogleAuthorizationInput } from './oauth';
 export { createGoogleSecretStore } from './secrets';
 export type { GoogleSecretStore, GoogleSecretStoreConfig, GoogleSecretStoreOptions } from './secrets';

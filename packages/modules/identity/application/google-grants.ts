@@ -1,6 +1,13 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { GOOGLE_CALENDAR_SCOPE, GOOGLE_DRIVE_SCOPE } from '@iaxti/google';
+
+export type GoogleService = 'calendar' | 'drive';
+/** Cada servicio nuevo añade aquí sus scopes mínimos y extiende la migración. */
+export const GOOGLE_SERVICE_SCOPES: Readonly<Record<GoogleService, readonly string[]>> = {
+  calendar: [GOOGLE_CALENDAR_SCOPE], drive: [GOOGLE_DRIVE_SCOPE],
+};
 
 export interface GoogleGrant {
   id: string;
@@ -10,6 +17,7 @@ export interface GoogleGrant {
   subject: string;
   secretRef: string;
   scopes: string[];
+  services: GoogleService[];
   status: 'active' | 'revoking' | 'revoked' | 'reauth_required';
   generation: number;
 }
@@ -38,39 +46,39 @@ function grant(row: Record<string, unknown>): GoogleGrant {
   return {
     id: String(row.id), tenantId: String(row.tenant_id), userId: String(row.user_id),
     clientId: String(row.client_id), subject: String(row.google_subject),
-    secretRef: String(row.secret_ref), scopes: row.scopes as string[],
+    secretRef: String(row.secret_ref), scopes: row.scopes as string[], services: row.services as GoogleService[],
     status: row.status as GoogleGrant['status'], generation: Number(row.generation),
   };
 }
 
 export async function iniciarConsentimientoGoogle(client: PoolClient, input: {
-  tenantId: string; userId: string; challenge: string; ahora: Date; audit: GoogleAudit;
+  tenantId: string; userId: string; challenge: string; ahora: Date; audit: GoogleAudit; service?: GoogleService;
 }): Promise<{ state: string; nonce: string }> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(input.challenge)) throw new Error('El desafío de conexión no es válido.');
   const state = randomBytes(32).toString('base64url');
   const nonce = randomBytes(32).toString('base64url');
   const id = randomUUID();
-  // Un intento nuevo invalida el anterior del mismo usuario y negocio.
+  // Un intento nuevo invalida solo el anterior del mismo servicio, usuario y negocio.
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`google-start:${input.tenantId}:${input.userId}`]);
   await client.query(`UPDATE google_oauth_attempts SET consumed_at=$3
-    WHERE tenant_id=$1 AND user_id=$2 AND consumed_at IS NULL`, [input.tenantId,input.userId,input.ahora]);
+    WHERE tenant_id=$1 AND user_id=$2 AND consumed_at IS NULL AND service=$4`, [input.tenantId,input.userId,input.ahora,input.service ?? 'calendar']);
   await client.query(`INSERT INTO google_oauth_attempts
     (id,tenant_id,user_id,state_hash,challenge,nonce_hash,service,expires_at)
-    VALUES($1,$2,$3,$4,$5,$6,'calendar',$7)`,
-  [id,input.tenantId,input.userId,hash(state),input.challenge,hash(nonce),new Date(input.ahora.getTime()+600_000)]);
+    VALUES($1,$2,$3,$4,$5,$6,$8,$7)`,
+  [id,input.tenantId,input.userId,hash(state),input.challenge,hash(nonce),new Date(input.ahora.getTime()+600_000),input.service ?? 'calendar']);
   await input.audit(client,{tenantId:input.tenantId,actor:input.userId,action:'google.consent.started',resourceId:id,result:'ok'});
   return {state,nonce};
 }
 
 export async function consumirConsentimientoGoogle(client: PoolClient,input: {
-  tenantId:string;userId:string;state:string;verifier:string;nonce:string;ahora:Date;
+  tenantId:string;userId:string;state:string;verifier:string;nonce:string;ahora:Date;service?:GoogleService;
 }): Promise<boolean> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(input.state) || !/^[A-Za-z0-9._~-]{43,128}$/.test(input.verifier)) return false;
   const challenge=createHash('sha256').update(input.verifier).digest('base64url');
   const r=await client.query(`UPDATE google_oauth_attempts SET consumed_at=$7
     WHERE tenant_id=$1 AND user_id=$2 AND state_hash=$3 AND challenge=$4 AND nonce_hash=$5
       AND service=$6 AND consumed_at IS NULL AND expires_at>$7 RETURNING id`,
-  [input.tenantId,input.userId,hash(input.state),challenge,hash(input.nonce),'calendar',input.ahora]);
+  [input.tenantId,input.userId,hash(input.state),challenge,hash(input.nonce),input.service ?? 'calendar',input.ahora]);
   return r.rowCount===1;
 }
 
@@ -99,7 +107,7 @@ export async function bloquearGrantGoogle(client:PoolClient,input:{tenantId:stri
 }
 
 export async function guardarGrantGoogle(client:PoolClient,input:{
-  tenantId:string;userId:string;clientId:string;subject:string;secretRef:string;scopes:string[];audit:GoogleAudit;
+  tenantId:string;userId:string;clientId:string;subject:string;secretRef:string;scopes:string[];audit:GoogleAudit;service?:GoogleService;
 }):Promise<GoogleGrant> {
   await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`google:${input.clientId}:${input.subject}`]);
   const pending=await client.query('SELECT google_revocacion_pendiente($1,$2) AS pending',[input.clientId,input.subject]);
@@ -108,20 +116,26 @@ export async function guardarGrantGoogle(client:PoolClient,input:{
   if(current && current.status!=='revoked' && (current.clientId!==input.clientId || current.subject!==input.subject)){
     throw new Error('Revoca la cuenta de Google conectada antes de elegir otra.');
   }
+  const service=input.service ?? 'calendar';
+  const services=[...new Set([...(current && current.status!=='revoked' ? current.services : []),service])];
+  const required=services.flatMap(name=>[...GOOGLE_SERVICE_SCOPES[name]]);
+  if(required.some(scope=>!input.scopes.includes(scope)) || (current && current.status!=='revoked' && current.scopes.some(scope=>!input.scopes.includes(scope)))){
+    throw new Error('Google no confirmó todos los permisos existentes. La conexión anterior se conserva.');
+  }
   const r=await client.query(`INSERT INTO google_oauth_grants
-    (id,tenant_id,user_id,client_id,google_subject,secret_ref,scopes,status)
-    VALUES($1,$2,$3,$4,$5,$6,$7,'active')
+    (id,tenant_id,user_id,client_id,google_subject,secret_ref,scopes,status,services)
+    VALUES($1,$2,$3,$4,$5,$6,$7,'active',$8)
     ON CONFLICT(tenant_id,user_id) DO UPDATE SET client_id=EXCLUDED.client_id,
       google_subject=EXCLUDED.google_subject, secret_ref=EXCLUDED.secret_ref,
-      scopes=EXCLUDED.scopes,status='active',generation=google_oauth_grants.generation+1,
+      scopes=EXCLUDED.scopes,services=EXCLUDED.services,status='active',generation=google_oauth_grants.generation+1,
       authorized_at=now(),updated_at=now() RETURNING *`,
-  [randomUUID(),input.tenantId,input.userId,input.clientId,input.subject,input.secretRef,input.scopes]);
+  [randomUUID(),input.tenantId,input.userId,input.clientId,input.subject,input.secretRef,input.scopes,services]);
   const saved=grant(r.rows[0]);
   await registrarVersionGoogle(client,{tenantId:input.tenantId,userId:input.userId,secretRef:input.secretRef});
   await client.query(`DELETE FROM google_secret_versions WHERE tenant_id=$1 AND user_id=$2 AND secret_ref=$3 AND whole_secret`,
     [input.tenantId,input.userId,nombreSecreto(input.secretRef)]);
-  await input.audit(client,{tenantId:input.tenantId,actor:input.userId,action:'integration.connected',resourceId:saved.id,result:'ok',metadata:{provider:'google',service:'calendar'}});
-  await publishEvent(client,{name:'integration.connected',tenantId:input.tenantId,actor:input.userId,payload:{grantId:saved.id,userId:input.userId,provider:'google',service:'calendar'}});
+  await input.audit(client,{tenantId:input.tenantId,actor:input.userId,action:'integration.connected',resourceId:saved.id,result:'ok',metadata:{provider:'google',service}});
+  await publishEvent(client,{name:'integration.connected',tenantId:input.tenantId,actor:input.userId,payload:{grantId:saved.id,userId:input.userId,provider:'google',service}});
   return saved;
 }
 

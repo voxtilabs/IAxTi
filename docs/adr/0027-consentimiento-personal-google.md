@@ -73,3 +73,24 @@ Fuentes: [OAuth web server](https://developers.google.com/identity/protocols/oau
 [push de Calendar](https://developers.google.com/workspace/calendar/api/guides/push),
 [freebusy.query](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query),
 [events.watch](https://developers.google.com/workspace/calendar/api/v3/reference/events/watch).
+
+
+## Extensión de implementación para Drive (#64)
+
+El protocolo de consentimiento, acceso y revocación reside en identity y recibe
+los puertos OAuth, Secret Manager y auditoría del compositor. Calendar conserva
+sus operaciones propias y no depende de integrations. Un grant personal mantiene
+una sola referencia de tokens y los servicios acreditados: calendar y drive.
+Los callbacks comprueban los scopes efectivos devueltos por Google después de
+adquirir los cerrojos. Un consentimiento parcial o antiguo no puede retirar
+permisos ya activos ni reemplazar el refresh token vigente. Los intentos PKCE
+se consumen por servicio además de usuario y negocio.
+
+Drive solicita `drive.file`, que permite los archivos seleccionados por el usuario
+y los creados por la aplicación. No solicita lectura de todo Drive. Revocar desde
+cualquier servicio bloquea el grant completo; los consumidores de
+`integration.revoked` limpian sus propios datos sin dependencias circulares. Los
+eventos tardíos comprueban el estado vigente para no borrar una reconexión.
+
+Fuentes: [scopes de Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth),
+[consentimiento incremental](https://developers.google.com/identity/protocols/oauth2/web-server#incrementalAuth).

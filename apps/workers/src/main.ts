@@ -93,7 +93,7 @@ import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
-import { procesarPushGoogle, mantenerWatchesGoogle, limpiarSecretosGoogle } from '@iaxti/module-calendar';
+import { procesarPushGoogle, mantenerWatchesGoogle, limpiarSecretosGoogle, googleCalendarConsumers } from '@iaxti/module-calendar';
 import { campanasPorReencolar, procesarLoteDeCampana, type JobDeCampana } from './campanas';
 
 const service = textoDeEntorno('SERVICE', 'workers');
@@ -162,6 +162,7 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
     ...analyticsConsumers(),
     // Facturas pagadas (#67): el tenant vuelve de past_due solo.
     ...billingConsumers(),
+    ...googleCalendarConsumers(),
     // Webhooks salientes (#76): cada evento del catálogo puede salir.
     ...webhookConsumers(registry.eventsCatalog()),
     ...realtimeConsumers(),
