@@ -12,6 +12,7 @@ import {
   redisConnection,
   consumerReadiness,
   storageFromEnv,
+  almacenR2,
   presignUrl,
   enteroDeEntorno,
   textoDeEntorno,
@@ -74,6 +75,7 @@ import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-
 import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
   expireSources,
+  reconciliarBorradosPendientes,
   tenantsWithExpirable,
   reindexarPendientes,
   embeddingsAvailable,
@@ -485,6 +487,33 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           }
           if (total > 0) console.log(`scheduled: ${total} fuentes de conocimiento vencidas`);
           return { expired: total };
+        }
+        // Borrados de archivo a medio terminar (#751). NO BORRA ARCHIVOS:
+        // mira lo anotado, le pregunta al bucket y a la base qué pasó de
+        // verdad, y marca la fuente que quedó viva sin su archivo.
+        case 'knowledge.borrados_pendientes': {
+          const almacen = almacenR2();
+          if (!almacen) {
+            // Sin R2 no hay a quién preguntarle. Lo decimos: un barrido que
+            // devuelve cero sin explicar por qué se lee como «no había nada».
+            console.log('scheduled: borrados pendientes en espera — falta configurar R2');
+            return { skipped: true };
+          }
+          const negocios = await tenantsWithExpirable(pool);
+          let marcadas = 0;
+          let sinDecidir = 0;
+          for (const tenantId of negocios) {
+            const r = await reconciliarBorradosPendientes(pool, tenantId, { almacen });
+            marcadas += r.marcadas;
+            sinDecidir += r.sinDecidir;
+          }
+          if (marcadas > 0) {
+            console.log(`scheduled: ${marcadas} fuentes quedaron sin su archivo y se marcaron`);
+          }
+          if (sinDecidir > 0) {
+            console.log(`scheduled: ${sinDecidir} borrados sin decidir — R2 no contestó`);
+          }
+          return { marcadas, sinDecidir };
         }
         // Reindexación del conocimiento (#502): al cambiar de modelo de
         // embeddings los vectores viejos no sirven, y las fuentes quedan en

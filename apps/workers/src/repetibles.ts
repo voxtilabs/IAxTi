@@ -35,6 +35,15 @@ export const REPETIBLES: Repetible[] = [
     moduleId: 'knowledge',
     repeat: { pattern: '30 * * * *', tz: 'America/Santiago' },
   },
+  // Borrados de archivo que quedaron a medias (#751). Cada hora alcanza: el
+  // caso es un proceso que murió entre borrar el archivo y confirmar, y la
+  // anotación espera diez minutos antes de ser mirada para no correr contra
+  // un borrado en curso.
+  {
+    nombre: 'knowledge.borrados_pendientes',
+    moduleId: 'knowledge',
+    repeat: { pattern: '50 * * * *', tz: 'America/Santiago' },
+  },
   {
     nombre: 'analytics.response_samples',
     moduleId: 'analytics',

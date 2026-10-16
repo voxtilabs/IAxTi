@@ -87,7 +87,7 @@ const encodeRfc3986 = (s: string) =>
  * error aparece recién el día que un cliente manda una foto.
  */
 export function firmaPresignada(input: {
-  method: 'GET' | 'PUT' | 'DELETE';
+  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
   host: string;
   /** Ruta canónica YA codificada, con su `/` inicial. */
   canonicalUri: string;
@@ -161,7 +161,9 @@ export function firmaPresignada(input: {
  */
 export function presignUrl(
   config: StorageConfig,
-  method: 'GET' | 'PUT' | 'DELETE',
+  // HEAD entró con #751: el barrido de borrados pendientes solo pregunta si
+  // el archivo está, y firmar un GET para eso bajaría el objeto entero.
+  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD',
   key: string,
   expiresSeconds = 900,
   now: Date = new Date(),
@@ -249,6 +251,20 @@ export function presignPutUrl(config: StorageConfig, key: string, limites: Limit
 export interface AlmacenObjetos {
   /** Borra las llaves dadas. Idempotente: un 404 ya es borrado. */
   borrar(keys: string[]): Promise<{ borradas: string[]; fallidas: string[] }>;
+  /**
+   * ¿Está esta llave? `null` cuando NO SE PUDO SABER (#751).
+   *
+   * Los tres valores son distintos y el tercero es el que importa. Quien
+   * pregunta esto es el barrido que reconcilia borrados a medio terminar, y
+   * su decisión depende de la respuesta: si el archivo no está, marca la
+   * fuente como rota; si está, no pasó nada.
+   *
+   * Un error de red devolviendo `false` haría que el barrido marque como
+   * rotas fuentes sanas cada vez que R2 tenga un mal minuto. `null` es «no
+   * contesté», y el barrido deja el renglón para la próxima corrida: esperar
+   * no cuesta nada y equivocarse sí.
+   */
+  existe(key: string): Promise<boolean | null>;
 }
 
 /**
@@ -279,6 +295,18 @@ export function almacenR2(
         }
       }
       return { borradas, fallidas };
+    },
+    async existe(key: string) {
+      try {
+        const r = await fetcher(presignUrl(config, 'HEAD', key), { method: 'HEAD' });
+        if (r.status === 404) return false;
+        if (r.ok) return true;
+        // Un 403, un 500 o un 503 NO son «no está»: son «no sé». Tratarlos
+        // como ausencia es lo que haría que el barrido marque fuentes sanas.
+        return null;
+      } catch {
+        return null;
+      }
     },
   };
 }
