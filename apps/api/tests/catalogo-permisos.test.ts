@@ -120,8 +120,6 @@ const PENDIENTES: Record<string, string> = {
   // Nota: las TOOLS de los agentes (`crm.find_contact`, `conversations.send_reply`…)
   // se declaran en el bloque `tools:` del manifiesto y no son permisos —
   // el registry las filtra por módulo activo. No van acá.
-  'calendar.connect':
-    'Conectar Google Calendar: necesita las credenciales de OAuth (#57). La agenda funciona sin él, con la disponibilidad configurada.',
   'whatsapp.numbers.manage':
     'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',
   // `crm.contacts.update` y `crm.deals.close` estaban acá y YA SE EXIGEN:

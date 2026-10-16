@@ -68,8 +68,8 @@ WHERE rolname = current_user;` — las dos banderas en `false`.
 
 ## 4. El worker de tareas programadas TIENE que estar corriendo
 
-De él dependen cosas que el negocio da por hechas. **Son diecisiete**, y la
-lista vive en `apps/workers/src/main.ts` (`REPETIBLES`) — si acá dice otro
+De él dependen cosas que el negocio da por hechas. **Son diecinueve**, y la
+lista vive en `apps/workers/src/repetibles.ts` (`REPETIBLES`) — si acá dice otro
 número, el que manda es el código:
 
 | Tarea | Cada | Qué pasa si no corre |
@@ -86,6 +86,8 @@ número, el que manda es el código:
 | `api_usage.flush` | 5 min | el consumo de API no se cobra ni se muestra |
 | `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
+| `identity.google.cleanup` | Cada 15 min | Quedan versiones revocadas pendientes de destrucción en Secret Manager; el acceso local sigue bloqueado. Corre aunque Calendar esté apagado. |
+| `calendar.google.maintain` | Cada 15 min | Vencen las suscripciones push de Google; la agenda consulta disponibilidad viva y muestra las notificaciones pendientes. |
 | `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |
 | `payments.expire` | :45 | los links de pago vencidos siguen cobrables |
 | `whatsapp.templates.sync` | 30 min | el estado de aprobación de Meta no se entera |
@@ -96,7 +98,7 @@ número, el que manda es el código:
 lista:
 
 ```
-workers: worker de cola scheduled activo · 17 tareas programadas: conversations.checks, …
+workers: worker de cola scheduled activo · 19 tareas programadas: conversations.checks, …
 ```
 
 Y `GET /ready` del worker tiene que devolver `200` con `"startup": "ok"`. Si

@@ -113,6 +113,7 @@ import { WebhooksSalientesController } from './webhooks-salientes.controller';
 import { RolesController } from './roles.controller';
 import { PaymentsController, PaymentWebhooksController } from './payments.controller';
 import { BillingController } from './billing.controller';
+import { GoogleCalendarController, GoogleCalendarWebhookController, GOOGLE_CALENDAR_HTTP, googleCalendarHttp } from './google-calendar.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -1274,6 +1275,8 @@ const controllers = [
   PaymentsController,
   PaymentWebhooksController,
   BillingController,
+  GoogleCalendarController,
+  GoogleCalendarWebhookController,
   ArranqueController,
   // `esProduccion()` y no `(process.env.IAXTI_ENV ?? 'dev') !== 'production'`
   // (#575): con la variable DECLARADA SIN VALOR, `??` no la atrapa, `''` no es
@@ -1283,5 +1286,5 @@ const controllers = [
   ...(esProduccion() ? [] : [SimuladorController]),
 ];
 
-@Module({ controllers })
+@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }] })
 export class AppModule {}

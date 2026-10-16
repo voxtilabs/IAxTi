@@ -175,7 +175,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "metodo": "PUT",
     "ruta": "/v1/agenda/recordatorios",
     "resumen": "Elige la plantilla de cada recordatorio (o la quita)",
-    "permiso": "calendar.manage_availability",
+    "permiso": "tenant.settings",
     "modulo": "calendar",
     "soloSesion": false,
     "argumentos": {
@@ -260,7 +260,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "metodo": "GET",
     "ruta": "/v1/agenda/recordatorios",
     "resumen": "Qué plantilla sale como recordatorio de cita",
-    "permiso": "calendar.manage_availability",
+    "permiso": "tenant.settings",
     "modulo": "calendar",
     "soloSesion": false,
     "argumentos": {
@@ -3448,6 +3448,104 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "required": [
         "userId"
       ],
+      "additionalProperties": false
+    }
+  },
+  "GoogleCalendarController_completar": {
+    "metodo": "POST",
+    "ruta": "/v1/agenda/google/completar",
+    "resumen": "Canjear una vez el consentimiento de Google para mi negocio",
+    "permiso": "calendar.connect",
+    "modulo": "calendar",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "verifier": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "pattern": "^[^\\r\\n\\0]+$"
+        }
+      },
+      "required": [
+        "state",
+        "nonce",
+        "verifier",
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "GoogleCalendarController_estado": {
+    "metodo": "GET",
+    "ruta": "/v1/agenda/google",
+    "resumen": "Estado de mi conexión con Google Calendar",
+    "permiso": "calendar.read",
+    "modulo": "calendar",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "GoogleCalendarController_iniciar": {
+    "metodo": "POST",
+    "ruta": "/v1/agenda/google/iniciar",
+    "resumen": "Iniciar consentimiento personal de Google con PKCE",
+    "permiso": "calendar.connect",
+    "modulo": "calendar",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "challenge": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "challenge"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "GoogleCalendarController_revocar": {
+    "metodo": "POST",
+    "ruta": "/v1/agenda/google/revocar",
+    "resumen": "Revocar los permisos de esta cuenta Google concedidos a la aplicación",
+    "permiso": "calendar.connect",
+    "modulo": "calendar",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "GoogleCalendarWebhookController_recibir": {
+    "metodo": "POST",
+    "ruta": "/webhooks/google/calendar",
+    "resumen": "Notificación Google Calendar: validar canal, encolar y responder",
+    "permiso": null,
+    "modulo": "calendar",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     }
   },

@@ -103,6 +103,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       'health/modules',
       'webhooks/channels/:accountId',
       'webhooks/payments/:providerId',
+      'webhooks/google/calendar',
       'webchat/:widgetId/config',
       'webchat/:widgetId/sessions',
       'webchat/:widgetId/messages',
