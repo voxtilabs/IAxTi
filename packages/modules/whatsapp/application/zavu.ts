@@ -342,6 +342,16 @@ export function createZavuProvider(
       : {}),
 
     async send(account: ChannelAccountRef, message: OutboundMessage) {
+      if (kind !== 'whatsapp' && (message.attachments?.length || message.extra?.plantilla ||
+        (message.type !== 'texto' && message.type !== 'text') ||
+        (message.extra?.messageType && message.extra.messageType !== 'text'))) {
+        // Zavu documenta que un messageType distinto de text elige WhatsApp,
+        // incluso con channel explícito. Nunca cambiar de canal por un adjunto.
+        throw new ErrorPermanente(
+          'Esta conexión de Instagram o Messenger solo permite enviar texto. Envía un mensaje de texto por este canal.',
+          'Zavu no documenta envío no textual por Instagram/Messenger; no se hizo ninguna petición.',
+        );
+      }
       const apiKey = account.credentialRef ? process.env[account.credentialRef] : undefined;
       if (!apiKey) throw new ErrorPermanente(
         'Este canal no tiene su credencial configurada. Un administrador tiene que reconectarlo en Canales.',
@@ -364,7 +374,6 @@ export function createZavuProvider(
           // `to` va tal cual: E.164, correo, BSUID de WhatsApp o id de chat.
           // Un BSUID es opaco y se devuelve como llegó; normalizarlo lo rompe.
           to: message.to,
-          channel: canal,
           /**
            * La llave de idempotencia, que es NUESTRO id de mensaje (#585).
            *
@@ -406,7 +415,6 @@ export function createZavuProvider(
            * pero eso es una función con su consentimiento, su costo visible y su
            * decisión, no un valor por defecto del proveedor.
            */
-          fallbackEnabled: false,
           ...(message.body !== undefined ? { text: message.body } : {}),
           // El adjunto tampoco viaja como texto (#458): Zavu lo quiere como
           // `messageType` + `content.mediaUrl`, y el cuerpo pasa a ser el
@@ -424,6 +432,8 @@ export function createZavuProvider(
             ? envioDePlantilla(message.extra.plantilla as Record<string, never>)
             : {}),
           ...(message.extra && !message.extra.plantilla ? message.extra : {}),
+          channel: canal,
+          fallbackEnabled: false,
         }),
       });
       if (!res.ok) {

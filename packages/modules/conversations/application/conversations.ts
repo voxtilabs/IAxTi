@@ -192,14 +192,15 @@ export { getConversation };
  */
 export async function ventanaDelContacto(
   client: PoolClient,
-  input: { tenantId: string; contactId: string; channel: Channel },
+  input: { tenantId: string; contactId: string; channel: Channel; channelAccountId?: string },
 ): Promise<{ conversationId: string; lastInboundAt: Date | null } | null> {
   const r = await client.query(
     `SELECT id, last_inbound_at FROM conversations
       WHERE tenant_id = $1 AND contact_id = $2 AND channel = $3
+        AND ($4::uuid IS NULL OR channel_account_id = $4)
       ORDER BY last_inbound_at DESC NULLS LAST, created_at DESC
       LIMIT 1`,
-    [input.tenantId, input.contactId, input.channel],
+    [input.tenantId, input.contactId, input.channel, input.channelAccountId ?? null],
   );
   if (r.rowCount === 0) return null;
   return {

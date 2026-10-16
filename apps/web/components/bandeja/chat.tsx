@@ -325,7 +325,9 @@ export function Chat({
    * sueltes una foto que no va a salir es prometer algo que el canal no permite.
    */
   const enVentana = detalle ? ventanaAbierta(detalle) : false;
-  const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana });
+  const esMetaSocial = detalle?.channel === 'instagram' || detalle?.channel === 'messenger';
+  const admiteAdjuntos = limitesDeAdjunto?.limites.length !== 0;
+  const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana && admiteAdjuntos });
 
   if (!detalle) {
     return (
@@ -611,7 +613,7 @@ export function Chat({
                          intento de nuevo. Lo que sí sirve es la plantilla, y
                          el selector ya está abajo reemplazando al campo. */
                       <span className="text-rotulo text-muted">
-                        Reintentar no va a servir hasta que te escriba: mándale una plantilla.
+                        {esMetaSocial ? 'Podrás responder cuando vuelva a escribirte.' : 'Reintentar no va a servir hasta que te escriba: mándale una plantilla.'}
                       </span>
                     )}
                   </div>
@@ -767,6 +769,7 @@ export function Chat({
       )}
       {/* Fuera de la ventana de 24 h el campo se reemplaza por el selector de
           plantillas (SPEC §11); llega con los canales reales en Fase 3. */}
+      {!admiteAdjuntos && enVentana && <p className="mx-4 mb-2 text-sm text-muted">Esta conexión solo permite enviar texto por este canal.</p>}
       {enVentana ? (
         <form onSubmit={enviar} className="flex items-end gap-2 border-t border-line p-4">
           {atajos.length > 0 && (
@@ -802,7 +805,7 @@ export function Chat({
               la URL prefirmada, el campo en el mensaje y el tipo del
               adaptador. Lo que faltaba era esto y que el adaptador lo
               tradujera. */}
-          <label className="flex h-control w-11 shrink-0 cursor-pointer items-center justify-center rounded-boton border border-line-strong text-body hover:bg-rest">
+          {admiteAdjuntos && <label className="flex h-control w-11 shrink-0 cursor-pointer items-center justify-center rounded-boton border border-line-strong text-body hover:bg-rest">
             <Paperclip aria-hidden className="size-4" />
             <span className="sr-only">Adjuntar un archivo</span>
             <input
@@ -815,7 +818,7 @@ export function Chat({
               {...(aceptados ? { accept: aceptados } : {})}
               onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
             />
-          </label>
+          </label>}
           <Textarea
             aria-label="Mensaje"
             placeholder="Escribe tu respuesta…"
@@ -837,6 +840,10 @@ export function Chat({
             <IconoEnviar className="h-4 w-4" />
           </Button>
         </form>
+      ) : esMetaSocial ? (
+        <p className="border-t border-line p-4 text-sm text-muted">
+          Pasaron más de 24 horas desde su último mensaje. Podrás responder cuando vuelva a escribirte por este canal.
+        </p>
       ) : (
         <div className="border-t border-line p-4">
           <Button
