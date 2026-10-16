@@ -11,8 +11,9 @@ RPO/RTO.** El criterio completo y la issue permanecen pendientes.
 - Issue y su único comentario releídos el 2026-10-16. El comentario del
   2026-09-15 registra rollback de 192 s / 24 s; esos resultados históricos
   permanecen en [RESULTADOS-DR.md](../../runbooks/RESULTADOS-DR.md).
-- [SPEC](../../SPEC.md), §36–37: restore mensual de staging desde backup de
-  producción, datos anonimizados y smoke del producto.
+- [SPEC](../../SPEC.md), §27 y §36–37: RPO/RTO, restore mensual de staging
+  desde backup de producción, datos anonimizados y smoke del producto. La
+  referencia antigua a §15 en la issue corresponde ahora a §27 del SPEC.
 - [Inventario de datos](../../INVENTARIO-DATOS.md),
   [reglas de seguridad](../../../.claude/rules/seguridad.md) y
   [rol de aplicación](../../runbooks/ROL-DE-LA-APLICACION.md): superficies

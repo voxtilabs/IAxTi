@@ -1,7 +1,7 @@
 # Runbook · recuperación ante desastres (DR)
 
 Un backup que nunca se restauró no es un backup. Los compromisos de la
-sección 15 del SPEC —**RPO 5 minutos, RTO 1 hora**— se demuestran corriendo
+sección 27 del SPEC —**RPO 5 minutos, RTO 1 hora**— se demuestran corriendo
 esto, no declarándolos.
 
 Cada simulacro se anota en [`RESULTADOS-DR.md`](RESULTADOS-DR.md), con
