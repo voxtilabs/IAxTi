@@ -79,3 +79,14 @@ los pendientes. La selección SQL visita únicamente tenants con trabajo.
 Preflight final: **2031 aprobadas, 14 omitidas, 0 fallos**; typecheck36 tareas, build29 y102 migraciones sobre base virgen. Incluye38 casos nuevos SQL/RLS de Google/limpieza,51 de SDK y479 de API (más4 omitidos existentes). La guarda de columnas exigió ordenar el baseline con su generador; se corrigió y el preflight completo quedó verde. Las cuatro advertencias de lint existentes no se ocultaron.
 
 Capturas: [conexión día](google-dia-360-desconectado.png) · [conexión noche](google-noche-360-desconectado.png) · [callback día](google-dia-360-callback.png) · [callback noche](google-noche-360-callback.png) · [revocación día](google-dia-360-revocar.png) · [revocación noche](google-noche-360-revocar.png) · [error día](google-dia-360-error.png) · [error noche](google-noche-360-error.png).
+
+CI reveló dos supuestos incorrectos del arnés: el callback fijaba el puerto
+local4028 aunque CI usa4011, y la prueba de denegación suponía que SUPERVISOR
+seguía sin acceso a su agenda. El callback ahora deriva del origen configurado
+en Playwright y conserva las aserciones PKCE/nonce/consumo único. La prueba de
+denegación usa una persona real con rol personalizado de solo `tenant.read`,
+verifica esa matriz exacta en `/arranque` y exige que el shell niegue la entrada
+a ajustes y agenda. Suite web completa: **90 aprobadas y5 omitidas existentes**.
+El spec de Google fija explícitamente360px también dentro del arnés general.
+El ensayo dirigido conserva la API con rol sin bypass y los dos modos visuales;
+el arnés general conserva su conexión de pruebas como dueño de la base.
