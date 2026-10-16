@@ -6,8 +6,11 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8')) as 
 const dest = join(__dirname, '../../../docs/evidencias/57');
 const state = 's'.repeat(43); const nonce = 'n'.repeat(43);
 const disconnected = { configured: true, status: 'disconnected', calendarId: null, pushActive: false, lastNotificationAt: null };
+test.use({ viewport: { width: 360, height: 780 } });
 for (const mode of ['dia', 'noche']) {
-  test(`PKCE, callback y revocación con teclado a360 ${mode}`, async ({ page }) => {
+  test(`PKCE, callback y revocación con teclado a360 ${mode}`, async ({ page, baseURL }) => {
+    if (!baseURL) throw new Error('El arnés debe declarar el origen de la web.');
+    const callbackUrl = new URL('/agenda/google/callback', baseURL).toString();
     mkdirSync(dest, { recursive: true });
     const session = { access_token: auth.accessToken, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now()/1000)+3600,
       refresh_token: 'e2e', user: { id: auth.userId, aud: 'authenticated', email: 'user@example.test' } };
@@ -19,7 +22,7 @@ for (const mode of ['dia', 'noche']) {
       const body = route.request().postDataJSON(); expect(Object.keys(body)).toEqual(['challenge']); challenge = body.challenge;
       return route.fulfill({ json: { state, nonce, url: `https://accounts.google.com/o/oauth2/v2/auth?state=${state}` } });
     });
-    await page.route('https://accounts.google.com/**', route => route.fulfill({ status: 302, headers: { location: `http://127.0.0.1:4028/agenda/google/callback?code=test-code&state=${state}` } }));
+    await page.route('https://accounts.google.com/**', route => route.fulfill({ status: 302, headers: { location: `${callbackUrl}?code=test-code&state=${state}` } }));
     await page.route('**/v1/agenda/google/completar', route => {
       finish++; const body = route.request().postDataJSON(); expect(body).toMatchObject({ code: 'test-code', state, nonce });
       expect(createHash('sha256').update(body.verifier).digest('base64url')).toBe(challenge);
@@ -38,7 +41,7 @@ for (const mode of ['dia', 'noche']) {
     await panel.screenshot({ path: join(dest, `google-${mode}-360-desconectado.png`) });
     await page.keyboard.press('Enter');
     await expect(page.getByRole('region', { name: 'Conexión de Google Calendar' }).getByText(/El permiso quedó guardado/)).toBeVisible(); expect(finish).toBe(1);
-    await expect(page).toHaveURL('http://127.0.0.1:4028/agenda/google/callback');
+    await expect(page).toHaveURL(callbackUrl);
     await expect(page.locator('meta[name=referrer]')).toHaveAttribute('content', 'no-referrer');
     expect(await page.evaluate(() => Object.keys(sessionStorage).filter(key=>key.startsWith('iaxti-google-oauth:')).length)).toBe(0);
     const callbackLink = page.getByRole('link', { name: 'Volver a Agenda' });
