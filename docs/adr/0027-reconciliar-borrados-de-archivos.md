@@ -31,6 +31,10 @@ El proceso puede morir entre cualquiera de las transacciones sin perder la
 evidencia de un archivo destruido. Cuesta una transacción adicional, un HEAD
 por pendiente antiguo y una tabla con RLS sin FK a sources. El barrido es
 idempotente, cada cinco minutos, con 100 registros por negocio y pasada.
+Un claim breve con `FOR UPDATE SKIP LOCKED` persiste `last_attempted_at` y
+libera la conexión antes del lock de archivo. El siguiente lote prioriza lo
+menos intentado: 100 HEAD desconocidos no esconden al registro 101. El claim
+no modifica la antigüedad original y también rota filas ocupadas/omitidas.
 
 El procesamiento toma el lock de la fuente antes de leer su estado y no
 reprocesa `delete_failed`: el barrido omite fuentes ocupadas y conserva su

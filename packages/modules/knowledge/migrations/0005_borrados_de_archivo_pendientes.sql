@@ -7,9 +7,12 @@ CREATE TABLE pending_file_deletions (
   r2_key text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   confirmed_at timestamptz,
+  last_attempted_at timestamptz,
   PRIMARY KEY (tenant_id, source_id)
 );
 CREATE INDEX pending_file_deletions_age_idx ON pending_file_deletions(tenant_id, created_at);
+CREATE INDEX pending_file_deletions_attempt_idx
+  ON pending_file_deletions(tenant_id, (COALESCE(last_attempted_at, created_at)), source_id);
 ALTER TABLE pending_file_deletions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_file_deletions FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON pending_file_deletions

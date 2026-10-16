@@ -62,9 +62,20 @@ export async function reconciliarBorradosPendientes(
   const tenants = await pool.query('SELECT tenant_id FROM tenants_con_borrados_de_conocimiento($1)', [cutoff]);
   const total: ReconciliacionDeBorrados = { revisadas: 0, marcadas: 0, limpiadas: 0, ocupadas: 0, desconocidas: 0 };
   for (const { tenant_id: tenantId } of tenants.rows) {
+    // Rota de forma DURABLE incluso si HEAD falla siempre o la fuente sigue
+    // ocupada. Sin esto, los primeros 100 impedirían visitar al registro 101.
+    // Libera estas filas ANTES de pedir el lock del archivo: no invierte el
+    // orden de locks con DELETE. SKIP LOCKED tampoco espera un DELETE activo.
     const candidates = await withTenant(pool, tenantId, async (c) => (await c.query(
-      `SELECT source_id, r2_key FROM pending_file_deletions
-        WHERE tenant_id = $1 AND created_at <= $2 ORDER BY created_at, source_id LIMIT $3`,
+      `WITH lote AS (
+         SELECT tenant_id, source_id FROM pending_file_deletions
+          WHERE tenant_id = $1 AND created_at <= $2
+          ORDER BY COALESCE(last_attempted_at, created_at), created_at, source_id
+          LIMIT $3 FOR UPDATE SKIP LOCKED
+       )
+       UPDATE pending_file_deletions p SET last_attempted_at = clock_timestamp()
+        FROM lote WHERE p.tenant_id = lote.tenant_id AND p.source_id = lote.source_id
+        RETURNING p.source_id, p.r2_key`,
       [tenantId, cutoff, limit],
     )).rows);
     for (const candidate of candidates) {

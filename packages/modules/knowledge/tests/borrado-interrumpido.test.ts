@@ -154,8 +154,8 @@ describe('intención durable y barrido observador (#751)', () => {
     const calls: string[] = [];
     const consulta: ConsultaObjetos = { async estado(key) { calls.push(key); return 'ausente'; } };
     try {
-      const result = await reconciliarBorradosPendientes(owner, consulta, { now: new Date(Date.now() + 600_000) });
-      expect(result.ocupadas).toBeGreaterThanOrEqual(1);
+      await reconciliarBorradosPendientes(owner, consulta, { now: new Date(Date.now() + 600_000) });
+      // El claim SKIP LOCKED omite la intención que el DELETE tiene bloqueada.
       expect(calls).not.toContain(f.key);
       expect(await pending(f.id)).toHaveLength(1);
     } finally { finish.resolve(); }
@@ -230,6 +230,34 @@ describe('intención durable y barrido observador (#751)', () => {
       pdf: { async extract() { throw new Error('no debe reprocesar un archivo destruido'); } }, embed,
     }));
     expect(late.status).toBe('delete_failed'); expect(await status(f.id)).toBe('delete_failed');
+  });
+
+  it('101 pendientes: los primeros 100 HEAD desconocidos no bloquean al último para siempre', async () => {
+    const rows = (await owner.query(
+      `INSERT INTO sources(tenant_id,kind,name,r2_key,status)
+       SELECT $1::uuid,'pdf','fairness-' || i,$1::uuid::text || '/conocimiento/fairness-' || i || '.pdf','active'
+         FROM generate_series(1,101) i RETURNING id,r2_key`, [tenant],
+    )).rows;
+    const last = rows.find(r => r.r2_key.endsWith('/fairness-101.pdf'))!;
+    await owner.query(
+      `INSERT INTO pending_file_deletions(tenant_id,source_id,r2_key,created_at)
+       SELECT tenant_id,id,r2_key,now()-CASE WHEN id=$2 THEN interval '10 minutes' ELSE interval '20 minutes' END
+         FROM sources WHERE tenant_id=$1`, [tenant, last.id],
+    );
+    const methods: string[] = [];
+    const consulta = consultarR2({ endpoint: 'https://storage.test', bucket: 'fixture', accessKeyId: 'fixture', secretAccessKey: 'fixture' }, (async (url, init) => {
+      methods.push(init?.method ?? 'GET');
+      return new Response(null, { status: String(url).includes('/fairness-101.pdf?') ? 404 : 403 });
+    }) as typeof fetch)!;
+    await reconciliarBorradosPendientes(app, consulta);
+    expect(await status(last.id)).toBe('active');
+    expect((await pending(last.id))[0].last_attempted_at).toBeNull();
+    await reconciliarBorradosPendientes(app, consulta);
+    expect(await status(last.id)).toBe('delete_failed');
+    expect(await pending(last.id)).toEqual([]);
+    expect((await owner.query('SELECT 1 FROM pending_file_deletions WHERE tenant_id=$1', [tenant])).rowCount).toBe(100);
+    expect(new Set(methods)).toEqual(new Set(['HEAD']));
+    expect(methods.length).toBe(200);
   });
 
   it('RLS real aísla intenciones; el selector global solo expone ids de tenants con trabajo', async () => {
