@@ -83,7 +83,11 @@ export class IdempotenciaInterceptor implements NestInterceptor {
           concatMap((body) =>
             from(
               withTenant(this.pool, tenantId, (c) =>
-                guardarRespuesta(c, { tenantId, key, status: response.statusCode, body }),
+                guardarRespuesta(c, response.getHeader('X-Iaxti-Personal-Context') === '1'
+                  ? { tenantId, key, status: 409, body: { code: 'PERSONAL_RESPONSE_NOT_STORED',
+                    message: 'Por privacidad no guardamos esta respuesta personal. Haz una nueva consulta para verla otra vez.',
+                    requestId: request.requestId ?? '', details: [] } }
+                  : { tenantId, key, status: response.statusCode, body }),
               ),
             ).pipe(
               // Si la escritura falla, el pedido NO se cae: el cliente ya tiene
