@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
@@ -16,6 +17,9 @@ const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:
 
 let admin: Pool;
 let tenant: string;
+let otroTenant: string;
+const senderId = `snd_${randomUUID()}`;
+const otroSenderId = `snd_${randomUUID()}`;
 const fetchReal = globalThis.fetch;
 
 // El barrido pide las plantillas POR EL PUERTO del canal (#159), así que
@@ -34,15 +38,20 @@ const base = {
 
 /** Zavu de mentira: responde el sync y la lista de plantillas. */
 function zavuDice(plantillas: Record<string, unknown>[]) {
-  const rutas: string[] = [];
-  globalThis.fetch = (async (url: string) => {
-    rutas.push(String(url));
-    const cuerpo = String(url).includes('/templates/sync')
+  const llamadas: Array<{ ruta: string; senderId: string | null }> = [];
+  globalThis.fetch = (async (url: string, opciones?: RequestInit) => {
+    const ruta = String(url);
+    const sync = ruta.includes('/templates/sync');
+    const remitente = sync
+      ? JSON.parse(String(opciones?.body ?? '{}')).senderId ?? null
+      : new URL(ruta).searchParams.get('senderId');
+    llamadas.push({ ruta, senderId: remitente });
+    const cuerpo = sync
       ? { accountsSynced: 1, imported: 0, linked: 0, updated: 1, skipped: 0, errors: [] }
-      : { items: plantillas, nextCursor: null };
+      : { items: remitente === senderId ? plantillas : [], nextCursor: null };
     return { ok: true, status: 200, json: async () => cuerpo } as unknown as Response;
   }) as unknown as typeof fetch;
-  return rutas;
+  return llamadas;
 }
 
 async function plantillaEnRevision(nombre: string): Promise<string> {
@@ -60,11 +69,20 @@ beforeAll(async () => {
   await runMigrations(admin);
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('plantillas-sync') RETURNING id");
   tenant = t.rows[0].id;
-  await admin.query(
-    `INSERT INTO channel_accounts (tenant_id, kind, name, state, credential_ref, webhook_secret_ref, config)
-     VALUES ($1, 'whatsapp', 'numero', 'active', 'ZAVU_KEY_TEST', 'ZAVU_SECRET_TEST', '{"senderId":"snd_1"}'::jsonb)`,
-    [tenant],
-  );
+  otroTenant = (await admin.query("INSERT INTO tenants (name) VALUES ('plantillas-sync-ajeno') RETURNING id")).rows[0].id;
+  for (const [id, remitente] of [[tenant, senderId], [otroTenant, otroSenderId]]) {
+    await admin.query(
+      `INSERT INTO channel_accounts (tenant_id, kind, name, state, credential_ref, webhook_secret_ref, config)
+       VALUES ($1, 'whatsapp', 'numero', 'active', 'ZAVU_KEY_TEST', 'ZAVU_SECRET_TEST', $2::jsonb)`,
+      [id, JSON.stringify({ senderId: remitente })],
+    );
+  }
+  // Una plantilla ajena pendiente existe durante TODA la suite: una base
+  // virgen también ejercita el caso de una corrida anterior (#911).
+  await withTenant(admin, otroTenant, async (c) => {
+    const p = await createTemplate(c, { tenantId: otroTenant, ...base, name: 'pendiente_ajena' });
+    await marcarEnviadaARevision(c, { tenantId: otroTenant, templateId: p.id, providerId: 'ajena' });
+  });
   process.env.ZAVU_KEY_TEST = 'zv_test_abc';
 });
 
@@ -77,7 +95,7 @@ afterAll(async () => {
   // `audit_log` no se borra: es append-only por trigger. Acá no se escribe
   // ninguna fila, así que el DELETE pasaba de largo sin que se notara.
   for (const tabla of ['outbox', 'whatsapp_templates', 'channel_accounts']) {
-    await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
+    await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = ANY($1::uuid[])`, [[tenant, otroTenant]]);
   }
   await admin.end();
 });
@@ -85,7 +103,7 @@ afterAll(async () => {
 describe('reconciliación de plantillas', () => {
   it('una aprobada en Meta con el webhook perdido queda aprobada acá', async () => {
     const id = await plantillaEnRevision('aprobada_sin_aviso');
-    const rutas = zavuDice([
+    const llamadas = zavuDice([
       {
         id: 'tpl_meta_1',
         name: 'aprobada_sin_aviso',
@@ -96,8 +114,8 @@ describe('reconciliación de plantillas', () => {
       },
     ]);
 
-    const r = await sincronizarPlantillas(admin);
-    expect(r.cambiadas).toBeGreaterThanOrEqual(1);
+    await sincronizarPlantillas(admin);
+    const rutas = llamadas.filter((l) => l.senderId === senderId).map((l) => l.ruta);
     // Primero le pide a Zavu que se ponga al día con Meta, después lee.
     expect(rutas[0]).toContain('/templates/sync');
     expect(rutas[1]).toContain('/templates?');
@@ -139,8 +157,7 @@ describe('reconciliación de plantillas', () => {
       },
     ]);
 
-    const r = await sincronizarPlantillas(admin);
-    expect(r.cambiadas).toBe(0);
+    await sincronizarPlantillas(admin);
     const p = await withTenant(admin, tenant, (c) => getTemplate(c, tenant, id));
     expect(p.status).toBe('pending');
   });
@@ -169,7 +186,7 @@ describe('reconciliación de plantillas', () => {
       throw new Error('ECONNREFUSED');
     }) as unknown as typeof fetch;
 
-    await expect(sincronizarPlantillas(admin)).resolves.toMatchObject({ cambiadas: 0 });
+    await expect(sincronizarPlantillas(admin)).resolves.toBeDefined();
     const p = await withTenant(admin, tenant, (c) => getTemplate(c, tenant, id));
     expect(p.status).toBe('pending');
   });
@@ -179,9 +196,11 @@ describe('reconciliación de plantillas', () => {
       `UPDATE whatsapp_templates SET status = 'approved' WHERE tenant_id = $1 AND status = 'pending'`,
       [tenant],
     );
-    const rutas = zavuDice([]);
-    const r = await sincronizarPlantillas(admin);
-    expect(r.tenants).toBe(0);
-    expect(rutas).toHaveLength(0);
+    const llamadas = zavuDice([]);
+    await sincronizarPlantillas(admin);
+    // El barrido sí tiene trabajo ajeno, pero no debe consultar ESTA cuenta.
+    expect(llamadas.filter((l) => l.senderId === senderId)).toHaveLength(0);
+    const ajenas = llamadas.filter((l) => l.senderId === otroSenderId);
+    expect(ajenas.map((l) => new URL(l.ruta).pathname)).toEqual(['/v1/templates/sync', '/v1/templates']);
   });
 });
