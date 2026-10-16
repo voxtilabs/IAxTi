@@ -41,14 +41,19 @@ suite SQL de Drive, que crea su propia base y rol limitado y los elimina al fina
 
 ## Preflight final
 
-El script completo terminó con código cero sobre el snapshot de producto:
-2.250 pruebas correctas y 14 omisiones existentes en los paquetes seleccionados.
-Turbo informó 37 tareas de pruebas correctas (33 desde caché coherente). Las
-52 guardas de base de datos se ejecutaron fuera de caché; las de core repitieron
-348 correctas y diez omisiones ya contabilizadas arriba. Las 105 migraciones
-pasaron sobre una base nueva. Typecheck: 38 tareas; build: 28. Lint: cero errores
-y cuatro advertencias previas fuera de Drive. Depcruise y todas las guardas
-finales pasaron; catálogo generado limpio.
+El preflight de todo el monorepo (`TODO=1`) terminó con código cero sobre
+`d39788e54852f119d5f6511118fb14f416b7c4d3`: 3.075 pruebas correctas y 14
+omisiones existentes en 29 paquetes con pruebas. Turbo informó 54 tareas de
+pruebas correctas (37 desde caché coherente). Las guardas se repitieron fuera
+de caché: 52 de base de datos y 348 de core con diez omisiones, ya contabilizadas
+en los totales. Las 105 migraciones pasaron sobre una base nueva. Typecheck:
+56 tareas; build: 31. Lint: cero errores y cuatro advertencias previas fuera de
+Drive. Depcruise y todas las guardas finales pasaron; catálogo generado limpio.
+
+La corrida dirigida anterior también pasó: 2.250 pruebas y 14 omisiones en
+12 paquetes, con 37 tareas de pruebas. Se conserva su registro por separado.
+El revisor independiente repitió 18 pruebas SQL con rol limitado, siete de API
+y dos de knowledge; no encontró bloqueos restantes en el software revisado.
 
 Las bases de trinquetes no cambiaron: 194 exports sin consumidor, 18 columnas
 sin lector, 22 cruces SQL inventariados, 32 listas pendientes y 109 avisos
@@ -65,7 +70,7 @@ pnpm --filter @iaxti/module-integrations exec vitest run tests/drive.test.ts
 pnpm --filter @iaxti/api exec vitest run tests/google-drive.test.ts tests/personal-idempotencia.test.ts
 pnpm --filter @iaxti/web exec vitest run tests/google-drive.test.tsx tests/google-picker.test.ts tests/agente-general-personal.test.tsx
 pnpm --filter @iaxti/module-agents exec vitest run tests/drive-tools.test.ts tests/tools-que-existen.test.ts tests/google-personal-context.test.ts
-bash scripts/antes-de-empujar.sh --filter=@iaxti/core --filter=@iaxti/google --filter=@iaxti/module-identity --filter=@iaxti/module-calendar --filter=@iaxti/module-integrations --filter=@iaxti/module-knowledge --filter=@iaxti/module-crm --filter=@iaxti/module-agents --filter=@iaxti/module-organizations --filter=@iaxti/api --filter=@iaxti/workers --filter=@iaxti/sdk --filter=@iaxti/web
+TODO=1 bash scripts/antes-de-empujar.sh
 E2E_API_PORT=4031 E2E_WEB_PORT=4032 E2E_JWKS_PORT=4033 pnpm --filter @iaxti/web e2e google-drive
 ```
 
