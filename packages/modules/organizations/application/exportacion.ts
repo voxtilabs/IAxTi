@@ -32,6 +32,12 @@ const COLUMNAS_PROHIBIDAS: Record<string, string[]> = {
 
 /** Tabla → por qué NO se exporta. */
 export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
+  google_oauth_attempts: 'Intentos de consentimiento OAuth de cada persona: hashes y datos de autenticación efímeros.',
+  google_oauth_grants: 'Custodia del consentimiento personal de Google: referencias a secretos, no configuración del negocio.',
+  google_secret_versions: 'Cola interna de destrucción de credenciales de Google.',
+  calendar_google_watches: 'Credenciales y leases del transporte push de Google; no son datos del negocio.',
+  calendar_freebusy_cache: 'Caché temporal de ocupación de calendarios personales; se reconstruye desde Google.',
+
   audit_log:
     'Tiene su propia exportación firmada y encadenada (#72): meterla acá sin la firma la degrada.',
   outbox: 'Cola de eventos: mecánica nuestra, no datos del negocio.',
@@ -83,6 +89,7 @@ export const TABLAS_EXPORTADAS = [
   'products',
   'activities',
   'availability',
+  'calendar_connections',
   'appointments',
   'saved_filters',
   'rules',

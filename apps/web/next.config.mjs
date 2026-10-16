@@ -4,6 +4,12 @@ import { fileURLToPath } from 'node:url';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  async headers() {
+    return [{ source: '/agenda/google/callback', headers: [
+      { key: 'Referrer-Policy', value: 'no-referrer' },
+      { key: 'Cache-Control', value: 'no-store' },
+    ] }];
+  },
   /**
    * Dónde empieza a trazar los archivos del standalone.
    *
