@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findModulesDir, loadAllManifests } from '../src/manifest';
 import {
@@ -290,17 +291,35 @@ describe('la medición del criterio 2: cuántas de las que cruzan son escrituras
     });
   });
 
-  it('sobre el repo de verdad: hay escrituras, y son la minoría', () => {
-    // El número que el issue pedía antes de elegir qué regla escribir. Las dos
-    // aserciones tienen que ser estrictas: si el escáner marcara TODO como
-    // escritura —o nada— la regla partida en dos mitades dejaría de tener
-    // sentido y esto es lo que lo diría.
-    expect(medicion.escrituras).toBeGreaterThan(0);
+  it('detecta una escritura en archivos reales y permite eliminarla por completo', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'iaxti-cruces-'));
+    try {
+      const archivo = join(dir, 'titular.ts');
+      const modulos = [{ id: 'crm', dir, declaradas: ['conversations'] }];
+      const duenos = new Map([['messages', 'conversations']]);
+      writeFileSync(archivo, "await client.query('DELETE FROM messages WHERE tenant_id = $1');");
+      const escritura = crucesEntreModulos(modulos, duenos);
+      expect(crucesFueraDeLaRegla(escritura)).toEqual(['crm→conversations (escribe: messages)']);
+      expect(medicionDeCruces(escritura).escrituras).toBe(1);
+      // Un repo sin escrituras ajenas es el resultado buscado por #903 y
+      // las otras issues de contratos; la guarda no debe exigir conservarlas.
+      writeFileSync(archivo, "await client.query('SELECT id FROM messages WHERE tenant_id = $1');");
+      const lectura = crucesEntreModulos(modulos, duenos);
+      expect(lectura).toHaveLength(1);
+      expect(crucesFueraDeLaRegla(lectura)).toEqual([]);
+      expect(medicionDeCruces(lectura).escrituras).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('sobre el repo de verdad: las escrituras son la minoría y pueden llegar a cero', () => {
+    // La detección positiva vive en el fixture anterior, sin exigir que el
+    // producto conserve una infracción para demostrar que el escáner funciona.
     expect(medicion.escrituras).toBeLessThan(medicion.consultas / 2);
     // Y el par agrega archivos: si `consultas` no sumara, los dos serían iguales
     // y la medición no estaría diciendo nada que la lista no dijera ya.
     expect(medicion.consultas).toBeGreaterThan(medicion.pares);
-    expect(medicion.paresQueEscriben).toBeGreaterThan(0);
     expect(medicion.paresQueEscriben).toBeLessThan(medicion.pares);
   });
 });
@@ -312,7 +331,11 @@ describe('la lista base de cruces fuera de la regla (#784)', () => {
     // sobre listas vacías, y una aserción negativa sobre lo que no está pasa
     // sola.
     expect(modulos.length).toBeGreaterThan(15);
-    expect(cruces.length).toBeGreaterThan(25);
+    // Una lectura permitida y concreta prueba que el recorrido no está vacío,
+    // sin imponer un mínimo de deuda que los contratos buscan reducir.
+    expect(cruces).toContainEqual(expect.objectContaining({
+      modulo: 'billing', dueno: 'analytics', lee: ['daily_metrics'],
+    }));
     expect(cruces.filter((c) => c.declarado).length).toBeGreaterThan(10);
   });
 
