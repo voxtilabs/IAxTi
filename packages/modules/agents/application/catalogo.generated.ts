@@ -4290,6 +4290,67 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "PartnerInvitationsController_resume": {
+    "metodo": "POST",
+    "ruta": "/v1/onboarding/whatsapp/retomar",
+    "resumen": "Revisar una invitación conocida o recuperar explícitamente una conexión pendiente",
+    "permiso": "whatsapp.numbers.manage",
+    "modulo": "whatsapp",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "PartnerInvitationsController_start": {
+    "metodo": "POST",
+    "ruta": "/v1/onboarding/whatsapp",
+    "resumen": "Crear una invitación de WhatsApp y guardar su correlación antes de mostrarla",
+    "permiso": "whatsapp.numbers.manage",
+    "modulo": "whatsapp",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "PartnerInvitationsController_status": {
+    "metodo": "GET",
+    "ruta": "/v1/onboarding/whatsapp",
+    "resumen": "Estado y enlace privado de la invitación de WhatsApp de mi negocio",
+    "permiso": "whatsapp.numbers.manage",
+    "modulo": "whatsapp",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "PartnerWebhookController_receive": {
+    "metodo": "POST",
+    "ruta": "/webhooks/zavu/invitations",
+    "resumen": "Verificar callback del proyecto Zavu y encolar su invitación correlacionada",
+    "permiso": null,
+    "modulo": "whatsapp",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "PaymentsController_addProvider": {
     "metodo": "POST",
     "ruta": "/v1/payments/providers",

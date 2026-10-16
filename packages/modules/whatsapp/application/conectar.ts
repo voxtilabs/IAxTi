@@ -321,7 +321,7 @@ export async function conectarSender(client: PoolClient, input: EntradaConexion)
   // El secreto se rota para tenerlo: Zavu solo lo muestra al crearlo.
   let webhookSecret: string | null = null;
   try {
-    const rotado = (await input.llamar(`/senders/${input.sender.id}/webhook-secret/regenerate`, {
+    const rotado = (await input.llamar(`/senders/${input.sender.id}/webhook/secret`, {
       method: 'POST',
     })) as { secret?: string };
     webhookSecret = rotado?.secret ?? null;

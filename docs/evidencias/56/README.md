@@ -1,5 +1,11 @@
 # #56 · Alta inicial y reanudación del onboarding
 
+**Corte histórico del primer cambio.** El tramo de invitación se implementa
+ahora en la [continuación C4](../56-partner/README.md), usando la custodia de
+#57 y reservas de #74. Los límites contractuales descritos abajo explican el
+corte original, no una imposibilidad vigente de implementar C4. El mensaje
+real, staging y video continúan pendientes.
+
 Este cambio **no cierra #56**. Completa el alta inicial autenticada, la reanudación
 de la descripción en el configurador y la lectura de costos durante el trial.
 La invitación de Zavu, el primer mensaje real y la demostración en staging siguen

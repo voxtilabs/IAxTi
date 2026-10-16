@@ -2,11 +2,11 @@ import { BadRequestException, NotFoundException, ServiceUnavailableException } f
 import type { Pool } from 'pg';
 import { withTenant } from '@iaxti/db';
 import {
-  createChannelAccount, emisorAcreditado, emisoresAcreditados, listChannelAccounts,
+  copyChannelWebhookSecret, createChannelAccount, emisorAcreditado, emisoresAcreditados, listChannelAccounts,
   reservarEmisor, setChannelState,
 } from '@iaxti/module-channels';
 import { writeAudit } from '@iaxti/module-audit';
-import { clienteZavu, consultarSender, llaveSirveParaAmbiente, quienSoy, urlWebhook, type LlamarZavu } from '@iaxti/module-whatsapp';
+import { resolveChannelWebhookSecret, clienteZavu, consultarSender, llaveSirveParaAmbiente, quienSoy, urlWebhook, type LlamarZavu } from '@iaxti/module-whatsapp';
 import type { Actor } from './authz/authz.guard';
 
 type CanalMeta = 'instagram' | 'messenger';
@@ -50,7 +50,7 @@ export async function conectarCanalMeta(
   const original = await withTenant(pool, actor.tenantId, (c) => emisorAcreditado(c, actor.tenantId, input.senderId));
   if (!original) throw new NotFoundException({ code: 'SENDER_NOT_FOUND', message: 'Este emisor no está acreditado para tu negocio. Pide a quien configura el canal que complete su conexión.' });
   const llamar = cliente(llave(original.credentialRef));
-  llave(original.webhookSecretRef);
+  if (!await resolveChannelWebhookSecret(original)) throw new ServiceUnavailableException({code:'CREDENTIAL_MISSING',message:'No pudimos comprobar la custodia de esta conexión.'});
   const sender = await consultar(llamar, input.senderId);
   if (!sender.channels.includes(input.kind)) throw new BadRequestException({ code: 'CHANNEL_NOT_CONFIGURED', message: 'Ese canal aún no está activo en Zavu. Completa su configuración y vuelve a intentarlo.' });
   const base = process.env.API_URL_PUBLIC;
@@ -73,9 +73,10 @@ export async function conectarCanalMeta(
     if (cuenta && ['active', 'degraded'].includes(cuenta.state)) return cuenta;
     cuenta ??= await createChannelAccount(c, {
       tenantId: actor.tenantId, kind: input.kind, name: sender.name,
-      credentialRef: vigente.credentialRef!, webhookSecretRef: vigente.webhookSecretRef!,
+      credentialRef: vigente.credentialRef!, webhookSecretRef: vigente.webhookSecretRef!.startsWith('sm:') ? undefined : vigente.webhookSecretRef!,
       config: { senderId: input.senderId, ...(vigente.config.enviosReales === true ? { enviosReales: true } : {}) },
     });
+    if (vigente.webhookSecretRef?.startsWith('sm:')) await copyChannelWebhookSecret(c,{tenantId:actor.tenantId,sourceAccountId:vigente.id,accountId:cuenta.id});
     await reservarEmisor(c, { tenantId: actor.tenantId, senderId: input.senderId, accountId: cuenta.id,
       actor: actor.userId, actorKind: actor.kind === 'soporte' ? 'superadmin' : actor.kind ?? 'user', requestId: input.requestId });
     const activa = await setChannelState(c, { tenantId: actor.tenantId, accountId: cuenta.id, state: 'active', requestId: input.requestId });

@@ -1,3 +1,4 @@
+import { resolveChannelWebhookSecret } from '@iaxti/module-whatsapp';
 import {
   Controller,
   NotFoundException,
@@ -70,6 +71,7 @@ export class WebhooksController {
     @Param('accountId') accountId: string,
     @Res({ passthrough: true }) response: Response,
   ) {
+    const secretDeadline=Date.now()+800;
     const pool = apiPool();
     const anotar = (tenantId: string, accountId: string, resultado: ResultadoDeWebhook) =>
       anotarResultado(pool!, tenantId, accountId, resultado);
@@ -120,13 +122,30 @@ export class WebhooksController {
     if (!account) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
+    // Zavu puede entregar entre habilitar su webhook y confirmar active local.
+    // Todavía no existe una referencia visible/confirmada: no atribuirlo a
+    // firma inválida (401 no promete reentrega), ni aceptar el mensaje.
+    if(account.state==='connecting') {
+      response.setHeader('Retry-After','5');
+      throw new ServiceUnavailableException({code:'WEBHOOK_NOT_READY',message:'La conexión aún se está confirmando. Reintenta la entrega.'});
+    }
     const primaria = account;
     const provider = getProvider(account.kind);
     if (!provider) {
       await anotar(account.tenantId, account.id, 'sin_proveedor');
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
-    const secret = account.webhookSecretRef ? process.env[account.webhookSecretRef] : undefined;
+    let secret: string | undefined;
+    const abort=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
+    try {
+      secret=await Promise.race([
+        resolveChannelWebhookSecret(account,undefined,abort.signal),
+        new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>{abort.abort();reject(new Error('custody timeout'));},Math.max(1,secretDeadline-Date.now()));timer.unref?.();}),
+      ]);
+    } catch {
+      response.setHeader('Retry-After','5');
+      throw new ServiceUnavailableException({code:'WEBHOOK_SECRET_UNAVAILABLE',message:'No pudimos verificar esta entrega. Reintenta más tarde.'});
+    } finally {if(timer)clearTimeout(timer);}
     const rawBody = request.rawBody?.toString('utf8') ?? '';
     if (!secret || !provider.verifyWebhook(request.headers, rawBody, secret)) {
       // Se anota ANTES de rechazar, y por eso existe todo esto (#434): una

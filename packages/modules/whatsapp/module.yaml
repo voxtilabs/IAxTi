@@ -7,7 +7,7 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [channels, organizations, identity]
+  required: [channels, organizations, identity, audit]
   optional: []
 permissions:
   - whatsapp.numbers.manage

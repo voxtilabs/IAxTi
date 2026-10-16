@@ -20,6 +20,10 @@
  * es una función que falte: es una puerta que no debe existir.
  */
 export const NO_SON_HERRAMIENTA: Record<string, string> = {
+  PartnerWebhookController_receive: 'Callback HMAC exclusivo de Zavu: un agente no puede fabricar una autorización externa ni completar invitaciones.',
+  PartnerInvitationsController_status: 'Invitación privada de WhatsApp: consentimiento humano, nunca tool de IA.',
+  PartnerInvitationsController_start: 'Inicia autorización externa de Meta desde sesión humana.',
+  PartnerInvitationsController_resume: 'Recuperación explícita de autorización externa por la persona.',
   GoogleCalendarController_estado: 'Estado de la conexión OAuth personal para su pantalla; el agente usa agenda.huecos, no credenciales (#57).',
   GoogleCalendarController_iniciar: 'Consentimiento del navegador con state, nonce y PKCE; solo lo inicia la persona (#57).',
   GoogleCalendarController_completar: 'Canje de código OAuth y verifier de una pestaña; nunca son argumentos de una herramienta de IA (#57).',

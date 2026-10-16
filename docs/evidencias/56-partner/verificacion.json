@@ -1,0 +1,86 @@
+{
+  "issue": 56,
+  "criterion": "C4",
+  "software": "implemented_locally_verified",
+  "issue_complete": false,
+  "dependencies": {
+    "56_base": "7d54fca",
+    "57": "dbb32f222ff4dd444d7da4be4bb885148f38fac6",
+    "74": "00044cb96fd1026167a0005fead98846b18a7155"
+  },
+  "verification": {
+    "preflight": "TODO=1 pnpm antes-de-empujar",
+    "preflight_status": "passed",
+    "passed": 3108,
+    "skipped_existing": 14,
+    "packages": 29,
+    "typecheck_tasks": 56,
+    "build_tasks": 31,
+    "virgin_migrations": 106,
+    "sql_directed": 19,
+    "api_directed": 9,
+    "dom_directed": 6,
+    "e2e": 3,
+    "e2e_duration_seconds": 26.5,
+    "viewport": 360,
+    "modes": [
+      "dia",
+      "noche"
+    ],
+    "geometry_measurements": 7,
+    "all_text_fits": true,
+    "keyboard": "Tab y Enter reales, foco visible",
+    "external_calls": false,
+    "fixtures": "HTTP Zavu/Google, ADC y JWT sintéticos; API/RLS/BullMQ/worker reales"
+  },
+  "independent_verification": {
+    "sql_passed": 19,
+    "http_passed": 9,
+    "separate_database": true,
+    "separate_redis": true,
+    "context_reused": true,
+    "review_reading_by_other_agent": true
+  },
+  "logs_sha256": {
+    "preflight-56-partner-commit.log": "9b028b39da1cd1ce50ce107cb455e481edaf53e7cf2fa579d44ed7a4376051d3",
+    "e2e-56-partner-ui-final.log": "ae7f26ecfc7c3589dc37689ee157200250e9facb8b8ddfc065c5c1dbedd6f711",
+    "tests-56-partner-module-reviewed.log": "e164e69fd449fa4b4f998c42f4c593972b8a93de02da9142cceaaf4d40ea2f3e",
+    "tests-56-partner-web-final.log": "b4558cc36f9f84e2f561ce1787c739c1c7692903fdc3c86b3da7fa20c77a011d",
+    "56-partner-independent-sql.log": "63850b7588a3f51eeef8594603b58b9413dd9512f10597ae58e6ccebdf2f8e92",
+    "56-partner-independent-api.log": "07f4c8d243c32aa67ce8b5bead793afb102684c95702d27ba97efb87b022c392"
+  },
+  "schema": {
+    "migrations": 106,
+    "tables": [
+      {
+        "relname": "whatsapp_partner_events",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true
+      },
+      {
+        "relname": "whatsapp_partner_invitations",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true
+      },
+      {
+        "relname": "whatsapp_partner_secrets",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true
+      }
+    ],
+    "constraints": [
+      {
+        "definition": "FOREIGN KEY (account_id, tenant_id) REFERENCES channel_accounts(id, tenant_id)"
+      },
+      {
+        "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)"
+      }
+    ]
+  },
+  "limits": [
+    "No aceptación real Zavu/Meta/GCP ni mensaje de prueba real.",
+    "No video ni recorrido staging cronometrado.",
+    "Sin transacción distribuida: respuesta remota perdida requiere recuperación explícita.",
+    "No cierre de issue, merge ni despliegue."
+  ]
+}
