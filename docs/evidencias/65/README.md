@@ -38,3 +38,10 @@ El arnés admite E2E_API_PORT/E2E_WEB_PORT/E2E_JWKS_PORT para aislar puertos y
 APP_DATABASE_URL para ejecutar la API con rol RLS separado del migrador. Esta
 corrida usó 4051/4052/4053, Redis 14 y una base exclusiva de prueba. No iniciar
 el worker ni configurar credenciales Google reales para estas pruebas.
+
+Regresión del montaje: `tests/gmail-ficha.test.tsx` comprueba que la ficha compacta
+de Bandeja no monta Gmail ni hace su petición de estado, mientras la ficha completa
+de CRM conserva el panel y la consulta mediante el SDK real. Junto a `gmail.test.tsx`
+pasan 15 pruebas DOM. La corrida conjunta de `gmail.spec.ts` y
+`cuantas-llamadas.spec.ts` pasa 3/3: cuatro llamadas en Bandeja y seis al abrir una
+conversación, con los presupuestos originales intactos y la ficha cargada bajo RLS.

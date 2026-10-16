@@ -1,6 +1,6 @@
 # Gmail personal de solo lectura (#65)
 
-La ficha del contacto muestra hilos de la cuenta Google de la persona que inició
+La ficha completa de CRM muestra hilos de la cuenta Google de la persona que inició
 sesión. Busca únicamente el correo exacto guardado en CRM, verifica el dueño del
 contacto o `crm.read_all`, y devuelve asunto, extracto y fecha. No admite consultas
 Gmail libres, no descarga cuerpos ni adjuntos, no envía correo y no indexa correo

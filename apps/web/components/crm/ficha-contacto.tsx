@@ -641,7 +641,7 @@ export function FichaContacto({
         </Formulario>
       </section>
 
-      <GmailContacto contactId={contactId} email={ficha.contact.email} />
+      {!compacta && <GmailContacto contactId={contactId} email={ficha.contact.email} />}
 
       {/* Los derechos de la persona, en su ficha y no escondidos en un
           menú: quien recibe la solicitud llega por acá (#447). En el panel
