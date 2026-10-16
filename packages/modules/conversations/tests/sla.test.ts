@@ -48,7 +48,7 @@ beforeAll(async () => {
   await admin.query(
     'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, conversations, messages, assignments TO iaxti_app',
   );
-  await admin.query('GRANT SELECT ON tenants, user_roles TO iaxti_app');
+  await admin.query('GRANT SELECT ON tenants, user_roles, roles TO iaxti_app');
   // `usage_meters`: desde #213 cada conversación que recibe algo cuenta como
   // activa del ciclo, y eso lo escribe el MISMO camino de entrada. El rol de
   // la aplicación necesita poder sumarlo o la bandeja deja de recibir.
@@ -348,4 +348,30 @@ describe('el modo de asignación ia_horario (#830)', () => {
     // dato que haría visible el modo desde la base, y no está.
     expect(fila.assigned_via).toBeNull();
   });
+});
+
+// #902: los nombres de rol no deciden quién puede atender.
+it('round-robin y last_owner excluyen a quien perdió conversations.reply', async () => {
+  const custom = (await admin.query(`INSERT INTO roles (tenant_id,name,permissions)
+    VALUES ($1,'Solo lectura','["conversations.read"]') RETURNING id`, [tenant])).rows[0].id;
+  await admin.query('UPDATE user_roles SET role_id=$3 WHERE tenant_id=$1 AND user_id=$2', [tenant, miembros[0], custom]);
+  try {
+    await setModo('last_owner');
+    await admin.query("UPDATE conversations SET state='resolved', archived_at=now() WHERE tenant_id=$1 AND owner_id=$2", [tenant, miembros[0]]);
+    const fresh = await withTenant(app, tenant, (c) => receiveInbound(c, {
+      tenantId: tenant, phone: '+56930000002', channel: 'simulador', body: 'otra vez',
+    }));
+    const assignment = await withTenant(app, tenant, (c) => autoAssignNew(c, { tenantId: tenant, conversationId: fresh.conversation.id }));
+    expect(assignment.assignedTo).toBe(miembros[1]);
+    await admin.query("UPDATE roles SET permissions='[\"conversations.reply\"]' WHERE id=$1", [custom]);
+    await setModo('round_robin');
+    const next = await withTenant(app, tenant, (c) => receiveInbound(c, {
+      tenantId: tenant, phone: '+56930000099', channel: 'simulador', body: 'turno propio',
+    }));
+    expect((await withTenant(app, tenant, (c) => autoAssignNew(c, { tenantId: tenant, conversationId: next.conversation.id }))).assignedTo).toBe(miembros[0]);
+  } finally {
+    await admin.query(`UPDATE user_roles SET role_id=(SELECT id FROM roles WHERE base AND name='USER')
+      WHERE tenant_id=$1 AND user_id=$2`, [tenant, miembros[0]]);
+    await admin.query('DELETE FROM roles WHERE id=$1', [custom]);
+  }
 });

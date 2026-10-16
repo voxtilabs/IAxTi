@@ -916,6 +916,9 @@ importers:
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
+      '@iaxti/module-authorization':
+        specifier: workspace:*
+        version: link:../authorization
       '@iaxti/module-crm':
         specifier: workspace:*
         version: link:../crm
@@ -981,6 +984,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/module-authorization':
+        specifier: workspace:*
+        version: link:../authorization
       pg:
         specifier: ^8.13.0
         version: 8.23.0
@@ -1074,6 +1080,9 @@ importers:
       nodemailer:
         specifier: ^6.9.0
         version: 6.10.1
+      '@iaxti/module-authorization':
+        specifier: workspace:*
+        version: link:../authorization
       pg:
         specifier: ^8.13.0
         version: 8.23.0

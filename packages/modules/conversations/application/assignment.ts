@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { usersWithPermission } from '@iaxti/module-authorization';
 import { getTenantSettings } from '@iaxti/module-organizations';
 import { bandejaSettings } from '../domain/horario';
 import type { AssignmentMode } from '../domain/horario';
@@ -55,13 +56,16 @@ export async function autoAssignNew(
   if (conv.rowCount === 0) return { assignedTo: null, via };
   if (conv.rows[0].owner_id || conv.rows[0].state !== 'new') return { assignedTo: null, via };
 
+  const eligible = await usersWithPermission(client, input.tenantId, 'conversations.reply');
+  if (!eligible.length) return { assignedTo: null, via };
   let elegido: string | null = null;
   if (via === 'last_owner') {
     const ultimo = await client.query(
       `SELECT owner_id FROM conversations
        WHERE tenant_id = $1 AND contact_id = $2 AND owner_id IS NOT NULL AND id <> $3
+         AND owner_id = ANY($4::uuid[])
        ORDER BY updated_at DESC LIMIT 1`,
-      [input.tenantId, conv.rows[0].contact_id, input.conversationId],
+      [input.tenantId, conv.rows[0].contact_id, input.conversationId, eligible],
     );
     elegido = ultimo.rows[0]?.owner_id ?? null;
   }
@@ -70,15 +74,14 @@ export async function autoAssignNew(
     // (assignments es el historial). Justo, sin estado extra y a prueba de
     // gente que entra o sale del equipo.
     const turno = await client.query(
-      `SELECT ur.user_id
-         FROM user_roles ur
+      `SELECT u.user_id
+         FROM unnest($2::uuid[]) AS u(user_id)
          LEFT JOIN assignments a
-           ON a.tenant_id = ur.tenant_id AND a.to_owner_id = ur.user_id
-        WHERE ur.tenant_id = $1
-        GROUP BY ur.user_id
-        ORDER BY max(a.created_at) ASC NULLS FIRST, ur.user_id
+           ON a.tenant_id = $1 AND a.to_owner_id = u.user_id
+        GROUP BY u.user_id
+        ORDER BY max(a.created_at) ASC NULLS FIRST, u.user_id
         LIMIT 1`,
-      [input.tenantId],
+      [input.tenantId, eligible],
     );
     elegido = turno.rows[0]?.user_id ?? null;
   }

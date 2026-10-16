@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
+import { usersWithPermission } from './memberships';
 import { BASE_ROLES, baseRoleHasPermission, isBaseRole } from '../domain/base-roles';
 
 // Roles personalizados (#73): con clientes reales aparecen "recepcionista",
@@ -132,42 +133,35 @@ export async function updateCustomRolePermissions(
   return rowToRole(r.rows[0]);
 }
 
-/** Un usuario tiene UN rol por tenant (SPEC §9); asignar exige
- *  roles.manage en el guard y queda en audit + evento. */
+/** Un usuario tiene UN rol por tenant. El caller autoriza la operación y conserva
+ * BEGIN/COMMIT/ROLLBACK: asignación, audit y evento usan su MISMO cliente.
+ * La invitación puede dar de alta; el endpoint normal solo cambia miembros existentes. */
 export async function assignRole(
   client: PoolClient,
-  input: { tenantId: string; userId: string; roleId: string; actor: string; requestId?: string },
+  input: { tenantId: string; userId: string; actor: string; requestId?: string; createIfMissing?: boolean }
+    & ({ roleId: string; roleName?: never } | { roleName: string; roleId?: never }),
 ): Promise<void> {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext('authorization.memberships'), hashtext($1))", [input.tenantId]);
   const rol = await client.query(
     `SELECT id, name FROM roles
-      WHERE id = $2 AND (tenant_id = $1 OR (tenant_id IS NULL AND base AND name <> 'SUPERADMIN'))`,
-    [input.tenantId, input.roleId],
+      WHERE (($2::uuid IS NOT NULL AND id = $2) OR ($3::text IS NOT NULL AND name = $3))
+        AND (tenant_id = $1 OR (tenant_id IS NULL AND base AND name <> 'SUPERADMIN'))
+      ORDER BY base DESC LIMIT 1`,
+    [input.tenantId, input.roleId ?? null, input.roleName ?? null],
   );
   if (rol.rowCount === 0) throw new Error('Ese rol no existe para este negocio.');
-  const r = await client.query(
-    `UPDATE user_roles SET role_id = $3 WHERE tenant_id = $1 AND user_id = $2`,
-    [input.tenantId, input.userId, input.roleId],
-  );
+  const roleId = rol.rows[0].id as string;
+  const r = input.createIfMissing
+    ? await client.query(
+      `INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES ($1, $2, $3)
+       ON CONFLICT (tenant_id, user_id) DO UPDATE SET role_id = EXCLUDED.role_id`,
+      [input.tenantId, input.userId, roleId],
+    )
+    : await client.query('UPDATE user_roles SET role_id = $3 WHERE tenant_id = $1 AND user_id = $2',
+      [input.tenantId, input.userId, roleId]);
   if (r.rowCount === 0) throw new Error('Esa persona no es parte del equipo todavía.');
-
-  // Nadie puede dejar al negocio sin quién administre (#460).
-  //
-  // Mientras asignar un rol era una llamada a la API a mano, esto era un
-  // error difícil de cometer. Con un selector en la pantalla del equipo es
-  // un clic — y el que se baja a sí mismo de ADMIN pierde el acceso a la
-  // pantalla que usaría para arreglarlo. Se mira DESPUÉS del UPDATE, en la
-  // misma transacción: así cuenta el mundo tal como quedaría.
-  const administran = await client.query(
-    `SELECT count(*)::int AS n
-       FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-      WHERE ur.tenant_id = $1
-        AND ((r.base AND r.name = 'ADMIN') OR r.permissions @> '["roles.manage"]'::jsonb)`,
-    [input.tenantId],
-  );
-  if (administran.rows[0].n === 0) {
-    throw new Error(
-      'Alguien tiene que poder administrar el negocio: deja a otra persona como ADMIN antes de cambiar este rol.',
-    );
+  if ((await usersWithPermission(client, input.tenantId, 'roles.manage')).length === 0) {
+    throw new Error('Alguien tiene que poder administrar el negocio: deja a otra persona como ADMIN antes de cambiar este rol.');
   }
   await writeAudit(client, {
     tenantId: input.tenantId,
@@ -177,13 +171,13 @@ export async function assignRole(
     resource: 'user',
     resourceId: input.userId,
     result: 'ok',
-    metadata: { roleId: input.roleId, roleName: rol.rows[0].name },
+    metadata: { roleId, roleName: rol.rows[0].name },
     requestId: input.requestId,
   });
   await publishEvent(client, {
     name: 'role.assigned',
     tenantId: input.tenantId,
-    payload: { userId: input.userId, roleId: input.roleId, roleName: rol.rows[0].name },
+    payload: { userId: input.userId, roleId, roleName: rol.rows[0].name },
     actor: input.actor,
     requestId: input.requestId,
   });

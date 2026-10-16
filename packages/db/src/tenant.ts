@@ -95,3 +95,26 @@ export async function porCadaTenant<T>(
   }
   return salida;
 }
+
+/** Descubrir los negocios ANTES de elegir uno (#902).
+ * userId viene exclusivamente de una sesión ya autenticada, nunca de un DTO.
+ * Solo concede lectura de membresías/roles propios; no habilita tablas de negocio. */
+export async function withAuthenticatedUser<T>(
+  pool: Pool,
+  userId: string,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.tenant_id', '', true), set_config('app.user_id', $1, true)", [userId]);
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}

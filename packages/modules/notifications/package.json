@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@iaxti/core": "workspace:*",
+    "@iaxti/module-authorization": "workspace:*",
     "nodemailer": "^6.9.0",
     "pg": "^8.13.0"
   },

@@ -16,7 +16,7 @@ técnico (T) / organizacional (O) / legal (L) / contractual (C).
 
 | Control | ISO 27001 | ISO 27701 | ISO 42001 | OWASP ASVS | Ley 21.719 | Implementación | Tipo | Estado |
 |---|---|---|---|---|---|---|---|---|
-| Control de acceso por roles y permisos | A.5.15, A.8.3 | 6.2 | — | V4 | art. seguridad | ADR-0008, #9 | T | hecho — guard único, ADR-0008; el CI falla si aparece un `if (role)` |
+| Control de acceso por roles y permisos | A.5.15, A.8.3 | 6.2 | — | V4 | art. seguridad | ADR-0008, #9 | T | hecho — guard único, ADR-0008; el CI falla si aparece un `if (role)`. #902 centraliza membresías/permisos en authorization; /me lee solo las membresías de la sesión bajo RLS y la asignación conserva auditoría y transacción |
 | Scopes de identidades de servicio | A.5.15 | 6.2 | — | V4 | art. seguridad | #24, #388 | T | el guard y las comprobaciones internas exigen el scope explícito de la API key; un permiso fuera del catálogo, un comodín o un rol humano adjunto no amplían su alcance |
 | MFA para administradores | A.5.17 | — | — | V2.8 | — | #7 | T | **pendiente** — Supabase Auth está, el segundo factor no |
 | Aislamiento multi-tenant (guard + RLS) | A.8.3 | 6.4 | — | V4.2 | deber de secreto | #4, #9, #211 | T | hecho, **con una condición**: Postgres no evalúa las políticas si el rol que conecta es superusuario o tiene BYPASSRLS. La aplicación comprueba eso al arrancar y en producción se niega a servir si no se cumple (#227). En Supabase el rol `postgres` tiene BYPASSRLS: el runbook exige un rol de aplicación aparte |
