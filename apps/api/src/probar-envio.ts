@@ -3,7 +3,7 @@ import type IORedis from 'ioredis';
 import { withTenant } from '@iaxti/db';
 import { findAccountById } from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
-import { contactoPorTelefono, normalizePhone, tipoDeLinea } from '@iaxti/module-crm';
+import { contactoPorIdentidad, contactoPorTelefono, normalizePhone, tipoDeLinea } from '@iaxti/module-crm';
 import {
   bandejaSettings,
   enSilencio,
@@ -127,12 +127,7 @@ export async function probarEnvio(
    * —que ya está escrito para quien lo lee— y el camino queda auditado como
    * cualquier otro resultado.
    */
-  let telefono: string;
-  try {
-    telefono = normalizePhone(input.telefono);
-  } catch (err) {
-    return { ok: false, motivo: 'TELEFONO_INVALIDO', mensaje: (err as Error).message };
-  }
+  let telefono = input.telefono.trim();
   /**
    * Las comprobaciones van en la transacción; el envío, afuera.
    *
@@ -169,6 +164,14 @@ export async function probarEnvio(
         };
       }
 
+      const esMetaSocial = cuenta.kind === 'instagram' || cuenta.kind === 'messenger';
+      if (!esMetaSocial) {
+        try { telefono = normalizePhone(telefono); }
+        catch (err) { return { ok: false, motivo: 'TELEFONO_INVALIDO' as const, mensaje: (err as Error).message }; }
+      } else if (!telefono || telefono.length > 200 || /\s/.test(telefono)) {
+        return { ok: false, motivo: 'TELEFONO_INVALIDO' as const, mensaje: 'Usa el identificador del contacto que te escribió por este canal.' };
+      }
+
       // El estado del tenant manda (SPEC §6), y se mira primero: de una cuenta
       // suspendida no sale nada, y de una en solo lectura por impago solo salen
       // respuestas manuales — una prueba la inicia el negocio.
@@ -195,7 +198,9 @@ export async function probarEnvio(
         };
       }
 
-      const contacto = await contactoPorTelefono(client, { tenantId: input.tenantId, phone: telefono });
+      const contacto = cuenta.kind === 'instagram' || cuenta.kind === 'messenger'
+        ? await contactoPorIdentidad(client, { tenantId: input.tenantId, channel: cuenta.kind, identity: telefono })
+        : await contactoPorTelefono(client, { tenantId: input.tenantId, phone: telefono });
       if (!contacto) {
         // Y esto YA es el diagnóstico más probable: a un número que nunca nos
         // escribió no se le puede mandar nada iniciado por el negocio.
@@ -204,7 +209,7 @@ export async function probarEnvio(
           motivo: 'VENTANA_CERRADA' as const,
           mensaje:
             `${telefono} no está en tus contactos, así que nunca te escribió. La ventana de 24 h del ` +
-            'canal está cerrada: pídele que te escriba y vuelve a probar con ese número.',
+            'canal está cerrada: pídele que te escriba y vuelve a probar con ese destinatario.',
         };
       }
       if (contacto.optedOutAt || !(await canReceiveBusinessInitiated(client, input.tenantId, contacto.id))) {
@@ -213,7 +218,7 @@ export async function probarEnvio(
           motivo: 'SIN_CONSENTIMIENTO' as const,
           mensaje:
             'Ese contacto no tiene consentimiento vigente para recibir mensajes iniciados por el ' +
-            'negocio. Prueba con un número que te haya escrito.',
+            'negocio. Prueba con alguien que te haya escrito por este canal.',
         };
       }
 
@@ -221,6 +226,7 @@ export async function probarEnvio(
         tenantId: input.tenantId,
         contactId: contacto.id,
         channel: cuenta.kind as Channel,
+        channelAccountId: cuenta.id,
       });
       if (!isWithinWindow(cuenta.kind as Channel, ventana?.lastInboundAt ?? null, deps.ahora)) {
         return {
@@ -228,7 +234,7 @@ export async function probarEnvio(
           motivo: 'VENTANA_CERRADA' as const,
           mensaje:
             'Pasaron más de 24 horas desde su último mensaje: la ventana del canal está cerrada y solo ' +
-            'entraría una plantilla aprobada. Pídele que te escriba y vuelve a probar.',
+            'puedes responder después de que te escriba de nuevo. Pídele que te escriba y vuelve a probar.',
         };
       }
 

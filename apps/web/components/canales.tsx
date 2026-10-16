@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, avisoDe, type Aviso } from '../lib/api';
+import { ConectarCanalesMeta } from './conectar-canales-meta';
 
 // La pantalla de canales (#45): el estado del número EXPLICADO — un número
 // bloqueado por Meta deja al cliente sin su canal de ventas.
@@ -261,13 +262,14 @@ function Diagnostico({ accountId }: { accountId: string }) {
  * es la contraparte de #556. El vendedor lee la frase humana; quien conecta el
  * canal necesita el cuerpo del error.
  */
-function ProbarEnvio({ accountId }: { accountId: string }) {
+export function ProbarEnvio({ accountId, kind = 'whatsapp' }: { accountId: string; kind?: string }) {
+  const social = kind === 'instagram' || kind === 'messenger';
   const { config, session } = useSession();
   const tenant = useSelectedTenant();
   const [telefono, setTelefono] = useState('');
   const [probando, setProbando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoPruebaDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Aviso | null>(null);
 
   const probar = async () => {
     if (!session || !tenant || !telefono.trim()) return;
@@ -282,7 +284,7 @@ function ProbarEnvio({ accountId }: { accountId: string }) {
         }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No pudimos probar el envío.');
+      setError(avisoDe(e));
     } finally {
       setProbando(false);
     }
@@ -293,7 +295,7 @@ function ProbarEnvio({ accountId }: { accountId: string }) {
       <p className="rotulo">Probar el envío</p>
       <p className="mt-1 text-sm text-body">
         Manda un mensaje de prueba por este canal, por el camino real, y te dice exactamente qué
-        pasó. Le llega a una persona: usa un número que te haya escrito en las últimas 24 horas.
+        pasó. Le llega a una persona: usa {social ? 'el identificador de quien' : 'un número que'} te haya escrito en las últimas 24 horas.
       </p>
       <Formulario
         className="mt-3 flex flex-wrap items-center gap-2"
@@ -303,17 +305,17 @@ function ProbarEnvio({ accountId }: { accountId: string }) {
         }}
       >
         <Input
-          aria-label="Número para la prueba"
-          placeholder="+56912345678"
-          className="h-9 w-48 text-sm"
+          aria-label={social ? 'Identificador del contacto para la prueba' : 'Número para la prueba'}
+          placeholder={social ? 'ID del contacto en el canal' : '+56912345678'}
+          className="w-48 text-sm"
           value={telefono}
           onChange={(e) => setTelefono(e.target.value)}
         />
-        <Button type="submit" variant="secundario" size="chico" disabled={probando || !telefono.trim()}>
+        <Button type="submit" variant="secundario" disabled={probando || !telefono.trim()}>
           {probando ? 'Enviando…' : 'Enviar prueba'}
         </Button>
       </Formulario>
-      {error && <p className="mt-2 text-sm text-bad-text">{error}</p>}
+      {error && <AvisoResultado tono="error" persistente>{error.texto}{error.rastro && <span className="dato block break-all">{error.rastro}</span>}</AvisoResultado>}
       {resultado && (
         <div className="mt-3">
           <p className="flex flex-wrap items-center gap-2">
@@ -331,7 +333,7 @@ function ProbarEnvio({ accountId }: { accountId: string }) {
           )}
           {resultado.ok && (
             <p className="mt-2 text-xs text-muted">
-              Esta prueba no queda en la bandeja: queda en el libro de auditoría, con el número y el
+              Esta prueba no queda en la bandeja: queda en el libro de auditoría, con el destinatario y el
               resultado.
             </p>
           )}
@@ -468,6 +470,13 @@ function CambiarEmisor({
 }
 
 export function Canales() {
+  const { session } = useSession();
+  const tenant = useSelectedTenant();
+  if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
+  return <CanalesDelNegocio key={`${tenant}:${session?.access_token}`} />;
+}
+
+function CanalesDelNegocio() {
   const { session, config } = useSession();
   const tenant = useSelectedTenant();
   const [canales, setCanales] = useState<CanalDto[] | null>(null);
@@ -527,6 +536,9 @@ export function Canales() {
         rotulo="CANALES"
         titulo="Tus canales conectados"
       />
+      <ConectarCanalesMeta onConectado={(cuenta) => setCanales((actual) => [
+        ...(actual ?? []).filter((c) => c.id !== cuenta.id), { ...cuenta, numbers: [] },
+      ])} />
 
       {aviso && (
         <AvisoResultado>
@@ -567,7 +579,7 @@ export function Canales() {
                 {/* Probar el envío (#587): junto al diagnóstico, porque es la
                     pregunta siguiente. El diagnóstico dice cómo está
                     configurado; esto dice si de verdad sale un mensaje. */}
-                {canal.kind !== 'webchat' && <ProbarEnvio accountId={canal.id} />}
+                {canal.kind !== 'webchat' && <ProbarEnvio key={`${tenant}:${session?.access_token}:${canal.id}`} accountId={canal.id} kind={canal.kind} />}
 
                 {/* Reapuntar y desconectar (#600). Solo en WhatsApp: es el
                     único canal con emisor del proveedor y con cupo de plan. */}

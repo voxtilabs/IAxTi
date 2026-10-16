@@ -25,11 +25,13 @@ export {
   tenantDeCuenta,
   setChannelState,
   reapuntarEmisorDeLaCuenta,
+  EmisorCompartidoError,
   listChannelAccounts,
 } from './application/accounts';
 export { simuladorProvider, firmarWebhook } from './application/simulador';
 // El rastro de los webhooks y por qué no llegan los mensajes (#434).
 export { anotarWebhook, rastroDeWebhook } from './application/rastro';
+export { reservarEmisor, emisorAcreditado, emisoresAcreditados, tenantDelEmisorDeCanal, cuentaDelEmisor } from './application/senders';
 export type { ResultadoDeWebhook, RastroDeWebhook } from './application/rastro';
 export { diagnosticarCanal } from './application/diagnostico';
 export type { Diagnostico, PasoDelDiagnostico, EstadoDelPaso } from './application/diagnostico';
