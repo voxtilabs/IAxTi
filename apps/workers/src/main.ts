@@ -357,9 +357,10 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           return mantenerWatchesGoogle(pool);
         }
         case 'identity.google.cleanup': {
+          const gmailCacheDeleted = await limpiarCacheGmail(pool);
           const gmail = gmailDesdeEntorno();
           const custody = gmail ? await limpiarSecretosGmail(pool, gmail) : await limpiarSecretosGoogle(pool);
-          return { ...custody, gmailCacheDeleted: await limpiarCacheGmail(pool) };
+          return { ...custody, gmailCacheDeleted };
         }
         case 'calendar.reminders': {
           const res = await barrerRecordatorios(pool, {

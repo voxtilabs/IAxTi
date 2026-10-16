@@ -85,12 +85,13 @@ export class GmailWebhookController{
   @ApiResponse({status:204,description:'Notificación autenticada y encolada de forma durable.'})
   async recibir(@Req()r:WithRequestId,@Body()body:unknown,@Res({passthrough:true})res:Response){
     const token=typeof r.headers.authorization==='string'&&r.headers.authorization.startsWith('Bearer ')?r.headers.authorization.slice(7):'';
-    let timer:ReturnType<typeof setTimeout>|undefined;
+    let timer:ReturnType<typeof setTimeout>|undefined;const deadline=new AbortController();
     try{await Promise.race([(async()=>{
-      let push:GmailPush;try{push=await autenticarPushGmail(token,body,this.deps.google());}catch{throw new UnauthorizedException({code:'GOOGLE_PUSH_INVALID',message:'No pudimos validar esta notificación.'});}
+      let push:GmailPush;try{push=await autenticarPushGmail(token,body,this.deps.google(),deadline.signal);}catch{throw new UnauthorizedException({code:'GOOGLE_PUSH_INVALID',message:'No pudimos validar esta notificación.'});}
+      deadline.signal.throwIfAborted();
       await this.deps.enqueue({...push,requestId:r.requestId});
-    })(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error()),800);timer.unref?.();})]);}
+    })(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{deadline.abort();reject(new Error());},800);timer.unref?.();})]);}
     catch(e){if(e instanceof UnauthorizedException)throw e;res.setHeader('Retry-After','5');throw new ServiceUnavailableException({code:'GOOGLE_PUSH_RETRY',message:'No pudimos guardar la notificación. Reintenta en unos segundos.'});}
-    finally{clearTimeout(timer);}
+    finally{clearTimeout(timer);deadline.abort();}
   }
 }

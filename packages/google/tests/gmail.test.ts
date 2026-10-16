@@ -54,5 +54,24 @@ describe('Pub/Sub OIDC con firmas RSA reales',()=>{
   it('valida firma y identidad de servicio, cachea certificados por tiempo acotado',async()=>{const fetch=send();const v=createGooglePubSubVerifier(cfg,{fetch});await v.verify(jwt());await v.verify(jwt());expect(fetch).toHaveBeenCalledTimes(1);});
   it.each([{aud:'https://otro.test'},{iss:'https://evil.test'},{email:'other@test-project.iam.gserviceaccount.com'},{email_verified:false},{exp:1},{iat:Math.floor(Date.now()/1000)+1000},{exp:Math.floor(Date.now()/1000)+8000}])('rechaza claims incompatibles %#',async claims=>{await expect(createGooglePubSubVerifier(cfg,{fetch:send()}).verify(jwt(claims))).rejects.toMatchObject({code:'GOOGLE_ID_TOKEN_INVALID'});});
   it('kid desconocido no fuerza fetch repetido dentro del minuto',async()=>{const fetch=send();const verifier=createGooglePubSubVerifier(cfg,{fetch});await verifier.verify(jwt());const original=jwt().split('.');original[0]=Buffer.from(JSON.stringify({alg:'RS256',kid:'unknown'})).toString('base64url');for(let i=0;i<3;i++)await expect(verifier.verify(original.join('.'))).rejects.toThrow();expect(fetch).toHaveBeenCalledTimes(1);});
+  it('dos instancias comparten caché/singleflight sin compartir audiences ni service accounts',async()=>{
+    const fetch=send();const one=createGooglePubSubVerifier(cfg,{fetch});const two=createGooglePubSubVerifier({...cfg,audience:'https://other.example.test/push'},{fetch});
+    await Promise.all([one.verify(jwt()),two.verify(jwt({aud:'https://other.example.test/push'}))]);expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(two.verify(jwt())).rejects.toThrow();await expect(createGooglePubSubVerifier({...cfg,serviceAccountEmail:'wrong@test-project.iam.gserviceaccount.com'},{fetch}).verify(jwt())).rejects.toThrow();
+    const unknown=jwt().split('.');unknown[0]=Buffer.from(JSON.stringify({alg:'RS256',kid:'new-kid'})).toString('base64url');
+    await expect(createGooglePubSubVerifier(cfg,{fetch}).verify(unknown.join('.'))).rejects.toThrow();expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('la rotación legítima obtiene la nueva clave pasado el límite de refresco',async()=>{
+    const certificate=publicKey.export({type:'spki',format:'pem'});const fetch=vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(json({'test-key':certificate})).mockResolvedValueOnce(json({'rotated-key':certificate}));
+    const v=createGooglePubSubVerifier(cfg,{fetch});await v.verify(jwt());
+    const parts=jwt().split('.');parts[0]=Buffer.from(JSON.stringify({alg:'RS256',kid:'rotated-key'})).toString('base64url');parts[2]=sign('RSA-SHA256',Buffer.from(parts.slice(0,2).join('.')),privateKey).toString('base64url');
+    await expect(v.verify(parts.join('.'))).rejects.toThrow();const clock=vi.spyOn(Date,'now').mockReturnValue(Date.now()+61000);
+    try{await createGooglePubSubVerifier(cfg,{fetch}).verify(parts.join('.'));expect(fetch).toHaveBeenCalledTimes(2);}finally{clock.mockRestore();}
+  });
+  it('certificados lentos se abortan antes del deadline webhook y no quedan fetchs por cada instancia',async()=>{
+    const fetch=vi.fn<typeof globalThis.fetch>((_url,init)=>new Promise((_resolve,reject)=>init?.signal?.addEventListener('abort',()=>reject(new Error('PRIVATE-NETWORK-BODY')),{once:true})));
+    const start=Date.now();const checks=Array.from({length:4},()=>createGooglePubSubVerifier(cfg,{fetch}).verify(jwt()));
+    const results=await Promise.allSettled(checks);expect(results.every(r=>r.status==='rejected')).toBe(true);expect(Date.now()-start).toBeLessThan(800);expect(fetch).toHaveBeenCalledTimes(1);expect(JSON.stringify(results)).not.toContain('PRIVATE-NETWORK-BODY');
+  });
   it('rechaza firma y no expone token en el fallo',async()=>{const token=jwt({},true);const error=await createGooglePubSubVerifier(cfg,{fetch:send()}).verify(token).catch(e=>e);expect(error.code).toBe('GOOGLE_ID_TOKEN_INVALID');expect(String(error)+JSON.stringify(error)).not.toContain(token);});
 });

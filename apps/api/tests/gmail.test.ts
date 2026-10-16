@@ -41,5 +41,11 @@ describe('Gmail HTTP: sesión personal, permisos y contrato',()=>{
 });
 describe('Gmail Pub/Sub HTTP',()=>{
   it('solo encola mensaje autenticado sin JWT/email/cuerpo externo',async()=>{service.authenticate.mockResolvedValue({mailboxHash:'a'.repeat(64),historyId:'9007199254740993123',messageId:'123'});const r=await post('/webhooks/google/gmail',{private:'BODY'},{Authorization:'Bearer private-jwt','X-Tenant-Id':'forged'});expect(r.status).toBe(204);expect(enqueue).toHaveBeenCalledWith({mailboxHash:'a'.repeat(64),historyId:'9007199254740993123',messageId:'123',requestId:expect.any(String)});expect(JSON.stringify(enqueue.mock.calls)).not.toMatch(/private-jwt|BODY|forged/);});
+  it('deadline aborta la verificación y una respuesta tardía no encola después del 503',async()=>{
+    let release!:(v:unknown)=>void;let signal:AbortSignal|undefined;
+    service.authenticate.mockImplementationOnce((_token,_body,_deps,s)=>{signal=s;return new Promise(r=>release=r);});
+    expect((await post('/webhooks/google/gmail')).status).toBe(503);expect(signal?.aborted).toBe(true);
+    release({mailboxHash:'a'.repeat(64),historyId:'5',messageId:'late'});await new Promise(r=>setImmediate(r));expect(enqueue).not.toHaveBeenCalled();
+  });
   it('firma inválida no encola; cola caída nunca recibe un 204',async()=>{service.authenticate.mockRejectedValueOnce(new Error('invalid'));expect((await post('/webhooks/google/gmail')).status).toBe(401);expect(enqueue).not.toHaveBeenCalled();service.authenticate.mockResolvedValue({mailboxHash:'a'.repeat(64),historyId:'5',messageId:'1'});enqueue.mockRejectedValueOnce(new Error('private redis URL'));const r=await post('/webhooks/google/gmail');expect(r.status).toBe(503);expect(r.headers.get('retry-after')).toBe('5');expect(await r.text()).not.toContain('private redis');});
 });

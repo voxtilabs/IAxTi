@@ -127,8 +127,8 @@ export async function mantenerGmail(pool:Pool,ctx:GmailContext,deps=gmailDesdeEn
   return result;
 }
 export interface GmailPush {mailboxHash:string;historyId:string;messageId:string}
-export async function autenticarPushGmail(token:string,body:unknown,injected=gmailDesdeEntorno()):Promise<GmailPush>{
-  const deps=required(injected);await deps.pubsub.verify(token);
+export async function autenticarPushGmail(token:string,body:unknown,injected=gmailDesdeEntorno(),signal?:AbortSignal):Promise<GmailPush>{
+  const deps=required(injected);await deps.pubsub.verify(token,{signal});
   try{
     if(!body||typeof body!=='object')throw new Error();const envelope=body as {subscription?:unknown;message?:{data?:unknown;messageId?:unknown}};
     if(envelope.subscription!==deps.subscription||typeof envelope.message?.messageId!=='string'||! /^[A-Za-z0-9_-]{1,200}$/.test(envelope.message.messageId)
