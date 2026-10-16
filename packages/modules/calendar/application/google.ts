@@ -192,7 +192,7 @@ export async function mantenerWatchesGoogle(pool: Pool, injected = calendarGoogl
   let renewed = 0; let failed = 0;
   const candidates=await pool.query<{tenant_id:string}>('SELECT tenant_id FROM tenants_con_mantenimiento_google($1)',[now(injected)]);
   const ids=candidates.rows.map(row=>row.tenant_id);
-  for (const tenantId of await idsDeTenants(pool, { ids, estados: ['active','trial','past_due'] })) {
+  for (const tenantId of await idsDeTenants(pool, { ids })) {
     const users = await withTenant(pool,tenantId,async (c) => {
       await c.query('DELETE FROM calendar_freebusy_cache WHERE tenant_id=$1 AND expires_at<=$2',[tenantId,now(injected)]);
       return (await c.query(`SELECT user_id FROM calendar_connections cc
