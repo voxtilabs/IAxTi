@@ -98,12 +98,17 @@ ejecutarse y verificarse.
 La [plantilla del registro mensual](../evidencias/80/README.md#registro-mensual)
 deja separados los datos del ensayo y la documentación todavía sin ejecutar.
 
-El repositorio no incluye todavía un script de anonimización integral para
-este restore. `redactPII` y la supresión de un contacto no cubren una copia
-completa de producción. Antes de ejecutar, debe existir un transformador
-versionado, revisado contra el esquema del backup y probado con datos
-sintéticos. Registrar su SHA y sus verificaciones; si falta, dejar el ensayo
-pendiente en lugar de importar datos reales en staging.
+El repositorio incluye un [derivado estructural local](../../scripts/dr/README.md)
+para un catálogo cerrado de 113 migraciones: conserva relaciones limitadas de
+12 tablas con valores e identificadores sintéticos y excluye las filas de
+las otras 84 tablas, además de Auth y Storage completos. **No es anonimización
+integral de Supabase ni acredita C3**. Las cantidades y relaciones conservadas
+pueden revelar patrones; el resultado permanece en cuarentena, sin permiso
+implícito para publicarlo o llevarlo a staging. Requiere revisión del esquema,
+identidades sintéticas nuevas/revinculación, archivos sintéticos y el ensayo
+real de este checklist. `redactPII` y la supresión de un contacto tampoco
+cubren una copia completa. Registrar SHA y verificaciones; si falta cobertura,
+dejar el ensayo pendiente en lugar de importar datos reales en staging.
 
 ### A. Preparar el ensayo y separar destinos
 

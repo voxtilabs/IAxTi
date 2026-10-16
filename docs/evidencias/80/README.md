@@ -1,6 +1,7 @@
 # #80 · Checklist mensual de staging desde producción anonimizada
 
-Este cambio entrega la documentación del criterio 3 de
+Este cambio entrega el checklist y un derivado estructural local como avance
+técnico parcial del criterio 3 de
 [#80](https://github.com/voxtilabs/IAxTi/issues/80):
 [checklist de DR](../../runbooks/DR.md#staging-anonimizado-mensual).
 **No se ejecutó una restauración, no se accedió a producción y no se acredita
@@ -25,14 +26,14 @@ anonimización, importación a staging, smoke, medición y limpieza. Incluye
 identidades/Auth, contenido libre, adjuntos, credenciales, colas y auditoría;
 la cobertura real depende del esquema del backup, no de una lista congelada.
 
-Hay dos pendientes distintos: implementar/verificar un transformador integral
+En el corte documental inicial había dos pendientes: implementar/verificar un transformador integral
 de la copia y ejecutar el ensayo autorizado con acceso al backup y staging.
-El repositorio de esta base no incluye el script mensual previsto por SPEC;
+El repositorio de la base `79936e7` no incluía el script mensual previsto por SPEC;
 la redacción de PII en observabilidad y la supresión de un contacto no lo
 sustituyen. La documentación no inventa un comando ni da ese código por hecho.
 Los ensayos PITR, Redis/R2 y VPS limpio conservan su alcance independiente.
 
-## Verificación de esta entrega
+## Verificación de la entrega documental inicial
 
 - `git diff --check`: sin errores de whitespace.
 - Enlaces Markdown locales nuevos y sus anclas: destinos existentes.
@@ -45,6 +46,20 @@ Los ensayos PITR, Redis/R2 y VPS limpio conservan su alcance independiente.
 - Sin cambios de código, SQL, endpoints, permisos, manifiestos, imágenes ni
   configuración desplegada. No se corrieron pruebas de aplicación ni
   preflight: no aportarían evidencia de una restauración que no se ejecutó.
+
+## Continuación técnica: derivado estructural local
+
+Se añade [scripts/dr](../../../scripts/dr/README.md), con cobertura explícita
+por tabla/columna, exportación de solo lectura e importación atómica a una base
+local nueva que queda sin admitir conexiones. La [evidencia de las pruebas](transformer.md)
+separa la ejecución SQL local sobre 113 migraciones de los cuatro tests puros
+que también puede ejecutar CI sobre esta rama de 97 migraciones.
+
+El derivado conserva solo 12 tablas y no restaura las 84 excluidas. Omite
+Auth, Storage, auditoría y trabajo pendiente; las cantidades y relaciones
+pueden conservar patrones identificables. No acredita anonimización integral,
+RPO/RTO ni el restore mensual de C3. Requiere revisión en cuarentena, nuevas
+identidades sintéticas/revinculación, archivos sintéticos y smoke posterior.
 
 <a id="registro-mensual"></a>
 
