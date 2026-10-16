@@ -6,14 +6,17 @@ import {
   Post,
   Query,
   Req,
+  Res,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { PoolClient } from 'pg';
+import type { Response } from 'express';
 import { withTenant } from '@iaxti/db';
 import { enteroDeEntorno } from '@iaxti/core';
 import {
   aplicarPropuesta,
+  esHerramientaPersonal,
   type DiagnosticoDelNegocio,
   type LoQueFalta,
   conversarConElAgenteGeneral,
@@ -372,6 +375,7 @@ const modulosActivos = () =>
 const FALTA_LA_PREGUNTA = 'Falta lo que quieres preguntarle.';
 
 const VueltaDeConversacion = z.object({
+  contextoPersonal: z.boolean().optional(),
   // El elemento es `unknown` a propósito: los turnos se NORMALIZAN, no se
   // rechazan. Un turno con rol raro o sin texto se descarta igual que antes;
   // exigirle forma acá convertiría en 400 —y en inglés— lo que hoy se ignora.
@@ -469,6 +473,7 @@ export class AgenteGeneralController {
   async conversar(
     @Req() request: WithUser,
     @Cuerpo(VueltaDeConversacion) body: z.infer<typeof VueltaDeConversacion>,
+    @Res({ passthrough: true }) response?: Response,
   ) {
     const actor = actorOf(request);
     const conversacion = await withTenant(pool(), actor.tenantId, async (c) => {
@@ -496,6 +501,7 @@ export class AgenteGeneralController {
           {
             tenantId: actor.tenantId,
             turnos: body.turnos,
+            contextoPersonal: body.contextoPersonal,
             permisos: await permisosDelActor(c, actor),
             modulosActivos: modulosActivos(),
             actorUserId: actor.userId,
@@ -526,6 +532,7 @@ export class AgenteGeneralController {
 
     // Acá la transacción YA commiteó, con la fila del fallo adentro.
     const { respuesta: r, provider, model } = conversacion;
+    if (r.contextoPersonal) response?.setHeader('X-Iaxti-Personal-Context', '1');
     if (r.status === 'ok') return r;
 
     if (r.cuotaAgotada) {
@@ -566,7 +573,9 @@ export class AgenteGeneralController {
   async aplicar(
     @Req() request: WithUser,
     @Cuerpo(PropuestaQueSeAplica) body: z.infer<typeof PropuestaQueSeAplica>,
+    @Res({ passthrough: true }) response?: Response,
   ) {
+    if (esHerramientaPersonal(body.herramienta)) response?.setHeader('X-Iaxti-Personal-Context', '1');
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
       // También acá: apagarlo con una propuesta en pantalla no puede dejar

@@ -1,0 +1,20 @@
+import {afterAll,beforeAll,expect,it} from 'vitest';
+import type {ExecutionContext} from '@nestjs/common';
+import {of,firstValueFrom} from 'rxjs';
+import {Pool} from 'pg';
+import {runMigrations} from '@iaxti/db';
+import {IdempotenciaInterceptor} from '../src/idempotencia.interceptor';
+let pool:Pool;let tenantId:string;
+beforeAll(async()=>{pool=new Pool({connectionString:process.env.DATABASE_URL});await runMigrations(pool);tenantId=(await pool.query("INSERT INTO tenants(name) VALUES('personal-idempotency') RETURNING id")).rows[0].id;});
+afterAll(async()=>pool?.end());
+it('respuesta personal sale una vez y replay no almacena texto ni ejecuta/cobra de nuevo',async()=>{
+  let status=200;const response={statusCode:200,getHeader:(key:string)=>key==='X-Iaxti-Personal-Context'?'1':undefined,setHeader:()=>{},status:(s:number)=>{status=s;}};
+  const request={method:'POST',path:'/v1/agente-general',actor:{tenantId},headers:{'idempotency-key':'personal-key'},body:{turnos:[{content:'PRIVATE-QUESTION'}]},requestId:'req-test'};
+  const ctx={getHandler:()=>()=>{},switchToHttp:()=>({getRequest:()=>request,getResponse:()=>response})} as unknown as ExecutionContext;
+  let calls=0;const next={handle:()=>{calls++;return of({texto:'PRIVATE-EXCERPT',contextoPersonal:true,propuesta:{argumentos:{secret:'PRIVATE-ARG'}}});}};
+  const interceptor=new IdempotenciaInterceptor(pool);
+  expect(await firstValueFrom(interceptor.intercept(ctx,next))).toMatchObject({texto:'PRIVATE-EXCERPT'});
+  const stored=(await pool.query('SELECT * FROM idempotency_keys WHERE tenant_id=$1',[tenantId])).rows;
+  expect(JSON.stringify(stored)).not.toMatch(/PRIVATE-QUESTION|PRIVATE-EXCERPT|PRIVATE-ARG/);
+  expect(await firstValueFrom(interceptor.intercept(ctx,next))).toMatchObject({code:'PERSONAL_RESPONSE_NOT_STORED'});expect(status).toBe(409);expect(calls).toBe(1);
+});

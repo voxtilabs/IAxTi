@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleRegistry } from '@iaxti/core';
+import { CATALOGO } from '../application/catalogo';
 import { DEFINICIONES, OBJETIVOS } from '../domain/objetivo';
 import {
   HERRAMIENTAS_DE_LECTURA,
@@ -94,6 +95,9 @@ describe('las herramientas existen de verdad', () => {
     // está habilitada, está bloqueada con su motivo (ADR-0017), o está
     // pendiente con la razón escrita.
     const tratadas = new Set<string>([
+      // Las tools personales del Agente General se ejecutan por su endpoint
+      // JWT real; no se ofrecen al bot autónomo ni a una API key sin dueño.
+      ...CATALOGO.map(tool => tool.nombre),
       ...Object.keys(HERRAMIENTAS_DE_LECTURA),
       ...Object.keys(HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS),
       ...HERRAMIENTAS_QUE_ESCRIBEN,
