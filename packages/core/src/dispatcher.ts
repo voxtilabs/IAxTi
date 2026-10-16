@@ -71,6 +71,10 @@ export class OutboxDispatcher {
 
         await client.query(`SAVEPOINT evento`);
         try {
+          // Un lote mezcla negocios. Cada consumidor usa la misma transacción
+          // que su claim, con RLS del sobre actual; COMMIT/ROLLBACK no deja
+          // este contexto local en la conexión que vuelve al pool.
+          await client.query("SELECT set_config('app.tenant_id', $1, true)", [event.tenantId]);
           for (const consumer of this.consumers) {
             if (consumer.event !== event.name) continue;
             if (!this.registry.isActive(consumer.moduleId)) {
