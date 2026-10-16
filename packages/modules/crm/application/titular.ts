@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import type { AlmacenObjetos } from '@iaxti/core';
+import { publishEvent, type AlmacenObjetos } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 
 // Derechos del titular, Ley 21.719 (#81, SPEC §19). Dos derechos que el
@@ -295,6 +295,7 @@ export async function suprimirTitular(
        name = NULL, phone = NULL, email = NULL, rut = NULL,
        custom = '{}'::jsonb, opt_in_evidence = NULL,
        opted_out_at = COALESCE(opted_out_at, now()),
+       anonymized_at = COALESCE(anonymized_at, now()),
        updated_at = now()
      WHERE tenant_id = $1 AND id = $2`,
     [input.tenantId, input.contactId],
@@ -324,6 +325,8 @@ export async function suprimirTitular(
       );
     }
   }
+
+  await publishEvent(client,{name:'contact.anonymized',tenantId:input.tenantId,actor:input.actor,requestId:input.requestId,payload:{contactId:input.contactId}});
 
   await writeAudit(client, {
     tenantId: input.tenantId,
