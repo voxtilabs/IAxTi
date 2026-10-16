@@ -190,6 +190,9 @@ describe('derecho de supresión (#81)', () => {
     expect(fila.opt_in_evidence).toBeNull();
     // Y queda como opt-out: no se le vuelve a escribir.
     expect(fila.opted_out_at).not.toBeNull();
+    expect(fila.anonymized_at).not.toBeNull();
+    const event = await admin.query("SELECT payload FROM outbox WHERE tenant_id=$1 AND name='contact.anonymized' AND payload->>'contactId'=$2", [tenant,contactId]);
+    expect(event.rows).toEqual([{payload:{contactId}}]);
 
     const mensajes = await admin.query(
       'SELECT count(*)::int AS n FROM messages WHERE conversation_id = $1',
