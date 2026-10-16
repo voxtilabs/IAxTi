@@ -67,6 +67,7 @@ function bucketFalso(modo: 'borra' | 'falla' = 'borra') {
  */
 function poolQueNoConfirma(real: Pool, veces = 1): Pool {
   let restantes = veces;
+  let borradoIniciado = false;
   return {
     async connect() {
       const client = await real.connect();
@@ -74,7 +75,10 @@ function poolQueNoConfirma(real: Pool, veces = 1): Pool {
         get(destino, prop) {
           if (prop !== 'query') return Reflect.get(destino, prop);
           return (...args: unknown[]) => {
-            if (args[0] === 'COMMIT' && restantes > 0) {
+            // #751 confirma primero la intención; la avería se inyecta DESPUÉS
+            // del DELETE, en el mismo punto irreversible que antes.
+            if (typeof args[0] === 'string' && args[0].startsWith('DELETE FROM sources')) borradoIniciado = true;
+            if (args[0] === 'COMMIT' && borradoIniciado && restantes > 0) {
               restantes -= 1;
               return Promise.reject(new Error('se cayó la base justo al confirmar'));
             }

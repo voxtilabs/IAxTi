@@ -18,6 +18,7 @@ export const REPETIBLES: Repetible[] = [
   // indexar el negocio tiene la IA sin conocimiento; y no más seguido porque
   // el barrido pasa por todos los negocios y cada fuente reindexada le paga
   // al proveedor.
+  { nombre: 'knowledge.reconcile_deletions', moduleId: 'knowledge', repeat: { every: 300_000 } },
   { nombre: 'knowledge.reindex', moduleId: 'knowledge', repeat: { every: 300_000 } },
   { nombre: 'automations.sweep', moduleId: 'automations', repeat: { every: 300_000 } },
   { nombre: 'api_usage.flush', moduleId: 'organizations', repeat: { every: 300_000 } },

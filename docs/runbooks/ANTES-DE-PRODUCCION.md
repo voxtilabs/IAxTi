@@ -84,6 +84,7 @@ número, el que manda es el código:
 | `idempotency.sweep` | :20 | las llaves de reintento se acumulan para siempre |
 | `automations.sweep` | 5 min | las reglas por tiempo ("2 días sin respuesta") no disparan |
 | `api_usage.flush` | 5 min | el consumo de API no se cobra ni se muestra |
+| `knowledge.reconcile_deletions` | 5 min; intenciones de ≥5 min | un borrado interrumpido puede seguir citable sin archivo |
 | `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
 | `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |

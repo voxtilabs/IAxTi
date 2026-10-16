@@ -12,6 +12,7 @@ import {
   redisConnection,
   consumerReadiness,
   storageFromEnv,
+  consultarR2,
   presignUrl,
   enteroDeEntorno,
   textoDeEntorno,
@@ -73,6 +74,7 @@ import { createZavuProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers }
 import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
+  reconciliarBorradosPendientes,
   expireSources,
   tenantsWithExpirable,
   reindexarPendientes,
@@ -477,6 +479,11 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           return { expired: total };
         }
         // Vigencias del conocimiento (#51): vencida, la IA la ignora y avisa.
+        case 'knowledge.reconcile_deletions': {
+          const consulta = consultarR2();
+          if (!consulta) return { skipped: true, reason: 'almacenamiento_no_configurado' };
+          return reconciliarBorradosPendientes(pool, consulta);
+        }
         case 'knowledge.expire': {
           const conVencibles = await tenantsWithExpirable(pool);
           let total = 0;

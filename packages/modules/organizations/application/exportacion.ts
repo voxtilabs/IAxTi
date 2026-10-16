@@ -38,6 +38,9 @@ export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
   processed_events: 'Idem outbox.',
   idempotency_keys: 'Llaves de reintento con vida de 24 h; fuera de ese momento no significan nada.',
   knowledge_query_cache: 'Caché: se reconstruye sola y no es información nueva.',
+  pending_file_deletions:
+    'Intenciones transitorias de reconciliación de borrados: mecánica interna, no contenido del negocio. ' +
+    'Las fuentes y sus fragmentos se exportan en sources y chunks; estas marcas de reintento no agregan contenido (#751).',
   platform_support_sessions: 'Registro NUESTRO de cuándo miramos su cuenta; no es dato suyo.',
   agente_general_apagado:
     'Interruptor NUESTRO: dice si le pausamos la configuración por conversación y por qué. Es una decisión de operación de la plataforma, no información del negocio.',

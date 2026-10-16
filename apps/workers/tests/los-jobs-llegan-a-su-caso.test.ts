@@ -99,4 +99,16 @@ describe('los jobs programados y sus casos (#529)', () => {
     expect(casos.has('crm.stalled'), 'falta el case de crm.stalled').toBe(true);
     expect(MAIN).toContain('markStalledDeals');
   });
+
+  it('el barrido de archivos llega al reconciliador con el puerto HEAD (#751)', () => {
+    expect(REPETIBLES.find(r => r.nombre === 'knowledge.reconcile_deletions')).toEqual({
+      nombre: 'knowledge.reconcile_deletions', moduleId: 'knowledge', repeat: { every: 300_000 },
+    });
+    const start = MAIN.indexOf("case 'knowledge.reconcile_deletions':");
+    expect(start).toBeGreaterThan(-1);
+    const block = MAIN.slice(start, MAIN.indexOf("case 'knowledge.expire':", start));
+    expect(block).toContain('consultarR2()');
+    expect(block).toContain('reconciliarBorradosPendientes(pool, consulta)');
+    expect(block).toContain("reason: 'almacenamiento_no_configurado'");
+  });
 });
