@@ -1,0 +1,223 @@
+{
+  "issue": 588,
+  "alcance": "Motivos observados de las entradas del trinquete; no autoriza conservarlas ni reemplaza las pruebas visuales. No cambia pantallas ni resuelve la decisión pendiente sobre uniformidad.",
+  "entradas": {
+    "agente-general.tsx#sugerencias": {
+      "motivo": "Las sugerencias son botones opcionales dentro del mensaje de bienvenida. Si no llegan sugerencias, el párrafo que invita a escribir permanece; no se agrega una respuesta o sugerencia inventada.",
+      "evidencia": {
+        "archivo": "apps/web/components/agente-general.tsx",
+        "fragmento": "(sugerencias ?? []).map"
+      }
+    },
+    "agente-general.tsx#turnos": {
+      "motivo": "El historial vacío muestra un párrafo de bienvenida y las sugerencias dentro de ConversationContent, en lugar de EstadoVacio. La entrada registra ese renderizado específico del chat.",
+      "evidencia": {
+        "archivo": "apps/web/components/agente-general.tsx",
+        "fragmento": "turnos.length === 0"
+      }
+    },
+    "api-keys.tsx#keys": {
+      "motivo": "Distingue la carga con Skeleton y la ausencia de llaves con el texto «Todavía no hay llaves». El vacío está escrito en línea, sin EstadoVacio.",
+      "evidencia": {
+        "archivo": "apps/web/components/api-keys.tsx",
+        "fragmento": "Todavía no hay llaves."
+      }
+    },
+    "api-keys.tsx#scopes": {
+      "motivo": "La colección dibuja los permisos seleccionables del formulario de creación de una llave. Su map no presenta una lista de llaves ni tiene una rama local de vacío.",
+      "evidencia": {
+        "archivo": "apps/web/components/api-keys.tsx",
+        "fragmento": "scopes.map((s) => {"
+      }
+    },
+    "asistente.tsx#agentes": {
+      "motivo": "Cuando no hay asistentes se muestra el formulario para crear el primero; la lista solo se dibuja con agentes. El formulario es la salida que existe para ese caso, sin EstadoVacio.",
+      "evidencia": {
+        "archivo": "apps/web/components/asistente.tsx",
+        "fragmento": "const mostrarFormulario = agentes.length === 0 || abriendoOtro;"
+      }
+    },
+    "atajos-de-respuesta.tsx#items": {
+      "motivo": "El formulario permite crear el primer atajo y el listado vacío dice «Todavía no hay atajos. El primero suele ser el horario». Ese texto está escrito en línea.",
+      "evidencia": {
+        "archivo": "apps/web/components/atajos-de-respuesta.tsx",
+        "fragmento": "Todavía no hay atajos. El primero suele ser el horario."
+      }
+    },
+    "bandeja/chat.tsx#herramientas": {
+      "motivo": "Es el detalle de las herramientas consultadas por una respuesta, no otra bandeja. Una colección vacía se traduce explícitamente como «Respondió sin consultar nada».",
+      "evidencia": {
+        "archivo": "apps/web/components/bandeja/chat.tsx",
+        "fragmento": "Respondió sin consultar nada"
+      }
+    },
+    "bandeja/ficha.tsx#notas": {
+      "motivo": "La sublista de notas internas informa «Sin notas todavía. El cliente jamás las ve». Existe una rama de vacío propia, pero no el componente compartido.",
+      "evidencia": {
+        "archivo": "apps/web/components/bandeja/ficha.tsx",
+        "fragmento": "Sin notas todavía. El cliente jamás las ve."
+      }
+    },
+    "bandeja/reasignaciones.tsx#pasos": {
+      "motivo": "El desplegable de historial distingue Skeleton, aviso de fallo y «Nunca cambió de dueño». Su explicación de historial vacío está escrita en línea.",
+      "evidencia": {
+        "archivo": "apps/web/components/bandeja/reasignaciones.tsx",
+        "fragmento": "Nunca cambió de dueño."
+      }
+    },
+    "bandeja/secuencias-ficha.tsx#inscripciones": {
+      "motivo": "El panel no se dibuja cuando no hay secuencias disponibles ni inscripciones. La sublista de inscripciones solo se muestra si tiene elementos; no tiene EstadoVacio propio.",
+      "evidencia": {
+        "archivo": "apps/web/components/bandeja/secuencias-ficha.tsx",
+        "fragmento": "secuencias.length === 0 && inscripciones.length === 0"
+      }
+    },
+    "campanas.tsx#lista": {
+      "motivo": "La lista distingue Skeleton y un panel con título «Todavía no has creado una campaña» e instrucciones para crearla. Ese panel no usa EstadoVacio.",
+      "evidencia": {
+        "archivo": "apps/web/components/campanas.tsx",
+        "fragmento": "Todavía no has creado una campaña"
+      }
+    },
+    "campanas.tsx#valores": {
+      "motivo": "Los elementos son inputs de las variables de la plantilla elegida, no campañas. Una plantilla sin variables no requiere esos inputs; se mantiene el resto del formulario.",
+      "evidencia": {
+        "archivo": "apps/web/components/campanas.tsx",
+        "fragmento": "Valor de la variable"
+      }
+    },
+    "conocimiento.tsx#fuentes": {
+      "motivo": "La lista de fuentes distingue Skeleton y el texto «Aún no hay fuentes. La IA solo conoce la conversación». El vacío es un párrafo local.",
+      "evidencia": {
+        "archivo": "apps/web/components/conocimiento.tsx",
+        "fragmento": "Aún no hay fuentes. La IA solo conoce la conversación."
+      }
+    },
+    "conocimiento.tsx#productos": {
+      "motivo": "Es la sección de resultados de producto al probar conocimiento. Solo se muestra cuando productos no es null y tiene resultados; no es la lista de fuentes ni un catálogo editable.",
+      "evidencia": {
+        "archivo": "apps/web/components/conocimiento.tsx",
+        "fragmento": "productos !== null && productos.length > 0"
+      }
+    },
+    "consumo-ia.tsx#corridas": {
+      "motivo": "La lista desplegable diferencia «Buscando…» de «Todavía no hay corridas registradas». Ambos estados están escritos en línea; esto no certifica que el alto de carga coincida.",
+      "evidencia": {
+        "archivo": "apps/web/components/consumo-ia.tsx",
+        "fragmento": "Todavía no hay corridas registradas."
+      }
+    },
+    "crm/ficha-contacto.tsx#campos": {
+      "motivo": "Los elementos son campos personalizados del formulario del contacto, filtrados por entity. Aunque no haya campos propios, el formulario conserva nombre y datos estándar.",
+      "evidencia": {
+        "archivo": "apps/web/components/crm/ficha-contacto.tsx",
+        "fragmento": "definiciones={campos}"
+      }
+    },
+    "crm/ficha-contacto.tsx#catalogo": {
+      "motivo": "El menú para añadir etiquetas está condicionado por catalogo.length > 0. Con catálogo vacío el menú no se dibuja; los datos de la ficha siguen presentes.",
+      "evidencia": {
+        "archivo": "apps/web/components/crm/ficha-contacto.tsx",
+        "fragmento": "catalogo.length > 0"
+      }
+    },
+    "crm/ficha-contacto.tsx#etiquetas": {
+      "motivo": "Las etiquetas actuales del contacto tienen el texto alternativo «Sin etiquetas». Es una sublista con vacío en línea dentro de la ficha.",
+      "evidencia": {
+        "archivo": "apps/web/components/crm/ficha-contacto.tsx",
+        "fragmento": "Sin etiquetas."
+      }
+    },
+    "crm/fusionar-duplicado.tsx#candidatos": {
+      "motivo": "Son resultados de una búsqueda explícita. Si no hay coincidencias se muestra «Nadie más con ese nombre o teléfono», manteniendo el buscador.",
+      "evidencia": {
+        "archivo": "apps/web/components/crm/fusionar-duplicado.tsx",
+        "fragmento": "Nadie más con ese nombre o teléfono."
+      }
+    },
+    "crm/historia-conversaciones.tsx#items": {
+      "motivo": "El historial del contacto diferencia dos Skeleton de «Sin conversaciones todavía». Su estado vacío está escrito como párrafo local.",
+      "evidencia": {
+        "archivo": "apps/web/components/crm/historia-conversaciones.tsx",
+        "fragmento": "Sin conversaciones todavía."
+      }
+    },
+    "crm/historia-de-etapas.tsx#pasos": {
+      "motivo": "El desplegable de movimientos distingue carga, aviso y «Sin movimientos registrados todavía». La rama de vacío no usa EstadoVacio.",
+      "evidencia": {
+        "archivo": "apps/web/components/crm/historia-de-etapas.tsx",
+        "fragmento": "Sin movimientos registrados todavía."
+      }
+    },
+    "dar-una-hora.tsx#contactos": {
+      "motivo": "La colección son candidatos del buscador para elegir un contacto. Se dibuja solo si hay resultados y todavía no se eligió uno; no es el directorio de contactos.",
+      "evidencia": {
+        "archivo": "apps/web/components/dar-una-hora.tsx",
+        "fragmento": "contactos.length > 0 && !elegido"
+      }
+    },
+    "dar-una-hora.tsx#huecos": {
+      "motivo": "La búsqueda de horas distingue «Buscando horas libres…», huecos vacíos y botones disponibles. Mantiene un mensaje de vacío propio en lugar de EstadoVacio.",
+      "evidencia": {
+        "archivo": "apps/web/components/dar-una-hora.tsx",
+        "fragmento": "huecos.length === 0"
+      }
+    },
+    "empresas.tsx#items": {
+      "motivo": "La lista vacía presenta un panel que distingue una búsqueda sin coincidencias de un negocio sin empresas. Tiene explicación propia en ambos casos, sin EstadoVacio.",
+      "evidencia": {
+        "archivo": "apps/web/components/empresas.tsx",
+        "fragmento": "Ninguna empresa con eso"
+      }
+    },
+    "etiquetas.tsx#items": {
+      "motivo": "El listado sin etiquetas muestra un panel con título «Todavía no hay etiquetas». El formulario de creación permanece, y el vacío no usa el componente compartido.",
+      "evidencia": {
+        "archivo": "apps/web/components/etiquetas.tsx",
+        "fragmento": "Todavía no hay etiquetas"
+      }
+    },
+    "pagos.tsx#proveedores": {
+      "motivo": "La lista de pasarelas distingue Skeleton y «Sin pasarela todavía: el botón Cobrar del chat avisará». El aviso de ausencia está escrito en línea.",
+      "evidencia": {
+        "archivo": "apps/web/components/pagos.tsx",
+        "fragmento": "Sin pasarela todavía: el botón Cobrar del chat avisará."
+      }
+    },
+    "preferencias-avisos.tsx#prefs": {
+      "motivo": "La colección son filas de configuración por tipo de aviso en una tabla de preferencias. El renderer usa prefs.map sin EstadoVacio; esta entrada no afirma que el catálogo pueda quedar vacío.",
+      "evidencia": {
+        "archivo": "apps/web/components/preferencias-avisos.tsx",
+        "fragmento": "prefs.map((p) => ("
+      }
+    },
+    "roles.tsx#roles": {
+      "motivo": "La pantalla informa que existen cuatro roles base y distingue la carga con Skeleton. El listado usa roles.map sin EstadoVacio; no se añade un estado inalcanzable suponiendo que se pueden borrar los roles base.",
+      "evidencia": {
+        "archivo": "apps/web/components/roles.tsx",
+        "fragmento": "Los cuatro roles base no se tocan."
+      }
+    },
+    "webchat-chat.tsx#mensajes": {
+      "motivo": "Es el historial del chat público. Al crear la sesión se siembra welcomeMessage; la colección se renderiza como conversación, sin EstadoVacio. Esto no valida por sí solo el caso de una sesión restaurada sin mensajes.",
+      "evidencia": {
+        "archivo": "apps/web/components/webchat-chat.tsx",
+        "fragmento": "setMensajes([{ de: 'equipo', body: s.welcomeMessage }]);"
+      }
+    },
+    "webhooks-salientes.tsx#eventos": {
+      "motivo": "La colección son los eventos seleccionables al configurar un webhook. Su map es parte del formulario, no la lista de webhooks creados ni un historial de entregas.",
+      "evidencia": {
+        "archivo": "apps/web/components/webhooks-salientes.tsx",
+        "fragmento": "eventos.map"
+      }
+    },
+    "webhooks-salientes.tsx#webhooks": {
+      "motivo": "La lista distingue Skeleton y «Todavía no hay webhooks». Mantiene su mensaje vacío local junto al formulario de creación.",
+      "evidencia": {
+        "archivo": "apps/web/components/webhooks-salientes.tsx",
+        "fragmento": "Todavía no hay webhooks."
+      }
+    }
+  }
+}
