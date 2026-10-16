@@ -68,6 +68,8 @@ try{
     failRotation=body.failRotation===true;
     const event=JSON.stringify({id:`evt_${randomUUID().replaceAll('-','')}`,type:'invitation.status_changed',projectId:'project_synthetic',data:{invitationId:inv.id,currentStatus:'completed'}});
     const t=Math.floor(Date.now()/1000),signature=`t=${t},v2=${createHmac('sha256','synthetic_project_signature').update(`${t}.${event}`).digest('hex')}`;
+    // Fixture local: destino loopback literal y firma/datos sintéticos; no sale a Zavu.
+    // nosemgrep: typescript.react.security.react-insecure-request.react-insecure-request
     const r=await fetch(`http://127.0.0.1:${apiPort}/webhooks/zavu/invitations`,{method:'POST',headers:{'Content-Type':'application/json','X-Zavu-Signature':signature},body:event});
     return send({status:r.status});
    }
