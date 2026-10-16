@@ -48,7 +48,10 @@ afterAll(async () => {
     }
   } finally {
     if (control) {
-      try { await control.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`); }
+      // pg-pool resuelve end() al retirar sus clientes, antes de que todos sus
+      // sockets terminen de cerrar. FORCE podía interrumpir ese cierre con un
+      // 57P01 no manejado. DROP normal espera la desconexión y denuncia una fuga.
+      try { await control.query(`DROP DATABASE IF EXISTS ${database}`); }
       finally { await control.end(); }
     }
   }
