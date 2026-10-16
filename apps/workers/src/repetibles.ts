@@ -11,6 +11,8 @@ import type { Repetible } from '@iaxti/core';
  * `add` repetido con la misma pauta es idempotente entre reinicios.
  */
 export const REPETIBLES: Repetible[] = [
+  // Recuperación de inbox durable y limpieza de secretos; limpiar sigue con WhatsApp apagado.
+  { nombre: 'identity.partner.maintain', moduleId: 'identity', repeat: { every: 60_000 } },
   { nombre: 'conversations.checks', moduleId: 'conversations', repeat: { every: 60_000 } },
   { nombre: 'crm.activities_due', moduleId: 'crm', repeat: { every: 60_000 } },
   { nombre: 'webhooks.deliver', moduleId: 'integrations', repeat: { every: 60_000 } },
@@ -21,6 +23,10 @@ export const REPETIBLES: Repetible[] = [
   { nombre: 'knowledge.reindex', moduleId: 'knowledge', repeat: { every: 300_000 } },
   { nombre: 'automations.sweep', moduleId: 'automations', repeat: { every: 300_000 } },
   { nombre: 'api_usage.flush', moduleId: 'organizations', repeat: { every: 300_000 } },
+  // Limpieza del lifecycle sigue activa aunque Calendar se apague.
+  { nombre: 'identity.google.cleanup', moduleId: 'identity', repeat: { every: 900_000 } },
+  // Renovación de leases push; no consulta eventos.
+  { nombre: 'calendar.google.maintain', moduleId: 'calendar', repeat: { every: 900_000 } },
   { nombre: 'calendar.reminders', moduleId: 'calendar', repeat: { every: 900_000 } },
   // Meta tarda de minutos a 24 h en revisar una plantilla. Cada 30 min
   // alcanza de sobra y no castiga al proveedor con preguntas cada minuto.

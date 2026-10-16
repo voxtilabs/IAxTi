@@ -13,6 +13,7 @@ import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { porQueNoCorrer } from './build-coherente.mjs';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
+import { createCustomRole } from '@iaxti/module-authorization';
 import { createContact, createDeal, createPipeline, createTag } from '@iaxti/module-crm';
 import { receiveInbound } from '@iaxti/module-conversations';
 
@@ -20,9 +21,9 @@ const aqui = dirname(fileURLToPath(import.meta.url));
 const raiz = resolve(aqui, '../../..');
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
-const JWKS_PORT = 4012;
-const API_PORT = 4010;
-const WEB_PORT = 4011;
+const JWKS_PORT = Number(process.env.E2E_JWKS_PORT?.trim() || 4012);
+const API_PORT = Number(process.env.E2E_API_PORT?.trim() || 4010);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT?.trim() || 4011);
 const ISSUER = `http://127.0.0.1:${JWKS_PORT}/auth/v1`;
 
 const hijos = [];
@@ -55,6 +56,18 @@ async function esperar(url, intentos = 60) {
   throw new Error(`e2e: ${url} nunca respondió`);
 }
 
+// #902: cada negocio necesita un ADMIN antes de incorporar otros roles.
+// Es otra identidad: la usuaria que recorre Bandeja/Teclado sigue SUPERVISOR.
+async function crearAdminDeFixture(pool, tenantId) {
+  const userId = randomUUID();
+  await withTenant(pool, tenantId, async (client) => {
+    const invitation = await createInvitation(client, {
+      tenantId, email: `admin-${userId}@e2e.cl`, roleName: 'ADMIN',
+    });
+    await acceptInvitation(client, { token: invitation.token, userId });
+  });
+}
+
 async function main() {
   // 1 · Llaves y "Supabase Auth" local: un JWKS estático por HTTP.
   const { publicKey, privateKey } = await generateKeyPair('ES256');
@@ -77,10 +90,19 @@ async function main() {
   );
   const tenant =
     t.rows[0]?.id ?? (await pool.query("SELECT id FROM tenants WHERE name = 'E2E Bandeja'")).rows[0].id;
+  await crearAdminDeFixture(pool, tenant);
   const inv = await withTenant(pool, tenant, (c) =>
     createInvitation(c, { tenantId: tenant, email: `sup-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }),
   );
   await withTenant(pool, tenant, (c) => acceptInvitation(c, { token: inv.token, userId: supervisora }));
+  // #57 concede agenda personal a USER/SUPERVISOR. El contraejemplo de
+  // acceso denegado usa ahora un rol propio sin esos permisos de verdad.
+  const restrictedUser = randomUUID();
+  await withTenant(pool, tenant, async (c) => {
+    const role = await createCustomRole(c, { tenantId: tenant, name: 'Sin configuración E2E', cloneFrom: 'USER', catalog: new Set(['tenant.read']), actor: supervisora });
+    const invitation = await createInvitation(c, { tenantId: tenant, email: `${restrictedUser}@e2e.cl`, roleName: role.name });
+    await acceptInvitation(c, { token: invitation.token, userId: restrictedUser });
+  });
   // TRES conversaciones, no una (#694).
   //
   // Con una sola, `bandeja.spec.ts` la RESUELVE —es su criterio de salida— y una
@@ -105,6 +127,7 @@ async function main() {
   }
   const conversation = conversaciones[0];
   const keyTenant = (await pool.query("INSERT INTO tenants(name) VALUES ('E2E Teclado') RETURNING id")).rows[0].id;
+  await crearAdminDeFixture(pool, keyTenant);
   const keyInvitation = await withTenant(pool, keyTenant, (c) => createInvitation(c, { tenantId: keyTenant, email: `teclado-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }));
   await withTenant(pool, keyTenant, (c) => acceptInvitation(c, { token: keyInvitation.token, userId: supervisora }));
   const keyConversations = [];
@@ -166,11 +189,24 @@ async function main() {
     .setIssuedAt()
     .setExpirationTime('1h')
     .sign(privateKey);
+  // Sin tenant ni membresía: ejercitan el alta auténtica de #56, no un seed.
+  const registrations = [];
+  for (const mode of ['dia', 'noche']) {
+    const userId = randomUUID();
+    const token = await new SignJWT({ email: `alta-${mode}@e2e.cl`, aud: 'authenticated' })
+      .setProtectedHeader({ alg: 'ES256', kid: 'e2e' }).setSubject(userId).setIssuer(ISSUER)
+      .setIssuedAt().setExpirationTime('1h').sign(privateKey);
+    registrations.push({ mode, userId, accessToken: token });
+  }
+  const restrictedToken = await new SignJWT({ email: `${restrictedUser}@e2e.cl`, aud: 'authenticated' })
+    .setProtectedHeader({ alg: 'ES256', kid: 'e2e' }).setSubject(restrictedUser)
+    .setIssuer(ISSUER).setIssuedAt().setExpirationTime('1h').sign(privateKey);
   writeFileSync(
     join(aqui, '.auth.json'),
     JSON.stringify({
       accessToken,
       userId: supervisora,
+      restricted: { userId: restrictedUser, accessToken: restrictedToken },
       tenantId: tenant,
       keyTenantId: keyTenant,
       keyConversations,
@@ -179,13 +215,15 @@ async function main() {
       campaignTenantId,
       conversationId: conversation.id,
       webUrl: `http://127.0.0.1:${WEB_PORT}`,
+      apiUrl: `http://127.0.0.1:${API_PORT}`,
+      registrations,
     }),
   );
 
   // 4 · API real contra el JWKS local.
   lanzar('api', 'node', ['apps/api/dist/main.js'], {
     PORT: `${API_PORT}`,
-    DATABASE_URL,
+    DATABASE_URL: process.env.E2E_APP_DATABASE_URL?.trim() || DATABASE_URL,
     REDIS_URL,
     SUPABASE_JWKS_URL: `${ISSUER}/.well-known/jwks.json`,
     IAXTI_ENV: 'e2e',
@@ -280,7 +318,7 @@ async function main() {
   // Los argumentos extra pasan a Playwright: `node e2e/run-e2e.mjs barra-lateral`
   // corre un solo spec en vez de la suite entera. Sin esto, revisar UNA pantalla
   // obliga a levantar todo y esperar dos minutos.
-  const pw = lanzar('playwright', 'npx', ['playwright', 'test', ...process.argv.slice(2)], {}, webDir);
+  const pw = lanzar('playwright', 'npx', ['playwright', 'test', ...process.argv.slice(2)], { E2E_WEB_PORT: String(WEB_PORT) }, webDir);
   pw.on('exit', (code) => {
     jwks.close();
     // En local la base persiste entre corridas: los eventos del e2e quedan

@@ -4,6 +4,8 @@ import {
   getChannelAccount,
   reapuntarEmisorDeLaCuenta,
   setChannelState,
+  reservarEmisor,
+  tenantDelEmisorDeCanal,
 } from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
 
@@ -84,6 +86,8 @@ export async function connectWhatsAppNumber(
     displayPhone?: string;
     credentialRef: string;
     webhookSecretRef: string;
+    /** El onboarding activa solo después de custodiar y confirmar su webhook. */
+    activar?: boolean;
     /**
      * Si esta conexión manda mensajes DE VERDAD (#593). Queda en la cuenta y no
      * solo en el log de quien conectó: el log se lee una vez, el canal lo lee
@@ -92,6 +96,9 @@ export async function connectWhatsAppNumber(
     enviosReales?: boolean;
   },
 ): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`whatsapp-numbers:${input.tenantId}`]);
+  const propietario = await tenantDelEmisor(client, input.senderId);
+  if (propietario && propietario !== input.tenantId) throw new Error('Ese emisor pertenece a otro negocio.');
   // Los desconectados NO cuentan para el cupo (#600): si contaran, un número
   // que el negocio ya dio de baja le seguiría ocupando un lugar del plan y la
   // única salida sería borrar la fila a mano — justo lo que archivar evita.
@@ -142,8 +149,9 @@ export async function connectWhatsAppNumber(
     }
     throw err;
   }
+  await reservarEmisor(client, { tenantId: input.tenantId, senderId: input.senderId, accountId: account.id });
   // Con webhook verificado el canal queda activo; #45 lo degrada por calidad.
-  const activa = await setChannelState(client, {
+  const activa = input.activar === false ? account : await setChannelState(client, {
     tenantId: input.tenantId,
     accountId: account.id,
     state: 'active',
@@ -184,6 +192,9 @@ export async function reapuntarEmisor(
     phoneNumberId?: string | null;
     wabaId?: string | null;
     displayPhone?: string | null;
+    actor?: string;
+    actorKind?: Parameters<typeof reservarEmisor>[1]['actorKind'];
+    requestId?: string;
   },
 ): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
   const cuenta = await getChannelAccount(client, input.tenantId, input.accountId);
@@ -216,6 +227,8 @@ export async function reapuntarEmisor(
     ...(input.phoneNumberId === undefined ? {} : { phoneNumberId: input.phoneNumberId }),
     ...(input.wabaId === undefined ? {} : { wabaId: input.wabaId }),
   });
+  await reservarEmisor(client, { tenantId: input.tenantId, senderId: input.senderId, accountId: account.id,
+    actor: input.actor, actorKind: input.actorKind, requestId: input.requestId });
   return { number: rowToNumber(r.rows[0]), account };
 }
 
@@ -276,6 +289,8 @@ export async function tenantDelEmisor(
   client: Pick<PoolClient, 'query'>,
   senderId: string,
 ): Promise<string | null> {
+  const propietario = await tenantDelEmisorDeCanal(client, senderId);
+  if (propietario) return propietario;
   const r = await client.query<{ tenant: string | null }>(
     'SELECT tenant_del_emisor($1) AS tenant',
     [senderId],

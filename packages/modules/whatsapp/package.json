@@ -13,10 +13,13 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/module-channels": "workspace:*",
     "ioredis": "^5.4.0",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "@iaxti/db": "workspace:*",
+    "@iaxti/google": "workspace:*",
+    "@iaxti/module-audit": "workspace:*",
+    "@iaxti/module-organizations": "workspace:*"
   },
   "devDependencies": {
-    "@iaxti/db": "workspace:*",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.0",
     "typescript": "^5.7.0",

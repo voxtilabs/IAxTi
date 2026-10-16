@@ -8,7 +8,8 @@
     "e2e": "node e2e/run-e2e.mjs",
     "start": "next start",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e:partner": "node e2e/run-partner.mjs"
   },
   "dependencies": {
     "@iaxti/sdk": "workspace:*",
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
+    "@iaxti/module-authorization": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-identity": "workspace:*",

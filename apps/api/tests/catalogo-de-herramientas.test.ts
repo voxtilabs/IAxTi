@@ -114,6 +114,10 @@ describe('el catálogo cubre la API entera', () => {
 });
 
 describe('lo peligroso no entra sin decisión escrita', () => {
+  it('el alta inicial de una persona no se ofrece al agente del negocio', () => {
+    expect(CATALOGO.some((h) => h.operationId === 'OnboardingRegistrationController_register')).toBe(false);
+  });
+
   it('ningún webhook ni simulador es herramienta', () => {
     // Serían la misma puerta: fabricar mensajes de clientes que nunca
     // escribieron, o dar por pagado lo que nadie pagó.

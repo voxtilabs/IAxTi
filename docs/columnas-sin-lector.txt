@@ -24,8 +24,12 @@ agent_proposals.agent_id — el configurador resuelve en vivo qué asistente arm
 api_keys.key_hash — la lee `resolver_api_key`, una función SQL que vive en la migración `0003_resolver_api_key.sql`. El escáner no mira dentro de las migraciones a propósito: son la escritura.
 appointments.created_at — la agenda ordena por `starts_at`, que es lo que le importa a quien la mira; cuándo se creó la cita no se muestra.
 availability.created_at — la disponibilidad se lee entera y se reemplaza; cuándo se guardó cada franja no cambia nada.
+calendar_connections.created_at — marca de creación operacional; la UI muestra estado y última notificación, no la edad del registro.
+calendar_google_watches.created_at — historial operacional de leases; la vigencia se resuelve por expires_at y no se muestra su creación.
+calendar_google_watches.token_hash — autenticarPushGoogle llama a tenant_del_watch_google, que compara el hash dentro de la migración; nunca se devuelve el hash a la pantalla.
 conversations.team_id — los equipos existen (#9) y la bandeja todavía no filtra por equipo: se escribe al asignar y ninguna consulta lo usa.
 custom_fields.created_at — los campos del negocio se listan por entidad y nombre; la fecha de creación no se muestra.
+google_oauth_grants.authorized_at — marca del consentimiento para custodia; estado y revocación son visibles, la fecha se conserva sin exponer referencias personales.
 payment_links.currency — hoy todo link se emite en CLP y el monto viaja en `amount_clp`. La columna existe para cuando haya otra moneda, y hasta entonces nadie la lee.
 platform_audit.created_at — el panel de plataforma lista por `id DESC`, que en una tabla append-only es el mismo orden; la fecha no se proyecta.
 platform_support_sessions.started_at — lo que decide si la sesión de soporte está viva es `ends_at`, que sí se lee. Cuándo empezó no se muestra.

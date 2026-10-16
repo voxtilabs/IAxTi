@@ -45,6 +45,7 @@ export {
 export type { NumberQuality, QualityUpdate } from './application/quality';
 export {
   clienteZavu,
+  consultarSender,
   elegirSender,
   quienSoy,
   llaveSirveParaAmbiente,
@@ -88,3 +89,7 @@ export {
   estadoDeZavu,
 } from './application/zavu-plantillas';
 export type { ConfigZavu, PlantillaEnZavu } from './application/zavu-plantillas';
+export { partnerPorts, resolveChannelWebhookSecret, PartnerError } from './application/partner-provider';
+export type { PartnerPorts } from './application/partner-provider';
+export { partnerStatus, startPartnerInvitation, resumePartnerInvitation, receivePartnerWebhook, processPartnerInvitation, maintainPartnerInvitations } from './application/partner-invitations';
+export type { PartnerStatus } from './application/partner-invitations';

@@ -21,6 +21,12 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 
 ## Personas que le escriben al negocio
 
+El alta inicial conserva una referencia operativa propia del equipo:
+
+| Tabla | Qué guarda | PII | De quién | Exporta | Suprime |
+|---|---|---|---|---|---|
+| `initial_business_registrations` | id del usuario autenticado y negocio de su alta inicial; evita duplicados y no concede acceso | indirecta | equipo | no: referencia interna; tenant y membresías se exportan por sus tablas | se elimina al borrar físicamente el tenant; revocar membresía conserva la referencia y no restaura acceso |
+
 | Tabla | Qué guarda | PII | De quién | Exporta | Suprime |
 |---|---|---|---|---|---|
 | `contacts` | nombre, teléfono, correo, RUT, campos propios del negocio, consentimiento y su evidencia | directa | cliente final | sí | se despersonaliza: la fila queda, la persona no |
@@ -46,6 +52,12 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 
 | Tabla | Qué guarda | PII | De quién | Exporta | Suprime |
 |---|---|---|---|---|---|
+| `google_oauth_attempts` | hashes y vencimiento de un intento OAuth personal, sin código ni verifier | indirecta | equipo | no: autenticación efímera | el worker purga al vencer |
+| `google_oauth_grants` | subject verificado, scopes, estado y referencia a Secret Manager; ningún token | indirecta | equipo | no: custodia personal | revocación desde la app; rastro en audit |
+| `google_secret_versions` | referencias pendientes de destrucción, sin payload | indirecta | equipo | no: cola operativa | se retiran al destruir la versión |
+| `calendar_connections` | usuario y calendario conectado, revisión de sincronización | indirecta | equipo | sí | se borra al revocar |
+| `calendar_google_watches` | hashes de credenciales del canal push y vencimiento | indirecta | equipo | no: transporte | se retiran al vencer o revocar |
+| `calendar_freebusy_cache` | intervalos ocupados, sin título ni asistentes, caché de 60 segundos | indirecta | equipo | no: caché personal | invalida push; purga worker y revocación |
 | `user_roles` | quién pertenece al negocio y con qué rol | indirecta | equipo | sí | no aplica |
 | `invitations` | correo y teléfono de quien se invitó | directa | equipo | sí, **sin el token** | no aplica |
 | `teams` | equipos de trabajo | no | negocio | sí | no aplica |
@@ -73,6 +85,8 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 | `sources`, `chunks` | la base de conocimiento y sus trozos indexados | no¹ | negocio | sí | no aplica |
 | `source_links` | los `[[enlaces]]` entre fuentes de un markdown importado (#714) | no | negocio | sí | no aplica |
 | `channel_accounts`, `whatsapp_numbers`, `webchat_widgets` | canales conectados y **referencias** a credenciales | no | negocio | sí | no aplica |
+| `whatsapp_partner_invitations`, `whatsapp_partner_events`, `whatsapp_partner_secrets` | correlación proyecto/invitación/tenant, actor, estado e intenciones/referencias SM; sin enlace, token ni secreto en SQL | indirecta | equipo | no: custodia y correlación operativa | conserva trazabilidad local; enlaces retirados al completar/vencer y recursos huérfanos destruidos por barrido. Refs activas no se destruyen por reintento |
+| `channel_senders` | dueño del emisor Zavu y cuenta receptora del webhook compartido; ningún secreto | no | negocio | sí | no aplica: configuración del negocio; conserva la reserva al archivar y se elimina al borrar su cuenta receptora |
 | `webhook_endpoints` | a dónde avisar, **sin el secreto** | no | negocio | sí, sin el secreto | no aplica |
 | `payment_providers` | qué pasarela usa el negocio y la **referencia** a su credencial | no | negocio | sí | no aplica |
 | `webhook_deliveries` | lo que se le mandó a un tercero | directa² | cliente final | sí | se vacía el payload |

@@ -1,3 +1,4 @@
+import { PartnerInvitationsController, PartnerWebhookController, PARTNER_HTTP, partnerHttp } from './partner-invitations.controller';
 import {
   Controller,
   Get,
@@ -68,7 +69,7 @@ import {
   modulosVendibles,
 } from '@iaxti/module-organizations';
 import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
-import { withTenant } from '@iaxti/db';
+import { withTenant, withAuthenticatedUser } from '@iaxti/db';
 import {
   esProduccion,
   leerConCache,
@@ -89,6 +90,7 @@ import { ContactoEmpresaController, EmpresasController } from './empresas.contro
 import { TagsController } from './tags.controller';
 import { SettingsController } from './settings.controller';
 import { OnboardingController } from './onboarding.controller';
+import { OnboardingRegistrationController } from './onboarding-registration.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
 import { ContactsController } from './contacts.controller';
 import { DealsController } from './deals.controller';
@@ -112,6 +114,7 @@ import { WebhooksSalientesController } from './webhooks-salientes.controller';
 import { RolesController } from './roles.controller';
 import { PaymentsController, PaymentWebhooksController } from './payments.controller';
 import { BillingController } from './billing.controller';
+import { GoogleCalendarController, GoogleCalendarWebhookController, GOOGLE_CALENDAR_HTTP, googleCalendarHttp } from './google-calendar.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
 export { registry };
@@ -172,7 +175,8 @@ class MeController {
    * USUARIO, que es otra forma de clave y aflojaría la regla «no hay caché sin
    * tenant» para una sola ruta.
    *
-   * Hace UNA consulta, así que son 64 ms, no 192. Si algún día hace falta, el
+   * La lectura de membresías y los nombres de los negocios comparten transacción.
+   * Si algún día hace falta, el
    * camino es un prefijo propio (`cache:usuario:{id}:…`) decidido a propósito y
    * no colándolo por acá.
    */
@@ -188,13 +192,8 @@ class MeController {
       });
     }
     const user = request.user as { userId: string; email?: string };
-    const client = await pool.connect();
-    try {
-      const tenants = await tenantsOf(client, user.userId);
-      return { userId: user.userId, email: user.email ?? null, tenants };
-    } finally {
-      client.release();
-    }
+    const tenants = await withAuthenticatedUser(pool, user.userId, (client) => tenantsOf(client, user.userId));
+    return { userId: user.userId, email: user.email ?? null, tenants };
   }
 
   /**
@@ -1254,6 +1253,9 @@ const controllers = [
   ContactoEmpresaController,
   SettingsController,
   OnboardingController,
+  PartnerInvitationsController,
+  PartnerWebhookController,
+  OnboardingRegistrationController,
   QuickRepliesController,
   EquipoController,
   ContactsController,
@@ -1276,6 +1278,8 @@ const controllers = [
   PaymentsController,
   PaymentWebhooksController,
   BillingController,
+  GoogleCalendarController,
+  GoogleCalendarWebhookController,
   ArranqueController,
   // `esProduccion()` y no `(process.env.IAXTI_ENV ?? 'dev') !== 'production'`
   // (#575): con la variable DECLARADA SIN VALOR, `??` no la atrapa, `''` no es
@@ -1285,5 +1289,5 @@ const controllers = [
   ...(esProduccion() ? [] : [SimuladorController]),
 ];
 
-@Module({ controllers })
+@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }, {provide: PARTNER_HTTP, useValue: partnerHttp}] })
 export class AppModule {}

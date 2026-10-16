@@ -1,7 +1,8 @@
 import type { PoolClient } from 'pg';
-import { connectWhatsAppNumber, type WhatsAppNumber } from './numbers';
+import { connectWhatsAppNumber, tenantDelEmisor, type WhatsAppNumber } from './numbers';
 import { ZAVU_API_BASE_DEFAULT } from './zavu';
 import type { ChannelAccountRef, ChannelKind } from '@iaxti/module-channels';
+import { createChannelAccount, reservarEmisor, emisorAcreditado } from '@iaxti/module-channels';
 import { textoDeEntorno } from '@iaxti/core';
 
 // Conectar un canal de Zavu a un tenant (#42, #56). Existe para que el día
@@ -41,6 +42,7 @@ export function clienteZavu(
 ): LlamarZavu {
   return async (path, init = {}) => {
     const res = await fetch(`${apiBase}${path}`, {
+      signal: AbortSignal.timeout(8_000),
       method: init.method ?? 'GET',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -56,6 +58,21 @@ export function clienteZavu(
   };
 }
 
+/** GET documentado, respuesta plana. Solo campos públicos que usa el producto. */
+export async function consultarSender(llamar: LlamarZavu, senderId: string): Promise<SenderZavu> {
+  const respuesta = await llamar(`/senders/${encodeURIComponent(senderId)}`);
+  if (!respuesta || typeof respuesta !== 'object') throw new Error('Respuesta de emisor inválida.');
+  const r = respuesta as Record<string, unknown>;
+  if (r.id !== senderId || typeof r.name !== 'string' || !Array.isArray(r.channels) ||
+    !r.channels.every((c) => typeof c === 'string')) throw new Error('Respuesta de emisor inválida.');
+  const w = r.webhook && typeof r.webhook === 'object' ? r.webhook as Record<string, unknown> : {};
+  return {
+    id: senderId, name: r.name, channels: r.channels,
+    webhook: { url: typeof w.url === 'string' ? w.url : null, active: w.active === true,
+      signatureVersion: typeof w.signatureVersion === 'string' ? w.signatureVersion : null },
+  };
+}
+
 export interface ProyectoZavu {
   project: { id: string; name: string; isSubAccount?: boolean };
   apiKey?: { id: string };
@@ -68,7 +85,11 @@ export interface ProyectoZavu {
  * responde `isTestMode`, y eso es lo que decide si puede tocar un ambiente.
  */
 export async function quienSoy(llamar: LlamarZavu): Promise<ProyectoZavu> {
-  return (await llamar('/me')) as ProyectoZavu;
+  const r = await llamar('/me') as Partial<ProyectoZavu> | null;
+  if (!r || typeof r.isTestMode !== 'boolean' || typeof r.project?.id !== 'string' || typeof r.project.name !== 'string') {
+    throw new Error('El proveedor no devolvió el proyecto y el modo de la credencial.');
+  }
+  return { project: r.project, isTestMode: r.isTestMode };
 }
 
 /**
@@ -198,8 +219,8 @@ export const EVENTOS_WEBHOOK = [
   'template.status_changed',
 ] as const;
 
-export interface ResultadoConexion {
-  number: WhatsAppNumber;
+export interface ResultadoConexion<Numero = WhatsAppNumber | null> {
+  number: Numero;
   account: ChannelAccountRef;
   senderId: string;
   webhookUrl: string;
@@ -213,9 +234,7 @@ export interface ResultadoConexion {
  * el webhook apuntando a nuestra API. La credencial se guarda POR REFERENCIA
  * (el NOMBRE de la variable), jamás el valor.
  */
-export async function conectarSender(
-  client: PoolClient,
-  input: {
+interface EntradaConexion {
     tenantId: string;
     nombre: string;
     sender: SenderZavu;
@@ -226,9 +245,16 @@ export async function conectarSender(
     kind?: ChannelKind;
     /** Si esta conexión manda de verdad (#593). Se guarda en la cuenta. */
     enviosReales?: boolean;
-  },
-): Promise<ResultadoConexion> {
+}
+export function conectarSender(client: PoolClient, input: EntradaConexion & { kind?: 'whatsapp' }): Promise<ResultadoConexion<WhatsAppNumber>>;
+export function conectarSender(client: PoolClient, input: EntradaConexion): Promise<ResultadoConexion>;
+export async function conectarSender(client: PoolClient, input: EntradaConexion): Promise<ResultadoConexion> {
   const avisos: string[] = [];
+  const kind = input.kind ?? 'whatsapp';
+  if (!['whatsapp', 'instagram', 'messenger'].includes(kind)) throw new Error('Zavu no transporta ese canal en IAxTi.');
+  if (!input.sender.channels.includes(kind)) throw new Error(`El emisor no tiene el canal ${kind} activo en Zavu.`);
+  const propietario = await tenantDelEmisor(client, input.sender.id);
+  if (propietario && propietario !== input.tenantId) throw new Error('Ese emisor pertenece a otro negocio.');
   /**
    * `display_phone` guarda el TELÉFONO, no el nombre del emisor.
    *
@@ -247,7 +273,7 @@ export async function conectarSender(
    * ve y se arregla; un nombre metido en la columna del teléfono se cree.
    */
   const telefono = input.sender.phoneNumber?.trim() || null;
-  const { number, account } = await connectWhatsAppNumber(client, {
+  const { number, account } = kind === 'whatsapp' ? await connectWhatsAppNumber(client, {
     tenantId: input.tenantId,
     name: input.nombre,
     senderId: input.sender.id,
@@ -255,9 +281,26 @@ export async function conectarSender(
     credentialRef: input.credentialRef,
     webhookSecretRef: input.webhookSecretRef,
     ...(input.enviosReales ? { enviosReales: true } : {}),
-  });
+  }) : { number: null, account: await createChannelAccount(client, {
+    tenantId: input.tenantId,
+    kind,
+    name: input.nombre,
+    credentialRef: input.credentialRef,
+    webhookSecretRef: input.webhookSecretRef,
+    config: { senderId: input.sender.id, ...(input.enviosReales ? { enviosReales: true } : {}) },
+  }) };
 
-  const webhookUrl = urlWebhook(input.baseUrl, account.id);
+  if (kind !== 'whatsapp') await reservarEmisor(client, { tenantId: input.tenantId, senderId: input.sender.id, accountId: account.id });
+  const primaria = await emisorAcreditado(client, input.tenantId, input.sender.id);
+  if (!primaria) throw new Error('No encontramos la reserva del emisor.');
+  const reserva = { webhookAccountId: primaria.id, primeraConexion: primaria.id === account.id };
+  const webhookUrl = urlWebhook(input.baseUrl, reserva.webhookAccountId);
+  // Un sender multicanal solo admite un webhook. La segunda alta conserva el
+  // receptor y secreto originales; rotarlos cortaría el canal que ya funciona.
+  if (!reserva.primeraConexion) {
+    return { number, account, senderId: input.sender.id, webhookUrl, webhookSecret: null, avisos };
+  }
+
   await input.llamar(`/senders/${input.sender.id}`, {
     method: 'PATCH',
     body: {
@@ -267,10 +310,18 @@ export async function conectarSender(
     },
   });
 
+  // Instagram/Messenger se preparan para completar en Canales. El operador
+  // guarda el secreto existente por referencia; nunca se crea un secreto que
+  // la aplicación no pueda custodiar ni se promete recepción antes de comprobarlo.
+  if (kind !== 'whatsapp') {
+    avisos.push(`Guarda el secreto del webhook en ${input.webhookSecretRef} y completa la conexión en Canales.`);
+    return { number, account, senderId: input.sender.id, webhookUrl, webhookSecret: null, avisos };
+  }
+
   // El secreto se rota para tenerlo: Zavu solo lo muestra al crearlo.
   let webhookSecret: string | null = null;
   try {
-    const rotado = (await input.llamar(`/senders/${input.sender.id}/webhook-secret/regenerate`, {
+    const rotado = (await input.llamar(`/senders/${input.sender.id}/webhook/secret`, {
       method: 'POST',
     })) as { secret?: string };
     webhookSecret = rotado?.secret ?? null;

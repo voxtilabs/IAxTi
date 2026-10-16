@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { teamMemberships } from '@iaxti/module-authorization';
 
 /**
  * Quién hizo esto (#697).
@@ -13,8 +14,7 @@ import type { PoolClient } from 'pg';
  * interruptor.
  *
  * Vive en identity porque el nombre vive en `user_profiles` y la pertenencia en
- * `user_roles`: los dos son de identity, y el resto de los módulos no puede
- * consultarlos. Se expone por el contrato, se recibe un id y se devuelve un
+ * `user_roles`: la pertenencia se pregunta al contrato de authorization. Se expone por el contrato, se recibe un id y se devuelve un
  * nombre.
  */
 
@@ -57,15 +57,12 @@ export async function quienesSon(
 ): Promise<Map<string, Quien>> {
   const ids = idsLimpios(userIds);
   if (ids.length === 0) return new Map();
+  const members = new Set((await teamMemberships(client, tenantId, ids)).map((member) => member.userId));
   const r = await client.query(
-    `SELECT u.id,
-            p.name AS nombre,
-            EXISTS (
-              SELECT 1 FROM user_roles ur WHERE ur.tenant_id = $2 AND ur.user_id = u.id
-            ) AS en_el_equipo
+    `SELECT u.id, p.name AS nombre
        FROM unnest($1::uuid[]) AS u(id)
        LEFT JOIN user_profiles p ON p.user_id = u.id`,
-    [ids, tenantId],
+    [ids],
   );
   return new Map(
     r.rows.map((f) => [
@@ -73,7 +70,7 @@ export async function quienesSon(
       {
         userId: f.id as string,
         nombre: (f.nombre as string) ?? null,
-        enElEquipo: f.en_el_equipo as boolean,
+        enElEquipo: members.has(f.id),
       },
     ]),
   );

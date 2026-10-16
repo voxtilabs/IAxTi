@@ -1,3 +1,4 @@
+import { resolveChannelWebhookSecret } from '@iaxti/module-whatsapp';
 import {
   Controller,
   NotFoundException,
@@ -25,6 +26,7 @@ import { apiPool } from './db';
 import { conReintentoDeConexion, esFalloDeConexion } from './lib/arranque-en-frio';
 import type { WithRequestId } from './request-id';
 import type { Response } from 'express';
+import { cuentaDeWebhookZavu } from './cuenta-de-webhook-zavu';
 
 // El webhook base (#41, SPEC §12): verifica FIRMA sobre el cuerpo crudo,
 // encola en `inbound` y responde en menos de un segundo. La idempotencia
@@ -69,6 +71,7 @@ export class WebhooksController {
     @Param('accountId') accountId: string,
     @Res({ passthrough: true }) response: Response,
   ) {
+    const secretDeadline=Date.now()+800;
     const pool = apiPool();
     const anotar = (tenantId: string, accountId: string, resultado: ResultadoDeWebhook) =>
       anotarResultado(pool!, tenantId, accountId, resultado);
@@ -114,21 +117,35 @@ export class WebhooksController {
         message: 'No pudimos atender este webhook ahora. Reintenta en unos segundos.',
       });
     });
-    const account = cuenta;
+    let account = cuenta;
     // Cuenta inexistente y firma mala responden IGUAL: nada que sondear.
-    if (!account || account.state === 'disconnected') {
-      // Si la cuenta EXISTE pero está desconectada, queda anotado: es la
-      // diferencia entre "el proveedor nos dejó de mandar" y "seguimos
-      // recibiendo y los estamos botando nosotros".
-      if (account) await anotar(account.tenantId, account.id, 'cuenta_desconectada');
+    if (!account) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
+    // Zavu puede entregar entre habilitar su webhook y confirmar active local.
+    // Todavía no existe una referencia visible/confirmada: no atribuirlo a
+    // firma inválida (401 no promete reentrega), ni aceptar el mensaje.
+    if(account.state==='connecting') {
+      response.setHeader('Retry-After','5');
+      throw new ServiceUnavailableException({code:'WEBHOOK_NOT_READY',message:'La conexión aún se está confirmando. Reintenta la entrega.'});
+    }
+    const primaria = account;
     const provider = getProvider(account.kind);
     if (!provider) {
       await anotar(account.tenantId, account.id, 'sin_proveedor');
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
-    const secret = account.webhookSecretRef ? process.env[account.webhookSecretRef] : undefined;
+    let secret: string | undefined;
+    const abort=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
+    try {
+      secret=await Promise.race([
+        resolveChannelWebhookSecret(account,undefined,abort.signal),
+        new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>{abort.abort();reject(new Error('custody timeout'));},Math.max(1,secretDeadline-Date.now()));timer.unref?.();}),
+      ]);
+    } catch {
+      response.setHeader('Retry-After','5');
+      throw new ServiceUnavailableException({code:'WEBHOOK_SECRET_UNAVAILABLE',message:'No pudimos verificar esta entrega. Reintenta más tarde.'});
+    } finally {if(timer)clearTimeout(timer);}
     const rawBody = request.rawBody?.toString('utf8') ?? '';
     if (!secret || !provider.verifyWebhook(request.headers, rawBody, secret)) {
       // Se anota ANTES de rechazar, y por eso existe todo esto (#434): una
@@ -142,9 +159,15 @@ export class WebhooksController {
         message: 'La firma del webhook no calza.',
       });
     }
+    const destino = await withTenant(pool, primaria.tenantId, (c) => cuentaDeWebhookZavu(c, primaria, request.body));
+    if (!destino || destino.state === 'disconnected' || destino.state === 'connecting') {
+      await anotar(primaria.tenantId, primaria.id, 'cuenta_desconectada');
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
+    }
+    account = { ...destino, webhookSecretRef: primaria.webhookSecretRef };
     await anotar(account.tenantId, account.id, 'aceptado');
 
-    const mensajes = provider.normalize(
+    const mensajes = (getProvider(account.kind) ?? provider).normalize(
       (request as unknown as { body: unknown }).body,
     );
     const queue = inboundQueue();

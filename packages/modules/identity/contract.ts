@@ -19,9 +19,19 @@ export type {
 } from './application/invitations';
 // Quién hizo esto (#697): nueve columnas guardaban el autor y ninguna pantalla
 // lo mostraba. El nombre vive en user_profiles y la pertenencia en user_roles,
-// las dos de identity, así que el resto pregunta por acá.
+// esta última detrás del contrato de authorization; el resto pregunta por acá.
 // `quienEs` queda interno: todo lo de afuera resuelve varios ids de una vez con
 // `quienesSon` + `quienFue`, y publicar lo que nadie abre convierte el contrato
 // en un trámite (#664).
 export { quienesSon, quienesSonEnLaPlataforma, quienFue } from './application/quien';
 export type { Quien } from './application/quien';
+export {
+  iniciarConsentimientoGoogle, consumirConsentimientoGoogle, grantGoogleDelUsuario,
+  bloquearGrantGoogle, guardarGrantGoogle, actualizarTokenGoogle,
+  marcarGoogleSinConsentimiento, prepararRevocacionGoogle, finalizarRevocacionGoogle,
+  limpiarVersionesGoogle,
+  reservarSecretoGoogle, bloquearIntentoSecretoGoogle,
+} from './application/google-grants';
+export type { GoogleGrant, GoogleAudit } from './application/google-grants';
+
+export { tenantsConLimpiezaGoogle } from './application/google-cleanup-tenants';
