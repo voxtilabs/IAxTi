@@ -73,6 +73,7 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 | `sources`, `chunks` | la base de conocimiento y sus trozos indexados | no¹ | negocio | sí | no aplica |
 | `source_links` | los `[[enlaces]]` entre fuentes de un markdown importado (#714) | no | negocio | sí | no aplica |
 | `channel_accounts`, `whatsapp_numbers`, `webchat_widgets` | canales conectados y **referencias** a credenciales | no | negocio | sí | no aplica |
+| `channel_senders` | dueño del emisor Zavu y cuenta receptora del webhook compartido; ningún secreto | no | negocio | sí | no aplica: configuración del negocio; conserva la reserva al archivar y se elimina al borrar su cuenta receptora |
 | `webhook_endpoints` | a dónde avisar, **sin el secreto** | no | negocio | sí, sin el secreto | no aplica |
 | `payment_providers` | qué pasarela usa el negocio y la **referencia** a su credencial | no | negocio | sí | no aplica |
 | `webhook_deliveries` | lo que se le mandó a un tercero | directa² | cliente final | sí | se vacía el payload |

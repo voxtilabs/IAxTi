@@ -141,6 +141,8 @@ export async function setChannelState(
  * Las conversaciones cuelgan de la CUENTA, no del emisor, así que reapuntar no
  * mueve historial: es el mismo canal hablando por otra boca.
  */
+export class EmisorCompartidoError extends Error {}
+
 export async function reapuntarEmisorDeLaCuenta(
   client: PoolClient,
   input: {
@@ -151,7 +153,26 @@ export async function reapuntarEmisorDeLaCuenta(
     wabaId?: string | null;
   },
 ): Promise<ChannelAccountRef> {
+  // Dos cambios simultáneos deben comprobar el sender vigente, no el que
+  // leyeron antes de esperar al primer cambio.
+  await client.query('SELECT id FROM channel_accounts WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [input.tenantId, input.accountId]);
   const actual = await getChannelAccount(client, input.tenantId, input.accountId);
+  if (actual.config.senderId && actual.config.senderId !== input.senderId) {
+    // El receptor de un sender compartido no se puede mover por el cambio de
+    // número de WhatsApp: dejaría sin entrada a Instagram/Messenger. El mismo
+    // candado que usa la reserva serializa esta decisión con una nueva alta.
+    const reserva = await client.query<{ webhook_account_id: string | null }>(
+      'SELECT webhook_account_id FROM channel_senders WHERE tenant_id=$1 AND sender_id=$2 FOR UPDATE',
+      [input.tenantId, actual.config.senderId],
+    );
+    if (reserva.rows[0] && (reserva.rows[0].webhook_account_id === actual.id || reserva.rows[0].webhook_account_id === null)) {
+      const otras = await client.query(
+        "SELECT id FROM channel_accounts WHERE tenant_id=$1 AND config->>'senderId'=$2 AND id<>$3 LIMIT 1",
+        [input.tenantId, actual.config.senderId, actual.id],
+      );
+      if (otras.rowCount) throw new EmisorCompartidoError('Este emisor comparte su webhook con otros canales. Pide a quien configura el servicio que revise la conexión antes de cambiarlo.');
+    }
+  }
   const config = {
     ...actual.config,
     senderId: input.senderId,

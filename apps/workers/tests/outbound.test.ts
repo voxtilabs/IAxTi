@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import type { OutboundJobData } from '@iaxti/module-whatsapp';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
 import type IORedis from 'ioredis';
 import {
@@ -130,6 +130,7 @@ afterAll(async () => {
   await admin.query('DELETE FROM whatsapp_numbers WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  await sinTriggers(admin, (c) => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });
