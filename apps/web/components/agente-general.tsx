@@ -21,8 +21,8 @@ import {
   toast,
   useSession,
 } from '@iaxti/ui/react';
-import { apiFetch } from '../lib/api';
-import { selectedTenant } from './tenant-switcher';
+import { apiFetch, ApiError } from '../lib/api';
+import { selectedTenant, useSelectedTenant } from './tenant-switcher';
 import { pantallaDe } from '../lib/donde-estoy';
 
 /**
@@ -59,6 +59,7 @@ interface PropuestaDto {
 }
 
 interface RespuestaDto {
+  contextoPersonal?: boolean;
   texto: string;
   pasos: PasoDto[];
   propuesta: PropuestaDto | null;
@@ -172,6 +173,11 @@ function Esperando() {
 }
 
 export function AgenteGeneral() {
+  const { session } = useSession();
+  const tenant = useSelectedTenant();
+  return <AgenteGeneralInterior key={`${tenant}|${session?.user.id ?? ''}`} />;
+}
+function AgenteGeneralInterior() {
   const { config, session } = useSession();
   const [abierto, setAbierto] = useState(false);
   const [turnos, setTurnos] = useState<Turno[]>([]);
@@ -180,6 +186,9 @@ export function AgenteGeneral() {
   const [aplicando, setAplicando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
+  const contextoPersonal = useRef(false);
+  const vigente = useRef(true);
+  useEffect(() => { vigente.current = true; return () => { vigente.current = false; }; }, []);
 
   // El listener del evento se suscribe una vez y llama SIEMPRE a la última
   // versión de `preguntar`: sin este ref, la suscripción se quedaría con el
@@ -265,6 +274,7 @@ export function AgenteGeneral() {
   // negocio, y seguirla con otro sería configurarlo con el contexto ajeno.
   useEffect(() => {
     const cambio = () => {
+      contextoPersonal.current = false;
       setTurnos([]);
       setAviso(null);
       setAbierto(false);
@@ -299,8 +309,11 @@ export function AgenteGeneral() {
             // sería una puerta para escribirle instrucciones al agente. Y no
             // lo limita: tiene las mismas herramientas desde cualquier lado.
             pantalla: pantalla.id,
+            contextoPersonal: contextoPersonal.current,
           }),
         });
+        if (!vigente.current) return;
+        contextoPersonal.current ||= r.contextoPersonal === true;
         setTurnos([
           ...mios,
           { role: 'assistant', content: r.texto, pasos: r.pasos, propuesta: r.propuesta },
@@ -309,10 +322,14 @@ export function AgenteGeneral() {
           setAviso('La respuesta quedó cortada. Pídele lo mismo en partes más chicas.');
         }
       } catch (err) {
+        if (!vigente.current) return;
+        contextoPersonal.current ||= err instanceof ApiError && err.contextoPersonal;
         setAviso((err as Error).message);
       } finally {
-        setPensando(false);
-        campo.current?.focus();
+        if (vigente.current) {
+          setPensando(false);
+          campo.current?.focus();
+        }
       }
     },
     [config, session, turnos, pensando, pantalla],
@@ -340,13 +357,14 @@ export function AgenteGeneral() {
             argumentos: propuesta.argumentos,
           }),
         });
+        if (!vigente.current) return;
         setTurnos((antes) => antes.map((t, i) => (i === indice ? { ...t, resuelta: 'aplicada' } : t)));
       } catch (err) {
         // El motivo viene del servidor con el formato único: se muestra tal
         // cual, porque explica qué pasó y qué hacer.
-        setAviso((err as Error).message);
+        if (vigente.current) setAviso((err as Error).message);
       } finally {
-        setAplicando(false);
+        if (vigente.current) setAplicando(false);
       }
     },
     [config, session, turnos, aplicando],

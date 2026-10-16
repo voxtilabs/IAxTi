@@ -46,3 +46,5 @@ export {
 } from './application/embeddings';
 export type { EmbedPort, PdfTextPort, UrlTextPort, RolDelTexto } from './application/embeddings';
 export { splitIntoChunks, stripHtml, hashQuery } from './domain/chunking';
+export { buscarDocumentoPersonal } from './application/personal-document';
+export type { PersonalDocumentHit } from './application/personal-document';

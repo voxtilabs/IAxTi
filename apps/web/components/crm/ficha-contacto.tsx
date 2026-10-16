@@ -23,6 +23,7 @@ import {
 } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
+import { DriveContextFiles } from '../google-drive-files';
 import { DerechosDelTitular } from './derechos-del-titular';
 import { usePieza } from '../arranque';
 import { FusionarDuplicado } from './fusionar-duplicado';
@@ -651,6 +652,7 @@ export function FichaContacto({
         <FusionarDuplicado contactId={contactId} nombre={ficha.contact.name} onFusionado={cargar} />
       )}
 
+      {!compacta && <DriveContextFiles contactId={contactId} />}
       {!compacta && <DerechosDelTitular contactId={contactId} nombre={ficha.contact.name} />}
 
       {/* Espacio reservado para la IA (Fase 3), con rótulo mono (#32). */}

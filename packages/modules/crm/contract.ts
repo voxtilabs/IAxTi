@@ -124,3 +124,5 @@ export type { Embudo, EmbudoInput, EtapaDelEmbudo, PasoDeEtapa } from './applica
 
 export { InvalidListQuery } from './application/list-cursor';
 export { addTagToContacts } from './application/tags';
+
+export { contactoAnonimizado } from './application/contact-privacy';

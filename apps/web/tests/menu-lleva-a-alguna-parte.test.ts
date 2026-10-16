@@ -229,10 +229,11 @@ describe('toda pantalla tiene su permiso o su motivo escrito (#815)', () => {
     ).toContain('<SinPermiso');
   });
 
-  it('las cuatro anotadas son las medidas, y cada motivo dice algo', () => {
+  it('las cinco anotadas son las medidas, y cada motivo dice algo', () => {
     // El número está acá a propósito: que crezca tiene que costar una línea de
     // prueba y una explicación, no pasar sin que nadie lo mire.
     expect(Object.keys(RUTAS_SIN_REGLA_DE_PERMISO)).toEqual([
+      '/integraciones/drive/callback',
       '/',
       '/login',
       '/invitacion/[token]',

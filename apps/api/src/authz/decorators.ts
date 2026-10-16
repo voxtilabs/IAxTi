@@ -36,5 +36,5 @@ export const RequirePermission = (permission: string) =>
  * previos a elegir negocio, como GET /me. El guard deja al usuario en
  * request.user.
  */
-export const RequireAuth = () =>
-  applyDecorators(SetMetadata(AUTH_KEY, true), ApiExtension('x-iaxti-auth', 'sesion'));
+export const RequireAuth = (options: { jwtOnly?: boolean } = {}) =>
+  applyDecorators(SetMetadata(AUTH_KEY, options.jwtOnly ? 'jwt' : true), ApiExtension('x-iaxti-auth', 'sesion'));

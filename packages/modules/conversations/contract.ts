@@ -92,3 +92,4 @@ export type { ConversacionesDelPeriodo } from './application/conversations';
 export { cambiarPrioridad } from './application/conversations';
 export { PRIORIDADES } from './domain/prioridad';
 export type { Prioridad } from './domain/prioridad';
+export { mensajeRecibidoConAdjuntos } from './application/conversations';

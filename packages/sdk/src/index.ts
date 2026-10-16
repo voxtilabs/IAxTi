@@ -5,3 +5,6 @@ export * from './onboarding';
 export * from './campaigns';
 // Quién hizo algo (#697): el servidor manda un nombre, no un UUID.
 export type { Quien } from './quien';
+export * from './google-calendar';
+
+export * from './google-drive';

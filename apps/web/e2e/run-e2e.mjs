@@ -13,6 +13,7 @@ import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { porQueNoCorrer } from './build-coherente.mjs';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
+import { createCustomRole } from '@iaxti/module-authorization';
 import { createContact, createDeal, createPipeline, createTag } from '@iaxti/module-crm';
 import { receiveInbound } from '@iaxti/module-conversations';
 
@@ -20,9 +21,9 @@ const aqui = dirname(fileURLToPath(import.meta.url));
 const raiz = resolve(aqui, '../../..');
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
-const JWKS_PORT = 4012;
-const API_PORT = 4010;
-const WEB_PORT = 4011;
+const JWKS_PORT = Number(process.env.E2E_JWKS_PORT?.trim() || 4012);
+const API_PORT = Number(process.env.E2E_API_PORT?.trim() || 4010);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT?.trim() || 4011);
 const ISSUER = `http://127.0.0.1:${JWKS_PORT}/auth/v1`;
 
 const hijos = [];
@@ -81,6 +82,14 @@ async function main() {
     createInvitation(c, { tenantId: tenant, email: `sup-${supervisora.slice(0, 8)}@e2e.cl`, roleName: 'SUPERVISOR' }),
   );
   await withTenant(pool, tenant, (c) => acceptInvitation(c, { token: inv.token, userId: supervisora }));
+  // #57 concede agenda personal a USER/SUPERVISOR. El contraejemplo de
+  // acceso denegado usa ahora un rol propio sin esos permisos de verdad.
+  const restrictedUser = randomUUID();
+  await withTenant(pool, tenant, async (c) => {
+    const role = await createCustomRole(c, { tenantId: tenant, name: 'Sin configuración E2E', cloneFrom: 'USER', catalog: new Set(['tenant.read']), actor: supervisora });
+    const invitation = await createInvitation(c, { tenantId: tenant, email: `${restrictedUser}@e2e.cl`, roleName: role.name });
+    await acceptInvitation(c, { token: invitation.token, userId: restrictedUser });
+  });
   // TRES conversaciones, no una (#694).
   //
   // Con una sola, `bandeja.spec.ts` la RESUELVE —es su criterio de salida— y una
@@ -166,11 +175,15 @@ async function main() {
     .setIssuedAt()
     .setExpirationTime('1h')
     .sign(privateKey);
+  const restrictedToken = await new SignJWT({ email: `${restrictedUser}@e2e.cl`, aud: 'authenticated' })
+    .setProtectedHeader({ alg: 'ES256', kid: 'e2e' }).setSubject(restrictedUser)
+    .setIssuer(ISSUER).setIssuedAt().setExpirationTime('1h').sign(privateKey);
   writeFileSync(
     join(aqui, '.auth.json'),
     JSON.stringify({
       accessToken,
       userId: supervisora,
+      restricted: { userId: restrictedUser, accessToken: restrictedToken },
       tenantId: tenant,
       keyTenantId: keyTenant,
       keyConversations,

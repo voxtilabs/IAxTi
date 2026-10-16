@@ -13,6 +13,7 @@ import type { Repetible } from '@iaxti/core';
 export const REPETIBLES: Repetible[] = [
   { nombre: 'conversations.checks', moduleId: 'conversations', repeat: { every: 60_000 } },
   { nombre: 'crm.activities_due', moduleId: 'crm', repeat: { every: 60_000 } },
+  { nombre: 'integrations.drive.sync', moduleId: 'integrations', repeat: { every: 60_000 } },
   { nombre: 'webhooks.deliver', moduleId: 'integrations', repeat: { every: 60_000 } },
   // Cada cinco minutos (#502). Va seguido porque mientras haya fuentes sin
   // indexar el negocio tiene la IA sin conocimiento; y no más seguido porque
@@ -21,6 +22,10 @@ export const REPETIBLES: Repetible[] = [
   { nombre: 'knowledge.reindex', moduleId: 'knowledge', repeat: { every: 300_000 } },
   { nombre: 'automations.sweep', moduleId: 'automations', repeat: { every: 300_000 } },
   { nombre: 'api_usage.flush', moduleId: 'organizations', repeat: { every: 300_000 } },
+  // Limpieza del lifecycle sigue activa aunque Calendar se apague.
+  { nombre: 'identity.google.cleanup', moduleId: 'identity', repeat: { every: 900_000 } },
+  // Renovación de leases push; no consulta eventos.
+  { nombre: 'calendar.google.maintain', moduleId: 'calendar', repeat: { every: 900_000 } },
   { nombre: 'calendar.reminders', moduleId: 'calendar', repeat: { every: 900_000 } },
   // Meta tarda de minutos a 24 h en revisar una plantilla. Cada 30 min
   // alcanza de sobra y no castiga al proveedor con preguntas cada minuto.

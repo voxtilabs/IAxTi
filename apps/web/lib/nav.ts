@@ -241,6 +241,7 @@ export function destinosQuePuedeAbrir(
  * anotada acá pone la prueba roja, y una anotación que ya sobra también.
  */
 export const RUTAS_SIN_REGLA_DE_PERMISO: Record<string, string> = {
+  '/integraciones/drive/callback': 'Retorno OAuth personal: debe poder mostrar rechazo/expiración del intento aun sin permiso de negocio; el canje exige JWT humano, integrations.connect, pertenencia y PKCE en la API (#64).',
   '/': 'La puesta en marcha, que es a donde llega quien recién entró: no puede exigir nada. Cada widget que trae sí comprueba el suyo, por su cuenta (#517).',
   '/login': 'Se abre SIN sesión. Acá todavía no hay permisos que consultar, y de hecho es donde se consiguen.',
   '/invitacion/[token]': 'Quien acepta una invitación todavía no es parte del negocio: la credencial es el token del enlace, no un rol.',

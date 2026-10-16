@@ -46,6 +46,16 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 
 | Tabla | Qué guarda | PII | De quién | Exporta | Suprime |
 |---|---|---|---|---|---|
+| `google_oauth_attempts` | hashes y vencimiento de un intento OAuth personal, sin código ni verifier | indirecta | equipo | no: autenticación efímera | el worker purga al vencer |
+| `google_oauth_grants` | subject verificado, scopes, estado y referencia a Secret Manager; ningún token | indirecta | equipo | no: custodia personal | revocación desde la app; rastro en audit |
+| `google_secret_versions` | referencias pendientes de destrucción, sin payload | indirecta | equipo | no: cola operativa | se retiran al destruir la versión |
+| `drive_files` | metadata de archivos elegidos por la persona, cuenta/grant y consentimiento IA por archivo; sin contenido ni tokens | indirecta | usuario personal | no: selección personal; solo referencias publicadas salen en drive_attachments | revocación bloquea acceso y desactiva IA; reconexión exige opt-in otra vez |
+| `drive_attachments` | nombre, tipo y URL que la persona publicó en una ficha o conversación; no cambia ACL Google | sí | contacto y equipo autorizado | sí | supresión del contacto bloquea lectura inmediata y consumidor elimina referencias |
+| `drive_contact_folders` | preferencia opt-in y referencia de carpeta personal por contacto | indirecta | usuario personal y contacto | no: configuración personal | consumidor de supresión elimina estado local; copias ya guardadas se administran en Google por la persona |
+| `drive_uploads` | intención durable, IDs de reintento, metadata de adjunto y fechas operativas; sin bytes ni tokens | indirecta | usuario personal y contacto | no: cola operativa; originales en messages | borrar mensaje elimina pendiente por FK; opt-out y revocación cancelan trabajo |
+| `calendar_connections` | usuario y calendario conectado, revisión de sincronización | indirecta | equipo | sí | se borra al revocar |
+| `calendar_google_watches` | hashes de credenciales del canal push y vencimiento | indirecta | equipo | no: transporte | se retiran al vencer o revocar |
+| `calendar_freebusy_cache` | intervalos ocupados, sin título ni asistentes, caché de 60 segundos | indirecta | equipo | no: caché personal | invalida push; purga worker y revocación |
 | `user_roles` | quién pertenece al negocio y con qué rol | indirecta | equipo | sí | no aplica |
 | `invitations` | correo y teléfono de quien se invitó | directa | equipo | sí, **sin el token** | no aplica |
 | `teams` | equipos de trabajo | no | negocio | sí | no aplica |

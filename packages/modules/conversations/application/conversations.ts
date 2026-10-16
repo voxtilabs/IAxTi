@@ -1132,3 +1132,11 @@ export async function cambiarPrioridad(
   });
   return rowToConversation(r.rows[0]);
 }
+
+/** Puerto exacto para consumidores de message.received: jamás acepta un
+ * adjunto arbitrario ni un mensaje saliente como fuente de una copia. */
+export async function mensajeRecibidoConAdjuntos(client:PoolClient,input:{tenantId:string;conversationId:string;messageId:string}):Promise<Message|null>{
+  const r=await client.query(`SELECT * FROM messages WHERE tenant_id=$1 AND conversation_id=$2 AND id=$3 AND direction='in'`,
+    [input.tenantId,input.conversationId,input.messageId]);
+  return r.rowCount?rowToMessage(r.rows[0]):null;
+}

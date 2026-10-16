@@ -1,5 +1,6 @@
 'use client';
 
+import { DriveContextFiles } from '../google-drive-files';
 import { Bot } from 'lucide-react';
 
 import { useState } from 'react';
@@ -239,6 +240,8 @@ export function Ficha({
           )}
         </div>
       )}
+
+      <DriveContextFiles contactId={detalle.contactId} conversationId={detalle.id} />
 
       {/* La MISMA ficha del CRM (#32): oportunidades y actividades aquí. */}
       <div className="mt-6 border-t border-line pt-4">

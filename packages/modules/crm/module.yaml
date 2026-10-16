@@ -27,6 +27,7 @@ events:
   publishes:
     - contact.created
     - contact.updated
+    - contact.anonymized
     - contact.merged
     - contact.opted_out
     - deal.created

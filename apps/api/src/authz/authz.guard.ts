@@ -161,18 +161,11 @@ export class AuthzGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    const requireAuth = this.reflector.getAllAndOverride<boolean | undefined>(AUTH_KEY, [
+    const requireAuth = this.reflector.getAllAndOverride<boolean | 'jwt' | undefined>(AUTH_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
     if (!moduleId && !permission && !requireAuth) return true; // público (salud, docs)
-
-    // Solo sesión, sin tenant (GET /me): verifica el JWT y adjunta el usuario.
-    if (requireAuth && !permission) {
-      const request = context.switchToHttp().getRequest<WithUser>();
-      request.user = await this.userFrom(context);
-      return true;
-    }
 
     /**
      * Esto NO es el plan, y el mensaje lo decía (#840).
@@ -203,13 +196,20 @@ export class AuthzGuard implements CanActivate {
       });
     }
 
+    // El alta previa al tenant también respeta el interruptor del módulo.
+    if (requireAuth && !permission) {
+      const request = context.switchToHttp().getRequest<WithUser>();
+      request.user = await this.userFrom(context, requireAuth === 'jwt');
+      return true;
+    }
+
     // platform.*: SUPERADMIN cross-tenant (SPEC §22) — sin X-Tenant-Id;
     // la pertenencia viene de platform_admins, no de user_roles.
     if (permission?.startsWith('platform.')) {
       const request = context.switchToHttp().getRequest<WithUser>();
-      const user = await this.userFrom(context);
+      const user = await this.userFrom(context, requireAuth === 'jwt');
       const isDevSuperadmin =
-        !this.options.resolvePlatformAdmin && request.headers['x-role'] === 'SUPERADMIN';
+        requireAuth !== 'jwt' && !this.options.resolvePlatformAdmin && request.headers['x-role'] === 'SUPERADMIN';
       const isAdmin = this.options.resolvePlatformAdmin
         ? await this.options.resolvePlatformAdmin(user.userId)
         : isDevSuperadmin;
@@ -224,7 +224,7 @@ export class AuthzGuard implements CanActivate {
     }
 
     if (permission) {
-      const actor = await this.actorFrom(context);
+      const actor = await this.actorFrom(context, requireAuth === 'jwt');
       // API key (#24): el techo son SUS scopes — que ya nacieron como
       // subconjunto del catálogo del tenant; jamás cross-tenant (el
       // tenant viene DE la key, no de un header).
@@ -295,7 +295,7 @@ export class AuthzGuard implements CanActivate {
   }
 
   /** JWT de Supabase o, en desarrollo, el header X-User-Id. */
-  private async userFrom(context: ExecutionContext): Promise<AuthenticatedUser> {
+  private async userFrom(context: ExecutionContext, jwtOnly = false): Promise<AuthenticatedUser> {
     const request = context.switchToHttp().getRequest<WithRequestId>();
     const authorization = request.headers.authorization;
 
@@ -316,7 +316,7 @@ export class AuthzGuard implements CanActivate {
         });
       }
     }
-    const userId = this.fallbackPermitido() ? request.headers['x-user-id'] : undefined;
+    const userId = !jwtOnly && this.fallbackPermitido() ? request.headers['x-user-id'] : undefined;
     if (typeof userId !== 'string') {
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
@@ -387,13 +387,13 @@ export class AuthzGuard implements CanActivate {
     return nombre !== 'production' && nombre !== 'staging';
   }
 
-  private async actorFrom(context: ExecutionContext): Promise<Actor> {
+  private async actorFrom(context: ExecutionContext, jwtOnly = false): Promise<Actor> {
     const request = context.switchToHttp().getRequest<WithRequestId>();
     const authorization = request.headers.authorization;
 
     // X-Api-Key (#24): mismo guard, mismos códigos de error.
     const apiKeyHeader = request.headers['x-api-key'];
-    if (typeof apiKeyHeader === 'string' && apiKeyHeader && this.options.resolveApiKey) {
+    if (!jwtOnly && typeof apiKeyHeader === 'string' && apiKeyHeader && this.options.resolveApiKey) {
       const resolved = await this.options.resolveApiKey(apiKeyHeader);
       if (!resolved) {
         throw new UnauthorizedException({
@@ -416,7 +416,7 @@ export class AuthzGuard implements CanActivate {
     // JWT de sesión: se resuelve por la misma puerta y con los mismos
     // códigos de error.
     if (
-      typeof authorization === 'string' &&
+      !jwtOnly && typeof authorization === 'string' &&
       authorization.startsWith('Bearer iaxti_') &&
       this.options.resolveApiKey
     ) {
@@ -479,7 +479,7 @@ export class AuthzGuard implements CanActivate {
       return { userId, tenantId, role };
     }
 
-    if (!this.fallbackPermitido()) {
+    if (jwtOnly || !this.fallbackPermitido()) {
       throw new UnauthorizedException({
         code: 'UNAUTHORIZED',
         message: 'Necesitas iniciar sesión para hacer esto.',

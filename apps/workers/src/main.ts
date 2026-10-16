@@ -1,3 +1,9 @@
+import { limpiarGoogleConsent } from '@iaxti/module-identity';
+import { driveDesdeEntorno, driveConsumers, guardarAdjuntosDrive, driveAudit } from '@iaxti/module-integrations';
+import { driveAttachmentStorage } from './drive-storage';
+import { getConversation, mensajeRecibidoConAdjuntos } from '@iaxti/module-conversations';
+import { getContactFicha, contactoAnonimizado } from '@iaxti/module-crm';
+import { buscarDocumentoPersonal } from '@iaxti/module-knowledge';
 import './instrument';
 import { createServer } from 'node:http';
 import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
@@ -93,6 +99,7 @@ import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
+import { procesarPushGoogle, mantenerWatchesGoogle, limpiarSecretosGoogle, googleCalendarConsumers } from '@iaxti/module-calendar';
 import { campanasPorReencolar, procesarLoteDeCampana, type JobDeCampana } from './campanas';
 
 const service = textoDeEntorno('SERVICE', 'workers');
@@ -126,6 +133,9 @@ function start(): void {
     if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
   }
   const registry = new ModuleRegistry().load();
+  registry.registerContract('conversations',{getConversation,mensajeRecibidoConAdjuntos});
+  registry.registerContract('crm',{getContactFicha,contactoAnonimizado});
+  registry.registerContract('knowledge',{buscarDocumentoPersonal});
   const pool = createPool();
   // Igual que la API (issue 211): un rol que se salta RLS no sirve. Los
   // workers escriben en nombre de cada tenant, así que acá importa lo mismo.
@@ -152,6 +162,7 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
     activeModules: ['conversations', 'crm'].filter((m) => registry.isActive(m)),
   };
   const outboundPublisher = createOutboundPublisher(process.env.REDIS_URL);
+  const drive = driveDesdeEntorno(registry);
   const dispatcher = new OutboxDispatcher(pool, registry, [
     ...outboundRequestConsumers(job => outboundPublisher.enqueue(job), registry),
     ...automationConsumers(automationDeps),
@@ -161,6 +172,8 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
     ...analyticsConsumers(),
     // Facturas pagadas (#67): el tenant vuelve de past_due solo.
     ...billingConsumers(),
+    ...googleCalendarConsumers(),
+    ...driveConsumers(registry),
     // Webhooks salientes (#76): cada evento del catálogo puede salir.
     ...webhookConsumers(registry.eventsCatalog()),
     ...realtimeConsumers(),
@@ -346,6 +359,15 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
         // motivo era cierto cuando se escribió —hacía falta la plantilla
         // aprobada (#44) y el número conectado— y dejó de serlo sin que
         // nadie volviera a mirar.
+        case 'integrations.drive.sync': {
+          return drive ? guardarAdjuntosDrive(pool,drive,driveAttachmentStorage) : {uploaded:0,skipped:0,failed:0};
+        }
+        case 'calendar.google.maintain': {
+          return mantenerWatchesGoogle(pool);
+        }
+        case 'identity.google.cleanup': {
+          return drive ? limpiarGoogleConsent(pool,drive,driveAudit) : limpiarSecretosGoogle(pool);
+        }
         case 'calendar.reminders': {
           const res = await barrerRecordatorios(pool, {
             // Del AMBIENTE: sin llave del proveedor no sale nada de nada.
@@ -590,6 +612,9 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
       'inbound',
       registry,
       async (job) => {
+        if (job.name === 'google-calendar.push') {
+          return procesarPushGoogle(pool, job.data as unknown as { tenantId: string; channelId: string; resourceId: string; messageNumber: string });
+        }
         if (job.name === 'delivery-status') {
           return processDeliveryStatuses(pool, job.data as unknown as DeliveryStatusJob);
         }
