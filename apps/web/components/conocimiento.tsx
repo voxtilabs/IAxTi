@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Badge,
   Button,
+  Card,
   Input,
   Select,
   SelectContent,
@@ -268,7 +269,7 @@ export function Conocimiento() {
         dejan de usarse solas.
       </p>
 
-      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+      <Card className="mt-6 pulso-panel p-6">
         <span className="rotulo">Agregar fuente</span>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Select value={kind} onValueChange={(v) => setKind(v as typeof kind)}>
@@ -337,7 +338,7 @@ export function Conocimiento() {
             {guardando ? 'Indexando…' : 'Agregar e indexar'}
           </Button>
         )}
-      </div>
+      </Card>
 
       {/* Traer markdown (#714). Sale de «¿sería bueno ponerle obsidian?»:
           Obsidian no encaja —de escritorio, de un usuario, sobre archivos
