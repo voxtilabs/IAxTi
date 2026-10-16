@@ -4,9 +4,9 @@ import { olvidarPlanes } from './plan-modulos';
 /** Puerto obligatorio: audit depende de organizations, por eso se conecta desde el llamador. */
 export interface AuditoriaTenant {
   actor: string;
-  actorKind: 'user' | 'system' | 'superadmin';
+  actorKind: 'user' | 'system' | 'superadmin' | 'apikey';
   registrar: (client: PoolClient, entrada: {
-    tenantId: string; actor: string; actorKind: 'user' | 'system' | 'superadmin';
+    tenantId: string; actor: string; actorKind: 'user' | 'system' | 'superadmin' | 'apikey';
     action: string; resource: string; resourceId: string; result: string;
     metadata: Record<string, unknown>;
   }) => Promise<void>;

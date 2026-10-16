@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { writeAudit } from '@iaxti/module-audit';
-import { guardarRetencionTenant, leerRetencionTenant, tenantsConRetencion } from '@iaxti/module-organizations';
+import { guardarRetencionTenant, leerRetencionTenant, tenantsConRetencion, type AuditoriaTenant } from '@iaxti/module-organizations';
 import { presignUrl, publishEvent, type Consumer, type EventEnvelope, type StorageConfig } from '@iaxti/core';
 
 // Retención por plan (#77, SPEC §39): el borrado es FÍSICO y por eso
@@ -48,6 +48,7 @@ export async function scheduleRetentionNotice(
   client: PoolClient,
   tenantId: string,
   now: Date = new Date(),
+  autor: Pick<AuditoriaTenant, 'actor' | 'actorKind'> = { actor: 'system', actorKind: 'system' },
 ): Promise<{ affected: number; firstPurgeAt: Date } | null> {
   const { cutoff } = await retentionCutoff(client, tenantId, now);
   if (!cutoff) return null;
@@ -62,7 +63,7 @@ export async function scheduleRetentionNotice(
   const firstPurgeAt = new Date(now.getTime() + 30 * 86_400_000);
   await guardarRetencionTenant(client, {
     tenantId, firstPurgeAfter: firstPurgeAt,
-    auditoria: { actor: 'system', actorKind: 'system', registrar: writeAudit },
+    auditoria: { ...autor, registrar: writeAudit },
   });
   return { affected, firstPurgeAt };
 }
@@ -70,11 +71,15 @@ export async function scheduleRetentionNotice(
 /** El override se VALIDA al guardar: solo retener MENOS o igual (§39). */
 export async function setRetentionOverride(
   client: PoolClient,
-  input: { tenantId: string; months: number | null; actor?: string },
+  input: { tenantId: string; months: number | null; actor?: string; actorKind?: AuditoriaTenant['actorKind'] },
 ): Promise<void> {
   await guardarRetencionTenant(client, {
     tenantId: input.tenantId, monthsOverride: input.months,
-    auditoria: { actor: input.actor ?? 'system', actorKind: input.actor ? 'user' : 'system', registrar: writeAudit },
+    auditoria: {
+      actor: input.actor ?? 'system',
+      actorKind: input.actorKind ?? (input.actor ? 'user' : 'system'),
+      registrar: writeAudit,
+    },
   });
 }
 

@@ -168,19 +168,22 @@ export class SettingsController {
   @ApiOperation({ summary: 'Acorta la retención (jamás más que el plan) — avisa la purga' })
   async setRetencion(@Req() request: WithUser, @Body() body: { months?: number | null }) {
     const actor = request.actor as Actor;
+    const actorKind = actor.kind === 'apikey' ? 'apikey' : 'user';
     // Olvidar ANTES de escribir: si la escritura falla, haber olvidado no hace
     // daño —se vuelve a leer—, y olvidar después deja una ventana en la que
     // alguien lee lo viejo y lo guarda otra vez.
     await olvidarEnCache(apiRedis(), { clave: 'retencion', tenantId: actor.tenantId });
     return withTenant(pool(), actor.tenantId, async (c) => {
       try {
-        await setRetentionOverride(c, { tenantId: actor.tenantId, months: body?.months ?? null, actor: actor.userId });
+        await setRetentionOverride(c, { tenantId: actor.tenantId, months: body?.months ?? null, actor: actor.userId, actorKind });
       } catch (err) {
         throw new BadRequestException({ code: 'RETENTION_INVALID', message: (err as Error).message });
       }
       // La cantidad EXACTA que capturaría el corte nuevo, con la purga
       // diferida 30 días (§39) — el aviso viaja en la respuesta.
-      const aviso = await scheduleRetentionNotice(c, actor.tenantId);
+      const aviso = await scheduleRetentionNotice(c, actor.tenantId, new Date(), {
+        actor: actor.userId, actorKind,
+      });
       return {
         saved: true,
         purgeNotice: aviso
