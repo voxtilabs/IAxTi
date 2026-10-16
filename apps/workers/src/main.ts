@@ -1,6 +1,6 @@
 import './instrument';
 import { createServer } from 'node:http';
-import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
+import { createPool, degradarSinRomper, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
 import { DelayedError, type Worker } from 'bullmq';
 import { alApagar, instalarApagadoOrdenado } from '@iaxti/telemetry';
 import {
@@ -374,7 +374,21 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
                 if (!cita.conversationId) {
                   return { enviado: false, motivo: 'la cita no tiene conversación por dónde avisar' };
                 }
-                const plantilla = await getTemplate(c, cita.tenantId, templateId).catch(() => null);
+                // «La plantilla ya no existe» es un motivo legítimo para no
+                // avisar; «no pudimos leerla» no es lo mismo y además dejaba
+                // la transacción abortada, con el resto del envío muriendo
+                // por un error que no nombra la plantilla (#962, #966).
+                const plantilla = await degradarSinRomper(
+                  c,
+                  (cl) => getTemplate(cl, cita.tenantId, templateId),
+                  (error) => {
+                    console.warn(
+                      `calendar.avisos: no se pudo leer la plantilla ${templateId} de ${cita.tenantId}; ` +
+                        `el aviso no sale. Causa: ${error.message}`,
+                    );
+                    return null;
+                  },
+                );
                 if (!plantilla) return { enviado: false, motivo: 'la plantilla configurada ya no existe' };
                 if (plantilla.status !== 'approved') {
                   return { enviado: false, motivo: `la plantilla está ${plantilla.status}` };
