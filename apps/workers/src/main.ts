@@ -101,6 +101,7 @@ import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
+import { procesarPushGoogle, mantenerWatchesGoogle, limpiarSecretosGoogle } from '@iaxti/module-calendar';
 import { campanasPorReencolar, procesarLoteDeCampana, type JobDeCampana } from './campanas';
 
 const service = textoDeEntorno('SERVICE', 'workers');
@@ -356,6 +357,12 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
         // motivo era cierto cuando se escribió —hacía falta la plantilla
         // aprobada (#44) y el número conectado— y dejó de serlo sin que
         // nadie volviera a mirar.
+        case 'calendar.google.maintain': {
+          return mantenerWatchesGoogle(pool);
+        }
+        case 'identity.google.cleanup': {
+          return limpiarSecretosGoogle(pool);
+        }
         case 'calendar.reminders': {
           const res = await barrerRecordatorios(pool, {
             // Del AMBIENTE: sin llave del proveedor no sale nada de nada.
@@ -667,6 +674,9 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
       'inbound',
       registry,
       async (job) => {
+        if (job.name === 'google-calendar.push') {
+          return procesarPushGoogle(pool, job.data as unknown as { tenantId: string; channelId: string; resourceId: string; messageNumber: string });
+        }
         if (job.name === 'delivery-status') {
           return processDeliveryStatuses(pool, job.data as unknown as DeliveryStatusJob);
         }

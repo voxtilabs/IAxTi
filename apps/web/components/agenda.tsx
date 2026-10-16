@@ -8,6 +8,8 @@ import {
   DialogTitle, Input, Skeleton, useSession, type BadgeRole,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
+import { useArranque } from './arranque';
+import { GoogleCalendarConnection } from './google-calendar';
 import { RecordatoriosDeCita } from './recordatorios-de-cita';
 import { HorariosDeAtencion } from './horarios-de-atencion';
 import { DarUnaHora } from './dar-una-hora';
@@ -88,6 +90,8 @@ function hora(iso: string): string {
 export function Agenda() {
   const { config, session } = useSession();
   const tenant = useSelectedTenant();
+  const { arranque } = useArranque();
+  const puedeAgendar = Boolean(arranque?.permisos?.includes('calendar.book'));
   const [citas, setCitas] = useState<CitaDto[] | null>(null);
   const [porCancelar, setPorCancelar] = useState<CitaDto | null>(null);
   const [porMover, setPorMover] = useState<CitaDto | null>(null);
@@ -203,6 +207,8 @@ export function Agenda() {
         apoyo="Las próximas dos semanas."
       />
 
+      <GoogleCalendarConnection />
+
       {error && (
         <AvisoResultado tono="error">
           {error}
@@ -214,7 +220,7 @@ export function Agenda() {
           <h2 className="text-lg font-bold text-ink">Todavía no hay horas agendadas</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-body">
             Van a aparecer acá cuando alguien tome una hora — desde una conversación de la bandeja
-            o cuando tú la agendes.
+            {puedeAgendar ? ' o cuando tú la agendes.' : '.'}
           </p>
         </div>
       ) : (
@@ -247,7 +253,7 @@ export function Agenda() {
                     <span className="w-full text-xs text-warn-text">{c.googleSyncError}</span>
                   )}
                   <span className="flex flex-wrap gap-2">
-                    {SIGUIENTES[c.status].map((s) => (
+                    {puedeAgendar && SIGUIENTES[c.status].map((s) => (
                       <Button
                         key={s.a}
                         variant={s.a === 'cancelled' ? 'fantasma' : 'secundario'}
@@ -364,9 +370,9 @@ export function Agenda() {
       </Dialog>
 
       <PorQueSeCancelan />
-      <DarUnaHora onAgendada={() => void cargar()} />
-      <HorariosDeAtencion />
-      <RecordatoriosDeCita />
+      {puedeAgendar && <DarUnaHora onAgendada={() => void cargar()} />}
+      {arranque?.permisos?.includes('calendar.manage_availability') && <HorariosDeAtencion />}
+      {arranque?.permisos?.includes('tenant.settings') && <RecordatoriosDeCita />}
     </section>
   );
 }

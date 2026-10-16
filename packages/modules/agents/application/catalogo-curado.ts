@@ -20,6 +20,12 @@
  * es una función que falte: es una puerta que no debe existir.
  */
 export const NO_SON_HERRAMIENTA: Record<string, string> = {
+  GoogleCalendarController_estado: 'Estado de la conexión OAuth personal para su pantalla; el agente usa agenda.huecos, no credenciales (#57).',
+  GoogleCalendarController_iniciar: 'Consentimiento del navegador con state, nonce y PKCE; solo lo inicia la persona (#57).',
+  GoogleCalendarController_completar: 'Canje de código OAuth y verifier de una pestaña; nunca son argumentos de una herramienta de IA (#57).',
+  GoogleCalendarController_revocar: 'Revocación global de permisos Google de la persona; se confirma en su pantalla, no por el agente (#57).',
+  GoogleCalendarWebhookController_recibir: 'Notificación autenticada de Google; no permite fabricar cambios desde la IA (#57).',
+
   // Infraestructura: las llama Docker, el smoke del despliegue y Uptime Kuma.
   HealthController_health: 'Liveness de la infraestructura; no es una función del negocio (#17).',
   HealthController_ready: 'Readiness del despliegue; no es una función del negocio (#17).',
