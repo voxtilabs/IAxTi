@@ -20,6 +20,17 @@
  * es una función que falte: es una puerta que no debe existir.
  */
 export const NO_SON_HERRAMIENTA: Record<string, string> = {
+  GmailController_estado: 'Estado del consentimiento personal de la pantalla; la IA usa gmail.get_threads (#65).',
+  GmailController_iniciar: 'Consentimiento personal del navegador con state, nonce y PKCE, no una decisión de IA (#65).',
+  GmailController_completar: 'El código OAuth y el verifier pertenecen a la pestaña de la persona y no se ofrecen a la IA (#65).',
+  GmailController_revocar: 'Revocación global de los permisos Google de la persona, confirmada desde su pantalla (#65).',
+  GmailWebhookController_recibir: 'Notificación Pub/Sub autenticada por firma OIDC, no una acción invocable por la IA (#65).',
+  GoogleCalendarController_estado: 'Estado de la conexión OAuth personal para su pantalla; el agente usa agenda.huecos, no credenciales (#57).',
+  GoogleCalendarController_iniciar: 'Consentimiento del navegador con state, nonce y PKCE; solo lo inicia la persona (#57).',
+  GoogleCalendarController_completar: 'Canje de código OAuth y verifier de una pestaña; nunca son argumentos de una herramienta de IA (#57).',
+  GoogleCalendarController_revocar: 'Revocación global de permisos Google de la persona; se confirma en su pantalla, no por el agente (#57).',
+  GoogleCalendarWebhookController_recibir: 'Notificación autenticada de Google; no permite fabricar cambios desde la IA (#57).',
+
   // Infraestructura: las llama Docker, el smoke del despliegue y Uptime Kuma.
   HealthController_health: 'Liveness de la infraestructura; no es una función del negocio (#17).',
   HealthController_ready: 'Readiness del despliegue; no es una función del negocio (#17).',

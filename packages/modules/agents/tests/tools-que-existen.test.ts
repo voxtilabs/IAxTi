@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModuleRegistry } from '@iaxti/core';
+import { CATALOGO } from '../application/catalogo';
 import { DEFINICIONES, OBJETIVOS } from '../domain/objetivo';
 import {
   HERRAMIENTAS_DE_LECTURA,
@@ -23,6 +24,7 @@ import {
  */
 
 const registry = new ModuleRegistry().load();
+const personales = new Set(['gmail.get_threads', 'drive.search', 'drive.attach']);
 
 /** Lo que los módulos DECLARAN: la única fuente de nombres válidos. */
 const declaradas = new Set<string>(
@@ -94,6 +96,9 @@ describe('las herramientas existen de verdad', () => {
     // está habilitada, está bloqueada con su motivo (ADR-0017), o está
     // pendiente con la razón escrita.
     const tratadas = new Set<string>([
+      // Las tools personales del Agente General se ejecutan por su endpoint
+      // JWT real; no se ofrecen al bot autónomo ni a una API key sin dueño.
+      ...CATALOGO.filter(tool => personales.has(tool.nombre)).map(tool => tool.nombre),
       ...Object.keys(HERRAMIENTAS_DE_LECTURA),
       ...Object.keys(HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS),
       ...HERRAMIENTAS_QUE_ESCRIBEN,
@@ -105,6 +110,18 @@ describe('las herramientas existen de verdad', () => {
         `"${tool}" está declarada y no está ni implementada, ni bloqueada, ni en pendientes. ` +
           'Se va a filtrar en silencio: el modelo no la recibe y nadie se entera.',
       ).toBe(true);
+    }
+  });
+
+  it('las personales declaradas tienen endpoint real y nunca entran a objetivos autónomos', () => {
+    for (const nombre of personales) {
+      if (!declaradas.has(nombre)) continue;
+      const tool = CATALOGO.find(h => h.nombre === nombre);
+      expect(tool, `${nombre} sin ruta real en el catálogo`).toBeDefined();
+      expect(tool!.modulo).toBe('integrations');
+      expect(tool!.permiso).toMatch(/^integrations\./);
+      expect(tool!.trato).toBe(nombre === 'drive.attach' ? 'confirmar' : 'libre');
+      for (const id of OBJETIVOS) expect(DEFINICIONES[id].tools).not.toContain(nombre);
     }
   });
 

@@ -7,10 +7,12 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [identity, organizations, audit]
-  optional: []
+  required: [identity, organizations, audit, authorization]
+  optional: [crm]
 permissions:
   - webhooks.manage
+  - integrations.read
+  - integrations.connect
 events:
   publishes:
     - webhook.failed
@@ -32,7 +34,7 @@ events:
   # clavado en un comentario envejece sin que nadie lo note; el que quiera la
   # cuenta de hoy la saca de los manifiestos, que es de donde salía.
   consumes: ['*']
-tools: []
+tools: [gmail.get_threads]
 nav:
   - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Configuración, seccion: Integraciones }
 widgets: []

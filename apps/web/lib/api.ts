@@ -19,6 +19,7 @@ export class ApiError extends Error {
      * donde ir a buscarlo.
      */
     public readonly requestId: string = '',
+    public readonly contextoPersonal: boolean = false,
   ) {
     super(message);
   }
@@ -81,6 +82,7 @@ export async function apiFetch<T>(
       cuerpo?.message ?? 'Algo salió mal. Intenta de nuevo.',
       res.status,
       cuerpo?.requestId ?? '',
+      res.headers.get('X-Iaxti-Personal-Context') === '1',
     );
   }
   return res.json() as Promise<T>;

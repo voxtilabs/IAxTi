@@ -92,7 +92,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       'X-Api-Key',
       'Idempotency-Key',
     ],
-    exposedHeaders: ['X-Request-Id'],
+    exposedHeaders: ['X-Request-Id', 'X-Iaxti-Personal-Context'],
     maxAge: 86_400,
   });
   // /v1 en la ruta (SPEC §28); health queda fuera para Dokploy/Uptime Kuma.
@@ -103,6 +103,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       'health/modules',
       'webhooks/channels/:accountId',
       'webhooks/payments/:providerId',
+      'webhooks/google/calendar',
+      'webhooks/google/gmail',
       'webchat/:widgetId/config',
       'webchat/:widgetId/sessions',
       'webchat/:widgetId/messages',

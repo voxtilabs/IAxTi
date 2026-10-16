@@ -1,0 +1,19 @@
+// @vitest-environment jsdom
+import {act,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+const auth=vi.hoisted(()=>({tenant:'tenant-a',token:'token-a',user:'user-a'}));
+vi.mock('@iaxti/ui/react',async original=>({...await original<object>(),useSession:()=>({config:{apiUrl:'https://api.example.test'},session:{access_token:auth.token,user:{id:auth.user}}})}));
+vi.mock('../components/tenant-switcher',()=>({useSelectedTenant:()=>auth.tenant,selectedTenant:()=>auth.tenant}));
+vi.mock('next/navigation',()=>({usePathname:()=>'/contactos'}));
+import {Avisos} from '@iaxti/ui/react';
+import {AgenteGeneral} from '../components/agente-general';
+const post=vi.fn<typeof fetch>();
+const ok=(body:unknown)=>new Response(JSON.stringify(body),{status:200});
+const answer={texto:'PRIVATE-SNIPPET',pasos:[],propuesta:null,truncada:false,contextoPersonal:true};
+beforeEach(()=>{auth.tenant='tenant-a';auth.token='token-a';auth.user='user-a';post.mockReset();vi.stubGlobal('ResizeObserver',class {observe(){} unobserve(){} disconnect(){}});vi.stubGlobal('fetch',vi.fn<typeof fetch>((input,init)=>init?.method==='POST'?post(input,init):Promise.resolve(ok({sugerencias:[]}))));Element.prototype.scrollTo=vi.fn();});
+afterEach(()=>vi.unstubAllGlobals());
+const ask=(text:string)=>{fireEvent.change(screen.getByRole('textbox',{name:'Pídele algo a IAxTi'}),{target:{value:text}});fireEvent.click(screen.getByRole('button',{name:'Pedir'}));};
+const open=()=>fireEvent.click(screen.getByRole('button',{name:'Pedirle algo a IAxTi'}));
+it('error parcial marcado por header conserva privacidad en el siguiente turno',async()=>{post.mockResolvedValueOnce(new Response(JSON.stringify({code:'AGENT_RUN_FAILED',message:'Intenta de nuevo.',requestId:'r'}),{status:502,headers:{'X-Iaxti-Personal-Context':'1'}})).mockResolvedValueOnce(ok(answer));render(<><AgenteGeneral/><Avisos/></>);open();ask('Consulta Gmail');await screen.findByText('Intenta de nuevo.');ask('Continúa');await screen.findByText('PRIVATE-SNIPPET');expect(JSON.parse(String(post.mock.calls[0][1]?.body)).contextoPersonal).toBe(false);expect(JSON.parse(String(post.mock.calls[1][1]?.body)).contextoPersonal).toBe(true);});
+it('refresh de token conserva hilo y marcador; usuario nuevo no hereda contenido',async()=>{post.mockImplementation(async()=>ok(answer));const view=render(<><AgenteGeneral/><Avisos/></>);open();ask('Consulta Gmail');await screen.findByText('PRIVATE-SNIPPET');auth.token='refreshed';view.rerender(<><AgenteGeneral/><Avisos/></>);expect(screen.getByText('PRIVATE-SNIPPET')).toBeTruthy();ask('Repite PRIVATE-SNIPPET');await waitFor(()=>expect(post).toHaveBeenCalledTimes(2));expect(JSON.parse(String(post.mock.calls[1][1]?.body)).contextoPersonal).toBe(true);await waitFor(()=>expect(screen.getAllByText('PRIVATE-SNIPPET')).toHaveLength(2));auth.user='user-b';view.rerender(<><AgenteGeneral/><Avisos/></>);open();expect(screen.queryByText('PRIVATE-SNIPPET')).toBeNull();ask('Hola');await waitFor(()=>expect(post).toHaveBeenCalledTimes(3));expect(JSON.parse(String(post.mock.calls[2][1]?.body))).toMatchObject({contextoPersonal:false,turnos:[{role:'user',content:'Hola'}]});});
+it('cambio de tenant descarta respuesta tardía y propuestas privadas',async()=>{let release!:(r:Response)=>void;post.mockImplementationOnce(()=>new Promise(r=>release=r));const view=render(<><AgenteGeneral/><Avisos/></>);open();ask('Consulta Drive');await waitFor(()=>expect(post).toHaveBeenCalledTimes(1));auth.tenant='tenant-b';view.rerender(<><AgenteGeneral/><Avisos/></>);await act(async()=>release(ok({...answer,propuesta:{herramienta:'drive.attach',descripcion:'PRIVATE-PROPOSAL',metodo:'POST',ruta:'/drive',permiso:null,argumentos:{id:'PRIVATE-ID'}}})));open();expect(screen.queryByText('PRIVATE-SNIPPET')).toBeNull();expect(screen.queryByText('PRIVATE-PROPOSAL')).toBeNull();expect(screen.queryByText('PRIVATE-ID')).toBeNull();});

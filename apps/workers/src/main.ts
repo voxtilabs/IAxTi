@@ -1,3 +1,4 @@
+import { mantenerGmail, procesarPushGmail, gmailConsumers, gmailDesdeEntorno, limpiarCacheGmail, limpiarSecretosGmail, type GmailPush } from '@iaxti/module-integrations';
 import './instrument';
 import { createServer } from 'node:http';
 import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
@@ -93,6 +94,7 @@ import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
 import { processPaymentWebhook, type PaymentWebhookJob } from './payments';
+import { procesarPushGoogle, mantenerWatchesGoogle, limpiarSecretosGoogle, googleCalendarConsumers } from '@iaxti/module-calendar';
 import { campanasPorReencolar, procesarLoteDeCampana, type JobDeCampana } from './campanas';
 
 const service = textoDeEntorno('SERVICE', 'workers');
@@ -161,6 +163,8 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
     ...analyticsConsumers(),
     // Facturas pagadas (#67): el tenant vuelve de past_due solo.
     ...billingConsumers(),
+    ...googleCalendarConsumers(),
+    ...gmailConsumers(),
     // Webhooks salientes (#76): cada evento del catálogo puede salir.
     ...webhookConsumers(registry.eventsCatalog()),
     ...realtimeConsumers(),
@@ -346,6 +350,18 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
         // motivo era cierto cuando se escribió —hacía falta la plantilla
         // aprobada (#44) y el número conectado— y dejó de serlo sin que
         // nadie volviera a mirar.
+        case 'integrations.gmail.maintain': {
+          return mantenerGmail(pool, { registry });
+        }
+        case 'calendar.google.maintain': {
+          return mantenerWatchesGoogle(pool);
+        }
+        case 'identity.google.cleanup': {
+          const gmailCacheDeleted = await limpiarCacheGmail(pool);
+          const gmail = gmailDesdeEntorno();
+          const custody = gmail ? await limpiarSecretosGmail(pool, gmail) : await limpiarSecretosGoogle(pool);
+          return { ...custody, gmailCacheDeleted };
+        }
         case 'calendar.reminders': {
           const res = await barrerRecordatorios(pool, {
             // Del AMBIENTE: sin llave del proveedor no sale nada de nada.
@@ -590,6 +606,12 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
       'inbound',
       registry,
       async (job) => {
+        if (job.name === 'gmail.push') {
+          return procesarPushGmail(pool, job.data as unknown as GmailPush);
+        }
+        if (job.name === 'google-calendar.push') {
+          return procesarPushGoogle(pool, job.data as unknown as { tenantId: string; channelId: string; resourceId: string; messageNumber: string });
+        }
         if (job.name === 'delivery-status') {
           return processDeliveryStatuses(pool, job.data as unknown as DeliveryStatusJob);
         }

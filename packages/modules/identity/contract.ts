@@ -25,3 +25,9 @@ export type {
 // en un trámite (#664).
 export { quienesSon, quienesSonEnLaPlataforma, quienFue } from './application/quien';
 export type { Quien } from './application/quien';
+export { grantGoogleDelUsuario, bloquearGrantGoogle, limpiarVersionesGoogle } from './application/google-grants';
+export type { GoogleGrant, GoogleAudit, GoogleService, GoogleRevocationTarget } from './application/google-grants';
+
+
+export { iniciarGoogleConsent, completarGoogleConsent, conGoogleConsent, revocarGoogleConsent, limpiarGoogleConsent } from './application/google-consent';
+export type { GoogleConsentDeps, GoogleConsentInput, GoogleCallbackInput } from './application/google-consent';

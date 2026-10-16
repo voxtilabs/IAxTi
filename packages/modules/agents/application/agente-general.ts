@@ -29,6 +29,19 @@ import { semillaCacheada } from './defecto-de-la-plataforma';
  * normal son segundos— y suficiente para que un proveedor lento no corte la
  * conversación en el primer viaje.
  */
+const HERRAMIENTAS_PERSONALES = new Set(['gmail.get_threads', 'drive.search', 'drive.attach']);
+/** Solo minimiza el registro; no concede autorización. */
+export const esHerramientaPersonal = (nombre: string): boolean => HERRAMIENTAS_PERSONALES.has(nombre);
+const CONTENIDO_PERSONAL = '[Contenido personal de Google omitido]';
+/** Conserva identificadores opacos necesarios para la siguiente tool; redacta
+ * texto de correo/documentos antes de que el puerto del modelo lo reciba. */
+function redactarResultadoPersonal(value: unknown, key = ''): unknown {
+  if (typeof value === 'string') return /^(?:id|.*Id|.*_id)$/.test(key) ? value : redactPII(value);
+  if (Array.isArray(value)) return value.map(item => redactarResultadoPersonal(item, key));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redactarResultadoPersonal(v, k)]));
+  return value;
+}
+
 const PASOS = 6;
 const MS_POR_PASO = 30_000;
 
@@ -109,6 +122,8 @@ export interface RespuestaDelAgente {
    * la única que no deja rastro al fallar.
    */
   status: 'ok' | 'failed';
+  /** Solo reduce conservación; nunca concede permisos. Se arrastra al siguiente turno. */
+  contextoPersonal?: boolean;
   texto: string;
   pasos: PasoDelAgente[];
   /** Lo que espera el visto bueno de la persona. `null` = nada que aplicar. */
@@ -348,6 +363,7 @@ export async function conversarConElAgenteGeneral(
   input: {
     tenantId: string;
     turnos: Array<{ role: 'user' | 'assistant'; content: string }>;
+    contextoPersonal?: boolean;
     /** Los permisos de quien habla. La IA no puede lo que ella no podría. */
     permisos: ReadonlySet<string>;
     modulosActivos: ReadonlySet<string>;
@@ -366,6 +382,7 @@ export async function conversarConElAgenteGeneral(
   },
   deps: DepsDelAgenteGeneral,
 ): Promise<RespuestaDelAgente> {
+  let contextoPersonal = input.contextoPersonal === true;
   const disponibles = herramientasPara({
     permisos: input.permisos,
     modulosActivos: input.modulosActivos,
@@ -396,6 +413,7 @@ export async function conversarConElAgenteGeneral(
       provider: deps.provider,
       model: deps.model,
       turnos: input.turnos,
+      contextoPersonal,
       error: rechazo,
       errorDelProveedor: false,
       latencyMs: 0,
@@ -405,6 +423,7 @@ export async function conversarConElAgenteGeneral(
     });
     return {
       status: 'failed',
+      ...(contextoPersonal ? { contextoPersonal: true } : {}),
       texto: '',
       pasos: [],
       propuesta: null,
@@ -419,6 +438,7 @@ export async function conversarConElAgenteGeneral(
     };
   }
 
+  const politica = iaSettings(await getTenantSettings(client, input.tenantId), providerAvailable, estaCastigado, await semillaCacheada(client));
   const pasos: PasoDelAgente[] = [];
   let propuesta: PropuestaDelAgente | null = null;
 
@@ -483,6 +503,7 @@ export async function conversarConElAgenteGeneral(
           error: `No tienes "${String(args.herramienta ?? '')}". Búscala primero con buscar_herramienta.`,
         };
       }
+      if (esHerramientaPersonal(h.nombre)) contextoPersonal = true;
       const argumentos = (args.argumentos ?? {}) as Record<string, unknown>;
 
       if (h.trato === 'confirmar') {
@@ -515,9 +536,10 @@ export async function conversarConElAgenteGeneral(
         // El error se le devuelve AL MODELO y no se lanza: un permiso que
         // falta o un dato inválido es información que necesita para
         // responder sin inventar.
-        return { error: (r.datos as { message?: string })?.message ?? `No se pudo (${r.estado}).` };
+        const message = (r.datos as { message?: string })?.message ?? `No se pudo (${r.estado}).`;
+        return { error: esHerramientaPersonal(h.nombre) && politica.redactPII ? redactPII(message) : message };
       }
-      return { estado: 'hecho', resultado: r.datos };
+      return { estado: 'hecho', resultado: esHerramientaPersonal(h.nombre) && politica.redactPII ? redactarResultadoPersonal(r.datos) : r.datos };
     },
   };
 
@@ -600,7 +622,7 @@ export async function conversarConElAgenteGeneral(
     res = await deps.modelo.generate({
       system,
       prompt: '',
-      mensajes: input.turnos,
+      mensajes: input.contextoPersonal && politica.redactPII ? input.turnos.map(turno => ({ ...turno, content: redactPII(turno.content) })) : input.turnos,
       tools: queFalta ? [buscar, preparar, queFalta] : [buscar, preparar],
       // Buscar, a veces mirar de nuevo, preparar, y contestar.
       maxSteps: PASOS,
@@ -638,6 +660,7 @@ export async function conversarConElAgenteGeneral(
       provider: deps.provider,
       model: deps.model,
       turnos: input.turnos,
+      contextoPersonal,
       error: mensaje,
       errorDelProveedor: delProveedor,
       latencyMs: Date.now() - inicio,
@@ -660,6 +683,7 @@ export async function conversarConElAgenteGeneral(
     });
     return {
       status: 'failed',
+      ...(contextoPersonal ? { contextoPersonal: true } : {}),
       texto: '',
       pasos,
       propuesta,
@@ -678,6 +702,7 @@ export async function conversarConElAgenteGeneral(
     provider: deps.provider,
     model: deps.model,
     turnos: input.turnos,
+      contextoPersonal,
     texto: res.text,
     tokensIn: res.tokensIn,
     tokensOut: res.tokensOut,
@@ -692,6 +717,7 @@ export async function conversarConElAgenteGeneral(
 
   return {
     status: 'ok',
+    ...(contextoPersonal ? { contextoPersonal: true } : {}),
     texto: res.text,
     pasos,
     propuesta,
@@ -723,6 +749,7 @@ async function registrarFallo(
     provider: string;
     model: string;
     turnos: Array<{ role: string; content: string }>;
+    contextoPersonal?: boolean;
     error: string;
     errorDelProveedor: boolean;
     latencyMs: number;
@@ -741,13 +768,13 @@ async function registrarFallo(
       datos.tenantId,
       datos.provider,
       datos.model,
-      JSON.stringify({ turnos: datos.turnos.length, ultima: datos.turnos.at(-1)?.content ?? '' }),
+      JSON.stringify({ turnos: datos.turnos.length, ultima: datos.contextoPersonal ? CONTENIDO_PERSONAL : datos.turnos.at(-1)?.content ?? '' }),
       // Las acciones completadas van en `output` y no se pierden: son la
       // diferencia entre «falló tras hacer algo» y «falló sin hacer nada».
       JSON.stringify({ pasos: datos.pasos.map((p) => p.herramienta) }),
       datos.latencyMs,
       datos.traceId,
-      datos.error,
+      datos.contextoPersonal ? CONTENIDO_PERSONAL : datos.error,
       datos.errorDelProveedor,
       datos.explicacion,
     ],
@@ -772,6 +799,7 @@ async function registrarCorrida(
     provider: string;
     model: string;
     turnos: Array<{ role: string; content: string }>;
+    contextoPersonal?: boolean;
     texto: string;
     tokensIn: number;
     tokensOut: number;
@@ -782,7 +810,8 @@ async function registrarCorrida(
   },
 ): Promise<{ executionId: string; costUsd: number | null }> {
   const costUsd = estimateCostUsd(datos.provider, datos.model, datos.tokensIn, datos.tokensOut);
-  const ultima = datos.turnos.at(-1)?.content ?? '';
+  const ultima = datos.contextoPersonal ? CONTENIDO_PERSONAL : datos.turnos.at(-1)?.content ?? '';
+  const textoRegistrado = datos.contextoPersonal ? CONTENIDO_PERSONAL : datos.texto;
   const fila = await client.query(
     `INSERT INTO agent_executions
        (tenant_id, agent_id, task, provider, model, input, output, tokens_in, tokens_out,
@@ -794,7 +823,7 @@ async function registrarCorrida(
       datos.model,
       JSON.stringify({ turnos: datos.turnos.length, ultima }),
       // `output` es jsonb: el texto pelado no es JSON válido.
-      JSON.stringify({ text: datos.texto, pasos: datos.pasos.map((p) => p.herramienta) }),
+      JSON.stringify({ text: textoRegistrado, pasos: datos.pasos.map((p) => p.herramienta) }),
       datos.tokensIn,
       datos.tokensOut,
       costUsd,
@@ -833,7 +862,7 @@ async function registrarCorrida(
     provider: datos.provider,
     model: datos.model,
     input: settings.redactPII ? redactPII(ultima) : ultima,
-    output: settings.redactPII ? redactPII(datos.texto) : datos.texto,
+    output: settings.redactPII ? redactPII(textoRegistrado) : textoRegistrado,
     tokensIn: datos.tokensIn,
     tokensOut: datos.tokensOut,
     latencyMs: datos.latencyMs,

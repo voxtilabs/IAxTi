@@ -375,7 +375,7 @@ historia, y que cada intención de compra sea una oportunidad con etapa y dueño
 ADMIN habilite "ver todo el equipo".
 
 **Eventos:** `contact.created`, `contact.updated`, `contact.merged`,
-`contact.opted_out`, `deal.created`, `deal.stage_changed`, `deal.won`, `deal.lost`,
+`contact.opted_out`, `contact.anonymized`, `deal.created`, `deal.stage_changed`, `deal.won`, `deal.lost`,
 `deal.stalled`, `activity.due`.
 
 **Tools para la IA:** `crm.find_contact`, `crm.create_contact`, `crm.update_contact`,
@@ -687,7 +687,7 @@ imagina.
   cancelar desde el chat ("¿puedo cambiarla?") con confirmación. `no_show` se
   marca a mano o por automatización; dispara seguimiento si hay regla.
 - **Permisos:** `calendar.read`, `calendar.connect`, `calendar.book`,
-  `calendar.manage_availability`.
+  `calendar.manage_availability` (propia) y `calendar.manage_team` (equipo).
 - **Eventos:** `appointment.created`, `appointment.reminder_sent`,
   `appointment.attended`, `appointment.no_show`, `appointment.cancelled`.
 - **Tools:** `calendar.get_slots`, `calendar.book`, `calendar.reschedule`,
@@ -853,10 +853,11 @@ universal.
 
 ```
 identity        user.registered · user.invited · user.joined_tenant · user.login_failed
+                integration.connected · integration.revoked
 organizations   tenant.created · tenant.plan_changed · tenant.state_changed
                 usage.threshold_reached · tenant.settings_changed
 authorization   role.created · role.assigned
-crm             contact.created · contact.updated · contact.merged · contact.opted_out
+crm             contact.created · contact.updated · contact.merged · contact.opted_out · contact.anonymized
                 deal.created · deal.stage_changed · deal.won · deal.lost · deal.stalled
                 activity.due
 conversations   conversation.created · conversation.assigned · conversation.state_changed
@@ -897,9 +898,9 @@ decir exactamente lo mismo, en los dos sentidos.
 >   error y sin aviso. Se sacaron: lo que `knowledge.updated` quería decir lo
 >   dicen `knowledge.source_added`/`source_expired`/`reindexed`; lo de
 >   `subscription.changed`, `tenant.plan_changed` y `subscription.cancelled`; y
->   los dos de `integration.*` llegan con la conexión a Google (#57), que los va
->   a agregar al manifiesto y acá en el mismo PR, porque ahora la guarda lo
->   exige.
+>   los dos de `integration.*` se incorporan con la conexión a Google (#57),
+>   en identity como propietario del consentimiento personal; Calendar sigue
+>   disponible en Base aunque integrations esté apagado.
 > - **Dieciocho eventos reales que esta lista no nombraba**, el módulo
 >   `whatsapp` entero entre ellos. El catálogo se presentaba como fuente de
 >   verdad y le faltaba casi una cuarta parte.

@@ -45,9 +45,15 @@ const USER_PERMS = new Set([
   'automations.enroll', // meter SU conversación a una secuencia (#63)
   'payments.create_link', // cobrar desde el chat, con tope del tenant (#60, §23)
   'payments.read',
+  'calendar.read',
+  'calendar.connect',
+  'integrations.read',
+  'integrations.connect',
+  'calendar.manage_availability', // Horario propio; el caso de uso verifica dueño (§23).
 ]);
 
 const SUPERVISOR_EXTRA = new Set([
+  'calendar.manage_team', // Disponibilidad del equipo (§23, #57).
   'roles.read', // ver roles y catálogo (#73); crear/editar/asignar es del ADMIN
   'payments.create_link_unlimited', // cobra sin tope (§23); el USER tiene tope
   'analytics.read_all', // los números de todo el equipo (#66, §23)

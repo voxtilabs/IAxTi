@@ -46,6 +46,12 @@ derecho. Es el "registro de actividades de tratamiento" que pide la Ley
 
 | Tabla | Qué guarda | PII | De quién | Exporta | Suprime |
 |---|---|---|---|---|---|
+| `google_oauth_attempts` | hashes y vencimiento de un intento OAuth personal, sin código ni verifier | indirecta | equipo | no: autenticación efímera | el worker purga al vencer |
+| `google_oauth_grants` | subject verificado, scopes, estado y referencia a Secret Manager; ningún token | indirecta | equipo | no: custodia personal | revocación desde la app; rastro en audit |
+| `google_secret_versions` | referencias pendientes de destrucción, sin payload | indirecta | equipo | no: cola operativa | se retiran al destruir la versión |
+| `calendar_connections` | usuario y calendario conectado, revisión de sincronización | indirecta | equipo | sí | se borra al revocar |
+| `calendar_google_watches` | hashes de credenciales del canal push y vencimiento | indirecta | equipo | no: transporte | se retiran al vencer o revocar |
+| `calendar_freebusy_cache` | intervalos ocupados, sin título ni asistentes, caché de 60 segundos | indirecta | equipo | no: caché personal | invalida push; purga worker y revocación |
 | `user_roles` | quién pertenece al negocio y con qué rol | indirecta | equipo | sí | no aplica |
 | `invitations` | correo y teléfono de quien se invitó | directa | equipo | sí, **sin el token** | no aplica |
 | `teams` | equipos de trabajo | no | negocio | sí | no aplica |
@@ -99,6 +105,9 @@ contenido es responsabilidad suya y la retención la fija su plan.
 | `agent_proposals` | propuestas de configuración del copiloto |
 | `roles` | roles custom del tenant (se exportan con `user_roles`) |
 | `contact_tags` | se exporta, listada arriba |
+
+| `gmail_connections` | metadata personal del watch, hash del buzón e historial; sin correo ni tokens |
+| `gmail_thread_cache` | caché personal de asuntos/extractos, TTL de lectura 60 s y purga periódica; no es exportación compartida del tenant |
 
 ## Dónde se guarda
 

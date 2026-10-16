@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
+import { bloquearGrantGoogle } from '@iaxti/module-identity';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { assertTransicionCita, ocupaAgenda, type EstadoCita } from '../domain/estado';
 import { huecosLibres, comoHora, type Ocupado } from '../domain/horarios';
@@ -42,6 +43,9 @@ export async function definirDisponibilidad(
   if (input.finMin <= input.inicioMin) {
     throw new Error('La hora de cierre tiene que ser después de la de apertura.');
   }
+  // La lectura de Google y su caché usan el mismo cerrojo hasta terminar
+  // de cruzar disponibilidad: un cambio de buffer no mezcla dos ventanas.
+  await bloquearGrantGoogle(client,{tenantId:input.tenantId,userId:input.ownerId});
   // Dos franjas que se pisan el mismo día no agregan horas: duplican los
   // huecos que la agenda ofrece, y el cliente ve la misma hora dos veces.
   const choca = await client.query(
@@ -69,6 +73,8 @@ export async function definirDisponibilidad(
       input.anticipacionMin ?? 60,
     ],
   );
+  await client.query(`DELETE FROM calendar_freebusy_cache WHERE tenant_id=$1 AND connection_id IN
+    (SELECT id FROM calendar_connections WHERE tenant_id=$1 AND user_id=$2)`,[input.tenantId,input.ownerId]);
   const f = r.rows[0];
   return {
     id: f.id,
@@ -115,11 +121,14 @@ export async function quitarDisponibilidad(
   client: PoolClient,
   input: { tenantId: string; ownerId: string; id: string },
 ): Promise<void> {
+  await bloquearGrantGoogle(client,{tenantId:input.tenantId,userId:input.ownerId});
   const r = await client.query(
     'DELETE FROM availability WHERE tenant_id = $1 AND owner_id = $2 AND id = $3',
     [input.tenantId, input.ownerId, input.id],
   );
   if (r.rowCount === 0) throw new Error('Ese horario no existe, o no es de esta persona.');
+  await client.query(`DELETE FROM calendar_freebusy_cache WHERE tenant_id=$1 AND connection_id IN
+    (SELECT id FROM calendar_connections WHERE tenant_id=$1 AND user_id=$2)`,[input.tenantId,input.ownerId]);
 }
 
 export interface HuecoOfrecido {
@@ -566,14 +575,16 @@ export async function motivosDeCancelacion(
 export async function citasDesincronizadasConGoogle(
   client: PoolClient,
   tenantId: string,
+  ownerId?: string | null,
 ): Promise<Array<{ appointmentId: string; startsAt: Date; problema: string }>> {
   const r = await client.query(
     `SELECT id, starts_at, google_sync_error
        FROM appointments
       WHERE tenant_id = $1 AND google_sync_error IS NOT NULL
+        AND ($2::uuid IS NULL OR owner_id=$2)
       ORDER BY starts_at DESC
       LIMIT 50`,
-    [tenantId],
+    [tenantId, ownerId ?? null],
   );
   return r.rows.map((f) => ({
     appointmentId: f.id as string,

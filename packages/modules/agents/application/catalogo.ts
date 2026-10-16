@@ -41,7 +41,8 @@ export interface Herramienta {
  * mano: un endpoint nuevo trae su nombre solo.
  */
 export function nombreDeHerramienta(operationId: string): string {
-  const [controlador, metodo] = operationId.split('_');
+  const [controlador, ...partes] = operationId.split('_');
+  const metodo = partes.join('_');
   const grupo = controlador.replace(/Controller$/, '');
   return `${grupo.charAt(0).toLowerCase()}${grupo.slice(1)}.${metodo}`;
 }
@@ -102,7 +103,8 @@ export function herramientasPara(input: {
   return CATALOGO.filter(
     (h) =>
       (h.modulo === null || input.modulosActivos.has(h.modulo)) &&
-      (h.permiso === null || input.permisos.has(h.permiso)),
+      (h.permiso === null || input.permisos.has(h.permiso)) &&
+      (h.nombre !== 'gmail.get_threads' || (input.modulosActivos.has('crm') && input.permisos.has('crm.contacts.read'))),
   );
 }
 

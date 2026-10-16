@@ -12,6 +12,9 @@ import { withTenant } from '@iaxti/db';
 import { guardarRespuesta, reservarLlave, soltarLlave } from '@iaxti/core';
 import type { WithRequestId } from './request-id';
 
+// OAuth devuelve state/nonce una sola vez: esa respuesta nunca se persiste.
+export const RESPUESTA_SENSIBLE = 'iaxti:sensitive-response';
+
 /**
  * Idempotency-Key (SPEC §28): la cabecera estaba documentada en el OpenAPI y
  * permitida por CORS desde el primer día, y no la leía nadie. Un POST
@@ -26,6 +29,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
   constructor(private readonly pool: Pool) {}
 
   intercept(context: ExecutionContext, next: CallHandler) {
+    if (Reflect.getMetadata(RESPUESTA_SENSIBLE, context.getHandler())) return next.handle();
     const request = context.switchToHttp().getRequest<WithRequestId>();
     const response = context.switchToHttp().getResponse<Response>();
     const key = request.headers['idempotency-key'];
@@ -79,7 +83,11 @@ export class IdempotenciaInterceptor implements NestInterceptor {
           concatMap((body) =>
             from(
               withTenant(this.pool, tenantId, (c) =>
-                guardarRespuesta(c, { tenantId, key, status: response.statusCode, body }),
+                guardarRespuesta(c, response.getHeader('X-Iaxti-Personal-Context') === '1'
+                  ? { tenantId, key, status: 409, body: { code: 'PERSONAL_RESPONSE_NOT_STORED',
+                    message: 'Por privacidad no guardamos esta respuesta personal. Haz una nueva consulta para verla otra vez.',
+                    requestId: request.requestId ?? '', details: [] } }
+                  : { tenantId, key, status: response.statusCode, body }),
               ),
             ).pipe(
               // Si la escritura falla, el pedido NO se cae: el cliente ya tiene
