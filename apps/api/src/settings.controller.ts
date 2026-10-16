@@ -174,7 +174,7 @@ export class SettingsController {
     await olvidarEnCache(apiRedis(), { clave: 'retencion', tenantId: actor.tenantId });
     return withTenant(pool(), actor.tenantId, async (c) => {
       try {
-        await setRetentionOverride(c, { tenantId: actor.tenantId, months: body?.months ?? null });
+        await setRetentionOverride(c, { tenantId: actor.tenantId, months: body?.months ?? null, actor: actor.userId });
       } catch (err) {
         throw new BadRequestException({ code: 'RETENTION_INVALID', message: (err as Error).message });
       }

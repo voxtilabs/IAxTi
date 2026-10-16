@@ -1,4 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
+import { withTenant } from '@iaxti/db';
+import { writeAudit } from '@iaxti/module-audit';
+import { editarLimitesDelPlan, guardarRetencionTenant, leerRetencionTenant, type CambiosDelPlan } from '@iaxti/module-organizations';
 import type { ModuleRegistry } from '@iaxti/core';
 import { quienesSonEnLaPlataforma, quienFue, type Quien } from '@iaxti/module-identity';
 
@@ -54,62 +57,28 @@ export async function listPlans(client: Pick<Pool, 'query'>): Promise<PlanRow[]>
   return r.rows.map(rowToPlan);
 }
 
-// Sin anotar `Record<string, string>`: con ella, `keyof typeof` es `string`,
-// así que el `changes` de abajo quedaba `Partial<Record<string, number|null>>`
-// y el `modules?: string[]` del intersect colapsaba a `undefined` — o sea,
-// pasar módulos era intipable, y un nombre de campo mal escrito tampoco se
-// cazaba. Con `as const` el keyof son las ocho llaves de verdad.
-const CAMPOS_EDITABLES = {
-  priceClp: 'price_clp',
-  metaIncludedUsd: 'meta_included_usd',
-  iaBudgetUsd: 'ia_budget_usd',
-  whatsappNumbers: 'whatsapp_numbers',
-  conversationsMonth: 'conversations_month',
-  iaExecutionsMonth: 'ia_executions_month',
-  retentionMonths: 'retention_months',
-  apiRequestsMonth: 'api_requests_month',
-} as const satisfies Record<string, string>;
-
-/** Edita el plan SIN desplegar. Cada cambio queda en platform_audit. */
+/** La plataforma abre la transacción y organizations valida/escribe sus límites. */
 export async function updatePlan(
-  client: Pick<Pool, 'query'>,
-  input: {
-    plan: string;
-    changes: Partial<Record<keyof typeof CAMPOS_EDITABLES, number | null>> & { modules?: string[] };
-    knownModules: string[];
-    adminUser: string;
-  },
+  pool: Pool,
+  input: { plan: string; changes: CambiosDelPlan; knownModules: string[]; adminUser: string },
 ): Promise<PlanRow> {
-  const sets: string[] = [];
-  const valores: unknown[] = [input.plan];
-  for (const [campo, columna] of Object.entries(CAMPOS_EDITABLES)) {
-    const valor = (input.changes as Record<string, unknown>)[campo];
-    if (valor === undefined) continue;
-    if (valor !== null && !(Number(valor) >= 0)) {
-      throw new Error(`El valor de ${campo} no se entiende (número ≥ 0 o null).`);
-    }
-    valores.push(valor);
-    sets.push(`${columna} = $${valores.length}`);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const row = await editarLimitesDelPlan(client, {
+      ...input, actor: input.adminUser,
+      auditar: async (c, cambio) => platformAudit(c, cambio.actor, 'platform.plan.update', {
+        plan: cambio.plan, changes: cambio.changes,
+      }),
+    });
+    await client.query('COMMIT');
+    return rowToPlan(row);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
-  if (input.changes.modules !== undefined) {
-    const fuera = input.changes.modules.filter((m) => !input.knownModules.includes(m));
-    if (fuera.length > 0) {
-      throw new Error(`Estos módulos no existen: ${fuera.join(', ')}.`);
-    }
-    valores.push(JSON.stringify(input.changes.modules));
-    sets.push(`modules = $${valores.length}`);
-  }
-  if (sets.length === 0) throw new Error('No llegó ningún cambio.');
-  const r = await client.query(
-    `UPDATE plan_limits SET ${sets.join(', ')} WHERE plan = $1 RETURNING *`,
-    valores,
-  );
-  if (r.rowCount === 0) throw new Error(`Plan desconocido: ${input.plan}.`);
-  await platformAudit(client, input.adminUser, 'platform.plan.update', {
-    plan: input.plan,
-    changes: input.changes,
-  });
-  return rowToPlan(r.rows[0]);
 }
 
 export interface ModuleAdminRow {
@@ -236,19 +205,9 @@ export async function tenantRetentionPreview(
   client: PoolClient,
   tenantId: string,
 ): Promise<{ months: number | null; cutoff: Date | null; wouldPurge: number }> {
-  const r = await client.query(
-    `SELECT pl.retention_months,
-            (t.settings->'retencion'->>'monthsOverride')::int AS override
-       FROM tenants t LEFT JOIN plan_limits pl ON pl.plan = t.plan
-      WHERE t.id = $1`,
-    [tenantId],
-  );
-  if (r.rowCount === 0) throw new Error('No encontramos ese tenant.');
-  const delPlan = r.rows[0].retention_months === null ? null : Number(r.rows[0].retention_months);
-  const crudo = Number(r.rows[0].override);
-  const override = Number.isFinite(crudo) && crudo > 0 ? crudo : null;
-  const months =
-    override !== null && (delPlan === null || override <= delPlan) ? override : delPlan;
+  const retencion = await leerRetencionTenant(client, tenantId);
+  if (!retencion) throw new Error('No encontramos ese tenant.');
+  const { months } = retencion;
   if (months === null) return { months: null, cutoff: null, wouldPurge: 0 };
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
@@ -265,33 +224,19 @@ export async function setRetentionOverridePlatform(
   pool: Pool,
   input: { tenantId: string; months: number | null; adminUser: string },
 ): Promise<{ months: number | null; cutoff: Date | null; wouldPurge: number }> {
-  if (input.months !== null) {
-    if (!(Number(input.months) >= 1)) throw new Error('La retención mínima es de 1 mes.');
-    const r = await pool.query(
-      `SELECT pl.retention_months FROM tenants t
-         LEFT JOIN plan_limits pl ON pl.plan = t.plan WHERE t.id = $1`,
-      [input.tenantId],
-    );
-    if (r.rowCount === 0) throw new Error('No encontramos ese tenant.');
-    const delPlan = r.rows[0].retention_months;
-    if (delPlan !== null && Number(input.months) > Number(delPlan)) {
-      throw new Error(`El plan retiene hasta ${delPlan} meses: el override no puede superarlo.`);
-    }
-  }
-  await pool.query(
-    `UPDATE tenants SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{retencion}',
-       COALESCE(settings->'retencion', '{}'::jsonb) || jsonb_build_object('monthsOverride', $2::int))
-      WHERE id = $1`,
-    [input.tenantId, input.months],
-  );
-  await platformAudit(pool, input.adminUser, 'platform.tenant.retention_override', {
-    tenantId: input.tenantId,
-    months: input.months,
+  return withTenant(pool, input.tenantId, async (client) => {
+    await guardarRetencionTenant(client, {
+      tenantId: input.tenantId, monthsOverride: input.months,
+      auditoria: {
+        actor: input.adminUser, actorKind: 'superadmin',
+        registrar: async (c, entrada) => {
+          await writeAudit(c, entrada);
+          await platformAudit(c, entrada.actor, 'platform.tenant.retention_override', {
+            tenantId: input.tenantId, months: input.months,
+          });
+        },
+      },
+    });
+    return tenantRetentionPreview(client, input.tenantId);
   });
-  const client = await pool.connect();
-  try {
-    return await tenantRetentionPreview(client, input.tenantId);
-  } finally {
-    client.release();
-  }
 }

@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
+import { marcarAvisoDeBorrado } from '@iaxti/module-organizations';
 
 /**
  * El final del ciclo de vida del tenant (issue 218, SPEC §6).
@@ -90,19 +91,12 @@ export async function avisarBorradoPendiente(
   for (const fila of pendientes.rows) {
     const tenantId = fila.id as string;
     try {
-      await withTenant(pool, tenantId, async (client) => {
-        // Se relee dentro de la transacción: entre la consulta de arriba y
-        // esto, alguien pudo reactivar la cuenta desde el panel.
-        const actual = await client.query(
-          `SELECT state, name, deletion_warned_at,
-                  EXTRACT(DAY FROM now() - state_since)::int AS dias
-             FROM tenants WHERE id = $1 FOR UPDATE`,
-          [tenantId],
-        );
-        const t = actual.rows[0];
-        if (!t || t.state !== 'suspended' || t.deletion_warned_at) return;
-
-        await client.query('UPDATE tenants SET deletion_warned_at = now() WHERE id = $1', [tenantId]);
+      const avisado = await withTenant(pool, tenantId, async (client) => {
+        const t = await marcarAvisoDeBorrado(client, {
+          tenantId, diasMinimos: DIAS_HASTA_AVISAR,
+          auditoria: { actor: 'system', actorKind: 'system', registrar: writeAudit },
+        });
+        if (!t) return false;
         await publishEvent(client, {
           name: 'tenant.deletion_warned',
           tenantId,
@@ -112,18 +106,9 @@ export async function avisarBorradoPendiente(
           },
           actor: 'system',
         });
-        await writeAudit(client, {
-          tenantId,
-          actor: 'system',
-          actorKind: 'system',
-          action: 'tenant.deletion_warned',
-          resource: 'tenant',
-          resourceId: tenantId,
-          result: 'ok',
-          metadata: { diasSuspendido: t.dias, name: t.name },
-        });
-        avisados += 1;
+        return true;
       });
+      if (avisado) avisados += 1;
     } catch (err) {
       // Un tenant que falla no puede dejar sin avisar a los demás.
       console.error(`aviso de borrado: ${tenantId} falló`, (err as Error).message);

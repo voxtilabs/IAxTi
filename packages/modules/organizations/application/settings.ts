@@ -2,7 +2,7 @@ import { publishEvent } from '@iaxti/core';
 import type { PoolClient } from 'pg';
 
 // Ajustes del tenant (tenants.settings jsonb, SPEC §39): cada módulo guarda
-// su rincón bajo una clave propia (bandeja, retencion, …) y valida su forma.
+// su rincón bajo una clave propia. Retención tiene su contrato específico.
 
 export async function getTenantSettings(
   client: PoolClient,
@@ -19,6 +19,9 @@ export async function updateTenantSettings(
   tenantId: string,
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  if (Object.hasOwn(patch, 'retencion')) {
+    throw new Error('La retención se guarda mediante su contrato específico.');
+  }
   const r = await client.query(
     `UPDATE tenants SET settings = settings || $2::jsonb WHERE id = $1 RETURNING settings`,
     [tenantId, JSON.stringify(patch)],
