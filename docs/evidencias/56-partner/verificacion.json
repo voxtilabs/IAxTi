@@ -82,5 +82,25 @@
     "No video ni recorrido staging cronometrado.",
     "Sin transacción distribuida: respuesta remota perdida requiere recuperación explícita.",
     "No cierre de issue, merge ni despliegue."
-  ]
+  ],
+  "ci_orchestration_followup": {
+    "general_collection_count": 99,
+    "general_collection_files": 20,
+    "general_test_execution_claimed": false,
+    "partner_fixture_absent_during_general_collection": true,
+    "partner_run": "3 passed (26.7s)",
+    "fresh_database_prepared_by_runner": true,
+    "respects_redis_url": true,
+    "role_permissions_verified": true,
+    "lint_errors": 0,
+    "lint_existing_warnings": 4,
+    "web_typecheck": "passed",
+    "ci_step": "e2e:partner obligatorio posterior al general",
+    "logs_sha256": {
+      "collection-56-partner-general-final.log": "65275db927488e259efbd02f6488b8ce62bb9ebe8ddfbdf7ad31488cd44e57c7",
+      "e2e-56-partner-ci-fix.log": "05e6ed7da5935ef5101bb5318a921e89208368f45d1aec90b98ce272b9c89dc5",
+      "lint-56-partner-ci-fix.log": "f572824f54866e0b7a7a2275e761cbe60eadde861fc65c65a145b98e895697c7",
+      "types-56-partner-ci-fix.log": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92"
+    }
+  }
 }

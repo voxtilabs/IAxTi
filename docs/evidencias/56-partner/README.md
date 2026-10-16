@@ -119,11 +119,14 @@ mediante merges explícitos sobre la implementación previa de #56 (`7d54fca`).
 pnpm install --frozen-lockfile
 pnpm build
 TODO=1 pnpm antes-de-empujar
-node apps/web/e2e/run-partner.mjs
+pnpm --filter @iaxti/web e2e:partner
 ```
 
-Requieren `DATABASE_URL` de una base `iaxti_test_*`, `APP_DATABASE_URL` con rol
-sin bypass y Redis aislado. El arnés usa puertos 4071–4073 y Redis10 local;
+Requieren `DATABASE_URL` de una base local `iaxti_test_*`, `APP_DATABASE_URL`
+para la misma base con rol `iaxti_app` sin bypass y `REDIS_URL` local con DB1–15.
+El arnés crea la base y el rol de pruebas si faltan, nunca altera un rol ya
+existente y comprueba sus permisos antes de arrancar la API. Usa puertos
+4071–4073; CI elige una base propia y Redis10;
 guarda solo JWT sintéticos en un archivo ignorado y lo elimina al terminar.
 El comando E2E exige un build coherente de Next; no demuestra login de Google,
 permisos comerciales de Zavu ni entrega real de Meta.
@@ -194,3 +197,20 @@ captura de pantalla completa ni el panel del proveedor real.
 [Resumen verificable](verificacion.json) contiene conteos, huellas de los logs y
 límites. C4 queda implementado y probado con contratos HTTP sintéticos; la
 aceptación externa de #56 continúa pendiente.
+
+
+## Separación del E2E general y CI
+
+`playwright.config.ts` excluye únicamente `partner-invitations.spec.ts`, cuya
+fixture JWT/worker es distinta. No se omite la prueba: CI ejecuta el script
+`e2e:partner` en un paso obligatorio posterior al E2E general, contra
+`iaxti_test_partner_e2e` y Redis10. No depende de que los tests de Turbo hayan
+creado roles/base, ni usa puertos de Redis particulares de una máquina.
+
+La comprobación con el arnés general `e2e --list`, sin `.partner-auth.json`,
+recogió 99 pruebas de 20 archivos. Es validación de colección, no ejecución de
+esas 99 pruebas. La ejecución separada `e2e:partner` creó una base nueva y
+aprobó 3/3 recorridos en 26,7 s. Lint (cero errores, cuatro avisos existentes),
+tipos de web y sintaxis/orden del workflow aprobados. El preflight completo
+anterior corresponde al código de producto sin cambios; este seguimiento
+solo corrige configuración/orquestación de las pruebas y documenta su evidencia.

@@ -3,12 +3,12 @@
 import {createServer} from 'node:http';
 import {spawn} from 'node:child_process';
 import {createRequire} from 'node:module';
-import {cpSync,existsSync,mkdirSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {cpSync,existsSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHmac,randomUUID} from 'node:crypto';
 import {SignJWT,exportJWK,generateKeyPair} from 'jose';
-import {createPool,runMigrations,withTenant} from '@iaxti/db';
+import {createPool,runMigrations,withTenant,permisosDelRol} from '@iaxti/db';
 import {createInvitation,acceptInvitation} from '@iaxti/module-identity';
 import {porQueNoCorrer} from './build-coherente.mjs';
 const here=dirname(fileURLToPath(import.meta.url)),root=resolve(here,'../../..');
@@ -18,13 +18,41 @@ const {createGoogleSecretStore}=createRequire(join(root,'packages/modules/whatsa
 const {partnerPorts,processPartnerInvitation}=require('@iaxti/module-whatsapp');
 const {createModuleWorker,redisConnection}=require('@iaxti/core');
 const ownerUrl=process.env.DATABASE_URL,appUrl=process.env.APP_DATABASE_URL;
-if(!ownerUrl||!appUrl||!new URL(ownerUrl).pathname.startsWith('/iaxti_test_'))throw new Error('Solo base iaxti_test_ y rol RLS.');
+const redisUrl=process.env.REDIS_URL;
+if(!ownerUrl||!appUrl||!redisUrl)throw new Error('Configura DATABASE_URL, APP_DATABASE_URL y REDIS_URL de pruebas.');
+const owner=new URL(ownerUrl),application=new URL(appUrl),queue=new URL(redisUrl);
+const local=url=>['127.0.0.1','localhost','[::1]'].includes(url.hostname);
+if(!local(owner)||!local(application)||!/^\/iaxti_test_[a-z0-9_]+$/.test(owner.pathname)||
+ application.host!==owner.host||application.pathname!==owner.pathname||application.username!=='iaxti_app'||
+ !local(queue)||queue.protocol!=='redis:'||!/^\/(?:[1-9]|1[0-5])$/.test(queue.pathname)){
+ throw new Error('El arnés exige una base local iaxti_test_ compartida por dueño/iaxti_app y Redis local aislado (DB1–15).');
+}
+// CI puede recuperar todos los tests de caché: preparar la base/rol aquí evita
+// depender de que otra suite los haya creado. Nunca altera un rol existente.
+async function prepareDatabase(){
+ const adminUrl=new URL(owner);adminUrl.pathname='/postgres';const admin=createPool(adminUrl.toString());
+ try{
+  await admin.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='iaxti_app') THEN
+   CREATE ROLE iaxti_app LOGIN PASSWORD 'iaxti_app' NOSUPERUSER NOBYPASSRLS; END IF; END $$`);
+  const database=owner.pathname.slice(1);
+  if(!(await admin.query('SELECT 1 FROM pg_database WHERE datname=$1',[database])).rowCount)await admin.query(`CREATE DATABASE "${database}"`);
+ }finally{await admin.end();}
+}
+async function checkApplicationRole(){
+ const connection=createPool(appUrl);
+ try{
+  const result=await permisosDelRol(connection);
+  if(!result.listo)throw new Error('El rol iaxti_app de prueba no cumple RLS/permisos; no se modifica automáticamente.');
+  console.log('partner e2e: rol iaxti_app verificado, sin BYPASSRLS y permisos completos.');
+ }finally{await connection.end();}
+}
 const apiPort=4071,webPort=4072,fixturePort=4073,fixtureBase=`http://127.0.0.1:${fixturePort}`,issuer=`${fixtureBase}/auth/v1`;
 const children=[],invitations=new Map(),senders=new Map(),secrets=new Map();
 let app,fixture,worker,redis,db,failRotation=false,created=0,rotated=0;
 const launch=(command,args,env,cwd=root)=>{const c=spawn(command,args,{cwd,stdio:'inherit',env:{...process.env,...env}});children.push(c);return c;};
 async function ready(url){for(let i=0;i<60;i++){try{if((await fetch(url)).ok)return;}catch{}await new Promise(r=>setTimeout(r,500));}throw new Error('Servidor de prueba no disponible.');}
 try{
+ await prepareDatabase();
  const {publicKey,privateKey}=await generateKeyPair('ES256');const key={...await exportJWK(publicKey),alg:'ES256',kid:'partner-e2e'};
  fixture=createServer(async(req,res)=>{
   try{
@@ -76,9 +104,10 @@ try{
   const accessToken=await new SignJWT({}).setProtectedHeader({alg:'ES256',kid:key.kid}).setSubject(userId).setIssuer(issuer).setIssuedAt().setExpirationTime('1h').sign(privateKey);
   auth.push({mode,userId,tenantId:tenant.id,accessToken});
  }
- await db.query('GRANT USAGE ON SCHEMA public TO iaxti_app; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO iaxti_app; GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_app; REVOKE UPDATE,DELETE ON audit_log FROM iaxti_app');
+ await db.query('GRANT USAGE ON SCHEMA public TO iaxti_app; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO iaxti_app; GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_app; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO iaxti_app; REVOKE UPDATE,DELETE ON audit_log,platform_audit FROM iaxti_app; REVOKE INSERT,UPDATE,DELETE ON schema_migrations FROM iaxti_app');
+ await checkApplicationRole();
  writeFileSync(join(here,'.partner-auth.json'),JSON.stringify(auth));
- Object.assign(process.env,{DATABASE_URL:appUrl,REDIS_URL:'redis://127.0.0.1:56379/10',SUPABASE_JWKS_URL:`${issuer}/.well-known/jwks.json`,IAXTI_ENV:'e2e',ZAVU_API_KEY:'synthetic_key',ZAVU_API_BASE:`${fixtureBase}/v1`,ZAVU_PARTNER_PROJECT_ID:'project_synthetic',ZAVU_PARTNER_API_URL:'https://api.example.test',ZAVU_PARTNER_WEBHOOK_SECRET:'synthetic_project_signature',ZAVU_ENVIOS_REALES:'0',GOOGLE_SECRET_PROJECT_ID:'test-project',GOOGLE_SECRET_LOCATION:'southamerica-west1'});
+ Object.assign(process.env,{DATABASE_URL:appUrl,REDIS_URL:redisUrl,SUPABASE_JWKS_URL:`${issuer}/.well-known/jwks.json`,IAXTI_ENV:'e2e',ZAVU_API_KEY:'synthetic_key',ZAVU_API_BASE:`${fixtureBase}/v1`,ZAVU_PARTNER_PROJECT_ID:'project_synthetic',ZAVU_PARTNER_API_URL:'https://api.example.test',ZAVU_PARTNER_WEBHOOK_SECRET:'synthetic_project_signature',ZAVU_ENVIOS_REALES:'0',GOOGLE_SECRET_PROJECT_ID:'test-project',GOOGLE_SECRET_LOCATION:'southamerica-west1'});
  const {createApp}=require(join(root,'apps/api/dist/main.js'));
  const {registry}=require(join(root,'apps/api/dist/registry.js'));
  const {PARTNER_HTTP}=require(join(root,'apps/api/dist/partner-invitations.controller.js'));
