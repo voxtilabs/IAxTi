@@ -375,7 +375,7 @@ historia, y que cada intención de compra sea una oportunidad con etapa y dueño
 ADMIN habilite "ver todo el equipo".
 
 **Eventos:** `contact.created`, `contact.updated`, `contact.merged`,
-`contact.opted_out`, `deal.created`, `deal.stage_changed`, `deal.won`, `deal.lost`,
+`contact.opted_out`, `contact.anonymized`, `deal.created`, `deal.stage_changed`, `deal.won`, `deal.lost`,
 `deal.stalled`, `activity.due`.
 
 **Tools para la IA:** `crm.find_contact`, `crm.create_contact`, `crm.update_contact`,

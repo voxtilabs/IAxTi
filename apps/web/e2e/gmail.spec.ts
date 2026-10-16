@@ -29,6 +29,11 @@ for(const mode of ['dia','noche'])test(`Gmail personal en ficha, PKCE, estados y
   expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('iaxti-google-oauth:')).length)).toBe(0);
   await expect(page.locator('meta[name=referrer]')).toHaveAttribute('content','no-referrer');
   const callbackSection=page.locator('section').filter({has:page.getByRole('heading',{name:'Conexión de Gmail'})});
+  const callbackLink=page.getByRole('link',{name:'Volver a contactos'});
+  expect(await callbackLink.evaluate(el=>{
+    const lum=(value:string)=>{const c=(value.match(/[\d.]+/g)??[]).slice(0,3).map(Number).map(n=>n/255<=0.04045?n/255/12.92:((n/255+0.055)/1.055)**2.4);return c[0]!*0.2126+c[1]!*0.7152+c[2]!*0.0722;};
+    const ink=lum(getComputedStyle(el).color),bg=lum(getComputedStyle(el.closest('section')!).backgroundColor);return(Math.max(ink,bg)+0.05)/(Math.min(ink,bg)+0.05);
+  })).toBeGreaterThanOrEqual(4.5);
   await callbackSection.screenshot({path:join(dest,`gmail-${mode}-360-callback.png`)});
   await page.goto(`/contactos/${auth.contactId}`);await expect(panel.getByText('Cotización más reciente')).toBeVisible();await expect(panel.getByRole('listitem')).toHaveCount(2);
   expect(await panel.getByRole('heading',{level:3}).allTextContents()).toEqual(['Cotización más reciente','Primera consulta']);
@@ -39,6 +44,7 @@ for(const mode of ['dia','noche'])test(`Gmail personal en ficha, PKCE, estados y
   phase='empty';await panel.getByRole('button',{name:'Consultar de nuevo'}).click();await expect(panel.getByText('Sin correos con este contacto')).toBeVisible();await panel.screenshot({path:join(dest,`gmail-${mode}-360-vacio.png`)});
   await panel.getByRole('button',{name:'Revocar permisos Google'}).click();const dialog=page.getByRole('dialog');await expect(dialog.getByText(/Calendar, Drive y los usados en otros negocios/)).toBeVisible();const confirm=dialog.getByRole('button',{name:'Confirmar revocación'});
   for(let i=0;i<8&&!(await confirm.evaluate(el=>el===document.activeElement));i++)await page.keyboard.press('Tab');await expect(confirm).toBeFocused();
+  expect(await confirm.evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);const text=range.getBoundingClientRect(),button=el.getBoundingClientRect();return text.top>=button.top&&text.bottom<=button.bottom&&text.left>=button.left&&text.right<=button.right;})).toBe(true);
   await dialog.screenshot({path:join(dest,`gmail-${mode}-360-revocar.png`)});await page.keyboard.press('Enter');await expect(panel.getByText('Sin conectar')).toBeVisible();expect(revoke).toBe(1);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

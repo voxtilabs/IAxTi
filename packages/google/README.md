@@ -112,7 +112,7 @@ pide cuerpos, raw ni adjuntos. `createGooglePubSubVerifier` verifica el ID token
 OIDC con google-auth-library, audiencia, issuer, vida máxima de una hora, cuenta
 de servicio exacta y email verificado. La caché de certificados permite rotación
 compartida entre factories, con una solicitud en vuelo, limita refrescos por kid
-desconocido a uno por minuto y aborta la consulta de certificados a los650ms. El caller aún debe
+desconocido a uno por minuto y aborta la consulta de certificados a los 650 ms. El caller aún debe
 validar la suscripción y el envelope, autorizar y auditar cada lectura.
 
 Fuentes: [Gmail threads](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads/get),

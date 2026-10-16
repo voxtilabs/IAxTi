@@ -21,7 +21,7 @@ afterAll(async()=>{port.pool=oldPool;port.enqueue=oldQueue;await app.close();});
 const post=(path:string,body:unknown={},extra:Record<string,string>={})=>fetch(`${base}${path}`,{method:'POST',headers:{...headers,...extra},body:JSON.stringify(body)});
 describe('Gmail HTTP: sesión personal, permisos y contrato',()=>{
   it('USER conecta con actor verificado y no acepta actor/email/query del navegador',async()=>{service.start.mockResolvedValue({state:challenge,nonce:challenge,url:'https://accounts.google.com/o/oauth2/v2/auth'});
-    const response=await post('/v1/integraciones/gmail/iniciar',{challenge},{'X-User-Id':'attacker','X-Role':'ADMIN'});expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');expect(service.start).toHaveBeenCalledWith(expect.anything(),{tenantId:'tenant-a',userId:'verified-user',challenge},expect.anything(),null);
+    const response=await post('/v1/integraciones/gmail/iniciar',{challenge},{'X-User-Id':'attacker','X-Role':'ADMIN',Origin:'https://web.example.test'});expect(response.status).toBe(200);expect(response.headers.get('access-control-expose-headers')).toContain('X-Iaxti-Personal-Context');expect(response.headers.get('cache-control')).toBe('no-store');expect(service.start).toHaveBeenCalledWith(expect.anything(),{tenantId:'tenant-a',userId:'verified-user',challenge},expect.anything(),null);
     expect((await post('/v1/integraciones/gmail/iniciar',{challenge,userId:'other'})).status).toBe(400);
     expect((await fetch(`${base}/v1/integraciones/gmail/hilos?contactId=${contactId}&email=other@example.com`,{headers})).status).toBe(400);expect(service.threads).not.toHaveBeenCalled();
   });

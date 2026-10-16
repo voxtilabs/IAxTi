@@ -62,7 +62,7 @@ function Panel({apiUrl,token,tenantId,userId,contactId,email,canConnect}:{apiUrl
         {linked&&canConnect&&<Button variant="fantasma" disabled={busy} onClick={()=>setConfirm(true)}>Revocar permisos Google</Button>}
       </div>
     </>}
-    <Dialog open={confirm} onOpenChange={v=>{if(!busy)setConfirm(v);}}><DialogContent><DialogHeader><DialogTitle>Revocar permisos de Google</DialogTitle><DialogDescription>Google retirará todos los permisos de esta cuenta concedidos a IAxTi, también Calendar, Drive y los usados en otros negocios. Para volver a usarlos tendrás que autorizar de nuevo.</DialogDescription></DialogHeader><Notice error={error}/><DialogFooter><Button variant="fantasma" disabled={busy} onClick={()=>setConfirm(false)}>Volver</Button><Button disabled={busy} onClick={()=>void revoke()}>{busy?'Revocando…':'Confirmar revocación'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={confirm} onOpenChange={v=>{if(!busy)setConfirm(v);}}><DialogContent><DialogHeader><DialogTitle>Revocar permisos de Google</DialogTitle><DialogDescription>Google retirará todos los permisos de esta cuenta concedidos a IAxTi, también Calendar, Drive y los usados en otros negocios. Para volver a usarlos tendrás que autorizar de nuevo.</DialogDescription></DialogHeader><Notice error={error}/><DialogFooter className="flex-col sm:flex-row"><Button variant="fantasma" disabled={busy} onClick={()=>setConfirm(false)}>Volver</Button><Button disabled={busy} onClick={()=>void revoke()}>{busy?'Revocando…':'Confirmar revocación'}</Button></DialogFooter></DialogContent></Dialog>
   </section>;
 }
 export function GmailCallback(){

@@ -60,7 +60,10 @@ su solicitud. Al usar Gmail o Drive personal, omite textos, argumentos y resulta
 en agent_executions, trazas Langfuse y respuestas persistidas de idempotencia;
 conserva métricas y pasos. El marcador continúa en las preguntas siguientes del
 hilo en memoria, también tras error parcial. Cambiar usuario o negocio descarta ese
-hilo. Un reintento de una respuesta personal con la misma llave devuelve un error
+hilo. Los resultados de herramientas Google personales y los mensajes de ese
+hilo marcado aplican la política de redacción PII del tenant antes del modelo;
+la omisión de contenido en trazas y DB se conserva incluso si se desactiva
+redactPII. Un reintento de una respuesta personal con la misma llave devuelve un error
 explícito sin volver a ejecutar la acción ni recuperar una copia persistida.
 
 ## Aceptación externa pendiente
