@@ -882,6 +882,15 @@ billing         invoice.issued · invoice.paid · invoice.overdue · subscriptio
                 tenant.deletion_warned
 ```
 
+El payload de `payment.received` incluye `ownerId: string | null`: el responsable
+de la conversación leído por el productor al confirmar el pago (#904). El aviso
+conserva ese destinatario aunque después se reasigne la conversación, además de
+la supervisión habitual. Eventos antiguos sin `ownerId` usan solo esa regla de
+supervisión. Los avisos dirigidos de `activity.due` y `note.mentioned` ya llevan
+`ownerId` y `mentions`, respectivamente; los demás avisos se rutean al equipo por
+permiso/función y no necesitan completar datos de conversaciones.
+
+
 Agregar un evento es editar el manifiesto del módulo que lo publica y esta
 lista. **Y hay una guarda que lo comprueba** (`packages/core/tests/catalogo-de-eventos.test.ts`):
 esta lista y los `events.publishes` de los diecinueve manifiestos tienen que
