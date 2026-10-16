@@ -31,3 +31,6 @@ export type {
 } from './domain/providers';
 
 export { flowConfig } from './domain/flow-config';
+
+// Supresión legal coordinada por CRM en una única transacción (#903).
+export { suprimirDatosDelTitular } from './application/titular';

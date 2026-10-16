@@ -188,3 +188,6 @@ export {
   TareaQueElProveedorNoAtiende,
 } from './application/defecto-de-la-plataforma';
 export type { DefectoDeLaTarea } from './application/defecto-de-la-plataforma';
+
+// Supresión legal coordinada por CRM en una única transacción (#903).
+export { suprimirDatosDelTitular } from './application/titular';

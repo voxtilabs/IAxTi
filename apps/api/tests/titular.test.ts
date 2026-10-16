@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
-import { ensureContactByIdentity } from '../application/contacts';
-import { exportarTitular, suprimirTitular } from '../application/titular';
+import { ensureContactByIdentity, exportarTitular, suprimirTitular } from '@iaxti/module-crm';
+import { exportarDatosDelTitular } from '@iaxti/module-conversations';
+import { supresionEnModulos } from '../src/supresion-titular';
 
 // Derechos del titular (#81, Ley 21.719): acceso/portabilidad y supresión.
 
@@ -82,7 +83,7 @@ function almacenFalso(modo: 'borra' | 'falla' = 'borra') {
 describe('derecho de acceso y portabilidad (#81)', () => {
   it('entrega todo lo que tenemos de la persona, mensajes incluidos', async () => {
     const doc = await withTenant(admin, tenant, (c) =>
-      exportarTitular(c, { tenantId: tenant, contactId, actor: duena }),
+      exportarTitular(c, { leerConversaciones: exportarDatosDelTitular, tenantId: tenant, contactId, actor: duena }),
     );
     expect(doc.contacto.name).toBe('María Paz');
     expect(doc.identidades).toHaveLength(1);
@@ -102,7 +103,7 @@ describe('derecho de acceso y portabilidad (#81)', () => {
   it('una persona que no es de este negocio no se exporta', async () => {
     await expect(
       withTenant(admin, tenant, (c) =>
-        exportarTitular(c, { tenantId: tenant, contactId: randomUUID(), actor: duena }),
+        exportarTitular(c, { leerConversaciones: exportarDatosDelTitular, tenantId: tenant, contactId: randomUUID(), actor: duena }),
       ),
     ).rejects.toThrow(/No encontramos/);
   });
@@ -112,7 +113,7 @@ describe('derecho de supresión (#81)', () => {
   it('exige el motivo: es parte de la evidencia', async () => {
     await expect(
       withTenant(admin, tenant, (c) =>
-        suprimirTitular(c, { tenantId: tenant, contactId, actor: duena, motivo: '  ', almacen: null }),
+        suprimirTitular(c, { modulos: supresionEnModulos, tenantId: tenant, contactId, actor: duena, motivo: '  ', almacen: null }),
       ),
     ).rejects.toThrow(/motivo/);
   });
@@ -121,7 +122,7 @@ describe('derecho de supresión (#81)', () => {
     const bucket = almacenFalso('falla');
     await expect(
       withTenant(admin, tenant, (c) =>
-        suprimirTitular(c, {
+        suprimirTitular(c, { modulos: supresionEnModulos,
           tenantId: tenant,
           contactId,
           actor: duena,
@@ -146,7 +147,7 @@ describe('derecho de supresión (#81)', () => {
   it('sin almacenamiento configurado tampoco: se avisa qué variable falta', async () => {
     await expect(
       withTenant(admin, tenant, (c) =>
-        suprimirTitular(c, {
+        suprimirTitular(c, { modulos: supresionEnModulos,
           tenantId: tenant,
           contactId,
           actor: duena,
@@ -162,7 +163,7 @@ describe('derecho de supresión (#81)', () => {
   it('borra a la persona y su contenido, pero conserva el rastro del trato', async () => {
     const bucket = almacenFalso();
     const res = await withTenant(admin, tenant, (c) =>
-      suprimirTitular(c, {
+      suprimirTitular(c, { modulos: supresionEnModulos,
         tenantId: tenant,
         contactId,
         actor: duena,
@@ -279,7 +280,7 @@ describe('la supresión no deja copias (issue 235)', () => {
 
   it('el texto de la conversación no sobrevive en ninguna tabla', async () => {
     const res = await withTenant(admin, tenant, (c) =>
-      suprimirTitular(c, {
+      suprimirTitular(c, { modulos: supresionEnModulos,
         tenantId: tenant,
         contactId: otroContacto,
         actor: duena,

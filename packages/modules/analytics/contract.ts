@@ -10,3 +10,6 @@ export { METRICS, DEFINICIONES, TOTAL_OWNER } from './domain/metrics';
 export type { Metric } from './domain/metrics';
 // La definición vive en core: un solo "hoy" para todo el sistema.
 export { diaEn, mesEn, ultimosDias, esDia, TZ_POR_DEFECTO } from '@iaxti/core';
+
+// Supresión legal coordinada por CRM en una única transacción (#903).
+export { suprimirDatosDelTitular } from './application/titular';

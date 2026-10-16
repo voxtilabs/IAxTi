@@ -35,7 +35,16 @@ export interface ExportacionTitular {
  */
 export async function exportarTitular(
   client: PoolClient,
-  input: { tenantId: string; contactId: string; actor: string; requestId?: string },
+  input: {
+    tenantId: string;
+    contactId: string;
+    actor: string;
+    requestId?: string;
+    leerConversaciones: (client: PoolClient, input: { tenantId: string; contactId: string }) => Promise<{
+      conversaciones: Array<Record<string, unknown>>;
+      mensajes: Array<Record<string, unknown>>;
+    }>;
+  },
 ): Promise<ExportacionTitular> {
   const uno = async (sql: string, params: unknown[]) => (await client.query(sql, params)).rows;
 
@@ -52,17 +61,7 @@ export async function exportarTitular(
     'SELECT channel, identity, created_at FROM contact_identities WHERE tenant_id = $1 AND contact_id = $2',
     par,
   );
-  const conversaciones = await uno(
-    'SELECT * FROM conversations WHERE tenant_id = $1 AND contact_id = $2',
-    par,
-  );
-  const mensajes = await uno(
-    `SELECT m.* FROM messages m
-       JOIN conversations c ON c.id = m.conversation_id
-      WHERE m.tenant_id = $1 AND c.contact_id = $2
-      ORDER BY m.created_at`,
-    par,
-  );
+  const { conversaciones, mensajes } = await input.leerConversaciones(client, input);
   const actividades = await uno(
     'SELECT * FROM activities WHERE tenant_id = $1 AND contact_id = $2',
     par,
@@ -136,6 +135,31 @@ export interface ResultadoSupresion {
 }
 
 /**
+ * Puertos conectados por la API con los contract.ts de cada dueño. Inyectarlos
+ * evita el ciclo CRM → conversations → CRM. Son obligatorios: apagar una
+ * función comercial no elimina sus datos ni suspende el derecho del titular.
+ */
+export interface SupresionEnModulos {
+  datos: (client: PoolClient, input: { tenantId: string; contactId: string }) => Promise<{
+    conversationIds: string[];
+    adjuntosR2: string[];
+  }>;
+  agents: (client: PoolClient, input: ParteDeSupresion) => Promise<{ ejecucionesVaciadas: number }>;
+  conversations: (client: PoolClient, input: ParteDeSupresion) => Promise<{ mensajesBorrados: number }>;
+  integrations: (client: PoolClient, input: ParteDeSupresion) => Promise<void>;
+  payments: (client: PoolClient, input: ParteDeSupresion) => Promise<void>;
+  analytics: (client: PoolClient, input: ParteDeSupresion) => Promise<void>;
+}
+
+interface ParteDeSupresion {
+  tenantId: string;
+  contactId: string;
+  conversationIds: string[];
+  actor: string;
+  requestId?: string;
+}
+
+/**
  * Supresión por solicitud. Irreversible a propósito: si quedara una copia
  * "por si acaso", no sería una supresión.
  *
@@ -159,7 +183,6 @@ export async function suprimirTitular(
     actor: string;
     motivo: string;
     requestId?: string;
-    /** El bucket. Se inyecta en tests; en producción sale del ambiente. */
     /**
      * El bucket. OBLIGATORIO y no ambiental: `almacenR2()` lee las `R2_*` al
      * llamarse, y los tests de otros archivos las escriben a nivel de proceso
@@ -168,6 +191,7 @@ export async function suprimirTitular(
      * no es una supresión que se pueda declarar cumplida.
      */
     almacen: AlmacenObjetos | null;
+    modulos: SupresionEnModulos;
   },
 ): Promise<ResultadoSupresion> {
   if (!input.motivo?.trim()) {
@@ -179,109 +203,27 @@ export async function suprimirTitular(
   );
   if (existe.rowCount === 0) throw new Error('No encontramos a esa persona en este negocio.');
 
-  const conversaciones = await client.query(
-    'SELECT id FROM conversations WHERE tenant_id = $1 AND contact_id = $2',
+  const { conversationIds, adjuntosR2: adjuntosPorBorrar } = await input.modulos.datos(client, input);
+  const parte = {
+    tenantId: input.tenantId,
+    contactId: input.contactId,
+    conversationIds,
+    actor: input.actor,
+    requestId: input.requestId,
+  };
+  // En serie, con el MISMO cliente. Agents usa suggestions antes de borrarlas;
+  // cualquier fallo (también de auditoría) se propaga y revierte todo.
+  const { ejecucionesVaciadas } = await input.modulos.agents(client, parte);
+  const { mensajesBorrados } = await input.modulos.conversations(client, parte);
+  await input.modulos.integrations(client, parte);
+  await input.modulos.payments(client, parte);
+  await input.modulos.analytics(client, parte);
+
+  // Las tareas y notas de agenda son texto libre SOBRE esa persona, propiedad de CRM.
+  const actividades = await client.query(
+    'DELETE FROM activities WHERE tenant_id = $1 AND contact_id = $2',
     [input.tenantId, input.contactId],
   );
-  const ids = conversaciones.rows.map((r) => r.id as string);
-
-  // Las llaves de R2 ANTES de borrar los mensajes: después ya no se sabe
-  // cuáles eran, y los adjuntos quedarían huérfanos para siempre.
-  const adjuntosPorBorrar: string[] = [];
-  if (ids.length > 0) {
-    const adjuntos = await client.query(
-      `SELECT jsonb_array_elements(attachments)->>'key' AS key FROM messages
-        WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[])
-          AND jsonb_array_length(attachments) > 0`,
-      [input.tenantId, ids],
-    );
-    for (const fila of adjuntos.rows) if (fila.key) adjuntosPorBorrar.push(fila.key as string);
-  }
-
-  // Los ids de ejecución de IA ANTES de borrar las sugerencias: la sugerencia
-  // es el único puente hacia `agent_executions`, y ahí está guardado el texto
-  // de la conversación tal cual se le mandó al modelo (issue 235). Borrar los
-  // mensajes y dejar esa copia no es una supresión.
-  const ejecuciones: string[] = [];
-  if (ids.length > 0) {
-    const r = await client.query(
-      `SELECT DISTINCT execution_id FROM suggestions
-        WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[]) AND execution_id IS NOT NULL`,
-      [input.tenantId, ids],
-    );
-    for (const fila of r.rows) if (fila.execution_id) ejecuciones.push(fila.execution_id as string);
-  }
-
-  let mensajesBorrados = 0;
-  if (ids.length > 0) {
-    const borrados = await client.query(
-      'DELETE FROM messages WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[])',
-      [input.tenantId, ids],
-    );
-    mensajesBorrados = borrados.rowCount ?? 0;
-    for (const tabla of ['internal_notes', 'suggestions', 'response_samples']) {
-      await client
-        .query(`DELETE FROM ${tabla} WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[])`, [
-          input.tenantId,
-          ids,
-        ])
-        .catch(() => undefined);
-    }
-    // La conversación queda, vacía y marcada: el negocio necesita saber que
-    // hubo un trato con alguien, aunque ya no sepa con quién.
-    await client.query(
-      `UPDATE conversations SET summary = NULL, archived_at = COALESCE(archived_at, now())
-        WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
-      [input.tenantId, ids],
-    );
-  }
-
-  // El contenido de las ejecuciones de IA se vacía; la MEDICIÓN se conserva.
-  // Tokens y costo alimentan la factura y el centro de IA: borrar la fila
-  // entera falsearía cuentas que no son del titular.
-  let ejecucionesVaciadas = 0;
-  if (ejecuciones.length > 0) {
-    const r = await client
-      .query(
-        `UPDATE agent_executions
-            SET input = '{}'::jsonb, output = NULL, explanation = NULL
-          WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
-        [input.tenantId, ejecuciones],
-      )
-      .catch(() => ({ rowCount: 0 }));
-    ejecucionesVaciadas = r.rowCount ?? 0;
-  }
-
-  // Las tareas y notas de agenda son texto libre SOBRE esa persona.
-  const actividades = await client
-    .query('DELETE FROM activities WHERE tenant_id = $1 AND contact_id = $2', [
-      input.tenantId,
-      input.contactId,
-    ])
-    .catch(() => ({ rowCount: 0 }));
-
-  // De los cobros se vacía el concepto —lo escribe el negocio y ahí se cuela
-  // el nombre—; montos, estados y fechas se conservan: son registros
-  // financieros con obligación legal de guarda.
-  await client
-    .query(
-      `UPDATE payment_links SET concept = NULL
-        WHERE tenant_id = $1 AND (contact_id = $2 OR conversation_id = ANY($3::uuid[]))`,
-      [input.tenantId, input.contactId, ids],
-    )
-    .catch(() => undefined);
-
-  // Lo que viajó a terceros por webhook lleva el contenido dentro del
-  // payload. La entrega en sí queda registrada; el contenido, no.
-  await client
-    .query(
-      `UPDATE webhook_deliveries SET payload = '{}'::jsonb, response_body = NULL
-        WHERE tenant_id = $1
-          AND (payload::text LIKE '%' || $2::text || '%'
-               OR ($3::uuid[] <> '{}'::uuid[] AND payload::text ~ ANY(SELECT unnest($3::uuid[])::text)))`,
-      [input.tenantId, input.contactId, ids],
-    )
-    .catch(() => undefined);
 
   const identidades = await client.query(
     'DELETE FROM contact_identities WHERE tenant_id = $1 AND contact_id = $2',
@@ -305,7 +247,6 @@ export async function suprimirTitular(
   // escribiera antes, diría "adjuntos borrados" sin saber si se borraron.
   const adjuntosBorrados: string[] = [];
   if (adjuntosPorBorrar.length > 0) {
-    // `undefined` = tomá el del ambiente; `null` explícito = no hay almacén.
     const almacen = input.almacen;
     if (!almacen) {
       throw new Error(
