@@ -12,7 +12,7 @@ import { RecordatoriosDeCita } from './recordatorios-de-cita';
 import { HorariosDeAtencion } from './horarios-de-atencion';
 import { DarUnaHora } from './dar-una-hora';
 import { PorQueSeCancelan } from './por-que-se-cancelan';
-import { apiFetch, type CitaDto } from '../lib/api';
+import { apiFetch, avisoDe, type CitaDto } from '../lib/api';
 
 // La agenda (#58, SPEC §16): las citas de la semana y qué pasó con cada una.
 //
@@ -42,6 +42,16 @@ const ETIQUETA: Record<CitaDto['status'], { texto: string; rol: BadgeRole }> = {
  * vuelta por cada fila. El servidor sigue siendo quien manda: si esta lista
  * se equivoca, la API rechaza igual y el aviso lo dice.
  */
+/**
+ * Dónde aparece «Mover» (#836).
+ *
+ * Los mismos tres que el caso de uso acepta. Una cita cancelada o que ya
+ * ocurrió no se mueve —mover una `attended` reescribiría cuándo pasó algo que
+ * pasó—, y mostrar un botón que el servidor va a rechazar es peor que no
+ * mostrarlo: enseña que el producto falla donde en realidad está cuidando algo.
+ */
+const SE_PUEDE_MOVER = new Set<CitaDto['status']>(['proposed', 'confirmed', 'reminded']);
+
 const SIGUIENTES: Record<CitaDto['status'], Array<{ a: CitaDto['status']; texto: string }>> = {
   proposed: [
     { a: 'confirmed', texto: 'Confirmar' },
@@ -80,6 +90,8 @@ export function Agenda() {
   const tenant = useSelectedTenant();
   const [citas, setCitas] = useState<CitaDto[] | null>(null);
   const [porCancelar, setPorCancelar] = useState<CitaDto | null>(null);
+  const [porMover, setPorMover] = useState<CitaDto | null>(null);
+  const [nuevaHora, setNuevaHora] = useState('');
   const [motivo, setMotivo] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [moviendo, setMoviendo] = useState<string | null>(null);
@@ -119,6 +131,36 @@ export function Agenda() {
       await cargar();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setMoviendo(null);
+    }
+  }
+
+  /**
+   * Mover la hora (#836).
+   *
+   * Se conserva el LARGO de la cita: quien la corre media hora no está
+   * cambiando cuánto dura, y pedir las dos puntas sería pedir dos datos para
+   * mover uno. Si algún día hace falta cambiar la duración, es otra cosa y
+   * merece su propio control.
+   */
+  async function mover(cita: CitaDto, inicio: Date) {
+    if (!session || !tenant || moviendo) return;
+    const largoMs = new Date(cita.endsAt).getTime() - new Date(cita.startsAt).getTime();
+    setMoviendo(cita.id);
+    try {
+      await apiFetch(config, session, tenant, `/agenda/${cita.id}/mover`, {
+        method: 'POST',
+        body: JSON.stringify({
+          inicio: inicio.toISOString(),
+          fin: new Date(inicio.getTime() + largoMs).toISOString(),
+        }),
+      });
+      await cargar();
+    } catch (e) {
+      // El mensaje del servidor: cuando rechaza dice qué pasó —la hora se
+      // acaba de tomar, la cita está cancelada— y eso es lo accionable.
+      setError(avisoDe(e).texto);
     } finally {
       setMoviendo(null);
     }
@@ -220,6 +262,28 @@ export function Agenda() {
                         {s.texto}
                       </Button>
                     ))}
+                    {/* Mover solo donde se puede: una cita cancelada o que ya
+                        pasó no se mueve, se agenda otra (#836). El botón no
+                        aparece en vez de aparecer y fallar. */}
+                    {SE_PUEDE_MOVER.has(c.status) && (
+                      <Button
+                        variant="fantasma"
+                        size="chico"
+                        disabled={moviendo === c.id}
+                        onClick={() => {
+                          setPorMover(c);
+                          // El campo arranca en la hora actual de la cita, en
+                          // local: mover es corregir, no escribir de cero.
+                          const d = new Date(c.startsAt);
+                          const dos = (n: number) => String(n).padStart(2, '0');
+                          setNuevaHora(
+                            `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}`,
+                          );
+                        }}
+                      >
+                        Mover
+                      </Button>
+                    )}
                   </span>
                 </li>
               ))}
@@ -260,6 +324,40 @@ export function Agenda() {
               }}
             >
               Cancelar la hora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={porMover !== null} onOpenChange={(abierto) => !abierto && setPorMover(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mover esta hora</DialogTitle>
+            <DialogDescription>
+              La cita es la misma y dura lo mismo: solo cambia cuándo. Si ya le habíamos recordado,
+              se le vuelve a recordar para la hora nueva.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="datetime-local"
+            aria-label="Nueva hora de la cita"
+            value={nuevaHora}
+            onChange={(e) => setNuevaHora(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="secundario" onClick={() => setPorMover(null)}>
+              Volver
+            </Button>
+            <Button
+              disabled={!nuevaHora}
+              onClick={() => {
+                const cita = porMover;
+                if (!cita || !nuevaHora) return;
+                setPorMover(null);
+                void mover(cita, new Date(nuevaHora));
+              }}
+            >
+              Mover la hora
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -15,6 +15,7 @@ import { withTenant } from '@iaxti/db';
 import {
   agendar,
   cambiarEstadoCita,
+  reagendarCita,
   motivosDeCancelacion,
   citasDesincronizadasConGoogle,
   configuracionDeAvisos,
@@ -364,6 +365,53 @@ export class AgendaController {
           tenantId: actor.tenantId,
           appointmentId: id,
           to: (body?.estado ?? '') as EstadoCita,
+          motivo: body?.motivo,
+          actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+          requestId: (request as { requestId?: string }).requestId,
+        }),
+      );
+    } catch (err) {
+      seVeMal(err);
+    }
+  }
+
+  /**
+   * Mover una cita de hora (#836).
+   *
+   * Es su propia ruta y no un `estado`, porque no es un cambio de estado:
+   * `rescheduled` como estado terminal dejaba la cita congelada y la hora
+   * liberada acá mientras seguía tomada en Google (#837 cerró esa puerta).
+   * Mover es otra operación, y la cita sigue siendo la misma.
+   *
+   * `calendar.book` y no un permiso nuevo: quien puede tomar una hora puede
+   * correrla. Inventar `calendar.reschedule` obligaría a cada negocio a
+   * repartir un permiso más para algo que ya estaba permitido.
+   */
+  @Post(':id/mover')
+  @RequirePermission('calendar.book')
+  @ApiOperation({ summary: 'Mueve una cita a otra hora, con su hueco comprobado' })
+  async mover(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Body() body: { inicio?: string; fin?: string; motivo?: string },
+  ) {
+    const actor = actorOf(request);
+    const inicio = new Date(body?.inicio ?? '');
+    const fin = new Date(body?.fin ?? '');
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Dinos a qué hora queda la cita: inicio y fin, en formato de fecha y hora.',
+      });
+    }
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        reagendarCita(c, {
+          tenantId: actor.tenantId,
+          appointmentId: id,
+          inicio,
+          fin,
           motivo: body?.motivo,
           actor: actor.userId,
           actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
