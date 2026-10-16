@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type IORedis from 'ioredis';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
@@ -152,17 +152,52 @@ describe('reglas vigentes al consumir la cola (#372)', () => {
   it('un fallo al persistir el rechazo no se oculta ni confirma el job', async () => {
     const j = await job();
     await en(c => optOut(c, { tenantId, contactId, reason: 'el contacto escribió STOP' }));
-    await pool.query(`CREATE OR REPLACE FUNCTION test_outbound_rechazo() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN IF NEW.tenant_id = '${tenantId}'::uuid THEN RAISE EXCEPTION 'persistencia no disponible'; END IF; RETURN NEW; END $$`);
-    await pool.query('CREATE TRIGGER test_outbound_rechazo BEFORE UPDATE ON messages FOR EACH ROW EXECUTE FUNCTION test_outbound_rechazo()');
-    try {
-      await expect(processOutbound(pool, redis, j)).rejects.toThrow('persistencia no disponible');
-      expect(send).not.toHaveBeenCalled();
-      expect((await pool.query('SELECT delivery_status FROM messages WHERE id = $1', [j.data.messageId])).rows[0].delivery_status).toBe('queued');
-    } finally {
-      await pool.query('DROP TRIGGER test_outbound_rechazo ON messages');
-      await pool.query('DROP FUNCTION test_outbound_rechazo()');
-    }
+    let fallos = 0;
+    // processOutbound usa connect() con promesa. El resto de métodos se liga
+    // al pool real: pool.query conserva su connect(callback) de pg (#804).
+    const conFallo = new Proxy(pool, {
+      get(destino, prop) {
+        if (prop !== 'connect') {
+          const valor = Reflect.get(destino, prop);
+          return typeof valor === 'function' ? valor.bind(destino) : valor;
+        }
+        return async (): Promise<PoolClient> => {
+          const cliente = await destino.connect();
+          return new Proxy(cliente, {
+            get(c, propiedad) {
+              if (propiedad !== 'query') {
+                const valor = Reflect.get(c, propiedad);
+                return typeof valor === 'function' ? valor.bind(c) : valor;
+              }
+              const consultar = c.query.bind(c) as (...args: unknown[]) => unknown;
+              return async (...args: unknown[]) => {
+                const config = args[0] as { text?: string; values?: unknown[] } | string;
+                const sql = typeof config === 'string' ? config : config.text ?? '';
+                const valores = (typeof config === 'string' ? args[1] : config.values) as unknown[] | undefined;
+                if (/UPDATE\s+messages\b/i.test(sql) && valores?.[0] === tenantId &&
+                    valores[1] === j.data.messageId && valores[2] === 'failed') {
+                  fallos += 1;
+                  throw new Error('persistencia no disponible');
+                }
+                return consultar(...args);
+              };
+            },
+          });
+        };
+      },
+    });
+    await expect(processOutbound(conFallo, redis, j)).rejects.toThrow('persistencia no disponible');
+    expect(fallos).toBe(1);
+    expect(send).not.toHaveBeenCalled();
+    expect((await pool.query('SELECT delivery_status FROM messages WHERE id = $1', [j.data.messageId])).rows[0].delivery_status).toBe('queued');
+    const fallidos = () => pool.query("SELECT id FROM outbox WHERE tenant_id=$1 AND name='message.failed' AND payload->>'messageId'=$2", [tenantId, j.data.messageId]);
+    expect((await fallidos()).rowCount).toBe(0);
+    // Sin el fallo inyectado, la misma operación puede reintentarse y deja
+    // exactamente un rechazo durable, sin llamar al proveedor.
+    expect((await processOutbound(pool, redis, j)).failed).toMatch(/consentimiento/);
+    expect((await fallidos()).rowCount).toBe(1);
+    expect((await pool.query('SELECT delivery_status FROM messages WHERE id = $1', [j.data.messageId])).rows[0].delivery_status).toBe('failed');
+    expect(send).not.toHaveBeenCalled();
   });
   it.each(['sent', 'delivered', 'read', 'failed'] as const)('un mensaje %s no vuelve al proveedor', async status => {
     const j = await job();
