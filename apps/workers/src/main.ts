@@ -406,6 +406,7 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
                         authorKind: 'system',
                         type: 'texto',
                         body: m.body,
+                        plantilla: m.plantilla,
                         // `business`: la cola le aplica el horario de
                         // silencio y la ventana. Acá no se repite.
                         delivery: 'business',
