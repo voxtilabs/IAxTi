@@ -55,7 +55,10 @@ beforeAll(async () => {
     END $$
   `);
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
-  await admin.query('GRANT SELECT, INSERT, UPDATE ON channel_accounts, whatsapp_numbers, plan_limits, tenants TO iaxti_app');
+  await admin.query('GRANT SELECT, INSERT, UPDATE ON channel_accounts, channel_senders, whatsapp_numbers, plan_limits, tenants TO iaxti_app');
+  // El rol puede nacer DESPUÉS de las migraciones en un CI virgen: sus
+  // GRANT condicionales no sustituyen los permisos explícitos de la fixture.
+  await admin.query('GRANT EXECUTE ON FUNCTION tenant_de_emisor_de_canal(text), tenant_del_emisor(text) TO iaxti_app');
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
   await admin.query('GRANT SELECT, INSERT ON audit_log TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
