@@ -271,17 +271,21 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "x-iaxti-en": "ruta"
         },
         "inicio": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "fin": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "motivo": {
           "type": "string"
         }
       },
       "required": [
-        "id"
+        "id",
+        "inicio",
+        "fin"
       ],
       "additionalProperties": false
     }

@@ -77,6 +77,15 @@ const NuevaCita = z.object({
   confirmada: z.boolean().optional(),
 });
 
+/** Mover una cita (#836): a qué hora queda, y por qué si alguien lo escribió. */
+const MOVER_SIN_HORA = 'Dinos a qué hora queda la cita: inicio y fin.';
+
+const MoverLaCita = z.object({
+  inicio: textoRequerido(MOVER_SIN_HORA),
+  fin: textoRequerido(MOVER_SIN_HORA),
+  motivo: z.string().optional(),
+});
+
 @ApiTags('calendar')
 @Controller('agenda')
 @RequireModule('calendar')
@@ -394,17 +403,14 @@ export class AgendaController {
   async mover(
     @Req() request: WithUser,
     @Param('id') id: string,
-    @Body() body: { inicio?: string; fin?: string; motivo?: string },
+    @Cuerpo(MoverLaCita) body: z.infer<typeof MoverLaCita>,
   ) {
     const actor = actorOf(request);
-    const inicio = new Date(body?.inicio ?? '');
-    const fin = new Date(body?.fin ?? '');
-    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Dinos a qué hora queda la cita: inicio y fin, en formato de fecha y hora.',
-      });
-    }
+    // Las fechas se convierten acá y el caso de uso rechaza las que no se
+    // entienden, con su mensaje. Un `VALIDATION_ERROR` a mano sería una
+    // segunda puerta diciendo lo mismo con otras palabras (#524).
+    const inicio = new Date(body.inicio);
+    const fin = new Date(body.fin);
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         reagendarCita(c, {
