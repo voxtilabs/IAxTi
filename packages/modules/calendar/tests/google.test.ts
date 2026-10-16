@@ -237,6 +237,10 @@ describe('horarios de Google y notificaciones',()=>{
     await admin.query('UPDATE calendar_google_watches SET expires_at=$2 WHERE tenant_id=$1',[tenantId,new Date(instant.getTime()+60_000)]);
     candidates=await app.query('SELECT tenant_id FROM tenants_con_mantenimiento_google($1)',[instant]);
     expect(candidates.rows.map(r=>r.tenant_id)).toContain(tenantId);
+    await admin.query("UPDATE tenants SET state='suspended' WHERE id=$1",[tenantId]);
+    candidates=await app.query('SELECT tenant_id FROM tenants_con_mantenimiento_google($1)',[instant]);
+    expect(candidates.rows.map(r=>r.tenant_id)).not.toContain(tenantId);
+    await admin.query("UPDATE tenants SET state='active' WHERE id=$1",[tenantId]);
     const result=await mantenerWatchesGoogle(app,deps);
     expect(result.renewed).toBeGreaterThanOrEqual(1);
     expect(deps.calendar.watch).toHaveBeenCalledTimes(2);
