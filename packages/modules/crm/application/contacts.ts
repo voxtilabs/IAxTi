@@ -1,3 +1,4 @@
+import {contactoAnonimizado} from './contact-privacy';
 import type { PoolClient } from 'pg';
 import { listCursor } from './list-cursor';
 import { publishEvent } from '@iaxti/core';
@@ -669,4 +670,13 @@ export async function getContactEmail(
   ]);
   const email = ((r.rows[0]?.email as string | null) ?? '').trim();
   return email === '' ? null : email;
+}
+
+/** Contexto mínimo para una integración personal: identidad del contacto,
+ * correo y dueño. No expone su historial ni permite consultas libres. */
+export async function getContactMailAccess(client: PoolClient, tenantId: string, contactId: string): Promise<{email:string|null;ownerId:string|null}|null> {
+  if(await contactoAnonimizado(client,tenantId,contactId,{bloquear:true}))return null;
+  const result=await client.query('SELECT email,owner_id FROM contacts WHERE tenant_id=$1 AND id=$2 FOR SHARE',[tenantId,contactId]);
+  const row=result.rows[0];
+  return row?{email:typeof row.email==='string'&&row.email.trim()?row.email.trim():null,ownerId:row.owner_id??null}:null;
 }

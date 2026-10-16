@@ -86,7 +86,8 @@ número, el que manda es el código:
 | `api_usage.flush` | 5 min | el consumo de API no se cobra ni se muestra |
 | `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
-| `identity.google.cleanup` | Cada 15 min | Quedan versiones revocadas pendientes de destrucción en Secret Manager; el acceso local sigue bloqueado. Corre aunque Calendar esté apagado. |
+| `identity.google.cleanup` | Cada 15 min | Quedan versiones revocadas pendientes de destrucción en Secret Manager; el acceso local sigue bloqueado. También purga caché Gmail vencida en cualquier estado del tenant, aunque Calendar/integrations estén apagados. |
+| `integrations.gmail.maintain` | Cada 15 min | Vence el watch de Gmail y la ficha muestra push pendiente; solo renueva suscripciones, no consulta hilos. La lectura explícita vuelve a Google. |
 | `calendar.google.maintain` | Cada 15 min | Vencen las suscripciones push de Google; la agenda consulta disponibilidad viva y muestra las notificaciones pendientes. |
 | `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |
 | `payments.expire` | :45 | los links de pago vencidos siguen cobrables |

@@ -1034,16 +1034,31 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@iaxti/google':
+        specifier: workspace:*
+        version: link:../../google
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
+      '@iaxti/module-authorization':
+        specifier: workspace:*
+        version: link:../authorization
+      '@iaxti/module-identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@iaxti/module-organizations':
+        specifier: workspace:*
+        version: link:../organizations
       pg:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
+      '@iaxti/module-crm':
         specifier: workspace:*
-        version: link:../../db
+        version: link:../crm
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2

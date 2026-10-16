@@ -106,6 +106,9 @@ contenido es responsabilidad suya y la retención la fija su plan.
 | `roles` | roles custom del tenant (se exportan con `user_roles`) |
 | `contact_tags` | se exporta, listada arriba |
 
+| `gmail_connections` | metadata personal del watch, hash del buzón e historial; sin correo ni tokens |
+| `gmail_thread_cache` | caché personal de asuntos/extractos, TTL de lectura 60 s y purga periódica; no es exportación compartida del tenant |
+
 ## Dónde se guarda
 
 | Dónde | Qué | Región |

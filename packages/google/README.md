@@ -102,3 +102,18 @@ permisos IAM, entrega push ni revocación frente a una cuenta real.
 - [Secret Manager destroy](https://docs.cloud.google.com/secret-manager/docs/reference/rest/v1/projects.secrets.versions/destroy)
 - [Secret Manager delete](https://docs.cloud.google.com/secret-manager/docs/reference/rest/v1/projects.secrets/delete)
 - [Replicación explícita](https://docs.cloud.google.com/secret-manager/docs/choosing-replication)
+
+## Gmail y Pub/Sub (#65)
+
+`createGoogleGmailClient` ofrece profile, threads, watch y stop sobre endpoints
+fijos. threads consulta correo exacto, proyecta solo headers/snippet/fecha, acota
+páginas, tamaño y tiempo, y devuelve truncated cuando alcanza el límite. Nunca
+pide cuerpos, raw ni adjuntos. `createGooglePubSubVerifier` verifica el ID token
+OIDC con google-auth-library, audiencia, issuer, vida máxima de una hora, cuenta
+de servicio exacta y email verificado. La caché de certificados permite rotación
+y limita refrescos por kid desconocido a uno por minuto. El caller aún debe
+validar la suscripción y el envelope, autorizar y auditar cada lectura.
+
+Fuentes: [Gmail threads](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads/get),
+[notificaciones](https://developers.google.com/workspace/gmail/api/guides/push),
+[push autenticado](https://docs.cloud.google.com/pubsub/docs/authenticate-push-subscriptions).

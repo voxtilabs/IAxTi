@@ -6,3 +6,7 @@ export { createGoogleCalendarClient } from './calendar';
 export type { GoogleCalendarClient, GoogleBusyInterval, GoogleFreebusyInput, GoogleWatchInput, GoogleWatchChannel } from './calendar';
 export { GoogleIntegrationError } from './http';
 export type { GoogleErrorCode, GoogleTransportOptions, GoogleRequestOptions } from './http';
+export { createGoogleGmailClient, GOOGLE_GMAIL_SCOPE, gmailContactEmail } from './gmail';
+export type { GoogleGmailClient, GmailThread, GmailThreads } from './gmail';
+export { createGooglePubSubVerifier } from './pubsub';
+export type { GooglePubSubConfig, GooglePubSubVerifier } from './pubsub';

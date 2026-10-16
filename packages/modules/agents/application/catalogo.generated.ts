@@ -325,6 +325,9 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "argumentos": {
       "type": "object",
       "properties": {
+        "contextoPersonal": {
+          "type": "boolean"
+        },
         "turnos": {
           "type": "array",
           "items": {}
@@ -3448,6 +3451,135 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "required": [
         "userId"
       ],
+      "additionalProperties": false
+    }
+  },
+  "GmailController_completar": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/gmail/completar",
+    "resumen": "Guardar el permiso de lectura de Gmail de esta sesión",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "verifier": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "pattern": "^[^\\r\\n\\0]+$"
+        }
+      },
+      "required": [
+        "state",
+        "nonce",
+        "verifier",
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "GmailController_estado": {
+    "metodo": "GET",
+    "ruta": "/v1/integraciones/gmail",
+    "resumen": "Estado de mi conexión de Gmail",
+    "permiso": "integrations.read",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "GmailController_get_threads": {
+    "metodo": "GET",
+    "ruta": "/v1/integraciones/gmail/hilos",
+    "resumen": "Leer los hilos de mi Gmail con el correo exacto del contacto: asunto y extracto, sin cuerpos ni envío",
+    "permiso": "integrations.read",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "refresh": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string",
+          "description": "Lectura explícita fresca; recupera una notificación perdida.",
+          "x-iaxti-en": "query"
+        },
+        "contactId": {
+          "type": "string",
+          "description": "UUID del contacto CRM; el correo se obtiene en servidor.",
+          "x-iaxti-en": "query"
+        }
+      },
+      "required": [
+        "contactId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "GmailController_iniciar": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/gmail/iniciar",
+    "resumen": "Autorizar lectura de mi Gmail con consentimiento incremental y PKCE",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "challenge": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      },
+      "required": [
+        "challenge"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "GmailController_revocar": {
+    "metodo": "POST",
+    "ruta": "/v1/integraciones/gmail/revocar",
+    "resumen": "Revocar todos los permisos Google concedidos a esta aplicación",
+    "permiso": "integrations.connect",
+    "modulo": "integrations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "GmailWebhookController_recibir": {
+    "metodo": "POST",
+    "ruta": "/webhooks/google/gmail",
+    "resumen": "Verificar push Gmail de Pub/Sub, encolar e invalidar caché personal",
+    "permiso": null,
+    "modulo": "integrations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     }
   },

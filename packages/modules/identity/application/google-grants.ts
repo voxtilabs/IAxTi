@@ -1,12 +1,12 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
-import { GOOGLE_CALENDAR_SCOPE, GOOGLE_DRIVE_SCOPE } from '@iaxti/google';
+import { GOOGLE_CALENDAR_SCOPE, GOOGLE_DRIVE_SCOPE, GOOGLE_GMAIL_SCOPE } from '@iaxti/google';
 
-export type GoogleService = 'calendar' | 'drive';
+export type GoogleService = 'calendar' | 'drive' | 'gmail';
 /** Cada servicio nuevo añade aquí sus scopes mínimos y extiende la migración. */
 export const GOOGLE_SERVICE_SCOPES: Readonly<Record<GoogleService, readonly string[]>> = {
-  calendar: [GOOGLE_CALENDAR_SCOPE], drive: [GOOGLE_DRIVE_SCOPE],
+  calendar: [GOOGLE_CALENDAR_SCOPE], drive: [GOOGLE_DRIVE_SCOPE], gmail: [GOOGLE_GMAIL_SCOPE],
 };
 
 export interface GoogleGrant {

@@ -21,9 +21,9 @@ const aqui = dirname(fileURLToPath(import.meta.url));
 const raiz = resolve(aqui, '../../..');
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
-const JWKS_PORT = 4012;
-const API_PORT = 4010;
-const WEB_PORT = 4011;
+const JWKS_PORT = Number(process.env.E2E_JWKS_PORT ?? 4012);
+const API_PORT = Number(process.env.E2E_API_PORT ?? 4010);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 4011);
 const ISSUER = `http://127.0.0.1:${JWKS_PORT}/auth/v1`;
 
 const hijos = [];
@@ -165,6 +165,17 @@ async function main() {
   await pool.query("INSERT INTO whatsapp_templates (tenant_id, name, language, category, body, status) VALUES ($1, 'novedades_aprobada', 'es_CL', 'marketing', 'Hola {{1}}, tenemos novedades.', 'approved'), ($1, 'aun_sin_aprobar', 'es_CL', 'marketing', 'Borrador', 'draft')", [campaignTenantId]);
   const personas = (await pool.query("INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, 'Ana de prueba', '+56980002222', 'whatsapp'), ($1, 'Bruno de prueba', '+56980003333', 'whatsapp'), ($1, 'Sin consentimiento', '+56980004444', 'manual') RETURNING id, name", [campaignTenantId])).rows;
   await pool.query("INSERT INTO conversations (tenant_id, contact_id, channel, last_inbound_at) VALUES ($1, $2, 'whatsapp', now())", [campaignTenantId, personas.find((p) => p.name === 'Ana de prueba').id]);
+  // Gmail: USER real, contacto propio y plan Crece. Gmail remoto se intercepta
+  // en el navegador; sesión, shell y ficha CRM atraviesan la API real.
+  const gmailTenant = (await pool.query("INSERT INTO tenants(name,plan) VALUES ('E2E Gmail','crece') RETURNING id")).rows[0].id;
+  const gmailUser = randomUUID();
+  await withTenant(pool,gmailTenant,async c=>{
+    const admin = await createInvitation(c,{tenantId:gmailTenant,email:`admin-${gmailUser}@e2e.cl`,roleName:'ADMIN'});
+    await acceptInvitation(c,{token:admin.token,userId:supervisora});
+    const member = await createInvitation(c,{tenantId:gmailTenant,email:`gmail-${gmailUser}@e2e.cl`,roleName:'USER'});
+    await acceptInvitation(c,{token:member.token,userId:gmailUser});
+  });
+  const gmailContact = await withTenant(pool,gmailTenant,c=>createContact(c,{tenantId:gmailTenant,ownerId:gmailUser,name:'Ana Gmail',email:'ana@example.test',phone:'+56975550001'}));
   await pool.end();
 
   // 3 · Token de sesión firmado con nuestra llave (mismo camino que Supabase).
@@ -178,10 +189,12 @@ async function main() {
   const restrictedToken = await new SignJWT({ email: `${restrictedUser}@e2e.cl`, aud: 'authenticated' })
     .setProtectedHeader({ alg: 'ES256', kid: 'e2e' }).setSubject(restrictedUser)
     .setIssuer(ISSUER).setIssuedAt().setExpirationTime('1h').sign(privateKey);
+  const gmailToken = await new SignJWT({email:'gmail@example.test',aud:'authenticated'}).setProtectedHeader({alg:'ES256',kid:'e2e'}).setSubject(gmailUser).setIssuer(ISSUER).setIssuedAt().setExpirationTime('1h').sign(privateKey);
   writeFileSync(
     join(aqui, '.auth.json'),
     JSON.stringify({
       accessToken,
+      gmail: {tenantId:gmailTenant,userId:gmailUser,accessToken:gmailToken,contactId:gmailContact.id},
       userId: supervisora,
       restricted: { userId: restrictedUser, accessToken: restrictedToken },
       tenantId: tenant,
@@ -198,7 +211,7 @@ async function main() {
   // 4 · API real contra el JWKS local.
   lanzar('api', 'node', ['apps/api/dist/main.js'], {
     PORT: `${API_PORT}`,
-    DATABASE_URL,
+    DATABASE_URL: process.env.APP_DATABASE_URL?.trim() || DATABASE_URL,
     REDIS_URL,
     SUPABASE_JWKS_URL: `${ISSUER}/.well-known/jwks.json`,
     IAXTI_ENV: 'e2e',
@@ -300,7 +313,7 @@ async function main() {
     // "procesados" para no contaminar los tests del despachador de outbox.
     const cierre = createPool(DATABASE_URL);
     cierre
-      .query('UPDATE outbox SET processed_at = now() WHERE tenant_id = ANY($1::uuid[]) AND processed_at IS NULL', [[tenant, keyTenant, tableTenant, campaignTenantId]])
+      .query('UPDATE outbox SET processed_at = now() WHERE tenant_id = ANY($1::uuid[]) AND processed_at IS NULL', [[tenant, keyTenant, tableTenant, campaignTenantId, gmailTenant]])
       .catch(() => {})
       .finally(() => {
         void cierre.end().finally(() => limpiar(code ?? 1));

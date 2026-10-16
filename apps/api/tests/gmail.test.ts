@@ -1,0 +1,45 @@
+import {afterAll,afterEach,beforeAll,describe,expect,it,vi} from 'vitest';
+import type {INestApplication} from '@nestjs/common';
+import type {Pool} from 'pg';
+const service=vi.hoisted(()=>({state:vi.fn(),start:vi.fn(),finish:vi.fn(),revoke:vi.fn(),threads:vi.fn(),authenticate:vi.fn()}));
+vi.mock('@iaxti/module-integrations',async original=>({...await original<object>(),estadoGmail:service.state,iniciarGmail:service.start,completarGmail:service.finish,revocarGmail:service.revoke,hilosGmail:service.threads,autenticarPushGmail:service.authenticate}));
+import {createApp} from '../src/main';
+import {registry} from '../src/registry';
+import {GMAIL_HTTP,type GmailHttp} from '../src/gmail.controller';
+import {GmailAccessError} from '@iaxti/module-integrations';
+import {gmailRoutes} from '../../../scripts/generate-gmail.mjs';
+import {gmailRoutes as sdkRoutes} from '../../../packages/sdk/src/gmail-routes.generated';
+import {CATALOGO,herramientasPara,nombreDeHerramienta} from '../../../packages/modules/agents/application/catalogo';
+import {aplicarPropuesta} from '../../../packages/modules/agents/application/agente-general';
+let app:INestApplication;let base:string;let port:GmailHttp;let oldPool:GmailHttp['pool'];let oldQueue:GmailHttp['enqueue'];
+const enqueue=vi.fn(async()=>{});const challenge='a'.repeat(43);const contactId='11111111-1111-4111-8111-111111111111';
+const headers={Authorization:'Bearer valid-user','X-Tenant-Id':'tenant-a','Content-Type':'application/json'};
+const state={configured:true,status:'active',pushActive:true,lastNotificationAt:null};
+beforeAll(async()=>{app=await createApp({jwtVerify:async token=>{if(token!=='valid-user')throw new Error();return{userId:'verified-user'};},resolveRole:async tenant=>tenant==='tenant-a'?'USER':tenant==='restricted'?'CUSTOM':null,resolveCustomPermissions:async()=>[],resolveAccesoModulo:null,resolvePlatformAdmin:null});port=app.get<GmailHttp>(GMAIL_HTTP);oldPool=port.pool;oldQueue=port.enqueue;port.pool=()=>({} as Pool);port.enqueue=enqueue;await app.listen(0);base=await app.getUrl();});
+afterEach(()=>{vi.clearAllMocks();registry.enable('integrations');});
+afterAll(async()=>{port.pool=oldPool;port.enqueue=oldQueue;await app.close();});
+const post=(path:string,body:unknown={},extra:Record<string,string>={})=>fetch(`${base}${path}`,{method:'POST',headers:{...headers,...extra},body:JSON.stringify(body)});
+describe('Gmail HTTP: sesión personal, permisos y contrato',()=>{
+  it('USER conecta con actor verificado y no acepta actor/email/query del navegador',async()=>{service.start.mockResolvedValue({state:challenge,nonce:challenge,url:'https://accounts.google.com/o/oauth2/v2/auth'});
+    const response=await post('/v1/integraciones/gmail/iniciar',{challenge},{'X-User-Id':'attacker','X-Role':'ADMIN'});expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');expect(service.start).toHaveBeenCalledWith(expect.anything(),{tenantId:'tenant-a',userId:'verified-user',challenge},expect.anything(),null);
+    expect((await post('/v1/integraciones/gmail/iniciar',{challenge,userId:'other'})).status).toBe(400);
+    expect((await fetch(`${base}/v1/integraciones/gmail/hilos?contactId=${contactId}&email=other@example.com`,{headers})).status).toBe(400);expect(service.threads).not.toHaveBeenCalled();
+  });
+  it.each([[{Authorization:'','X-User-Id':'fake','X-Role':'ADMIN'},401],[{Authorization:'Bearer iaxti_key','X-Api-Key':'iaxti_key'},401],[{Authorization:'Bearer invalid'},401],[{'X-Tenant-Id':'tenant-b'},403],[{'X-Tenant-Id':'restricted'},403]] as Array<[Record<string,string>,number]>)('rechaza credencial o permiso incompatible %#',async(extra,status)=>{const r=await fetch(`${base}/v1/integraciones/gmail/hilos?contactId=${contactId}`,{headers:{...headers,...extra}});expect(r.status).toBe(status);expect(await r.json()).toMatchObject({code:expect.any(String),requestId:expect.any(String),details:expect.any(Array)});expect(service.threads).not.toHaveBeenCalled();});
+  it('completa/revoca propios y no filtra fallos de Google/SQL',async()=>{service.finish.mockResolvedValue(state);expect((await post('/v1/integraciones/gmail/completar',{state:challenge,nonce:challenge,verifier:challenge,code:'code'})).status).toBe(200);service.revoke.mockRejectedValue(new Error('PRIVATE-TOKEN'));const r=await post('/v1/integraciones/gmail/revocar');expect(r.status).toBe(400);expect(await r.text()).not.toContain('PRIVATE-TOKEN');});
+  it('permiso CRM perdido en aplicación sigue siendo 403 uniforme',async()=>{service.threads.mockRejectedValue(new GmailAccessError('PERMISSION_DENIED'));const r=await fetch(`${base}/v1/integraciones/gmail/hilos?contactId=${contactId}`,{headers});expect(r.status).toBe(403);expect(await r.json()).toMatchObject({code:'PERMISSION_DENIED',requestId:expect.any(String)});});
+  it('módulo apagado no lee Gmail',async()=>{registry.disable('integrations');expect((await fetch(`${base}/v1/integraciones/gmail/hilos?contactId=${contactId}`,{headers})).status).toBe(403);expect(service.threads).not.toHaveBeenCalled();});
+  it('OpenAPI genera SDK y acredita permisos/sesión personal',async()=>{const doc=await(await fetch(`${base}/docs-json`)).json();expect(gmailRoutes(doc)).toEqual(sdkRoutes);expect(doc.paths['/v1/integraciones/gmail/hilos'].get).toMatchObject({'x-iaxti-module':'integrations','x-iaxti-permission':'integrations.read','x-iaxti-auth':'sesion'});expect(doc.paths['/v1/integraciones/gmail/completar'].post.requestBody.content['application/json'].schema.required).toEqual(['state','nonce','verifier','code']);});
+  it('gmail.get_threads existe con nombre exacto y se ejecuta por HTTP bajo el guard del usuario',async()=>{
+    expect(nombreDeHerramienta('GmailController_get_threads')).toBe('gmail.get_threads');const tool=CATALOGO.find(t=>t.nombre==='gmail.get_threads');expect(tool).toMatchObject({metodo:'GET',modulo:'integrations',permiso:'integrations.read',trato:'libre'});
+    expect(herramientasPara({permisos:new Set(),modulosActivos:new Set(['integrations','crm'])}).some(t=>t.nombre==='gmail.get_threads')).toBe(false);
+    expect(herramientasPara({permisos:new Set(['integrations.read','crm.contacts.read']),modulosActivos:new Set()}).some(t=>t.nombre==='gmail.get_threads')).toBe(false);
+    service.threads.mockResolvedValue({state:'ready',threads:[{id:'t1',subject:'Resumen',snippet:'Texto',lastMessageAt:'2026-01-01T00:00:00Z'}],truncated:false});
+    const result=await aplicarPropuesta({herramienta:'gmail.get_threads',argumentos:{contactId},permisos:new Set(['integrations.read','crm.contacts.read']),modulosActivos:new Set(['integrations','crm'])},{llamarApi:async p=>{const r=await fetch(`${base}${p.ruta}?${new URLSearchParams(p.query)}`,{method:p.metodo,headers});return{ok:r.ok,estado:r.status,datos:await r.json()};}});
+    expect(result.ok).toBe(true);expect(service.threads).toHaveBeenCalledWith(expect.anything(),{tenantId:'tenant-a',userId:'verified-user',contactId,refresh:false},expect.anything(),null);
+  });
+});
+describe('Gmail Pub/Sub HTTP',()=>{
+  it('solo encola mensaje autenticado sin JWT/email/cuerpo externo',async()=>{service.authenticate.mockResolvedValue({mailboxHash:'a'.repeat(64),historyId:'9007199254740993123',messageId:'123'});const r=await post('/webhooks/google/gmail',{private:'BODY'},{Authorization:'Bearer private-jwt','X-Tenant-Id':'forged'});expect(r.status).toBe(204);expect(enqueue).toHaveBeenCalledWith({mailboxHash:'a'.repeat(64),historyId:'9007199254740993123',messageId:'123',requestId:expect.any(String)});expect(JSON.stringify(enqueue.mock.calls)).not.toMatch(/private-jwt|BODY|forged/);});
+  it('firma inválida no encola; cola caída nunca recibe un 204',async()=>{service.authenticate.mockRejectedValueOnce(new Error('invalid'));expect((await post('/webhooks/google/gmail')).status).toBe(401);expect(enqueue).not.toHaveBeenCalled();service.authenticate.mockResolvedValue({mailboxHash:'a'.repeat(64),historyId:'5',messageId:'1'});enqueue.mockRejectedValueOnce(new Error('private redis URL'));const r=await post('/webhooks/google/gmail');expect(r.status).toBe(503);expect(r.headers.get('retry-after')).toBe('5');expect(await r.text()).not.toContain('private redis');});
+});

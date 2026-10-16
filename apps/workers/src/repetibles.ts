@@ -24,6 +24,7 @@ export const REPETIBLES: Repetible[] = [
   // Limpieza del lifecycle sigue activa aunque Calendar se apague.
   { nombre: 'identity.google.cleanup', moduleId: 'identity', repeat: { every: 900_000 } },
   // Renovación de leases push; no consulta eventos.
+  { nombre: 'integrations.gmail.maintain', moduleId: 'integrations', repeat: { every: 900_000 } },
   { nombre: 'calendar.google.maintain', moduleId: 'calendar', repeat: { every: 900_000 } },
   { nombre: 'calendar.reminders', moduleId: 'calendar', repeat: { every: 900_000 } },
   // Meta tarda de minutos a 24 h en revisar una plantilla. Cada 30 min

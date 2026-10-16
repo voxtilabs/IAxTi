@@ -1,3 +1,4 @@
+import { mantenerGmail, procesarPushGmail, gmailConsumers, gmailDesdeEntorno, limpiarCacheGmail, limpiarSecretosGmail, type GmailPush } from '@iaxti/module-integrations';
 import './instrument';
 import { createServer } from 'node:http';
 import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
@@ -163,6 +164,7 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
     // Facturas pagadas (#67): el tenant vuelve de past_due solo.
     ...billingConsumers(),
     ...googleCalendarConsumers(),
+    ...gmailConsumers(),
     // Webhooks salientes (#76): cada evento del catálogo puede salir.
     ...webhookConsumers(registry.eventsCatalog()),
     ...realtimeConsumers(),
@@ -348,11 +350,16 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
         // motivo era cierto cuando se escribió —hacía falta la plantilla
         // aprobada (#44) y el número conectado— y dejó de serlo sin que
         // nadie volviera a mirar.
+        case 'integrations.gmail.maintain': {
+          return mantenerGmail(pool, { registry });
+        }
         case 'calendar.google.maintain': {
           return mantenerWatchesGoogle(pool);
         }
         case 'identity.google.cleanup': {
-          return limpiarSecretosGoogle(pool);
+          const gmail = gmailDesdeEntorno();
+          const custody = gmail ? await limpiarSecretosGmail(pool, gmail) : await limpiarSecretosGoogle(pool);
+          return { ...custody, gmailCacheDeleted: await limpiarCacheGmail(pool) };
         }
         case 'calendar.reminders': {
           const res = await barrerRecordatorios(pool, {
@@ -598,6 +605,9 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
       'inbound',
       registry,
       async (job) => {
+        if (job.name === 'gmail.push') {
+          return procesarPushGmail(pool, job.data as unknown as GmailPush);
+        }
         if (job.name === 'google-calendar.push') {
           return procesarPushGoogle(pool, job.data as unknown as { tenantId: string; channelId: string; resourceId: string; messageNumber: string });
         }

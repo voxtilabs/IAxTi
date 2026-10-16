@@ -23,6 +23,7 @@ import {
 } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
+import { GmailContacto } from './gmail-contacto';
 import { DerechosDelTitular } from './derechos-del-titular';
 import { usePieza } from '../arranque';
 import { FusionarDuplicado } from './fusionar-duplicado';
@@ -639,6 +640,8 @@ export function FichaContacto({
           </Button>
         </Formulario>
       </section>
+
+      <GmailContacto contactId={contactId} email={ficha.contact.email} />
 
       {/* Los derechos de la persona, en su ficha y no escondidos en un
           menú: quien recibe la solicitud llega por acá (#447). En el panel

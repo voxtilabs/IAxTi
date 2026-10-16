@@ -857,7 +857,7 @@ identity        user.registered · user.invited · user.joined_tenant · user.lo
 organizations   tenant.created · tenant.plan_changed · tenant.state_changed
                 usage.threshold_reached · tenant.settings_changed
 authorization   role.created · role.assigned
-crm             contact.created · contact.updated · contact.merged · contact.opted_out
+crm             contact.created · contact.updated · contact.merged · contact.opted_out · contact.anonymized
                 deal.created · deal.stage_changed · deal.won · deal.lost · deal.stalled
                 activity.due
 conversations   conversation.created · conversation.assigned · conversation.state_changed

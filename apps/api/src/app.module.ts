@@ -112,6 +112,7 @@ import { WebhooksSalientesController } from './webhooks-salientes.controller';
 import { RolesController } from './roles.controller';
 import { PaymentsController, PaymentWebhooksController } from './payments.controller';
 import { BillingController } from './billing.controller';
+import { GmailController, GmailWebhookController, GMAIL_HTTP, gmailHttp } from './gmail.controller';
 import { GoogleCalendarController, GoogleCalendarWebhookController, GOOGLE_CALENDAR_HTTP, googleCalendarHttp } from './google-calendar.controller';
 
 // Los controllers no llevan lógica: solo exponen el registry y los contracts.
@@ -1277,6 +1278,8 @@ const controllers = [
   PaymentsController,
   PaymentWebhooksController,
   BillingController,
+  GmailController,
+  GmailWebhookController,
   GoogleCalendarController,
   GoogleCalendarWebhookController,
   ArranqueController,
@@ -1288,5 +1291,5 @@ const controllers = [
   ...(esProduccion() ? [] : [SimuladorController]),
 ];
 
-@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }] })
+@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }, { provide: GMAIL_HTTP, useValue: gmailHttp }] })
 export class AppModule {}

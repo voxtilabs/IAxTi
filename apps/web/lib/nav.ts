@@ -244,6 +244,7 @@ export const RUTAS_SIN_REGLA_DE_PERMISO: Record<string, string> = {
   '/': 'La puesta en marcha, que es a donde llega quien recién entró: no puede exigir nada. Cada widget que trae sí comprueba el suyo, por su cuenta (#517).',
   '/login': 'Se abre SIN sesión. Acá todavía no hay permisos que consultar, y de hecho es donde se consiguen.',
   '/invitacion/[token]': 'Quien acepta una invitación todavía no es parte del negocio: la credencial es el token del enlace, no un rol.',
+  '/integraciones/gmail/callback': 'Retorno técnico del consentimiento OAuth personal, sin entrada de menú: exige sesión, state y PKCE vinculados al usuario y negocio; la API verifica integrations.connect con JWT humano.',
   '/webchat/[widgetId]': 'El widget público, que carga en el sitio del cliente para un visitante anónimo: no hay sesión ni negocio elegido.',
 };
 

@@ -94,3 +94,18 @@ eventos tardíos comprueban el estado vigente para no borrar una reconexión.
 
 Fuentes: [scopes de Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth),
 [consentimiento incremental](https://developers.google.com/identity/protocols/oauth2/web-server#incrementalAuth).
+
+## Extensión Gmail (#65)
+
+El runner de identity admite el servicio gmail con `gmail.readonly` y `openid`.
+Integrations posee la conexión, caché personal y recepción Pub/Sub; el paquete
+google solo implementa transporte y verificación OIDC. CRM conserva la autoridad
+sobre email, dueño y supresión del contacto mediante contratos. No se añade Gmail
+a Core ni se cambia el plan de Calendar. La revocación sigue siendo global para
+la cuenta Google y el cliente OAuth. Las notificaciones solo invalidan caché; la
+lectura explícita trae resúmenes, nunca cuerpos completos ni conocimiento.
+
+El Agente General marca los turnos que usaron herramientas Google personales y
+omite contenido en persistencia operativa y trazas, incluidos errores y turnos
+posteriores. Conserva métricas sin copiar extractos ni propuestas privadas.
+El detalle operativo y la aceptación externa están en [Gmail](../configuracion/gmail.md).

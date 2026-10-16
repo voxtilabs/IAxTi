@@ -32,6 +32,8 @@ const COLUMNAS_PROHIBIDAS: Record<string, string[]> = {
 
 /** Tabla → por qué NO se exporta. */
 export const FUERA_DE_LA_EXPORTACION: Record<string, string> = {
+  gmail_connections: 'Metadata de consentimiento personal y leases de Gmail; no pertenece a la configuración comercial del tenant (#65).',
+  gmail_thread_cache: 'Extractos efímeros del buzón personal, separados por usuario; se reconstruyen de Google y no se exportan como información del negocio (#65).',
   google_oauth_attempts: 'Intentos de consentimiento OAuth de cada persona: hashes y datos de autenticación efímeros.',
   google_oauth_grants: 'Custodia del consentimiento personal de Google: referencias a secretos, no configuración del negocio.',
   google_secret_versions: 'Cola interna de destrucción de credenciales de Google.',
