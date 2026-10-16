@@ -56,10 +56,9 @@ describe('el respaldo declarado (#858)', () => {
   });
 
   it('`transcribir` no cae en uno que no transcribe, aunque esté primero', () => {
-    // Capacidad, no preferencia: de los cuatro solo google manda el audio
-    // como file part. Que openai encabece el respaldo no lo vuelve elegible
-    // para esta tarea.
-    const tasks = iaSettings({ ia: {} }, () => true).tasks;
+    // Sin OpenAI, GLM precede a Google en el orden pero no tiene puerto de
+    // audio. Se salta por capacidad, no por el nombre ni la posición.
+    const tasks = iaSettings({ ia: {} }, p => p !== 'openai').tasks;
     expect(tasks.transcribir.provider).toBe('google');
   });
 });

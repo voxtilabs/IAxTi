@@ -62,7 +62,7 @@ describe('la configuración del tenant, con GLM abierto', () => {
     const s = iaSettings({
       ia: { tasks: { transcribir: { provider: 'glm', model: 'z-ai/glm-5.3' } } },
     });
-    expect(s.tasks.transcribir.provider).toBe('google');
+    expect(s.tasks.transcribir.provider).toBe(DEFAULT_TASK_MODELS.transcribir.provider);
     // El modelo cae con el proveedor: `z-ai/glm-5.3` apuntando a Google
     // sería un 404 en cada audio.
     expect(s.tasks.transcribir.model).not.toBe('z-ai/glm-5.3');
@@ -84,7 +84,7 @@ describe('la configuración del tenant, con GLM abierto', () => {
    * revés, con ocho tareas en un proveedor sin llave y una en otro sin saldo,
    * y lo que se vio fue «8 de 9 no pueden funcionar».
    */
-  it('todas las tareas de texto comparten proveedor; transcribir es la única excepción', () => {
+  it('las nueve tareas comparten proveedor cuando tiene puerto de audio', () => {
     const porTarea = Object.entries(DEFAULT_TASK_MODELS);
     expect(porTarea.length).toBeGreaterThan(5);
 
@@ -96,10 +96,9 @@ describe('la configuración del tenant, con GLM abierto', () => {
         'una decisión: es lo que pasa cuando se mueve el defecto y se olvida una tarea.',
     ).toHaveLength(1);
 
-    // Y la excepción es por CAPACIDAD, no por preferencia: el proveedor de
-    // texto no puede recibir el audio.
-    expect(proveedorPermitidoParaTarea(proveedores[0], 'transcribir')).toBe(false);
-    expect(DEFAULT_TASK_MODELS.transcribir.provider).not.toBe(proveedores[0]);
+    // #864 elimina la excepción al añadir el puerto de audio.
+    expect(proveedorPermitidoParaTarea(proveedores[0], 'transcribir')).toBe(true);
+    expect(DEFAULT_TASK_MODELS.transcribir.provider).toBe(proveedores[0]);
   });
 
   /**

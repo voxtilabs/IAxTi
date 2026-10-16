@@ -203,9 +203,9 @@ describe('probar la IA de verdad (#869)', () => {
       { hayLlave: SOLO('openai'), modelPortFactory: queContesta('listo') },
     );
     expect(sinSalida.contesto).toBe(false);
-    expect(sinSalida.motivo).toBe('sin_llave');
-    expect(sinSalida.mensaje).toContain('no hay otro para elegir');
-    expect(sinSalida.mensaje).toContain('GOOGLE_GENERATIVE_AI_API_KEY');
+    expect(sinSalida.motivo).toBeNull();
+    expect(sinSalida.mensaje).toContain('requiere un archivo de audio');
+    expect(sinSalida.mensaje).not.toContain('GOOGLE_GENERATIVE_AI_API_KEY');
     expect(sinSalida.mensaje).not.toContain('elige otro proveedor');
   });
 

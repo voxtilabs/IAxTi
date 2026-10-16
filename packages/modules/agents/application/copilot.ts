@@ -1,10 +1,20 @@
 import type { PoolClient } from 'pg';
+import { randomUUID } from 'node:crypto';
+import { getTenantSettings, incrementUsage } from '@iaxti/module-organizations';
+import { iaSettings } from '../domain/config';
+import { writeAudit } from '@iaxti/module-audit';
+import { AudioNoAdmitido, modeloPuedeTranscribir, type ResultadoDeTranscripcion } from '../domain/audio';
+import { semillaCacheada } from './defecto-de-la-plataforma';
+import { afterExecutionQuota, getQuota } from './quota';
+import { castigar, estaCastigado, perdonar } from './castigados';
+import { esDelProveedor } from './fallo-del-proveedor';
+import { motivoDelProveedor } from './motivo-del-proveedor';
 import { publishEvent } from '@iaxti/core';
 import { getContext, updateSummary, updateTranscription } from '@iaxti/module-conversations';
 import { FORMATO_SUGERENCIA, parseSuggestion } from '../domain/parser';
 import { runAgentTask } from './runtime';
 import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './models';
-import { aiSdkModelPort, aiSdkTranscriber } from './models';
+import { aiSdkModelPort, aiSdkTranscriber, providerAvailable } from './models';
 import { listAgents, type Agent } from './agents';
 import { abrirIntento } from './objetivo-medido';
 import { DEFINICIONES } from '../domain/objetivo';
@@ -415,39 +425,74 @@ export async function transcribeInboundAudio(
     contentType: string;
     requestId?: string;
   },
-  transcriber: TranscribePort = aiSdkTranscriber(),
+  transcriber?: TranscribePort,
 ): Promise<string | null> {
+  // Verificar el objeto ANTES de sacar bytes hacia el proveedor, incluso con
+  // una conexión owner. RLS sigue siendo la segunda cerradura.
+  const mensaje = await client.query<{ transcription: string | null }>(
+    "SELECT transcription FROM messages WHERE tenant_id=$1 AND id=$2 AND type='audio' AND direction='in' FOR UPDATE",
+    [input.tenantId, input.messageId],
+  );
+  if (!mensaje.rows[0]) return null;
+  if (mensaje.rows[0].transcription) return mensaje.rows[0].transcription;
+  const settings = iaSettings(await getTenantSettings(client, input.tenantId), providerAvailable, estaCastigado, await semillaCacheada(client));
+  let elegido = settings.tasks.transcribir;
+  const quota = await getQuota(client, input.tenantId);
+  // El económico genérico suele ser chat. No mandar audio a ese endpoint:
+  // solo sirve si se configuró un modelo de audio de un proveedor capaz.
+  if (quota.exhausted && settings.economico && modeloPuedeTranscribir(settings.economico.provider, settings.economico.model)) {
+    elegido = settings.economico;
+  }
+  const puerto = transcriber ?? aiSdkTranscriber(elegido);
+  const traceId = input.requestId ?? randomUUID();
   const inicio = Date.now();
+  let resultado: ResultadoDeTranscripcion;
   try {
-    const texto = await transcriber.transcribe({ bytes: input.bytes, contentType: input.contentType });
-    if (!texto) return null;
-    await updateTranscription(client, {
-      tenantId: input.tenantId,
-      messageId: input.messageId,
-      transcription: texto,
-    });
+    if (quota.exhausted && (!settings.economico || !modeloPuedeTranscribir(settings.economico.provider, settings.economico.model))) {
+      throw new AudioNoAdmitido('La cuota de IA del mes está completa y no hay un modelo económico capaz de transcribir audio.');
+    }
+    resultado = await puerto.transcribe({ bytes: input.bytes, contentType: input.contentType });
+  } catch (err) {
+    const delProveedor = esDelProveedor(err);
+    const motivo = motivoDelProveedor(err, { provider: puerto.proveedor, model: puerto.modelo, delProveedor });
+    if (delProveedor) castigar(elegido.provider, motivo.motivo);
+    // Solo mensaje controlado o diagnóstico traducido: jamás responseBody,
+    // bytes, texto transcrito, credenciales ni el error crudo del SDK.
+    const error = err instanceof AudioNoAdmitido ? err.message : motivo.message;
     await client.query(
       `INSERT INTO agent_executions
-         (tenant_id, task, provider, model, input, output, latency_ms, trace_id, explanation)
-       VALUES ($1,'transcribir',$2,$3,$4,$5,$6,$7,$8)`,
-      [
-        input.tenantId,
-        // Quién transcribió DE VERDAD. Estaba escrito a mano como
-        // google/gemini-flash-latest: con el proveedor por tarea
-        // configurable, esa fila podía atribuirle el costo a un modelo que
-        // no corrió, y "costos visibles sin margen escondido" es una
-        // promesa del producto.
-        transcriber.proveedor,
-        transcriber.modelo,
-        JSON.stringify({ messageId: input.messageId, contentType: input.contentType }),
-        JSON.stringify({ chars: texto.length }),
-        Date.now() - inicio,
-        input.requestId ?? null,
-        'Transcribió un audio entrante; el texto quedó buscable en el mensaje.',
-      ],
+        (tenant_id, task, provider, model, input, latency_ms, trace_id, status, error, explanation, error_del_proveedor)
+       VALUES ($1,'transcribir',$2,$3,$4,$5,$6,'failed',$7,$8,$9)`,
+      [input.tenantId, puerto.proveedor, puerto.modelo,
+        JSON.stringify({ messageId: input.messageId }), Date.now() - inicio, traceId, error,
+        'El audio quedó disponible sin transcripción; la sugerencia puede continuar.', delProveedor],
     );
-    return texto;
-  } catch {
-    return null; // un audio sin transcribir no frena nada
+    await publishEvent(client, { name: 'agent.failed', tenantId: input.tenantId,
+      payload: { task: 'transcribir', provider: puerto.proveedor, model: puerto.modelo, error, delProveedor }, actor: 'system', requestId: traceId });
+    return null;
   }
+  const texto = resultado.text.trim();
+  const utilizable = Boolean(texto) && !resultado.truncada;
+  if (utilizable) await updateTranscription(client, { tenantId: input.tenantId, messageId: input.messageId, transcription: texto });
+  // DB/contratos fuera del catch del proveedor: si fallan se revierte toda la
+  // transacción, no se oculta una persistencia parcial como audio no entendido.
+  const fila = await client.query(
+    `INSERT INTO agent_executions
+      (tenant_id, task, provider, model, input, output, tokens_in, tokens_out, cost_usd, latency_ms, trace_id, explanation, status, error)
+     VALUES ($1,'transcribir',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+    [input.tenantId, puerto.proveedor, puerto.modelo, JSON.stringify({ messageId: input.messageId }),
+      JSON.stringify({ chars: texto.length, truncada: resultado.truncada ?? false, seconds: resultado.seconds ?? null }),
+      resultado.tokensIn, resultado.tokensOut, resultado.costUsd, Date.now() - inicio, traceId,
+      utilizable ? 'Transcribió un audio entrante; el texto quedó buscable en el mensaje.' : 'El proveedor respondió sin una transcripción completa utilizable.',
+      utilizable ? 'ok' : 'failed', utilizable ? null : 'El proveedor respondió sin una transcripción completa utilizable.'],
+  );
+  await writeAudit(client, { tenantId: input.tenantId, actor: 'system', actorKind: 'system',
+    action: 'agents.transcribed', result: utilizable ? 'success' : 'failed', resource: 'message', resourceId: input.messageId,
+    requestId: traceId, metadata: { executionId: fila.rows[0].id, provider: puerto.proveedor, model: puerto.modelo, usable: utilizable } });
+  await incrementUsage(client, input.tenantId, 'ia_executions');
+  await afterExecutionQuota(client, input.tenantId, traceId);
+  await publishEvent(client, { name: utilizable ? 'agent.executed' : 'agent.failed', tenantId: input.tenantId,
+    payload: { executionId: fila.rows[0].id, task: 'transcribir', provider: puerto.proveedor, model: puerto.modelo, costUsd: resultado.costUsd }, actor: 'system', requestId: traceId });
+  perdonar(elegido.provider);
+  return utilizable ? texto : null;
 }

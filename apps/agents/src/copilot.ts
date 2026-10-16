@@ -3,6 +3,7 @@ import type { ModuleRegistry } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import {
   PROVIDERS,
+  MAX_AUDIO_BYTES,
   activeAgent,
   allowedToolsFor,
   marcarLogradoPorElAgente,
@@ -15,6 +16,7 @@ import {
 import type { HerramientaExpuesta } from '@iaxti/module-agents';
 import {
   getContext,
+  incomingAudioAttachment,
   getConversation,
   sendMessage,
   salePorProveedor,
@@ -112,23 +114,26 @@ export async function processSuggest(
   return withTenant(pool, data.tenantId, async (client) => {
     let transcribed = false;
     // El audio primero (#48): transcrito, entra solo al contexto.
-    if (data.audioKey && providerAvailable('google')) {
+    if (data.audioKey) {
+      const adjunto = await incomingAudioAttachment(client, { tenantId: data.tenantId, conversationId: data.conversationId, messageId: data.messageId, key: data.audioKey });
       const storage = storageFromEnv();
-      if (storage) {
+      if (storage && adjunto) {
+        let bytes: Uint8Array | undefined;
         try {
-          const res = await fetch(presignUrl(storage, 'GET', data.audioKey));
-          if (res.ok) {
-            const texto = await transcribeInboundAudio(client, {
-              tenantId: data.tenantId,
-              messageId: data.messageId,
-              bytes: new Uint8Array(await res.arrayBuffer()),
-              contentType: data.audioType ?? 'audio/ogg',
-              requestId: data.requestId,
-            });
-            transcribed = texto !== null;
-          }
+          const res = await fetch(presignUrl(storage, 'GET', adjunto.key), { signal: AbortSignal.timeout(60_000) });
+          if (res.ok) bytes = await leerAudioAcotado(res);
+          else await res.body?.cancel();
         } catch {
-          /* audio sin transcribir no frena la sugerencia */
+          /* una descarga fallida no frena la sugerencia */
+        }
+        // El puerto registra/degrada sus fallos. Una falla de persistencia o
+        // auditoría debe salir de la transacción, nunca quedar oculta aquí.
+        if (bytes) {
+          const texto = await transcribeInboundAudio(client, {
+            tenantId: data.tenantId, messageId: data.messageId, bytes,
+            contentType: adjunto.contentType, requestId: data.requestId,
+          });
+          transcribed = texto !== null;
         }
       }
     }
@@ -437,4 +442,29 @@ async function permisosDe(
     return new Set([...catalogo].filter((p) => baseRoleHasPermission(rol, p, catalogo)));
   }
   return new Set(await customRolePermissions(client, tenantId, rol));
+}
+
+/** No reservar memoria ilimitada por un adjunto sin Content-Length. */
+export async function leerAudioAcotado(res: Response): Promise<Uint8Array> {
+  if (Number(res.headers.get('content-length')) > MAX_AUDIO_BYTES) {
+    await res.body?.cancel();
+    throw new Error('El audio supera 16 MiB.');
+  }
+  if (!res.body) throw new Error('El audio no tiene contenido.');
+  const reader = res.body.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_AUDIO_BYTES) throw new Error('El audio supera 16 MiB.');
+      partes.push(value);
+    }
+  } finally { await reader.cancel(); reader.releaseLock(); }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const parte of partes) { bytes.set(parte, offset); offset += parte.byteLength; }
+  return bytes;
 }

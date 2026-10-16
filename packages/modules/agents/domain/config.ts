@@ -35,7 +35,7 @@ export type Provider = (typeof PROVIDERS)[number];
  *    de #855 esperando a ocurrir.
  * 2. `glm` — fue el defecto hasta el 12-10, así que los prompts están
  *    afinados contra él y el dataset de regresión lo midió.
- * 3. `google` — solo transcribe de los cuatro, y para texto es el que menos
+ * 3. `google` — también transcribe audio, y para texto es el que menos
  *    se midió. Antes estaba primero, de cuando Gemini era el defecto, y eso
  *    fue exactamente lo que mató las ocho tareas de texto el 11-10.
  * 4. `anthropic` — último porque su fila de compliance es la más flaca: está
@@ -158,10 +158,9 @@ export interface TaskModel {
  * abajo no son topes de respuesta: con `sugerir: 1500` se midieron 448
  * razonando y 81 escribiendo, así que sobra — comprobado, no supuesto.
  *
- * `transcribir` se queda en Google y no es política: es capacidad. La
- * transcripción entra como PARTE DE AUDIO (file part) y los endpoints de
- * texto de GLM y OpenAI no la reciben — OpenAI transcribe, pero por otra
- * API (`/audio/transcriptions`), que el puerto todavía no habla. Ver #864.
+ * `transcribir` usa el mismo proveedor por defecto desde #864, con un
+ * modelo de AUDIO separado del modelo de texto. Google sigue disponible
+ * como selección explícita o respaldo; esto no decide su fila contractual.
  */
 export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   // Devuelve UNA etiqueta. Medido 5/5 en mínimo, bajo y por defecto: la misma
@@ -179,7 +178,7 @@ export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   configurar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
   conocer: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
   resumir: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
-  transcribir: { provider: 'google', model: 'gemini-flash-latest' },
+  transcribir: { provider: 'openai', model: 'gpt-4o-mini-transcribe' },
   analizar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
   /**
    * `minimo`, y esto contradice el comentario de `TAREAS_PESADAS` de abajo.
@@ -264,17 +263,19 @@ export interface IaSettings {
  */
 const SIN_GARANTIA_DE_DATOS = new Set<string>([]);
 
-/**
- * Proveedores cuyo endpoint no recibe audio ni archivos.
- *
- * `openai` entra acá por CAPACIDAD y no por política: lo servimos por el
- * adaptador compatible (`/chat/completions`), y la transcripción de IAxTi
- * manda el audio como *file part*. OpenAI sí sabe transcribir, pero por otra
- * API (`/audio/transcriptions`), que es otra forma de petición. Dárselo a
- * `transcribir` fallaría en cada audio recibido, así que esa tarea cae al por
- * defecto — igual que con GLM (#842).
- */
-const SOLO_TEXTO = new Set<string>(['glm', 'openai']);
+/** Capacidades de los puertos instalados; no es una clasificación contractual. */
+export const CAPACIDADES_DEL_PROVEEDOR: Record<Provider, { texto: boolean; transcribir: boolean }> = {
+  openai: { texto: true, transcribir: true },
+  google: { texto: true, transcribir: true },
+  glm: { texto: true, transcribir: false },
+  anthropic: { texto: true, transcribir: false },
+};
+
+/** El modelo de audio nunca se toma del respaldo de chat. */
+export const MODELOS_DE_TRANSCRIPCION: Partial<Record<Provider, string>> = {
+  openai: 'gpt-4o-mini-transcribe',
+  google: 'gemini-flash-latest',
+};
 
 /**
  * La única tarea que sobrevive a la redacción.
@@ -300,10 +301,8 @@ export function vaRedactadoAlProveedor(provider: string, task: AgentTask): boole
  * lugar para enseñar una política.
  */
 export function proveedorPermitidoParaTarea(provider: string, task: AgentTask): boolean {
-  // Capacidad, no política: `transcribir` entra como parte de audio y el
-  // endpoint de GLM es de texto. Configurárselo fallaría en CADA audio
-  // recibido, así que cae al por defecto como cualquier config inválida.
-  if (task === 'transcribir' && SOLO_TEXTO.has(provider)) return false;
+  const capacidad = CAPACIDADES_DEL_PROVEEDOR[provider as Provider];
+  if (!capacidad || !(task === 'transcribir' ? capacidad.transcribir : capacidad.texto)) return false;
   if (!SIN_GARANTIA_DE_DATOS.has(provider)) return true;
   return SOBREVIVE_A_LA_REDACCION.has(task);
 }
@@ -405,7 +404,7 @@ function conCredencial(
    * Lo que el castigo evita es lo otro: que el respaldo, al elegir por su
    * cuenta entre varios, meta la cabeza en el que acaba de morir.
    */
-  if (hayLlave(elegido)) return elegido;
+  if (hayLlave(elegido) && proveedorPermitidoParaTarea(elegido, task)) return elegido;
   const porDefecto = defectos[task].provider;
   const sirve = (p: Provider) => hayLlave(p) && proveedorPermitidoParaTarea(p, task);
   if (sirve(porDefecto) && !estaCastigado(porDefecto)) return porDefecto;
@@ -500,13 +499,18 @@ export function iaSettings(
     const e = defectos[task].esfuerzo;
     return e ? { esfuerzo: e } : {};
   };
+  const respaldo = (provider: Provider, task: AgentTask): string => {
+    if (provider === defectos[task].provider) return defectos[task].model;
+    if (task === 'transcribir') return MODELOS_DE_TRANSCRIPCION[provider] ?? defectos[task].model;
+    const gama = RESPALDO_POR_PROVEEDOR[provider];
+    return (TAREAS_PESADAS.has(task) ? gama?.pesado : gama?.liviano) ?? defectos[task].model;
+  };
   for (const task of TASKS) {
     if (soloProveedor) {
       // Si la tarea no la acepta —`transcribir` con un proveedor de solo
       // texto—, cae al por defecto: es capacidad, no preferencia, y fallar
       // en cada audio recibido sería peor que respetar la preferencia.
       if (proveedorPermitidoParaTarea(soloProveedor, task)) {
-        const gama = RESPALDO_POR_PROVEEDOR[soloProveedor];
         const configurado = raw.tasks?.[task];
         tasks[task] = {
           provider: soloProveedor,
@@ -514,13 +518,15 @@ export function iaSettings(
           model:
             configurado?.provider === soloProveedor && configurado.model?.trim()
               ? configurado.model.trim()
-              : (TAREAS_PESADAS.has(task) ? gama?.pesado : gama?.liviano) ??
-                defectos[task].model,
+              : respaldo(soloProveedor, task),
           ...esfuerzoDeLaTarea(task),
         };
         continue;
       }
-      tasks[task] = { ...defectos[task] };
+      const provider = hayLlave
+        ? conCredencial(task, defectos[task].provider, hayLlave, estaCastigado, defectos)
+        : defectos[task].provider;
+      tasks[task] = { provider, model: respaldo(provider, task), ...esfuerzoDeLaTarea(task) };
       continue;
     }
     const t = raw.tasks?.[task];
@@ -546,9 +552,7 @@ export function iaSettings(
       // `glm-4.6` apuntando a Google sería un 404 en cada mensaje entrante.
       model:
         elegido !== (t?.provider as Provider)
-          ? (TAREAS_PESADAS.has(task)
-              ? RESPALDO_POR_PROVEEDOR[elegido]?.pesado
-              : RESPALDO_POR_PROVEEDOR[elegido]?.liviano) ?? defectos[task].model
+          ? respaldo(elegido, task)
           : t?.model?.trim() || defectos[task].model,
     };
   }

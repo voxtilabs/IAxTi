@@ -1,4 +1,5 @@
-import { PROVIDERS, TASKS, iaSettings, type AgentTask, type Provider } from '../domain/config';
+import { DEFAULT_TASK_MODELS, PROVIDERS, TASKS, iaSettings, proveedorPermitidoParaTarea, type AgentTask, type Provider, type TaskModel } from '../domain/config';
+import { modeloPuedeTranscribir } from '../domain/audio';
 import { ENV_KEYS, providerAvailable } from './models';
 import { losCastigados } from './castigados';
 import type { MotivoDelProveedor } from './motivo-del-proveedor';
@@ -65,6 +66,7 @@ const EN_CASTELLANO: Record<AgentTask, string> = {
 
 export function diagnosticarLaIa(input: {
   settings: Record<string, unknown> | null | undefined;
+  defectos?: Record<AgentTask, TaskModel>;
   /** Para no depender del entorno en las pruebas. */
   hayLlave?: (provider: Provider) => boolean;
   /** Quién está apartado por haber fallado hace poco (#855). Idem. */
@@ -95,7 +97,7 @@ export function diagnosticarLaIa(input: {
   const castigado = (p: Provider) => apartadosAhora.some((c) => c.provider === p);
   // Con el castigo aplicado: la configuración efectiva es la que el producto
   // usaría AHORA, y desde #855 eso incluye saltar al que acaba de fallar.
-  const ia = iaSettings(input.settings, hayLlave, castigado);
+  const ia = iaSettings(input.settings, hayLlave, castigado, input.defectos);
   const pasos: PasoDeLaIa[] = [];
 
   // 1. Lo primero, porque si no hay ninguna llave nada más importa.
@@ -157,7 +159,7 @@ export function diagnosticarLaIa(input: {
 
   // 3. Tarea por tarea, en castellano. Es lo que alguien viene a buscar cuando
   //    dice «la sugerencia no aparece».
-  const rotas = TASKS.filter((t) => !hayLlave(ia.tasks[t].provider));
+  const rotas = TASKS.filter((t) => !hayLlave(ia.tasks[t].provider) || !proveedorPermitidoParaTarea(ia.tasks[t].provider, t) || (t === 'transcribir' && !modeloPuedeTranscribir(ia.tasks[t].provider, ia.tasks[t].model)));
   pasos.push({
     id: 'tareas',
     titulo: 'Qué puede hacer la IA hoy',
@@ -174,6 +176,21 @@ export function diagnosticarLaIa(input: {
             'Cada una usa el proveedor que tiene asignado. Configura su credencial, o cambia ' +
             'el proveedor de esa tarea en los ajustes de IA.',
         }),
+  });
+
+  const escritos = (input.settings as { ia?: { tasks?: { transcribir?: TaskModel } } })?.ia?.tasks;
+  const pedidoAudio = ia.soloProveedor ?? escritos?.transcribir?.provider ?? (input.defectos ?? DEFAULT_TASK_MODELS).transcribir.provider;
+  const audio = ia.tasks.transcribir;
+  const capaces = PROVIDERS.filter(p => proveedorPermitidoParaTarea(p, 'transcribir'));
+  const capaz = proveedorPermitidoParaTarea(audio.provider, 'transcribir') && modeloPuedeTranscribir(audio.provider, audio.model);
+  pasos.push({
+    id: 'transcripcion', titulo: 'Quién puede entender los audios',
+    estado: capaz && hayLlave(audio.provider) && audio.provider === pedidoAudio ? 'bien' : 'atencion',
+    detalle: !proveedorPermitidoParaTarea(pedidoAudio, 'transcribir')
+      ? `${pedidoAudio} no tiene un puerto capaz de transcribir audio. Es una limitación de capacidad, no una falla del proveedor. La configuración efectiva usa ${audio.provider}/${audio.model}.`
+      : !capaz ? `El modelo ${audio.model} de ${audio.provider} no tiene capacidad de transcripción en el puerto de audio. Revisa el modelo de la tarea.`
+      : `La transcripción usa ${audio.provider}/${audio.model}${audio.provider !== pedidoAudio ? ` como respaldo de ${pedidoAudio}` : ''}.`,
+    ...(!capaz || !hayLlave(audio.provider) ? { queHacer: `Los puertos capaces de transcribir son ${capaces.join(' y ')}. Revisa la credencial de la selección efectiva; ninguna llamada a un proveedor se hizo para este diagnóstico.` } : {}),
   });
 
   /**

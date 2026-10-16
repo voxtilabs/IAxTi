@@ -288,3 +288,24 @@ el dataset pueda correr.
   nuevo exige herramienta o pantalla.
 - La API key de GLM entra **por referencia** (`GLM_API_KEY`), jamás en git,
   y rota al cierre de la construcción como todas las pegadas en el chat.
+
+
+### Implementación técnica de la capacidad de audio — #864 (16-10-2026)
+
+La excepción de capacidad descrita el 12-10 arriba corresponde al puerto anterior.
+El puerto incorpora `/audio/transcriptions` de OpenAI mediante el SDK instalado;
+la semilla de `transcribir` pasa a `openai/gpt-4o-mini-transcribe`, con modelo
+separado de chat. No sobrescribe filas de plataforma ni selecciones explícitas.
+Google conserva su puerto multimodal y las reglas de respaldo/`soloProveedor`.
+El diagnóstico declara capacidad, credencial y proveedor efectivo, sin afirmar
+que una credencial o una petición de texto haya probado la transcripción.
+
+La cuota se comprueba antes del acceso; una respuesta registra uso reportado,
+costo estimado cuando hay tarifa conocida, Execution y auditoría en la misma
+transacción. No se redacta la voz antes de transcribir: audio/transcripción no
+se añaden a trazas, errores ni metadatos del rastro. La transcripción permanece
+en el mensaje del tenant, como antes, para búsqueda/contexto.
+
+Esto implementa C1–C3, no decide los términos de Google/OpenAI (C4) ni acredita
+calidad de audio real o el gate de evaluación externa (C5). La evidencia local
+usa HTTP interceptado y silencio PCM sintético; no se llamó a proveedores.

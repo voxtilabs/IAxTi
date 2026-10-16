@@ -65,11 +65,10 @@ describe('openai como cuarto proveedor (#842)', () => {
     expect(ENV_KEYS.openai).toBe('OPENAI_API_KEY');
   });
 
-  it('`transcribir` NO pasa por openai: es capacidad, no preferencia', () => {
-    // El adaptador compatible habla `/chat/completions` y la transcripción de
-    // IAxTi manda el audio como file part. OpenAI sí sabe transcribir, por
-    // otra API — dárselo a esta tarea fallaría en cada audio recibido.
-    expect(proveedorPermitidoParaTarea('openai', 'transcribir')).toBe(false);
+  it('`transcribir` tiene un puerto de audio OpenAI (#864)', () => {
+    // #864 agrega el puerto /audio/transcriptions; el contrato HTTP se mide
+    // en audio-port.test.ts, no se infiere de esta configuración.
+    expect(proveedorPermitidoParaTarea('openai', 'transcribir')).toBe(true);
     // Y las de texto sí, que es el punto de haberlo agregado.
     for (const tarea of ['sugerir', 'responder', 'clasificar', 'analizar'] as const) {
       expect(proveedorPermitidoParaTarea('openai', tarea)).toBe(true);

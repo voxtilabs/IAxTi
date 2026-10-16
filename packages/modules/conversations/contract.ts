@@ -11,6 +11,7 @@ export {
   getContext,
   updateSummary,
   updateTranscription,
+  incomingAudioAttachment,
   assignConversation,
   requestHandoff,
   changeConversationState,

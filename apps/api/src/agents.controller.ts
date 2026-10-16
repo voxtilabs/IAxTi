@@ -185,7 +185,7 @@ export class AgentsController {
       // El valor de ninguna llave sale de acá: `diagnosticarLaIa` solo pregunta
       // si la variable EXISTE. Un diagnóstico es una pantalla que alguien va a
       // compartir para pedir ayuda.
-      return diagnosticarLaIa({ settings });
+      return diagnosticarLaIa({ settings, defectos: await semillaCacheada(c) });
     });
   }
 
@@ -243,13 +243,13 @@ export class AgentsController {
         if (err instanceof BadRequestException) throw err;
       }
     }
-    const settings = await withTenant(pool(), actor.tenantId, (c) =>
-      getTenantSettings(c, actor.tenantId),
-    );
+    const { settings, defectos } = await withTenant(pool(), actor.tenantId, async (c) => ({
+      settings: await getTenantSettings(c, actor.tenantId), defectos: await semillaCacheada(c),
+    }));
     // Ninguna llave sale de acá, igual que en el diagnóstico: lo que vuelve es
     // qué proveedor contestó y, si no contestó, el motivo ya clasificado.
     return probarLaIa({
-      settings,
+      settings, defectos,
       ...(TASKS.includes(body?.tarea as never) ? { tarea: body.tarea as never } : {}),
     });
   }

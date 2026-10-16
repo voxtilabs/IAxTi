@@ -1,3 +1,4 @@
+import { AudioNoAdmitido } from '../domain/audio';
 import { esDelProveedor } from './fallo-del-proveedor';
 import { castigar, estaCastigado, perdonar } from './castigados';
 import { motivoDelProveedor } from './motivo-del-proveedor';
@@ -239,6 +240,7 @@ export async function runAgentTask(
     : promptCompleto;
   const inicio = Date.now();
   try {
+    if (input.task === 'transcribir') throw new AudioNoAdmitido('La transcripción requiere el puerto de audio; no se puede ejecutar como una tarea de texto.');
     const res = await modelPortFactory(provider, model).generate({
       system,
       prompt: haciaElProveedor,
