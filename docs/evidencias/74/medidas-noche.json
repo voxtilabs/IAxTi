@@ -1,0 +1,25 @@
+{
+  "viewport": 360,
+  "carga": {
+    "x": 16,
+    "y": 236.5,
+    "width": 328,
+    "height": 384
+  },
+  "lista": {
+    "x": 16,
+    "y": 236.5,
+    "width": 328,
+    "height": 384
+  },
+  "vacio": {
+    "x": 16,
+    "y": 236.5,
+    "width": 328,
+    "height": 384
+  },
+  "foco": {
+    "outline": "solid",
+    "shadow": "rgba(0, 12, 28, 0.15) 0px 2px 4px 0px, rgba(237, 239, 247, 0.1) 0px 1px 0px 0px inset"
+  }
+}

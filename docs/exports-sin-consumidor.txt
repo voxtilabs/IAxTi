@@ -180,7 +180,6 @@ whatsapp/categoriaDeZavu
 whatsapp/categoriaParaZavu
 whatsapp/checkNumberRateLimit
 whatsapp/codigoDelProveedor
-whatsapp/conectarSender
 whatsapp/consultarEnZavu
 whatsapp/crearEnZavu
 whatsapp/enviarARevisionEnZavu
@@ -189,14 +188,11 @@ whatsapp/estadoDeZavu
 whatsapp/fetchMediaBytes
 whatsapp/findNumberBySenderId
 whatsapp/listarEnZavu
-whatsapp/llaveSirveParaAmbiente
 whatsapp/mensajeDeRechazo
 whatsapp/normalizarNombre
 whatsapp/prepararEnvio
-whatsapp/quienSoy
 whatsapp/rechazoPermanente
 whatsapp/referralDe
-whatsapp/urlWebhook
 whatsapp/validarPlantilla
 whatsapp/variablesDe
 whatsapp/verifyZavuSignature

@@ -68,15 +68,13 @@ describe('un sticker sale como sticker y no como imagen', () => {
     expect(cuerpos[0].messageType).toBe('sticker');
   });
 
-  it('en Instagram y Messenger vale la misma tabla', async () => {
-    // La clase del archivo no cambia con el canal; lo que cambia son los pesos.
+  it('Instagram rechaza adjuntos antes de que Zavu los desvíe a WhatsApp (#74)', async () => {
     const { cuerpos, provider } = capturar('instagram');
-    await provider.send(CUENTA, {
-      to: 'US.13491208655302741918',
-      type: 'imagen',
+    await expect(provider.send(CUENTA, {
+      to: '17841400000000000', type: 'imagen',
       attachments: [{ url: 'https://r2.example/x.webp', contentType: 'image/webp' }],
-    });
-    expect(cuerpos[0].messageType).toBe('sticker');
+    })).rejects.toThrow(/solo permite enviar texto/);
+    expect(cuerpos).toHaveLength(0);
   });
 
   it('lo que la tabla SÍ acepta como imagen sigue saliendo como imagen', async () => {

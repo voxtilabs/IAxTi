@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
 import {
   ZAVU_API_BASE_DEFAULT,
   createZavuProvider,
@@ -57,6 +57,7 @@ beforeAll(async () => {
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
   await admin.query('GRANT SELECT, INSERT, UPDATE ON channel_accounts, whatsapp_numbers, plan_limits, tenants TO iaxti_app');
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
+  await admin.query('GRANT SELECT, INSERT ON audit_log TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('wsp-test') RETURNING id");
   tenant = t.rows[0].id;
@@ -69,6 +70,7 @@ afterAll(async () => {
   await admin.query('DELETE FROM whatsapp_numbers WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  await sinTriggers(admin, (c) => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });

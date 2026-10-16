@@ -83,7 +83,7 @@ describe('en la bandeja (#561)', () => {
   it('fuera de la ventana de 24 h no se acepta nada', () => {
     // Ahí solo salen plantillas: aceptar una foto que no va a salir es prometer
     // algo que el canal no permite.
-    expect(CHAT).toMatch(/useArrastre\(\{ alRecibir: setArchivo, activo: enVentana \}\)/);
+    expect(CHAT).toMatch(/useArrastre\(\{ alRecibir: setArchivo, activo: enVentana && admiteAdjuntos \}\)/);
   });
 
   it('pegar está en el campo de texto', () => {

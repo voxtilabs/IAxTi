@@ -309,6 +309,25 @@ export async function identityFor(
  * Sigue la fusión igual que `ensure` (#34): el canal conversa con el que quedó
  * vivo, no con el que se fusionó.
  */
+/** Consulta sin crear contactos: una prueba de envío no acredita consentimiento. */
+export async function contactoPorIdentidad(
+  client: PoolClient,
+  input: { tenantId: string; channel: IdentityChannel; identity: string },
+): Promise<Contact | null> {
+  const r = await client.query(
+    `SELECT k.* FROM contact_identities i JOIN contacts k ON k.id = i.contact_id AND k.tenant_id = i.tenant_id
+     WHERE i.tenant_id = $1 AND i.channel = $2 AND i.identity = $3`,
+    [input.tenantId, input.channel, input.identity],
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+  if (row.merged_into) {
+    const principal = await client.query('SELECT * FROM contacts WHERE tenant_id = $1 AND id = $2', [input.tenantId, row.merged_into]);
+    if (principal.rows[0]) return rowToContact(principal.rows[0]);
+  }
+  return rowToContact(row);
+}
+
 export async function contactoPorTelefono(
   client: PoolClient,
   input: { tenantId: string; phone: string },

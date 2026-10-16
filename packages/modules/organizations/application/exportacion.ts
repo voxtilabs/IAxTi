@@ -100,6 +100,7 @@ export const TABLAS_EXPORTADAS = [
   // valor de haberlo escrito así.
   'source_links',
   'channel_accounts',
+  'channel_senders',
   'whatsapp_numbers',
   'whatsapp_templates',
   'webchat_widgets',
