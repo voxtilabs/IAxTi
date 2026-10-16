@@ -545,6 +545,9 @@ importers:
       '@iaxti/module-platform':
         specifier: workspace:*
         version: link:../../packages/modules/platform
+      '@iaxti/module-webchat':
+        specifier: workspace:*
+        version: link:../../packages/modules/webchat
       '@iaxti/module-whatsapp':
         specifier: workspace:*
         version: link:../../packages/modules/whatsapp
