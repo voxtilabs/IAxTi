@@ -1,0 +1,22 @@
+{
+  "viewport": 360,
+  "mode": "noche",
+  "widths": {
+    "scroll": 350,
+    "viewport": 360
+  },
+  "label": {
+    "color": "rgb(147, 162, 255)",
+    "outline": "rgb(147, 162, 255)",
+    "font": "Inter, system-ui, sans-serif",
+    "size": "14px",
+    "background": "rgb(15, 18, 32)"
+  },
+  "cardRadius": "22px",
+  "dropzoneRadius": "14px",
+  "pageErrors": [],
+  "contrast": {
+    "textAgainstField": 7.85,
+    "focusAgainstField": 7.85
+  }
+}

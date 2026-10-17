@@ -87,7 +87,9 @@ export function RetencionDelNegocio() {
   // El marco va en una constante porque lo usan los TRES estados, y si el
   // esqueleto no lleva el mismo `mt-10 border-t pt-8` salta igual que antes
   // —con el alto de adentro clavado al milímetro—.
-  const marco = 'mt-10 border-t border-line pt-8';
+  // A 360 px el formulario envuelve: 303 px medidos, frente a 224 a 412 px.
+  // Ambos estados reservan ese marco en teléfonos estrechos (#588).
+  const marco = 'mt-10 border-t border-line pt-8 max-[399px]:min-h-[303px]';
   const titulo = 'Cuánto se guardan las conversaciones';
 
   /**

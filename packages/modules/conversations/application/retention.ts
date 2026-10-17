@@ -147,6 +147,9 @@ export interface PurgeResult {
 export async function purgeTenantRetention(
   pool: Pool,
   tenantId: string,
+  deps: {
+    detachSessions: (client: PoolClient, input: { tenantId: string; conversationIds: string[] }) => Promise<void>;
+  },
   now: Date = new Date(),
 ): Promise<PurgeResult | null> {
   const client = await pool.connect();
@@ -199,7 +202,10 @@ export async function purgeTenantRetention(
 
       // El orden respeta los FK; las tablas sin FK se limpian igual
       // (nada de huérfanas). Contact, Deal y Appointment NO se tocan.
-      await c.query(`UPDATE webchat_sessions SET conversation_id = NULL WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[])`, [tenantId, ids]);
+      // #905: el dueño suelta sus FK con ESTE cliente. El puerto se conecta
+      // en workers para no introducir el ciclo conversations ↔ webchat.
+      // Se ejecuta incluso con webchat apagado: sus sesiones siguen guardadas.
+      await deps.detachSessions(c, { tenantId, conversationIds: ids });
       for (const tabla of ['internal_notes', 'assignments', 'suggestions', 'agent_conversation_modes', 'sequence_enrollments', 'response_samples', 'messages']) {
         await c.query(`DELETE FROM ${tabla} WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[])`, [tenantId, ids]);
       }

@@ -234,11 +234,11 @@ describe('enviar una plantilla: se salta la ventana, nada más', () => {
   const deps = (opciones: { consiente: boolean }) => ({
     contactoDe: async () => contacto,
     puedeIniciar: async () => opciones.consiente,
-    crearMensaje: async (m: { tenantId: string; conversationId: string; body: string }) => {
+    crearMensaje: async (m: Parameters<Parameters<typeof enviarPlantilla>[2]['crearMensaje']>[0]) => {
       const r = await admin.query(
-        `INSERT INTO messages (tenant_id, conversation_id, direction, type, body, author_kind)
-         VALUES ($1, $2, 'out', 'texto', $3, 'user') RETURNING id`,
-        [m.tenantId, m.conversationId, m.body],
+        `INSERT INTO messages (tenant_id, conversation_id, direction, type, body, author_kind, meta)
+         VALUES ($1, $2, 'out', 'plantilla', $3, 'user', $4::jsonb) RETURNING id`,
+        [m.tenantId, m.conversationId, m.body, JSON.stringify({ plantilla: m.plantilla })],
       );
       return { id: r.rows[0].id as string };
     },

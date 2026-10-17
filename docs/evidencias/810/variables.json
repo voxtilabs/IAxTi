@@ -1,0 +1,938 @@
+{
+  "prod": {
+    "file": "infra/dokploy/docker-compose.prod.yml",
+    "unique_variables": 45,
+    "required_variables": 12,
+    "not_required_variables": 33,
+    "interpolation_occurrences": 47,
+    "occurrences_without_required_operator": 34,
+    "variables": [
+      {
+        "name": "AGENT_PRICES_JSON",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 96,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "ANTHROPIC_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 78,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "API_URL_PUBLIC",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 39,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "APP_URL_PUBLIC",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 40,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "AUDIT_EXPORT_SECRET",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 89,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "BILLING_PRICES_JSON",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 97,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "BILLING_USD_CLP",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 98,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "CORS_ORIGINS",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 41,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "DATABASE_URL",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 28,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "DB_POOL_MAX",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 32,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "FLOW_API_BASE",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 93,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "GLM_API_BASE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 70,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "GLM_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 65,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "GOOGLE_GENERATIVE_AI_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 60,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "IAXTI_ENV",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 19,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "IMAGE",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 15,
+            "operator": ":?"
+          },
+          {
+            "line": 23,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "LANGFUSE_BASE_URL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 82,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "LANGFUSE_PUBLIC_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 80,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "LANGFUSE_SECRET_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 81,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "LOG_FORMAT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 100,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OPENAI_API_BASE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 69,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "OPENAI_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 68,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 26,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OTEL_EXPORTER_OTLP_HEADERS",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 27,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 25,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "PUBLIC_API_URL",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 94,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "R2_ACCESS_KEY_ID",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 85,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "R2_BUCKET_ADJUNTOS",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 87,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "R2_ENDPOINT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 84,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "R2_SECRET_ACCESS_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 86,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "REDIS_PASSWORD",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 33,
+            "operator": ":?"
+          },
+          {
+            "line": 153,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "SENTRY_DSN",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 24,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_FROM",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 55,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_HOST",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 51,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_PASS",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 54,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_PORT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 52,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_USER",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 53,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_ANON_KEY",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 35,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_JWKS_URL",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 36,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_SERVICE_ROLE_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 37,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_URL",
+        "required": true,
+        "occurrences": [
+          {
+            "line": 34,
+            "operator": ":?"
+          }
+        ]
+      },
+      {
+        "name": "USD_CLP_RATE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 99,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "ZAVU_API_BASE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 46,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "ZAVU_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 45,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "ZAVU_WEBHOOK_SECRET",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 47,
+            "operator": "sin operador"
+          }
+        ]
+      }
+    ]
+  },
+  "staging": {
+    "file": "infra/dokploy/docker-compose.staging.yml",
+    "unique_variables": 45,
+    "required_variables": 0,
+    "not_required_variables": 45,
+    "interpolation_occurrences": 47,
+    "occurrences_without_required_operator": 47,
+    "variables": [
+      {
+        "name": "AGENT_PRICES_JSON",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 110,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "ANTHROPIC_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 81,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "API_URL_PUBLIC",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 33,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "APP_URL_PUBLIC",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 53,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "AUDIT_EXPORT_SECRET",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 98,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "BILLING_PRICES_JSON",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 111,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "BILLING_USD_CLP",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 112,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "CORS_ORIGINS",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 34,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "DATABASE_URL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 23,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "DB_POOL_MAX",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 27,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "FLOW_API_BASE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 105,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "GLM_API_BASE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 73,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "GLM_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 68,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "GOOGLE_GENERATIVE_AI_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 63,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "IAXTI_ENV",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 14,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "IMAGE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 10,
+            "operator": "sin operador"
+          },
+          {
+            "line": 18,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "LANGFUSE_BASE_URL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 87,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "LANGFUSE_PUBLIC_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 85,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "LANGFUSE_SECRET_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 86,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "LOG_FORMAT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 114,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OPENAI_API_BASE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 72,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "OPENAI_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 71,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 21,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OTEL_EXPORTER_OTLP_HEADERS",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 22,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 20,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "PUBLIC_API_URL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 106,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "R2_ACCESS_KEY_ID",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 92,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "R2_BUCKET_ADJUNTOS",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 94,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "R2_ENDPOINT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 91,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "R2_SECRET_ACCESS_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 93,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "REDIS_PASSWORD",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 28,
+            "operator": "sin operador"
+          },
+          {
+            "line": 169,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SENTRY_DSN",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 19,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_FROM",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 50,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_HOST",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 46,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_PASS",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 49,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_PORT",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 47,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SMTP_USER",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 48,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_ANON_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 30,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_JWKS_URL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 31,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_SERVICE_ROLE_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 58,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "SUPABASE_URL",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 29,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "USD_CLP_RATE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 113,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "ZAVU_API_BASE",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 39,
+            "operator": ":-"
+          }
+        ]
+      },
+      {
+        "name": "ZAVU_API_KEY",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 38,
+            "operator": "sin operador"
+          }
+        ]
+      },
+      {
+        "name": "ZAVU_WEBHOOK_SECRET",
+        "required": false,
+        "occurrences": [
+          {
+            "line": 40,
+            "operator": "sin operador"
+          }
+        ]
+      }
+    ]
+  }
+}

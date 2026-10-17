@@ -51,6 +51,73 @@ fecha, estado HTTP y dependencias. Para workers y agents hacerlo dentro de la re
 privada; no abrir puertos públicos para monitorearlos. Usar `/ready` en el smoke
 posterior al deploy; `/health` por sí solo no comprueba que el usuario pueda operar.
 
+## Logs de plataforma por OTLP
+
+El sobre JSON ya existía, pero solo se escribía en la consola. Ahora el mismo
+sobre redactado puede salir también por OTLP HTTP/protobuf. El transporte está
+**apagado por defecto**, incluso si las trazas ya tienen endpoint configurado.
+Se activa con `OTEL_LOGS_EXPORTER=otlp` y `LOG_FORMAT=json`; `none`, blanco o
+ausente conservan únicamente la salida local. No se habilita por desplegar este
+cambio. `OTEL_EXPORTER_OTLP_LOGS_PROTOCOL` admite `http/protobuf`; una configuración
+incompatible avisa localmente y no exporta logs.
+
+El endpoint común `OTEL_EXPORTER_OTLP_ENDPOINT` recibe el sufijo `/v1/logs`.
+`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`, si se usa, es la URL completa del destino de
+logs. No poner credenciales ni parámetros en esas URLs. Las cabeceras se leen
+del mecanismo existente: `OTEL_EXPORTER_OTLP_LOGS_HEADERS` tiene precedencia sobre
+`OTEL_EXPORTER_OTLP_HEADERS`; en blanco usa las comunes. Sus valores permanecen
+en el gestor de secretos. Los Compose de staging/producción pasan estas variables
+con el exportador `none` por defecto. **Dokploy raw requiere aplicar esas variables
+al documento activo**: el parche de healthchecks no sincroniza esta sección.
+
+El transporte solo recibe mensaje/nivel/fecha/servicio y el contexto vigente
+tenant/request/trace, más el stack redactado cuando hay un Error. No captura
+requests, respuestas, cuerpos de conversación ni argumentos o variables del
+proceso como recursos OTel. En objetos se omiten enteros los campos de cuerpos
+HTTP (`data`, `body`, `payload`, `request`, etc.), mensajes/prompts y cabeceras;
+se conservan códigos/status para diagnóstico. También se redactan claves
+sensibles, Bearer/Basic, credenciales y parámetros de URL, correos y teléfonos
+con prefijo internacional. Se acotan tamaño y profundidad. Esto **no es un
+detector universal de PII**: los productores deben seguir evitando texto del
+cliente o datos personales en mensajes libres. La consola sin `LOG_FORMAT=json`
+mantiene su comportamiento anterior y no se exporta por este puente.
+
+La cola guarda hasta 512 registros, en lotes de 128, con intervalo de 1 s y
+plazo de envío de 1 s. Al saturarse descarta la copia remota de los nuevos
+registros, conservando la consola; no es un transporte durable ni sustituye
+`audit_log`. Al apagar, se drenan primero las piezas de la aplicación y luego
+la telemetría. Los fallos del exportador quedan solo en la salida local para
+evitar que su propio error origine otro envío. No se instala un segundo logger
+global ni se duplican los bridges automáticos del SDK.
+
+### Receptor local reproducible
+
+`infra/otel/docker-compose.local.yml` levanta explícitamente un Collector oficial
+versionado (0.162.0), con puerto publicado solo en loopback, límite de memoria y
+configuración de solo lectura. Su única salida es `debug` local: **no conecta
+Grafana ni ningún servicio externo**. El puerto 4318 debe estar libre.
+
+```sh
+docker compose -f infra/otel/docker-compose.local.yml config --quiet
+docker compose -f infra/otel/docker-compose.local.yml up -d
+pnpm --filter @iaxti/telemetry build
+LOG_FORMAT=json OTEL_LOGS_EXPORTER=otlp OTEL_EXPORTER_OTLP_ENDPOINT= SENTRY_DSN= \
+  OTEL_EXPORTER_OTLP_HEADERS= OTEL_EXPORTER_OTLP_LOGS_HEADERS= \
+  OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf \
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://127.0.0.1:4318/v1/logs \
+  node packages/telemetry/tests/fixtures/logs-otlp.cjs
+docker compose -f infra/otel/docker-compose.local.yml logs collector
+docker compose -f infra/otel/docker-compose.local.yml down
+```
+
+Usar solamente datos de prueba: el exportador `debug` muestra los registros
+recibidos. La fixture ejerce `initObservability`, consola, contexto y apagado
+reales del paquete compilado. Para correlación y fallos, `pnpm --filter
+@iaxti/telemetry test` ejecuta subprocesos con receptor HTTP local que decodifica
+el protobuf recibido; comprueba tenant/request/trace, redacción, 401, timeout,
+saturación y salida del proceso sin forzar `process.exit`. La evidencia del
+cambio está en [el corte #17](../evidencias/17/README.md).
+
 ## Evidencia pendiente para cerrar #17
 
 1. Un error controlado identificable de cada uno de los cinco servicios recibido

@@ -1,0 +1,11 @@
+# Se inicia explícitamente; no se añade a ningún despliegue compartido.
+services:
+  collector:
+    image: otel/opentelemetry-collector:0.162.0
+    command: ["--config=/etc/otelcol/collector.yml"]
+    ports: ["127.0.0.1:4318:4318"]
+    volumes: ["./collector.local.yml:/etc/otelcol/collector.yml:ro,Z"]
+    mem_limit: 128m
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
