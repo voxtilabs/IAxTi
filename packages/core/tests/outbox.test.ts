@@ -7,6 +7,7 @@ import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { publishEvent } from '../src/events';
 import { OutboxDispatcher, type Consumer } from '../src/dispatcher';
 import { ModuleRegistry } from '../src/registry';
+import { outboxAcotado } from '../src/testing/outbox-acotado';
 import type { EventEnvelope } from '../src/events';
 
 /**
@@ -80,18 +81,38 @@ describe('outbox transaccional', () => {
 
 /**
  * El despachador trabaja sobre TODA la tabla: es un despachador de
- * plataforma, no de un tenant. Así que antes de contar ticks hay que dejar
- * el outbox vacío — si no, lo que cuenta este test es cuántos eventos
+ * plataforma, no de un tenant. Así que para contar ticks hay que acotarlo a
+ * lo que esta prueba publicó — si no, lo que cuenta es cuántos eventos
  * dejaron pendientes las otras suites, y el número cambia según el orden en
  * que turbo agende los paquetes (issue 207).
+ *
+ * Antes esto se resolvía VACIANDO el outbox, y tenía un costo invisible:
+ * marcaba como procesados los pendientes de las demás pruebas que corren en
+ * paralelo, y el rojo aparecía en otro archivo. `outboxAcotado` reescribe el
+ * `SELECT` del despachador para que mire solo estos ids, sin tocar lo ajeno
+ * (#972, idea de #939).
  */
-async function drenar(): Promise<void> {
-  const consumidorMudo: Consumer[] = [];
-  const dispatcher = new OutboxDispatcher(admin, registry, consumidorMudo);
-  for (let i = 0; i < 50; i++) {
-    if ((await dispatcher.tick()) === 0) return;
-  }
-  throw new Error('el outbox no se vacía: algo lo está llenando en paralelo');
+function despachadorDe(ids: number[], consumers: Consumer[]): OutboxDispatcher {
+  return new OutboxDispatcher(outboxAcotado(admin, ids), registry, consumers);
+}
+
+/**
+ * Publica y devuelve el id, que es lo que acota al despachador.
+ *
+ * Por `publishEvent` y no con un INSERT a mano: lo que se quiere probar es el
+ * camino de verdad, con su `payload`, su traza y su forma. El id se lee
+ * después porque `publishEvent` no lo devuelve — y la fila recién insertada
+ * por esta transacción es la última de este tenant con ese nombre.
+ */
+async function publicar(evento: Parameters<typeof publishEvent>[1]): Promise<number> {
+  return withTenant(admin, tenant, async (c) => {
+    await publishEvent(c, evento);
+    const r = await c.query(
+      'SELECT id FROM outbox WHERE tenant_id = $1 AND name = $2 ORDER BY id DESC LIMIT 1',
+      [evento.tenantId, evento.name],
+    );
+    return Number(r.rows[0].id);
+  });
 }
 
   it('entrega una sola vez por consumidor, aunque el tick corra de nuevo', async () => {
@@ -106,12 +127,14 @@ async function drenar(): Promise<void> {
         },
       },
     ];
-    await drenar();
-    await withTenant(admin, tenant, (c) =>
-      publishEvent(c, { name: 'demo.paso', tenantId: tenant, payload: { n: 1 }, requestId: 'req_e2e' }),
-    );
+    const id = await publicar({
+      name: 'demo.paso',
+      tenantId: tenant,
+      payload: { n: 1 },
+      requestId: 'req_e2e',
+    });
 
-    const dispatcher = new OutboxDispatcher(admin, registry, consumers);
+    const dispatcher = despachadorDe([id], consumers);
     expect(await dispatcher.tick()).toBe(1);
     expect(await dispatcher.tick()).toBe(0); // nada pendiente
     expect(recibidos).toHaveLength(1);
@@ -147,10 +170,9 @@ async function drenar(): Promise<void> {
         },
       },
     ];
-    await drenar();
-    await withTenant(admin, tenant, (c) => publishEvent(c, { name: 'demo.fragil', tenantId: tenant }));
+    const id = await publicar({ name: 'demo.fragil', tenantId: tenant });
 
-    const dispatcher = new OutboxDispatcher(admin, registry, consumers);
+    const dispatcher = despachadorDe([id], consumers);
     expect(await dispatcher.tick()).toBe(0); // falló: no procesado
     const conError = await admin.query(
       "SELECT attempts, last_error FROM outbox WHERE name = 'demo.fragil' AND tenant_id = $1",
