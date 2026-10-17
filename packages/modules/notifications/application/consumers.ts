@@ -249,6 +249,7 @@ export async function handleNotifiableEvent(
             `notifications: no salió el correo de "${aviso.type}" a ${userId} en ${event.tenantId}; ` +
               `la campana queda igual. Causa: ${error.message}`,
           );
+          return false; // no salió, y eso es lo que devuelve quien sí lo manda
         },
       );
     }
@@ -269,6 +270,7 @@ export async function handleNotifiableEvent(
             `notifications: no salió el push de "${aviso.type}" a ${userId} en ${event.tenantId}; ` +
               `la campana queda igual. Causa: ${error.message}`,
           );
+          return [];
         },
       );
     }

@@ -247,6 +247,9 @@ export async function applyQualityUpdate(
     // transacción de quien llamó abortada (#966).
     await degradarSinRomper(
       client,
+      // El `.then(() => undefined)` es para que el valor que devuelve
+      // `setChannelState` no viaje: nadie lo usa acá, y sin descartarlo el
+      // fallback tendría que inventar un ChannelAccountRef que no existe.
       (c) =>
         setChannelState(c, {
           tenantId: input.tenantId,
@@ -254,8 +257,8 @@ export async function applyQualityUpdate(
           state: 'degraded',
           reason: 'calidad del número en rojo',
           requestId: input.requestId,
-        }),
-      () => {},
+        }).then(() => undefined),
+      () => undefined,
     );
   }
   return { changed: true, pausado: cayoARojo || Boolean(numero.business_paused_at) };
@@ -314,12 +317,13 @@ export async function resumeBusinessSends(
         state: 'active',
         reason: 'el ADMIN reactivó los envíos',
         requestId: input.requestId,
-      }),
+      }).then(() => undefined),
     (error) => {
       console.warn(
         `whatsapp.calidad: el número ${input.numberId} de ${input.tenantId} quedó reactivado pero ` +
           `el canal no cambió de estado. Causa: ${error.message}`,
       );
+      return undefined;
     },
   );
 }
