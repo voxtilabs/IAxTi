@@ -21,3 +21,14 @@ export {
 } from './application/fin-de-ciclo';
 export type { TenantPorBorrar } from './application/fin-de-ciclo';
 export type { CostosDelCiclo } from './application/billing';
+export {
+  PAR,
+  FUENTE,
+  cambioDelDia,
+  cambiosDelRango,
+  guardarCambios,
+  sincronizarCambio,
+  traerDolarObservado,
+} from './application/cambio';
+export { aPesos, seConvirtio } from './domain/cambio';
+export type { Cambio, EnPesos } from './domain/cambio';

@@ -91,7 +91,12 @@ import {
 } from '@iaxti/module-automations';
 import { analyticsConsumers, sweepResponseSamples } from '@iaxti/module-analytics';
 import { expireLinks, tenantsWithExpirableLinks } from '@iaxti/module-payments';
-import { avisarBorradoPendiente, billingConsumers, sweepBilling } from '@iaxti/module-billing';
+import {
+  avisarBorradoPendiente,
+  billingConsumers,
+  sincronizarCambio,
+  sweepBilling,
+} from '@iaxti/module-billing';
 import { applyModuleFlags } from '@iaxti/module-platform';
 import { flushApiUsage } from './api-usage';
 import { deliverWebhooks, webhookConsumers } from '@iaxti/module-integrations';
@@ -487,6 +492,23 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           return res;
         }
         // Links vencidos (#60): created/sent con la fecha pasada.
+        /**
+         * El dólar del día (#796).
+         *
+         * Es de plataforma y no por tenant: el dólar observado es el mismo para
+         * todos, así que no hay barrido ni `withTenant`. Una consulta a una API
+         * pública, y lo que se loguea es cuántos valores CAMBIARON —no cuántos
+         * se trajeron—: «guardé 30» cada mañana no dice nada, «cambió 1» sí, y
+         * un valor corregido por el Banco Central es justo lo que hay que ver.
+         */
+        case 'billing.fx': {
+          const { traidos, cambiados } = await sincronizarCambio(pool);
+          if (cambiados > 0) {
+            console.log(`scheduled: dólar observado — ${cambiados} de ${traidos} valores nuevos o corregidos`);
+          }
+          return { traidos, cambiados };
+        }
+
         case 'payments.expire': {
           const conVencibles = await tenantsWithExpirableLinks(pool);
           let total = 0;
