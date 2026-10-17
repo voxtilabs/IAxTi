@@ -24,14 +24,14 @@
     "migraciones:virgen": "node scripts/migraciones-en-base-virgen.mjs"
   },
   "devDependencies": {
-    "@eslint/js": "^9.30.0",
+    "@eslint/js": "^10.0.1",
     "@iaxti/db": "workspace:*",
     "@iaxti/module-whatsapp": "workspace:*",
-    "dependency-cruiser": "^16.8.0",
-    "eslint": "^9.30.0",
+    "dependency-cruiser": "^18.3.1",
+    "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "turbo": "^2.11.5",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.71.0"
   }
 }
