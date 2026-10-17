@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { degradarSinRomper } from '@iaxti/db';
 import type { Consumer, EventEnvelope } from '@iaxti/core';
 import { ONBOARDING_STATES, type OnboardingState } from '../domain/state';
 import { PASOS } from '../domain/onboarding-pasos';
@@ -53,7 +54,20 @@ export async function avanzarPorEvento(
   tenantId: string,
   paso: OnboardingState,
 ): Promise<boolean> {
-  const tenant = await getTenant(client, tenantId).catch(() => null);
+  // Esto corre como consumidor del outbox, con el cliente de la transacción
+  // del despachador: tragarse el error la dejaba abortada y el evento moría
+  // con «current transaction is aborted» en vez de con la causa (#962, #966).
+  const tenant = await degradarSinRomper(
+    client,
+    (c) => getTenant(c, tenantId),
+    (error) => {
+      console.warn(
+        `organizations.onboarding: no se pudo leer el negocio ${tenantId}; ` +
+          `el paso no avanza. Causa: ${error.message}`,
+      );
+      return null;
+    },
+  );
   if (!tenant) return false;
   const actual = ONBOARDING_STATES.indexOf(tenant.onboardingState);
   const destino = ONBOARDING_STATES.indexOf(paso);

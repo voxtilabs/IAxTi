@@ -3,7 +3,7 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [identity, organizations]
+  required: [identity, organizations, audit]
   optional: [whatsapp]
 permissions:
   - platform.tenants
