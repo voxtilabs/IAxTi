@@ -86,6 +86,7 @@ número, el que manda es el código:
 | `api_usage.flush` | 5 min | el consumo de API no se cobra ni se muestra |
 | `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
+| `knowledge.borrados_pendientes` | :50 | una fuente que perdió su archivo se sigue citando: el PDF no se puede bajar |
 | `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |
 | `payments.expire` | :45 | los links de pago vencidos siguen cobrables |
 | `whatsapp.templates.sync` | 30 min | el estado de aprobación de Meta no se entera |

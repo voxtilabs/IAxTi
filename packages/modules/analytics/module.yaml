@@ -7,7 +7,7 @@ module:
   core: false
 depends_on:
   required: [identity, organizations, audit]
-  optional: []
+  optional: [conversations]
 permissions:
   - analytics.read
   - analytics.read_all

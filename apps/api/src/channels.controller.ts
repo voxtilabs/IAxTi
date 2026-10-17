@@ -11,7 +11,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { withTenant } from '@iaxti/db';
+import { degradarSinRomper, withTenant } from '@iaxti/db';
 import { diagnosticarCanal, findAccountById, listChannelAccounts } from '@iaxti/module-channels';
 import { writeAudit } from '@iaxti/module-audit';
 import {
@@ -89,9 +89,23 @@ export class ChannelsController {
   async list(@Req() request: WithUser) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, async (c) => {
+      // Los números son opcionales —la pantalla se dibuja igual sin ellos—
+      // pero la cuenta de canal NO: sin ella no hay nada que mostrar. Por eso
+      // una se degrada y la otra no, y por eso la que se degrada va dentro de
+      // un savepoint: si no, su fallo se lleva puesta la otra (#962, #966).
       const [accounts, numbers] = await Promise.all([
         listChannelAccounts(c, actor.tenantId),
-        listWhatsAppNumbers(c, actor.tenantId).catch(() => []),
+        degradarSinRomper(
+          c,
+          (cl) => listWhatsAppNumbers(cl, actor.tenantId),
+          (error) => {
+            console.warn(
+              `channels: no se pudieron leer los números de WhatsApp de ${actor.tenantId}; ` +
+                `las cuentas salen sin ellos. Causa: ${error.message}`,
+            );
+            return [];
+          },
+        ),
       ]);
       return accounts.map((a) => ({
         ...a,
