@@ -17,6 +17,9 @@ const ADMIN_URL =
 
 let admin: Pool;
 let tenant: string;
+// Estos fixtures no crean sesiones. El contrato real y su rollback con RLS
+// se comprueban en workers/tests/retention-webchat.test.ts, donde se componen.
+const sinSesiones = { detachSessions: async () => {} };
 
 async function conversacionVieja(
   phone: string,
@@ -86,7 +89,7 @@ describe('la purga (#77)', () => {
       [tenant, vieja],
     );
 
-    const res = await purgeTenantRetention(admin, tenant);
+    const res = await purgeTenantRetention(admin, tenant, sinSesiones);
     expect(res).not.toBeNull();
     expect(res!.purged).toBe(2); // la resuelta y la archivada
     expect(res!.r2Keys).toContain('t/adjunto-viejo.jpg');
@@ -124,7 +127,7 @@ describe('la purga (#77)', () => {
     expect(evento.rows[0].n).toBe(1);
 
     // Sin nada nuevo que purgar: la corrida siguiente es un no-op.
-    expect(await purgeTenantRetention(admin, tenant)).toBeNull();
+    expect(await purgeTenantRetention(admin, tenant, sinSesiones)).toBeNull();
   });
 
   it('bajar de plan difiere la purga 30 días con la cantidad EXACTA', async () => {
@@ -155,7 +158,7 @@ describe('la purga (#77)', () => {
     expect(evento.rows[0].payload.count).toBe(1); // la cantidad exacta
 
     // Con el aviso corriendo, la purga espera.
-    const res = await purgeTenantRetention(admin, tenant);
+    const res = await purgeTenantRetention(admin, tenant, sinSesiones);
     expect(res).toBeNull();
     const marca = await admin.query(
       `SELECT settings->'retencion'->>'firstPurgeAfter' AS fpa FROM tenants WHERE id = $1`,
@@ -169,7 +172,7 @@ describe('la purga (#77)', () => {
          to_jsonb((now() - interval '1 hour')::text)) WHERE id = $1`,
       [tenant],
     );
-    const purgada = await purgeTenantRetention(admin, tenant);
+    const purgada = await purgeTenantRetention(admin, tenant, sinSesiones);
     expect(purgada!.purged).toBe(1);
     const limpia = await admin.query(
       `SELECT settings->'retencion' ? 'firstPurgeAfter' AS tiene FROM tenants WHERE id = $1`,

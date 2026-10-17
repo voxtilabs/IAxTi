@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import * as Sentry from '@sentry/node';
+import { argumentoDeLog, textoDeLog } from './redaccion-log';
+import { crearTransporteLogs } from './logs-otlp';
 export { frontendReadiness } from './frontend-readiness';
 
 /**
@@ -35,6 +37,14 @@ export function releaseDeLaImagen(imagen = process.env.IAXTI_IMAGE): string | un
 
 export function initObservability(serviceName: string): void {
   activarLogsEstructurados(serviceName);
+  if (!logsInicializados) {
+    logsInicializados = true;
+    transporteLogs = crearTransporteLogs(serviceName, (mensaje) => soloSalidaLocal(() => console.warn(mensaje)));
+    if (transporteLogs) {
+      hacerVisiblesLosFallosDeOtel();
+      instalarApagadoOrdenado();
+    }
+  }
 
   if (process.env.SENTRY_DSN) {
     Sentry.init({
@@ -147,6 +157,9 @@ export function initObservability(serviceName: string): void {
     }
 
     const sdk = new NodeSDK({
+      // La consola pasa por el provider mínimo de logs-otlp. El valor por
+      // defecto del SDK habilita otro exportador y puede duplicar logger bridges.
+      logRecordProcessors: [],
       ...(sentryOtel ? {
         contextManager: new Sentry.SentryContextManager(),
         textMapPropagator: new sentryOtel.SentryPropagator(),
@@ -163,6 +176,7 @@ export function initObservability(serviceName: string): void {
       ],
     });
     sdk.start();
+    hacerVisiblesLosFallosDeOtel();
 
     // El SDK se vacía al FINAL del apagado, cuando cada pieza del proceso ya
     // cerró: las trazas del drenaje son justamente las que interesan cuando un
@@ -207,6 +221,14 @@ interface Cierre {
 const cierres: Cierre[] = [];
 /** Vaciar el SDK de OTel, si está activo. Va al final, no en la lista. */
 let cerrarOtel: (() => Promise<void>) | null = null;
+let transporteLogs: ReturnType<typeof crearTransporteLogs> = null;
+let logsInicializados = false;
+let salidaSoloLocal = false;
+function soloSalidaLocal(fn: () => void): void {
+  const previo = salidaSoloLocal;
+  salidaSoloLocal = true;
+  try { fn(); } finally { salidaSoloLocal = previo; }
+}
 let apagado: Promise<void> | null = null;
 let señalesTomadas = false;
 
@@ -286,6 +308,7 @@ export async function apagarOrdenado(motivo: string): Promise<void> {
     }
     if (cerrarOtel) await cerrarOtel().catch(() => {});
     await flushTelemetry().catch(() => {});
+    await transporteLogs?.cerrar();
     console.warn(`apagado: listo en ${Date.now() - desde} ms`);
   })();
   return apagado;
@@ -537,36 +560,29 @@ export function activarLogsEstructurados(servicio: string): void {
     const original = actual.bind(console);
     const envuelto = (...args: unknown[]) => {
       const ctx = contextoDeLogActual();
+      const traceId = trazaActual();
       const linea = {
         ts: new Date().toISOString(),
         level: nivel === 'log' ? 'info' : nivel,
-        service: ctx.servicio ?? servicio,
-        msg: args
-          .map((a) => (a instanceof Error ? `${a.message}` : typeof a === 'string' ? a : safeJson(a)))
-          .join(' '),
-        ...(ctx.tenantId ? { tenant_id: ctx.tenantId } : {}),
-        ...(ctx.requestId ? { request_id: ctx.requestId } : {}),
-        ...(trazaActual() ? { trace_id: trazaActual() } : {}),
+        service: textoDeLog(ctx.servicio ?? servicio),
+        msg: args.map(argumentoDeLog).join(' ').slice(0, 8192),
+        ...(ctx.tenantId ? { tenant_id: textoDeLog(ctx.tenantId) } : {}),
+        ...(ctx.requestId ? { request_id: textoDeLog(ctx.requestId) } : {}),
+        ...(traceId ? { trace_id: traceId } : {}),
         // El stack completo solo cuando lo hay: una línea de info con
         // `stack: undefined` ensucia todas las demás.
         ...(args.find((a) => a instanceof Error)
-          ? { stack: (args.find((a) => a instanceof Error) as Error).stack }
+          ? { stack: textoDeLog((args.find((a) => a instanceof Error) as Error).stack || '') }
           : {}),
       };
       original(JSON.stringify(linea));
+      if (!salidaSoloLocal) {
+        try { transporteLogs?.emitir(linea); }
+        catch { soloSalidaLocal(() => console.warn('telemetría: log no exportado; la salida local se conserva.')); }
+      }
     };
     (envuelto as typeof envuelto & { [ENVUELTO]: true })[ENVUELTO] = true;
     console[nivel] = envuelto;
-  }
-}
-
-function safeJson(valor: unknown): string {
-  try {
-    return JSON.stringify(valor);
-  } catch {
-    // Un objeto con ciclos no puede tumbar un log. Perder el detalle es
-    // molesto; perder la línea entera es quedarse sin saber qué pasó.
-    return String(valor);
   }
 }
 
@@ -659,8 +675,8 @@ function hacerVisiblesLosFallosDeOtel(): void {
     /* eslint-enable @typescript-eslint/no-require-imports */
     api.diag.setLogger(
       {
-        error: (msg, ...args) => console.error(`otel: ${msg}`, ...args),
-        warn: (msg, ...args) => console.warn(`otel: ${msg}`, ...args),
+        error: (msg, ...args) => soloSalidaLocal(() => console.error(`otel: ${msg}`, ...args)),
+        warn: (msg, ...args) => soloSalidaLocal(() => console.warn(`otel: ${msg}`, ...args)),
         // info/debug/verbose se quedan callados: el SDK es conversador y lo
         // que hace falta saber es cuándo NO pudo mandar.
         info: () => {},

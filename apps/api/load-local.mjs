@@ -104,6 +104,9 @@ async function main() {
   hijos.push(api);
   for (let i = 0; i < 60; i++) {
     try {
+      // BASE es la constante loopback 127.0.0.1 de este arnés sintético local;
+      // /health no envía credenciales. No es transporte de producción (#758).
+      // nosemgrep: react-insecure-request
       const r = await fetch(`${BASE}/health`);
       if (r.ok) break;
     } catch { /* aún no */ }

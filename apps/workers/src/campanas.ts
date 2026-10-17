@@ -135,6 +135,7 @@ function depsDeCampana(c: PoolClient, job: JobDeCampana) {
               authorKind: 'user',
               authorId: m.authorId,
               body: m.body,
+              plantilla: m.plantilla,
               requestId: m.requestId,
               delivery: 'business',
               actorKind,

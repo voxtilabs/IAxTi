@@ -1,0 +1,37 @@
+{
+  "issue": 856,
+  "status": "local_verified_partial_issue",
+  "issue_complete": false,
+  "scope": "Aclaración de las cuentas de IA provistas por IAxTi solicitada al final del cuerpo; no implementación BYOK.",
+  "verification": {
+    "preflight": "passed",
+    "passed": 2885,
+    "skipped": 14,
+    "test_packages": 28,
+    "full_preflight_log": "856-preflight-final.log",
+    "preflight_log_sha256": "34cb1459af7925ffe4794335045efb05c7b2850dbccdcf7c62908b799388dd02",
+    "post_visual_fix_web_build": "passed",
+    "visual_checks": 2,
+    "viewport": "360x780",
+    "themes": [
+      "dia",
+      "noche"
+    ],
+    "focus_outline_px": 2,
+    "select_height_px": 46,
+    "horizontal_overflow": false,
+    "browser_errors": 0,
+    "api": "Real local with canonical iaxti_app NOSUPERUSER NOBYPASSRLS; synthetic JWT/admin fixture",
+    "external_provider_calls": false,
+    "preflight_matches_final_product": true
+  },
+  "initial_visual_failure": "Selector existente medía36px. Se agregó h-control de Pulso; repetición mide46px en ambos modos.",
+  "remaining": [
+    "Decisiones BYOK de cobro/cuotas, custodia, responsabilidad contractual, fallback, rotación y revocación del propietario.",
+    "Implementación BYOK aún no autorizada por esas decisiones."
+  ],
+  "evidence": [
+    "docs/evidencias/856/cuentas-iaxti-dia-360.png",
+    "docs/evidencias/856/cuentas-iaxti-noche-360.png"
+  ]
+}
