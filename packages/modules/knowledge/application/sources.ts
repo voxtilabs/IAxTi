@@ -6,6 +6,12 @@ import { parseCsv } from '@iaxti/module-crm';
 import { splitIntoChunks, stripHtml, toVectorLiteral } from '../domain/chunking';
 import type { EmbedPort, PdfTextPort, UrlTextPort } from './embeddings';
 import { nvidiaEmbedPort, geminiPdfTextPort, DIMENSIONES } from './embeddings';
+import {
+  anotarBorradoPendiente,
+  bloquearArchivo,
+  confirmarBorradoPendiente,
+  marcarFuenteSinArchivo,
+} from './borrados-pendientes';
 
 // Fuentes (#51, SPEC §14): lo que el negocio DICE. Con vigencia opcional —
 // una lista de precios vencida es peor que ninguna: la IA la ignora y avisa.
@@ -444,12 +450,13 @@ export async function marcarFuentesUsadas(
  *
  * O sea: no es inconsistencia, es quién puede recibir la mala noticia.
  *
- * Queda un hueco chico y hay que decirlo: si el borrado en R2 sale bien y el
- * COMMIT falla después, la fila vuelve y los bytes ya no están — «fuente viva,
- * archivo destruido». La búsqueda del conocimiento no puede ver ese estado y
- * seguiría citando un PDF que nadie puede bajar. Necesita marca en la fila para
- * que el criterio de vigencia la excluya, y eso pide su migración: está pedido
- * aparte, no tapado.
+ * Queda el hueco de siempre y hay que decirlo: si el borrado en R2 sale bien
+ * y el COMMIT falla después, la fila vuelve y los bytes ya no están — «fuente
+ * viva, archivo destruido», y la búsqueda del conocimiento seguiría citando un
+ * PDF que nadie puede bajar. Por eso esta función NO se llama sola: quien la
+ * envuelve es `eliminarFuente`, que marca la fila desde afuera (#631) y deja
+ * anotado el borrado antes de empezar para que el barrido lo recoja si el
+ * proceso muere en el medio (#751).
  */
 export async function deleteSource(
   client: PoolClient,
@@ -501,6 +508,11 @@ export async function deleteSource(
             'R2_BUCKET_ADJUNTOS). No la eliminamos: borrar la fila dejaría el archivo bajable.',
         );
       }
+      // El candado del archivo, antes de destruirlo (#971). Lo toma también
+      // el barrido con `intentar`, así que mientras esta transacción vive, él
+      // ve «ocupado» y no interpreta la ventana a medias como una ventana
+      // rota. Se suelta solo al COMMIT o al ROLLBACK.
+      await bloquearArchivo(client, { tenantId: input.tenantId, r2Key });
       const { fallidas } = await almacen.borrar([r2Key]);
       if (fallidas.length > 0) {
         throw new Error(
@@ -540,43 +552,6 @@ export async function deleteSource(
 }
 
 /**
- * Marca una fuente como «su archivo ya no está» (#631).
- *
- * Recibe el POOL y no un cliente, a propósito: se llama justo después de que una
- * transacción se deshizo, y ese cliente ya no sirve para escribir nada. La marca
- * tiene que viajar por una conexión aparte o no viaja.
- *
- * No limpia `knowledge_query_cache`: el chequeo de frescura (#621) ya pide
- * `FUENTE_VIGENTE` sobre cada fuente citada, y `delete_failed` no la cumple. Un
- * `DELETE` más acá sería un segundo lugar donde se decide lo mismo.
- */
-export async function marcarFuenteSinArchivo(
-  pool: Pool,
-  input: { tenantId: string; sourceId: string },
-): Promise<void> {
-  await withTenant(pool, input.tenantId, async (client) => {
-    await client.query(
-      `UPDATE sources
-          SET status = 'delete_failed',
-              error = 'Se eliminó el archivo guardado y la eliminación de la fuente no llegó a completarse. Vuelve a subir el documento o termina de borrar la fuente.',
-              updated_at = now()
-        WHERE tenant_id = $1 AND id = $2`,
-      [input.tenantId, input.sourceId],
-    );
-    await writeAudit(client, {
-      tenantId: input.tenantId,
-      actor: 'system',
-      actorKind: 'system',
-      action: 'knowledge.source.sin_archivo',
-      resource: 'source',
-      resourceId: input.sourceId,
-      result: 'ok',
-      metadata: { motivo: 'el archivo se borró y la transacción no confirmó' },
-    });
-  });
-}
-
-/**
  * Elimina una fuente, con su archivo, y deja constancia si queda a medias
  * (#631).
  *
@@ -589,15 +564,19 @@ export async function marcarFuenteSinArchivo(
  * cada llamador tuviera que acordarse de marcar, el estado invisible volvería
  * por el primero que no se acordó.
  *
- * ## Lo que esto NO cubre, y la decisión
+ * ## El proceso que muere, y quién lo recoge
  *
- * Si el proceso MUERE entre el borrado en R2 y el commit, nadie marca nada: la
- * fila queda 'active' sin archivo y se cita igual. Taparlo pide anotar la
- * intención ANTES de tocar R2 y que un barrido reconcilie, y eso no se puede
- * hacer sobre la misma fila: la transacción que está borrando tiene el candado,
- * así que una conexión aparte se quedaría esperándola. Pide su propia tabla y su
- * propio barrido, y está en #751 con su riesgo residual nombrado en vez de
- * insinuado acá.
+ * La marca de arriba necesita que alguien quede vivo para escribirla. Si el
+ * proceso MUERE entre el borrado en R2 y el commit —OOM, deploy, el
+ * contenedor que se va— no hay nadie: la fila vuelve 'active' sin archivo y
+ * se cita igual. Eso lo cubre `anotarBorradoPendiente` (#751), que deja
+ * escrita la intención ANTES de tocar el bucket y en su propia transacción
+ * —sobre la misma fila no se puede: la que está borrando tiene el candado—, y
+ * el barrido `reconciliarBorradosPendientes`, que después mira qué pasó de
+ * verdad y marca lo que quedó roto.
+ *
+ * Lo que queda sin red es el proceso que muere ANTES de anotar: ahí todavía
+ * no se tocó el bucket, así que no hay nada destruido que recoger
  */
 export async function eliminarFuente(
   pool: Pool,
@@ -609,11 +588,24 @@ export async function eliminarFuente(
     almacen: AlmacenObjetos | null;
   },
 ): Promise<void> {
+  // La anotación va ANTES de empezar, por una conexión aparte, y solo si hay
+  // archivo que perder (#751). Leer la llave acá es una consulta de más y es
+  // el precio de que exista algo que mirar si el proceso muere adentro: desde
+  // dentro de la transacción no se puede anotar nada que sobreviva a su
+  // rollback, y el rollback es justo el caso.
+  //
+  // Entre esta lectura y el borrado la llave podría cambiar. No importa: el
+  // barrido no decide por lo anotado, le pregunta al bucket y a la base.
+  const llave = await llaveDeLaFuente(pool, input);
+  const anotacion = llave ? await anotarBorradoPendiente(pool, { ...input, r2Key: llave }) : null;
+
   let archivoDestruido = false;
   try {
     await withTenant(pool, input.tenantId, async (client) => {
       ({ archivoDestruido } = await deleteSource(client, input));
     });
+    // Salió bien: la anotación ya no vigila nada.
+    if (anotacion) await confirmarBorradoPendiente(pool, { tenantId: input.tenantId, id: anotacion });
   } catch (error) {
     // La marca va antes de propagar el error, y en su propia conexión. El orden
     // importa: si se dejara para después del `throw`, no habría después.
@@ -624,7 +616,36 @@ export async function eliminarFuente(
     // Esa fila queda sin marcar, y es el mismo riesgo residual que el proceso
     // que muere a medias: está nombrado arriba y en su issue, no tapado.
     if (archivoDestruido) await marcarFuenteSinArchivo(pool, input).catch(() => undefined);
+    // La anotación NO se cierra acá: si la marca de arriba no se pudo
+    // escribir, es lo único que queda apuntando a esta fuente. Cerrarla sería
+    // borrar la última pista justo en el caso en que hace falta. El barrido
+    // mira el bucket y la base, y cierra o marca según lo que encuentre.
     throw error;
+  }
+}
+
+/**
+ * La llave del archivo de esta fuente, o `null` si no tiene.
+ *
+ * Sin `withTenant` porque es una lectura sola y la cláusula lleva el
+ * `tenant_id`; abrir una transacción acá sumaría una conexión más a la que ya
+ * va a pedir el borrado.
+ */
+async function llaveDeLaFuente(
+  pool: Pool,
+  input: { tenantId: string; sourceId: string },
+): Promise<string | null> {
+  try {
+    const r = await pool.query('SELECT r2_key FROM sources WHERE tenant_id = $1 AND id = $2', [
+      input.tenantId,
+      input.sourceId,
+    ]);
+    return (r.rows[0]?.r2_key as string | null) ?? null;
+  } catch {
+    // Si esto falla, el borrado de abajo va a fallar también y con mejor
+    // mensaje. Seguir sin anotación es peor que no borrar: la anotación es
+    // una red, no un permiso.
+    return null;
   }
 }
 

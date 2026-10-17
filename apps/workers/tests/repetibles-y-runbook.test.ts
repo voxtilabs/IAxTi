@@ -29,7 +29,7 @@ function tareasDelRunbook(): string[] {
 }
 
 describe('el runbook nombra TODAS las tareas repetibles (#807)', () => {
-  it('ni una de menos: la tabla del §4 tiene las diecisiete', () => {
+  it('ni una de menos: la tabla del §4 las tiene todas', () => {
     const enElRunbook = new Set(tareasDelRunbook());
     const faltan = REPETIBLES.map((r) => r.nombre).filter((n) => !enElRunbook.has(n));
     expect(
@@ -52,9 +52,9 @@ describe('el runbook nombra TODAS las tareas repetibles (#807)', () => {
    * Anti-vacuidad: si el recorte del §4 o la expresión del nombre se rompen,
    * las dos de arriba quedan verdes con listas vacías. La lección de #790.
    */
-  it('la guarda está mirando algo: diecisiete a cada lado', () => {
-    expect(REPETIBLES).toHaveLength(17);
-    expect(tareasDelRunbook()).toHaveLength(17);
+  it('la guarda está mirando algo: dieciocho a cada lado', () => {
+    expect(REPETIBLES).toHaveLength(18);
+    expect(tareasDelRunbook()).toHaveLength(18);
   });
 
   it('ningún nombre repetido: dos entradas con el mismo nombre son una sola tarea', () => {
