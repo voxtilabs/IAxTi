@@ -30,8 +30,20 @@ const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:
  */
 const SENDER = `snd_911_${Math.random().toString(36).slice(2, 10)}`;
 
+/**
+ * El número de OTRO negocio, que sí tiene una plantilla esperando (#973).
+ *
+ * Es la otra mitad de «sin nada en revisión no se molesta a este número»: sin
+ * un vecino que SÍ reciba llamadas, esa prueba también pasaría con el barrido
+ * completamente roto, llamando a nadie. Con él, afirma las dos cosas que
+ * importan: que al nuestro no se lo molesta y que el trabajo se sigue
+ * haciendo. La idea es de #925.
+ */
+const SENDER_AJENO = `snd_911_ajeno_${Math.random().toString(36).slice(2, 10)}`;
+
 let admin: Pool;
 let tenant: string;
+let tenantAjeno: string;
 const fetchReal = globalThis.fetch;
 
 // El barrido pide las plantillas POR EL PUERTO del canal (#159), así que
@@ -50,7 +62,7 @@ const base = {
 
 interface Llamada {
   url: string;
-  /** El cuerpo tal cual salió: ahí viaja el `senderId`. */
+  /** El cuerpo tal cual salió: ahí viaja el `senderId` del POST. */
   cuerpo: string;
 }
 
@@ -68,16 +80,42 @@ function zavuDice(plantillas: Record<string, unknown>[]) {
 }
 
 /**
- * Lo que el barrido le pidió al proveedor POR ESTE número: el `sync` de esta
- * cuenta y todo lo que vino después de él. El `GET /templates` no lleva
- * `senderId` —la credencial ya dice de quién es— así que se lo reconoce por
- * venir detrás del sync de este número y no por lo que dice.
+ * El número al que fue cada llamada, venga donde venga (#973).
+ *
+ * Las dos formas del cliente de Zavu lo llevan, y en sitios distintos: el
+ * `POST /templates/sync` en el cuerpo (`zavu-plantillas.ts:172`) y el
+ * `GET /templates` en la query (`:204`). La primera versión de esto afirmaba
+ * en un comentario que el GET NO lo llevaba, y reconocía sus llamadas por
+ * venir detrás del sync. Era falso —basta leer la línea 204— y encima
+ * frágil: el orden de dos negocios que se despachan seguidos no está
+ * garantizado, así que «lo que vino después» podía incluir lo ajeno.
+ *
+ * Preguntar por el número es exacto y no depende del orden. La idea es de
+ * #925, de Sebastian, que llegó a lo mismo por su cuenta.
  */
+function numeroDeLaLlamada(l: Llamada): string | null {
+  if (l.url.includes('/templates/sync')) {
+    try {
+      return (JSON.parse(l.cuerpo || '{}') as { senderId?: string }).senderId ?? null;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return new URL(l.url).searchParams.get('senderId');
+  } catch {
+    return null;
+  }
+}
+
+/** Lo que el barrido le pidió al proveedor por un número concreto. */
+function porElNumero(llamadas: Llamada[], numero: string): string[] {
+  return llamadas.filter((l) => numeroDeLaLlamada(l) === numero).map((l) => l.url);
+}
+
+/** Atajo para el número de este caso, que es el que más se usa. */
 function porNuestroNumero(llamadas: Llamada[]): string[] {
-  const desde = llamadas.findIndex(
-    (l) => l.url.includes('/templates/sync') && l.cuerpo.includes(SENDER),
-  );
-  return desde === -1 ? [] : llamadas.slice(desde).map((l) => l.url);
+  return porElNumero(llamadas, SENDER);
 }
 
 async function plantillaEnRevision(nombre: string): Promise<string> {
@@ -100,6 +138,26 @@ beforeAll(async () => {
      VALUES ($1, 'whatsapp', 'numero', 'active', 'ZAVU_KEY_TEST', 'ZAVU_SECRET_TEST', $2::jsonb)`,
     [tenant, JSON.stringify({ senderId: SENDER })],
   );
+
+  // El vecino: su propio número, su propia cuenta y una plantilla EN REVISIÓN
+  // que no se toca en ningún caso. El barrido tiene que seguir visitándolo.
+  tenantAjeno = (
+    await admin.query("INSERT INTO tenants (name) VALUES ('plantillas-sync-vecino') RETURNING id")
+  ).rows[0].id;
+  await admin.query(
+    `INSERT INTO channel_accounts (tenant_id, kind, name, state, credential_ref, webhook_secret_ref, config)
+     VALUES ($1, 'whatsapp', 'numero', 'active', 'ZAVU_KEY_TEST', 'ZAVU_SECRET_TEST', $2::jsonb)`,
+    [tenantAjeno, JSON.stringify({ senderId: SENDER_AJENO })],
+  );
+  await withTenant(admin, tenantAjeno, async (c) => {
+    const p = await createTemplate(c, { tenantId: tenantAjeno, ...base, name: 'del_vecino' });
+    await marcarEnviadaARevision(c, {
+      tenantId: tenantAjeno,
+      templateId: p.id,
+      providerId: 'tpl_del_vecino',
+    });
+  });
+
   process.env.ZAVU_KEY_TEST = 'zv_test_abc';
 });
 
@@ -112,7 +170,9 @@ afterAll(async () => {
   // `audit_log` no se borra: es append-only por trigger. Acá no se escribe
   // ninguna fila, así que el DELETE pasaba de largo sin que se notara.
   for (const tabla of ['outbox', 'whatsapp_templates', 'channel_accounts']) {
-    await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
+    await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = ANY($1::uuid[])`, [
+      [tenant, tenantAjeno],
+    ]);
   }
   await admin.end();
 });
@@ -235,5 +295,11 @@ describe('reconciliación de plantillas', () => {
       [tenant],
     );
     expect(aVisitar.rowCount).toBe(0);
+    // Y la tercera, que es la que vuelve honesta a las dos de arriba: al
+    // VECINO, que sí tiene una plantilla esperando, se lo visitó igual. Sin
+    // esto, un barrido que no llamara a nadie pasaría esta prueba (#973).
+    expect(
+      porElNumero(llamadas, SENDER_AJENO).map((u) => new URL(u).pathname),
+    ).toEqual(['/v1/templates/sync', '/v1/templates']);
   });
 });
