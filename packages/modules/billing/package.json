@@ -14,7 +14,7 @@
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "@iaxti/module-payments": "workspace:*",
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@iaxti/db": "workspace:*",

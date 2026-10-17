@@ -37,10 +37,10 @@
     "@nestjs/swagger": "^11.0.0",
     "ioredis": "^5.4.0",
     "jose": "^5.9.0",
-    "pg": "^8.13.0",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "zod": "^4.6.4"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
