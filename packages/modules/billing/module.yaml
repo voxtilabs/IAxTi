@@ -6,7 +6,7 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [identity, organizations, audit]
+  required: [identity, organizations, audit, analytics]
   optional: [payments]
 permissions:
   - billing.read
