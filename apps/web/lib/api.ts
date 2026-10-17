@@ -419,6 +419,15 @@ export interface SugerenciaDto {
   intent: string | null;
   leadScore: 'frio' | 'tibio' | 'caliente' | null;
   suggestDeal: boolean;
+  /**
+   * La acción que el asistente propone junto al texto (#999), o `null`.
+   *
+   * `suggestDeal` es su antepasado —el booleano «¿creo la oportunidad?»— y se
+   * mantiene porque hay sugerencias viejas que lo traen.
+   */
+  accion?: { herramienta: string; argumentos: Record<string, unknown> } | null;
+  /** La misma acción dicha para una persona; la escribe el catálogo, no el front. */
+  accionEnPalabras?: string | null;
   expiresAt: string;
   /**
    * En qué se apoyó (#717). Ausente = no se sabe, `[]` = no consultó nada.

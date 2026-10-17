@@ -6,8 +6,8 @@ import { parseSuggestion } from '../domain/parser';
 import {
   ACCIONES_EN_LA_CONVERSACION,
   accionQueSePuedeProponer,
-  aplicarAccionDeLaSugerencia,
-} from '../application/acciones-que-se-proponen';
+} from '../application/acciones-en-la-conversacion';
+import { aplicarAccionDeLaSugerencia } from '../application/acciones-que-se-proponen';
 import { CATALOGO } from '../application/catalogo';
 
 /**

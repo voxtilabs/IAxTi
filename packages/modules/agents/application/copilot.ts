@@ -6,7 +6,7 @@ import { runAgentTask } from './runtime';
 import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './models';
 import { aiSdkModelPort, aiSdkTranscriber } from './models';
 import { listAgents, type Agent } from './agents';
-import { accionQueSePuedeProponer } from './acciones-que-se-proponen';
+import { accionEnPalabras, accionQueSePuedeProponer } from './acciones-en-la-conversacion';
 import { abrirIntento } from './objetivo-medido';
 import { DEFINICIONES } from '../domain/objetivo';
 
@@ -30,6 +30,11 @@ export interface Suggestion {
    * pantallas que lo leen; lo nuevo va acá.
    */
   accion: AccionPropuesta | null;
+  /**
+   * La misma acción, dicha para una persona. Sale de la descripción del
+   * catálogo y no de una copia en el front, que envejecería sola.
+   */
+  accionEnPalabras: string | null;
   status: 'pending' | 'sent' | 'dismissed' | 'expired';
   expiresAt: Date;
   feedback: 'up' | 'down' | null;
@@ -72,6 +77,7 @@ function rowToSuggestion(row: Record<string, unknown>): Suggestion {
     leadScore: (row.lead_score as Suggestion['leadScore']) ?? null,
     suggestDeal: row.suggest_deal as boolean,
     accion: (row.accion as AccionPropuesta) ?? null,
+    accionEnPalabras: accionEnPalabras((row.accion as AccionPropuesta) ?? null),
     status: row.status as Suggestion['status'],
     expiresAt: row.expires_at as Date,
     feedback: (row.feedback as Suggestion['feedback']) ?? null,

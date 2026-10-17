@@ -11,7 +11,6 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { PoolClient } from 'pg';
 import { degradarSinRomper, withTenant } from '@iaxti/db';
-import { enteroDeEntorno } from '@iaxti/core';
 import {
   aplicarPropuesta,
   type DiagnosticoDelNegocio,
