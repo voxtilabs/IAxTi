@@ -75,6 +75,7 @@ número, el que manda es el código:
 | Tarea | Cada | Qué pasa si no corre |
 |---|---|---|
 | `billing.sweep` | 04:00 | la prueba gratis no termina, el impago no suspende, la cancelación no se hace efectiva |
+| `billing.fx` | 09:40 | no se guarda el dólar del día, y los costos de ese día se muestran sin convertir a pesos — el panel lo dice en vez de usar el dólar de otra fecha (#796) |
 | `conversations.retention` | 04:00 | los datos no se purgan según el plan (y eso es un compromiso legal) |
 | `conversations.archive` | 03:00 | las conversaciones viejas no se archivan |
 | `conversations.auto_resolve` | cada hora | las conversaciones resueltas quedan abiertas para siempre |

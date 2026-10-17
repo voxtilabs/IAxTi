@@ -11,7 +11,7 @@ import { EmbudoDeVentas } from './embudo-de-ventas';
 import { PreguntaALosNumeros } from './pregunta-a-los-numeros';
 import { useReporte } from './use-reporte';
 import { fmtClp } from '../lib/api';
-import { compararCifras, diasDelReporte, fechaReporte, rangoCorto, type Comparacion } from '../lib/reportes';
+import { compararCifras, costoMostrable, diasDelReporte, fechaReporte, rangoCorto, type Comparacion } from '../lib/reportes';
 
 /**
  * El gráfico se carga cuando hace falta, no antes (#525).
@@ -73,6 +73,13 @@ export function Reportes() {
   const m = datos?.metrics;
   const d = datos?.definiciones;
   const serie = datos ? diasDelReporte(datos.porDia, rango.from, rango.to) : [];
+  /**
+   * Los costos en pesos (#796). `costoMostrable` devuelve cadena vacía cuando
+   * el campo no viene —API vieja durante un despliegue—, y ahí se cae al
+   * dólar de antes: una cifra sin convertir es mejor que una pantalla muerta.
+   */
+  const costoMeta = costoMostrable(datos?.costos?.meta, 2);
+  const costoIa = costoMostrable(datos?.costos?.ia, 3);
   // Las tarjetas comparan contra el período anterior que trae la API, con sus
   // fechas a la vista: «18 % más que 1–7 oct» se puede verificar, «18 % más
   // que antes» obliga a confiar.
@@ -173,8 +180,11 @@ export function Reportes() {
       <h2 className="mt-7 font-display text-seccion font-bold text-ink">Recursos y actividad</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Cifra rotulo="Mensajes enviados" valor={numero.format(m.mensajes_enviados)} definicion={d.mensajes_enviados} />
-        <Cifra rotulo="Uso de IA" valor={numero.format(m.ia_ejecuciones)} definicion={`${d.ia_ejecuciones} Costo estimado: USD ${m.ia_costo_usd.toFixed(3)}.`} />
-        <Cifra rotulo="Costo Meta" valor={m.costo_meta_usd > 0 ? `USD ${m.costo_meta_usd.toFixed(2)}` : '—'} definicion={d.costo_meta_usd} />
+        <Cifra rotulo="Uso de IA" valor={numero.format(m.ia_ejecuciones)}
+          definicion={`${d.ia_ejecuciones} Costo estimado: ${costoIa.valor || `USD ${m.ia_costo_usd.toFixed(3)}`}. ${costoIa.nota}`.trim()} />
+        <Cifra rotulo="Costo Meta"
+          valor={costoMeta.valor || (m.costo_meta_usd > 0 ? `USD ${m.costo_meta_usd.toFixed(2)}` : '—')}
+          definicion={`${d.costo_meta_usd} ${costoMeta.nota}`.trim()} />
         <Cifra rotulo="Citas" valor={m.citas_agendadas > 0 ? numero.format(m.citas_agendadas) : '—'} definicion={d.citas_agendadas} />
         <Cifra amplia rotulo="Pagos" valor={m.pagos_recibidos_clp > 0 ? fmtClp(m.pagos_recibidos_clp) : '—'} definicion={d.pagos_recibidos_clp} />
       </div>

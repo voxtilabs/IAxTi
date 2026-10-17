@@ -81,4 +81,19 @@ export const REPETIBLES: Repetible[] = [
     moduleId: 'billing',
     repeat: { pattern: '0 4 * * *', tz: 'America/Santiago' },
   },
+  {
+    /**
+     * El dólar observado del día (#796).
+     *
+     * A las 09:40 de Santiago porque el Banco Central publica en la mañana y
+     * antes de eso el valor de hoy no existe todavía. Una vez al día: es una
+     * consulta a una API pública y el valor de un día no cambia después.
+     *
+     * Si un día falla, el siguiente lo recupera: `traerDolarObservado` guarda
+     * la serie que publica la fuente, no solo el valor de hoy.
+     */
+    nombre: 'billing.fx',
+    moduleId: 'billing',
+    repeat: { pattern: '40 9 * * *', tz: 'America/Santiago' },
+  },
 ];
