@@ -66,14 +66,21 @@ afterAll(async () => {
  */
 function almacenFalso(modo: 'borra' | 'falla' = 'borra') {
   const pedidas: string[] = [];
+  const yaNoEstan = new Set<string>();
   return {
     pedidas,
     almacen: {
       async borrar(keys: string[]) {
         pedidas.push(...keys);
-        return modo === 'borra'
-          ? { borradas: [...keys], fallidas: [] }
-          : { borradas: [], fallidas: [...keys] };
+        if (modo === 'falla') return { borradas: [], fallidas: [...keys] };
+        for (const k of keys) yaNoEstan.add(k);
+        return { borradas: [...keys], fallidas: [] };
+      },
+      // Contesta por lo que de verdad le borraron. Si devolviera siempre
+      // `true`, un barrido que mira el bucket y uno que no lo mira darían el
+      // mismo resultado y las pruebas no podrían distinguirlos.
+      async existe(key: string) {
+        return !yaNoEstan.has(key);
       },
     },
   };

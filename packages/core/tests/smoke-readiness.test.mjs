@@ -98,6 +98,21 @@ function run(mode, extra = {}) {
       PATH: `${directory}:${process.env.PATH}`,
       COUNTER: counter,
       MODE: mode,
+      /**
+       * Tres vueltas, no setenta y dos (#968).
+       *
+       * La espera del workflow reintenta 72 veces, y las pruebas del camino de
+       * fallo las agotan todas: 72 vueltas de procesos de mentira contra el
+       * presupuesto de 10 s de `spawnSync`. Con la máquina libre tardaban 3,4 s
+       * —margen 3×— y con el preflight completo encima se pasaban y caían dos a
+       * la vez, con `expected null to be 1`: el status de un proceso matado por
+       * el timeout, que no habla del smoke.
+       *
+       * Tres alcanza para las tres ramas (el 200 que no llega, el que llega con
+       * otro SHA, y el que cambia a mitad de camino con `CAMBIA_EN`). El 72 de
+       * producción lo vigila su propia prueba, más abajo.
+       */
+      SMOKE_INTENTOS: '3',
       ...extra,
     },
     encoding: 'utf8', timeout: 10_000,
@@ -114,9 +129,16 @@ describe('smoke espera dependencias reales (#17, #254)', () => {
   });
 
   it('salud 200 no oculta readiness que permanece en 503', () => {
-    const result = run('persistent');
+    // Lo que esta prueba fija es que la espera INSISTE hasta agotar su
+    // presupuesto en vez de rendirse en el primer intento. Insistía «72
+    // veces» porque ése era el número escrito en el workflow; ahora se le
+    // pide un presupuesto chico y se comprueba que lo agota, que es la
+    // propiedad. Que el presupuesto de producción siga siendo 72 lo vigila su
+    // propia prueba (#968).
+    const VUELTAS = 5;
+    const result = run('persistent', { SMOKE_INTENTOS: String(VUELTAS) });
     expect(result.status).toBe(1);
-    expect(result.checks).toBeGreaterThanOrEqual(72);
+    expect(result.checks).toBeGreaterThanOrEqual(VUELTAS);
     expect(result.stdout).toContain('--- /ready -> 503');
   });
 
@@ -201,6 +223,20 @@ describe('el smoke verifica QUÉ build quedó vivo (#565)', () => {
     const res = run('flaky', { SHA: 'nuevo1234567890', FAKE_SHA: 'viejo0000000' });
     expect(res.status).not.toBe(0);
     expect(res.stdout).toContain('Lo que atiende es viejo0000000');
+  });
+
+  /**
+   * El `SMOKE_INTENTOS` de arriba existe para las pruebas, y una variable así
+   * se vuelve una trampa el día que alguien la deja escrita en el workflow con
+   * un valor chico: el smoke de verdad se acortaría y nadie lo notaría, porque
+   * las pruebas pasarían igual.
+   *
+   * Por eso el valor por defecto se vigila acá. 72 × 10 s son los doce minutos
+   * que la espera tenía antes de #968.
+   */
+  it('el workflow sigue reintentando 72 veces cuando nadie le dice otra cosa', () => {
+    expect(smoke).toContain('INTENTOS=${SMOKE_INTENTOS:-72}');
+    expect(smoke).toContain('for _ in $(seq 1 "$INTENTOS"); do');
   });
 
   it('sin SHA en el entorno no se verifica nada y no se inventa un rojo', () => {

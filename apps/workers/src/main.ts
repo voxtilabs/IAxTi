@@ -1,6 +1,6 @@
 import './instrument';
 import { createServer } from 'node:http';
-import { createPool, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
+import { createPool, degradarSinRomper, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
 import { DelayedError, type Worker } from 'bullmq';
 import { alApagar, instalarApagadoOrdenado } from '@iaxti/telemetry';
 import {
@@ -12,6 +12,7 @@ import {
   redisConnection,
   consumerReadiness,
   storageFromEnv,
+  almacenR2,
   presignUrl,
   enteroDeEntorno,
   textoDeEntorno,
@@ -52,6 +53,7 @@ import {
   sendMessage,
   tenantsWithRetention,
 } from '@iaxti/module-conversations';
+import { detachSessionsFromConversations } from '@iaxti/module-webchat';
 import { notificationConsumers } from '@iaxti/module-notifications';
 import {
   barrerRecordatorios,
@@ -74,6 +76,7 @@ import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-
 import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
   expireSources,
+  reconciliarBorradosPendientes,
   tenantsWithExpirable,
   reindexarPendientes,
   embeddingsAvailable,
@@ -288,7 +291,9 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           return { tenants: ids.length };
         }
         case 'conversations.retention.tenant': {
-          const res = await purgeTenantRetention(pool, (job.data as { tenantId: string }).tenantId);
+          const res = await purgeTenantRetention(pool, (job.data as { tenantId: string }).tenantId, {
+            detachSessions: detachSessionsFromConversations,
+          });
           if (!res) return { purged: 0 };
           const storage = storageFromEnv();
           const r2 = storage ? await deleteR2Keys(storage, res.r2Keys) : { deleted: 0, failed: res.r2Keys.length };
@@ -372,7 +377,21 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
                 if (!cita.conversationId) {
                   return { enviado: false, motivo: 'la cita no tiene conversación por dónde avisar' };
                 }
-                const plantilla = await getTemplate(c, cita.tenantId, templateId).catch(() => null);
+                // «La plantilla ya no existe» es un motivo legítimo para no
+                // avisar; «no pudimos leerla» no es lo mismo y además dejaba
+                // la transacción abortada, con el resto del envío muriendo
+                // por un error que no nombra la plantilla (#962, #966).
+                const plantilla = await degradarSinRomper(
+                  c,
+                  (cl) => getTemplate(cl, cita.tenantId, templateId),
+                  (error) => {
+                    console.warn(
+                      `calendar.avisos: no se pudo leer la plantilla ${templateId} de ${cita.tenantId}; ` +
+                        `el aviso no sale. Causa: ${error.message}`,
+                    );
+                    return null;
+                  },
+                );
                 if (!plantilla) return { enviado: false, motivo: 'la plantilla configurada ya no existe' };
                 if (plantilla.status !== 'approved') {
                   return { enviado: false, motivo: `la plantilla está ${plantilla.status}` };
@@ -406,6 +425,7 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
                         authorKind: 'system',
                         type: 'texto',
                         body: m.body,
+                        plantilla: m.plantilla,
                         // `business`: la cola le aplica el horario de
                         // silencio y la ventana. Acá no se repite.
                         delivery: 'business',
@@ -485,6 +505,41 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           }
           if (total > 0) console.log(`scheduled: ${total} fuentes de conocimiento vencidas`);
           return { expired: total };
+        }
+        // Borrados de archivo a medio terminar (#751). NO BORRA ARCHIVOS:
+        // mira lo anotado, le pregunta al bucket y a la base qué pasó de
+        // verdad, y marca la fuente que quedó viva sin su archivo.
+        case 'knowledge.borrados_pendientes': {
+          const almacen = almacenR2();
+          if (!almacen) {
+            // Sin R2 no hay a quién preguntarle. Lo decimos: un barrido que
+            // devuelve cero sin explicar por qué se lee como «no había nada».
+            console.log('scheduled: borrados pendientes en espera — falta configurar R2');
+            return { skipped: true };
+          }
+          const negocios = await tenantsWithExpirable(pool);
+          let marcadas = 0;
+          let sinDecidir = 0;
+          let enVuelo = 0;
+          for (const tenantId of negocios) {
+            const r = await reconciliarBorradosPendientes(pool, tenantId, { almacen });
+            marcadas += r.marcadas;
+            sinDecidir += r.sinDecidir;
+            enVuelo += r.enVuelo;
+          }
+          if (marcadas > 0) {
+            console.log(`scheduled: ${marcadas} fuentes quedaron sin su archivo y se marcaron`);
+          }
+          if (sinDecidir > 0) {
+            console.log(`scheduled: ${sinDecidir} borrados sin decidir — R2 no contestó`);
+          }
+          // Uno o dos por pasada es lo normal —alguien borrando justo ahora—.
+          // Un número que no baja entre pasadas es otra cosa: una transacción
+          // colgada con el candado tomado, y eso sí hay que ir a mirar (#971).
+          if (enVuelo > 0) {
+            console.log(`scheduled: ${enVuelo} borrados en vuelo — se miran en la próxima pasada`);
+          }
+          return { marcadas, sinDecidir, enVuelo };
         }
         // Reindexación del conocimiento (#502): al cambiar de modelo de
         // embeddings los vectores viejos no sirven, y las fuentes quedan en

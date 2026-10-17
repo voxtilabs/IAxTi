@@ -17,6 +17,9 @@ events:
     - appointment.attended
     - appointment.no_show
     - appointment.cancelled
+    # Mover la hora de una cita (#836). Lleva las DOS horas en el sobre: quien
+    # reaccione tiene que poder decir de cuándo a cuándo, no solo cuándo es.
+    - appointment.rescheduled
   consumes: []
 tools:
   - calendar.get_slots

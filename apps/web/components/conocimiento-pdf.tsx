@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { FileText, Upload } from 'lucide-react';
-import { AvisoResultado, cn, useArrastre, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Label, cn, useArrastre, useSession } from '@iaxti/ui/react';
 import { apiFetch } from '../lib/api';
 import { selectedTenant } from './tenant-switcher';
 
@@ -25,6 +25,10 @@ import { selectedTenant } from './tenant-switcher';
  * - Y el progreso es REAL. El bloque lo simula con un `setInterval` que sube
  *   5 % cada 200 ms, que para una demo está bien y para un PDF de 18 MB es
  *   mentirle a alguien que está esperando.
+ * - Card y Label compartidos de Pulso (#519); se conservan los gestos, el
+ *   input nativo y el radio campo de la zona de arrastre.
+ * Fuente verificada y licencia: docs/evidencias/519/README.md y
+ * packages/ui/licenses/blocks.MIT.txt.
  *
  * El archivo va del navegador DERECHO a R2 con una URL firmada; la API solo
  * dice dónde ponerlo y después registra la fuente. Un PDF de 20 MB por el
@@ -167,7 +171,7 @@ export function SubirPdf({ alTerminar }: { alTerminar: () => void }) {
           <Upload aria-hidden className="size-8 text-muted" />
           <p className="text-dato text-body">
             Arrastra tu PDF aquí, o{' '}
-            <label className="cursor-pointer font-medium text-action-text hover:underline">
+            <Label className="cursor-pointer text-action-text hover:underline">
               elige un archivo
               <input
                 ref={campo}
@@ -176,7 +180,7 @@ export function SubirPdf({ alTerminar }: { alTerminar: () => void }) {
                 className="sr-only"
                 onChange={(e) => void recibir(e.target.files?.[0])}
               />
-            </label>
+            </Label>
           </p>
           <p className="text-rotulo text-muted">
             Una lista de precios, un menú, tus políticas. Hasta {MAX_MB} MB.

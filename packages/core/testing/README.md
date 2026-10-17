@@ -3,8 +3,16 @@
 Este directorio no tiene código: es el **puente** que hace que
 `import { fuenteLimpia } from '@iaxti/core/testing'` funcione (#569).
 
-El código vive en `packages/core/src/testing/fuente-limpia.ts` y se compila a
+El código vive en `packages/core/src/testing/` y se compila a
 `packages/core/dist/testing/`. Acá solo hay un `package.json` que apunta ahí.
+
+Apunta al BARRIL (`index`), no a un archivo suelto. Mientras hubo un solo
+ayudante apuntaba directo a `fuente-limpia`, y al agregar el segundo
+—`outboxAcotado`, #972— eso obligaba a elegir cuál de los dos se podía
+importar. El síntoma fue un `TS2305: has no exported member` en un paquete que
+estaba bien escrito: el `exports` del `package.json` de arriba ya tenía el
+barril y este puente seguía apuntando al archivo viejo. Si se agrega un tercero,
+va en `src/testing/index.ts` y acá no hay nada que tocar.
 
 ## Por qué hace falta el puente
 

@@ -1,0 +1,362 @@
+[
+  {
+    "panel": "auditoria",
+    "estado": "contenido",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 810.5,
+      "width": 328,
+      "height": 408
+    },
+    "despues": {
+      "x": 16,
+      "y": 451.5,
+      "width": 328,
+      "height": 408
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "auditoria",
+    "estado": "vacio",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 810.5,
+      "width": 328,
+      "height": 408
+    },
+    "despues": {
+      "x": 16,
+      "y": 451.5,
+      "width": 328,
+      "height": 408
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "auditoria",
+    "estado": "contenido",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 810.5,
+      "width": 328,
+      "height": 408
+    },
+    "despues": {
+      "x": 16,
+      "y": 451.5,
+      "width": 328,
+      "height": 408
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "auditoria",
+    "estado": "vacio",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 810.5,
+      "width": 328,
+      "height": 408
+    },
+    "despues": {
+      "x": 16,
+      "y": 451.5,
+      "width": 328,
+      "height": 408
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "campana",
+    "estado": "contenido",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 9,
+      "y": 134.83126831054688,
+      "width": 302,
+      "height": 320.0000305175781
+    },
+    "despues": {
+      "x": 9,
+      "y": 132.1904754638672,
+      "width": 302,
+      "height": 320.00001525878906
+    },
+    "diferencia": 1.52587890625e-05
+  },
+  {
+    "panel": "campana",
+    "estado": "vacio",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 9,
+      "y": 134.23776245117188,
+      "width": 302,
+      "height": 319.9999694824219
+    },
+    "despues": {
+      "x": 9,
+      "y": 132.1904754638672,
+      "width": 302,
+      "height": 320.00001525878906
+    },
+    "diferencia": 4.57763671875e-05
+  },
+  {
+    "panel": "campana",
+    "estado": "contenido",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 9,
+      "y": 134.8299560546875,
+      "width": 302,
+      "height": 320
+    },
+    "despues": {
+      "x": 9,
+      "y": 132.1904754638672,
+      "width": 302,
+      "height": 320.00001525878906
+    },
+    "diferencia": 1.52587890625e-05
+  },
+  {
+    "panel": "campana",
+    "estado": "vacio",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 9,
+      "y": 134.83160400390625,
+      "width": 302,
+      "height": 320
+    },
+    "despues": {
+      "x": 9,
+      "y": 132.1904754638672,
+      "width": 302,
+      "height": 320.00001525878906
+    },
+    "diferencia": 1.52587890625e-05
+  },
+  {
+    "panel": "evaluaciones",
+    "estado": "contenido",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 3645.421875,
+      "width": 328,
+      "height": 427
+    },
+    "despues": {
+      "x": 16,
+      "y": 433.421875,
+      "width": 328,
+      "height": 427
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "evaluaciones",
+    "estado": "vacio",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 3645.421875,
+      "width": 328,
+      "height": 427
+    },
+    "despues": {
+      "x": 16,
+      "y": 433.421875,
+      "width": 328,
+      "height": 427
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "evaluaciones",
+    "estado": "contenido",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 3645.421875,
+      "width": 328,
+      "height": 427
+    },
+    "despues": {
+      "x": 16,
+      "y": 433.421875,
+      "width": 328,
+      "height": 427
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "evaluaciones",
+    "estado": "vacio",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 3645.421875,
+      "width": 328,
+      "height": 427
+    },
+    "despues": {
+      "x": 16,
+      "y": 433.421875,
+      "width": 328,
+      "height": 427
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "recordatorios",
+    "estado": "contenido",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 1094.09375,
+      "width": 328,
+      "height": 542
+    },
+    "despues": {
+      "x": 16,
+      "y": 318.09375,
+      "width": 328,
+      "height": 542
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "recordatorios",
+    "estado": "vacio",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 1094.09375,
+      "width": 328,
+      "height": 542
+    },
+    "despues": {
+      "x": 16,
+      "y": 318.09375,
+      "width": 328,
+      "height": 542
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "recordatorios",
+    "estado": "contenido",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 1094.09375,
+      "width": 328,
+      "height": 542
+    },
+    "despues": {
+      "x": 16,
+      "y": 318.09375,
+      "width": 328,
+      "height": 542
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "recordatorios",
+    "estado": "vacio",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 1094.09375,
+      "width": 328,
+      "height": 542
+    },
+    "despues": {
+      "x": 16,
+      "y": 318.09375,
+      "width": 328,
+      "height": 542
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "retencion",
+    "estado": "contenido",
+    "modo": "dia",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 1952.140625,
+      "width": 328,
+      "height": 303
+    },
+    "despues": {
+      "x": 16,
+      "y": 557.140625,
+      "width": 328,
+      "height": 303
+    },
+    "diferencia": 0
+  },
+  {
+    "panel": "retencion",
+    "estado": "contenido",
+    "modo": "noche",
+    "ancho": 360,
+    "tolerancia": 16,
+    "antes": {
+      "x": 16,
+      "y": 1952.140625,
+      "width": 328,
+      "height": 303
+    },
+    "despues": {
+      "x": 16,
+      "y": 557.140625,
+      "width": 328,
+      "height": 303
+    },
+    "diferencia": 0
+  }
+]

@@ -218,6 +218,7 @@ describe('el recorrido de una clienta, de punta a punta', () => {
               conversationId: m.conversationId,
               authorKind: 'user',
               body: m.body,
+              plantilla: m.plantilla,
             }),
         },
       ),

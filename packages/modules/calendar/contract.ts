@@ -7,6 +7,7 @@ export {
   huecosDelDia,
   agendar,
   cambiarEstadoCita,
+  reagendarCita,
   listarCitas,
   // Por qué se nos cancelan las visitas, y qué quedó vivo en Google (#700).
   motivosDeCancelacion,
@@ -18,6 +19,7 @@ export type {
   Cita,
   AgendaDeps,
   CancelarEnGoogle,
+  MoverEnGoogle,
   MotivoDeCancelacion,
 } from './application/agenda';
 export { ESTADOS_CITA, assertTransicionCita, ocupaAgenda } from './domain/estado';
