@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PoolClient } from 'pg';
+import { resetSmtp, sendNotificationEmail } from '../application/email';
 
 /**
  * El puerto del SMTP, cuando el compose pasa la variable vacía (#985, #810).
@@ -19,18 +20,31 @@ import type { PoolClient } from 'pg';
  * Se espía `createTransport` porque lo que hay que comprobar es el puerto que
  * se le pasa: conectar de verdad no es parte de esto.
  */
-const createTransport = vi.fn(() => ({
-  sendMail: vi.fn(async () => ({ accepted: ['alguien@ejemplo.cl'] })),
+interface OpcionesDelTransporte {
+  host?: string;
+  port?: number;
+  secure?: boolean;
+}
+/**
+ * `vi.hoisted` y no un `const` suelto: la fábrica de `vi.mock` se iza por
+ * encima de los imports, así que un `const` declarado acá abajo todavía no
+ * existe cuando corre —«Cannot access 'createTransport' before
+ * initialization»—. Y con `vi.hoisted` el import de arriba puede ser estático:
+ * el `await import()` que probé primero no compila con el `module` de este
+ * repo (TS1378).
+ */
+const { createTransport } = vi.hoisted(() => ({
+  createTransport: vi.fn((_opciones: { host?: string; port?: number; secure?: boolean }) => ({
+    sendMail: vi.fn(async () => ({ accepted: ['alguien@ejemplo.cl'] })),
+  })),
 }));
 vi.mock('nodemailer', () => ({ createTransport }));
-
-const { resetSmtp, sendNotificationEmail } = await import('../application/email');
 
 const ENV = { ...process.env };
 const CLIENTE = {} as PoolClient;
 const AVISO = { tenantId: 't', userId: 'u', para: 'alguien@ejemplo.cl', title: 'Hola' };
 
-const conPuerto = async (valor: string | undefined) => {
+const conPuerto = async (valor: string | undefined): Promise<OpcionesDelTransporte> => {
   Object.assign(process.env, {
     SMTP_HOST: 'smtp.resend.com',
     SMTP_USER: 'resend',
@@ -41,7 +55,9 @@ const conPuerto = async (valor: string | undefined) => {
   else process.env.SMTP_PORT = valor;
   resetSmtp();
   await sendNotificationEmail(CLIENTE, AVISO);
-  return createTransport.mock.calls.at(-1)?.[0] as unknown as { port: number; secure: boolean };
+  const ultima = createTransport.mock.calls.at(-1);
+  expect(ultima, 'no se armó ningún transporte').toBeDefined();
+  return ultima![0];
 };
 
 beforeEach(() => createTransport.mockClear());
