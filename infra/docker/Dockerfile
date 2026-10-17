@@ -83,6 +83,14 @@ COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/web/.next/standalone ./standalone-web
 COPY --from=build /app/apps/admin/.next/standalone ./standalone-admin
 COPY infra/docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Los cinco servicios escuchan en un puerto no privilegiado. El código queda
+# de root y solo las cachés de Next son escribibles por el usuario de runtime.
+# UID/GID 1000 es node en la imagen oficial que copia nuestro espejo (#758).
+RUN chmod +x /entrypoint.sh && \
+    for a in web admin; do \
+      mkdir -p /app/standalone-$a/apps/$a/.next/cache; \
+      chown -R 1000:1000 /app/standalone-$a/apps/$a/.next/cache; \
+    done
+USER 1000:1000
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]

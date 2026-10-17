@@ -396,6 +396,10 @@ export async function enviarPlantilla(
       tenantId: string;
       conversationId: string;
       body: string;
+      plantilla: {
+        id: string; providerId: string; name: string; language: string;
+        category: string; valores: string[];
+      };
       authorId?: string;
       requestId?: string;
     }) => Promise<{ id: string }>;
@@ -436,45 +440,25 @@ export async function enviarPlantilla(
     );
   }
 
+  // #906: el sello se entrega al contrato que CREA el mensaje. Se guarda
+  // junto al pedido durable y su auditoría, sin un UPDATE ajeno posterior.
+  // El id del proveedor y los valores quedan fijados para cada reintento,
+  // aunque la plantilla se vuelva a enlazar mientras espera en la cola.
   const mensaje = await deps.crearMensaje({
     tenantId: input.tenantId,
     conversationId: input.conversationId,
     body: texto,
+    plantilla: {
+      id: plantilla.id,
+      providerId: plantilla.providerId,
+      name: plantilla.name,
+      language: plantilla.language,
+      category: plantilla.category,
+      valores: [...input.valores],
+    },
     authorId: input.authorId,
     requestId: input.requestId,
   });
-
-  // La plantilla queda pegada al MENSAJE: el adaptador la necesita para
-  // mandarla como plantilla y no como texto, y un reintento de la cola tiene
-  // que mandar exactamente la misma.
-  //
-  // `providerId` va en el snapshot y NO es opcional: es el id con el que el
-  // proveedor conoce la plantilla, y es lo único que `envioDePlantilla` mira
-  // para armar el `content.templateId`. Faltaba —el snapshot llevaba nuestro
-  // uuid en `id` y nada más—, así que TODA plantilla reventaba en el
-  // adaptador: ni un envío manual ni un recordatorio de cita salían nunca, y
-  // como fuera de la ventana de 24 h la plantilla es la única vía, cualquier
-  // reactivación se caía en silencio. Se copia acá, en el momento del envío,
-  // para que un reintento mande exactamente el mismo registro aunque la
-  // plantilla se re-enlace después.
-  await client.query(
-    `UPDATE messages
-        SET type = 'plantilla',
-            meta = COALESCE(meta, '{}'::jsonb) || jsonb_build_object('plantilla', $3::jsonb)
-      WHERE tenant_id = $1 AND id = $2`,
-    [
-      input.tenantId,
-      mensaje.id,
-      JSON.stringify({
-        id: plantilla.id,
-        providerId: plantilla.providerId,
-        name: plantilla.name,
-        language: plantilla.language,
-        category: plantilla.category,
-        valores: input.valores,
-      }),
-    ],
-  );
 
   await publishEvent(client, {
     name: 'template.sent',

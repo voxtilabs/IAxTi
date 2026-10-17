@@ -19,6 +19,8 @@ export { cn } from './ui/cn';
 export { Button } from './ui/button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './ui/button';
 export { Input, Textarea } from './ui/input';
+export { Card } from './ui/card';
+export { Label } from './ui/label';
 export { Badge } from './ui/badge';
 export { Checkbox } from './ui/checkbox';
 export { EncabezadoDePagina } from './ui/encabezado';
