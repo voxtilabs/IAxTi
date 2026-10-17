@@ -31,13 +31,40 @@ beforeAll(async () => {
   app = await createApp({ jwtVerify: async () => ({ userId: 'nadie' }) });
   await app.listen(0);
   base = await app.getUrl();
-});
+  /**
+   * Treinta segundos, y el número está medido (#1005).
+   *
+   * Este hook levanta la aplicación Nest ENTERA —`createApp` y `listen`—
+   * porque este archivo necesita su propia instancia: inyecta un pool hacia un
+   * puerto donde no hay nadie, y eso no se puede hacer compartiendo la app con
+   * los otros archivos.
+   *
+   * Aislado, el archivo completo tarda ~5,5 s y las dos pruebas se llevan
+   * 4,4 s. Bajo el preflight —todos los paquetes en paralelo— ese arranque se
+   * pasa de los 10 s que vitest da por defecto a un hook, y el archivo se cae
+   * sin que ninguna aserción falle:
+   *
+   *     Error: Hook timed out in 10000ms.
+   *
+   * El tope largo es para que la prueba mida lo que dice medir y no el estado
+   * de la máquina. Misma familia que #986 y #995.
+   */
+}, 30_000);
 
 afterAll(async () => {
   const { usarPool } = await import('../src/db');
   usarPool(null);
-  await app.close();
-  await muerto.end().catch(() => undefined);
+  /**
+   * `app?.` y no `app.`: si el hook de arriba no llegó a crear la app, esto
+   * lanzaba `Cannot read properties of undefined (reading 'close')` y el log
+   * terminaba con un error de LIMPIEZA que no dice nada del motivo real.
+   *
+   * Es la lección del `finally` de #991 por otra puerta: la limpieza no puede
+   * sumar un error propio cuando lo que falló es otra cosa. Lo que se lee
+   * tiene que ser por qué se cayó, no en qué se tropezó al salir.
+   */
+  await app?.close();
+  await muerto?.end().catch(() => undefined);
 });
 
 describe('webhook con la base sin responder', () => {
