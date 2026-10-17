@@ -14,6 +14,7 @@ import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
   exportAudit,
+  exportAuditDelTenant,
   ExportDemasiadoGrande,
   searchAudit,
   searchAuditGlobal,
@@ -243,7 +244,7 @@ export class AuditController {
     const actor = actorOf(request);
     const formato = formatoDe(q.format);
     const filas = await noMasDeLoQueCabe(() =>
-      withTenant(pool(), actor.tenantId, (c) => exportAudit(c, filtrosDe(q))),
+      withTenant(pool(), actor.tenantId, (c) => exportAuditDelTenant(c, filtrosDe(q))),
     );
     return signExport(filas, formato);
   }

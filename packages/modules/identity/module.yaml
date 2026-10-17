@@ -4,7 +4,7 @@ module:
   core: true
 depends_on:
   required: []
-  optional: []
+  optional: [organizations]
 permissions:
   - users.read
   - users.invite

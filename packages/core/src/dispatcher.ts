@@ -71,6 +71,34 @@ export class OutboxDispatcher {
 
         await client.query(`SAVEPOINT evento`);
         try {
+          /**
+           * El tenant del SOBRE, en el mismo cliente que va a usar el
+           * consumidor (#922).
+           *
+           * El despachador lee la cola cruzando negocios —`outbox` es tabla
+           * de plataforma y no tiene RLS—, pero el consumidor no: escribe en
+           * las tablas del producto, que tienen FORCE ROW LEVEL SECURITY. Sin
+           * esto escribía sin contexto, y la política evalúa
+           * `tenant_id = NULL`: ninguna fila pasa el WITH CHECK.
+           *
+           * En desarrollo no se veía porque el rol es superusuario y Postgres
+           * ni mira las políticas. Con el rol que exige #370 se reprodujeron
+           * 24 eventos agotando sus cinco intentos con
+           * «new row violates row-level security policy for table
+           * "daily_metrics"»: el tablero del dueño quedándose sin números sin
+           * que nadie viera un error.
+           *
+           * Va DENTRO del savepoint a propósito: `ROLLBACK TO SAVEPOINT`
+           * también deshace el `set_config`, así que un consumidor que se cae
+           * no le deja su tenant puesto al evento siguiente.
+           *
+           * Y `true` —local a la transacción— no es un detalle: con `false` el
+           * ajuste sobrevive al COMMIT y la conexión vuelve al pool con el
+           * tenant del último evento despachado. Lo próximo que la tome
+           * escribiría en el negocio equivocado.
+           */
+          await client.query("SELECT set_config('app.tenant_id', $1, true)", [event.tenantId]);
+
           for (const consumer of this.consumers) {
             if (consumer.event !== event.name) continue;
             if (!this.registry.isActive(consumer.moduleId)) {

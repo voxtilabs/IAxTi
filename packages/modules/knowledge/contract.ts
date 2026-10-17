@@ -35,6 +35,10 @@ export type {
 // adentro y nadie más debe poder llamarla. Si el copiloto pudiera marcar uso por
 // su cuenta, el contador diría «esta fuente respaldó una respuesta» sin que
 // ninguna respuesta se haya apoyado en ella.
+// El barrido que cierra la ventana entre borrar el archivo y confirmar
+// (#751). Sale del módulo porque lo corre el worker; anotar y confirmar NO
+// salen: son parte de `eliminarFuente` y llamarlas sueltas no tiene sentido.
+export { reconciliarBorradosPendientes } from './application/borrados-pendientes';
 export { searchKnowledge, getProduct, knowledgeContext, fuentesCitadas } from './application/search';
 export type { KnowledgeHit, KnowledgeResult, ProductHit } from './application/search';
 export {
