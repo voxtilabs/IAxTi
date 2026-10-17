@@ -1,4 +1,12 @@
 /** Contrato ya publicado de analytics/dashboard; no agrega métricas. */
+export interface CostoEnPesosDto {
+  usd: number;
+  /** `null` es «no sabemos cuánto es en pesos», que no es cero. */
+  clp: number | null;
+  /** Días CON gasto que quedaron fuera de la suma por no tener dólar. */
+  diasSinCambio: number;
+}
+
 export interface DashboardDto {
   metrics: Record<string, number>;
   primeraRespuesta: { medianaSeg: number | null; p90Seg: number | null; muestras: number };
@@ -16,6 +24,15 @@ export interface DashboardDto {
    * rollout —cambiar una cifra sin comparación por una pantalla muerta—.
    * Sin el campo simplemente no hay comparación, que es lo que había antes.
    */
+  /**
+   * Los costos en pesos (#796). Opcional por lo MISMO que `anterior`: durante
+   * un despliegue el front nuevo convive con la API vieja, y una pantalla en
+   * blanco es peor que una cifra sin convertir.
+   */
+  costos?: {
+    meta: CostoEnPesosDto;
+    ia: CostoEnPesosDto;
+  };
   anterior?: {
     from: string;
     to: string;
@@ -104,3 +121,44 @@ export function diasDelReporte(datos: DashboardDto['porDia'], from: string, to: 
 
 const fecha = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 export function fechaReporte(day: string) { return fecha.format(new Date(`${day}T12:00:00Z`)); }
+
+/**
+ * El costo como se muestra: en pesos, y diciendo lo que no se pudo convertir.
+ *
+ * La regla de negocio pide los costos «en pesos» (#796). Hasta ahora el panel
+ * mostraba dólares al lado de ingresos en pesos, y un tablero que pone
+ * $1.240.000 arriba y US$ 12,40 abajo invita a restarlos: para una pyme
+ * chilena eso no es una conversión pendiente, es un margen mal calculado.
+ *
+ * Los dólares no desaparecen: van en la explicación, porque la factura de Meta
+ * llega en dólares y alguien va a querer cuadrarla.
+ *
+ * Y los tres estados se dicen distinto, que es el punto:
+ *
+ *  · convertido        → «$11.809» y el dólar en la explicación;
+ *  · sin gasto         → «—»;
+ *  · sin tipo de cambio→ el valor en dólares y por qué no está en pesos.
+ *
+ * El tercero no es un detalle: si se mostrara el peso igual, el número saldría
+ * más bajo que el real —faltan días— sin que nada avise.
+ */
+export function costoMostrable(
+  costo: CostoEnPesosDto | undefined,
+  usdDecimales: number,
+): { valor: string; nota: string } {
+  // Sin el campo: API vieja durante el rollout. Se muestra lo que había.
+  if (!costo) return { valor: '', nota: '' };
+  if (costo.usd <= 0) return { valor: '—', nota: '' };
+  const enDolares = `USD ${costo.usd.toFixed(usdDecimales)}`;
+  if (costo.clp === null) {
+    return {
+      valor: enDolares,
+      nota: `Sin tipo de cambio para ${costo.diasSinCambio === 1 ? 'ese día' : 'esos días'}: se muestra en dólares para no convertir con el dólar de otra fecha.`,
+    };
+  }
+  const nota =
+    costo.diasSinCambio > 0
+      ? `Equivale a ${enDolares}. Faltan ${costo.diasSinCambio} ${costo.diasSinCambio === 1 ? 'día' : 'días'} sin tipo de cambio, así que el monto en pesos está incompleto.`
+      : `Equivale a ${enDolares}, convertido con el dólar observado de cada día.`;
+  return { valor: new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(costo.clp), nota };
+}

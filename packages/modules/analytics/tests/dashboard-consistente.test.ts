@@ -13,7 +13,14 @@ beforeAll(async () => {
   await runMigrations(pool);
   await pool.query(`CREATE ROLE "${rol}" NOLOGIN NOSUPERUSER NOBYPASSRLS`);
   await pool.query(`GRANT USAGE ON SCHEMA public TO "${rol}"`);
-  await pool.query(`GRANT SELECT ON daily_metrics, response_samples, conversations TO "${rol}"`);
+  // `fx_rates` desde #796: el tablero convierte los costos a pesos con el dólar
+  // del día, y esta prueba corre con el MÍNIMO de permisos a propósito. Cuando
+  // la agregué sin esta línea, el rojo fue `permission denied for table
+  // fx_rates` — o sea que la lista corta hizo justo lo que tenía que hacer:
+  // avisar que el tablero depende de una tabla más.
+  await pool.query(
+    `GRANT SELECT ON daily_metrics, response_samples, conversations, fx_rates TO "${rol}"`,
+  );
   await pool.query('INSERT INTO tenants(id,name) VALUES ($1,$3),($2,$3)', [tenant, otro, 'Reporte consistente']);
   for (const [t, day, metric, value, o] of [
     [tenant, '2026-08-31', 'conversaciones_nuevas', 90, TOTAL_OWNER],

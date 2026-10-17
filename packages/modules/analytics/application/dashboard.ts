@@ -49,8 +49,32 @@ export interface PeriodoAnterior {
   comparable: boolean;
 }
 
+/**
+ * Un costo en pesos, y los días que no se pudieron convertir (#796).
+ *
+ * `clp` es `null` cuando no hubo NINGÚN día con cambio, que no es lo mismo que
+ * cero: cero es «no gastó» y null es «no sabemos cuánto es en pesos». El panel
+ * tiene que poder decir las dos cosas distinto.
+ *
+ * `diasSinCambio` cuenta los días con gasto que quedaron fuera de la suma. Si
+ * es mayor que cero, el número en pesos está INCOMPLETO y hay que decirlo: es
+ * la tercera condición del issue, la que impide que un costo salga más bajo de
+ * lo real sin que nada avise.
+ */
+export interface CostoEnPesos {
+  usd: number;
+  clp: number | null;
+  diasSinCambio: number;
+}
+
 export interface DashboardResult {
   metrics: Record<Metric, number>;
+  /**
+   * Los dos costos que el panel muestra, en pesos. Las métricas en dólares
+   * siguen en `metrics`: la factura de Meta llega en dólares y alguien va a
+   * querer cuadrarla.
+   */
+  costos: { meta: CostoEnPesos; ia: CostoEnPesos };
   primeraRespuesta: { medianaSeg: number | null; p90Seg: number | null; muestras: number };
   sinResponderAhora: number;
   tasaCierre: number | null;
@@ -104,6 +128,34 @@ export async function getDashboard(
        -- El día más viejo con datos, para saber si el período anterior cae
        -- antes de que este negocio existiera.
        SELECT MIN(day) AS day FROM daily_metrics WHERE tenant_id = $1 AND owner_id = $4
+     ), costos AS (
+       -- Los costos en PESOS, dia por dia (#796).
+       --
+       -- La regla de negocio los pide en pesos, y hoy el panel los muestra en
+       -- dolares al lado de ingresos en pesos: un tablero que pone 1.240.000
+       -- arriba y US$ 12,40 abajo invita a restarlos, y para una pyme chilena
+       -- eso no es una conversion pendiente, es un margen mal calculado.
+       --
+       -- La suma multiplica POR DIA y no el total por un solo cambio:
+       -- convertir el total con un dolar es elegir una fecha a dedo, y el mes
+       -- rendiria distinto segun el dia en que se abra el panel.
+       --
+       -- El LEFT JOIN es a proposito: el Banco Central no publica sabados,
+       -- domingos ni feriados, asi que un dia sin cambio es NORMAL. Esos dias
+       -- se cuentan aparte (dias_sin_cambio) y no se convierten con el dolar
+       -- de otra fecha. El panel lo dice; callarlo seria mostrar un costo mas
+       -- bajo que el real sin que nada avise.
+       --
+       -- Y van en comentario SQL y no en bloque /** */: esto vive dentro de un
+       -- template literal, asi que una comilla invertida ahi lo corta al medio.
+       -- Lo aprendi en el intento anterior, con dieciocho TS1005 seguidos.
+       SELECT d.metric,
+              SUM(d.value * f.value) FILTER (WHERE f.value IS NOT NULL) AS clp,
+              COUNT(*) FILTER (WHERE f.value IS NULL AND d.value > 0)::int AS dias_sin_cambio
+         FROM diarias d
+         LEFT JOIN fx_rates f ON f.day = d.day AND f.pair = 'USD/CLP'
+        WHERE d.metric IN ('costo_meta_usd', 'ia_costo_usd')
+        GROUP BY d.metric
      ), muestras AS (
        SELECT count(*)::int AS n,
               percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) AS mediana,
@@ -121,6 +173,7 @@ export async function getDashboard(
             (SELECT desde::text FROM rango_antes) AS antes_desde,
             (SELECT hasta::text FROM rango_antes) AS antes_hasta,
             COALESCE((SELECT jsonb_object_agg(metric, total) FROM totales_antes), '{}'::jsonb) AS metrics_antes,
+            COALESCE((SELECT jsonb_object_agg(metric, jsonb_build_object('clp', clp, 'diasSinCambio', dias_sin_cambio)) FROM costos), '{}'::jsonb) AS costos,
             (SELECT n FROM muestras_antes) AS antes_n,
             (SELECT mediana FROM muestras_antes) AS antes_mediana,
             (SELECT day IS NOT NULL AND day <= (SELECT desde FROM rango_antes) FROM primer_dia) AS comparable,
@@ -137,9 +190,26 @@ export async function getDashboard(
     metric, Number(fila.metrics_antes[metric] ?? 0),
   ])) as Record<Metric, number>;
   const cerradasAntes = metricsAntes.ganadas + metricsAntes.perdidas;
+  const fila0 = fila.costos as Record<string, unknown>;
+
+  /**
+   * `numeric` llega como string y un `jsonb_build_object` con NULL llega como
+   * `null`: las dos cosas se normalizan acá, una vez, y no en cada pantalla.
+   */
+  const costo = (metric: 'costo_meta_usd' | 'ia_costo_usd'): CostoEnPesos => {
+    const fila = (fila0 as Record<string, { clp: string | null; diasSinCambio: number } | undefined>)[
+      metric
+    ];
+    return {
+      usd: metrics[metric],
+      clp: fila?.clp === null || fila?.clp === undefined ? null : Math.round(Number(fila.clp)),
+      diasSinCambio: fila?.diasSinCambio ?? 0,
+    };
+  };
 
   return {
     metrics,
+    costos: { meta: costo('costo_meta_usd'), ia: costo('ia_costo_usd') },
     primeraRespuesta: {
       medianaSeg: fila.mediana === null ? null : Math.round(Number(fila.mediana)),
       p90Seg: fila.p90 === null ? null : Math.round(Number(fila.p90)),
