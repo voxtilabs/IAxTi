@@ -53,7 +53,45 @@ it('requiere el libro del núcleo y muestra sus denegaciones sin sustituirlo por
   await withTenant(pool, tenant, (c) => writeAudit(c, { tenantId: tenant, actor: 'revision901', actorKind: 'user',
     action: 'permission.denied', resource: 'payments.refund', result: 'denied' }));
   const snap = await securitySnapshot(pool, { redis: null });
-  expect(snap.permisosDenegados.filas.some((fila) => fila.tenant_id === tenant && fila.n === 1)).toBe(true);
+
+  /**
+   * Esta aserción era `filas.some((f) => f.tenant_id === tenant && f.n === 1)`
+   * y es una carrera contra otro archivo de este mismo paquete.
+   *
+   * La lista del panel es `ORDER BY n DESC LIMIT 20` sobre una ventana de
+   * siete días (`salud.ts:389`), y `salud.test.ts` llena ese mismo libro a
+   * propósito con **25 actores de 10 intentos cada uno** para probar que la
+   * lista cortada lo dice (#734, #812). Los dos archivos corren en paralelo
+   * contra la misma base: si ese `beforeAll` entra antes que este snapshot,
+   * veinticinco grupos de n=10 desplazan a la única fila de n=1 y esto se
+   * pone rojo sin que nada esté mal en el producto.
+   *
+   * Y en una base que ya vivió —la de desarrollo— no es una carrera, es un
+   * rojo permanente: medido acá, 2.324 grupos de denegación en la ventana,
+   * 1.193 de ellos empatados en n=1, para una lista de veinte.
+   *
+   * Lo que esta prueba cuida no es el ranking: es que el panel no sustituya
+   * el libro por un cero tranquilizador. Así que se comprueba eso, contra un
+   * conteo PROPIO —acotado a este tenant, que nadie más escribe— y no contra
+   * la ventana compartida:
+   */
+  const propias = (
+    await pool.query(
+      `SELECT count(*)::int AS n
+         FROM audit_log
+        WHERE action = 'permission.denied' AND occurred_at >= $1 AND tenant_id = $2`,
+      [snap.desde, tenant],
+    )
+  ).rows[0].n as number;
+  expect(propias).toBe(1); // el libro lo tiene: si writeAudit no escribió, acá se cae
+  expect(snap.permisosDenegados.total).toBeGreaterThanOrEqual(propias);
+  expect(snap.intentosDenegados).toBeGreaterThanOrEqual(propias);
+
+  // Y el panel la muestra, salvo que diga que cortó. Las dos ramas son
+  // comprobables: con la lista corta la fila TIENE que estar.
+  const mia = snap.permisosDenegados.filas.find((fila) => fila.tenant_id === tenant);
+  if (!snap.permisosDenegados.truncado) expect(mia).toBeDefined();
+  if (mia) expect(mia.n).toBe(1);
   const sinLibro = new Proxy(pool, { get(target, prop) {
     if (prop === 'query') return (sql: string, values?: unknown[]) => {
       if (sql.includes('FROM audit_log')) return Promise.reject(new Error('libro no disponible'));
