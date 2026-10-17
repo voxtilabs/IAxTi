@@ -1,11 +1,12 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { getContext, updateSummary, updateTranscription } from '@iaxti/module-conversations';
-import { FORMATO_SUGERENCIA, parseSuggestion } from '../domain/parser';
+import { FORMATO_SUGERENCIA, parseSuggestion, type AccionPropuesta } from '../domain/parser';
 import { runAgentTask } from './runtime';
 import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './models';
 import { aiSdkModelPort, aiSdkTranscriber } from './models';
 import { listAgents, type Agent } from './agents';
+import { accionQueSePuedeProponer } from './acciones-que-se-proponen';
 import { abrirIntento } from './objetivo-medido';
 import { DEFINICIONES } from '../domain/objetivo';
 
@@ -21,6 +22,14 @@ export interface Suggestion {
   intent: string | null;
   leadScore: 'frio' | 'tibio' | 'caliente' | null;
   suggestDeal: boolean;
+  /**
+   * La acción que el asistente propone junto al texto (#999), o `null`.
+   *
+   * `suggestDeal` es su antepasado: el booleano «¿creo la oportunidad?»,
+   * cableado a mano para un solo caso. Se mantiene porque hay filas viejas y
+   * pantallas que lo leen; lo nuevo va acá.
+   */
+  accion: AccionPropuesta | null;
   status: 'pending' | 'sent' | 'dismissed' | 'expired';
   expiresAt: Date;
   feedback: 'up' | 'down' | null;
@@ -62,6 +71,7 @@ function rowToSuggestion(row: Record<string, unknown>): Suggestion {
     intent: (row.intent as string) ?? null,
     leadScore: (row.lead_score as Suggestion['leadScore']) ?? null,
     suggestDeal: row.suggest_deal as boolean,
+    accion: (row.accion as AccionPropuesta) ?? null,
     status: row.status as Suggestion['status'],
     expiresAt: row.expires_at as Date,
     feedback: (row.feedback as Suggestion['feedback']) ?? null,
@@ -274,8 +284,8 @@ export async function suggestForInbound(
   const fila = await client.query(
     `INSERT INTO suggestions
        (tenant_id, agent_id, conversation_id, message_id, execution_id, text,
-        confidence, intent, lead_score, suggest_deal)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        confidence, intent, lead_score, suggest_deal, accion)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [
       input.tenantId,
       agent.id,
@@ -287,6 +297,7 @@ export async function suggestForInbound(
       payload.intencion,
       payload.calificacion,
       payload.crearOportunidad,
+      accionQueSePuedeProponer(payload.accion),
     ],
   );
   await publishEvent(client, {

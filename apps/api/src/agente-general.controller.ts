@@ -39,6 +39,7 @@ import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
 import { permisosDelActor } from './authz/can';
+import { llamarLaPropiaApi } from './llamar-la-propia-api';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
@@ -89,37 +90,6 @@ const QUIEN_PREGUNTA = new Set(['user']);
  * nunca se fabrica una: si el token de la persona no alcanza, la ruta
  * responde 403 y el modelo recibe ese motivo.
  */
-function llamarLaPropiaApi(request: WithUser) {
-  const base = `http://127.0.0.1:${enteroDeEntorno('PORT', 3000)}`;
-  const credencial: Record<string, string> = request.headers['x-api-key']
-    ? { 'X-Api-Key': String(request.headers['x-api-key']) }
-    : { Authorization: String(request.headers.authorization ?? '') };
-  const tenantId = (request.actor as Actor).tenantId;
-
-  return async (peticion: {
-    metodo: string;
-    ruta: string;
-    query: Record<string, string>;
-    cuerpo: Record<string, unknown> | null;
-  }) => {
-    const qs = new URLSearchParams(peticion.query).toString();
-    const cabeceras: Record<string, string> = {
-      ...credencial,
-      'X-Tenant-Id': tenantId,
-      // El MISMO trace: lo que haga el agente se sigue en los logs junto
-      // con la conversación que lo pidió.
-      ...(request.requestId ? { 'X-Request-Id': request.requestId } : {}),
-      ...(peticion.cuerpo ? { 'Content-Type': 'application/json' } : {}),
-    };
-    const res = await fetch(`${base}${peticion.ruta}${qs ? `?${qs}` : ''}`, {
-      method: peticion.metodo,
-      headers: cabeceras,
-      ...(peticion.cuerpo ? { body: JSON.stringify(peticion.cuerpo) } : {}),
-    });
-    const datos = await res.json().catch(() => null);
-    return { ok: res.ok, estado: res.status, datos };
-  };
-}
 
 /**
  * El interruptor del panel (#496).

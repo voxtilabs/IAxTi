@@ -1,0 +1,214 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import type { Pool } from 'pg';
+import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { parseSuggestion } from '../domain/parser';
+import {
+  ACCIONES_EN_LA_CONVERSACION,
+  accionQueSePuedeProponer,
+  aplicarAccionDeLaSugerencia,
+} from '../application/acciones-que-se-proponen';
+import { CATALOGO } from '../application/catalogo';
+
+/**
+ * El asistente propone la acción; el dueño aplica (#999).
+ *
+ * El hueco que esto cierra: el asistente ya contesta solo —`autoRespondForInbound`
+ * manda el mensaje firmado— pero no puede HACER. Las siete herramientas que
+ * escriben están cerradas por ADR-0017 («sale hacia el cliente o pisa trabajo de
+ * una persona»), así que cuando el cliente dice «agéndame el jueves a las 4», el
+ * asistente VE los huecos y no puede agendar: la conversación llega al punto de
+ * la acción y se detiene.
+ *
+ * Esto no abre esas puertas. Las convierte en una propuesta que una persona
+ * aplica en un toque, con SUS permisos, por la misma función que usa el Agente
+ * General. El ADR decía que esas acciones las decide una persona; acá las
+ * decide.
+ */
+let pool: Pool;
+let tenant: string;
+let conversacion: string;
+
+beforeAll(async () => {
+  pool = createPool();
+  await runMigrations(pool);
+  tenant = (
+    await pool.query("INSERT INTO tenants (name) VALUES ('jose-propone') RETURNING id")
+  ).rows[0].id;
+  conversacion = randomUUID();
+});
+afterAll(async () => {
+  await pool.query('DELETE FROM suggestions WHERE tenant_id = $1', [tenant]);
+  await pool.query('DELETE FROM tenants WHERE id = $1', [tenant]);
+  await pool.end();
+});
+
+const guardar = async (accion: unknown) =>
+  (
+    await pool.query(
+      `INSERT INTO suggestions (tenant_id, conversation_id, text, accion)
+            VALUES ($1, $2, 'Te dejo la hora lista para confirmar.', $3) RETURNING id`,
+      [tenant, conversacion, accion === null ? null : JSON.stringify(accion)],
+    )
+  ).rows[0].id as string;
+
+describe('lo que el asistente puede proponer', () => {
+  it('cada nombre de la lista existe en el catálogo y sigue pidiendo visto bueno', () => {
+    // La lista es corta a mano y el catálogo se genera del código: sin esta
+    // prueba, renombrar una ruta dejaría una entrada apuntando a nada y la
+    // acción se caería recién cuando un cliente la pidiera.
+    for (const nombre of Object.keys(ACCIONES_EN_LA_CONVERSACION)) {
+      const h = CATALOGO.find((x) => x.nombre === nombre);
+      expect(h, `${nombre} no está en el catálogo`).toBeDefined();
+      expect(h?.trato, `${nombre} dejó de pedir confirmación`).toBe('confirmar');
+    }
+  });
+
+  it('cada entrada trae su motivo escrito, no una cadena vacía', () => {
+    for (const [nombre, motivo] of Object.entries(ACCIONES_EN_LA_CONVERSACION)) {
+      expect(motivo.trim().length, nombre).toBeGreaterThan(40);
+    }
+  });
+
+  it('`conversations.reply` NO está: eso ya es la sugerencia', () => {
+    // Dos mecanismos para lo mismo y el segundo siempre queda a medias.
+    expect(ACCIONES_EN_LA_CONVERSACION['conversations.reply']).toBeUndefined();
+  });
+
+  it('deja pasar lo de la lista y descarta lo demás', () => {
+    expect(accionQueSePuedeProponer({ herramienta: 'agenda.agendar', argumentos: {} })).toEqual({
+      herramienta: 'agenda.agendar',
+      argumentos: {},
+    });
+    // Existe en el catálogo, pide confirmación, y NO es de esta conversación:
+    // un asistente hablando con un cliente no toca la plataforma.
+    expect(accionQueSePuedeProponer({ herramienta: 'platform.apagarModulo', argumentos: {} })).toBeNull();
+    expect(accionQueSePuedeProponer({ herramienta: 'no.existe', argumentos: {} })).toBeNull();
+    expect(accionQueSePuedeProponer(null)).toBeNull();
+  });
+});
+
+describe('el parser de la acción', () => {
+  const con = (json: string) => parseSuggestion(json).accion;
+
+  it('la lee cuando viene bien', () => {
+    expect(
+      con('{"sugerencia":"Te la dejo lista","accion":{"herramienta":"agenda.agendar","argumentos":{"inicio":"2026-11-03T16:00:00Z"}}}'),
+    ).toEqual({ herramienta: 'agenda.agendar', argumentos: { inicio: '2026-11-03T16:00:00Z' } });
+  });
+
+  it('sin argumentos vale: hay acciones que no los necesitan', () => {
+    expect(con('{"sugerencia":"ok","accion":{"herramienta":"agenda.estado"}}')).toEqual({
+      herramienta: 'agenda.estado',
+      argumentos: {},
+    });
+  });
+
+  it('una acción a medias se pierde y la RESPUESTA se conserva', () => {
+    // Lo contrario sería cambiar un problema chico —no propuso nada— por uno
+    // grande: quien atiende se queda sin el texto para contestarle al cliente.
+    for (const malo of [
+      '{"sugerencia":"Hola","accion":{"argumentos":{}}}',
+      '{"sugerencia":"Hola","accion":{"herramienta":"","argumentos":{}}}',
+      '{"sugerencia":"Hola","accion":{"herramienta":"agenda.agendar","argumentos":"el jueves"}}',
+      '{"sugerencia":"Hola","accion":[1,2]}',
+      '{"sugerencia":"Hola","accion":"agendale"}',
+    ]) {
+      const p = parseSuggestion(malo);
+      expect(p.accion, malo).toBeNull();
+      expect(p.sugerencia, malo).toBe('Hola');
+    }
+  });
+
+  it('sin acción es el caso normal, no un error', () => {
+    expect(con('{"sugerencia":"Abrimos de 9 a 18."}')).toBeNull();
+  });
+});
+
+describe('aplicar', () => {
+  const PERMISOS = new Set(['calendar.book']);
+  const MODULOS = new Set(['calendar', 'conversations']);
+
+  it('ejecuta por la ruta, con los permisos de la persona, y recién ahí marca enviada', async () => {
+    const id = await guardar({ herramienta: 'agenda.agendar', argumentos: { contactId: 'c1' } });
+    const llamadas: Array<{ metodo: string; ruta: string }> = [];
+    const r = await withTenant(pool, tenant, (c) =>
+      aplicarAccionDeLaSugerencia(
+        c,
+        { tenantId: tenant, suggestionId: id, permisos: PERMISOS, modulosActivos: MODULOS },
+        {
+          llamarApi: async ({ metodo, ruta }) => {
+            llamadas.push({ metodo, ruta });
+            return { ok: true, estado: 201, datos: { id: 'cita-1' } };
+          },
+        },
+      ),
+    );
+    expect(llamadas).toEqual([{ metodo: 'POST', ruta: '/v1/agenda' }]);
+    expect(r.suggestion.status).toBe('sent');
+    expect(r.datos).toEqual({ id: 'cita-1' });
+  });
+
+  it('sin el permiso de la persona no se ejecuta, y la sugerencia sigue viva', async () => {
+    const id = await guardar({ herramienta: 'agenda.agendar', argumentos: {} });
+    let llamo = false;
+    await expect(
+      withTenant(pool, tenant, (c) =>
+        aplicarAccionDeLaSugerencia(
+          c,
+          { tenantId: tenant, suggestionId: id, permisos: new Set<string>(), modulosActivos: MODULOS },
+          { llamarApi: async () => ((llamo = true), { ok: true, estado: 200, datos: {} }) },
+        ),
+      ),
+    ).rejects.toThrow(/permiso/i);
+    expect(llamo, 'no tenía que llamar a la ruta').toBe(false);
+    const q = await pool.query('SELECT status FROM suggestions WHERE id = $1', [id]);
+    expect(q.rows[0].status).toBe('pending');
+  });
+
+  it('si la ruta falla, la sugerencia queda PENDIENTE para volver a intentar', async () => {
+    const id = await guardar({ herramienta: 'agenda.agendar', argumentos: {} });
+    await expect(
+      withTenant(pool, tenant, (c) =>
+        aplicarAccionDeLaSugerencia(
+          c,
+          { tenantId: tenant, suggestionId: id, permisos: PERMISOS, modulosActivos: MODULOS },
+          { llamarApi: async () => ({ ok: false, estado: 409, datos: { message: 'Esa hora se tomó.' } }) },
+        ),
+      ),
+    ).rejects.toThrow('Esa hora se tomó.');
+    const q = await pool.query('SELECT status FROM suggestions WHERE id = $1', [id]);
+    expect(q.rows[0].status).toBe('pending');
+  });
+
+  it('una sugerencia sin acción no se puede aplicar', async () => {
+    const id = await guardar(null);
+    await expect(
+      withTenant(pool, tenant, (c) =>
+        aplicarAccionDeLaSugerencia(
+          c,
+          { tenantId: tenant, suggestionId: id, permisos: PERMISOS, modulosActivos: MODULOS },
+          { llamarApi: async () => ({ ok: true, estado: 200, datos: {} }) },
+        ),
+      ),
+    ).rejects.toThrow(/no trae una acción/);
+  });
+
+  it('una acción que ya no se puede proponer tampoco se aplica', async () => {
+    // La fila pudo quedar de una versión en la que esa acción sí se proponía.
+    const id = await guardar({ herramienta: 'platform.apagarModulo', argumentos: {} });
+    await expect(
+      withTenant(pool, tenant, (c) =>
+        aplicarAccionDeLaSugerencia(
+          c,
+          { tenantId: tenant, suggestionId: id, permisos: new Set(['platform.manage']), modulosActivos: new Set(['platform']) },
+          { llamarApi: async () => ({ ok: true, estado: 200, datos: {} }) },
+        ),
+      ),
+    ).rejects.toThrow(/no trae una acción/);
+  });
+
+  it('el CHECK de la base rechaza una acción sin herramienta', async () => {
+    await expect(guardar({ argumentos: { a: 1 } })).rejects.toThrow(/accion_con_herramienta/);
+  });
+});

@@ -2280,6 +2280,32 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ConversationsController_aplicarAccionSugerida": {
+    "metodo": "POST",
+    "ruta": "/v1/conversations/{id}/suggestions/{sid}/accion",
+    "resumen": "Aplica la acción que el asistente dejó propuesta",
+    "permiso": "agents.use",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "sid": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id",
+        "sid"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ConversationsController_asignaciones": {
     "metodo": "GET",
     "ruta": "/v1/conversations/{id}/asignaciones",
