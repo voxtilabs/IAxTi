@@ -78,15 +78,11 @@ async function avisoDe(event: EventEnvelope, client: PoolClient): Promise<Aviso 
   const p = event.payload as Record<string, unknown>;
   switch (event.name) {
     case 'payment.received': {
-      // El dueño de la conversación primero; sin dueño, la supervisión.
+      // #904: el responsable viene del productor, fijado al confirmar el
+      // pago. Los eventos anteriores sin ownerId conservan el ruteo a
+      // supervisión; jamás se completa un sobre viejo con el dueño actual.
       const destinatarios = new Set(await supervisores(client, event.tenantId));
-      if (p.conversationId) {
-        const conv = await client.query(
-          'SELECT owner_id FROM conversations WHERE tenant_id = $1 AND id = $2',
-          [event.tenantId, p.conversationId],
-        );
-        if (conv.rows[0]?.owner_id) destinatarios.add(conv.rows[0].owner_id);
-      }
+      if (typeof p.ownerId === 'string') destinatarios.add(p.ownerId);
       const monto = Number(p.amountClp);
       return {
         type: 'pago_recibido',
