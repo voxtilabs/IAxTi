@@ -42,7 +42,13 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const table of ['daily_metrics', 'response_samples']) await pool.query(`DELETE FROM ${table} WHERE tenant_id = ANY($1::uuid[])`, [[tenant, otro]]);
   await pool.query('DELETE FROM tenants WHERE id = ANY($1::uuid[])', [[tenant, otro]]);
-  await pool.query(`REVOKE SELECT ON daily_metrics, response_samples, conversations FROM "${rol}"`);
+  // Las MISMAS cuatro del GRANT, y la de más tiene su historia: al agregar
+  // `fx_rates` arriba y no acá, el `DROP ROLE` de abajo falló con «cannot be
+  // dropped because some objects depend on it» y el rol quedó en el catálogo
+  // de la base compartida. Las dos listas tienen que moverse juntas.
+  await pool.query(
+    `REVOKE SELECT ON daily_metrics, response_samples, conversations, fx_rates FROM "${rol}"`,
+  );
   await pool.query(`REVOKE USAGE ON SCHEMA public FROM "${rol}"`);
   await pool.query(`DROP ROLE "${rol}"`);
   await pool.end();
