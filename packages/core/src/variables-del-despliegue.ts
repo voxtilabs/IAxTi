@@ -121,6 +121,33 @@ export function variablesQueLeeElCodigo(raices: string[]): LecturaDeVariable[] {
  * único que importa acá es qué nombres aparecen como clave del bloque de
  * entorno. Una línea `  FOO: ${FOO}` cuenta; `# FOO` no.
  */
+/**
+ * Las que el compose exige con `${VAR:?}`, que no es lo mismo que pasarlas
+ * (#810, criterio 4).
+ *
+ * `variablesQueEntregaElCompose` contesta «¿llega al contenedor?», y esa era
+ * toda la pregunta hasta ahora. Pero una variable PASADA Y VACÍA llega igual, y
+ * el código la recibe como cadena vacía: eso es lo que midió #953 y lo que
+ * costó el puerto 0 del SMTP (#985). Pasar y exigir son dos cosas, y la guarda
+ * no las distinguía.
+ *
+ * Se mira la interpolación y no el nombre de la izquierda: lo que hace fallar
+ * el despliegue es el `:?` del `${…}`, aunque la clave del YAML se llame de
+ * otra forma. `${VAR:?mensaje}` y `${VAR:?}` cuentan las dos; `${VAR:-algo}`
+ * no, que es un defecto y no una exigencia.
+ */
+export function variablesObligatoriasDelCompose(rutaDelCompose: string): Set<string> {
+  const texto = readFileSync(rutaDelCompose, 'utf8');
+  const obligatorias = new Set<string>();
+  for (const linea of texto.split('\n')) {
+    const sinComentario = linea.split('#')[0];
+    for (const [, nombre] of sinComentario.matchAll(/\$\{([A-Z][A-Z0-9_]*):\?/g)) {
+      obligatorias.add(nombre);
+    }
+  }
+  return obligatorias;
+}
+
 export function variablesQueEntregaElCompose(rutaDelCompose: string): Set<string> {
   const texto = readFileSync(rutaDelCompose, 'utf8');
   const claves = new Set<string>();
