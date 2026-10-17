@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { fuenteLimpia } from '../src/testing/fuente-limpia';
 
 /**
  * Guarda: una prueba que crea un directorio temporal lo borra.
@@ -17,6 +18,39 @@ import { describe, expect, it } from 'vitest';
  */
 
 const RAIZ = join(__dirname, '..', '..', '..');
+
+/**
+ * `CREATE OR REPLACE FUNCTION` incluido: reemplazar una función que ya existe es
+ * peor todavía, porque la deja cambiada para todo el mundo.
+ *
+ * `CONSTRAINT TRIGGER` y `PROCEDURE` los trajo #924, y los dos faltaban: la
+ * expresión que había acá pedía `TRIGGER` o `FUNCTION` pegados al `CREATE`, así
+ * que un `CREATE CONSTRAINT TRIGGER` —que es un trigger y queda igual de
+ * compartido— pasaba sin que nadie se enterara. Una guarda a la que se le
+ * escapa la variante que alguien va a escribir mañana no es media guarda: es
+ * una guarda en la que se confía de más.
+ */
+const DDL = /\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?(?:TRIGGER|FUNCTION|PROCEDURE)\b/i;
+const RENAME = /ALTER\s+TABLE\s+\S+\s+RENAME\b/i;
+
+/**
+ * ¿Esta fuente crea un objeto en el esquema compartido?
+ *
+ * Los comentarios no crean nada: sin limpiarlos, `arranque.test.ts` aparecería
+ * acusado por EXPLICAR —en el comentario que dejó #913— que antes renombraba la
+ * tabla. Una guarda que acusa a quien documenta cómo dejó de hacerlo enseña a no
+ * documentarlo.
+ *
+ * Pero la limpieza se hace con `fuenteLimpia` (#569) y no a mano. Lo que había
+ * acá era un `replace(/^\s*\/\/.*$/gm, '')`, que es exactamente la copia
+ * ingenua que ese helper existe para que nadie vuelva a escribir —parte al
+ * medio cualquier `https://` y no sabe si el `//` vive dentro de un string—.
+ * Treinta archivos tenían su versión; este era el trigésimo primero.
+ */
+export function creaObjetoCompartido(fuente: string): boolean {
+  const limpia = fuenteLimpia(fuente);
+  return DDL.test(limpia) || RENAME.test(limpia);
+}
 
 function archivosDePrueba(dir: string, encontrados: string[] = []): string[] {
   for (const entrada of readdirSync(dir)) {
@@ -79,21 +113,6 @@ describe('las pruebas no dejan basura en el disco', () => {
     const archivos = archivosDePrueba(RAIZ);
     expect(archivos.length).toBeGreaterThan(20);
 
-    // `CREATE OR REPLACE FUNCTION` incluido: reemplazar una función que ya
-    // existe es peor todavía, porque la deja cambiada para todo el mundo.
-    const DDL = /CREATE\s+(OR\s+REPLACE\s+)?(TRIGGER|FUNCTION)\b/i;
-    const RENAME = /ALTER\s+TABLE\s+\S+\s+RENAME\b/i;
-
-    /**
-     * Los comentarios no crean nada.
-     *
-     * Sin esto, `arranque.test.ts` aparecería acá por EXPLICAR —en el
-     * comentario que dejó #913— que antes renombraba la tabla. Una guarda que
-     * acusa a quien documenta cómo dejó de hacerlo enseña a no documentarlo.
-     */
-    const sinComentarios = (fuente: string) =>
-      fuente.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-
     /**
      * La excepción, con su motivo: crea su PROPIA tabla para probar que
      * `sinTriggers` (#803) apaga triggers de verdad, y la deja caer con
@@ -103,11 +122,26 @@ describe('las pruebas no dejan basura en el disco', () => {
      */
     const CON_SU_PROPIA_TABLA = ['packages/db/tests/sin-triggers.test.ts'];
 
+    /**
+     * Y la excepción que se destapó al escribir la mordida de abajo: ESTE
+     * archivo lleva los `CREATE TRIGGER …` de prueba en strings, a propósito,
+     * y `fuenteLimpia` conserva lo que vive dentro de un string —tiene que
+     * conservarlo, porque el SQL de las pruebas de verdad también viaja ahí—.
+     * Así que al agregar los casos, la guarda se acusó a sí misma.
+     *
+     * Se podría disimular armando el SQL por pedazos
+     * (`['CREATE','TRIGGER'].join(' ')`) y quedaría «verde». Eso es justo lo
+     * que no hay que hacer: el día que alguien escriba DDL de verdad acá, el
+     * mismo truco lo taparía. Mejor la excepción escrita, con su motivo, que
+     * una regla que se esquiva con comillas.
+     */
+    const LOS_CASOS_DE_ESTA_GUARDA = ['packages/core/tests/las-pruebas-no-dejan-basura.test.ts'];
+
     const culpables = archivos.filter((ruta) => {
       const relativa = ruta.slice(RAIZ.length + 1);
       if (CON_SU_PROPIA_TABLA.includes(relativa)) return false;
-      const fuente = sinComentarios(readFileSync(ruta, 'utf8'));
-      return DDL.test(fuente) || RENAME.test(fuente);
+      if (LOS_CASOS_DE_ESTA_GUARDA.includes(relativa)) return false;
+      return creaObjetoCompartido(readFileSync(ruta, 'utf8'));
     });
     expect(
       culpables.map((r) => r.slice(RAIZ.length + 1)),
@@ -117,5 +151,40 @@ describe('las pruebas no dejan basura en el disco', () => {
         'provocar un fallo de escritura, desvía el nombre de la tabla en el ' +
         'texto de la consulta de ESA conexión (#910).',
     ).toEqual([]);
+  });
+
+  /**
+   * La guarda se muerde a sí misma.
+   *
+   * Un escáner de texto se puede romper sin que nada se ponga rojo: alcanza con
+   * que la expresión deje de calzar. Ya pasó en este repositorio —un `\b`
+   * escrito desde un heredoc de Python llegó al archivo como un byte 0x08 y
+   * desactivó la regex en silencio—, y el modo de falla es el peor que hay: la
+   * lista de culpables sale vacía y eso se lee como «no hay culpables».
+   *
+   * Así que la detección tiene sus propios casos. Los tres primeros los trajo
+   * #924, que es donde apareció lo de `CONSTRAINT TRIGGER`.
+   */
+  it.each([
+    'CREATE TRIGGER falla BEFORE INSERT ON outbox EXECUTE FUNCTION falla()',
+    'CREATE OR REPLACE FUNCTION falla() RETURNS trigger LANGUAGE plpgsql',
+    'CREATE CONSTRAINT TRIGGER falla AFTER UPDATE ON messages',
+    'CREATE PROCEDURE romper() LANGUAGE plpgsql',
+    'ALTER TABLE outbox RENAME TO outbox_viejo',
+  ])('detecta el DDL que se quiere evitar: %s', (sql) => {
+    expect(creaObjetoCompartido(`await cliente.query(${JSON.stringify(sql)});`)).toBe(true);
+  });
+
+  it('no acusa a quien lo explica en un comentario', () => {
+    expect(
+      creaObjetoCompartido(
+        '// antes hacía CREATE TRIGGER falla …\n/* y también ALTER TABLE outbox RENAME TO x */\nawait cliente.query("SELECT 1");',
+      ),
+    ).toBe(false);
+  });
+
+  it('no parte una URL con dos barras, que es lo que rompía la limpieza a mano', () => {
+    const fuente = 'const doc = "https://ejemplo/doc"; await cliente.query("CREATE TRIGGER t …");';
+    expect(creaObjetoCompartido(fuente)).toBe(true);
   });
 });
