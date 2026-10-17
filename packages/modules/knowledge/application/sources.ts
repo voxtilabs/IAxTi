@@ -8,6 +8,7 @@ import type { EmbedPort, PdfTextPort, UrlTextPort } from './embeddings';
 import { nvidiaEmbedPort, geminiPdfTextPort, DIMENSIONES } from './embeddings';
 import {
   anotarBorradoPendiente,
+  bloquearArchivo,
   confirmarBorradoPendiente,
   marcarFuenteSinArchivo,
 } from './borrados-pendientes';
@@ -507,6 +508,11 @@ export async function deleteSource(
             'R2_BUCKET_ADJUNTOS). No la eliminamos: borrar la fila dejaría el archivo bajable.',
         );
       }
+      // El candado del archivo, antes de destruirlo (#971). Lo toma también
+      // el barrido con `intentar`, así que mientras esta transacción vive, él
+      // ve «ocupado» y no interpreta la ventana a medias como una ventana
+      // rota. Se suelta solo al COMMIT o al ROLLBACK.
+      await bloquearArchivo(client, { tenantId: input.tenantId, r2Key });
       const { fallidas } = await almacen.borrar([r2Key]);
       if (fallidas.length > 0) {
         throw new Error(

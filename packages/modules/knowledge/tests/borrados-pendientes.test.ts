@@ -2,7 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { addSource, eliminarFuente } from '../application/sources';
-import { reconciliarBorradosPendientes } from '../application/borrados-pendientes';
+import {
+  bloquearArchivo,
+  marcarFuenteSinArchivo,
+  reconciliarBorradosPendientes,
+} from '../application/borrados-pendientes';
 
 /**
  * La ventana invisible (#751).
@@ -48,6 +52,36 @@ function bucketFalso(modo: 'borra' | 'mudo' = 'borra') {
       async existe(key: string) {
         if (modo === 'mudo') return null;
         return !yaNoEstan.has(key);
+      },
+    },
+  };
+}
+
+/**
+ * Un bucket que se queda DETENIDO en medio del borrado (#971).
+ *
+ * Es la única forma honesta de mirar el instante que importa: entre que el
+ * archivo deja de estar y que la transacción confirma. `borrar` destruye el
+ * archivo y después espera a que la prueba lo suelte; mientras tanto, el
+ * borrado de verdad tiene su transacción abierta y su candado tomado.
+ */
+function bucketQueSeDetiene() {
+  const base = bucketFalso();
+  let soltar: () => void = () => {};
+  let avisarQueEntro: () => void = () => {};
+  const entro = new Promise<void>((r) => (avisarQueEntro = r));
+  const permiso = new Promise<void>((r) => (soltar = r));
+  return {
+    /** Se resuelve cuando el archivo YA se destruyó y el borrado sigue adentro. */
+    entro,
+    soltar: () => soltar(),
+    almacen: {
+      ...base.almacen,
+      async borrar(keys: string[]) {
+        const r = await base.almacen.borrar(keys);
+        avisarQueEntro();
+        await permiso;
+        return r;
       },
     },
   };
@@ -332,6 +366,115 @@ describe('borrados de archivo que quedaron a medias (#751)', () => {
  * que queda cuando el proceso MUERE, y un proceso que murió no ejecutó el
  * resto. Escribirlo así es la forma honesta de tenerlo.
  */
+/**
+ * La carrera que el candado cierra (#971).
+ *
+ * Mientras la transacción que borra está EN VUELO, el mundo se ve exactamente
+ * igual que la ventana rota: el archivo ya no está en el bucket y la fila de
+ * `sources` todavía se lee viva, porque su DELETE no confirmó. El barrido
+ * cruzaba esas dos respuestas y escribía en el libro que una fuente había
+ * perdido su archivo — sobre un borrado que iba a salir perfecto.
+ *
+ * Esta prueba arma ese instante de verdad: abre la transacción, toma el
+ * candado, borra la fila sin confirmar, y deja al barrido entrar justo ahí.
+ */
+describe('un borrado en vuelo no se lee como una ventana rota (#971)', () => {
+  it('el barrido no decide nada mientras el candado está tomado', async () => {
+    const bucket = bucketFalso();
+    const f = await fuentePdf('escritura-en-vuelo');
+    const llave = `${tenant}/conocimiento/escritura-en-vuelo.pdf`;
+    await anotarAMano(f.id, llave);
+
+    // El borrado, detenido a mitad: candado tomado, archivo destruido, fila
+    // borrada pero SIN confirmar. Es el estado real de esos milisegundos.
+    const enVuelo = await admin.connect();
+    try {
+      await enVuelo.query('BEGIN');
+      await enVuelo.query("SELECT set_config('app.tenant_id', $1, true)", [tenant]);
+      await bloquearArchivo(enVuelo, { tenantId: tenant, r2Key: llave });
+      await bucket.almacen.borrar([llave]);
+      await enVuelo.query('DELETE FROM sources WHERE tenant_id = $1 AND id = $2', [tenant, f.id]);
+
+      const r = await barrer(bucket.almacen);
+
+      // Ni marca ni cierra: se corre a un lado y vuelve en la próxima pasada.
+      expect(r.enVuelo).toBe(1);
+      expect(r.marcadas).toBe(0);
+      expect(r.cerradas).toBe(0);
+      // Y lo que importa de verdad: NO quedó escrito en el libro que esta
+      // fuente perdió su archivo.
+      const libro = await admin.query(
+        `SELECT 1 FROM audit_log WHERE tenant_id = $1 AND resource_id = $2
+           AND action = 'knowledge.source.sin_archivo'`,
+        [tenant, f.id],
+      );
+      expect(libro.rowCount).toBe(0);
+
+      await enVuelo.query('COMMIT');
+    } finally {
+      enVuelo.release();
+    }
+
+    // Confirmado el borrado, la próxima pasada cierra la anotación por lo que
+    // de verdad pasó: la fuente ya no existe.
+    const despues = await barrer(bucket.almacen);
+    expect(despues.cerradas).toBe(1);
+    expect(despues.marcadas).toBe(0);
+  });
+
+  it('con el borrado de verdad a medio camino, el barrido se corre a un lado', async () => {
+    // Igual que arriba, pero sin armar el estado a mano: corre `eliminarFuente`
+    // y lo deja detenido dentro del bucket. Si el borrado NO tomara el
+    // candado, el barrido vería «fuente viva, archivo destruido» y escribiría
+    // en el libro una reparación que no existió.
+    const bucket = bucketQueSeDetiene();
+    const f = await fuentePdf('contrato-a-medio-borrar');
+
+    const borrando = eliminarFuente(admin, {
+      tenantId: tenant,
+      sourceId: f.id,
+      actor: 'test',
+      almacen: bucket.almacen,
+    });
+    await bucket.entro;
+
+    const r = await barrer(bucket.almacen);
+    expect(r.enVuelo).toBe(1);
+    expect(r.marcadas).toBe(0);
+
+    bucket.soltar();
+    await borrando;
+
+    const libro = await admin.query(
+      `SELECT 1 FROM audit_log WHERE tenant_id = $1 AND resource_id = $2
+         AND action = 'knowledge.source.sin_archivo'`,
+      [tenant, f.id],
+    );
+    expect(libro.rowCount).toBe(0);
+    expect(await estadoDe(f.id)).toBeUndefined();
+  });
+
+  it('si la fuente se va entre la lectura y la marca, no se inventa una reparación', async () => {
+    // El mismo final por el otro camino: sin candado de por medio, la fuente
+    // desaparece justo cuando el barrido iba a marcarla. `marcarFuenteSinArchivo`
+    // devuelve `false` y la anotación se cierra como lo que fue.
+    const f = await fuentePdf('se-fue-a-ultima-hora');
+    const llave = `${tenant}/conocimiento/se-fue-a-ultima-hora.pdf`;
+    await anotarAMano(f.id, llave);
+    await admin.query('DELETE FROM sources WHERE tenant_id = $1 AND id = $2', [tenant, f.id]);
+
+    const marcada = await marcarFuenteSinArchivo(admin, { tenantId: tenant, sourceId: f.id });
+
+    expect(marcada).toBe(false);
+    const libro = await admin.query(
+      `SELECT 1 FROM audit_log WHERE tenant_id = $1 AND resource_id = $2
+         AND action = 'knowledge.source.sin_archivo'`,
+      [tenant, f.id],
+    );
+    expect(libro.rowCount).toBe(0);
+  });
+});
+
 async function anotarAMano(sourceId: string, r2Key: string): Promise<void> {
   await withTenant(admin, tenant, (c) =>
     c.query(
