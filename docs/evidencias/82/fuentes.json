@@ -1,0 +1,114 @@
+{
+  "issue": 82,
+  "consultedOn": "2026-10-16",
+  "scope": "Requisitos públicos; no estados de cuentas ni aprobaciones reales.",
+  "sources": [
+    {
+      "name": "meta-access-retirement",
+      "title": "Retiring Access Verification for Tech Provider Apps",
+      "url": "https://developers.facebook.com/blog/post/2026/10/09/retiring-access-verification-for-tech-provider-apps/",
+      "finalUrl": "https://developers.facebook.com/blog/post/2026/10/09/retiring-access-verification-for-tech-provider-apps/",
+      "status": 200,
+      "retrievedAt": "2026-10-16T10:11:58.284763+00:00",
+      "bytes": 171207,
+      "sha256": "c2e457e9afb2c22efa48c17dce86725066c6fa92d4cde8d201968f0b07ca2818",
+      "purpose": "Cambio anunciado el 9 de octubre: retirada de Access Verification, clasificación y requisitos conservados.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-tech-provider",
+      "title": "Become a Tech Provider",
+      "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-tech-providers",
+      "finalUrl": "https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/get-started-for-tech-providers",
+      "status": 200,
+      "retrievedAt": "2026-10-16T10:11:58.739281+00:00",
+      "bytes": 6714,
+      "sha256": "56e00da68d3966844f103f9ab24c42777ea701a2db7d1b22803a1e0666b0950d",
+      "purpose": "Prerequisitos y pasos actuales del Tech Provider de WhatsApp; ruta independiente y con Solution Partner.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-business-verification",
+      "url": "https://developers.facebook.com/docs/apps/business-verification",
+      "finalUrl": "https://developers.facebook.com/documentation/development/release/business-verification",
+      "status": 200,
+      "retrievedAt": "2026-10-16T10:16:41.107910+00:00",
+      "bytes": 3808,
+      "sha256": "80f932a10fb9c3e02c063c83e5cf98b504b408d8804fb64876b44bc9a1f9547e",
+      "purpose": "Verificación del negocio, vinculación de app y roles de administrador.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-app-review",
+      "status": 200,
+      "url": "https://developers.facebook.com/documentation/resp-plat-initiatives/individual-processes/app-review",
+      "bytes": 2553,
+      "text_length": 2553,
+      "sha256": "27e7bb2382d1db16b7000f19b1434f6688f149b9cf475c03185a1009d90548f8",
+      "purpose": "Revisión del funcionamiento real y acceso externo a permisos.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-wa-app-review",
+      "status": 200,
+      "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/solution-providers/app-review",
+      "bytes": 6924,
+      "text_length": 6924,
+      "sha256": "bf5cb5b5bbfd392ccc3aae7af12e7647eb10a5198f31083ef7c0a2c93b879932",
+      "purpose": "Permisos WhatsApp, explicaciones y videos para revisión.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-embedded",
+      "status": 200,
+      "url": "https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview",
+      "bytes": 16389,
+      "text_length": 16385,
+      "sha256": "69ec3e0fa5d18926007eea468f13f7a8ea8a9df77da605d53226b4d1fc3a3126",
+      "purpose": "Onboarding, permisos, pago y versión; discrepancia residual de Access Verification registrada.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-instagram-overview",
+      "url": "https://developers.facebook.com/documentation/instagram-platform/overview",
+      "finalUrl": "https://developers.facebook.com/documentation/instagram-platform/overview",
+      "status": 200,
+      "retrievedAt": "2026-10-16T10:16:40.518502+00:00",
+      "bytes": 23393,
+      "sha256": "22cbbe343eb6c6f2143ca823dad304d0501f578e9cd953e8343c05aefc46cf13",
+      "purpose": "Dos rutas de autorización, tipos de token, acceso avanzado y permisos.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-ig-instagram-login",
+      "status": 200,
+      "url": "https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-instagram-login",
+      "bytes": 2520,
+      "text_length": 2507,
+      "sha256": "997eddb44801de818ecefd2ef96fa149248880b321788595da2b2f8b913a1699",
+      "purpose": "Ruta sin página Facebook y cambio de nombres de scopes.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-messenger-overview",
+      "url": "https://developers.facebook.com/documentation/business-messaging/messenger-platform/overview",
+      "finalUrl": "https://developers.facebook.com/documentation/business-messaging/messenger-platform/overview",
+      "status": 200,
+      "retrievedAt": "2026-10-16T10:16:40.453141+00:00",
+      "bytes": 6052,
+      "sha256": "03f35da62b0f1c4d9fdf591b0f911e979e4df2bfffc528e5567753cd01ffb210",
+      "purpose": "Requisitos y dependencias de permisos de conversaciones Messenger/Instagram por Facebook.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    },
+    {
+      "name": "meta-messenger-start",
+      "status": 200,
+      "url": "https://developers.facebook.com/documentation/business-messaging/messenger-platform/get-started",
+      "bytes": 10746,
+      "text_length": 10744,
+      "sha256": "3168454f7ec64fa247ceaa30c8eb472be683bb5ebc21974902bd558ecf3c120f",
+      "purpose": "Tutorial acotado de envío y ventana estándar de respuesta.",
+      "retrieval": "HTTP GET público, sin sesión ni credenciales; contenido oficial leído."
+    }
+  ]
+}
