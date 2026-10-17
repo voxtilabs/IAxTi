@@ -213,12 +213,48 @@ describe('processOutbound (#43)', () => {
     }
   });
 
-  it('lo INICIADO POR EL NEGOCIO respeta el silencio; responder nunca espera', async () => {
+  /**
+   * El silencio de verdad, con el reloj fijado (#975).
+   *
+   * Estas dos pruebas no quieren probar el cálculo del horario —eso tiene sus
+   * propias pruebas de dominio—: quieren estar DENTRO del silencio para mirar
+   * qué hace el despacho. La versión anterior lo conseguía con una ventana lo
+   * más ancha posible, `00:00`→`23:59`, y eso tenía un agujero de un minuto:
+   * `enSilencio` compara `minuto >= desde && minuto < hasta`
+   * (`conversations/domain/horario.ts:165`), así que el minuto 23:59 queda
+   * FUERA y las dos pruebas se invertían durante sesenta segundos al día, en
+   * la zona del tenant.
+   *
+   * No es teórico: el CI de #929 cayó por esto a las 02:59:19 UTC —23:59:19 en
+   * Santiago— con `promise resolved instead of rejecting`, un rojo que no
+   * hablaba del PR que lo recibió.
+   *
+   * Y no se arregla con otra ventana: con esa comparación, cubrir los 1.440
+   * minutos exigiría `desde == hasta`, que la línea 164 trata como «sin
+   * silencio configurado». O sea que el dominio no puede expresar un silencio
+   * de 24 horas, y una prueba que lo necesitaba estaba pidiendo algo que no
+   * existe.
+   *
+   * Con el reloj fijado la pregunta queda bien hecha: silencio nocturno real
+   * —22:00 a 08:00— y las 02:00 de Santiago, que está dentro sin depender de
+   * cuándo corra el CI. `toFake: ['Date']` y no los temporizadores completos,
+   * porque `pg` y BullMQ necesitan los suyos de verdad (es lo que ya hace la
+   * prueba del sello de plantilla, más arriba).
+   */
+  const DENTRO_DEL_SILENCIO = new Date('2026-10-17T05:00:00Z'); // 02:00 en Santiago
+
+  const silencioNocturno = async () => {
     await admin.query(
-      `UPDATE tenants SET settings = settings || '{"bandeja":{"silencio":{"desde":"00:00","hasta":"23:59","zona":"America/Santiago"}}}'::jsonb
+      `UPDATE tenants SET settings = settings || '{"bandeja":{"silencio":{"desde":"22:00","hasta":"08:00","zona":"America/Santiago"}}}'::jsonb
        WHERE id = $1`,
       [tenant],
     );
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(DENTRO_DEL_SILENCIO);
+  };
+
+  it('lo INICIADO POR EL NEGOCIO respeta el silencio; responder nunca espera', async () => {
+    await silencioNocturno();
     const iniciado = await nuevoSaliente();
     await expect(
       processOutbound(admin, redis, jobPara(iniciado, { initiatedByBusiness: true })),
@@ -227,15 +263,12 @@ describe('processOutbound (#43)', () => {
     const respuesta = await nuevoSaliente();
     const res = await processOutbound(admin, redis, jobPara(respuesta, { initiatedByBusiness: false }));
     expect(res.providerMessageId).toBeTruthy(); // la respuesta salió igual
+    vi.useRealTimers();
     await admin.query(`UPDATE tenants SET settings = '{}'::jsonb WHERE id = $1`, [tenant]);
   });
 
   it('el comprobante de pago NO espera: es transaccional (ADR-0016)', async () => {
-    await admin.query(
-      `UPDATE tenants SET settings = settings || '{"bandeja":{"silencio":{"desde":"00:00","hasta":"23:59","zona":"America/Santiago"}}}'::jsonb
-       WHERE id = $1`,
-      [tenant],
-    );
+    await silencioNocturno();
     const comprobante = await nuevoSaliente();
     // Lo dispara el cliente al pagar y es la constancia de eso. Quien acaba
     // de pagar está despierto; un comprobante que llega doce horas después
@@ -246,6 +279,7 @@ describe('processOutbound (#43)', () => {
       jobPara(comprobante, { initiatedByBusiness: true, transaccional: true }),
     );
     expect(res.providerMessageId).toBeTruthy();
+    vi.useRealTimers();
     await admin.query(`UPDATE tenants SET settings = '{}'::jsonb WHERE id = $1`, [tenant]);
   });
 });
