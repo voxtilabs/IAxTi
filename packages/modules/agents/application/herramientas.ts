@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { degradarSinRomper } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 
 /**
@@ -437,19 +438,31 @@ async function rastro(
   result: 'ok' | 'denied',
   error: string | null,
 ): Promise<void> {
-  await writeAudit(client, {
-    tenantId: input.tenantId,
-    actor: input.actorUserId,
-    // 'agent': lo hizo la IA a nombre de alguien. Registrarlo como si lo
-    // hubiera hecho la persona haría imposible distinguirlo después.
-    actorKind: 'agent',
-    action: `agent.tool.${input.tool}`,
-    resource: input.conversationId ? 'conversation' : 'tenant',
-    resourceId: input.conversationId,
-    result,
-    requestId: input.requestId,
-    metadata: { agentId: input.agentId ?? null, args: input.args, error },
-  }).catch((err: Error) => {
-    console.warn(`[${input.requestId}] no pudimos auditar la herramienta — ${err.message}`);
-  });
+  /**
+   * Que no se pueda auditar no debe tumbar la herramienta que YA corrió, y por
+   * eso el aviso en vez del throw. Pero el `.catch` suelto que había acá dejaba
+   * abortada la transacción de quien llamó: la herramienta se ejecutó, el libro
+   * no la registró, y lo que la rodeaba se caía con un error que no habla de
+   * auditoría (#966).
+   */
+  await degradarSinRomper(
+    client,
+    (c) =>
+      writeAudit(c, {
+        tenantId: input.tenantId,
+        actor: input.actorUserId,
+        // 'agent': lo hizo la IA a nombre de alguien. Registrarlo como si lo
+        // hubiera hecho la persona haría imposible distinguirlo después.
+        actorKind: 'agent',
+        action: `agent.tool.${input.tool}`,
+        resource: input.conversationId ? 'conversation' : 'tenant',
+        resourceId: input.conversationId,
+        result,
+        requestId: input.requestId,
+        metadata: { agentId: input.agentId ?? null, args: input.args, error },
+      }),
+    (err) => {
+      console.warn(`[${input.requestId}] no pudimos auditar la herramienta — ${err.message}`);
+    },
+  );
 }

@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import type { ModuleRegistry } from '@iaxti/core';
-import { withTenant } from '@iaxti/db';
+import { degradarSinRomper, withTenant } from '@iaxti/db';
 import {
   PROVIDERS,
   activeAgent,
@@ -72,10 +72,42 @@ export async function datosDelNegocioParaLaIa(
   tenantId: string,
   contactId: string,
 ): Promise<Record<string, unknown>> {
-  const [campos, ficha] = await Promise.all([
-    listCustomFields(client, tenantId, 'contact').catch(() => []),
-    getContactFicha(client, tenantId, contactId).catch(() => null),
-  ]);
+  /**
+   * En SERIE y con SAVEPOINT, por dos razones distintas.
+   *
+   * El `Promise.all` que había acá era de mentira: un cliente de pg atiende una
+   * consulta a la vez, así que las encolaba igual. Y los dos `.catch` no
+   * degradaban nada —usan el `client` de quien llama, y en Postgres la
+   * sentencia que falla aborta el bloque entero—, así que un campo que no se
+   * pudo leer se llevaba puesto todo lo que viniera después (#966).
+   *
+   * Lo segundo es por qué no quedó un `Promise.all` con `degradarSinRomper`
+   * adentro: el savepoint del helper tiene un nombre fijo, y dos de esos a la
+   * vez sobre el MISMO cliente se pisan —el `ROLLBACK TO` vuelve al último que
+   * se abrió con ese nombre—. Secuencial no es una limitación acá: ya lo era.
+   */
+  const campos = await degradarSinRomper(
+    client,
+    (c) => listCustomFields(c, tenantId, 'contact'),
+    (error) => {
+      console.warn(
+        `copilot: no se pudieron leer los campos personalizados de ${tenantId}; el asistente ` +
+          `trabaja sin ellos. Causa: ${error.message}`,
+      );
+      return [];
+    },
+  );
+  const ficha = await degradarSinRomper(
+    client,
+    (c) => getContactFicha(c, tenantId, contactId),
+    (error) => {
+      console.warn(
+        `copilot: no se pudo leer la ficha de ${contactId} en ${tenantId}; el asistente trabaja ` +
+          `sin ella. Causa: ${error.message}`,
+      );
+      return null;
+    },
+  );
   return paraLaIa(campos, (ficha?.contact?.custom as Record<string, unknown>) ?? {});
 }
 
@@ -336,18 +368,38 @@ async function herramientasDeLaConversacion(
         }));
       },
       historialDelContacto: async (contactId) => {
-        const [oportunidades, actividades, citas, camposPropios] = await Promise.all([
-          listDeals(client, data.tenantId, { contactId, limit: 5 })
-            .then((r) => r.items)
-            .catch(() => []),
-          listActivitiesByContact(client, data.tenantId, contactId).catch(() => []),
-          listarCitas(client, {
-            tenantId: data.tenantId,
-            desde: new Date(Date.now() - 365 * 86_400_000),
-            hasta: new Date(Date.now() + 90 * 86_400_000),
-          }).catch(() => []),
-          datosDelNegocioParaLaIa(client, data.tenantId, contactId),
-        ]);
+        // Lo mismo que en `datosDelNegocioParaLaIa`: en serie —el cliente de
+        // pg las encolaba igual— y cada lectura opcional con su savepoint, que
+        // es lo que hace que una tabla que falta no se lleve el resto (#966).
+        const sinRomper = <T>(leer: (c: PoolClient) => Promise<T>, vacio: T, que: string) =>
+          degradarSinRomper(client, leer, (error) => {
+            console.warn(
+              `copilot: no se pudo leer ${que} de ${contactId} en ${data.tenantId}; el historial ` +
+                `sale sin esa parte. Causa: ${error.message}`,
+            );
+            return vacio;
+          });
+        const oportunidades = await sinRomper(
+          (c) => listDeals(c, data.tenantId, { contactId, limit: 5 }).then((r) => r.items),
+          [] as Awaited<ReturnType<typeof listDeals>>['items'],
+          'las oportunidades',
+        );
+        const actividades = await sinRomper(
+          (c) => listActivitiesByContact(c, data.tenantId, contactId),
+          [] as Awaited<ReturnType<typeof listActivitiesByContact>>,
+          'las actividades',
+        );
+        const citas = await sinRomper(
+          (c) =>
+            listarCitas(c, {
+              tenantId: data.tenantId,
+              desde: new Date(Date.now() - 365 * 86_400_000),
+              hasta: new Date(Date.now() + 90 * 86_400_000),
+            }),
+          [] as Awaited<ReturnType<typeof listarCitas>>,
+          'las citas',
+        );
+        const camposPropios = await datosDelNegocioParaLaIa(client, data.tenantId, contactId);
         return {
           oportunidades: oportunidades.map((d: { title: string; status: string; valueClp: number | null }) => ({
             titulo: d.title,

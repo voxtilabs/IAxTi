@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
+import iaxti from './tools/eslint-reglas/catch-sobre-cliente-ajeno.mjs';
 
 export default tseslint.config(
   {
@@ -31,6 +32,21 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'error',
     },
   },
+  /**
+   * El `.catch()` sobre el cliente ajeno (#966).
+   *
+   * Va como regla de lint y no como escáner de texto porque los dos greps que
+   * se intentaron en #970 descuadraban con los literales SQL de varias líneas.
+   * El AST sabe dónde termina una consulta; un `grep` no.
+   *
+   * Solo donde hay transacciones: el front no tiene PoolClient.
+   */
+  {
+    files: ['apps/api/**/*.ts', 'apps/workers/**/*.ts', 'apps/agents/**/*.ts', 'packages/**/*.ts'],
+    plugins: { iaxti },
+    rules: { 'iaxti/catch-sobre-cliente-ajeno': 'error' },
+  },
+
   /**
    * Las reglas de los hooks (#561).
    *
