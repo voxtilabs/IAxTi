@@ -53,6 +53,7 @@ import {
   sendMessage,
   tenantsWithRetention,
 } from '@iaxti/module-conversations';
+import { detachSessionsFromConversations } from '@iaxti/module-webchat';
 import { notificationConsumers } from '@iaxti/module-notifications';
 import {
   barrerRecordatorios,
@@ -290,7 +291,9 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           return { tenants: ids.length };
         }
         case 'conversations.retention.tenant': {
-          const res = await purgeTenantRetention(pool, (job.data as { tenantId: string }).tenantId);
+          const res = await purgeTenantRetention(pool, (job.data as { tenantId: string }).tenantId, {
+            detachSessions: detachSessionsFromConversations,
+          });
           if (!res) return { purged: 0 };
           const storage = storageFromEnv();
           const r2 = storage ? await deleteR2Keys(storage, res.r2Keys) : { deleted: 0, failed: res.r2Keys.length };
