@@ -7,6 +7,7 @@ export {
   searchAudit,
   searchAuditGlobal,
   exportAudit,
+  exportAuditDelTenant,
   searchAuditPaginado,
   searchAuditGlobalPaginado,
   ExportDemasiadoGrande,

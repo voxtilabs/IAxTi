@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { degradarSinRomper } from '@iaxti/db';
 import { listCursor } from './list-cursor';
 import { publishEvent } from '@iaxti/core';
 import { listCustomFields, validarCustom } from './campos';
@@ -387,7 +388,21 @@ export async function updateContact(
   // romper todas las fichas viejas de golpe.
   let custom = input.custom;
   if (custom && Object.keys(custom).length > 0) {
-    const declarados = await listCustomFields(client, input.tenantId, 'contact').catch(() => []);
+    const declarados = await degradarSinRomper(
+      client,
+      (c) => listCustomFields(c, input.tenantId, 'contact'),
+      (error) => {
+        // Sin la lista de campos declarados no se puede validar, y se guarda
+        // lo que venga: es la tolerancia de siempre. Lo nuevo es que no deja
+        // la transacción del llamador abortada —el INSERT viene justo
+        // después— y que dice por qué (#962, #966).
+        console.warn(
+          `crm.contactos: no se pudieron leer los campos personalizados de ${input.tenantId}; ` +
+            `se guarda sin validarlos. Causa: ${error.message}`,
+        );
+        return [];
+      },
+    );
     custom = validarCustom(declarados, custom);
   }
 

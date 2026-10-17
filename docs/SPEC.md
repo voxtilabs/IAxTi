@@ -689,7 +689,8 @@ imagina.
 - **Permisos:** `calendar.read`, `calendar.connect`, `calendar.book`,
   `calendar.manage_availability`.
 - **Eventos:** `appointment.created`, `appointment.reminder_sent`,
-  `appointment.attended`, `appointment.no_show`, `appointment.cancelled`.
+  `appointment.attended`, `appointment.no_show`, `appointment.cancelled`,
+  `appointment.rescheduled`.
 - **Tools:** `calendar.get_slots`, `calendar.book`, `calendar.reschedule`,
   `calendar.cancel`.
 - **Apagado:** la acción "agendar" desaparece del copiloto y de las reglas; las
@@ -874,7 +875,7 @@ knowledge       knowledge.source_added · knowledge.source_expired · knowledge.
 automations     campaign.sent · automation.ran · automation.failed · automation.paused
                 sequence.started · sequence.stopped · sequence.completed
 calendar        appointment.created · appointment.reminder_sent · appointment.attended
-                appointment.no_show · appointment.cancelled
+                appointment.no_show · appointment.cancelled · appointment.rescheduled
 payments        payment_link.created · payment_link.sent · payment_link.cancelled
                 payment_link.expired · payment.received · payment.failed
 integrations    webhook.failed
