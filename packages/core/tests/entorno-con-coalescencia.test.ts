@@ -83,4 +83,40 @@ describe('lecturas del entorno con ?? (#575)', () => {
       { linea: 1, variable: 'X' },
     ]);
   });
+
+  /**
+   * El punto ciego de #985, con su caso.
+   *
+   * Un archivo que desestructura `process.env` primero quedaba invisible para
+   * la expresión, que pide el `process.env.` escrito. No es teórico: así estaba
+   * `Number(SMTP_PORT ?? 587)` en los avisos, y con la variable pasada vacía
+   * por el compose el transporte se armaba contra el puerto 0.
+   */
+  it('ve el `??` aunque el nombre venga de desestructurar process.env', () => {
+    const fuente = [
+      'const { SMTP_HOST, SMTP_PORT } = process.env;',
+      'const t = createTransport({ host: SMTP_HOST, port: Number(SMTP_PORT ?? 587) });',
+    ].join('\n');
+    expect(coalescenciasEnTexto(fuente)).toEqual([{ linea: 2, variable: 'SMTP_PORT' }]);
+  });
+
+  it('no confunde una propiedad ni una variable local con la del entorno', () => {
+    const fuente = [
+      'const { SMTP_PORT } = process.env;',
+      // `algo.SMTP_PORT` es una propiedad, no la lectura del entorno.
+      'const a = algo.SMTP_PORT ?? 587;',
+      // Y un nombre en minúsculas no es una variable de entorno.
+      'const { puerto } = process.env;',
+      'const b = puerto ?? 587;',
+    ].join('\n');
+    expect(coalescenciasEnTexto(fuente)).toEqual([]);
+  });
+
+  it('el defecto inocuo sigue siendo inocuo cuando el nombre vino desestructurado', () => {
+    const fuente = [
+      'const { SMTP_FROM } = process.env;',
+      "const f = (SMTP_FROM ?? '').trim();",
+    ].join('\n');
+    expect(coalescenciasEnTexto(fuente)).toEqual([]);
+  });
 });

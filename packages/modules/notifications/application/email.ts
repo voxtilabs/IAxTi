@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { createTransport, type Transporter } from 'nodemailer';
+import { enteroDeEntorno } from '@iaxti/core';
 
 // El correo del aviso (#55): plantilla sobria en la voz de Pulso. Queda
 // APAGADO hasta que el ambiente tenga SMTP (Zoho pendiente): sin
@@ -42,7 +43,7 @@ function remitente(): string | null {
 
 function smtp(): Transporter | null {
   if (transporter !== undefined) return transporter;
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+  const { SMTP_HOST, SMTP_USER, SMTP_PASS } = process.env;
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
     transporter = null;
     return null;
@@ -53,10 +54,26 @@ function smtp(): Transporter | null {
     transporter = null;
     return null;
   }
+  /**
+   * El puerto, por `enteroDeEntorno` y no por `Number(SMTP_PORT ?? 587)`.
+   *
+   * El compose pasa `SMTP_PORT` sin `:?` ni defecto, así que cuando no está
+   * configurada en Dokploy llega como CADENA VACÍA, no como `undefined`. Y
+   * `?? ` solo cubre nulos: `'' ?? 587` es `''`, y `Number('')` es **0**. O sea
+   * que el transporte se armaba contra el puerto 0, nodemailer no conecta, y el
+   * consumidor trata el envío como mejor-esfuerzo —«un rebote no puede tumbar
+   * el aviso de la campana»—, así que los correos no salían y nadie se
+   * enteraba. Es el mismo modo de falla que el comentario de `remitente()`
+   * cuenta de `SMTP_FROM`, por la misma puerta (#810, regla de #613).
+   *
+   * Lo midió #953: «Compose vacío llega como cadena vacía; `Number(SMTP_PORT ??
+   * 587)` produce 0, no 587».
+   */
+  const puerto = enteroDeEntorno('SMTP_PORT', 587, { min: 1 });
   transporter = createTransport({
     host: SMTP_HOST,
-    port: Number(SMTP_PORT ?? 587),
-    secure: Number(SMTP_PORT ?? 587) === 465,
+    port: puerto,
+    secure: puerto === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
   return transporter;
