@@ -94,7 +94,6 @@ agente-general.tsx#turnos
 api-keys.tsx#keys
 api-keys.tsx#scopes
 asistente.tsx#agentes
-atajos-de-respuesta.tsx#items
 bandeja/chat.tsx#herramientas
 bandeja/ficha.tsx#notas
 bandeja/reasignaciones.tsx#pasos
@@ -112,8 +111,6 @@ crm/historia-conversaciones.tsx#items
 crm/historia-de-etapas.tsx#pasos
 dar-una-hora.tsx#contactos
 dar-una-hora.tsx#huecos
-empresas.tsx#items
-etiquetas.tsx#items
 pagos.tsx#proveedores
 preferencias-avisos.tsx#prefs
 roles.tsx#roles
