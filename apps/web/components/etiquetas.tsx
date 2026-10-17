@@ -2,8 +2,8 @@
 
 import { AvisoResultado, EncabezadoDePagina, Formulario, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Badge, Button, EstadoVacio, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, type EtiquetaDto } from '../lib/api';
 
@@ -95,6 +95,18 @@ export function Etiquetas() {
     }
   }
 
+  /**
+   * El estado vacío ofrece una acción, y la acción es llevar al campo (#588).
+   *
+   * El panel que había explicaba bien para qué sirven las etiquetas y no
+   * ofrecía NADA: el formulario está justo arriba, pero quien llega a una
+   * pantalla vacía no tiene por qué deducir que lo que busca está más arriba
+   * de lo que está leyendo. `EstadoVacio` existe para eso —«una pantalla
+   * vacía que solo dice que está vacía es un callejón»— y además pone el
+   * puente al Agente General, que es la vía del producto (ADR-0025).
+   */
+  const campoNombre = useRef<HTMLInputElement>(null);
+
   if (items === null) {
     return <div className="flex flex-col gap-3"><Skeleton className="h-8 w-48" /><Skeleton className="h-24 w-full" /></div>;
   }
@@ -119,6 +131,7 @@ export function Etiquetas() {
           <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
             Cómo se llama
             <Input
+              ref={campoNombre}
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -152,13 +165,12 @@ export function Etiquetas() {
       </Formulario>
 
       {items.length === 0 ? (
-        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
-          <h2 className="text-lg font-bold text-ink">Todavía no hay etiquetas</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-body">
-            Sirven para marcar contactos por algo que a tu negocio le importa y después filtrarlos.
-            Aparecen en la ficha y en la bandeja.
-          </p>
-        </div>
+        <EstadoVacio
+          titulo="Todavía no hay etiquetas"
+          descripcion="Sirven para marcar contactos por algo que a tu negocio le importa y después filtrarlos. Aparecen en la ficha y en la bandeja."
+          accion={{ etiqueta: 'Crear la primera', onClick: () => campoNombre.current?.focus() }}
+          pideleAIAxTi="¿Qué etiquetas me conviene crear para mis contactos?"
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((t) => (

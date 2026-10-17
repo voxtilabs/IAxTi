@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { AvisoResultado, Badge, Button, Formulario, Input, Skeleton, Textarea, useSession } from '@iaxti/ui/react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { AvisoResultado, Badge, Button, EstadoVacio, Formulario, Input, Skeleton, Textarea, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, renderQuickReply, type QuickReplyDto } from '../lib/api';
 
@@ -20,6 +20,10 @@ export function AtajosDeRespuesta() {
   const { config, session } = useSession();
   const tenant = useSelectedTenant();
   const [items, setItems] = useState<QuickReplyDto[] | null>(null);
+  // Para que el vacío pueda llevar el cursor acá (#588). Arriba con los otros
+  // hooks y no cerca de su uso: `rules-of-hooks` es ERROR en este repo porque
+  // un hook después de un `return` ya reventó la bandeja una vez (#561).
+  const campoAtajo = useRef<HTMLInputElement>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState({ shortcut: '', body: '', scope: 'mio' as 'mio' | 'negocio' });
   const [creando, setCreando] = useState(false);
@@ -73,6 +77,7 @@ export function AtajosDeRespuesta() {
   }
 
   if (!tenant) return null;
+
   if (items === null) return <Skeleton className="mt-8 h-24 w-full" />;
 
   return (
@@ -90,6 +95,7 @@ export function AtajosDeRespuesta() {
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
             Nombre del atajo
             <Input
+              ref={campoAtajo}
               required
               value={form.shortcut}
               onChange={(e) => setForm({ ...form, shortcut: e.target.value })}
@@ -136,7 +142,20 @@ export function AtajosDeRespuesta() {
       </Formulario>
 
       {items.length === 0 ? (
-        <p className="mt-4 text-sm text-muted">Todavía no hay atajos. El primero suele ser el horario.</p>
+        /**
+         * Una línea de texto gris no era un estado vacío (#588): decía que no
+         * había nada y no ofrecía nada. El atajo que casi todos escriben
+         * primero es el horario, así que la acción lleva al campo con eso ya
+         * dicho en la descripción.
+         */
+        <EstadoVacio
+          compacto
+          className="mt-4"
+          titulo="Todavía no hay atajos"
+          descripcion="Son respuestas que escribes una vez y mandas con dos teclas desde la bandeja. El primero suele ser el horario de atención."
+          accion={{ etiqueta: 'Escribir el primero', onClick: () => campoAtajo.current?.focus() }}
+          pideleAIAxTi="¿Qué atajos de respuesta me conviene tener para mi negocio?"
+        />
       ) : (
         <ul className="mt-4 flex flex-col gap-2">
           {items.map((a) => (

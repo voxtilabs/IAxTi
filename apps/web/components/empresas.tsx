@@ -2,8 +2,8 @@
 
 import { AvisoResultado, Checkbox, EncabezadoDePagina, Formulario } from '@iaxti/ui/react';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Badge, Button, EstadoVacio, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, type EmpresaDto } from '../lib/api';
 
@@ -126,6 +126,8 @@ export function Empresas() {
     }
   }
 
+  const campoEmpresa = useRef<HTMLInputElement>(null);
+
   if (items === null) {
     return <div className="flex flex-col gap-3"><Skeleton className="h-8 w-48" /><Skeleton className="h-24 w-full" /></div>;
   }
@@ -148,6 +150,7 @@ export function Empresas() {
         <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
           Nombre de la empresa
           <Input
+            ref={campoEmpresa}
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -186,16 +189,29 @@ export function Empresas() {
       </div>
 
       {items.length === 0 ? (
-        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
-          <h2 className="text-lg font-bold text-ink">
-            {buscar ? 'Ninguna empresa con eso' : 'Todavía no hay empresas'}
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-body">
-            {buscar
-              ? 'Prueba con parte del nombre o el RUT.'
-              : 'Sirven cuando varios contactos son de la misma oficina: los ves juntos y sabes con quién más hablaste ahí.'}
-          </p>
-        </div>
+        /**
+         * Dos vacíos distintos, y la ACCIÓN es lo que los distingue (#588).
+         *
+         * El panel que había ya decía bien cuál era cuál —«ninguna con eso» vs
+         * «todavía no hay»— pero los dos terminaban en nada. Y son dos
+         * callejones diferentes: del primero se sale borrando la búsqueda, del
+         * segundo creando la primera empresa. Un estado vacío que no ofrece la
+         * salida correcta obliga a adivinar cuál de las dos cosas pasó.
+         */
+        buscar ? (
+          <EstadoVacio
+            titulo="Ninguna empresa con eso"
+            descripcion="Puede ser que esté escrita distinto. Prueba con parte del nombre o con el RUT."
+            accion={{ etiqueta: 'Borrar la búsqueda', onClick: () => setBuscar('') }}
+          />
+        ) : (
+          <EstadoVacio
+            titulo="Todavía no hay empresas"
+            descripcion="Sirven cuando varios contactos son de la misma oficina: los ves juntos y sabes con quién más hablaste ahí."
+            accion={{ etiqueta: 'Crear la primera', onClick: () => campoEmpresa.current?.focus() }}
+            pideleAIAxTi="¿Para qué me sirve agrupar mis contactos por empresa?"
+          />
+        )
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((e) => (

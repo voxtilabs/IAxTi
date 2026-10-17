@@ -36,6 +36,16 @@
  * Un `Pool` NO entra: cada consulta va en su propia conexión, un fallo no deja
  * nada abortado y ahí `.catch` sí degrada.
  *
+ * ## Lo que NO ve, dicho para que no se descubra tarde
+ *
+ * Un parámetro GENÉRICO —`<C extends Pick<Pool, 'query'>>(client: C, …)`— no
+ * tiene la anotación `PoolClient` que esto busca, así que pasa sin que la regla
+ * lo mire. Hoy hay un solo sitio con esa forma, `degradarSinRomper`, y ahí
+ * atrapar es el propósito: su `.catch` del SAVEPOINT es la sonda «¿estoy en una
+ * transacción?». Pero el día que otra función reciba el cliente así, la regla
+ * va a callar, y callar no es lo mismo que aprobar. Si aparece, lo que
+ * corresponde es seguir el parámetro de tipo hasta su restricción.
+ *
  * ## Qué no caza, a propósito
  *
  * Un handler que RELANZA. `.catch(notFound)` y `.catch((e) => { throw … })`

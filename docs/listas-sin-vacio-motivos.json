@@ -37,13 +37,6 @@
         "fragmento": "const mostrarFormulario = agentes.length === 0 || abriendoOtro;"
       }
     },
-    "atajos-de-respuesta.tsx#items": {
-      "motivo": "El formulario permite crear el primer atajo y el listado vacío dice «Todavía no hay atajos. El primero suele ser el horario». Ese texto está escrito en línea.",
-      "evidencia": {
-        "archivo": "apps/web/components/atajos-de-respuesta.tsx",
-        "fragmento": "Todavía no hay atajos. El primero suele ser el horario."
-      }
-    },
     "bandeja/chat.tsx#herramientas": {
       "motivo": "Es el detalle de las herramientas consultadas por una respuesta, no otra bandeja. Una colección vacía se traduce explícitamente como «Respondió sin consultar nada».",
       "evidencia": {
@@ -161,20 +154,6 @@
       "evidencia": {
         "archivo": "apps/web/components/dar-una-hora.tsx",
         "fragmento": "huecos.length === 0"
-      }
-    },
-    "empresas.tsx#items": {
-      "motivo": "La lista vacía presenta un panel que distingue una búsqueda sin coincidencias de un negocio sin empresas. Tiene explicación propia en ambos casos, sin EstadoVacio.",
-      "evidencia": {
-        "archivo": "apps/web/components/empresas.tsx",
-        "fragmento": "Ninguna empresa con eso"
-      }
-    },
-    "etiquetas.tsx#items": {
-      "motivo": "El listado sin etiquetas muestra un panel con título «Todavía no hay etiquetas». El formulario de creación permanece, y el vacío no usa el componente compartido.",
-      "evidencia": {
-        "archivo": "apps/web/components/etiquetas.tsx",
-        "fragmento": "Todavía no hay etiquetas"
       }
     },
     "pagos.tsx#proveedores": {
