@@ -218,22 +218,24 @@ export async function exportarTenant(
      * cero también. La exportación salía creíble y a medias, que en una
      * exportación de datos personales es el peor resultado (#966).
      */
-    const r = await degradarSinRomper(
+    const leidas = await degradarSinRomper(
       client,
       (c) =>
-        c.query(`SELECT * FROM ${tabla} WHERE tenant_id = $1 LIMIT ${tope + 1}`, [
-          input.tenantId,
-        ]),
+        c
+          .query(`SELECT * FROM ${tabla} WHERE tenant_id = $1 LIMIT ${tope + 1}`, [
+            input.tenantId,
+          ])
+          .then((r) => r.rows as Array<Record<string, unknown>>),
       (error) => {
         console.warn(
           `organizations.exportación: no se pudo leer "${tabla}" de ${input.tenantId}; se informa ` +
             `en cero. Causa: ${error.message}`,
         );
-        return { rows: [] as Array<Record<string, unknown>> };
+        return [] as Array<Record<string, unknown>>;
       },
     );
 
-    let filas = r.rows as Array<Record<string, unknown>>;
+    let filas = leidas;
     if (filas.length > tope) {
       filas = filas.slice(0, tope);
       truncadas.push(tabla);

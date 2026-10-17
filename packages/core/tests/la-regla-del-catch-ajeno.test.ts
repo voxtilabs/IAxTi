@@ -18,14 +18,14 @@ import { catchSobreClienteAjeno } from '../../../tools/eslint-reglas/catch-sobre
  */
 const tester = new RuleTester({
   languageOptions: {
-    parser: tseslint.parser as never,
+    parser: tseslint.parser as never, // el tipo del parser de typescript-eslint no calza con el de eslint 9
     parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
   },
 });
 
 describe('la regla del catch sobre el cliente ajeno (#966)', () => {
   it('caza las cuatro formas y deja pasar lo que no envenena', () => {
-    tester.run('catch-sobre-cliente-ajeno', catchSobreClienteAjeno as never, {
+    tester.run('catch-sobre-cliente-ajeno', catchSobreClienteAjeno, {
       valid: [
         // Un Pool: cada consulta en su propia conexión, nada queda abortado.
         `async function f(pool: Pool) { await leer(pool).catch(() => null); }`,

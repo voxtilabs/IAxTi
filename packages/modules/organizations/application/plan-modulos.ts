@@ -54,25 +54,27 @@ export async function modulosDelPlan(
   // `.catch` no rompía nada, pero con el `PoolClient` de quien llama dejaba la
   // transacción abortada, y el «ante la duda NO se corta» de arriba se
   // convertía en cortar todo lo que viniera después (#966).
-  const r = await degradarSinRomper(
+  const filas = await degradarSinRomper(
     client,
     (c) =>
-      c.query(
-        `SELECT t.plan, COALESCE(pl.modules, '[]'::jsonb) AS modules
-           FROM tenants t LEFT JOIN plan_limits pl ON pl.plan = t.plan
-          WHERE t.id = $1`,
-        [tenantId],
-      ),
+      c
+        .query(
+          `SELECT t.plan, COALESCE(pl.modules, '[]'::jsonb) AS modules
+             FROM tenants t LEFT JOIN plan_limits pl ON pl.plan = t.plan
+            WHERE t.id = $1`,
+          [tenantId],
+        )
+        .then((r) => r.rows as Array<{ plan: string; modules: string[] }>),
     (error) => {
       console.warn(
         `organizations.plan: no se pudo leer el plan de ${tenantId}; no se corta nada. ` +
           `Causa: ${error.message}`,
       );
-      return { rows: [] as Array<{ plan: string; modules: string[] }> };
+      return [] as Array<{ plan: string; modules: string[] }>;
     },
   );
-  const plan = (r.rows[0]?.plan as string) ?? '';
-  const modulos = r.rows.length > 0 ? ((r.rows[0].modules as string[]) ?? []) : null;
+  const plan = filas[0]?.plan ?? '';
+  const modulos = filas.length > 0 ? (filas[0].modules ?? []) : null;
   CACHE.set(tenantId, { plan, modulos, at: Date.now() });
   return { plan, modulos };
 }
