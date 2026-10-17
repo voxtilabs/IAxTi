@@ -1,0 +1,13 @@
+{
+  "mode": "dia",
+  "viewport": {
+    "width": 360,
+    "height": 780
+  },
+  "outline": "2px",
+  "outlineStyle": "solid",
+  "height": 46,
+  "horizontal": false,
+  "pageErrors": [],
+  "fixture": "Synthetic user/admin tenant; real local API; no provider credential or inference call"
+}
