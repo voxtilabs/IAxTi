@@ -173,7 +173,25 @@ describe('primera respuesta y "sin responder ahora" (#66)', () => {
     expect(d.primeraRespuesta.medianaSeg).toBe(60);
     expect(d.primeraRespuesta.p90Seg).toBeGreaterThan(60);
     expect(d.sinResponderAhora).toBe(1); // la nueva sin respuesta
-  });
+  }, 30_000);
+
+  /**
+   * El tope de arriba no es decoración: `sweepResponseSamples` abre UNA
+   * transacción por tenant con muestras por tomar, y esta prueba lo llama dos
+   * veces para comprobar la idempotencia.
+   *
+   * Medido en la base de desarrollo de esta noche: 28.320 tenants, de los
+   * cuales `tenants_con_muestras_por_tomar()` devuelve 1.113 —la función en sí
+   * tarda 13 ms—. A los ~4,5 ms por tenant que mide el comentario de
+   * `aggregate.ts:127`, el barrido entero son ~5 s, y dos pasadas se van del
+   * tope de 5.000 ms que vitest pone de fábrica. En CI la base nace limpia y
+   * esto corre en milisegundos, así que el rojo aparece solo donde la base ya
+   * vivió —o el día que una corrida de CI acumule suficientes tenants—.
+   *
+   * El tope largo es para que la prueba mida lo que dice medir. Que el barrido
+   * HORARIO cueste mil transacciones es otra cosa, y va en su issue: #986.
+   */
+
 });
 
 describe('el costo del proveedor (issue del costo de Meta)', () => {
