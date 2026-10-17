@@ -195,6 +195,9 @@ export function LoginCard({
       <div className="pulso-access">
         <div className="pulso-access-stage">
           <header className="pulso-access-header">
+            {/* Solo SVG versionado: web/app/login usa IAXTI_LOCKUP_SVG y admin/app/login
+                MARCA_LOCKUP_SVG. useMarcaSvg solo renombra IDs; nunca recibe texto del usuario (#758). */}
+            {/* nosemgrep: react-dangerouslysetinnerhtml */}
             <span className="marca" aria-label={titulo ? 'VoxTi Labs' : 'IAxTi'} dangerouslySetInnerHTML={{ __html: marcaCabecera }} />
             <ModeToggle />
           </header>
@@ -226,6 +229,8 @@ export function LoginCard({
             </section>
           </main>
           <footer className="pulso-access-footer">
+            {/* MARCA_LOCKUP_SVG es una constante versionada; solo cambian los IDs de instancia (#758). */}
+            {/* nosemgrep: react-dangerouslysetinnerhtml */}
             <span className="marca" aria-label="VoxTi Labs" dangerouslySetInnerHTML={{ __html: marcaPie }} />
             <p>Hecho para los negocios que hacen de cada conversación una relación.</p>
           </footer>

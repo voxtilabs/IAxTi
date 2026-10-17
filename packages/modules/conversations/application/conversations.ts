@@ -501,6 +501,11 @@ export interface SendMessageInput {
   authorId?: string;
   type?: MessageType;
   body?: string;
+  /** Sello durable recibido del productor de plantillas (#906). */
+  plantilla?: {
+    id: string; providerId: string; name: string; language: string;
+    category: string; valores: string[];
+  };
   attachments?: unknown[];
   requestId?: string;
   /** Pedido durable a outbound; opcional durante la migración de emisores (#380). */
@@ -517,19 +522,23 @@ export async function sendMessage(client: PoolClient, input: SendMessageInput): 
   if (input.delivery !== undefined && !['reply', 'business', 'transactional'].includes(input.delivery)) {
     throw new Error('La política de salida no se reconoce.');
   }
+  if (input.plantilla && !input.plantilla.providerId.trim()) {
+    throw new Error('La plantilla necesita el identificador del proveedor.');
+  }
   const conversation = await getConversation(client, input.tenantId, input.conversationId, true);
   const m = await client.query(
     `INSERT INTO messages (tenant_id, conversation_id, direction, type, body,
-                           attachments, delivery_status, author_kind, author_id)
-     VALUES ($1, $2, 'out', $3, $4, $5, 'queued', $6, $7) RETURNING *`,
+                           attachments, delivery_status, author_kind, author_id, meta)
+     VALUES ($1, $2, 'out', $3, $4, $5, 'queued', $6, $7, $8::jsonb) RETURNING *`,
     [
       input.tenantId,
       conversation.id,
-      input.type ?? 'texto',
+      input.plantilla ? 'plantilla' : input.type ?? 'texto',
       input.body ?? null,
       JSON.stringify(input.attachments ?? []),
       input.authorKind,
       input.authorId ?? null,
+      JSON.stringify(input.plantilla ? { plantilla: input.plantilla } : {}),
     ],
   );
   if (input.authorKind !== 'system') {
@@ -551,7 +560,10 @@ export async function sendMessage(client: PoolClient, input: SendMessageInput): 
       tenantId: input.tenantId, actor, actorKind: input.actorKind ?? input.authorKind,
       action: 'message.delivery_requested', resource: 'message', resourceId: message.id,
       result: 'success', requestId: input.requestId,
-      metadata: { conversationId: conversation.id, policy: input.delivery },
+      metadata: {
+        conversationId: conversation.id, policy: input.delivery,
+        ...(input.plantilla ? { templateId: input.plantilla.id, templateProviderId: input.plantilla.providerId } : {}),
+      },
     });
   }
   return message;

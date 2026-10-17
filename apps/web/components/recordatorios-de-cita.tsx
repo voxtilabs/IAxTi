@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
   useSession,
+  EstadoVacio,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, avisoDe } from '../lib/api';
@@ -71,7 +72,8 @@ export function RecordatoriosDeCita() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
 
-  const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5';
+  // 541 px medidos a 360: el texto ocupa más líneas que a 412 (#588).
+  const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5 max-[399px]:min-h-[542px]';
   const titulo = 'Recordatorios de cita';
 
   const datos = carga.estado === 'ok' ? carga.dato : null;
@@ -141,13 +143,9 @@ export function RecordatoriosDeCita() {
 
       {sinPlantillas ? (
         // No se esconde la sección: se dice qué falta y dónde se hace.
-        <p className="mt-4 rounded-campo border border-line bg-rest px-4 py-3 text-dato text-body">
-          Todavía no tienes ninguna plantilla aprobada. Créala en{' '}
-          <a className="text-action-text" href="/ajustes/plantillas">
-            Ajustes → Plantillas
-          </a>{' '}
-          y vuelve: la aprobación de Meta puede tardar.
-        </p>
+        <EstadoVacio compacto className="mt-4" titulo="Todavía no tienes ninguna plantilla aprobada"
+          descripcion="Crea una plantilla para recordar la hora al cliente y vuelve: la aprobación de Meta puede tardar."
+          accion={{ etiqueta: 'Ajustes → Plantillas', href: '/ajustes/plantillas' }} />
       ) : (
         <>
           <div className="mt-4 flex flex-col gap-4">

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, avisoDe } from '../lib/api';
 
 /**
  * El arranque del shell, pedido UNA vez (#761).
@@ -129,8 +129,12 @@ export function ProveedorDeArranque({ children }: { children: ReactNode }) {
    * selector ya dispara, también en esta pestaña.
    */
   const tenant = useSelectedTenant();
-  const [arranque, setArranque] = useState<Arranque | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Solo se expone la respuesta de ESTE negocio y sesión, también durante el
+  // render anterior al efecto: limpiar después dejaba un fotograma ajeno (#588).
+  const llaveActual = session && tenant ? `${tenant}|${session.access_token}` : null;
+  const [respuesta, setRespuesta] = useState<{ llave: string; arranque: Arranque | null; error: string | null } | null>(null);
+  const arranque = respuesta?.llave === llaveActual ? respuesta.arranque : null;
+  const error = respuesta?.llave === llaveActual ? respuesta.error : null;
   const [vuelta, setVuelta] = useState(0);
 
   useEffect(() => {
@@ -142,27 +146,28 @@ export function ProveedorDeArranque({ children }: { children: ReactNode }) {
     // de más el caché quedaba inservible después de la primera recarga —`vuelta`
     // se queda en 1 para siempre— así que volver de otra sección pedía de nuevo.
     if (enCache?.llave === llave) {
-      setArranque(enCache.arranque);
-      setError(null);
+      setRespuesta({ llave, arranque: enCache.arranque, error: null });
       return;
     }
     // Lo que había del negocio anterior se descarta ANTES de pedir lo nuevo: si
     // se dejara, entre el cambio y la respuesta la pantalla pinta lo de allá.
-    setArranque(null);
+    setRespuesta({ llave, arranque: null, error: null });
     const controller = new AbortController();
     void apiFetch<Arranque>(config, session, tenant, '/arranque', { signal: controller.signal })
       .then((a) => {
         if (!controller.signal.aborted) {
           enCache = { llave, arranque: a };
-          setArranque(a);
-          setError(null);
+          setRespuesta({ llave, arranque: a, error: null });
         }
       })
       .catch((e: Error) => {
         // Si el arranque falla, cada componente tiene que poder seguir con su
         // ruta suelta: las dejamos a propósito (criterio 1 de #761 pide que el
         // arranque se AGREGUE, no que reemplace). Acá solo se guarda el motivo.
-        if (!controller.signal.aborted) setError(e.message);
+        if (!controller.signal.aborted) {
+          const aviso = avisoDe(e);
+          setRespuesta({ llave, arranque: null, error: [aviso.texto, aviso.rastro].filter(Boolean).join(' · ') });
+        }
       });
     return () => controller.abort();
   }, [config, session, tenant, vuelta]);

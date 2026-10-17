@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Req, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { withTenant } from '@iaxti/db';
+import { degradarSinRomper, withTenant } from '@iaxti/db';
 import { exportarTenant, getPlanLimits } from '@iaxti/module-organizations';
 import { conversacionesPorPeriodo } from '@iaxti/module-conversations';
 import {
@@ -128,7 +128,20 @@ export class BillingController {
       //
       // Se degrada si `conversations` está apagado para el tenant: la pantalla
       // de facturación no puede caerse porque un módulo opcional no esté.
-      const limites = await getPlanLimits(c, subscription.plan).catch(() => null);
+      const limites = await degradarSinRomper(
+        c,
+        (cl) => getPlanLimits(cl, subscription.plan),
+        (error) => {
+          // La pantalla sale sin el tope, que es lo que se quería. Lo que no
+          // se quería es que el fallo se llevara puesto el desglose que viene
+          // justo abajo con este mismo cliente (#962, #966).
+          console.warn(
+            `billing: no se pudo leer el tope del plan ${subscription.plan}; ` +
+              `el contador sale sin él. Causa: ${error.message}`,
+          );
+          return null;
+        },
+      );
       const porPeriodo = registry.isActive('conversations')
         ? await conversacionesPorPeriodo(c, actor.tenantId)
         : [];

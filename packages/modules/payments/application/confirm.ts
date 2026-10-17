@@ -87,12 +87,16 @@ export async function confirmPayment(
 
   // Pago y pedido durable confirman juntos. Si PostgreSQL falla, el webhook
   // debe reintentarse; Redis no participa en esta transacción.
+  let ownerId: string | null = null;
   if (link.conversationId) {
     const monto = (input.amountClp ?? link.amountClp).toLocaleString('es-CL');
     const canal = await client.query(
-      'SELECT channel FROM conversations WHERE tenant_id = $1 AND id = $2',
+      'SELECT channel, owner_id FROM conversations WHERE tenant_id = $1 AND id = $2',
       [input.tenantId, link.conversationId],
     );
+    // #904: el evento guarda al responsable al confirmar. Un consumidor
+    // tardío no vuelve a consultar quién recibió la conversación después.
+    ownerId = canal.rows[0]?.owner_id ?? null;
     const message = await sendMessage(client, {
       tenantId: input.tenantId,
       conversationId: link.conversationId,
@@ -144,6 +148,7 @@ export async function confirmPayment(
       linkId: link.id,
       amountClp: input.amountClp ?? link.amountClp,
       conversationId: link.conversationId,
+      ownerId,
       dealId: link.dealId,
       contactId: link.contactId,
     },
