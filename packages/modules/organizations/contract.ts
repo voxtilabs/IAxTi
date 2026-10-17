@@ -34,3 +34,7 @@ export {
   olvidarPlanes,
 } from './application/plan-modulos';
 export type { AccesoModulo } from './application/plan-modulos';
+
+export { marcarAvisoDeBorrado, extenderPrueba, editarLimitesDelPlan } from './application/cambios-auditados';
+export type { AuditoriaTenant, CambiosDelPlan } from './application/cambios-auditados';
+export { leerRetencionTenant, guardarRetencionTenant, tenantsConRetencion } from './application/retencion';
