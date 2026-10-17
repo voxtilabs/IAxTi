@@ -10,8 +10,8 @@
       "default": "./dist/index.js"
     },
     "./testing": {
-      "types": "./dist/testing/fuente-limpia.d.ts",
-      "default": "./dist/testing/fuente-limpia.js"
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
     }
   },
   "scripts": {
