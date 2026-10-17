@@ -264,7 +264,9 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
         )}
       </div>
 
-      <div className="mt-4 overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised">
+      {/* A 360 px el vacío explicativo ocupa 408 px; reservar el mismo marco
+          evita el salto también cuando la consulta vuelve sin entradas. */}
+      <div className="mt-4 overflow-x-auto pulso-panel rounded-tarjeta border border-line bg-raised max-[399px]:min-h-[408px]">
         <table className="w-full min-w-[46rem] text-sm">
           <thead>
             <tr className="border-b border-line bg-rest text-left">
@@ -346,12 +348,12 @@ export function AuditExplorer({ fetcher }: { fetcher: AuditFetcher }) {
         {cargando && (
           <div aria-busy="true" aria-label="Buscando en el libro de auditoría" className="flex flex-col gap-2 px-3 py-3">
             {/*
-              Del alto de una fila de verdad, y cinco, que es lo que se ve en
-              una pantalla. Un esqueleto más corto que el contenido hace que la
-              página brinque cuando llegan los datos — el punto 3 de #588.
+              Cinco filas, medidas junto al encabezado y el resumen: 325 px
+              frente a 328 con cinco entradas a 360 px (#588). Las barras de
+              32 px dejaban el marco 73 px más corto.
             */}
             {[0, 1, 2, 3, 4].map((n) => (
-              <Skeleton key={n} className="h-8 w-full" />
+              <Skeleton key={n} className="h-control w-full" />
             ))}
           </div>
         )}

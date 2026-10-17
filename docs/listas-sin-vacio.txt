@@ -99,7 +99,6 @@ bandeja/chat.tsx#herramientas
 bandeja/ficha.tsx#notas
 bandeja/reasignaciones.tsx#pasos
 bandeja/secuencias-ficha.tsx#inscripciones
-campana.tsx#items
 campanas.tsx#lista
 campanas.tsx#valores
 conocimiento.tsx#fuentes
