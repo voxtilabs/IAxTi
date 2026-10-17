@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { PoolClient } from 'pg';
-import { withTenant } from '@iaxti/db';
+import { degradarSinRomper, withTenant } from '@iaxti/db';
 import { enteroDeEntorno } from '@iaxti/core';
 import {
   aplicarPropuesta,
@@ -193,6 +193,27 @@ async function queLeFalta(
     });
   }
 
+  /**
+   * Las lecturas de este informe son OPCIONALES y van una detrás de otra con
+   * el MISMO cliente (#962, #966).
+   *
+   * Cada bloque pregunta por una parte del producto y, si no puede, se la
+   * salta: el informe sale con lo que haya. Eso era un `.catch(() => [])`, y
+   * en Postgres la sentencia que falla aborta la transacción entera: la
+   * primera lectura caída se llevaba puestas las otras tres y el informe
+   * respondía 500 con `current transaction is aborted`, que no nombra nada.
+   *
+   * Con el savepoint, saltarse una parte es saltarse esa parte.
+   */
+  const opcional = <T>(que: string, leer: (c: PoolClient) => Promise<T>, siNo: T) =>
+    degradarSinRomper(client, leer, (error) => {
+      console.warn(
+        `agente-general: no se pudo revisar ${que} de ${tenantId}; ` +
+          `queda fuera del informe. Causa: ${error.message}`,
+      );
+      return siNo;
+    });
+
   // Horarios de atención: sin ellos la agenda ofrece lo que quedó por
   // defecto, y el asistente ofrece esas mismas horas.
   if (activo('calendar')) {
@@ -200,7 +221,7 @@ async function queLeFalta(
     // persona identificada —una API key— este chequeo no aplica y se salta,
     // que es mejor que decirle a una integración que "no tiene horarios".
     const franjas = ownerId
-      ? await listarDisponibilidad(client, { tenantId, ownerId }).catch(() => [])
+      ? await opcional('los horarios', (c) => listarDisponibilidad(c, { tenantId, ownerId }), [])
       : null;
     if (franjas !== null && franjas.length === 0) {
       falta.push({
@@ -217,7 +238,7 @@ async function queLeFalta(
   // Plantillas aprobadas: sin una, pasadas 24 h no se le puede escribir a
   // nadie. Es la mitad de para qué sirve el producto.
   if (activo('whatsapp')) {
-    const plantillas = await listTemplates(client, tenantId, {}).catch(() => []);
+    const plantillas = await opcional('las plantillas', (c) => listTemplates(c, tenantId, {}), []);
     // `puedeEnviarse` y no `status === 'approved'`: la regla de qué plantilla
     // se puede mandar ya está escrita en el dominio, y replicarla acá sería
     // la segunda copia que se queda vieja.
@@ -239,7 +260,7 @@ async function queLeFalta(
 
   // Reglas activas: el seguimiento que hoy no se hace.
   if (activo('automations')) {
-    const reglas = await listRules(client, tenantId).catch(() => []);
+    const reglas = await opcional('las reglas', (c) => listRules(c, tenantId), []);
     const activas = reglas.filter((r) => r.active);
     if (activas.length === 0) {
       // Una regla apagada y una regla que NO SE PUEDE activar son cosas
@@ -269,7 +290,7 @@ async function queLeFalta(
 
   // La cuota: avisar ANTES de que corte, no después.
   if (activo('agents')) {
-    const cuota = await getQuota(client, tenantId).catch(() => null);
+    const cuota = await opcional('la cuota de IA', (c) => getQuota(c, tenantId), null);
     if (cuota?.pct !== null && cuota?.pct !== undefined && cuota.pct >= 80) {
       falta.push({
         que: `Vas en el ${cuota.pct} % de tu cuota de IA del mes`,
