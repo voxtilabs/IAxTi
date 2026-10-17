@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { crearXlsx, type ValorCelda } from '@iaxti/core';
+import { degradarSinRomper } from '@iaxti/db';
 import { listCustomFields } from './campos';
 
 /**
@@ -79,7 +80,20 @@ export async function exportarContactos(
   input: { tenantId: string; tope?: number },
 ): Promise<ExportacionContactos> {
   const tope = Math.min(Math.max(1, input.tope ?? 20_000), 50_000);
-  const campos = await listCustomFields(client, input.tenantId, 'contact').catch(() => []);
+  // La consulta grande del export viene justo abajo y usa este mismo cliente:
+  // si la lectura de los campos deja la transacción abortada, el export falla
+  // con «current transaction is aborted» y nadie sabe qué pasó (#962, #966).
+  const campos = await degradarSinRomper(
+    client,
+    (c) => listCustomFields(c, input.tenantId, 'contact'),
+    (error) => {
+      console.warn(
+        `crm.exportar: no se pudieron leer los campos personalizados de ${input.tenantId}; ` +
+          `el archivo sale sin sus columnas. Causa: ${error.message}`,
+      );
+      return [];
+    },
+  );
 
   const r = await client.query(
     `SELECT c.name, c.phone, c.email, c.rut, c.origin, c.opt_in_at, c.opted_out_at,
