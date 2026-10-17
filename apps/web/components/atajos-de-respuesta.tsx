@@ -20,6 +20,10 @@ export function AtajosDeRespuesta() {
   const { config, session } = useSession();
   const tenant = useSelectedTenant();
   const [items, setItems] = useState<QuickReplyDto[] | null>(null);
+  // Para que el vacío pueda llevar el cursor acá (#588). Arriba con los otros
+  // hooks y no cerca de su uso: `rules-of-hooks` es ERROR en este repo porque
+  // un hook después de un `return` ya reventó la bandeja una vez (#561).
+  const campoAtajo = useRef<HTMLInputElement>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState({ shortcut: '', body: '', scope: 'mio' as 'mio' | 'negocio' });
   const [creando, setCreando] = useState(false);
@@ -73,7 +77,6 @@ export function AtajosDeRespuesta() {
   }
 
   if (!tenant) return null;
-  const campoAtajo = useRef<HTMLInputElement>(null);
 
   if (items === null) return <Skeleton className="mt-8 h-24 w-full" />;
 

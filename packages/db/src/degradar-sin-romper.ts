@@ -96,11 +96,16 @@ export async function degradarSinRomper<T, C extends Pick<Pool, 'query'>>(
   // `Pool` el `.catch` no rompe nada, con un cliente ajeno rompe todo, y quien
   // las escribe no sabe cuál le va a tocar. Abajo solo se usa `.query`.
   //
-  // El `.catch` de esta línea es EL sitio donde atrapar está bien y es el
-  // propósito: es la pregunta «¿estoy dentro de una transacción?», que no se
-  // puede hacer de otra forma —`SAVEPOINT` suelto lanza `25P01`—. Por eso la
-  // regla de #966 lo exceptúa acá y en ningún otro lado.
-  // eslint-disable-next-line iaxti/catch-sobre-cliente-ajeno -- es la sonda del propio helper
+  // El `.catch` del SAVEPOINT de más abajo es EL sitio donde atrapar está bien
+  // y es el propósito: es la pregunta «¿estoy dentro de una transacción?», que
+  // no se puede hacer de otra forma —`SAVEPOINT` suelto lanza `25P01`—.
+  //
+  // Tenía acá un `eslint-disable-next-line` de la regla de #966 y lo saqué,
+  // porque el lint avisó que no servía para nada: desde #991 el cliente llega
+  // como `C extends Pick<Pool, 'query'>` y la regla busca una anotación
+  // `PoolClient` literal, así que esta línea ya no le aparece. Queda anotado en
+  // la regla, que es donde hay que leerlo; silenciar algo que ya nadie mira es
+  // la forma de que la próxima excepción se escriba por costumbre.
   if (enVuelo.has(client)) {
     throw new Error(
       'degradarSinRomper: ya hay una degradación en vuelo sobre este cliente. ' +
