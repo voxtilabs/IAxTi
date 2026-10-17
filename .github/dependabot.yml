@@ -84,19 +84,56 @@ updates:
     #
     # Separados, los parches y menores entran solos en verde, y cada mayor
     # llega en su PR con su migración y su propia decisión.
+    # Y la vuelta de tuerca que faltaba: separar por nivel de semver no alcanza
+    # cuando el paquete vive en 0.x (#978).
+    #
+    # El PR #973 es del grupo `produccion` —`update-types: ["patch", "minor"]`,
+    # o sea lo que tiene que entrar solo y en verde— y traía esto adentro:
+    #
+    #     @opentelemetry/sdk-node                   0.54.2 -> 0.222.0
+    #     @opentelemetry/sdk-logs                   0.54.2 -> 0.222.0
+    #     @opentelemetry/exporter-logs-otlp-proto   0.54.2 -> 0.222.0
+    #     @opentelemetry/auto-instrumentations-node 0.52.1 -> 0.80.0
+    #
+    # Ciento sesenta y ocho versiones de salto, clasificadas como MENORES. Y
+    # están bien clasificadas: con mayor 0, el que rompe es el segundo número,
+    # y Dependabot lo llama «minor» igual. La separación de #881 no podía verlo.
+    #
+    # Lo que ese PR pide de verdad, medido en su CI: `core` 2.11 se llevó
+    # `getEnv()`, `LoggerProvider` ya no tiene `addLogRecordProcessor`,
+    # `Resource` cambió de forma y `IMetricReader` pide un método nuevo. Y
+    # encima `@sentry/opentelemetry@8` tiene PEER sobre `@opentelemetry/core`
+    # ^1.30.1, así que subir OTel a 2.x arrastra subir Sentry de mayor. Es el
+    # mismo defecto que describe el comentario de arriba —una migración de
+    # verdad viajando con once parches inofensivos— pero por la puerta del 0.x.
+    #
+    # Así que la familia de telemetría viaja junta y SOLA, en todos los
+    # niveles: sus paquetes se mueven en bloque o no se mueven.
     groups:
       seguridad:
         applies-to: security-updates
         patterns: ["*"]
+      telemetria:
+        applies-to: version-updates
+        dependency-type: production
+        patterns:
+          - "@opentelemetry/*"
+          - "@sentry/*"
       produccion:
         applies-to: version-updates
         dependency-type: production
         patterns: ["*"]
+        exclude-patterns:
+          - "@opentelemetry/*"
+          - "@sentry/*"
         update-types: ["patch", "minor"]
       produccion-mayores:
         applies-to: version-updates
         dependency-type: production
         patterns: ["*"]
+        exclude-patterns:
+          - "@opentelemetry/*"
+          - "@sentry/*"
         update-types: ["major"]
       desarrollo:
         applies-to: version-updates
