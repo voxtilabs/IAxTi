@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { apagarAgenteGeneral, encenderAgenteGeneral } from '@iaxti/module-platform';
 import { CATALOGO } from '@iaxti/module-agents';
@@ -113,6 +113,7 @@ afterAll(async () => {
   await admin.query('DELETE FROM user_roles WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM invitations WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  await sinTriggers(admin, (c) => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });

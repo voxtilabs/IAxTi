@@ -47,6 +47,9 @@ beforeAll(async () => {
   await runMigrations(admin);
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('test-ficha') RETURNING id");
   tenant = t.rows[0].id;
+  // El negocio real ya tiene su administrador antes de invitar al equipo (#902).
+  await admin.query(`INSERT INTO user_roles(tenant_id,user_id,role_id)
+    SELECT $1,$2,id FROM roles WHERE base AND name='ADMIN'`, [tenant, randomUUID()]);
   const inv = await withTenant(admin, tenant, (c) =>
     createInvitation(c, { tenantId: tenant, email: 'vende@ficha.cl', roleName: 'USER' }),
   );

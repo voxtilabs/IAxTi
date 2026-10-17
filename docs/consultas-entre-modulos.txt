@@ -64,6 +64,4 @@
 # Y con `--detalle` imprime las tablas y los archivos de cada entrada, que es lo
 # que hace falta para escribir ese motivo.
 
-conversations→authorization (lee: user_roles) — El round-robin de asignación necesita saber a quién se le puede asignar, y eso son los `user_roles` del tenant. ADR-0008 dice que el único traductor rol → permisos es `authorization`, así que el arreglo es un contrato «usuarios con este permiso» allá; mientras no exista, el cruce vive acá. Arreglo: #902.
-identity→authorization (escribe: user_roles · lee: roles, user_roles) — Aceptar una invitación ES asignar un rol: busca en `roles` el rol del negocio o el base, e inserta en `user_roles`. `authorization` ya tiene `assignRole` y pasar por ahí es el arreglo; hoy lo hace sola para que aceptar sea una sola transacción — si el rol se asigna y la invitación no se marca aceptada, la persona queda dentro con una invitación viva que nadie puede volver a usar. Arreglo: #902.
-notifications→authorization (lee: roles, user_roles) — A quién se le avisa no es autorización (ADR-0008 gobierna permisos; el ruteo de avisos es otra pregunta), pero para rutear igual pregunta quiénes son ADMIN y SUPERVISOR, y eso vive en `user_roles` y `roles`. Es el mismo contrato que falta para la asignación de `conversations`. Arreglo: #902.
+

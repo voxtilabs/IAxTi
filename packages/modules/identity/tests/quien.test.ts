@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
 import { acceptInvitation, createInvitation, upsertProfile } from '../application/invitations';
 import { quienEs, quienesSon, quienesSonEnLaPlataforma, quienFue } from '../application/quien';
 
@@ -56,6 +56,7 @@ afterAll(async () => {
     [conNombre, sinPerfil, queSeFue],
   ]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  await sinTriggers(admin, (c) => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });

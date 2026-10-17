@@ -12,3 +12,6 @@ export {
   customRolePermissions,
 } from './application/roles';
 export type { Role } from './application/roles';
+
+export { usersWithPermission, teamMemberships, membershipsOf, removeMembership } from './application/memberships';
+export type { TeamMembership } from './application/memberships';

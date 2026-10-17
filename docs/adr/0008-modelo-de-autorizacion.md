@@ -26,3 +26,21 @@ misma transacción.
 
 ## Se revisa cuando
 Nunca el principio; el catálogo evoluciona con los manifiestos.
+
+## Lectura de membresías antes de elegir negocio (#902)
+
+`GET /me` valida la sesión primero y usa `withAuthenticatedUser`: fija
+`app.user_id` con alcance de transacción, sin tenant. Dos políticas SELECT
+permiten leer únicamente sus membresías y sus roles propios. No conceden
+escritura ni acceso a conversaciones/contactos sin `app.tenant_id`; dentro de
+un tenant no amplían la política de ese negocio. Commit y rollback liberan el
+contexto antes de devolver la conexión al pool. El identificador sale del JWT
+verificado, jamás de parámetros de la petición. No se usa un rol privilegiado.
+
+`authorization` es dueño de las lecturas de pertenencia y traduce el permiso
+con el mismo catálogo y reglas del guard. Asignación y revocación reciben el
+cliente de la transacción ajena y serializan los cambios de membresía por
+negocio para conservar a quien administra. Identity añade perfiles y nombres;
+conversations pide `conversations.reply` y notifications pide
+`conversations.assign` o `tenant.settings`, según el aviso. Los roles propios
+con esos permisos participan sin tener que llamarse ADMIN o SUPERVISOR.

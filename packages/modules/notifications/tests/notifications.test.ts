@@ -192,3 +192,20 @@ describe('campana y preferencias (#55)', () => {
     expect(html).not.toMatch(/<img|<table/); // sobria de verdad
   });
 });
+
+// #902: un rol propio recibe los avisos por permiso, no por llamarse ADMIN/SUPERVISOR.
+it('incluye roles propios en la supervisión y en los avisos de configuración', async () => {
+  const user = randomUUID();
+  const role = (await admin.query(`INSERT INTO roles(tenant_id,name,permissions)
+    VALUES($1,'Coordinación','["conversations.assign","tenant.settings"]') RETURNING id`, [tenant])).rows[0].id;
+  await admin.query('INSERT INTO user_roles(tenant_id,user_id,role_id) VALUES($1,$2,$3)', [tenant, user, role]);
+  try {
+    await withTenant(admin, tenant, (c) => handleNotifiableEvent(evento('conversation.unattended', { waitingMinutes: 12 }), c));
+    await withTenant(admin, tenant, (c) => handleNotifiableEvent(evento('tenant.state_changed', { to: 'read_only' }), c));
+    expect((await avisosDe(user)).items.map((n) => n.type).sort()).toEqual(['conversacion_sin_dueno', 'estado_cuenta']);
+  } finally {
+    await admin.query('DELETE FROM notifications WHERE tenant_id=$1 AND user_id=$2', [tenant, user]);
+    await admin.query('DELETE FROM user_roles WHERE tenant_id=$1 AND user_id=$2', [tenant, user]);
+    await admin.query('DELETE FROM roles WHERE id=$1', [role]);
+  }
+});
