@@ -55,6 +55,8 @@ export {
 } from './application/copilot';
 export type { Suggestion } from './application/copilot';
 export { parseSuggestion, FORMATO_SUGERENCIA } from './domain/parser';
+export type { AccionPropuesta } from './domain/parser';
+export { aplicarAccionDeLaSugerencia } from './application/acciones-que-se-proponen';
 export type { SuggestionPayload } from './domain/parser';
 export { aiSdkTranscriber } from './application/models';
 export type { TranscribePort } from './application/models';

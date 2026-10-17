@@ -42,6 +42,7 @@ import type {
   Prioridad,
 } from '@iaxti/module-conversations';
 import {
+  aplicarAccionDeLaSugerencia,
   feedbackSuggestion,
   pendingSuggestion,
   porQueNoHaySugerencia,
@@ -51,9 +52,11 @@ import {
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
-import { actorCan } from './authz/can';
+import { actorCan, permisosDelActor } from './authz/can';
 import { analisisDeConversacion } from './piezas-compartidas';
 import { apiPool } from './db';
+import { registry } from './registry';
+import { llamarLaPropiaApi } from './llamar-la-propia-api';
 
 function pool() {
   const p = apiPool();
@@ -584,6 +587,77 @@ export class ConversationsController {
         type: 'texto',
         requestId: request.requestId,
       });
+    });
+  }
+
+  /**
+   * La acción que el asistente dejó propuesta, aplicada en un toque (#1000).
+   *
+   * El asistente ya contesta solo, pero no podía HACER: las siete herramientas
+   * que escriben están cerradas por ADR-0017 —«sale hacia el cliente o pisa
+   * trabajo de una persona»— así que cuando el cliente pedía una hora, el
+   * asistente veía los huecos y la conversación se detenía ahí.
+   *
+   * Esto no abre esas puertas: el ADR decía que esas acciones las decide una
+   * persona, y acá las decide. El asistente propone con los datos ya puestos y
+   * quien atiende aprieta una vez.
+   *
+   * ## El permiso de la ruta y el de la acción son dos cosas
+   *
+   * Acá va `agents.use` —el mismo que descartar—, porque lo que esta ruta
+   * autoriza es INTENTAR. El permiso de lo que la acción hace de verdad lo
+   * revalida `aplicarPropuesta` adentro, contra los permisos de esta persona:
+   * agendar pide `calendar.book`, el link de pago pide `payments.create_link`.
+   * Ponerle acá el permiso más fuerte dejaría fuera a quien sí puede hacer la
+   * acción propuesta; ponerle el más débil y no revalidar seria un agujero.
+   */
+  @Post(':id/suggestions/:sid/accion')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Aplica la acción que el asistente dejó propuesta' })
+  async aplicarAccionSugerida(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Param('sid') sid: string,
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      // Que la sugerencia sea de ESTA conversación: el id viaja en la URL y
+      // una sugerencia de otra conversación del mismo negocio no se aplica acá.
+      const sugerencia = await pendingSuggestion(c, actor.tenantId, id);
+      if (!sugerencia || sugerencia.id !== sid) {
+        throw new BadRequestException({
+          code: 'SUGGESTION_GONE',
+          message: 'Esa propuesta ya no está vigente.',
+        });
+      }
+      try {
+        const r = await aplicarAccionDeLaSugerencia(
+          c,
+          {
+            tenantId: actor.tenantId,
+            suggestionId: sid,
+            permisos: await permisosDelActor(c, actor),
+            // Los módulos activos se miran en CADA vuelta, igual que en el
+            // Agente General: una acción de un módulo que acaban de apagar no
+            // se aplica aunque la sugerencia la traiga.
+            modulosActivos: new Set(
+              registry
+                .health()
+                .filter((m) => m.active)
+                .map((m) => m.id),
+            ),
+          },
+          { llamarApi: llamarLaPropiaApi(request) },
+        );
+        return { aplicada: true, resultado: r.datos };
+      } catch (err) {
+        // El motivo viene de la ruta o de la revalidación, y los dos están
+        // escritos para que alguien los lea: se respetan tal cual.
+        throw new BadRequestException({
+          code: 'ACCION_RECHAZADA',
+          message: (err as Error).message,
+        });
+      }
     });
   }
 

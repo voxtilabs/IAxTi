@@ -711,7 +711,11 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                 { method: 'POST', body: JSON.stringify(extra ?? {}) },
               );
               if (accion !== 'feedback') setSugerencia(null);
-              if (accion === 'send') await Promise.all([cargarConversacion(seleccion), cargarLista()]);
+              // Aplicar la acción cambia el negocio —una cita, un cobro, un
+              // estado— así que se recarga igual que al enviar la sugerencia.
+              if (accion === 'send' || accion === 'accion') {
+                await Promise.all([cargarConversacion(seleccion), cargarLista()]);
+              }
             } catch (err) {
               setAviso(avisoDe(err));
             }

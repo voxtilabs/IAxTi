@@ -123,7 +123,7 @@ export interface ChatProps {
    * a lo que sí.
    */
   onPrioridad: (prioridad: ConversacionItem['priority']) => Promise<boolean>;
-  onSugerencia: (accion: 'send' | 'dismiss' | 'feedback', extra?: Record<string, unknown>) => Promise<void>;
+  onSugerencia: (accion: 'send' | 'dismiss' | 'feedback' | 'accion', extra?: Record<string, unknown>) => Promise<void>;
   /** Retoma el despacho de un saliente que falló (#445). */
   onReintentar: (messageId: string) => Promise<void>;
   /** Qué mensaje se está reintentando ahora, para no ofrecerlo dos veces. */
@@ -700,6 +700,26 @@ export function Chat({
           <p className="rotulo">Sugerencia del asistente{sugerencia.confidence !== null && ` · ${Math.round(sugerencia.confidence * 100)} %`}</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{sugerencia.text}</p>
           <EnQueSeApoyo herramientas={sugerencia.herramientas} fuentes={sugerencia.fuentes} />
+          {/* La acción que el asistente dejó propuesta (#1000).
+              Va ARRIBA de «Enviar sugerencia» porque es la decisión más
+              pesada de las dos: el texto sale hacia el cliente, y esto toca
+              la agenda, el cobro o el estado. Y dice «propone», nunca «hizo»:
+              hasta que alguien aprieta, no pasó nada. */}
+          {sugerencia.accionEnPalabras && (
+            <div className="mt-2 rounded-campo border border-line bg-raised p-2">
+              <p className="rotulo">El asistente propone</p>
+              <p className="mt-1 text-sm text-ink">{sugerencia.accionEnPalabras}</p>
+              <Button
+                className="mt-2"
+                variant="soft"
+                size="chico"
+                data-testid="confirmar-accion"
+                onClick={() => void onSugerencia('accion')}
+              >
+                Confirmar
+              </Button>
+            </div>
+          )}
           {sugerencia.suggestDeal && detalle && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-action-text">
               Parece que quiere cotizar —
