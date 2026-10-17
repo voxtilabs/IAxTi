@@ -7,6 +7,7 @@ import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { publishEvent, type EventEnvelope } from '../src/events';
 import { OutboxDispatcher, type Consumer } from '../src/dispatcher';
 import { ModuleRegistry } from '../src/registry';
+import { outboxAcotado } from '../src/testing/outbox-acotado';
 
 /**
  * El sobre trae su tenant, y el despachador tiene que fijarlo (#922).
@@ -138,21 +139,25 @@ function consumidorQueEscribe(explotaEn?: string) {
  * eventos de esta prueba pueden quedar fuera del lote, y el `tick` puede
  * devolver 50 cuando acá se publicó uno.
  *
- * Vaciarlo antes es el patrón que ya usa `outbox.test.ts`, y por eso el
- * consumidor es la lista vacía: no entrega nada, solo marca.
+ * La primera versión lo resolvía VACIANDO el outbox antes de cada caso. Ya no:
+ * vaciar marca como procesados los pendientes de las demás pruebas que corren
+ * en paralelo, y el rojo aparece en otro archivo. `outboxAcotado` acota el
+ * `SELECT` del despachador a estos ids y no toca lo ajeno (#972, idea de
+ * #939).
  */
-async function drenar(): Promise<void> {
-  const dispatcher = new OutboxDispatcher(admin, registry, []);
-  for (let i = 0; i < 50; i++) {
-    if ((await dispatcher.tick()) === 0) return;
-  }
-  throw new Error('el outbox no se vacía: algo lo está llenando en paralelo');
-}
+const despachador = (ids: number[], consumer: Consumer) =>
+  new OutboxDispatcher(outboxAcotado(app, ids), registry, [consumer]);
 
-const publicar = (tenantId: string) =>
-  withTenant(admin, tenantId, (c) =>
-    publishEvent(c, { name: 'contact.created', tenantId, payload: {}, actor: 'prueba' }),
-  );
+/** Publica por el camino de verdad y devuelve el id, que es lo que acota. */
+const publicar = (tenantId: string): Promise<number> =>
+  withTenant(admin, tenantId, async (c) => {
+    await publishEvent(c, { name: 'contact.created', tenantId, payload: {}, actor: 'prueba' });
+    const r = await c.query(
+      "SELECT id FROM outbox WHERE tenant_id = $1 AND name = 'contact.created' ORDER BY id DESC LIMIT 1",
+      [tenantId],
+    );
+    return Number(r.rows[0].id);
+  });
 
 const contactosDe = async (t: string) =>
   Number((await admin.query('SELECT count(*) FROM contacts WHERE tenant_id = $1', [t])).rows[0].count);
@@ -163,11 +168,10 @@ const sobreDe = async (t: string) =>
 
 describe('el despachador fija el tenant del sobre (#922)', () => {
   it('un consumidor escribe en una tabla con RLS bajo un rol que SÍ las evalúa', async () => {
-    await drenar();
-    await publicar(tenantA);
+    const id = await publicar(tenantA);
     const { consumer } = consumidorQueEscribe();
 
-    const n = await new OutboxDispatcher(app, registry, [consumer]).tick();
+    const n = await despachador([id], consumer).tick();
 
     expect(n).toBe(1);
     expect(await contactosDe(tenantA)).toBe(1);
@@ -177,12 +181,10 @@ describe('el despachador fija el tenant del sobre (#922)', () => {
   });
 
   it('un lote de dos negocios le da a cada consumidor SU contexto, y nada del otro', async () => {
-    await drenar();
-    await publicar(tenantA);
-    await publicar(tenantB);
+    const ids = [await publicar(tenantA), await publicar(tenantB)];
     const { consumer, visto } = consumidorQueEscribe();
 
-    const n = await new OutboxDispatcher(app, registry, [consumer]).tick();
+    const n = await despachador(ids, consumer).tick();
 
     expect(n).toBe(2);
     // Lo que importa no es que haya contexto: es que sea el del sobre. Un
@@ -198,12 +200,10 @@ describe('el despachador fija el tenant del sobre (#922)', () => {
   });
 
   it('si un consumidor falla, su escritura y su entrega se deshacen, y el siguiente sigue con lo suyo', async () => {
-    await drenar();
-    await publicar(tenantA);
-    await publicar(tenantB);
+    const ids = [await publicar(tenantA), await publicar(tenantB)];
     const { consumer, visto } = consumidorQueEscribe(tenantA);
 
-    await new OutboxDispatcher(app, registry, [consumer]).tick();
+    await despachador(ids, consumer).tick();
 
     expect(await contactosDe(tenantA)).toBe(0);
     const fallado = await sobreDe(tenantA);
@@ -222,10 +222,9 @@ describe('el despachador fija el tenant del sobre (#922)', () => {
   });
 
   it('el contexto no queda pegado en la conexión que vuelve al pool', async () => {
-    await drenar();
-    await publicar(tenantA);
+    const id = await publicar(tenantA);
     const { consumer } = consumidorQueEscribe();
-    await new OutboxDispatcher(app, registry, [consumer]).tick();
+    await despachador([id], consumer).tick();
 
     // El pool es de uno: la conexión que acaba de despachar es la misma que
     // va a atender lo próximo. Si el `set_config` no fuera local a la
@@ -240,10 +239,9 @@ describe('el despachador fija el tenant del sobre (#922)', () => {
   });
 
   it('tras un consumidor que falla tampoco queda pegado', async () => {
-    await drenar();
-    await publicar(tenantA);
+    const id = await publicar(tenantA);
     const { consumer } = consumidorQueEscribe(tenantA);
-    await new OutboxDispatcher(app, registry, [consumer]).tick();
+    await despachador([id], consumer).tick();
 
     const c = await app.connect();
     try {
@@ -255,10 +253,9 @@ describe('el despachador fija el tenant del sobre (#922)', () => {
   });
 
   it('la reentrega de un evento ya reclamado sigue sin repetirse', async () => {
-    await drenar();
-    await publicar(tenantA);
+    const id = await publicar(tenantA);
     const { consumer } = consumidorQueEscribe();
-    const dispatcher = new OutboxDispatcher(app, registry, [consumer]);
+    const dispatcher = despachador([id], consumer);
 
     await dispatcher.tick();
     const otra = await dispatcher.tick();
