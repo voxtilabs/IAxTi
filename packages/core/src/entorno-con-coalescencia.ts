@@ -73,6 +73,41 @@ function fuentes(dir: string, acc: string[] = []): string[] {
 const COALESCENCIA = /process\.env\.([A-Za-z_][A-Za-z0-9_]*)\s*\?\?\s*(\S+)/g;
 
 /**
+ * Y el punto ciego que tenía: `const { X } = process.env` (#985).
+ *
+ * La expresión de arriba pide el `process.env.` escrito, así que un archivo que
+ * desestructura primero quedaba invisible:
+ *
+ *     const { SMTP_HOST, SMTP_PORT, … } = process.env;
+ *     port: Number(SMTP_PORT ?? 587),
+ *
+ * Eso costó un defecto real, medido en #953: el compose pasa `SMTP_PORT` sin
+ * defecto, así que sin configurar llega como CADENA VACÍA; `'' ?? 587` es `''`
+ * y `Number('')` es **0**. El transporte se armaba contra el puerto 0, no
+ * conectaba, y el envío es mejor-esfuerzo: los correos no salían y nadie se
+ * enteraba. La guarda que existe justamente para eso no lo vio por la forma en
+ * que estaba escrita la lectura.
+ *
+ * Se recogen los nombres desestructurados —solo los que parecen variables de
+ * entorno, en MAYÚSCULAS— y se les aplica la misma regla. El renombre
+ * (`{ A: b }`) se queda con el nombre de la IZQUIERDA, que es el que viene del
+ * entorno; si alguien lo renombra a minúsculas, esto no lo sigue, y queda
+ * dicho acá en vez de fingir que sí.
+ */
+const DESESTRUCTURA = /(?:const|let|var)\s*\{([^}]*)\}\s*=\s*process\.env/g;
+
+function nombresDesestructurados(textoLimpio: string): string[] {
+  const nombres = new Set<string>();
+  for (const [, dentro] of textoLimpio.matchAll(DESESTRUCTURA)) {
+    for (const parte of dentro.split(',')) {
+      const nombre = parte.split(':')[0].trim();
+      if (/^[A-Z][A-Z0-9_]*$/.test(nombre)) nombres.add(nombre);
+    }
+  }
+  return [...nombres];
+}
+
+/**
  * Lo que puede ir después de `??` sin que sea un defecto disfrazado.
  *
  * Se mira el COMIENZO de lo que sigue y que no continúe en un identificador:
@@ -104,12 +139,24 @@ export interface LecturaConCoalescencia {
 export function coalescenciasEnTexto(textoLimpio: string): Array<{ linea: number; variable: string }> {
   const hallazgos: Array<{ linea: number; variable: string }> = [];
   // `fuenteLimpia` preserva la numeración: reemplaza por espacios, no borra.
+  // Los nombres que este archivo sacó de `process.env` por desestructuración:
+  // se buscan una vez y valen para todo el texto, porque el `??` puede estar
+  // doscientas líneas más abajo que el `const { … }`.
+  const sueltos = nombresDesestructurados(textoLimpio).map(
+    (nombre) => [nombre, new RegExp(`(?<![.\\w$])${nombre}\\s*\\?\\?\\s*(\\S+)`, 'g')] as const,
+  );
   textoLimpio.split('\n').forEach((linea, i) => {
     for (const [, variable, siguiente] of linea.matchAll(COALESCENCIA)) {
       // `siguiente` es el primer bloque sin espacios, así que trae pegado lo
       // que venga después: de `('' ).trim()` llega `'').trim()`.
       if (INOCUO.test(siguiente)) continue;
       hallazgos.push({ linea: i + 1, variable });
+    }
+    for (const [variable, patron] of sueltos) {
+      for (const [, siguiente] of linea.matchAll(patron)) {
+        if (INOCUO.test(siguiente)) continue;
+        hallazgos.push({ linea: i + 1, variable });
+      }
     }
   });
   return hallazgos;
