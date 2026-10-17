@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { ModuleRegistry, OutboxDispatcher, publishEvent } from '@iaxti/core';
+import { outboxAcotado } from '@iaxti/core/testing';
 import { analyticsConsumers } from '../application/aggregate';
 import { TOTAL_OWNER } from '../domain/metrics';
 
@@ -99,22 +100,27 @@ afterAll(async () => {
 
 /**
  * El outbox es de TODOS: `tick()` toma los 50 pendientes más viejos de la
- * base, sin mirar de quién son. En la base compartida de las pruebas, sin
- * vaciarlo antes, los eventos de acá pueden quedar fuera del lote y el `tick`
- * devuelve el conteo de los ajenos. Es el patrón de `outbox.test.ts`.
+ * base, sin mirar de quién son. En la base compartida de las pruebas, los
+ * eventos de acá pueden quedar fuera del lote y el `tick` devolver el conteo
+ * de los ajenos.
+ *
+ * Se acota a los ids de esta prueba en vez de vaciar el outbox: vaciarlo
+ * marca como procesados los pendientes de las demás suites que corren en
+ * paralelo, y el rojo sale en otro archivo (#972, idea de #939).
  */
-async function drenar(): Promise<void> {
-  const dispatcher = new OutboxDispatcher(app, registry, []);
-  for (let i = 0; i < 50; i++) {
-    if ((await dispatcher.tick()) === 0) return;
-  }
-  throw new Error('el outbox no se vacía: algo lo está llenando en paralelo');
-}
+const despachador = (ids: number[]) =>
+  new OutboxDispatcher(outboxAcotado(app, ids), registry, analyticsConsumers());
 
-const publicar = (tenantId: string, name: string) =>
-  withTenant(admin, tenantId, (c) =>
-    publishEvent(c, { name, tenantId, payload: {}, actor: 'prueba' }),
-  );
+/** Publica por el camino de verdad y devuelve el id, que es lo que acota. */
+const publicar = (tenantId: string, name: string): Promise<number> =>
+  withTenant(admin, tenantId, async (c) => {
+    await publishEvent(c, { name, tenantId, payload: {}, actor: 'prueba' });
+    const r = await c.query(
+      'SELECT id FROM outbox WHERE tenant_id = $1 AND name = $2 ORDER BY id DESC LIMIT 1',
+      [tenantId, name],
+    );
+    return Number(r.rows[0].id);
+  });
 
 const totalDe = async (tenantId: string, metric: string) =>
   Number(
@@ -129,10 +135,9 @@ const totalDe = async (tenantId: string, metric: string) =>
 
 describe('el tablero del dueño se llena con el rol de producción (#922)', () => {
   it('una conversación nueva suma su contador, en vez de agotar los cinco intentos', async () => {
-    await drenar();
-    await publicar(tenantA, 'conversation.created');
+    const id = await publicar(tenantA, 'conversation.created');
 
-    const n = await new OutboxDispatcher(app, registry, analyticsConsumers()).tick();
+    const n = await despachador([id]).tick();
 
     expect(n).toBe(1);
     expect(await totalDe(tenantA, 'conversaciones_nuevas')).toBe(1);
@@ -148,12 +153,13 @@ describe('el tablero del dueño se llena con el rol de producción (#922)', () =
   });
 
   it('en un lote de dos negocios, cada contador queda en el suyo', async () => {
-    await drenar();
-    await publicar(tenantA, 'conversation.created');
-    await publicar(tenantB, 'conversation.created');
-    await publicar(tenantB, 'deal.won');
+    const ids = [
+      await publicar(tenantA, 'conversation.created'),
+      await publicar(tenantB, 'conversation.created'),
+      await publicar(tenantB, 'deal.won'),
+    ];
 
-    const n = await new OutboxDispatcher(app, registry, analyticsConsumers()).tick();
+    const n = await despachador(ids).tick();
 
     expect(n).toBe(3);
     expect(await totalDe(tenantA, 'conversaciones_nuevas')).toBe(1);
