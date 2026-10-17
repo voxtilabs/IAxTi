@@ -16,7 +16,7 @@
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
     "ai": "^7.0.137",
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
