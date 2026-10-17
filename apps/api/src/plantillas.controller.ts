@@ -263,6 +263,7 @@ export class PlantillasController {
                 authorKind: 'user',
                 authorId: m.authorId,
                 body: m.body,
+                plantilla: m.plantilla,
                 requestId: m.requestId,
                 delivery: 'business',
                 actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',

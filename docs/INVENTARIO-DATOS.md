@@ -92,6 +92,7 @@ contenido es responsabilidad suya y la retención la fija su plan.
 | `outbox`, `processed_events` | la cola de eventos: mecánica nuestra |
 | `idempotency_keys` | llaves de reintento con vida de 24 h |
 | `knowledge_query_cache` | caché: se reconstruye sola |
+| `pending_file_deletions` | anotación NUESTRA de un borrado de archivo en curso: la llave del objeto, para poder reconciliar si el proceso muere a medias (#751) |
 | `platform_support_sessions` | registro NUESTRO de cuándo miramos la cuenta |
 | `agente_general_apagado` | interruptor NUESTRO: si la configuración por conversación está pausada para esta cuenta, y por qué |
 | `eval_cases`, `eval_runs` | nuestras pruebas de calidad del copiloto |

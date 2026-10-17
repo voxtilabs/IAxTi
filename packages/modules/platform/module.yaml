@@ -3,8 +3,8 @@ module:
   version: 0.1.0
   core: false
 depends_on:
-  required: [identity, organizations]
-  optional: []
+  required: [identity, organizations, audit]
+  optional: [agents, channels, conversations, integrations, whatsapp]
 permissions:
   - platform.tenants
   - platform.plans

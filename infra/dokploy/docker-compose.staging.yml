@@ -20,6 +20,11 @@ x-env: &app-env
   OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
   OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS}
+  # Logs: activación explícita; actualizar también la definición raw de Dokploy.
+  OTEL_LOGS_EXPORTER: ${OTEL_LOGS_EXPORTER:-none}
+  OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:-}
+  OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: ${OTEL_EXPORTER_OTLP_LOGS_PROTOCOL:-http/protobuf}
+  OTEL_EXPORTER_OTLP_LOGS_HEADERS: ${OTEL_EXPORTER_OTLP_LOGS_HEADERS:-}
   DATABASE_URL: ${DATABASE_URL}
   # Cuántas conexiones abre CADA proceso (#395). Depende del ambiente: la
   # instancia de staging tiene max_connections 60 y Supabase ya se lleva unas

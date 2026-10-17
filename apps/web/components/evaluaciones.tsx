@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlaskConical } from 'lucide-react';
-import { AvisoResultado, Badge, Button, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, EstadoVacio, useSession } from '@iaxti/ui/react';
 import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
-import { apiFetch } from '../lib/api';
+import { apiFetch, avisoDe, type Aviso } from '../lib/api';
+import { useSelectedTenant } from './tenant-switcher';
 import { AvisoDeCarga } from './aviso-de-carga';
 import { PanelCargando } from './panel-cargando';
 import { useCarga } from './use-carga';
@@ -59,11 +60,30 @@ function Diferencia({ corrida, previa }: { corrida: CorridaDto; previa?: Corrida
 }
 
 export function Evaluaciones() {
-  const { config, session } = useSession();
+  const { session } = useSession();
+  const tenant = useSelectedTenant();
+  // Ni el historial ni una medición en vuelo pertenecen a la próxima sesión.
+  return session && tenant
+    ? <EvaluacionesDelNegocio key={`${tenant}|${session.access_token}`} />
+    : null;
+}
+
+function EvaluacionesDelNegocio() {
   // Las corridas son DEL asistente elegido, no del primero de la lista: dos
   // asistentes con modelos distintos tienen scores distintos, y mostrar los
   // de uno bajo el nombre del otro es peor que no mostrar nada (#494).
   const { tenant, asistentes, elegido: agente, elegir } = useAsistenteElegido<AgenteDto>();
+  return <EvaluacionesDelAsistente key={agente?.id ?? 'cargando'}
+    tenant={tenant} asistentes={asistentes} agente={agente} elegir={elegir} />;
+}
+
+function EvaluacionesDelAsistente({ tenant, asistentes, agente, elegir }: {
+  tenant: string | null;
+  asistentes: AgenteDto[] | null;
+  agente: AgenteDto | null;
+  elegir: (id: string) => void;
+}) {
+  const { config, session } = useSession();
   /**
    * La ruta en `null` mientras no haya asistente (#788).
    *
@@ -76,16 +96,21 @@ export function Evaluaciones() {
    * Con la ruta en `null` el hook contesta `nada-que-pedir` y el bug no se
    * puede escribir: no hay un `finally` del que acordarse.
    */
-  const { carga, recargando, reintentar } = useCarga<CorridaDto[]>(
+  const { carga, recargando, reintentar, reemplazar } = useCarga<CorridaDto[]>(
     agente ? `/agents/${agente.id}/evals` : null,
   );
   const [corriendo, setCorriendo] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const vigente = useRef(true);
+  useEffect(() => {
+    vigente.current = true;
+    return () => { vigente.current = false; };
+  }, []);
 
-  const cargar = reintentar;
   const corridas = carga.estado === 'ok' ? carga.dato : null;
 
-  const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5';
+  // Dos corridas: 427 px medidos a 360, frente a 410 a 412 (#588).
+  const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5 max-[399px]:min-h-[427px]';
   const titulo = 'Evaluaciones del asistente';
 
   // Dos llamadas en cascada —los asistentes y después SUS corridas—, así que
@@ -110,16 +135,18 @@ export function Evaluaciones() {
   }
 
   const evaluar = async () => {
-    if (!session) return;
+    if (!session || corriendo) return;
     setAviso(null);
     setCorriendo(true);
     try {
-      await apiFetch(config, session, tenant, `/agents/${agente.id}/evaluate`, { method: 'POST' });
-      await cargar();
+      const corrida = await apiFetch<CorridaDto>(config, session, tenant, `/agents/${agente.id}/evaluate`, { method: 'POST' });
+      // La API devuelve la corrida ya guardada. Un GET posterior podía fallar
+      // y ocultar la medición pagada (#588); no hace falta volver a pedirla.
+      if (vigente.current) reemplazar([corrida, ...corridas.filter((c) => c.id !== corrida.id)]);
     } catch (e) {
-      setAviso(e instanceof Error ? e.message : 'No pudimos evaluar.');
+      if (vigente.current) setAviso(avisoDe(e));
     } finally {
-      setCorriendo(false);
+      if (vigente.current) setCorriendo(false);
     }
   };
 
@@ -142,10 +169,9 @@ export function Evaluaciones() {
       </p>
 
       {corridas.length === 0 ? (
-        <p className="mt-3 rounded-campo border border-line bg-rest px-4 py-3 text-dato text-body">
-          Todavía no se ha medido nada. Los casos salen del pulgar arriba/abajo de la bandeja: con
-          unos pocos ya sirve para comparar.
-        </p>
+        <EstadoVacio compacto className="mt-3" titulo="Todavía no se ha medido nada"
+          descripcion="Los casos salen del pulgar arriba/abajo de la bandeja: con unos pocos ya sirve para comparar."
+          accion={{ etiqueta: corriendo ? 'Midiendo…' : 'Medir ahora', onClick: () => void evaluar() }} />
       ) : (
         <>
           {/* La última corrida, grande: es la que responde la pregunta. */}
@@ -183,15 +209,16 @@ export function Evaluaciones() {
         </>
       )}
 
-      <div className="mt-4">
+      {corridas.length > 0 && <div className="mt-4">
         <Button variant="secundario" onClick={() => void evaluar()} disabled={corriendo}>
           {corriendo ? 'Midiendo…' : 'Medir ahora'}
         </Button>
-      </div>
+      </div>}
 
       {aviso && (
         <AvisoResultado tono="error" persistente>
-          {aviso}
+          {aviso.texto}
+          {aviso.rastro && <span className="mt-1 block font-mono text-rotulo">{aviso.rastro}</span>}
         </AvisoResultado>
       )}
     </section>

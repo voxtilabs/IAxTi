@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { listasSinVacio, pantallasQueDesaparecen } from '../src/listas-sin-estados';
 
@@ -18,13 +19,11 @@ import { listasSinVacio, pantallasQueDesaparecen } from '../src/listas-sin-estad
  *   motivo. A ese tamaño el motivo es información que no está en ninguna otra
  *   parte: «esto es el portón de sesión, devolver null es lo correcto» no se
  *   deduce del código. Mismo criterio que #447.
- * - **Vacíos: 41 colecciones**, y la lista va en `docs/listas-sin-vacio.txt`
- *   como trinquete. A ese tamaño, un motivo por entrada es trabajo sin valor
- *   por entrada: cuarenta y una líneas que dicen «falta» con palabras
- *   distintas. Mismo criterio que #703 con sus 201 columnas.
- *
- * Elegir el mecanismo por el tamaño no es pereza: una lista de 41 motivos no se
- * lee, y una lista que no se lee no se vacía.
+ * - **Vacíos:** `docs/listas-sin-vacio.txt` es el trinquete generado. Cada
+ *   entrada explica su caso real y cita el código en
+ *   `docs/listas-sin-vacio-motivos.json`; la prueba de motivos comprueba
+ *   cobertura exacta y anclas existentes. La lista sola no cumplía el
+ *   criterio 2: un número no explica una excepción.
  */
 const RAIZ = join(__dirname, '..', '..', '..');
 const RAICES = [join(RAIZ, 'apps', 'web', 'components'), join(RAIZ, 'packages', 'ui', 'src', 'react')];
@@ -45,8 +44,10 @@ function corto(archivo: string): string {
  * empuja lo de abajo: el salto que el criterio 3 del issue prohíbe.
  */
 const SIN_ESQUELETO: Record<string, string> = {
-  // Las cinco que estaban acá ya tienen esqueleto, y con el alto MEDIDO
-  // contra el panel cargado: `apps/web/e2e/esqueletos-medidos.spec.ts`
+  // Las secciones que estaban acá tienen esqueleto medido en
+  // `apps/web/e2e/esqueletos-medidos.spec.ts`. Las CINCO listas originales de
+  // #588 también se miden en `cinco-listas-medidas.spec.ts`, incluyendo
+  // Auditoría y Campana (que no formaban parte de la primera medición).
   // compara los dos estados del mismo locator y falla si se separan más de
   // 16 px. Lo que estaba a ojo no estaba cerca —al horario de atención le
   // faltaban 600 px, media pantalla de celular moviéndose de golpe—, así que
@@ -66,6 +67,29 @@ const SIN_ESQUELETO: Record<string, string> = {
 };
 
 describe('estados vacíos y esqueletos (#588)', () => {
+  it('detecta una pantalla nueva sin estados aunque los mencione en comentarios', () => {
+    const directorio = mkdtempSync(join(tmpdir(), 'iaxti-listas-'));
+    const archivo = join(directorio, 'pantalla-nueva.tsx');
+    try {
+      writeFileSync(archivo, `
+        // Añadir EstadoVacio y Skeleton después no puede poner esto en verde.
+        const [items, setItems] = useState<Item[] | null>(null);
+        if (!items) return null;
+        return <ul>{items.map((item) => <li>{item.nombre}</li>)}</ul>;
+      `);
+      expect(listasSinVacio([directorio])).toEqual([{ archivo, arreglo: 'items', silencioso: true }]);
+      expect(pantallasQueDesaparecen([directorio])).toEqual([{ archivo, dato: 'items' }]);
+      writeFileSync(archivo, `
+        const [items, setItems] = useState<Item[] | null>(null);
+        if (!items) return <Skeleton />;
+        if (items.length === 0) return <EstadoVacio titulo="Sin elementos" descripcion="Aquí se verán los elementos creados." accion={{ etiqueta: 'Crear', href: '/crear' }} />;
+        return <ul>{items.map((item) => <li>{item.nombre}</li>)}</ul>;
+      `);
+      expect(listasSinVacio([directorio])).toEqual([]);
+      expect(pantallasQueDesaparecen([directorio])).toEqual([]);
+    } finally { rmSync(directorio, { recursive: true, force: true }); }
+  });
+
   const enLaLista = readFileSync(LISTA, 'utf8')
     .split('\n')
     .map((l) => l.trim())

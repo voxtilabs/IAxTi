@@ -35,6 +35,7 @@
     "@iaxti/module-organizations": "workspace:*",
     "@iaxti/module-payments": "workspace:*",
     "@iaxti/module-platform": "workspace:*",
+    "@iaxti/module-webchat": "workspace:*",
     "@iaxti/module-whatsapp": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
     "bullmq": "^5.34.0",

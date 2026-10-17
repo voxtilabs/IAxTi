@@ -145,7 +145,6 @@ knowledge/stripHtml
 notifications/TIPOS_CRITICOS
 notifications/TIPOS_LEGIBLES
 notifications/dispatchTeamWhatsApp
-notifications/handleNotifiableEvent
 notifications/notifyUser
 notifications/renderEmail
 notifications/resetSmtp

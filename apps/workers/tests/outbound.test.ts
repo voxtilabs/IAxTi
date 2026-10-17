@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 import type { OutboundJobData } from '@iaxti/module-whatsapp';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
 import { redisConnection } from '@iaxti/core';
 import type IORedis from 'ioredis';
 import {
@@ -17,7 +17,7 @@ import {
 import type { ChannelProvider } from '@iaxti/module-channels';
 import { DelayUntilError, processOutbound } from '../src/outbound';
 import { processDeliveryStatuses } from '../src/delivery';
-import { applyQualityUpdate, connectWhatsAppNumber } from '@iaxti/module-whatsapp';
+import { applyQualityUpdate, connectWhatsAppNumber, createTemplate, marcarEnviadaARevision, aplicarEstadoDelProveedor, enviarPlantilla } from '@iaxti/module-whatsapp';
 
 // La salida completa (#43) con un adaptador falso detrás del puerto:
 // entrega → sent con wamid; fallo definitivo → failed con causa legible;
@@ -33,10 +33,12 @@ let tenant: string;
 let conversacion: string;
 let account: string;
 let modo: 'ok' | 'fallo' = 'ok';
+const envios: Array<Parameters<ChannelProvider['send']>[1]> = [];
 
 const fakeProvider: ChannelProvider = {
   kind: 'whatsapp',
-  async send() {
+  async send(_account, message) {
+    envios.push(structuredClone(message));
     // 503 y no 400 a propósito (#556): este caso prueba el camino
     // TRANSITORIO, y un 400 hoy es permanente — lo clasifica el adaptador.
     if (modo === 'fallo') throw new Error('WhatsApp no aceptó el envío: HTTP 503');
@@ -130,6 +132,8 @@ afterAll(async () => {
   await admin.query('DELETE FROM whatsapp_numbers WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  await admin.query('DELETE FROM whatsapp_templates WHERE tenant_id = $1', [tenant]);
+  await sinTriggers(admin, c => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });
@@ -161,6 +165,52 @@ describe('processOutbound (#43)', () => {
     expect(fila.rows[0].delivery_status).toBe('failed');
     expect(String(fila.rows[0].meta.error)).toMatch(/WhatsApp no aceptó/);
     modo = 'ok';
+  });
+
+  it('un reintento envía el mismo sello persistido aunque cambie el enlace de la plantilla (#906)', async () => {
+    const now = new Date('2026-10-15T16:00:00Z'); // 13:00 Chile, fuera del silencio
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(now);
+    const desde = envios.length;
+    try {
+      await admin.query('UPDATE conversations SET last_inbound_at = $2 WHERE id = $1',
+        [conversacion, new Date(now.getTime() - 5 * 86_400_000)]);
+      const p = await withTenant(admin, tenant, async c => {
+        const template = await createTemplate(c, {
+          tenantId: tenant, name: 'reintento_906', language: 'es_CL', category: 'utility', body: 'Hola {{1}}, tu hora está lista.',
+        });
+        await marcarEnviadaARevision(c, { tenantId: tenant, templateId: template.id, providerId: 'tpl-original-906' });
+        await aplicarEstadoDelProveedor(c, { tenantId: tenant, name: template.name, language: template.language, status: 'approved' });
+        return template;
+      });
+      const mensaje = await withTenant(admin, tenant, c => enviarPlantilla(c, {
+        tenantId: tenant, conversationId: conversacion, templateId: p.id, valores: ['Ana'],
+      }, {
+        contactoDe: async () => (await c.query('SELECT contact_id FROM conversations WHERE id = $1', [conversacion])).rows[0].contact_id,
+        puedeIniciar: async () => true,
+        crearMensaje: m => sendMessage(c, { ...m, authorKind: 'user', delivery: 'business' }),
+      }));
+      const snapshot = { id: p.id, providerId: 'tpl-original-906', name: p.name, language: p.language, category: p.category, valores: ['Ana'] };
+      const guardado = await admin.query('SELECT type, meta FROM messages WHERE id = $1', [mensaje.messageId]);
+      expect(guardado.rows[0]).toEqual({ type: 'plantilla', meta: { plantilla: snapshot } });
+      const audit = await admin.query("SELECT metadata FROM audit_log WHERE tenant_id = $1 AND resource_id = $2 AND action = 'message.delivery_requested'", [tenant, mensaje.messageId]);
+      expect(audit.rows[0].metadata).toMatchObject({ templateId: p.id, templateProviderId: 'tpl-original-906' });
+      modo = 'fallo';
+      await expect(processOutbound(admin, redis, jobPara(mensaje.messageId, { initiatedByBusiness: true }))).rejects.toThrow(/HTTP 503/);
+      await admin.query("UPDATE whatsapp_templates SET provider_id = 'tpl-reenlazado-906' WHERE id = $1", [p.id]);
+      modo = 'ok';
+      expect((await processOutbound(admin, redis, jobPara(mensaje.messageId, { initiatedByBusiness: true }, 1))).providerMessageId).toBeTruthy();
+      expect(envios.slice(desde)).toHaveLength(2);
+      for (const envio of envios.slice(desde)) {
+        expect(envio.type).toBe('plantilla');
+        expect(envio.extra?.plantilla).toEqual(snapshot);
+      }
+      expect((await admin.query('SELECT meta FROM messages WHERE id = $1', [mensaje.messageId])).rows[0].meta.plantilla).toEqual(snapshot);
+    } finally {
+      modo = 'ok';
+      vi.useRealTimers();
+      await admin.query('UPDATE conversations SET last_inbound_at = now() WHERE id = $1', [conversacion]);
+    }
   });
 
   it('lo INICIADO POR EL NEGOCIO respeta el silencio; responder nunca espera', async () => {
