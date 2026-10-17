@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { degradarSinRomper } from '@iaxti/db';
 import { baseRoleHasPermission, customRolePermissions, isBaseRole } from '@iaxti/module-authorization';
 import { registry } from '../registry';
 import type { Actor } from './authz.guard';
@@ -89,7 +90,24 @@ export async function permisosDelActorConEstado(
     };
   }
   // Rol propio del negocio: sus permisos viven en la base.
-  const propios = await customRolePermissions(client, actor.tenantId, actor.role).catch(() => null);
+  //
+  // El `.catch` de acá era el más caro de los nueve de #966: esto es el
+  // guardia, corre ANTES del handler y con su mismo cliente. Si la lectura
+  // fallaba, la degradación funcionaba —`resuelto: false`, se muestra todo—
+  // pero la transacción quedaba abortada y el handler que venía detrás moría
+  // con `current transaction is aborted`, un error que no habla de permisos
+  // ni de nada.
+  const propios = await degradarSinRomper(
+    client,
+    (c) => customRolePermissions(c, actor.tenantId, actor.role),
+    (error) => {
+      console.warn(
+        `authz: no se pudieron leer los permisos del rol "${actor.role}" de ${actor.tenantId}; ` +
+          `se dibuja todo y la API sigue mandando. Causa: ${error.message}`,
+      );
+      return null;
+    },
+  );
   return {
     permisos: new Set((propios ?? []).filter((p) => catalog.has(p))),
     resuelto: propios !== null,

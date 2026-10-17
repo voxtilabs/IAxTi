@@ -46,6 +46,66 @@ async function armarCobro(canal: 'whatsapp' | 'webchat'): Promise<string> {
   return link.rows[0].id;
 }
 
+/**
+ * La tabla a la que se desvía el INSERT del pedido durable. Tiene que NO
+ * existir: así el error lo pone Postgres —`relation "…" does not exist`— y la
+ * transacción queda abortada de verdad, que es la mitad de lo que esta prueba
+ * mira.
+ */
+const OUTBOX_INEXISTENTE = 'outbox_que_no_existe';
+
+/**
+ * Un cliente al que se le cae la escritura en el outbox (#910).
+ *
+ * Antes la falla se provocaba creando un trigger `BEFORE INSERT ON outbox` en
+ * el esquema COMPARTIDO y borrándolo en un `finally`. El filtro por tenant
+ * acotaba el daño, pero si el proceso muere en el medio —un Ctrl-C, un OOM, el
+ * timeout de la suite— el trigger y su función se quedan en la base para
+ * siempre, apuntando a un tenant que ya no existe. Nada falla y nadie se
+ * entera, que es la peor forma de dejar basura.
+ *
+ * El desvío va en el TEXTO de la consulta de esta conexión, como en #913: el
+ * catálogo no se toca y para los demás archivos que corren en paralelo el
+ * outbox nunca dejó de existir.
+ *
+ * Y el error sigue viniendo de Postgres, no de un `throw` del arnés: lo que
+ * esta prueba fija es que la transacción entera se revierte —el pago no queda
+ * registrado— y eso solo pasa de verdad si la transacción se aborta.
+ */
+function clienteSinOutbox(cliente: PoolClient): PoolClient {
+  const consultar = cliente.query.bind(cliente) as unknown as (...args: unknown[]) => unknown;
+  // El `\b` del final deja fuera el nombre ya desviado: `_` es carácter de
+  // palabra, así que `outbox_que_no_existe` no vuelve a calzar.
+  const desviar = (sql: string) => sql.replace(/\boutbox\b/g, OUTBOX_INEXISTENTE);
+  /**
+   * Solo el PEDIDO DURABLE, como el trigger que reemplaza.
+   *
+   * `confirmPayment` publica dos eventos en la misma transacción, y el nombre
+   * no está en el texto de la consulta sino en sus parámetros —`publishEvent`
+   * usa el mismo INSERT para todos—. Desviar cualquier escritura al outbox
+   * haría fallar la primera que pase, y esta prueba dejaría de hablar del
+   * pedido de entrega para hablar de «algo del outbox».
+   */
+  const esElPedido = (valores: unknown) =>
+    Array.isArray(valores) && valores.includes('message.delivery_requested');
+  return new Proxy(cliente, {
+    get(destino, prop, receptor) {
+      if (prop !== 'query') return Reflect.get(destino, prop, receptor);
+      return (...args: unknown[]) => {
+        const [texto, ...resto] = args;
+        if (typeof texto === 'string') {
+          return esElPedido(resto[0]) ? consultar(desviar(texto), ...resto) : consultar(...args);
+        }
+        const config = texto as { text?: unknown; values?: unknown } | null;
+        if (config && typeof config.text === 'string' && esElPedido(config.values)) {
+          return consultar({ ...config, text: desviar(config.text) }, ...resto);
+        }
+        return consultar(...args);
+      };
+    },
+  });
+}
+
 const confirmar = (linkId: string) =>
   withTenant(admin, tenant, (c: PoolClient) =>
     confirmPayment(
@@ -131,24 +191,25 @@ describe('el aviso de pago recibido', () => {
   it('si no se puede guardar el pedido durable, revierte el pago para reintentar el webhook', async () => {
     const link = await armarCobro('whatsapp');
     const antes = (await pedidos()).length;
-    await admin.query(`CREATE OR REPLACE FUNCTION test_payment_outbox_failure() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        IF NEW.tenant_id='${tenant}'::uuid AND NEW.name='message.delivery_requested' THEN
-          RAISE EXCEPTION 'fallo simulado al persistir pedido';
-        END IF;
-        RETURN NEW;
-      END $$`);
-    await admin.query('CREATE TRIGGER test_payment_outbox_failure BEFORE INSERT ON outbox FOR EACH ROW EXECUTE FUNCTION test_payment_outbox_failure()');
-    try {
-      await expect(confirmar(link)).rejects.toThrow('fallo simulado');
-      expect((await admin.query('SELECT status FROM payment_links WHERE id=$1', [link])).rows[0].status).toBe('sent');
-      expect((await admin.query('SELECT id FROM payments WHERE link_id=$1', [link])).rowCount).toBe(0);
-      expect(await avisoDe(link)).toBeUndefined();
-      expect((await pedidos()).length).toBe(antes);
-    } finally {
-      await admin.query('DROP TRIGGER test_payment_outbox_failure ON outbox');
-      await admin.query('DROP FUNCTION test_payment_outbox_failure()');
-    }
+
+    const conElOutboxCaido = withTenant(admin, tenant, (c: PoolClient) =>
+      confirmPayment(clienteSinOutbox(c), {
+        tenantId: tenant,
+        linkId: link,
+        status: 'paid',
+        amountClp: 15000,
+      }),
+    );
+    await expect(conElOutboxCaido).rejects.toThrow(OUTBOX_INEXISTENTE);
+
+    // Nada de lo que la transacción alcanzó a escribir queda: el webhook del
+    // proveedor va a reintentar, y tiene que encontrar el cobro como estaba.
+    expect((await admin.query('SELECT status FROM payment_links WHERE id=$1', [link])).rows[0].status).toBe('sent');
+    expect((await admin.query('SELECT id FROM payments WHERE link_id=$1', [link])).rowCount).toBe(0);
+    expect(await avisoDe(link)).toBeUndefined();
+    expect((await pedidos()).length).toBe(antes);
+
+    // Y el reintento, con el outbox sano, cobra y deja su pedido.
     expect((await confirmar(link)).outcome).toBe('paid');
     expect((await pedidos()).length).toBe(antes + 1);
   });

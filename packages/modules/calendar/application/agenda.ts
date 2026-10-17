@@ -395,9 +395,29 @@ export type CancelarEnGoogle = (input: {
   googleEventId: string;
 }) => Promise<string | null>;
 
+/**
+ * MOVER el evento en Google, no cancelarlo y crear otro (#836).
+ *
+ * La diferencia la paga el cliente: cancelar y crear le manda dos correos
+ * —«se canceló tu cita» y «tienes una cita nueva»— por algo que para él fue
+ * un cambio de hora. Mover manda uno que dice justamente eso.
+ *
+ * Mismo contrato que `cancelarEnGoogle`: devuelve `null` si pudo o el motivo
+ * en una frase que lee quien atiende, y NUNCA lanza. Una cita se mueve acá
+ * pase lo que pase allá.
+ */
+export type MoverEnGoogle = (input: {
+  tenantId: string;
+  appointmentId: string;
+  googleEventId: string;
+  inicio: Date;
+  fin: Date;
+}) => Promise<string | null>;
+
 export interface AgendaDeps {
   /** Ausente mientras la integración no exista (#57): se degrada, no revienta. */
   cancelarEnGoogle?: CancelarEnGoogle | null;
+  moverEnGoogle?: MoverEnGoogle | null;
 }
 
 /**
@@ -487,6 +507,160 @@ export async function cambiarEstadoCita(
     });
   }
   return aCita(r.rows[0]);
+}
+
+/** Lo que se le dice a quien atiende cuando el evento de Google no se movió. */
+const SIN_CONEXION_PARA_MOVER =
+  'La cita quedó movida acá, pero en Google Calendar sigue en la hora vieja: ' +
+  'muévela a mano o vuelve a conectar Google.';
+
+/**
+ * Mover una cita de hora (#836).
+ *
+ * SPEC §16 vendía «reagendar desde el chat» como regla y el manifiesto
+ * declaraba la tool, y no existía función que moviera nada. El único camino
+ * hasta `rescheduled` era forzar el estado, y eso dejaba las cosas PEOR que no
+ * hacer nada: la cita congelada, la hora liberada acá y todavía tomada en
+ * Google. #837 cerró esa puerta; esto es la función que faltaba.
+ *
+ * ## Se mueve la MISMA fila
+ *
+ * Y no se crea una segunda con la vieja en `rescheduled`. Dos filas por una
+ * cita que se corrió media hora duplican el historial del contacto y obligan
+ * a explicar en la pantalla por qué hay dos; y `rescheduled` como estado
+ * terminal solo tendría sentido si hubiera a qué cita nueva apuntar, y no hay
+ * columna para eso. Por lo mismo, `rescheduled` sigue sin ser alcanzable.
+ *
+ * ## Los recordatorios se reinician, y esto es lo que de verdad importa
+ *
+ * `reminders_sent` es la lista de avisos ya mandados, y el job salta la cita
+ * cuyo aviso ya esté ahí. Mover la hora sin limpiarla deja al cliente SIN
+ * recordatorio de la hora nueva: el de las 24 h ya figura como mandado, y el
+ * que se mandó hablaba de otro día. En silencio, y se descubre cuando alguien
+ * no llega.
+ *
+ * Por eso también vuelve de `reminded` a `confirmed`: «ya le recordamos» deja
+ * de ser cierto en el momento en que la hora cambia.
+ */
+export async function reagendarCita(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    appointmentId: string;
+    inicio: Date;
+    fin: Date;
+    motivo?: string;
+    actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
+  },
+  deps: AgendaDeps = {},
+): Promise<Cita> {
+  if (!Number.isFinite(input.inicio.getTime()) || !Number.isFinite(input.fin.getTime())) {
+    throw new Error('Las fechas de la cita no se entienden. Revisa el inicio y el fin.');
+  }
+  if (input.fin.getTime() <= input.inicio.getTime()) {
+    throw new Error('La cita tiene que terminar después de empezar.');
+  }
+
+  const actual = await client.query(
+    'SELECT * FROM appointments WHERE tenant_id = $1 AND id = $2 FOR UPDATE',
+    [input.tenantId, input.appointmentId],
+  );
+  if (actual.rowCount === 0) throw new Error('Esa cita no existe en este negocio.');
+  const antes = aCita(actual.rows[0]);
+
+  // Una cita cancelada o que ya pasó no se mueve: se agenda otra. Mover una
+  // `attended` reescribiría cuándo ocurrió algo que ocurrió.
+  if (!['proposed', 'confirmed', 'reminded'].includes(antes.status)) {
+    throw new Error(
+      `Una cita ${antes.status === 'cancelled' ? 'cancelada' : 'que ya pasó'} no se mueve: ` +
+        'agenda una nueva.',
+    );
+  }
+
+  // El mismo candado que `agendar`, y por lo mismo: dos movimientos a la vez
+  // pueden ver libre la misma hora. Va después del SELECT porque el dueño
+  // sale de la fila.
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended(
+       'calendar:agenda:' || $1::uuid::text || ':' || $2::uuid::text, 0))`,
+    [input.tenantId, antes.ownerId],
+  );
+  const choca = await client.query(
+    `SELECT id FROM appointments
+      WHERE tenant_id = $1 AND owner_id = $2 AND id <> $3
+        AND status IN ('proposed','confirmed','reminded')
+        AND starts_at < $5 AND ends_at > $4
+      LIMIT 1`,
+    [input.tenantId, antes.ownerId, input.appointmentId, input.inicio, input.fin],
+  );
+  if ((choca.rowCount ?? 0) > 0) {
+    throw new Error('Esa hora se acaba de tomar. Ofrécele otra.');
+  }
+
+  // Acá primero y pase lo que pase allá, igual que cancelar (#700): que un
+  // error de Google impida mover una hora sería al revés de lo que alguien
+  // necesita con el cliente esperando una respuesta.
+  let googleSyncError: string | null = null;
+  if (antes.googleEventId) {
+    googleSyncError = !deps.moverEnGoogle
+      ? SIN_CONEXION_PARA_MOVER
+      : await deps
+          .moverEnGoogle({
+            tenantId: input.tenantId,
+            appointmentId: input.appointmentId,
+            googleEventId: antes.googleEventId,
+            inicio: input.inicio,
+            fin: input.fin,
+          })
+          .catch((err: unknown) => `No pudimos avisarle a Google: ${(err as Error).message}`);
+  }
+
+  const r = await client.query(
+    `UPDATE appointments
+        SET starts_at = $3, ends_at = $4,
+            -- Los avisos vuelven a cero: el que se mandó hablaba de otra hora.
+            reminders_sent = '[]'::jsonb,
+            status = CASE WHEN status = 'reminded' THEN 'confirmed' ELSE status END,
+            google_sync_error = $5, updated_at = now()
+      WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    [input.tenantId, input.appointmentId, input.inicio, input.fin, googleSyncError],
+  );
+  const cita = aCita(r.rows[0]);
+
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? (input.actor && input.actor !== 'system' ? 'user' : 'system'),
+    action: 'calendar.appointment.rescheduled',
+    resource: 'appointment',
+    resourceId: input.appointmentId,
+    result: 'success',
+    requestId: input.requestId,
+    metadata: {
+      de: { startsAt: antes.startsAt, endsAt: antes.endsAt },
+      a: { startsAt: cita.startsAt, endsAt: cita.endsAt },
+      motivo: input.motivo ?? null,
+      googleSyncError,
+    },
+  });
+  await publishEvent(client, {
+    name: 'appointment.rescheduled',
+    tenantId: input.tenantId,
+    payload: {
+      appointmentId: cita.id,
+      contactId: cita.contactId,
+      // Las dos horas: quien reaccione a esto —avisarle al cliente— necesita
+      // decir de cuándo a cuándo, no solo cuándo es ahora.
+      startsAtAnterior: antes.startsAt,
+      startsAt: cita.startsAt,
+      motivo: input.motivo ?? null,
+    },
+    actor: input.actor ?? 'system',
+    requestId: input.requestId,
+  });
+  return cita;
 }
 
 /** La agenda de alguien entre dos fechas, para la pantalla. */

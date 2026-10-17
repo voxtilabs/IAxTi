@@ -256,6 +256,40 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgendaController_mover": {
+    "metodo": "POST",
+    "ruta": "/v1/agenda/{id}/mover",
+    "resumen": "Mueve una cita a otra hora, con su hueco comprobado",
+    "permiso": "calendar.book",
+    "modulo": "calendar",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "inicio": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "motivo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "inicio",
+        "fin"
+      ],
+      "additionalProperties": false
+    }
+  },
   "AgendaController_recordatorios": {
     "metodo": "GET",
     "ruta": "/v1/agenda/recordatorios",

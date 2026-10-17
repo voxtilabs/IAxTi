@@ -14,6 +14,22 @@ import { sincronizarPlantillas } from '../src/plantillas-sync';
  */
 const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 
+/**
+ * El número de ESTE caso, con un nombre que no se repite (#911).
+ *
+ * `sincronizarPlantillas` recorre TODOS los negocios que tengan algo en
+ * revisión, así que lo que devuelve —`tenants`, `cambiadas`— habla de la base
+ * entera, no de este tenant. En la base compartida de las pruebas eso vuelve
+ * mentirosa cualquier afirmación sobre esos números: basta una plantilla
+ * `pending` que otra corrida dejó atrás.
+ *
+ * La salida es preguntar por la tajada de este negocio. El `senderId` es lo
+ * que permite reconocerla: viaja en el cuerpo del `POST /templates/sync`, que
+ * es la PRIMERA llamada que el barrido hace por cada cuenta, así que si no
+ * aparece, a este número no se lo molestó.
+ */
+const SENDER = `snd_911_${Math.random().toString(36).slice(2, 10)}`;
+
 let admin: Pool;
 let tenant: string;
 const fetchReal = globalThis.fetch;
@@ -32,17 +48,36 @@ const base = {
   category: 'utility' as const,
 };
 
+interface Llamada {
+  url: string;
+  /** El cuerpo tal cual salió: ahí viaja el `senderId`. */
+  cuerpo: string;
+}
+
 /** Zavu de mentira: responde el sync y la lista de plantillas. */
 function zavuDice(plantillas: Record<string, unknown>[]) {
-  const rutas: string[] = [];
-  globalThis.fetch = (async (url: string) => {
-    rutas.push(String(url));
+  const llamadas: Llamada[] = [];
+  globalThis.fetch = (async (url: string, init?: { body?: unknown }) => {
+    llamadas.push({ url: String(url), cuerpo: String(init?.body ?? '') });
     const cuerpo = String(url).includes('/templates/sync')
       ? { accountsSynced: 1, imported: 0, linked: 0, updated: 1, skipped: 0, errors: [] }
       : { items: plantillas, nextCursor: null };
     return { ok: true, status: 200, json: async () => cuerpo } as unknown as Response;
   }) as unknown as typeof fetch;
-  return rutas;
+  return llamadas;
+}
+
+/**
+ * Lo que el barrido le pidió al proveedor POR ESTE número: el `sync` de esta
+ * cuenta y todo lo que vino después de él. El `GET /templates` no lleva
+ * `senderId` —la credencial ya dice de quién es— así que se lo reconoce por
+ * venir detrás del sync de este número y no por lo que dice.
+ */
+function porNuestroNumero(llamadas: Llamada[]): string[] {
+  const desde = llamadas.findIndex(
+    (l) => l.url.includes('/templates/sync') && l.cuerpo.includes(SENDER),
+  );
+  return desde === -1 ? [] : llamadas.slice(desde).map((l) => l.url);
 }
 
 async function plantillaEnRevision(nombre: string): Promise<string> {
@@ -62,8 +97,8 @@ beforeAll(async () => {
   tenant = t.rows[0].id;
   await admin.query(
     `INSERT INTO channel_accounts (tenant_id, kind, name, state, credential_ref, webhook_secret_ref, config)
-     VALUES ($1, 'whatsapp', 'numero', 'active', 'ZAVU_KEY_TEST', 'ZAVU_SECRET_TEST', '{"senderId":"snd_1"}'::jsonb)`,
-    [tenant],
+     VALUES ($1, 'whatsapp', 'numero', 'active', 'ZAVU_KEY_TEST', 'ZAVU_SECRET_TEST', $2::jsonb)`,
+    [tenant, JSON.stringify({ senderId: SENDER })],
   );
   process.env.ZAVU_KEY_TEST = 'zv_test_abc';
 });
@@ -85,7 +120,7 @@ afterAll(async () => {
 describe('reconciliación de plantillas', () => {
   it('una aprobada en Meta con el webhook perdido queda aprobada acá', async () => {
     const id = await plantillaEnRevision('aprobada_sin_aviso');
-    const rutas = zavuDice([
+    const llamadas = zavuDice([
       {
         id: 'tpl_meta_1',
         name: 'aprobada_sin_aviso',
@@ -96,11 +131,11 @@ describe('reconciliación de plantillas', () => {
       },
     ]);
 
-    const r = await sincronizarPlantillas(admin);
-    expect(r.cambiadas).toBeGreaterThanOrEqual(1);
+    await sincronizarPlantillas(admin);
     // Primero le pide a Zavu que se ponga al día con Meta, después lee.
-    expect(rutas[0]).toContain('/templates/sync');
-    expect(rutas[1]).toContain('/templates?');
+    const nuestras = porNuestroNumero(llamadas);
+    expect(nuestras[0]).toContain('/templates/sync');
+    expect(nuestras[1]).toContain('/templates?');
 
     const p = await withTenant(admin, tenant, (c) => getTemplate(c, tenant, id));
     expect(p.status).toBe('approved');
@@ -139,8 +174,9 @@ describe('reconciliación de plantillas', () => {
       },
     ]);
 
-    const r = await sincronizarPlantillas(admin);
-    expect(r.cambiadas).toBe(0);
+    await sincronizarPlantillas(admin);
+    // El `cambiadas` que devuelve el barrido es de TODA la base (#911): acá
+    // lo que prueba que no se inventó nada es la fila de este negocio.
     const p = await withTenant(admin, tenant, (c) => getTemplate(c, tenant, id));
     expect(p.status).toBe('pending');
   });
@@ -174,14 +210,30 @@ describe('reconciliación de plantillas', () => {
     expect(p.status).toBe('pending');
   });
 
-  it('sin nada en revisión no se molesta al proveedor', async () => {
+  it('sin nada en revisión no se molesta a ESTE número', async () => {
     await admin.query(
       `UPDATE whatsapp_templates SET status = 'approved' WHERE tenant_id = $1 AND status = 'pending'`,
       [tenant],
     );
-    const rutas = zavuDice([]);
-    const r = await sincronizarPlantillas(admin);
-    expect(r.tenants).toBe(0);
-    expect(rutas).toHaveLength(0);
+    const llamadas = zavuDice([]);
+
+    await sincronizarPlantillas(admin);
+
+    // Antes acá decía `expect(r.tenants).toBe(0)`: que el barrido no hubiera
+    // visitado a NADIE. Eso solo es cierto en una base virgen, y por eso la
+    // prueba se ponía roja en local después de un día de corridas, por una
+    // plantilla `pending` de otro negocio que no tiene nada que ver (#911).
+    //
+    // Lo que esta prueba viene a cazar es que a un negocio sin nada
+    // esperando no se le pida nada al proveedor, y eso se pregunta por su
+    // número.
+    expect(porNuestroNumero(llamadas)).toHaveLength(0);
+    // Y la otra mitad: este negocio no aparece en la lista de a quién hay que
+    // visitar, que es de donde sale el trabajo.
+    const aVisitar = await admin.query(
+      'SELECT 1 FROM tenants_con_plantillas_en_revision() WHERE tenant_id = $1',
+      [tenant],
+    );
+    expect(aVisitar.rowCount).toBe(0);
   });
 });

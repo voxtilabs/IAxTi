@@ -106,16 +106,16 @@ export function AjustesDeIa() {
     >
       <span className="rotulo">Proveedor y datos</span>
       <p className="mt-2 max-w-prose text-sm text-body">
-        Por defecto tu asistente usa el proveedor que mejor rinde para cada cosa. Si necesitas que
-        todo pase por uno solo —porque lo pide tu contrato o porque así lo decidiste— elígelo aquí y
-        se respeta en todo, también en lo que agreguemos después.
+        Tu asistente usa los proveedores disponibles de IAxTi, con las cuentas de IAxTi.
+        Si necesitas elegir uno solo, selecciónalo aquí. Esta opción no permite agregar
+        una cuenta ni una clave propia.
       </p>
 
       <div className="mt-4 flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           Usar solamente
           <Select value={proveedor} onValueChange={setProveedor}>
-            <SelectTrigger aria-label="Proveedor único" className="w-64">
+            <SelectTrigger aria-label="Proveedor único" className="h-control w-64">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -390,6 +390,12 @@ jobs:
           # script lee esté escrito en su env. Una variable heredada por
           # costumbre vale vacío el día que la costumbre cambia.
           GITHUB_WORKSPACE: ${{ github.workspace }}
+          # Vacía a propósito (#968). El script la lee, así que la regla de
+          # #613 pide que esté escrita acá; y vacía vale lo mismo que ausente
+          # para `${VAR:-72}`, que es el valor con el que el despliegue de
+          # verdad tiene que correr. Está declarada para que se vea el mando:
+          # quien la ponga en un número chico está acortando la espera real.
+          SMOKE_INTENTOS: ''
         run: |
           if [ -z "${BASE}" ]; then echo "Sin STAGING_BASE_URL aún; se salta"; exit 0; fi
 
@@ -404,6 +410,16 @@ jobs:
           # queda escrito en cada despliegue y se compara contra un
           # presupuesto declarado.
           PRESUPUESTO_SEG=${PRESUPUESTO_SEG:-300}
+          # Cuántas vueltas da la espera. Es variable SOLO para que las pruebas
+          # puedan pedir tres en vez de setenta y dos (#968): el camino de
+          # fallo las agota todas, y setenta y dos vueltas de procesos de
+          # mentira contra el presupuesto de diez segundos del arnés se pasaban
+          # del tiempo cuando la máquina estaba ocupada. Un rojo que depende de
+          # la carga enseña a correr las pruebas otra vez hasta que pasen.
+          #
+          # En el despliegue de verdad nadie la define, así que son 72 × 10 s
+          # = doce minutos, que es lo que había.
+          INTENTOS=${SMOKE_INTENTOS:-72}
           echo "Esperando a que la API y sus dependencias estén listas..."
           inicio=$(date +%s)
           listo=no
@@ -423,7 +439,7 @@ jobs:
           # `_` y no `i`: acá el contador no se usa —la espera se mide con el
           # reloj, unas líneas más abajo— y una variable de ciclo que nadie lee
           # es justo lo que shellcheck marca (SC2034). `_` dice «a propósito».
-          for _ in $(seq 1 72); do
+          for _ in $(seq 1 "$INTENTOS"); do
             # /health puede responder mientras la base todavía conecta (#17,
             # #254). Esperar readiness; una caída persistente sigue fallando.
             codigo=$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "${BASE}/ready" || true)

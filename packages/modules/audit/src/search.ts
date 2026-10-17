@@ -56,12 +56,38 @@ function leerCursor(cursor: string): { occurredAt: Date; id: string } | null {
  * 1000, así que el export del libro de UN tenant daba distinto según quién lo
  * pidiera — y el que devolvía menos era el del dueño del dato (#798).
  */
-function armarFiltro(filter: AuditFilter & { tenantId?: string }): {
+/**
+ * El recorte por negocio, escrito en la consulta ADEMÁS de la política (#960).
+ *
+ * Las rutas del tenant corren dentro de `withTenant`, así que RLS ya acota. El
+ * problema es que esa era la ÚNICA defensa, y staging corre con un rol
+ * BYPASSRLS (#370): ahí la política no se evalúa y el export del libro de un
+ * negocio se llevaba el de toda la plataforma, firmado por nosotros.
+ *
+ * Sale de `app.tenant_id` y no de un parámetro a propósito: un parámetro se
+ * puede olvidar en la próxima ruta que se escriba, y esto no. Es la MISMA
+ * fuente que lee la política, así que bajo un rol correcto no cambia ni una
+ * fila; bajo uno que se salta RLS, es la diferencia entre un archivo del
+ * negocio y un archivo de todos.
+ *
+ * Y falla cerrado: fuera de `withTenant` el ajuste viene vacío, `NULLIF` lo
+ * vuelve NULL y la comparación no es verdadera para ninguna fila. Cero
+ * resultados, que es lo que corresponde cuando nadie dijo de quién es el
+ * libro.
+ */
+const DEL_TENANT_DE_LA_CONEXION =
+  "tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid";
+
+function armarFiltro(
+  filter: AuditFilter & { tenantId?: string },
+  acotarPorLaConexion = false,
+): {
   where: string[];
   params: unknown[];
 } {
   const where: string[] = [];
   const params: unknown[] = [];
+  if (acotarPorLaConexion) where.push(DEL_TENANT_DE_LA_CONEXION);
   const add = (clause: string, value: unknown) => {
     params.push(value);
     where.push(clause.replace('?', `$${params.length}`));
@@ -127,8 +153,9 @@ async function pagina(
   client: PoolClient,
   filter: AuditFilter & { tenantId?: string },
   porDefecto: number,
+  acotarPorLaConexion = false,
 ) {
-  const { where, params } = armarFiltro(filter);
+  const { where, params } = armarFiltro(filter, acotarPorLaConexion);
   const tope = Math.min(filter.limit ?? porDefecto, POR_PAGINA);
   params.push(tope + 1);
   const result = await client.query(consulta(where, params.length), params);
@@ -138,7 +165,7 @@ async function pagina(
 }
 
 export async function searchAudit(client: PoolClient, filter: AuditFilter = {}) {
-  return (await pagina(client, filter, 50)).filas;
+  return (await pagina(client, filter, 50, true)).filas;
 }
 
 /**
@@ -150,7 +177,7 @@ export async function searchAudit(client: PoolClient, filter: AuditFilter = {}) 
  * la forma nueva va solo a quien la pide con `?cursor=`.
  */
 export async function searchAuditPaginado(client: PoolClient, filter: AuditFilter = {}) {
-  const { filas, siguiente } = await pagina(client, filter, 50);
+  const { filas, siguiente } = await pagina(client, filter, 50, true);
   return { entries: filas, nextCursor: siguiente };
 }
 
@@ -221,7 +248,32 @@ export async function exportAudit(
   filter: AuditFilter & { tenantId?: string } = {},
   tope: number = TOPE_EXPORT,
 ): Promise<Record<string, unknown>[]> {
-  const { where, params } = armarFiltro(filter);
+  return exportar(client, filter, tope, false);
+}
+
+/**
+ * El mismo export, acotado al negocio de la conexión (#960).
+ *
+ * Dos funciones y no un parámetro más: quien exporta el libro de UN negocio y
+ * quien exporta el global piden cosas distintas, y un booleano al final de la
+ * lista se olvida. `exportAudit` a secas cruza tenants a propósito y es del
+ * SUPERADMIN; ésta es la que va en las rutas del tenant.
+ */
+export async function exportAuditDelTenant(
+  client: PoolClient,
+  filter: AuditFilter = {},
+  tope: number = TOPE_EXPORT,
+): Promise<Record<string, unknown>[]> {
+  return exportar(client, filter, tope, true);
+}
+
+async function exportar(
+  client: PoolClient,
+  filter: AuditFilter & { tenantId?: string },
+  tope: number,
+  acotarPorLaConexion: boolean,
+): Promise<Record<string, unknown>[]> {
+  const { where, params } = armarFiltro(filter, acotarPorLaConexion);
   params.push(tope + 1);
   const result = await client.query(consulta(where, params.length), params);
   if (result.rows.length > tope) throw new ExportDemasiadoGrande(tope);

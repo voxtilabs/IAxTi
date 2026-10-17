@@ -42,6 +42,11 @@ const NUCLEO = new Set(['identity', 'organizations', 'authorization', 'audit']);
 
 /** `required` sin import, con el motivo por el que la dependencia es real. */
 export const REQUERIDAS_SIN_IMPORT: Record<string, string> = {
+  'billing→analytics':
+    'La facturación lee costo_meta_usd de daily_metrics por SQL; analytics lo produce ' +
+    'al consumir message.sent. Si se apaga analytics, el dispatcher deja de agregar ' +
+    'ese costo y billing puede facturar un total incompleto, sin una fuente alternativa. ' +
+    'Por eso el agregador debe seguir activo aunque billing no importe su contrato (#901).',
   'calendar→crm':
     'Una cita cuelga de un contacto: el módulo guarda `contact_id` y la pantalla ' +
     'muestra de quién es la hora. Sin contactos la agenda no quiere decir nada, ' +

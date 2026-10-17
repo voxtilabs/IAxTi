@@ -13,3 +13,4 @@ export {
   getSessionReplies,
 } from './application/webchat';
 export type { Widget, Session, VisitorMessageResult } from './application/webchat';
+export { detachSessionsFromConversations } from './application/retention';
