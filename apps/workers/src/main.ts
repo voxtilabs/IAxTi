@@ -516,10 +516,12 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           const negocios = await tenantsWithExpirable(pool);
           let marcadas = 0;
           let sinDecidir = 0;
+          let enVuelo = 0;
           for (const tenantId of negocios) {
             const r = await reconciliarBorradosPendientes(pool, tenantId, { almacen });
             marcadas += r.marcadas;
             sinDecidir += r.sinDecidir;
+            enVuelo += r.enVuelo;
           }
           if (marcadas > 0) {
             console.log(`scheduled: ${marcadas} fuentes quedaron sin su archivo y se marcaron`);
@@ -527,7 +529,13 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           if (sinDecidir > 0) {
             console.log(`scheduled: ${sinDecidir} borrados sin decidir — R2 no contestó`);
           }
-          return { marcadas, sinDecidir };
+          // Uno o dos por pasada es lo normal —alguien borrando justo ahora—.
+          // Un número que no baja entre pasadas es otra cosa: una transacción
+          // colgada con el candado tomado, y eso sí hay que ir a mirar (#971).
+          if (enVuelo > 0) {
+            console.log(`scheduled: ${enVuelo} borrados en vuelo — se miran en la próxima pasada`);
+          }
+          return { marcadas, sinDecidir, enVuelo };
         }
         // Reindexación del conocimiento (#502): al cambiar de modelo de
         // embeddings los vectores viejos no sirven, y las fuentes quedan en
