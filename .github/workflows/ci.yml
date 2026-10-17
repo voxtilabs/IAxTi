@@ -307,48 +307,41 @@ jobs:
       # saca el contenedor de la ecuación y con él el cupo. La acción además
       # está marcada como obsoleta por Semgrep, que recomienda el CLI.
       #
-      # ## Por qué contra la BASE y no contra todo
+      # ## Por qué vuelve a mirar el ÁRBOL COMPLETO
       #
-      # La acción `:v1` congela un semgrep de hace años. Los packs
-      # (`p/typescript`, `p/owasp-top-ten`, `p/secrets`) se bajan del registro
-      # en cada corrida y han crecido: con el CLI de hoy, los mismos tres packs
-      # encuentran 27 hallazgos preexistentes —tags móviles de acciones, ajustes
-      # de pnpm, un `USER` que falta en el Dockerfile, dos inyecciones de shell
-      # en workflows—. O sea que el CI estaba verde porque miraba con los ojos
-      # de 2023, no porque el repo esté limpio.
+      # Durante un tiempo esto comparaba contra la base del PR, y el motivo
+      # estaba escrito acá: la acción `:v1` congelaba un semgrep de hace años,
+      # los packs crecieron, y con el CLI de hoy los mismos tres encontraban
+      # **27 hallazgos preexistentes**. Bloquear esos 27 en el PR que venía a
+      # desatascar el CI habría sido cambiar un rojo que no habla del cambio por
+      # otro, así que se bloqueó solo lo que cada PR INTRODUCE y los 27 se
+      # fueron a su issue (#758) con la lista.
       #
-      # Bloquear los 27 de una en el PR que viene a desatascar el CI sería
-      # cambiar un rojo que no habla del cambio por otro. Y silenciarlos con
-      # `--exclude` sería apagar reglas de seguridad de verdad. Así que esto
-      # bloquea lo que el PR INTRODUCE —que es lo único de lo que su autor puede
-      # responder— y los 27 tienen su propio issue (#758), con la lista.
+      # Ya no quedan. Medido con los tres packs sobre el árbol completo:
       #
-      # `--error` conserva lo que importa: un hallazgo nuevo tumba el job. Sin
-      # eso Semgrep informa y devuelve 0, que es la versión que se ignora a la
-      # tercera vez.
+      #     27  cuando se escribió el issue
+      #     17  al volver a medirlo — los dos de inyección de shell, el
+      #         checkout del workflow_run, el http del script local, el USER
+      #         del Dockerfile y el innerHTML del login ya estaban arreglados
+      #      3  tras encender las defensas de pnpm (#992)
+      #      0  tras fijar las veinte acciones a su SHA (#993)
+      #
+      # Así que el `--baseline-commit` sale, que era su propia condición de
+      # salida: «mientras queden, se queda». Desde acá un hallazgo en CUALQUIER
+      # parte del árbol tumba el job, no solo uno que el PR agregue — que es lo
+      # que hace que esto sea una guarda y no un peaje. Y se fue con él el
+      # `BASE_DEL_PR`, que era la única razón por la que este paso necesitaba
+      # una variable.
+      #
+      # `--error` conserva lo que importa: sin eso Semgrep informa y devuelve 0,
+      # que es la versión que se ignora a la tercera vez.
       - name: Semgrep (SAST)
-        env:
-          # Por `env:` y no interpolado adentro, como todo lo demás (#758).
-          # Acá el valor es un SHA —hexadecimal, inofensivo— y da igual: la
-          # regla es «ninguno» justamente para no tener que juzgar cuáles son
-          # seguros. La guarda de `packages/core` lo cazó a los diez minutos de
-          # haberlo escrito yo, que es exactamente para lo que existe.
-          #
-          # En un push a main no hay PR contra el que comparar: ahí se mira el
-          # commit anterior, que es el cambio que entró.
-          BASE_DEL_PR: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           python -m pip install --disable-pip-version-check --quiet semgrep
-          base="$BASE_DEL_PR"
-          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
-            echo "semgrep: sin commit base utilizable ($base); se mira el árbol completo."
-            base=""
-          fi
           semgrep scan \
             --config p/typescript \
             --config p/owasp-top-ten \
             --config p/secrets \
-            ${base:+--baseline-commit "$base"} \
             --error \
             --metrics off \
             --quiet
