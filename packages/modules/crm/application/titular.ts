@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import type { AlmacenObjetos } from '@iaxti/core';
+import { degradarSinRomper } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 
 // Derechos del titular, Ley 21.719 (#81, SPEC §19). Dos derechos que el
@@ -62,14 +63,36 @@ export async function exportarTitular(
     par,
   );
   const { conversaciones, mensajes } = await input.leerConversaciones(client, input);
-  const actividades = await uno(
-    'SELECT * FROM activities WHERE tenant_id = $1 AND contact_id = $2',
-    par,
-  ).catch(() => []);
-  const oportunidades = await uno(
-    'SELECT * FROM deals WHERE tenant_id = $1 AND contact_id = $2',
-    par,
-  ).catch(() => []);
+  /**
+   * Estas dos son opcionales de verdad —si el módulo no está migrado en este
+   * despliegue, la tabla no existe y la exportación sale sin esa sección—,
+   * pero el `.catch(() => [])` que había acá no degradaba nada: `uno` consulta
+   * con el `client` de quien llama, y en Postgres la sentencia que falla aborta
+   * el bloque ENTERO. Lo que seguía —la auditoría de unas líneas más abajo, que
+   * es el registro legal de que la persona ejerció su derecho— caía con
+   * `current transaction is aborted`, y el titular recibía un error que no
+   * nombra ni la tabla que falta ni el derecho que estaba ejerciendo (#966).
+   *
+   * Con el SAVEPOINT de `degradarSinRomper` la tabla ausente vuelve a ser lo
+   * que se quería que fuera: una sección vacía en el JSON.
+   */
+  const opcional = (tabla: string) =>
+    degradarSinRomper(
+      client,
+      (c) =>
+        c
+          .query(`SELECT * FROM ${tabla} WHERE tenant_id = $1 AND contact_id = $2`, par)
+          .then((r) => r.rows),
+      (error) => {
+        console.warn(
+          `crm.titular: no se pudo leer "${tabla}" de ${input.tenantId}; la exportación sale sin ` +
+            `esa sección. Causa: ${error.message}`,
+        );
+        return [] as Array<Record<string, unknown>>;
+      },
+    );
+  const actividades = await opcional('activities');
+  const oportunidades = await opcional('deals');
 
   // El ejercicio del derecho también se audita: quién pidió qué y cuándo.
   await writeAudit(client, {

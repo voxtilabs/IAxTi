@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { usersWithPermission } from '@iaxti/module-authorization';
+import { degradarSinRomper } from '@iaxti/db';
 import type { Consumer, EventEnvelope } from '@iaxti/core';
 import {
   TIPOS_CRITICOS,
@@ -221,37 +222,80 @@ export async function handleNotifiableEvent(
       campana: bloqueada ? true : pref.campana,
     });
     if (bloqueada || pref.correo) {
-      // Mejor-esfuerzo: sin SMTP configurado no hace nada; un rebote no
-      // debe reintentar el evento completo (la campana ya quedó).
-      await sendNotificationEmail(client, {
-        tenantId: event.tenantId,
-        userId,
-        title: aviso.title,
-        body: aviso.body,
-        link: aviso.link,
-      }).catch(() => {});
+      /**
+       * Mejor-esfuerzo: sin SMTP configurado no hace nada y un rebote no debe
+       * reintentar el evento completo —la campana ya quedó—.
+       *
+       * Pero el `.catch(() => {})` que había acá no conseguía eso. Esto corre
+       * DENTRO de la transacción del despachador del outbox, y si el fallo
+       * tocó la base, la sentencia que falló abortó el bloque: el push de
+       * abajo y el WhatsApp del final caían con `current transaction is
+       * aborted`, el despachador veía el error del ÚLTIMO y no el de verdad,
+       * y la campana que «ya quedó» se iba con el ROLLBACK al savepoint sin
+       * que nadie lo note (#966).
+       */
+      await degradarSinRomper(
+        client,
+        (c) =>
+          sendNotificationEmail(c, {
+            tenantId: event.tenantId,
+            userId,
+            title: aviso.title,
+            body: aviso.body,
+            link: aviso.link,
+          }),
+        (error) => {
+          console.warn(
+            `notifications: no salió el correo de "${aviso.type}" a ${userId} en ${event.tenantId}; ` +
+              `la campana queda igual. Causa: ${error.message}`,
+          );
+          return false; // no salió, y eso es lo que devuelve quien sí lo manda
+        },
+      );
     }
     if (pref.push) {
       // Mejor-esfuerzo, igual que el correo: un push que no sale no puede
       // reintentar el evento entero ni tumbar el resto de los avisos.
-      await sendPushToUser(client, {
-        tenantId: event.tenantId,
-        userId,
-        payload: { title: aviso.title, body: aviso.body, link: aviso.link, tag: aviso.type },
-        sender: transportes.push ?? null,
-      }).catch(() => {});
+      await degradarSinRomper(
+        client,
+        (c) =>
+          sendPushToUser(c, {
+            tenantId: event.tenantId,
+            userId,
+            payload: { title: aviso.title, body: aviso.body, link: aviso.link, tag: aviso.type },
+            sender: transportes.push ?? null,
+          }),
+        (error) => {
+          console.warn(
+            `notifications: no salió el push de "${aviso.type}" a ${userId} en ${event.tenantId}; ` +
+              `la campana queda igual. Causa: ${error.message}`,
+          );
+          return [];
+        },
+      );
     }
   }
 
   // WhatsApp al equipo: solo críticos, solo quien dio opt-in (#78).
-  await dispatchTeamWhatsApp(client, {
-    tenantId: event.tenantId,
-    type: aviso.type,
-    userIds: [...new Set(aviso.recipients)],
-    title: aviso.title,
-    body: aviso.body,
-    enviar: transportes.whatsappEquipo ?? null,
-  }).catch(() => []);
+  await degradarSinRomper(
+    client,
+    (c) =>
+      dispatchTeamWhatsApp(c, {
+        tenantId: event.tenantId,
+        type: aviso.type,
+        userIds: [...new Set(aviso.recipients)],
+        title: aviso.title,
+        body: aviso.body,
+        enviar: transportes.whatsappEquipo ?? null,
+      }),
+    (error) => {
+      console.warn(
+        `notifications: no salió el WhatsApp al equipo por "${aviso.type}" en ${event.tenantId}; ` +
+          `el resto del aviso queda. Causa: ${error.message}`,
+      );
+      return [];
+    },
+  );
 }
 
 /** Los eventos que este módulo escucha. Exportado para el test que lo

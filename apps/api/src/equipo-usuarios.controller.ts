@@ -12,7 +12,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { withTenant } from '@iaxti/db';
+import { degradarSinRomper, withTenant } from '@iaxti/db';
 import {
   acceptInvitation,
   cancelarInvitacion,
@@ -215,14 +215,29 @@ export class EquipoUsuariosController {
       // invitación existía en la base y era imposible de aceptar.
       const base = textoDeEntorno('APP_URL_PUBLIC', 'https://app-staging.iaxti.cl');
       const enlace = `${base}/invitacion/${invitacion.token}`;
-      await sendNotificationEmail(c, {
-        tenantId: actor.tenantId,
-        userId: actor.userId,
-        title: 'Te invitaron a un negocio en IAxTi',
-        body: `Entra con este enlace para aceptar la invitación: ${enlace}`,
-        link: enlace,
-        para: email,
-      }).catch(() => undefined);
+      // Con savepoint: el `.catch` pelado cumplía lo de arriba a medias —la
+      // invitación «ya quedó en la base», sí, pero si el fallo tocó la base la
+      // transacción quedaba abortada y el INSERT se iba en el rollback, con un
+      // error que habla de transacciones y no de correos (#966).
+      await degradarSinRomper(
+        c,
+        (cliente) =>
+          sendNotificationEmail(cliente, {
+            tenantId: actor.tenantId,
+            userId: actor.userId,
+            title: 'Te invitaron a un negocio en IAxTi',
+            body: `Entra con este enlace para aceptar la invitación: ${enlace}`,
+            link: enlace,
+            para: email,
+          }),
+        (error) => {
+          console.warn(
+            `equipo: la invitación de ${email} en ${actor.tenantId} quedó creada pero el correo ` +
+              `no salió; el enlace se puede pasar a mano. Causa: ${error.message}`,
+          );
+          return undefined;
+        },
+      );
 
       return {
         id: invitacion.id,

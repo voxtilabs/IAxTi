@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { degradarSinRomper } from '@iaxti/db';
 import { setChannelState } from '@iaxti/module-channels';
 
 // Calidad del número (#45, SPEC §12): proteger el rating de Meta es
@@ -241,13 +242,24 @@ export async function applyQualityUpdate(
   if (cayoARojo) {
     // El canal queda degraded: la pantalla de canales lo explica y el
     // evento channel.degraded avisa al ADMIN (notifications, F3).
-    await setChannelState(client, {
-      tenantId: input.tenantId,
-      accountId: numero.channel_account_id,
-      state: 'degraded',
-      reason: 'calidad del número en rojo',
-      requestId: input.requestId,
-    }).catch(() => {}); // si ya estaba degraded/disconnected, no es error
+    // Si ya estaba degraded/disconnected, no es error. Con savepoint porque el
+    // `.catch` pelado no distinguía eso de un fallo de la base, y ahí dejaba la
+    // transacción de quien llamó abortada (#966).
+    await degradarSinRomper(
+      client,
+      // El `.then(() => undefined)` es para que el valor que devuelve
+      // `setChannelState` no viaje: nadie lo usa acá, y sin descartarlo el
+      // fallback tendría que inventar un ChannelAccountRef que no existe.
+      (c) =>
+        setChannelState(c, {
+          tenantId: input.tenantId,
+          accountId: numero.channel_account_id,
+          state: 'degraded',
+          reason: 'calidad del número en rojo',
+          requestId: input.requestId,
+        }).then(() => undefined),
+      () => undefined,
+    );
   }
   return { changed: true, pausado: cayoARojo || Boolean(numero.business_paused_at) };
 }
@@ -289,13 +301,31 @@ export async function resumeBusinessSends(
      WHERE tenant_id = $1 AND id = $2`,
     [input.tenantId, input.numberId],
   );
-  await setChannelState(client, {
-    tenantId: input.tenantId,
-    accountId: numero.channel_account_id,
-    state: 'active',
-    reason: 'el ADMIN reactivó los envíos',
-    requestId: input.requestId,
-  }).catch(() => {});
+  /**
+   * Y acá el `.catch` pelado era peor que en el caso de arriba, porque no hay
+   * un `throw` detrás: si esto fallaba contra la base, la función volvía como
+   * si hubiera reactivado, y el `UPDATE` de las líneas de arriba se iba en el
+   * rollback del llamador con un `current transaction is aborted` que no
+   * nombra el canal (#966).
+   */
+  await degradarSinRomper(
+    client,
+    (c) =>
+      setChannelState(c, {
+        tenantId: input.tenantId,
+        accountId: numero.channel_account_id,
+        state: 'active',
+        reason: 'el ADMIN reactivó los envíos',
+        requestId: input.requestId,
+      }).then(() => undefined),
+    (error) => {
+      console.warn(
+        `whatsapp.calidad: el número ${input.numberId} de ${input.tenantId} quedó reactivado pero ` +
+          `el canal no cambió de estado. Causa: ${error.message}`,
+      );
+      return undefined;
+    },
+  );
 }
 
 /**

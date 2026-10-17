@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import { withTenant } from '@iaxti/db';
+import { degradarSinRomper, withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import {
   changePlan,
@@ -224,16 +224,29 @@ export async function activeSupportSession(
   input: { tenantId: string; adminUser: string },
 ): Promise<{ id: string; endsAt: Date } | null> {
   if (!input.tenantId?.trim() || !input.adminUser?.trim()) return null;
-  const r = await client
-    .query(
-      `SELECT id, ends_at FROM platform_support_sessions
-        WHERE tenant_id = $1 AND admin_user = $2
-          AND ended_at IS NULL AND ends_at > now()
-        ORDER BY ends_at DESC LIMIT 1`,
-      [input.tenantId, input.adminUser],
-    )
-    .catch(() => ({ rows: [] as Array<{ id: string; ends_at: Date }> }));
-  const fila = r.rows[0];
+  // Igual que `modulosDelPlan`: esta recibe `Pool` o el cliente de quien
+  // llama, y con lo segundo el `.catch` no degradaba, abortaba (#966).
+  const filas = await degradarSinRomper(
+    client,
+    (c) =>
+      c
+        .query(
+          `SELECT id, ends_at FROM platform_support_sessions
+            WHERE tenant_id = $1 AND admin_user = $2
+              AND ended_at IS NULL AND ends_at > now()
+            ORDER BY ends_at DESC LIMIT 1`,
+          [input.tenantId, input.adminUser],
+        )
+        .then((r) => r.rows as Array<{ id: string; ends_at: Date }>),
+    (error) => {
+      console.warn(
+        `platform.soporte: no se pudo leer la sesión de soporte de ${input.tenantId}; se asume ` +
+          `que no hay. Causa: ${error.message}`,
+      );
+      return [] as Array<{ id: string; ends_at: Date }>;
+    },
+  );
+  const fila = filas[0];
   return fila ? { id: String(fila.id), endsAt: fila.ends_at } : null;
 }
 

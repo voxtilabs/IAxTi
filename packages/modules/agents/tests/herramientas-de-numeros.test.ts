@@ -25,8 +25,31 @@ const deps = (extra: Record<string, unknown> = {}) => ({
 });
 
 const base = { tenantId: 't', actorUserId: 'u', args: {} as Record<string, unknown> };
+
+/**
+ * Un cliente de mentira, y por qué dejó de alcanzar el `null` de antes.
+ *
+ * Acá iba `ejecutarHerramienta(null as never, …)`: a estas pruebas no les
+ * importan los datos, así que el cliente no hacía falta. Pero la función SÍ
+ * usa el cliente —audita cada ejecución, que es la mitad del punto de #410— y
+ * con `null` ese `writeAudit` tiraba un TypeError que el `.catch(…)` de
+ * entonces se tragaba enterito. O sea: las siete pruebas pasaban en verde
+ * mientras ninguna auditaba, y nadie podía notarlo. Es el defecto de #966 con
+ * la forma más barata posible.
+ *
+ * Al pasar la auditoría por `degradarSinRomper`, el `null` revienta donde
+ * corresponde —antes del SAVEPOINT— y hay que darle un cliente. Este guarda lo
+ * que se le pidió, así que además se puede comprobar que la auditoría ocurre.
+ */
+const consultas: string[] = [];
+const clienteDeMentira = {
+  query: async (sql: string) => {
+    consultas.push(sql);
+    return { rows: [], rowCount: 0 };
+  },
+};
 const correr = (tool: string, args: Record<string, unknown>, d = deps()) =>
-  ejecutarHerramienta(null as never, { ...base, tool, args }, d as never);
+  ejecutarHerramienta(clienteDeMentira as never, { ...base, tool, args }, d as never);
 
 describe('las herramientas de números', () => {
   it('sin el permiso de la persona no se ejecutan', async () => {
@@ -100,5 +123,21 @@ describe('las herramientas de números', () => {
         desdeA: '2026-09-01', hastaA: '2026-09-30', desdeB: '2026-09-01', hastaB: '2026-09-30' });
       expect(r.ok, t).toBe(true);
     }
+  });
+
+  /**
+   * Y la otra mitad de #410, que hasta ahora no se comprobaba: que la
+   * ejecución quede en el libro. Mientras el cliente era `null` esto no podía
+   * escribirse, porque el error se perdía.
+   */
+  it('cada ejecución queda en el libro de auditoría', async () => {
+    consultas.length = 0;
+    const r = await correr('analytics.metrica', {
+      metrica: 'ganadas',
+      desde: '2026-09-01',
+      hasta: '2026-09-30',
+    });
+    expect(r.ok).toBe(true);
+    expect(consultas.join(' ')).toContain('audit_log');
   });
 });

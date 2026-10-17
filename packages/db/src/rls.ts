@@ -71,6 +71,12 @@ export async function exigeRolQueRespetaRls(
   // dependencia dura, y `/health` es liveness justamente para no tenerlas.
   let estado: EstadoRls | null = null;
   for (let i = 0; i < Math.max(1, intentos); i++) {
+    // Acá el `.catch` no envenena a nadie y la regla de #966 queda apagada con
+    // su motivo: esto corre UNA vez en el arranque y los tres que la llaman
+    // —`api/main.ts:142`, `agents/main.ts:49`, `workers/main.ts:137`— le pasan
+    // el `Pool`, no un cliente prestado. Sobre un Pool cada consulta va en su
+    // propia conexión y un fallo no deja ninguna transacción abortada.
+    // eslint-disable-next-line iaxti/catch-sobre-cliente-ajeno -- Pool en el arranque, sin transacción
     estado = await estadoRls(client).catch(() => null);
     if (estado) break;
     if (i < intentos - 1) await new Promise((r) => setTimeout(r, 2_000));

@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { degradarSinRomper } from '@iaxti/db';
 
 /**
  * La exportación completa del tenant (issue 222, SPEC §6 y §19).
@@ -207,13 +208,34 @@ export async function exportarTenant(
   const truncadas: string[] = [];
 
   for (const tabla of TABLAS_EXPORTADAS) {
-    // Una tabla que todavía no existe (módulo nunca migrado en este
-    // despliegue) no es un error: se informa en cero y se sigue.
-    const r = await client
-      .query(`SELECT * FROM ${tabla} WHERE tenant_id = $1 LIMIT ${tope + 1}`, [input.tenantId])
-      .catch(() => ({ rows: [] as Array<Record<string, unknown>> }));
+    /**
+     * Una tabla que todavía no existe (módulo nunca migrado en este despliegue)
+     * no es un error: se informa en cero y se sigue.
+     *
+     * «Y se sigue» es lo que el `.catch` pelado no conseguía: la primera tabla
+     * ausente abortaba la transacción, así que las que quedaban del bucle
+     * fallaban TODAS con `current transaction is aborted` y se informaban en
+     * cero también. La exportación salía creíble y a medias, que en una
+     * exportación de datos personales es el peor resultado (#966).
+     */
+    const leidas = await degradarSinRomper(
+      client,
+      (c) =>
+        c
+          .query(`SELECT * FROM ${tabla} WHERE tenant_id = $1 LIMIT ${tope + 1}`, [
+            input.tenantId,
+          ])
+          .then((r) => r.rows as Array<Record<string, unknown>>),
+      (error) => {
+        console.warn(
+          `organizations.exportación: no se pudo leer "${tabla}" de ${input.tenantId}; se informa ` +
+            `en cero. Causa: ${error.message}`,
+        );
+        return [] as Array<Record<string, unknown>>;
+      },
+    );
 
-    let filas = r.rows as Array<Record<string, unknown>>;
+    let filas = leidas;
     if (filas.length > tope) {
       filas = filas.slice(0, tope);
       truncadas.push(tabla);

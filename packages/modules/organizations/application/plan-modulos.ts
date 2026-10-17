@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { degradarSinRomper } from '@iaxti/db';
 
 /**
  * Los módulos que trae el PLAN del tenant (SPEC §6, issue 209).
@@ -49,16 +50,31 @@ export async function modulosDelPlan(
 ): Promise<{ plan: string; modulos: string[] | null }> {
   const hit = CACHE.get(tenantId);
   if (hit && Date.now() - hit.at < TTL_MS) return { plan: hit.plan, modulos: hit.modulos };
-  const r = await client
-    .query(
-      `SELECT t.plan, COALESCE(pl.modules, '[]'::jsonb) AS modules
-         FROM tenants t LEFT JOIN plan_limits pl ON pl.plan = t.plan
-        WHERE t.id = $1`,
-      [tenantId],
-    )
-    .catch(() => ({ rows: [] as Array<{ plan: string; modules: string[] }> }));
-  const plan = (r.rows[0]?.plan as string) ?? '';
-  const modulos = r.rows.length > 0 ? ((r.rows[0].modules as string[]) ?? []) : null;
+  // Con savepoint porque esta función recibe lo que le toque: con un `Pool` el
+  // `.catch` no rompía nada, pero con el `PoolClient` de quien llama dejaba la
+  // transacción abortada, y el «ante la duda NO se corta» de arriba se
+  // convertía en cortar todo lo que viniera después (#966).
+  const filas = await degradarSinRomper(
+    client,
+    (c) =>
+      c
+        .query(
+          `SELECT t.plan, COALESCE(pl.modules, '[]'::jsonb) AS modules
+             FROM tenants t LEFT JOIN plan_limits pl ON pl.plan = t.plan
+            WHERE t.id = $1`,
+          [tenantId],
+        )
+        .then((r) => r.rows as Array<{ plan: string; modules: string[] }>),
+    (error) => {
+      console.warn(
+        `organizations.plan: no se pudo leer el plan de ${tenantId}; no se corta nada. ` +
+          `Causa: ${error.message}`,
+      );
+      return [] as Array<{ plan: string; modules: string[] }>;
+    },
+  );
+  const plan = filas[0]?.plan ?? '';
+  const modulos = filas.length > 0 ? (filas[0].modules ?? []) : null;
   CACHE.set(tenantId, { plan, modulos, at: Date.now() });
   return { plan, modulos };
 }
