@@ -153,15 +153,17 @@ describe('/v1/roles (#73)', () => {
 
     // Auditado + eventos.
     const eventos = await admin.query(
-      `SELECT name FROM outbox WHERE tenant_id = $1 AND name IN ('role.created','role.assigned') ORDER BY id`,
-      [tenant],
+      `SELECT name FROM outbox WHERE tenant_id = $1 AND name IN ('role.created','role.assigned')
+         AND payload->>'roleId' = $2 ORDER BY id`,
+      [tenant, rol.id],
     );
     expect(eventos.rows.map((e) => e.name)).toEqual(['role.created', 'role.assigned']);
     const audit = await admin.query(
-      `SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action LIKE 'authorization.role%'`,
-      [tenant],
+      `SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action LIKE 'authorization.role%'
+         AND (resource_id = $2 OR metadata->>'roleId' = $2)`,
+      [tenant, rol.id],
     );
-    expect(audit.rows[0].n).toBeGreaterThanOrEqual(3); // create + update + assign
+    expect(audit.rows[0].n).toBe(3); // create + update + assign
   });
 
   it('permisos piratas y de plataforma se rechazan', async () => {

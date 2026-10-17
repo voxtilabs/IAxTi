@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { assignRole, membershipsOf, teamMemberships, removeMembership } from '@iaxti/module-authorization';
 
 export interface Invitation {
   id: string;
@@ -71,34 +72,10 @@ export async function acceptInvitation(
     throw new Error('Esa invitación venció (duran 7 días). Pide que te inviten de nuevo.');
   }
 
-  /**
-   * El rol de la invitación: base O PROPIO del negocio (#556).
-   *
-   * Buscaba solo entre los base (`tenant_id IS NULL AND base`). Desde que se
-   * puede invitar a un rol propio (#532) eso dejaba la invitación MUERTA: se
-   * creaba con su correo y su enlace, la persona entraba, hacía clic, y acá
-   * fallaba con «Rol desconocido». Peor: la fila se quedaba sin aceptar, así que
-   * tampoco se podía volver a invitar a esa dirección hasta que venciera.
-   *
-   * Se resuelve como lo hace `assignRole`: el rol del negocio o un base que no
-   * sea SUPERADMIN. Ese es el mismo conjunto que se puede asignar, y una
-   * invitación no es más que una asignación diferida.
-   */
-  const role = await client.query(
-    `SELECT id FROM roles
-      WHERE name = $2
-        AND (tenant_id = $1 OR (tenant_id IS NULL AND base AND name <> 'SUPERADMIN'))
-      ORDER BY base DESC
-      LIMIT 1`,
-    [inv.tenant_id, inv.role_name],
-  );
-  if (role.rowCount === 0) throw new Error(`Rol desconocido en la invitación: ${inv.role_name}`);
-
-  await client.query(
-    `INSERT INTO user_roles (tenant_id, user_id, role_id) VALUES ($1, $2, $3)
-     ON CONFLICT (tenant_id, user_id) DO UPDATE SET role_id = EXCLUDED.role_id`,
-    [inv.tenant_id, input.userId, role.rows[0].id],
-  );
+  await assignRole(client, {
+    tenantId: inv.tenant_id, userId: input.userId, roleName: inv.role_name,
+    actor: input.userId, requestId: input.requestId, createIfMissing: true,
+  });
   await client.query('UPDATE invitations SET accepted_at = now(), accepted_by = $2 WHERE id = $1', [
     inv.id,
     input.userId,
@@ -122,38 +99,23 @@ export interface Membership {
 /**
  * Los negocios a los que pertenece un usuario, para el selector de tenant
  * del shell (un usuario puede estar en varios con roles distintos, SPEC §9).
- * Se consulta con la conexión de servicio: cruza tenants ANTES de que exista
- * un tenant en contexto.
+ * El caller fija app.user_id desde la sesión autenticada dentro de una
+ * transacción: la política permite solo las membresías de esa persona.
  */
 export async function tenantsOf(client: PoolClient, userId: string): Promise<Membership[]> {
-  const result = await client.query(
-    `SELECT t.id AS tenant_id, t.name AS tenant_name, r.name AS role_name
-       FROM user_roles ur
-       JOIN tenants t ON t.id = ur.tenant_id
-       JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = $1
-      ORDER BY t.name`,
-    [userId],
-  );
+  const memberships = await membershipsOf(client, userId);
+  if (!memberships.length) return [];
+  const result = await client.query('SELECT id, name FROM tenants WHERE id = ANY($1::uuid[]) ORDER BY name',
+    [memberships.map((membership) => membership.tenantId)]);
+  const roleNames = new Map(memberships.map((membership) => [membership.tenantId, membership.roleName]));
   return result.rows.map((row) => ({
-    tenantId: row.tenant_id,
-    tenantName: row.tenant_name,
-    roleName: row.role_name,
+    tenantId: row.id as string, tenantName: row.name as string, roleName: roleNames.get(row.id)!,
   }));
 }
 
 /** Rol del usuario en el tenant (el guard lo consulta por request). */
-export async function roleOf(
-  client: PoolClient,
-  tenantId: string,
-  userId: string,
-): Promise<string | null> {
-  const result = await client.query(
-    `SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-      WHERE ur.tenant_id = $1 AND ur.user_id = $2`,
-    [tenantId, userId],
-  );
-  return result.rowCount === 0 ? null : result.rows[0].name;
+export async function roleOf(client: PoolClient, tenantId: string, userId: string): Promise<string | null> {
+  return (await teamMemberships(client, tenantId, [userId])).find((member) => member.userId === userId)?.roleName ?? null;
 }
 
 export async function upsertProfile(
@@ -197,26 +159,21 @@ export async function listarEquipo(
   client: PoolClient,
   tenantId: string,
 ): Promise<MiembroEquipo[]> {
+  const members = await teamMemberships(client, tenantId);
+  if (!members.length) return [];
   const r = await client.query(
-    `SELECT ur.user_id, r.name AS rol, ur.created_at AS desde,
-            p.name AS nombre,
+    `SELECT u.id AS user_id, p.name AS nombre,
             (SELECT i.email FROM invitations i
-              WHERE i.tenant_id = ur.tenant_id AND i.accepted_by = ur.user_id
-                AND i.email IS NOT NULL
+              WHERE i.tenant_id = $2 AND i.accepted_by = u.id AND i.email IS NOT NULL
               ORDER BY i.accepted_at DESC LIMIT 1) AS email
-       FROM user_roles ur
-       JOIN roles r ON r.id = ur.role_id
-       LEFT JOIN user_profiles p ON p.user_id = ur.user_id
-      WHERE ur.tenant_id = $1
-      ORDER BY ur.created_at`,
-    [tenantId],
+       FROM unnest($1::uuid[]) AS u(id)
+       LEFT JOIN user_profiles p ON p.user_id = u.id`,
+    [members.map((member) => member.userId), tenantId],
   );
-  return r.rows.map((row) => ({
-    userId: row.user_id as string,
-    nombre: (row.nombre as string) ?? null,
-    email: (row.email as string) ?? null,
-    rol: row.rol as string,
-    desde: row.desde as Date,
+  const profiles = new Map(r.rows.map((row) => [row.user_id, row]));
+  return members.map((member) => ({
+    userId: member.userId, nombre: profiles.get(member.userId)?.nombre ?? null,
+    email: profiles.get(member.userId)?.email ?? null, rol: member.roleName, desde: member.joinedAt,
   }));
 }
 
@@ -261,38 +218,12 @@ export async function cancelarInvitacion(
  * que se quita es el acceso.
  *
  * Nadie puede quitarse a sí mismo, y no se puede dejar el negocio sin
- * ningún ADMIN: un tenant sin quien lo administre solo se arregla desde la
+ * nadie con roles.manage: un tenant sin quien lo administre solo se arregla desde la
  * plataforma, y eso es un ticket de soporte que nadie quiere abrir.
  */
 export async function quitarDelEquipo(
   client: PoolClient,
   input: { tenantId: string; userId: string; actor: string },
 ): Promise<void> {
-  if (input.userId === input.actor) {
-    throw new Error('No puedes quitarte a ti mismo: pídeselo a otra persona que administre.');
-  }
-  const objetivo = await client.query(
-    `SELECT r.name AS rol FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-      WHERE ur.tenant_id = $1 AND ur.user_id = $2`,
-    [input.tenantId, input.userId],
-  );
-  if (objetivo.rowCount === 0) {
-    throw new Error('Esa persona no está en este negocio.');
-  }
-  if (objetivo.rows[0].rol === 'ADMIN') {
-    const admins = await client.query(
-      `SELECT count(*)::int AS n FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-        WHERE ur.tenant_id = $1 AND r.name = 'ADMIN'`,
-      [input.tenantId],
-    );
-    if (admins.rows[0].n <= 1) {
-      throw new Error(
-        'Es la única persona que administra el negocio: nombra a otra antes de quitarla.',
-      );
-    }
-  }
-  await client.query('DELETE FROM user_roles WHERE tenant_id = $1 AND user_id = $2', [
-    input.tenantId,
-    input.userId,
-  ]);
+  await removeMembership(client, input);
 }

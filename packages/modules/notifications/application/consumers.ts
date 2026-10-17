@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { usersWithPermission } from '@iaxti/module-authorization';
 import type { Consumer, EventEnvelope } from '@iaxti/core';
 import {
   TIPOS_CRITICOS,
@@ -22,24 +23,14 @@ interface Aviso {
   recipients: string[];
 }
 
-/** Supervisores y admins del tenant: routing de avisos, no autorización
- *  (ADR-0008 gobierna permisos; a quién se le avisa es otra pregunta). */
+/** Avisos de supervisión para quien puede asignar, incluidos roles propios. */
 async function supervisores(client: PoolClient, tenantId: string): Promise<string[]> {
-  const r = await client.query(
-    `SELECT ur.user_id FROM user_roles ur JOIN roles ro ON ro.id = ur.role_id
-      WHERE ur.tenant_id = $1 AND ro.name IN ('SUPERVISOR', 'ADMIN')`,
-    [tenantId],
-  );
-  return r.rows.map((row) => row.user_id);
+  return usersWithPermission(client, tenantId, 'conversations.assign');
 }
 
+/** Avisos de configuración para quien puede administrar ajustes del negocio. */
 async function admins(client: PoolClient, tenantId: string): Promise<string[]> {
-  const r = await client.query(
-    `SELECT ur.user_id FROM user_roles ur JOIN roles ro ON ro.id = ur.role_id
-      WHERE ur.tenant_id = $1 AND ro.name = 'ADMIN'`,
-    [tenantId],
-  );
-  return r.rows.map((row) => row.user_id);
+  return usersWithPermission(client, tenantId, 'tenant.settings');
 }
 
 /**

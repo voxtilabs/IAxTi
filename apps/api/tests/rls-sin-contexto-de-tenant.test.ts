@@ -73,6 +73,8 @@ beforeAll(async () => {
     "INSERT INTO tenants (name, plan, state) VALUES ('rls-sin-contexto', 'base', 'active') RETURNING id",
   );
   tenant = t.rows[0].id;
+  await admin.query(`INSERT INTO user_roles(tenant_id,user_id,role_id)
+    SELECT $1,$2,id FROM roles WHERE base AND name='ADMIN'`, [tenant, randomUUID()]);
 
   const widget = await withTenant(admin, tenant, (c) =>
     createWidget(c, { tenantId: tenant, allowedDomain: DOMINIO, name: 'Chat del sitio' }),
@@ -169,6 +171,8 @@ describe('la verificación de la cadena del libro de auditoría', () => {
     // `{ valid: true, entries: 0 }`. Un libro append-only cuya verificación
     // dice "válido" sin haber podido leer una sola fila da una garantía que
     // no comprobó, y es justo lo que un auditor viene a mirar.
+    // Aceptar la invitación ahora audita la asignación por authorization (#902).
+    entradasDelLibro = (await admin.query('SELECT count(*)::int AS n FROM audit_log WHERE tenant_id=$1', [tenant])).rows[0].n;
     const r = await new PlatformAuditController().verify(tenant, {});
     expect(r).toEqual({ valid: true, entries: entradasDelLibro });
     expect(entradasDelLibro).toBeGreaterThan(0);

@@ -68,7 +68,7 @@ import {
   modulosVendibles,
 } from '@iaxti/module-organizations';
 import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
-import { withTenant } from '@iaxti/db';
+import { withTenant, withAuthenticatedUser } from '@iaxti/db';
 import {
   esProduccion,
   leerConCache,
@@ -172,7 +172,8 @@ class MeController {
    * USUARIO, que es otra forma de clave y aflojaría la regla «no hay caché sin
    * tenant» para una sola ruta.
    *
-   * Hace UNA consulta, así que son 64 ms, no 192. Si algún día hace falta, el
+   * La lectura de membresías y los nombres de los negocios comparten transacción.
+   * Si algún día hace falta, el
    * camino es un prefijo propio (`cache:usuario:{id}:…`) decidido a propósito y
    * no colándolo por acá.
    */
@@ -188,13 +189,8 @@ class MeController {
       });
     }
     const user = request.user as { userId: string; email?: string };
-    const client = await pool.connect();
-    try {
-      const tenants = await tenantsOf(client, user.userId);
-      return { userId: user.userId, email: user.email ?? null, tenants };
-    } finally {
-      client.release();
-    }
+    const tenants = await withAuthenticatedUser(pool, user.userId, (client) => tenantsOf(client, user.userId));
+    return { userId: user.userId, email: user.email ?? null, tenants };
   }
 
   /**
