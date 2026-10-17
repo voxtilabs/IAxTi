@@ -11,7 +11,7 @@ import type { Actor, WithUser } from './authz/authz.guard';
  *
  * Vive acá y no en un controlador porque lo usan DOS: el Agente General, que
  * aplica lo que propuso conversando, y la bandeja, que aplica la acción que el
- * asistente dejó junto a su respuesta (#999). Copiarlo habría sido el segundo
+ * asistente dejó junto a su respuesta (#1000). Copiarlo habría sido el segundo
  * camino con reglas propias que ADR-0025 vino a evitar.
  */
 export function llamarLaPropiaApi(request: WithUser) {

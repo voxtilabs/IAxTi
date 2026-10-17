@@ -2,7 +2,7 @@
 // primer objeto, tolera fences, y ante basura cae a "todo es sugerencia".
 
 /**
- * La acción que el asistente propone junto a su respuesta (#999).
+ * La acción que el asistente propone junto a su respuesta (#1000).
  *
  * `herramienta` es un nombre del catálogo del Agente General. Acá solo se
  * valida la FORMA —que haya nombre y que los argumentos sean un objeto—;

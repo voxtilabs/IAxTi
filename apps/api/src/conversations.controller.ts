@@ -591,7 +591,7 @@ export class ConversationsController {
   }
 
   /**
-   * La acción que el asistente dejó propuesta, aplicada en un toque (#999).
+   * La acción que el asistente dejó propuesta, aplicada en un toque (#1000).
    *
    * El asistente ya contesta solo, pero no podía HACER: las siete herramientas
    * que escriben están cerradas por ADR-0017 —«sale hacia el cliente o pisa

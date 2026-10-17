@@ -2,7 +2,7 @@ import { CATALOGO } from './catalogo';
 import type { AccionPropuesta } from '../domain/parser';
 
 /**
- * Lo que el asistente de la bandeja puede PROPONER (#999).
+ * Lo que el asistente de la bandeja puede PROPONER (#1000).
  *
  * ## Por qué esta lista y no el catálogo entero
  *

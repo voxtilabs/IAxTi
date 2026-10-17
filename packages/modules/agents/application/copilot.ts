@@ -23,7 +23,7 @@ export interface Suggestion {
   leadScore: 'frio' | 'tibio' | 'caliente' | null;
   suggestDeal: boolean;
   /**
-   * La acción que el asistente propone junto al texto (#999), o `null`.
+   * La acción que el asistente propone junto al texto (#1000), o `null`.
    *
    * `suggestDeal` es su antepasado: el booleano «¿creo la oportunidad?»,
    * cableado a mano para un solo caso. Se mantiene porque hay filas viejas y

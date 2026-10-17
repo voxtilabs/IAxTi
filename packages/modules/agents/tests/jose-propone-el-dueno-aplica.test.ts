@@ -11,7 +11,7 @@ import { aplicarAccionDeLaSugerencia } from '../application/acciones-que-se-prop
 import { CATALOGO } from '../application/catalogo';
 
 /**
- * El asistente propone la acción; el dueño aplica (#999).
+ * El asistente propone la acción; el dueño aplica (#1000).
  *
  * El hueco que esto cierra: el asistente ya contesta solo —`autoRespondForInbound`
  * manda el mensaje firmado— pero no puede HACER. Las siete herramientas que

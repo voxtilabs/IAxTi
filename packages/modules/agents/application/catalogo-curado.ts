@@ -41,7 +41,7 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PaymentsController_guardarAjustes:
     'Sube o baja el tope de monto de quien cobra: es el límite que protege al negocio, y lo mueve una persona en su pantalla (#535).',
 
-  // El botón de «confirmar» de la bandeja NO es una herramienta (#999).
+  // El botón de «confirmar» de la bandeja NO es una herramienta (#1000).
   //
   // Esta ruta aplica la acción que el asistente dejó propuesta, y existe
   // justamente porque esa acción la tiene que decidir una PERSONA (ADR-0017).
@@ -49,7 +49,7 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   // agendar, y después se autoriza a agendar. El visto bueno dejaría de ser un
   // visto bueno y pasaría a ser un trámite que el agente se hace solo.
   ConversationsController_aplicarAccionSugerida:
-    'Es el visto bueno de una persona sobre lo que el asistente propuso: dárselo al agente sería dejar que apruebe su propia propuesta (#999, ADR-0017).',
+    'Es el visto bueno de una persona sobre lo que el asistente propuso: dárselo al agente sería dejar que apruebe su propia propuesta (#1000, ADR-0017).',
 
   PlatformController_ampliacionDeIa:
     'Fija un cargo mensual en la factura de un cliente. Es la misma línea que PaymentsController_guardarAjustes: lo que toca plata lo mueve una persona en su pantalla, no algo que conversa (#536).',

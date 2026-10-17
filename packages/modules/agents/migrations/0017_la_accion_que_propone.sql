@@ -1,4 +1,4 @@
--- La acción que el asistente PROPONE junto a su respuesta (#999).
+-- La acción que el asistente PROPONE junto a su respuesta (#1000).
 --
 -- ## El hueco que cierra
 --

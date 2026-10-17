@@ -700,7 +700,7 @@ export function Chat({
           <p className="rotulo">Sugerencia del asistente{sugerencia.confidence !== null && ` · ${Math.round(sugerencia.confidence * 100)} %`}</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{sugerencia.text}</p>
           <EnQueSeApoyo herramientas={sugerencia.herramientas} fuentes={sugerencia.fuentes} />
-          {/* La acción que el asistente dejó propuesta (#999).
+          {/* La acción que el asistente dejó propuesta (#1000).
               Va ARRIBA de «Enviar sugerencia» porque es la decisión más
               pesada de las dos: el texto sale hacia el cliente, y esto toca
               la agenda, el cobro o el estado. Y dice «propone», nunca «hizo»:
