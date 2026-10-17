@@ -49,11 +49,27 @@ detalle_del_despliegue() {
   # El cuerpo crudo NO se publica: el log de Actions lo lee cualquiera con acceso
   # al repo y la respuesta de Dokploy puede arrastrar variables del entorno. Con
   # el código y la forma alcanza para saber a quién llamar.
-  local cuerpo codigo
-  cuerpo=$(curl -sS -m 20 -w '\n%{http_code}' "${auth[@]}" \
-    "${DOKPLOY_URL}/api/deployment.all?composeId=${COMPOSE_ID}" 2>/dev/null) || true
-  codigo=$(printf '%s' "$cuerpo" | tail -n1)
-  cuerpo=$(printf '%s' "$cuerpo" | sed '$d')
+  # Dos rutas, y la segunda no es un adorno (#1002).
+  #
+  # `deployment.all` contestó **400** el 17/10, con el deploy ya fallado: o sea
+  # que justo cuando hacía falta saber por qué, esto se quedaba en «Dokploy
+  # contestó 400 al pedir el detalle» y ahí moría la pista. `compose.one`
+  # respondía bien en la misma corrida, así que no era la credencial ni
+  # Cloudflare: era ESTA llamada.
+  #
+  # En las versiones de Dokploy que separan aplicaciones de composes,
+  # `deployment.all` es la de una aplicación y la de un compose es
+  # `deployment.allByCompose`. Se prueban las dos y se dice cuál contestó, en
+  # vez de elegir una y volver a quedarnos ciegos el día que cambie.
+  local cuerpo codigo ruta
+  for ruta in deployment.allByCompose deployment.all; do
+    cuerpo=$(curl -sS -m 20 -w '\n%{http_code}' "${auth[@]}" \
+      "${DOKPLOY_URL}/api/${ruta}?composeId=${COMPOSE_ID}" 2>/dev/null) || true
+    codigo=$(printf '%s' "$cuerpo" | tail -n1)
+    cuerpo=$(printf '%s' "$cuerpo" | sed '$d')
+    [ "$codigo" = '200' ] && break
+  done
+  echo "  (detalle pedido por ${ruta}, HTTP ${codigo:-sin código})"
 
   case "$codigo" in
     200) ;;
@@ -69,6 +85,20 @@ detalle_del_despliegue() {
       echo "  Dokploy contestó 404 al pedir el detalle: esa ruta no existe en esta"
       echo "  versión de Dokploy. Hay que mirar qué endpoint expone para los"
       echo "  despliegues; el arreglo es acá, no en el deploy."
+      return ;;
+    400|422)
+      # El mensaje de validación de Dokploy, y SOLO ese campo.
+      #
+      # El cuerpo crudo no se publica —puede arrastrar variables del entorno y
+      # el log de Actions lo lee cualquiera con acceso al repo— pero un 400 es
+      # un error de validación, no un log de despliegue: ahí el `message`
+      # nombra el parámetro que falta o sobra, que es exactamente lo que hace
+      # falta para arreglar la llamada.
+      local motivo
+      motivo=$(printf '%s' "$cuerpo" | jq -r '.message // .error.message // empty' 2>/dev/null)
+      echo "  Dokploy contestó ${codigo} al pedir el detalle: la llamada no le sirve."
+      [ -n "$motivo" ] && echo "  Dice: ${motivo:0:300}"
+      echo "  El arreglo es acá, en la ruta o sus parámetros, no en el despliegue."
       return ;;
     *)
       echo "  Dokploy contestó ${codigo} al pedir el detalle."
