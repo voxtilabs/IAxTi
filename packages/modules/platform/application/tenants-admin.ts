@@ -3,6 +3,7 @@ import { withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import {
   changePlan,
+  extenderPrueba,
   changeTenantState,
   createTenant,
   getTenant,
@@ -158,22 +159,13 @@ export async function adminExtendTrial(
   pool: Pool,
   input: { tenantId: string; days: number; adminUser: string },
 ): Promise<{ trialEndsAt: Date }> {
-  if (!(Number(input.days) >= 1 && Number(input.days) <= 90)) {
-    throw new Error('La extensión va de 1 a 90 días.');
-  }
-  const r = await pool.query(
-    `UPDATE tenants SET trial_ends_at = GREATEST(COALESCE(trial_ends_at, now()), now()) + make_interval(days => $2)
-      WHERE id = $1 RETURNING trial_ends_at`,
-    [input.tenantId, input.days],
-  );
-  if (r.rowCount === 0) throw new Error('No encontramos ese tenant.');
-  await auditSuperadmin(pool, {
-    tenantId: input.tenantId,
-    adminUser: input.adminUser,
-    action: 'platform.tenant.extend_trial',
-    metadata: { days: input.days },
-  });
-  return { trialEndsAt: r.rows[0].trial_ends_at };
+  return withTenant(pool, input.tenantId, (client) => extenderPrueba(client, {
+    tenantId: input.tenantId, days: input.days,
+    auditoria: {
+      actor: input.adminUser, actorKind: 'superadmin',
+      registrar: (c, entrada) => writeAudit(c, { ...entrada, action: 'platform.tenant.extend_trial' }),
+    },
+  }));
 }
 
 /**

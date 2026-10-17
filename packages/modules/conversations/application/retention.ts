@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { writeAudit } from '@iaxti/module-audit';
+import { guardarRetencionTenant, leerRetencionTenant, tenantsConRetencion, type AuditoriaTenant } from '@iaxti/module-organizations';
 import { presignUrl, publishEvent, type Consumer, type EventEnvelope, type StorageConfig } from '@iaxti/core';
 
 // Retención por plan (#77, SPEC §39): el borrado es FÍSICO y por eso
@@ -26,25 +27,9 @@ export async function retentionCutoff(
   tenantId: string,
   now: Date = new Date(),
 ): Promise<RetentionCutoff> {
-  const r = await client.query(
-    `SELECT pl.retention_months,
-            t.settings->'retencion'->>'monthsOverride' AS override,
-            t.settings->'retencion'->>'firstPurgeAfter' AS first_purge_after
-       FROM tenants t LEFT JOIN plan_limits pl ON pl.plan = t.plan
-      WHERE t.id = $1`,
-    [tenantId],
-  );
-  if (r.rowCount === 0) return { cutoff: null, months: null, deferredUntil: null };
-  const fila = r.rows[0];
-  const delPlan = fila.retention_months === null ? null : Number(fila.retention_months);
-  const override = Number(fila.override);
-  // El override solo puede ACORTAR (≤ plan); uno inválido se ignora.
-  const months =
-    Number.isFinite(override) && override > 0 && (delPlan === null || override <= delPlan)
-      ? override
-      : delPlan;
-  if (months === null) return { cutoff: null, months: null, deferredUntil: null };
-  const deferred = fila.first_purge_after ? new Date(fila.first_purge_after) : null;
+  const retencion = await leerRetencionTenant(client, tenantId);
+  if (!retencion || retencion.months === null) return { cutoff: null, months: null, deferredUntil: null };
+  const { months, firstPurgeAfter: deferred } = retencion;
   const cutoff = new Date(now);
   cutoff.setMonth(cutoff.getMonth() - months);
   return {
@@ -63,6 +48,7 @@ export async function scheduleRetentionNotice(
   client: PoolClient,
   tenantId: string,
   now: Date = new Date(),
+  autor: Pick<AuditoriaTenant, 'actor' | 'actorKind'> = { actor: 'system', actorKind: 'system' },
 ): Promise<{ affected: number; firstPurgeAt: Date } | null> {
   const { cutoff } = await retentionCutoff(client, tenantId, now);
   if (!cutoff) return null;
@@ -75,38 +61,26 @@ export async function scheduleRetentionNotice(
   const affected = r.rows[0].n;
   if (affected === 0) return null;
   const firstPurgeAt = new Date(now.getTime() + 30 * 86_400_000);
-  await client.query(
-    `UPDATE tenants SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{retencion}',
-       COALESCE(settings->'retencion', '{}'::jsonb) || jsonb_build_object('firstPurgeAfter', $2::text))
-      WHERE id = $1`,
-    [tenantId, firstPurgeAt.toISOString()],
-  );
+  await guardarRetencionTenant(client, {
+    tenantId, firstPurgeAfter: firstPurgeAt,
+    auditoria: { ...autor, registrar: writeAudit },
+  });
   return { affected, firstPurgeAt };
 }
 
 /** El override se VALIDA al guardar: solo retener MENOS o igual (§39). */
 export async function setRetentionOverride(
   client: PoolClient,
-  input: { tenantId: string; months: number | null },
+  input: { tenantId: string; months: number | null; actor?: string; actorKind?: AuditoriaTenant['actorKind'] },
 ): Promise<void> {
-  if (input.months !== null) {
-    if (!(Number(input.months) >= 1)) throw new Error('La retención mínima es de 1 mes.');
-    const r = await client.query(
-      `SELECT pl.retention_months FROM tenants t
-         LEFT JOIN plan_limits pl ON pl.plan = t.plan WHERE t.id = $1`,
-      [input.tenantId],
-    );
-    const delPlan = r.rows[0]?.retention_months;
-    if (delPlan !== null && delPlan !== undefined && Number(input.months) > Number(delPlan)) {
-      throw new Error(`Tu plan retiene hasta ${delPlan} meses: el ajuste no puede superarlo.`);
-    }
-  }
-  await client.query(
-    `UPDATE tenants SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{retencion}',
-       COALESCE(settings->'retencion', '{}'::jsonb) || jsonb_build_object('monthsOverride', $2::int))
-      WHERE id = $1`,
-    [input.tenantId, input.months],
-  );
+  await guardarRetencionTenant(client, {
+    tenantId: input.tenantId, monthsOverride: input.months,
+    auditoria: {
+      actor: input.actor ?? 'system',
+      actorKind: input.actorKind ?? (input.actor ? 'user' : 'system'),
+      registrar: writeAudit,
+    },
+  });
 }
 
 /** Al cambiar de plan: si la retención nueva capturaría conversaciones,
@@ -250,12 +224,14 @@ export async function purgeTenantRetention(
       actor: 'system',
     });
     // La purga diferida ya corrió: la marca de 30 días se limpia.
-    await cAudit.query(
-      `UPDATE tenants SET settings = settings #- '{retencion,firstPurgeAfter}'
-        WHERE id = $1 AND settings->'retencion' ? 'firstPurgeAfter'`,
-      [tenantId],
-    );
+    await guardarRetencionTenant(cAudit, {
+      tenantId, firstPurgeAfter: null, now,
+      auditoria: { actor: 'system', actorKind: 'system', registrar: writeAudit },
+    });
     await cAudit.query('COMMIT');
+  } catch (error) {
+    await cAudit.query('ROLLBACK');
+    throw error;
   } finally {
     cAudit.release();
   }
@@ -293,12 +269,5 @@ export async function deleteR2Keys(
 
 /** Tenants ACTIVOS con retención finita (el padre del job, §39). */
 export async function tenantsWithRetention(pool: Pick<Pool, 'query'>): Promise<string[]> {
-  const r = await pool.query(
-    `SELECT t.id FROM tenants t
-       LEFT JOIN plan_limits pl ON pl.plan = t.plan
-      WHERE t.state = 'active'
-        AND (pl.retention_months IS NOT NULL
-             OR (t.settings->'retencion'->>'monthsOverride') IS NOT NULL)`,
-  );
-  return r.rows.map((x) => x.id);
+  return tenantsConRetencion(pool);
 }

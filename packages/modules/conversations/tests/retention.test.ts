@@ -132,8 +132,7 @@ describe('la purga (#77)', () => {
 
   it('bajar de plan difiere la purga 30 días con la cantidad EXACTA', async () => {
     await conversacionVieja('+56901010005', 14, 'resolved');
-    const client = await admin.connect();
-    try {
+    await withTenant(admin, tenant, async (client) => {
       const consumer = retentionConsumers()[0];
       await consumer.handler(
         {
@@ -148,9 +147,7 @@ describe('la purga (#77)', () => {
         } as never,
         client,
       );
-    } finally {
-      client.release();
-    }
+    });
     const evento = await admin.query(
       `SELECT payload FROM outbox WHERE tenant_id = $1 AND name = 'conversations.retention.scheduled'`,
       [tenant],
