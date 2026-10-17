@@ -365,7 +365,11 @@ jobs:
           # dentro de un `run:` de cuarenta líneas no se puede, y la primera
           # versión de esto tenía una rama sin cubrir — la del timeout, que es
           # justo la que se estrenó.
-          ESPERA_DEPLOY_SEG=${ESPERA_DEPLOY_SEG:-900} bash scripts/esperar-deploy.sh
+          # El presupuesto NO se fija acá: lo decide el script, que es donde
+          # está la medición que lo justifica (#1007). Esta línea repetía el
+          # mismo número en un segundo lugar, y el segundo lugar ganaba — así
+          # que subirlo en el script no habría cambiado nada.
+          bash scripts/esperar-deploy.sh
 
           # Y si aun así el contenedor no tomó la imagen, se fuerza (#652).
           # Dokploy dice «done» en 11 s y con sourceType raw no recrea nada.
