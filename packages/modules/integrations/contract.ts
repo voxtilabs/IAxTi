@@ -14,3 +14,6 @@ export {
 } from './application/webhooks';
 export type { WebhookEndpoint, Delivery } from './application/webhooks';
 export { signPayload, verifySignature, newWebhookSecret, backoffMinutes, MAX_ATTEMPTS } from './domain/signing';
+
+// Supresión legal coordinada por CRM en una única transacción (#903).
+export { suprimirDatosDelTitular } from './application/titular';

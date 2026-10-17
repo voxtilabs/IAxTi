@@ -34,11 +34,13 @@ import {
   updateContact,
 } from '@iaxti/module-crm';
 import type { ActivityType, ImportField } from '@iaxti/module-crm';
+import { exportarDatosDelTitular } from '@iaxti/module-conversations';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
+import { supresionEnModulos } from './supresion-titular';
 
 function pool() {
   const p = apiPool();
@@ -267,6 +269,7 @@ export class ContactsController {
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
         exportarTitular(c, {
+          leerConversaciones: exportarDatosDelTitular,
           tenantId: actor.tenantId,
           contactId: id,
           actor: actor.userId,
@@ -300,6 +303,7 @@ export class ContactsController {
           // cumplida. Quien sabe si este ambiente tiene almacén es el
           // controlador.
           almacen: almacenR2(),
+          modulos: supresionEnModulos,
         }),
       );
     } catch (err) {

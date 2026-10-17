@@ -64,7 +64,4 @@
 # Y con `--detalle` imprime las tablas y los archivos de cada entrada, que es lo
 # que hace falta para escribir ese motivo.
 
-crm→agents (escribe: agent_executions · lee: suggestions) — Supresión del titular (Ley 21.719, #81): `suggestions` es el único puente hacia `agent_executions`, y ahí está el texto de la conversación tal como se le mandó al modelo. Borrar los mensajes y dejar esa copia no es una supresión. Las cuatro escrituras de `titular.ts` van en UNA transacción a propósito: repartidas en cuatro contratos, un fallo deja la supresión a medias y eso hay que poder demostrarlo ante quien lo pregunte. Arreglo: #903.
-crm→conversations (escribe: conversations, messages) — Supresión y exportación del titular: sus conversaciones y el contenido de sus mensajes también son suyos. La conversación queda vacía y archivada en vez de borrada porque el negocio tiene que seguir sabiendo que hubo un trato, aunque ya no sepa con quién. Arreglo: #903.
-crm→integrations (escribe: webhook_deliveries) — Supresión del titular: el `payload` de la entrega de webhook lleva los datos de la persona tal como salieron hacia afuera. Vaciarlo es parte de la supresión, y en la misma transacción que el resto. Arreglo: #903.
-crm→payments (escribe: payment_links) — Supresión del titular: el `concept` del link de pago es texto escrito a mano y suele nombrar a la persona. Montos, estados y fechas se conservan por obligación legal de guarda, así que se vacía la columna y no la fila. Arreglo: #903.
+
