@@ -68,9 +68,35 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const tabla of ['response_samples', 'conversations', 'contacts', 'outbox']) {
+  /**
+   * `conversations` ANTES de `response_samples`, y el orden es el arreglo.
+   *
+   * Al revés —como estaba— esto se cae así:
+   *
+   *     update or delete on table "tenants" violates foreign key constraint
+   *     "response_samples_tenant_id_fkey" on table "response_samples"
+   *
+   * y las 40 pruebas en verde, porque lo que falla es la limpieza. La causa es
+   * que `sweepResponseSamples` es GLOBAL: los otros archivos de este paquete lo
+   * llaman y vitest los corre en paralelo contra la misma base. Borrando las
+   * muestras primero, la conversación de este tenant sigue ahí un instante más
+   * —muestreable— así que un barrido ajeno vuelve a insertar su muestra, y el
+   * `DELETE FROM tenants` de abajo se encuentra una fila que ya no esperaba.
+   *
+   * Borrando la conversación primero se cierra la puerta por donde entran las
+   * muestras nuevas, y después se barre lo que haya quedado. Es el mismo
+   * problema que #972 con el outbox compartido y #986 con el costo del barrido:
+   * en este paquete nada es solo de un archivo.
+   */
+  for (const tabla of ['conversations', 'response_samples', 'contacts', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
+  // Y una segunda pasada por las muestras, que cubre la ventana que queda: un
+  // barrido que YA había leído la conversación antes de que la borráramos
+  // todavía puede insertar su muestra. Sin la conversación,
+  // `tenants_con_muestras_por_tomar()` ya no devuelve este tenant, así que
+  // después de esto no vuelve a aparecer nada.
+  await admin.query('DELETE FROM response_samples WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });
