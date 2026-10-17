@@ -47,6 +47,18 @@ describe('salud y disponibilidad', () => {
       // «el producto está roto». Tampoco bloquea: en un ambiente de pruebas una
       // llave de prueba es la decisión correcta.
       'canal',
+      // Y los cuatro bordes que antes podían estar apagados sin que nada lo
+      // dijera (#997). Esta lista exacta es lo que hace que agregar un borde
+      // sea una decisión y no un descuido: cuando agregué los cuatro, esta
+      // prueba se puso roja, que es exactamente para lo que está.
+      //
+      // Ninguno bloquea, por lo mismo que la IA y el canal: un despliegue sin
+      // adjuntos —el simulador, una demo— o sin SMTP es legítimo, y responder
+      // 503 por eso dejaría al negocio sin atender para castigar una variable.
+      'correo',
+      'adjuntos',
+      'calendario',
+      'pagos',
     ]);
     for (const dep of cuerpo.dependencias) {
       expect(typeof dep.ms).toBe('number');

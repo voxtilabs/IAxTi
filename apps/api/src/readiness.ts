@@ -448,6 +448,7 @@ export async function checkReadiness(
 
   dependencias.push(credencialesDeIa());
   dependencias.push(credencialDelCanal());
+  for (const borde of CAPACIDADES_POR_CONFIGURACION) dependencias.push(estadoDe(borde));
 
   return {
     // Solo las que bloquean deciden si se sale de rotación.
@@ -545,5 +546,102 @@ function credencialesDeIa(): Dependencia {
         ? `${con} de ${PROVIDERS.length} proveedores con credencial.`
         : 'Ningún proveedor de IA tiene credencial en este ambiente: el asistente no puede ' +
           'trabajar. El detalle, con el nombre de cada variable, está en /agents/diagnostico.',
+  };
+}
+
+/**
+ * Los cuatro bordes que podían estar apagados sin que nada lo dijera (#997).
+ *
+ * `/ready` vigilaba cuatro dependencias —Postgres, Redis, el canal, la IA— y el
+ * producto tiene seis bordes con el mundo. Los dos que faltaban son justamente
+ * los que fallan en SILENCIO, y hay evidencia de esta semana: el SMTP se armaba
+ * contra el puerto 0 porque el compose pasaba `SMTP_PORT` vacío (#985), los
+ * correos no salían, el envío es mejor-esfuerzo, y no había ninguna pantalla
+ * donde eso se viera. Lo encontró una línea de la medición de #953.
+ *
+ * Es la misma forma que #641 con la credencial de prueba del canal: el arreglo
+ * no faltaba, faltaba el LUGAR donde se vería.
+ *
+ * ## Qué contesta esto, y qué NO
+ *
+ * Contesta «¿está configurado?», que es el modo de falla real: la variable
+ * llega vacía —el compose la interpola pelada— y la capacidad se apaga sola.
+ *
+ * NO contesta «¿funciona?». Llamar a cada proveedor en cada request convierte
+ * una sonda en una dependencia dura, y `/ready` existe para no tenerlas (#852).
+ * Que de verdad SALGA un correo o SUBA un archivo se prueba contra el ambiente,
+ * no acá.
+ *
+ * ## Por qué ninguno bloquea
+ *
+ * Una capacidad apagada es una decisión legítima: hay despliegues sin adjuntos
+ * —el simulador, una demo— y ambientes sin SMTP. Sacar el servicio de rotación
+ * por eso sería peor que el problema. Igual que la credencial de sandbox del
+ * canal: se informa, no se castiga.
+ *
+ * ## Por qué «a medias» es su propio estado
+ *
+ * R2 y SMTP necesitan varias variables y faltando UNA no sirve ninguna. Decir
+ * «sin configurar» cuando hay tres de cuatro manda a configurarlo de nuevo
+ * desde cero; decir «le falta una» manda a buscar la que falta. Y el caso
+ * existe de verdad: es lo que pasa cuando el compose pasa una pelada y el
+ * operador cargó las otras.
+ */
+interface Capacidad {
+  nombre: string;
+  /** Todas las que hacen falta para que la capacidad exista. */
+  variables: string[];
+  /** Qué se pierde cuando no está, en palabras y accionable. */
+  sinElla: string;
+}
+
+const CAPACIDADES_POR_CONFIGURACION: Capacidad[] = [
+  {
+    nombre: 'correo',
+    variables: ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'],
+    sinElla:
+      'no sale ningún correo: ni la invitación al equipo ni los avisos. La campana sigue ' +
+      'funcionando, así que desde dentro del producto no se nota.',
+  },
+  {
+    nombre: 'adjuntos',
+    variables: ['R2_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_ADJUNTOS'],
+    sinElla:
+      'los adjuntos que llegan no se guardan: queda la URL firmada del proveedor, que vence ' +
+      'en minutos. La bandeja lo avisa en la burbuja, pero la foto que mandó el cliente no ' +
+      'existe mañana.',
+  },
+  {
+    nombre: 'calendario',
+    variables: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+    sinElla:
+      'las citas viven solo acá: no se crean ni se mueven en Google, así que una hora puede ' +
+      'estar tomada en el calendario del negocio y libre en IAxTi.',
+  },
+  {
+    nombre: 'pagos',
+    variables: ['FLOW_API_KEY', 'FLOW_SECRET_KEY'],
+    sinElla: 'no se pueden emitir links de pago.',
+  },
+];
+
+function estadoDe(capacidad: Capacidad): Dependencia {
+  const faltan = capacidad.variables.filter((v) => (process.env[v] ?? '').trim() === '');
+  if (faltan.length === 0) {
+    return { nombre: capacidad.nombre, ok: true, ms: 0, bloquea: false, detalle: 'Configurado.' };
+  }
+  // Cuántas faltan, NO cuáles: el nombre de una variable de secreto no se
+  // publica en un endpoint sin sesión, y para saber qué hacer alcanza con
+  // saber si falta todo o si falta una.
+  const aMedias = faltan.length < capacidad.variables.length;
+  return {
+    nombre: capacidad.nombre,
+    ok: false,
+    ms: 0,
+    bloquea: false,
+    detalle: aMedias
+      ? `Configurado a medias: le faltan ${faltan.length} de ${capacidad.variables.length} ` +
+        `valores, así que ${capacidad.sinElla}`
+      : `Sin configurar en este ambiente: ${capacidad.sinElla}`,
   };
 }
