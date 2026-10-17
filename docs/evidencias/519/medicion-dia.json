@@ -1,0 +1,22 @@
+{
+  "viewport": 360,
+  "mode": "dia",
+  "widths": {
+    "scroll": 350,
+    "viewport": 360
+  },
+  "label": {
+    "color": "rgb(39, 57, 214)",
+    "outline": "rgb(61, 90, 254)",
+    "font": "Inter, system-ui, sans-serif",
+    "size": "14px",
+    "background": "rgb(255, 255, 255)"
+  },
+  "cardRadius": "22px",
+  "dropzoneRadius": "14px",
+  "pageErrors": [],
+  "contrast": {
+    "textAgainstField": 7.95,
+    "focusAgainstField": 5.13
+  }
+}
