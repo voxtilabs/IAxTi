@@ -23,7 +23,21 @@ auth=(
 # Cuánto se espera, escrito y con motivo. Un `seq 1 90` sin explicación eran
 # quince minutos que nadie eligió. Y subir el número cada vez que salta convierte
 # el límite en un adorno: la espera se MIDE y se compara contra esto (#254).
-ESPERA_DEPLOY_SEG=${ESPERA_DEPLOY_SEG:-900}
+#
+# Medido el 17/10, tres despliegues del mismo día contra el mismo VPS (#1007):
+#
+#     10 s   la imagen ya estaba en el nodo
+#    980 s   hubo que bajarla — entró en el sondeo 88 de 90
+#    >900 s  se acabaron los 90 sondeos con el estado todavía en `running`
+#
+# O sea que 900 no era un límite: era el borde. La imagen pesa 270 MB
+# comprimidos —una sola capa de 172 MB, el `node_modules` con las
+# devDependencies— y el pull corrió a ~0,28 MB/s. Las dos mitades son
+# arreglables y van en #1007; mientras tanto el tope tiene que estar por encima
+# del peor caso observado, no justo arriba.
+#
+# 1500 s = 2,5 min de margen sobre 980 y sigue cortando un cuelgue de verdad.
+ESPERA_DEPLOY_SEG=${ESPERA_DEPLOY_SEG:-1500}
 PASO_SEG=${PASO_SEG:-10}
 
 # Qué informa Dokploy del último despliegue. Lo usan las DOS salidas.
@@ -163,9 +177,26 @@ done
 
 # Seguir en «running» NO es lo mismo que fallar, y llamarlos igual es lo que hace
 # que nadie mire (#571).
+#
+# #571 arregló el MENSAJE y dejó el `exit 1`, así que el resultado seguía siendo
+# el mismo: rojo, y el Smoke sin correr. Eso pasó el 17/10 con el deploy
+# `adbee340`: noventa sondeos en `running`, paso en rojo… y `/health` de staging
+# contestando `{"status":"ok","sha":"adbee34067bb"}` — el commit de esa misma
+# corrida. El despliegue había terminado bien. Lo único que se acabó fue la
+# paciencia del workflow (#1007).
+#
+# Por eso acá se sale con 0 y decide el Smoke, que es el juez más fuerte: no
+# pregunta qué dice Dokploy, PIDE `/health` y compara el SHA que atiende contra
+# el que se desplegó. Si el despliegue de verdad no aplicó, el Smoke lo dice
+# —«lo que atiende es X y se desplegó Y»— y el rojo llega por el motivo
+# correcto. Si aplicó, no hay rojo que explicar.
+#
+# Un `error` reportado por Dokploy SÍ corta acá arriba, y eso no cambia: ahí no
+# hay nada que el Smoke pueda rescatar.
 espera=$(( $(date +%s) - inicio ))
 echo "Dokploy sigue en \"${st}\" después de ${espera}s (presupuesto ${ESPERA_DEPLOY_SEG}s)."
-echo "No es un fallo reportado: es una espera que se pasó del límite. Si se repite,"
-echo "el número que hay que mirar es el de #254, no este timeout."
+echo "No es un fallo reportado: es una espera que se pasó del límite."
+echo "Sigue el Smoke, que es el que de verdad sabe: pide /health y compara el SHA."
+echo "Si se repite, el número que hay que mirar es el de #254 y el pull de #1007."
 detalle_del_despliegue
-exit 1
+exit 0

@@ -128,10 +128,16 @@ describe('esperar-deploy.sh (#571)', () => {
 
   it('si NINGÚN sondeo se puede leer, se pasa del presupuesto y lo dice', () => {
     // La otra mitad: tolerar un sondeo malo no puede volverse tolerar todos.
-    // Si nunca se pudo hablar con Dokploy, eso no es un deploy aplicado.
+    // Si nunca se pudo hablar con Dokploy, eso no es un deploy aplicado — y
+    // sobre todo, no se puede decir que lo sea.
     const r = correr('listo', { SONDEO_MALO: 'todos', ESPERA_DEPLOY_SEG: '3' });
-    expect(r.status).toBe(1);
     expect(r.stdout).not.toContain('Deploy aplicado');
+    // Sale 0 desde #1007 y el veredicto queda en manos del Smoke, que PIDE
+    // `/health` y compara el SHA. Acá no sabemos nada: no poder hablar con
+    // Dokploy no es lo mismo que un despliegue roto, y tratarlo como roto era
+    // lo que daba rojo sobre staging sano.
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain('Sigue el Smoke');
   });
 
   it('cuando Dokploy reporta error, lo dice y trae el detalle', () => {
@@ -145,8 +151,15 @@ describe('esperar-deploy.sh (#571)', () => {
   it('cuando se pasa del presupuesto, NO dice que falló: dice que se pasó', () => {
     // Esta es la rama que faltaba. Seguir en «running» y fallar son cosas
     // distintas, y llamarlas igual es lo que hace que nadie mire.
+    //
+    // #571 arregló el mensaje y dejó el `exit 1`, así que el RESULTADO seguía
+    // siendo el mismo y el Smoke ni corría. El 17/10 eso dio rojo sobre el
+    // deploy `adbee340`, que había terminado bien: `/health` contestaba con el
+    // SHA de esa misma corrida. Desde #1007 sale 0 y decide el Smoke, que
+    // compara el SHA que atiende contra el que se desplegó.
     const r = correr('nunca');
-    expect(r.status).toBe(1);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toContain('Sigue el Smoke');
     expect(r.stdout).toContain('sigue en "running"');
     expect(r.stdout).toContain('presupuesto 3s');
     expect(r.stdout).not.toContain('reporta ERROR');
