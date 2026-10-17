@@ -128,6 +128,17 @@ export const SUGERENCIAS: Sugerencia[] = [
   { pantalla: 'ajustes', texto: 'Quiero atender los sábados en la mañana', herramienta: 'agenda.disponibilidad' },
   { pantalla: 'ajustes', texto: 'Avísame si una cotización lleva 2 días parada', herramienta: 'automations.create' },
   // Inicio
+  // Las dos primeras son la promesa del producto, y van PRIMERAS porque el
+  // orden decide: `sugerenciasPara` corta en cuatro y quien abre esto por
+  // primera vez lee de arriba hacia abajo (#1003).
+  //
+  // Lo que faltaba no era la capacidad: `agents.create` y el configurador son
+  // herramientas del catálogo desde que existen. Faltaba que alguien supiera
+  // que se pueden PEDIR. Antes había que entrar a Ajustes → IA, encontrar la
+  // pantalla del asistente y recién ahí el chip lo ofrecía — o sea que el caso
+  // estrella del producto solo lo descubría quien ya sabía que existía.
+  { pantalla: 'inicio', texto: 'Creame un asistente que conteste mis mensajes', herramienta: 'agents.create' },
+  { pantalla: 'inicio', texto: 'Dejame el CRM listo para mi rubro', herramienta: 'agents.configuradorProponer' },
   { pantalla: 'inicio', texto: '¿Qué me falta para empezar a vender?', herramienta: 'agents.diagnostico' },
   { pantalla: 'inicio', texto: 'Avísame si una cotización lleva 2 días parada', herramienta: 'automations.create' },
   { pantalla: 'inicio', texto: 'Quiero atender los sábados en la mañana', herramienta: 'agenda.disponibilidad' },

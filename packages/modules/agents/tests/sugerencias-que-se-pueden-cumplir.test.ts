@@ -138,6 +138,38 @@ describe('a cada quien lo que puede (#584)', () => {
     ).toBeGreaterThanOrEqual(12);
   });
 
+  /**
+   * La promesa del producto, en la puerta (#1003).
+   *
+   * `inicio` es la primera pantalla de un negocio nuevo y ofrecía cuatro
+   * sugerencias, ninguna de crear un asistente: el caso estrella solo estaba
+   * en la pantalla `asistente`, a la que se llega entrando a Ajustes → IA. O
+   * sea que lo descubría quien ya sabía que existía.
+   *
+   * Las dos afirmaciones son las que importan y van juntas: que estén, y que
+   * estén PRIMERAS. `sugerenciasPara` corta en cuatro, así que agregarlas al
+   * final no habría cambiado nada — y una prueba que solo mirara que están
+   * habría pasado igual.
+   */
+  it('la pantalla de inicio ofrece crear un asistente, y lo ofrece primero', () => {
+    const s = sugerenciasPara({ pantalla: 'inicio', ...TODO });
+    expect(s[0]).toBe('Creame un asistente que conteste mis mensajes');
+    expect(s[1]).toBe('Dejame el CRM listo para mi rubro');
+  });
+
+  it('y a quien no puede configurar agentes no se le ofrecen', () => {
+    // La elegibilidad sigue saliendo del catálogo: las dos piden
+    // `agents.configure`, que un vendedor no tiene. Ofrecer algo que el agente
+    // después no puede hacer es el defecto que #584 vino a sacar.
+    const s = sugerenciasPara({
+      pantalla: 'inicio',
+      permisos: DE_UN_VENDEDOR,
+      modulosActivos: TODO.modulosActivos,
+    });
+    expect(s).not.toContain('Creame un asistente que conteste mis mensajes');
+    expect(s).not.toContain('Dejame el CRM listo para mi rubro');
+  });
+
   it('una pantalla que no existe no revienta: cae al último recurso', () => {
     const s = sugerenciasPara({ pantalla: 'pantalla-inventada', ...TODO });
     expect(s).toEqual([SUGERENCIA_DE_ULTIMO_RECURSO.texto]);
