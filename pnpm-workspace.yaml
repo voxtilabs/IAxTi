@@ -3,6 +3,71 @@ packages:
   - "packages/*"
   - "packages/modules/*"
 
+# Las tres defensas de la cadena de suministro que Semgrep pedía (#758, grupo 3).
+#
+# ## minimumReleaseAge: esperar antes de instalar lo recién publicado
+#
+# Una versión comprometida —cuenta del mantenedor tomada, publicación
+# maliciosa— se detecta y se retira casi siempre en los primeros días. Instalar
+# el mismo día nos pone justo en la ventana en que el ataque está vivo.
+#
+# Siete días, y el número NO lo elegí acá: es el mismo que
+# `.github/dependabot.yml` ya decidió para su `cooldown` —`default-days: 7`, que
+# Semgrep exige como mínimo—. La misma política en los dos puntos donde se
+# aplica: Dependabot decide cuándo PROPONE una versión, esto decide cuándo se
+# INSTALA. Que fueran números distintos sería una política que nadie puede
+# explicar.
+#
+# El costo, dicho: una corrección urgente de un paquete queda en espera siete
+# días. Cuando haga falta, la salida es nombrar ESE paquete en
+# `minimumReleaseAgeExclude` —con su motivo y su fecha— y no bajar el número
+# para todos. Dependabot hace lo mismo del otro lado: sus actualizaciones de
+# SEGURIDAD no pasan por el cooldown, porque ahí el riesgo es el contrario.
+minimumReleaseAge: 10080
+
+# Las cuatro que el lockfile ya tenía dentro de la ventana, con su fecha de
+# publicación. SIN esta lista, `pnpm install --frozen-lockfile` —lo que corre
+# CI— falla con ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION, así que la defensa
+# no se podía encender sin romper el CI. Medido el 17/10.
+#
+# Esta lista tiene que ENCOGER: cada una sale cuando cumple siete días, y la
+# última los cumple el 21/10. Si alguien la lee después de esa fecha y todavía
+# está, sobra entera.
+minimumReleaseAgeExclude:
+  - '@asamuzakjp/css-color'      # publicada 2026-10-11
+  - '@testing-library/user-event' # publicada 2026-10-13
+  - happy-dom                     # publicada 2026-10-12
+  - whatwg-url                    # publicada 2026-10-14
+
+# ## trustPolicy: que una actualización no pueda relajar la seguridad
+#
+# Sin esto, una versión nueva de un paquete puede traer settings que bajen las
+# defensas —y una defensa que se apaga sola es peor que no tenerla, porque
+# queda escrita en el archivo y nadie la mira otra vez—. `no-downgrade` deja
+# subir y no bajar.
+trustPolicy: no-downgrade
+
+# Las tres que `no-downgrade` marca como «possible package takeover» y NO lo
+# son: las tres están en una rama mayor vieja que sigue viva, que es un caso
+# normal y no un ataque. Revisadas una por una:
+trustPolicyExclude:
+  # La rama 6 sigue publicada y mantenida (dist-tag `latest-6`); entra como
+  # dependencia transitiva mientras el árbol también usa la 7.
+  - semver
+  # La pinea NUESTRO packages/ui en `^2.5.0`. Subir a la 3 es un cambio de API
+  # y una decisión aparte, no algo que se cuela por una política de confianza.
+  - tailwind-merge
+  # Viene con @types/node, y su versión la elige ese paquete, no nosotros.
+  - undici-types
+
+# ## blockExoticSubdeps: ninguna dependencia transitiva desde fuera del registro
+#
+# Un `git+ssh://…` o un tarball por URL en una dependencia TRANSITIVA es código
+# que entra sin pasar por el registro, sin versión que auditar y sin que
+# aparezca en ningún listado de vulnerabilidades. Las directas se ven en el
+# `package.json` que uno escribe; estas no las ve nadie.
+blockExoticSubdeps: true
+
 # pnpm 12 bloquea los build scripts de dependencias salvo lista explícita.
 # OJO: pnpm appendea placeholders inválidos aquí durante `pnpm install` cuando
 # aparece una dep nueva con scripts — revisar este archivo antes de commitear.
