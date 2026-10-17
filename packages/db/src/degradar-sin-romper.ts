@@ -1,11 +1,54 @@
 import type { Pool } from 'pg';
 
 /**
- * El punto al que se vuelve. Fijo a propósito: Postgres permite repetir el
- * nombre —el nuevo tapa al anterior— y como esta función libera el suyo antes
- * de devolver, el anidamiento queda en orden.
+ * El punto al que se vuelve, con nombre PROPIO por llamada (#991).
+ *
+ * Esto era un nombre fijo, y el comentario decía que estaba bien «porque esta
+ * función libera el suyo antes de devolver, el anidamiento queda en orden».
+ * Vale cuando una llamada va DESPUÉS de la otra; no vale cuando se intercalan,
+ * y en este repo se intercalan: `copilot.ts` tenía cuatro lecturas opcionales
+ * dentro de un `Promise.all` sobre el mismo `PoolClient` (#966).
+ *
+ * Con el nombre repetido, Postgres TAPA el punto anterior, así que:
+ *
+ *     A: SAVEPOINT p
+ *     B: SAVEPOINT p          -- tapa al de A
+ *     A: falla -> ROLLBACK TO p   -- vuelve al de B
+ *
+ * y lo medido es peor que «se pisan»: **la que falló conservó su trabajo y la
+ * que salió bien lo perdió**. La prueba de #991 lo deja en una línea —
+ * `expected [ 'antes', 'de A' ] to deeply equal [ 'antes', 'de B' ]`.
+ *
+ * Un contador por proceso alcanza: los nombres solo tienen que ser distintos
+ * entre llamadas vivas sobre la misma conexión, y dos procesos no comparten
+ * conexión. El número va interpolado sin comillas porque es un número que
+ * genera esta línea, no un dato de nadie.
  */
-const PUNTO = 'degradar_sin_romper';
+let proximoPunto = 0;
+
+/**
+ * Qué clientes tienen una degradación EN VUELO, y por qué hace falta saberlo.
+ *
+ * Los nombres propios arreglan la mitad del problema —que una llamada vuelva al
+ * punto de otra— pero no la otra mitad, y la otra mitad no se puede arreglar:
+ * los savepoints son una PILA. Volver a uno anterior destruye todos los que se
+ * abrieron después, así que si A falla mientras B está en vuelo, el trabajo de
+ * B se va igual y el `RELEASE` de B revienta con
+ * «savepoint … does not exist». Medido así, con los nombres ya únicos.
+ *
+ * O sea: degradar dos lecturas a la vez sobre el MISMO cliente no se puede
+ * hacer bien, y no es una limitación de esta función — un cliente de pg atiende
+ * una consulta a la vez, así que el `Promise.all` que las lanza juntas ya las
+ * estaba encolando. Lo único que agrega es el riesgo.
+ *
+ * Entonces se dice en voz alta, en el momento, con el arreglo en el mensaje. La
+ * alternativa era encolarlas acá adentro, y eso esconde un error de diseño
+ * detrás de una espera que nadie pidió.
+ *
+ * `WeakSet` para no retener clientes: cuando el pool recicla la conexión, el
+ * objeto se va y la marca con él.
+ */
+const enVuelo = new WeakSet<object>();
 
 /**
  * Una lectura que puede fallar SIN llevarse puesta la transacción de quien
@@ -58,18 +101,35 @@ export async function degradarSinRomper<T, C extends Pick<Pool, 'query'>>(
   // puede hacer de otra forma —`SAVEPOINT` suelto lanza `25P01`—. Por eso la
   // regla de #966 lo exceptúa acá y en ningún otro lado.
   // eslint-disable-next-line iaxti/catch-sobre-cliente-ajeno -- es la sonda del propio helper
+  if (enVuelo.has(client)) {
+    throw new Error(
+      'degradarSinRomper: ya hay una degradación en vuelo sobre este cliente. ' +
+        'Los savepoints son una pila: si la primera falla, se lleva el trabajo de la ' +
+        'segunda y la segunda revienta con «savepoint does not exist». Ponelas EN SERIE ' +
+        '—un await después del otro—, que es lo que un cliente de pg hace igual: ' +
+        'atiende una consulta a la vez (#991).',
+    );
+  }
+  const punto = `degradar_sin_romper_${(proximoPunto += 1)}`;
+  enVuelo.add(client);
   const enTransaccion = await client
-    .query(`SAVEPOINT ${PUNTO}`)
+    .query(`SAVEPOINT ${punto}`)
     .then(() => true)
     .catch(() => false);
   try {
     const valor = await intentar(client);
-    if (enTransaccion) await client.query(`RELEASE SAVEPOINT ${PUNTO}`);
+    if (enTransaccion) await client.query(`RELEASE SAVEPOINT ${punto}`);
     return valor;
   } catch (error) {
     // Lo primero, antes que nada: devolverle al llamador una transacción con
     // la que pueda seguir trabajando.
-    if (enTransaccion) await client.query(`ROLLBACK TO SAVEPOINT ${PUNTO}`);
+    if (enTransaccion) await client.query(`ROLLBACK TO SAVEPOINT ${punto}`);
     return alFallar(error as Error);
+  } finally {
+    // En los dos caminos y también si `alFallar` tira: la marca es del tramo,
+    // no del resultado. Sin el `finally`, un `alFallar` que falle dejaría el
+    // cliente marcado para siempre y la próxima lectura opcional de ESA
+    // conexión moriría con el mensaje de arriba, que ahí sería mentira.
+    enVuelo.delete(client);
   }
 }

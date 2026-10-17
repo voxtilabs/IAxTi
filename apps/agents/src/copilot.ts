@@ -82,9 +82,10 @@ export async function datosDelNegocioParaLaIa(
    * pudo leer se llevaba puesto todo lo que viniera después (#966).
    *
    * Lo segundo es por qué no quedó un `Promise.all` con `degradarSinRomper`
-   * adentro: el savepoint del helper tiene un nombre fijo, y dos de esos a la
-   * vez sobre el MISMO cliente se pisan —el `ROLLBACK TO` vuelve al último que
-   * se abrió con ese nombre—. Secuencial no es una limitación acá: ya lo era.
+   * adentro: los savepoints son una PILA, así que si una falla se lleva el
+   * trabajo de la otra. Desde #991 el helper se niega en voz alta en vez de
+   * dejar pasar eso; igual la forma correcta es la de acá, en serie, que es lo
+   * que un cliente de pg hace de todos modos —atiende una consulta a la vez—.
    */
   const campos = await degradarSinRomper(
     client,
