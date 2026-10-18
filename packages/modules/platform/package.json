@@ -16,7 +16,7 @@
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "ioredis": "^5.4.1",
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
