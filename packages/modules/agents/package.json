@@ -15,6 +15,7 @@
     "@ai-sdk/openai": "^4.0.91",
     "@ai-sdk/openai-compatible": "^3.0.67",
     "@iaxti/core": "workspace:*",
+    "@iaxti/db": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
@@ -25,7 +26,6 @@
     "pg": "^8.13.0"
   },
   "devDependencies": {
-    "@iaxti/db": "workspace:*",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.0",
     "typescript": "^5.7.0",

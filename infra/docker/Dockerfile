@@ -60,6 +60,38 @@ RUN for a in web admin; do \
       if [ -d /app/apps/$a/public ]; then cp -r /app/apps/$a/public /app/apps/$a/.next/standalone/apps/$a/public; fi; \
     done
 
+# Dejar en node_modules SOLO lo que alguien va a leer (#1009).
+#
+# El runner copia este node_modules entero, y medido pesaba 843 MB con los dos
+# primeros puestos ocupados por next (154 MB) y @next/swc (137 MB) — que son de
+# web y admin... y web y admin NO lo usan: corren desde `.next/standalone`, que
+# ya empaqueta lo suyo (mirá el entrypoint). Los únicos que resuelven módulos
+# contra /app/node_modules son api, workers y agents.
+#
+# Eso convertía cada deploy en bajar una capa de 172 MB comprimidos para no ser
+# leída por nadie, a los ~0,28 MB/s del VPS: ~980 s, el borde del presupuesto
+# que dio el rojo falso de #1007.
+#
+# ## Por qué BORRAR y reinstalar, y no `--filter '!web'` sobre lo que hay
+#
+# Lo primero que probé fue `pnpm install --prod --filter '!@iaxti/web' ...`
+# encima del node_modules del build, y la imagen SALIÓ MÁS GRANDE (1.02 GB
+# contra 980 MB): un install con filtros agrega lo que falta para ese subgrafo
+# pero no quita lo que ya está. Medido dentro de la imagen: next seguía ahí y
+# .pnpm pesaba lo mismo. La poda de verdad es empezar de cero.
+#
+# El filtro va EN POSITIVO —los tres servicios con `...`, que arrastra sus
+# dependencias del workspace: core, db, telemetry y los módulos— porque la
+# lista negra deja adentro a packages/ui (lucide-react: 37 MB) y a todo lo que
+# nadie nombró. Nadie del lado servidor importa @iaxti/ui; está verificado.
+#
+# Va DESPUÉS de armar los standalone, que es cuando next deja de hacer falta.
+# Sin `--ignore-scripts`: los build scripts los gobierna `allowBuilds` del
+# pnpm-workspace.yaml, y protobufjs (que otel usa en runtime) lo necesita.
+RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules packages/modules/*/node_modules && \
+    pnpm install --frozen-lockfile --prod \
+      --filter '@iaxti/api...' --filter '@iaxti/workers...' --filter '@iaxti/agents...'
+
 FROM ghcr.io/voxtilabs/node:22-alpine AS runner
 ENV NODE_ENV=production
 WORKDIR /app
