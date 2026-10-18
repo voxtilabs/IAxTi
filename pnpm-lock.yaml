@@ -659,6 +659,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
@@ -684,9 +687,6 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -705,6 +705,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
@@ -715,9 +718,6 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -786,6 +786,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
@@ -805,9 +808,6 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -826,6 +826,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
@@ -839,9 +842,6 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -1015,6 +1015,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@iaxti/module-audit':
         specifier: workspace:*
         version: link:../audit
@@ -1022,9 +1025,6 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -1080,19 +1080,19 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
-      nodemailer:
-        specifier: ^6.9.0
-        version: 6.10.1
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@iaxti/module-authorization':
         specifier: workspace:*
         version: link:../authorization
+      nodemailer:
+        specifier: ^6.9.0
+        version: 6.10.1
       pg:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
@@ -1250,6 +1250,9 @@ importers:
       '@iaxti/core':
         specifier: workspace:*
         version: link:../../core
+      '@iaxti/db':
+        specifier: workspace:*
+        version: link:../../db
       '@iaxti/module-channels':
         specifier: workspace:*
         version: link:../channels
@@ -1260,9 +1263,6 @@ importers:
         specifier: ^8.13.0
         version: 8.23.0
     devDependencies:
-      '@iaxti/db':
-        specifier: workspace:*
-        version: link:../../db
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.2
