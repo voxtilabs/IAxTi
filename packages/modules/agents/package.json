@@ -22,8 +22,8 @@
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "ai": "^7.0.137",
-    "langfuse": "^3.38.20",
-    "pg": "^8.13.0"
+    "langfuse": "^3.39.2",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

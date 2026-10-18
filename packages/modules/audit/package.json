@@ -17,6 +17,6 @@
   },
   "dependencies": {
     "@iaxti/db": "workspace:*",
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   }
 }
