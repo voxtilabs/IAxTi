@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  variablesObligatoriasDelCompose,
   variablesQueEntregaElCompose,
   variablesQueLeeElCodigo,
 } from '../src/variables-del-despliegue';
@@ -26,12 +27,14 @@ const RAIZ = join(__dirname, '..', '..', '..');
 const STAGING = join(RAIZ, 'infra', 'dokploy', 'docker-compose.staging.yml');
 const PROD = join(RAIZ, 'infra', 'dokploy', 'docker-compose.prod.yml');
 const FUERA = join(RAIZ, 'infra', 'dokploy', 'variables-fuera-del-despliegue.json');
+const OBLIGATORIAS = join(RAIZ, 'infra', 'dokploy', 'variables-obligatorias-en-prod.json');
 
 const leidas = variablesQueLeeElCodigo([join(RAIZ, 'apps'), join(RAIZ, 'packages')]);
 const staging = variablesQueEntregaElCompose(STAGING);
 const prod = variablesQueEntregaElCompose(PROD);
 
 const fuera = JSON.parse(readFileSync(FUERA, 'utf8')) as Record<string, unknown>;
+const politica = JSON.parse(readFileSync(OBLIGATORIAS, 'utf8')) as Record<string, unknown>;
 const exentas = new Set(Object.keys(fuera).filter((k) => k !== '_'));
 
 /** Ruta relativa, que la absoluta no le sirve a nadie en el rojo de CI. */
@@ -99,5 +102,72 @@ describe('el compose pasa las variables que el código lee', () => {
       expect(typeof fuera[nombre], `${nombre} sin motivo`).toBe('string');
       expect((fuera[nombre] as string).length, `el motivo de ${nombre} es muy corto`).toBeGreaterThan(40);
     }
+  });
+});
+
+/**
+ * Pasada y PASADA Y OBLIGATORIA son dos cosas (#810, criterio 4).
+ *
+ * Todo lo de arriba contesta «¿llega al contenedor?». Pero una variable pasada
+ * y vacía llega igual, y el código la recibe como cadena vacía: es lo que midió
+ * #953 —33 de las 45 de prod sin `:?`— y lo que costó el puerto 0 del SMTP
+ * (#985). Esta parte comprueba la POLÍTICA que #810 vino a decidir, que tiene
+ * dos mitades y las dos importan:
+ *
+ *  · en prod, estas variables se exigen con `:?`;
+ *  · en staging, NINGUNA de ellas se exige.
+ *
+ * La segunda mitad no es decoración. El mismo compose sirve para un despliegue
+ * sin adjuntos —el simulador, una demo—, así que si alguien «arregla» staging
+ * copiando los `:?` de prod, rompe eso sin darse cuenta. Que la diferencia
+ * exista es la decisión; que sea por olvido, no.
+ */
+describe('la política de obligatoriedad de prod (#810)', () => {
+  const declaradas = Object.keys(politica).filter((k) => k !== '_');
+  const obligatoriasEnProd = variablesObligatoriasDelCompose(PROD);
+  const obligatoriasEnStaging = variablesObligatoriasDelCompose(STAGING);
+
+  it('el escáner de obligatoriedad encuentra algo (si esto falla, se rompió)', () => {
+    // Positiva, por lo de siempre: si devolviera un conjunto vacío, las tres
+    // de abajo pasarían sin comprobar nada.
+    expect(obligatoriasEnProd.size).toBeGreaterThan(5);
+    expect(obligatoriasEnProd.has('DATABASE_URL')).toBe(true);
+    // Y distingue un defecto de una exigencia: `${LANGFUSE_BASE_URL:-…}`.
+    expect(obligatoriasEnProd.has('LANGFUSE_BASE_URL')).toBe(false);
+  });
+
+  it('cada variable de la política está exigida en prod', () => {
+    expect(declaradas.length).toBeGreaterThan(0);
+    expect(
+      declaradas.filter((v) => !obligatoriasEnProd.has(v)),
+      `Estas están en la política de ${corta(OBLIGATORIAS)} pero ${corta(PROD)} las pasa sin ` +
+        '`:?`, así que un despliegue sin ellas levanta igual y la capacidad queda apagada en ' +
+        'silencio. Es exactamente lo que la política decidió no aceptar (#810).',
+    ).toEqual([]);
+  });
+
+  it('y NINGUNA se exige en staging, que es la otra mitad de la decisión', () => {
+    expect(
+      declaradas.filter((v) => obligatoriasEnStaging.has(v)),
+      `Estas quedaron exigidas en ${corta(STAGING)}. La política dice lo contrario a propósito: ` +
+        'el mismo compose sirve para un despliegue SIN adjuntos —el simulador, una demo— y ' +
+        'volverlas obligatorias ahí rompe eso. Si la decisión cambió, cambiala en ' +
+        `${corta(OBLIGATORIAS)} y acá, no copiando los \`:?\` de prod.`,
+    ).toEqual([]);
+  });
+
+  it('cada entrada de la política trae su motivo escrito', () => {
+    for (const [variable, motivo] of Object.entries(politica)) {
+      if (variable === '_') continue;
+      expect(typeof motivo === 'string' && motivo.trim().length > 20, variable).toBe(true);
+    }
+  });
+
+  it('la política no nombra variables que el compose ya no pasa', () => {
+    expect(
+      declaradas.filter((v) => !prod.has(v)),
+      `La política nombra variables que ${corta(PROD)} ya no pasa. Una política sobre algo que ` +
+        'no existe es una línea que nadie va a borrar.',
+    ).toEqual([]);
   });
 });

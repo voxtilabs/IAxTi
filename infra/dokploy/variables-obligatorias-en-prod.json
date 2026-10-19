@@ -1,0 +1,31 @@
+{
+  "_": [
+    "Variables que PRODUCCIÓN exige con `${VAR:?}`, y staging a propósito no.",
+    "",
+    "El criterio 2 de #810, decidido. La pregunta era concreta: el mismo",
+    "compose sirve para un despliegue SIN adjuntos —el simulador, una demo, un",
+    "ambiente de prueba—, así que volverlas obligatorias es una elección de",
+    "producto y no un arreglo. En producción, un negocio que manda una foto por",
+    "WhatsApp espera que esa foto exista mañana; en staging preferimos que el",
+    "stack levante igual.",
+    "",
+    "La guarda `packages/core/tests/variables-del-despliegue.test.ts` exige las",
+    "dos mitades: que cada una de estas esté con `:?` en prod, y que NINGUNA lo",
+    "esté en staging. Que la diferencia exista es el punto; que sea por olvido,",
+    "no.",
+    "",
+    "Agregar una línea acá hace que un despliegue de producción se NIEGUE sin",
+    "esa variable. Es lo que se quiere para estas cuatro —perder adjuntos en",
+    "silencio es peor que no desplegar— y hay que pensarlo una por una antes de",
+    "sumar otra. Las que ya eran obligatorias por otras razones (IMAGE,",
+    "DATABASE_URL, SUPABASE_*, CORS_ORIGINS, FLOW_API_BASE, PUBLIC_API_URL…) no",
+    "están acá: esta lista es la POLÍTICA que #810 vino a decidir, no el",
+    "inventario de lo que ya estaba.",
+    "",
+    "La medición que la justifica está en docs/evidencias/810/."
+  ],
+  "R2_ENDPOINT": "Sin las cuatro de R2 el almacén es null y el adjunto entrante se guarda con la URL firmada del proveedor, que vence en minutos. La bandeja ya lo dice —muestra «no se pudo guardar» y no ofrece el enlace muerto (#811)—, pero en producción eso significa que la foto que el cliente mandó NO existe mañana. Mejor no desplegar.",
+  "R2_ACCESS_KEY_ID": "Parte del mismo juego: `storage.ts` exige las cuatro o devuelve null. Faltando una sola, las otras tres no sirven de nada.",
+  "R2_SECRET_ACCESS_KEY": "Ídem, y además es el secreto del par: si falta, un endpoint y un bucket correctos dan la misma falsa sensación de estar configurado.",
+  "R2_BUCKET_ADJUNTOS": "Ídem. Un bucket vacío apunta a ninguna parte y el error aparecería recién al primer adjunto, en la conversación de un cliente."
+}

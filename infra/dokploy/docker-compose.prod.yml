@@ -86,10 +86,21 @@ x-env: &app-env
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
   LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}
 
-  R2_ENDPOINT: ${R2_ENDPOINT}
-  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-  R2_BUCKET_ADJUNTOS: ${R2_BUCKET_ADJUNTOS}
+  # Las cuatro de R2 son OBLIGATORIAS en producción y opcionales en staging
+  # (#810, criterio 2). El motivo de cada una está en
+  # variables-obligatorias-en-prod.json, y la guarda exige las dos mitades:
+  # `:?` acá, sin `:?` en staging.
+  #
+  # Qué pasa si faltan: el almacén queda en null y el adjunto entrante se
+  # guarda con la URL firmada del proveedor, que vence en minutos. La bandeja
+  # ya lo dice en vez de ofrecer un enlace muerto (#811), pero en producción
+  # eso significa que la foto que el cliente mandó no existe mañana. Entre un
+  # despliegue que se niega y un adjunto que se pierde en silencio, preferimos
+  # el primero.
+  R2_ENDPOINT: ${R2_ENDPOINT:?falta R2_ENDPOINT (ver variables-obligatorias-en-prod.json)}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?falta R2_ACCESS_KEY_ID (ver variables-obligatorias-en-prod.json)}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?falta R2_SECRET_ACCESS_KEY (ver variables-obligatorias-en-prod.json)}
+  R2_BUCKET_ADJUNTOS: ${R2_BUCKET_ADJUNTOS:?falta R2_BUCKET_ADJUNTOS (ver variables-obligatorias-en-prod.json)}
 
   AUDIT_EXPORT_SECRET: ${AUDIT_EXPORT_SECRET}
 
