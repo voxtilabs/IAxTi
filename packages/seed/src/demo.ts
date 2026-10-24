@@ -296,7 +296,9 @@ export async function sembrarDemo(
       tenantId,
       allowedDomain: 'localhost',
       name: 'Chat del sitio (demo)',
-      welcomeMessage: 'Hola, soy Sofía. ¿En qué te ayudo?',
+      // Sin nombre propio (#1037): el saludo es copy del widget y el renombre
+      // del agente no lo alcanza (ni debe — sería una escritura cruzada).
+      welcomeMessage: '¡Hola! ¿En qué te podemos ayudar?',
     });
 
     // `texto` y no `faq`: faq exige JSON de preguntas y respuestas, y esto es

@@ -123,11 +123,15 @@ describe('lo que hay para mirar después del seed', () => {
     // sin widget no hay por dónde escribir, sin conocimiento el asistente
     // escala toda pregunta, y en `assist` no contesta solo.
     const widget = await admin.query(
-      'SELECT allowed_domain FROM webchat_widgets WHERE tenant_id = $1',
+      'SELECT allowed_domain, welcome_message FROM webchat_widgets WHERE tenant_id = $1',
       [tenantId],
     );
     expect(widget.rowCount).toBe(1);
     expect(widget.rows[0].allowed_domain).toBe('localhost');
+    // El saludo sin nombre propio (#1037): es copy del widget y el renombre
+    // del agente no lo alcanza — con nombre adentro, renombrar deja a una
+    // «Sofía» saludando y un «José» firmando.
+    expect(widget.rows[0].welcome_message).not.toMatch(/Sofía|José/);
 
     const fuente = await admin.query('SELECT kind, status FROM sources WHERE tenant_id = $1', [tenantId]);
     expect(fuente.rowCount).toBe(1);
