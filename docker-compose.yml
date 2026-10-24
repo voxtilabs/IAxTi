@@ -10,7 +10,13 @@ x-app: &app
   image: iaxti-local
   restart: unless-stopped
   environment: &app-env
-    DATABASE_URL: postgres://iaxti:iaxti@postgres:5432/iaxti
+    # El rol de la APLICACIÓN, no el dueño (#370): sin superusuario y sin
+    # BYPASSRLS, igual que staging/prod deben correr. Con el dueño acá, RLS
+    # no se evaluaba NUNCA en local y las fugas de aislamiento aparecían
+    # disfrazadas de otros errores recién en CI. El dueño (iaxti) queda para
+    # migraciones, seed y suites — que limpian y migran, cosa que este rol
+    # no puede ni debe.
+    DATABASE_URL: postgres://iaxti_app:iaxti_app@postgres:5432/iaxti
     REDIS_URL: redis://redis:6379
     # Las llaves de los proveedores de IA, POR REFERENCIA: el valor sale del
     # `.env` de la raíz, que docker compose lee solo para sustituir acá.
@@ -39,7 +45,13 @@ services:
       POSTGRES_PASSWORD: iaxti
       POSTGRES_DB: iaxti
     ports: ["5432:5432"]
-    volumes: [pg-data:/var/lib/postgresql/data]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # Un volumen nuevo nace con el rol de la aplicación ya creado (#370);
+      # en un volumen existente, correr el script del rol una vez a mano
+      # (runbook ROL-DE-LA-APLICACION.md).
+      - ./infra/sql/rol-de-la-aplicacion.sql:/iaxti/rol-de-la-aplicacion.sql:ro
+      - ./infra/sql/local-init-rol.sh:/docker-entrypoint-initdb.d/90-rol-de-la-aplicacion.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U iaxti"]
       interval: 5s
