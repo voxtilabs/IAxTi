@@ -21,11 +21,17 @@ let admin: Pool;
 let tenant: string;
 const pedidos = async () => (await admin.query("SELECT payload FROM outbox WHERE tenant_id=$1 AND name='message.delivery_requested'", [tenant])).rows.map(r => r.payload);
 
+// Contador y no azar (#1025): con Math.random() sobre 9.000 valores y seis
+// cobros por corrida, el teléfono colisionaba cada ~500 corridas de CI y el
+// unique de contacts pintaba rojo un PR ajeno. Sigue en el rango 99, que no
+// se asigna a personas en Chile.
+let siguienteTelefono = 1000;
+
 async function armarCobro(canal: 'whatsapp' | 'webchat'): Promise<string> {
   const c = await admin.query(
     `INSERT INTO contacts (tenant_id, name, phone, origin)
      VALUES ($1,'Ana',$2,'whatsapp') RETURNING id`,
-    [tenant, `+5698888${Math.floor(Math.random() * 9000 + 1000)}`],
+    [tenant, `+5698888${siguienteTelefono++}`],
   );
   const conv = await admin.query(
     `INSERT INTO conversations (tenant_id, contact_id, channel, state)
