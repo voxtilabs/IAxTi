@@ -102,8 +102,11 @@ describe('el juez (#53)', () => {
     const dataset = JSON.parse(
       readFileSync(join(__dirname, '..', 'evals', 'dataset-sugerir.json'), 'utf8'),
     );
-    expect(dataset.version).toBe(1);
+    // Versión 2: #1020 agregó el caso «responde-lo-preguntado» — pregunta
+    // respondible por las fuentes con un objetivo que empuja a gestionar.
+    expect(dataset.version).toBe(2);
     expect(dataset.casos.length).toBeGreaterThanOrEqual(5);
+    expect(dataset.casos.map((c: { id: string }) => c.id)).toContain('responde-lo-preguntado');
     for (const caso of dataset.casos) {
       expect(caso.criterios.length).toBeGreaterThan(0);
       expect(JSON.stringify(caso)).not.toMatch(/\+569\d{8}/); // anonimizado

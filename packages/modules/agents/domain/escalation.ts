@@ -39,6 +39,12 @@ export function formatoAutonomo(opts: { moneyLimitClp: number | null }): string 
 ${dinero}
 - Si el cliente pide hablar con una persona, está enojado, reclama o amenaza con acciones legales: escalar.
 
+"escalar" habla de lo que el cliente PREGUNTÓ, no de tu objetivo: si lo
+preguntado está respondido por el contexto, respóndelo — en tus palabras y solo
+eso, sin volcar el contexto entero. Que tú no puedas agendar, cobrar ni
+confirmar una hora NO es "fuera_de_conocimiento": responde lo preguntado sin
+prometer esa gestión ni ofrecer gestiones que nadie pidió.
+
 Responde SOLO este JSON:
 {"respuesta": "<respuesta breve y cordial lista para enviar>",
  "confianza": <0 a 1>,

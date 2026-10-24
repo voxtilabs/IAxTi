@@ -70,6 +70,33 @@ export function accionQueSePuedeProponer(accion: AccionPropuesta | null): Accion
 }
 
 /**
+ * El catálogo de acciones proponibles, EN EL PROMPT (#1020).
+ *
+ * Hasta esto, «una de las que te pasaron» del formato de sugerencia no
+ * refería a nada: las tools que viajan al modelo son las de LECTURA (#240), y
+ * esta lista solo filtraba DESPUÉS. El modelo proponía a ciegas —tenía que
+ * adivinar el nombre exacto `agenda.agendar`— y el filtro se comía el resto.
+ * Una capacidad que el modelo no sabe que tiene es una capacidad que no
+ * existe.
+ *
+ * Se filtra por módulos activos: proponer un link de pago con pagos apagado
+ * es proponer un botón que va a fallar. Sin módulos declarados (quien llama
+ * no los sabe) se ofrecen todas las válidas: el filtro de aplicar (#1000)
+ * revalida módulo y permiso igual, así que lo peor es una propuesta que el
+ * dueño no puede confirmar — nunca una acción ejecutada de más.
+ */
+export function accionesParaElPrompt(activeModules?: readonly string[]): string | null {
+  const lineas = Object.keys(ACCIONES_EN_LA_CONVERSACION)
+    .map((nombre) => CATALOGO.find((x) => x.nombre === nombre))
+    .filter((h): h is NonNullable<typeof h> => h !== undefined && h.trato === 'confirmar')
+    .filter((h) => !h.modulo || !activeModules || activeModules.includes(h.modulo))
+    .map((h) => `- ${h.nombre}: ${h.descripcion}`);
+  if (!lineas.length) return null;
+  return `Acciones que puedes PROPONER en "accion" (no las ejecutas tú: quedan esperando el visto bueno de quien atiende):
+${lineas.join('\n')}`;
+}
+
+/**
  * La acción en palabras, para que la bandeja no muestre `agenda.agendar`.
  *
  * El texto sale de la DESCRIPCIÓN del catálogo, que es lo único de ese
