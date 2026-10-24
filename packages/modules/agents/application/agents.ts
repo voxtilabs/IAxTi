@@ -159,6 +159,29 @@ export async function updateAgent(
   if (input.provider && !PROVIDERS.includes(input.provider)) {
     throw new Error(`Proveedor desconocido: ${input.provider}.`);
   }
+  // Renombrar reescribe el nombre viejo DENTRO del prompt configurado (#1015).
+  //
+  // El nombre vivía en dos lugares y el update corregía uno: el modelo abría
+  // «Soy Sofía» y el worker firmaba «José». La identidad antepuesta en
+  // runtime (#1032) ayudó pero quedó PARCIAL — medido 1 de 2 contra
+  // gpt-5-mini: a veces el rol escrito le gana a la instrucción. Esto es
+  // determinista: palabra completa (unicode), y solo si el dueño no mandó un
+  // prompt nuevo en la misma llamada — si lo mandó, su texto manda tal cual.
+  let fallbackReescrito: string | null = null;
+  if (input.name && input.fallbackSystemPrompt === undefined) {
+    const actual = await client.query(
+      'SELECT name, fallback_system_prompt FROM agents WHERE tenant_id = $1 AND id = $2',
+      [input.tenantId, input.agentId],
+    );
+    const nombreViejo: string | null = actual.rows[0]?.name ?? null;
+    const prompt: string | null = actual.rows[0]?.fallback_system_prompt ?? null;
+    if (nombreViejo && prompt && nombreViejo !== input.name) {
+      const escapado = nombreViejo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const entero = new RegExp(`(^|[^\\p{L}\\p{N}_])${escapado}(?=$|[^\\p{L}\\p{N}_])`, 'gu');
+      const reescrito = prompt.replace(entero, `$1${input.name}`);
+      if (reescrito !== prompt) fallbackReescrito = reescrito;
+    }
+  }
   const r = await client.query(
     `UPDATE agents SET
        name = COALESCE($3, name),
@@ -188,7 +211,7 @@ export async function updateAgent(
       input.model ?? null,
       input.promptName ?? null,
       input.promptVersion ?? null,
-      input.fallbackSystemPrompt ?? null,
+      input.fallbackSystemPrompt ?? fallbackReescrito,
       input.allowedTools ? JSON.stringify(input.allowedTools) : null,
       input.defaultMode ?? null,
       input.autonomousHours ? JSON.stringify(input.autonomousHours) : null,

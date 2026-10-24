@@ -57,7 +57,34 @@ function espia(capturados: Array<{ system?: string }>): ModelPortFactory {
 }
 
 describe('la identidad se antepone en runtime (#1015)', () => {
-  it('renombrado, el system lleva el nombre NUEVO aunque el prompt diga el viejo', async () => {
+  it('el prompt del dueño nombra a otra: la identidad va primero y declara que manda', async () => {
+    // El caso que la reescritura del rename NO cubre: el dueño escribió un
+    // nombre distinto en el prompt DESDE el inicio (o el prompt viene
+    // versionado de Langfuse, donde no hay nada que reescribir). Acá la
+    // única defensa es la identidad antepuesta.
+    const conOtroNombre = await withTenant(admin, tenant, (c) =>
+      createAgent(c, {
+        tenantId: tenant,
+        name: 'José',
+        fallbackSystemPrompt: 'Eres Sofía, del salón. Hablas breve.',
+        actor: 'test',
+      }),
+    );
+    const capturados: Array<{ system?: string }> = [];
+    await withTenant(admin, tenant, (c) =>
+      runAgentTask(
+        c,
+        { tenantId: tenant, agent: conOtroNombre, task: 'responder', prompt: 'Di hola.' },
+        espia(capturados),
+      ),
+    );
+    const system = capturados[0]?.system ?? '';
+    expect(system).toContain('Te llamas José');
+    expect(system.indexOf('Te llamas José')).toBeLessThan(system.indexOf('Sofía'));
+    expect(system).toContain('manda sobre cualquier otro');
+  });
+
+  it('renombrado por update, el nombre viejo ya NI APARECE en el system', async () => {
     const renombrado = await withTenant(admin, tenant, (c) =>
       updateAgent(c, { tenantId: tenant, agentId: agent.id, name: 'José', actor: 'test' }),
     );
@@ -71,11 +98,9 @@ describe('la identidad se antepone en runtime (#1015)', () => {
     );
     const system = capturados[0]?.system ?? '';
     expect(system).toContain('Te llamas José');
-    // La identidad declara que manda: el prompt configurado sigue abajo con
-    // su «Sofía» adentro — borrárselo sería editar texto del dueño — pero el
-    // modelo recibe primero quién es hoy.
-    expect(system.indexOf('Te llamas José')).toBeLessThan(system.indexOf('Sofía'));
-    expect(system).toContain('manda sobre cualquier otro');
+    // El refuerzo determinista: la reescritura del rename sacó a «Sofía» del
+    // prompt configurado, así que el modelo no tiene de dónde sacarla.
+    expect(system).not.toContain('Sofía');
   });
 
   it('sin prompt configurado, el nombre sale SOLO de la identidad — no dos veces', async () => {
@@ -97,5 +122,59 @@ describe('la identidad se antepone en runtime (#1015)', () => {
     expect(system).toContain('el asistente de este negocio');
     // Una sola mención: el default ya no interpola el nombre por su cuenta.
     expect(system.match(/José/g)).toHaveLength(1);
+  });
+});
+
+describe('renombrar reescribe el prompt configurado (#1015, el refuerzo determinista)', () => {
+  it('el nombre viejo se reescribe como palabra completa, todas sus menciones', async () => {
+    const sofia = await withTenant(admin, tenant, (c) =>
+      createAgent(c, {
+        tenantId: tenant,
+        name: 'Carmen',
+        fallbackSystemPrompt: 'Eres Carmen, del salón. Carmen saluda con cariño.',
+        actor: 'test',
+      }),
+    );
+    const renombrada = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, { tenantId: tenant, agentId: sofia.id, name: 'Pilar', actor: 'test' }),
+    );
+    expect(renombrada.fallbackSystemPrompt).toBe('Eres Pilar, del salón. Pilar saluda con cariño.');
+  });
+
+  it('un nombre que es pedazo de otra palabra no se toca', async () => {
+    const sol = await withTenant(admin, tenant, (c) =>
+      createAgent(c, {
+        tenantId: tenant,
+        name: 'Sol',
+        fallbackSystemPrompt: 'El Solsticio abre a las 10. Atiende Sol.',
+        actor: 'test',
+      }),
+    );
+    const mar = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, { tenantId: tenant, agentId: sol.id, name: 'Mar', actor: 'test' }),
+    );
+    // «Solsticio» sobrevive; el «Sol» suelto cambia.
+    expect(mar.fallbackSystemPrompt).toBe('El Solsticio abre a las 10. Atiende Mar.');
+  });
+
+  it('si el dueño manda prompt nuevo junto al rename, su texto manda tal cual', async () => {
+    const ana = await withTenant(admin, tenant, (c) =>
+      createAgent(c, {
+        tenantId: tenant,
+        name: 'Ana',
+        fallbackSystemPrompt: 'Eres Ana.',
+        actor: 'test',
+      }),
+    );
+    const conPromptNuevo = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, {
+        tenantId: tenant,
+        agentId: ana.id,
+        name: 'Eva',
+        fallbackSystemPrompt: 'Atiendes la caja. Nada de nombres.',
+        actor: 'test',
+      }),
+    );
+    expect(conPromptNuevo.fallbackSystemPrompt).toBe('Atiendes la caja. Nada de nombres.');
   });
 });
