@@ -11,7 +11,9 @@ export type EscalationReason =
   | 'monto_alto'
   | 'error_del_modelo'
   /** El modelo se quedó sin espacio de salida: no falló, no le alcanzó. */
-  | 'respuesta_cortada';
+  | 'respuesta_cortada'
+  /** La «respuesta» es el bloque de conocimiento pegado: eso no viaja (#1021). */
+  | 'eco_del_contexto';
 
 const PIDE_HUMANO =
   /\b(humano|persona\s+real|hablar\s+con\s+(?:alguien|una?\s+person\w*|un\s+ejecutiv\w*)|ejecutiv[oa]|operador\w*|no\s+quiero\s+(?:un\s+)?(?:bot|robot))\b/i;
@@ -25,6 +27,43 @@ export function detectEscalation(texto: string | null | undefined): EscalationRe
   if (PIDE_HUMANO.test(texto)) return 'pide_humano';
   if (ENOJO_LEGAL.test(texto)) return 'enojo_o_legal';
   return null;
+}
+
+/**
+ * La respuesta que es el contexto pegado, no una respuesta (#1021).
+ *
+ * Medido el 24/10: gpt-5-mini puso en `respuesta` el bloque de conocimiento
+ * COMPLETO, con el marcador interno «— [nombre de la fuente]» a la vista del
+ * cliente y datos que nadie preguntó. El prompt ya lo prohíbe (#1031), pero
+ * es estocástico — y lo que PUEDE salir mal delante de un cliente necesita
+ * un cinturón que no dependa del humor del modelo.
+ *
+ * Dos detectores, los dos deterministas:
+ * 1. El marcador «— [» del formato interno de citas: ese texto no existe en
+ *    ninguna respuesta legítima — las citas buenas dicen «(según X)».
+ * 2. Un tramo largo del conocimiento copiado LITERAL (80+ caracteres tras
+ *    normalizar espacios): aunque el modelo le quite el marcador, un volcado
+ *    sigue siendo un volcado.
+ *
+ * Se compara contra el BLOQUE DE CONOCIMIENTO, no contra el contexto entero:
+ * los últimos mensajes también van en el contexto, y repetir lo que el
+ * cliente dijo («confirmo: corte más barba el sábado») es conversación
+ * normal, no eco.
+ */
+export function esEcoDelContexto(respuesta: string, conocimiento: string | null | undefined): boolean {
+  if (respuesta.includes('— [')) return true;
+  if (!conocimiento) return false;
+  const plano = (t: string): string => t.replace(/\s+/g, ' ').trim();
+  const r = plano(respuesta);
+  const k = plano(conocimiento);
+  const TRAMO = 80;
+  if (r.length < TRAMO || k.length < TRAMO) return false;
+  // Ventanas solapadas: un tramo copiado de 120 caracteres siempre contiene
+  // una ventana alineada a la mitad del paso.
+  for (let i = 0; i + TRAMO <= r.length; i += TRAMO / 2) {
+    if (k.includes(r.slice(i, i + TRAMO))) return true;
+  }
+  return k.includes(r.slice(r.length - TRAMO));
 }
 
 /** Lo que se le pide al modelo en modo autónomo: respuesta O escalar. */
