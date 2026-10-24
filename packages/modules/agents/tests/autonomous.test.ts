@@ -6,6 +6,7 @@ import { receiveInbound } from '@iaxti/module-conversations';
 import { detectEscalation, parseAutonomous } from '../domain/escalation';
 import {
   autoRespondForInbound,
+  avisoDeEscalada,
   conversationMode,
   effectiveMode,
   inAutonomousHours,
@@ -173,7 +174,7 @@ describe('la corrida autónoma (#49)', () => {
     );
     const antes = await admin.query('SELECT count(*)::int AS n FROM agent_executions WHERE tenant_id = $1', [tenant]);
     const res = await alAire(conv, fabricaOk);
-    expect(res).toEqual({ action: 'escalated', reason: 'pide_humano' });
+    expect(res).toMatchObject({ action: 'escalated', reason: 'pide_humano' });
     const despues = await admin.query('SELECT count(*)::int AS n FROM agent_executions WHERE tenant_id = $1', [tenant]);
     expect(despues.rows[0].n).toBe(antes.rows[0].n); // ni un token
 
@@ -183,6 +184,42 @@ describe('la corrida autónoma (#49)', () => {
       [tenant, conv],
     );
     expect(eventos.rows.map((r) => r.name).sort()).toEqual(['agent.escalated', 'conversation.handoff_requested']);
+  });
+
+  it('al escalar, el cliente recibe un aviso — nunca silencio (#1019)', async () => {
+    const conv = await conversacionNueva('quiero hablar con una persona');
+    await withTenant(admin, tenant, (c) =>
+      setConversationMode(c, { tenantId: tenant, conversationId: conv, mode: 'autonomous', actor: 'user-1' }),
+    );
+    const res = await alAire(conv, fabricaOk);
+    if (res.action !== 'escalated') throw new Error(`esperaba escalated, vino ${res.action}`);
+    // El texto no promete plazo, firma con el nombre del agente, y NO ofrece
+    // «escribe humano»: el humano ya viene en camino.
+    expect(res.aviso).toContain('Te va a responder una persona del equipo');
+    expect(res.aviso).toContain('Sofía — asistente virtual.');
+    expect(res.aviso).not.toContain('Escribe "humano"');
+  });
+
+  it('el aviso de escalada se configura por agente, con el defecto si está en blanco', async () => {
+    const propio = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, {
+        tenantId: tenant,
+        agentId: agent.id,
+        limits: { escalation_notice: 'Ya aviso al equipo del salón, te escriben altiro.' },
+        actor: 'test',
+      }),
+    );
+    expect(avisoDeEscalada(propio)).toBe(
+      'Ya aviso al equipo del salón, te escriben altiro.\n\nSofía — asistente virtual.',
+    );
+    // En blanco no es «sin firma ni texto»: cae al defecto.
+    const enBlanco = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, { tenantId: tenant, agentId: agent.id, limits: { escalation_notice: '   ' }, actor: 'test' }),
+    );
+    expect(avisoDeEscalada(enBlanco)).toContain('Te va a responder una persona del equipo');
+    agent = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, { tenantId: tenant, agentId: agent.id, limits: {}, actor: 'test' }),
+    );
   });
 
   it('la regla del tenant asigna el handoff a alguien concreto', async () => {
@@ -195,7 +232,7 @@ describe('la corrida autónoma (#49)', () => {
       setConversationMode(c, { tenantId: tenant, conversationId: conv, mode: 'autonomous', actor: 'user-1' }),
     );
     const res = await alAire(conv, fabricaOk);
-    expect(res).toEqual({ action: 'escalated', reason: 'enojo_o_legal' });
+    expect(res).toMatchObject({ action: 'escalated', reason: 'enojo_o_legal' });
     const owner = await admin.query('SELECT owner_id FROM conversations WHERE id = $1', [conv]);
     expect(owner.rows[0].owner_id).toBe(humano);
     agent = await withTenant(admin, tenant, (c) =>
@@ -210,7 +247,7 @@ describe('la corrida autónoma (#49)', () => {
     );
     const dudosa = JSON_OK.replace('0.92', '0.40');
     const res = await alAire(conv, fabricaFija(dudosa));
-    expect(res).toEqual({ action: 'escalated', reason: 'confianza_baja' });
+    expect(res).toMatchObject({ action: 'escalated', reason: 'confianza_baja' });
   });
 
   it('el modelo pide escalar (fuera de conocimiento) y se le hace caso', async () => {
@@ -222,7 +259,7 @@ describe('la corrida autónoma (#49)', () => {
       conv,
       fabricaFija('{"respuesta": "", "confianza": 0.9, "escalar": true, "motivo_escalar": "fuera_de_conocimiento"}'),
     );
-    expect(res).toEqual({ action: 'escalated', reason: 'fuera_de_conocimiento' });
+    expect(res).toMatchObject({ action: 'escalated', reason: 'fuera_de_conocimiento' });
   });
 
   it('más de N turnos sin avanzar: escala antes de responder de nuevo', async () => {
@@ -239,7 +276,7 @@ describe('la corrida autónoma (#49)', () => {
       );
     }
     const res = await alAire(conv, fabricaOk);
-    expect(res).toEqual({ action: 'escalated', reason: 'sin_avance' });
+    expect(res).toMatchObject({ action: 'escalated', reason: 'sin_avance' });
   });
 
   it('en assist no responde nada solo: cae a la sugerencia de siempre', async () => {

@@ -136,6 +136,8 @@ export async function processSuggest(
   suggestionId?: string;
   autoReplied?: string;
   escalated?: string;
+  /** El id del aviso de cortesía que recibió el cliente al escalar (#1019). */
+  avisado?: string;
   skipped?: string;
   transcribed?: boolean;
 }> {
@@ -227,18 +229,16 @@ export async function processSuggest(
       ...(fuentes ? { fuentes } : {}),
       requestId: data.requestId,
     });
-    if (auto.action === 'escalated') {
-      return { escalated: auto.reason, transcribed };
-    }
-    if (auto.action === 'reply') {
-      // El cliente siempre ve QUIÉN escribe y cómo pedir humano (SPEC §13).
-      const firmado = `${auto.text}\n\n${auto.agentName} — asistente virtual. Escribe "humano" y te paso con una persona.`;
+    // Lo que sale firmado al cliente — la respuesta autónoma o el aviso de
+    // escalada (#1019) — se entrega igual: es respuesta a su entrante, así
+    // que la ventana de 24 h está abierta y el horario de silencio no aplica.
+    const entregar = async (body: string): Promise<string> => {
       const message = await sendMessage(client, {
         tenantId: data.tenantId,
         conversationId: data.conversationId,
         authorKind: 'agent',
         type: 'texto',
-        body: firmado,
+        body,
         delivery: 'reply',
         requestId: data.requestId,
       });
@@ -251,7 +251,19 @@ export async function processSuggest(
           requestId: data.requestId,
         });
       }
-      return { autoReplied: message.id, transcribed };
+      return message.id;
+    };
+    if (auto.action === 'escalated') {
+      // El aviso viene armado y firmado desde el módulo (#1019): sin él, el
+      // cliente que preguntó algo se quedaba mirando un chat mudo hasta que
+      // un humano abriera la bandeja.
+      const avisado = await entregar(auto.aviso);
+      return { escalated: auto.reason, avisado, transcribed };
+    }
+    if (auto.action === 'reply') {
+      // El cliente siempre ve QUIÉN escribe y cómo pedir humano (SPEC §13).
+      const firmado = `${auto.text}\n\n${auto.agentName} — asistente virtual. Escribe "humano" y te paso con una persona.`;
+      return { autoReplied: await entregar(firmado), transcribed };
     }
     if (auto.action === 'none') {
       return { skipped: 'sin agente activo', transcribed };
