@@ -697,8 +697,18 @@ export function Chat({
 
       {sugerencia && enVentana && (
         <div className="mx-4 mb-2 rounded-campo border border-action-soft-br bg-action-soft p-3">
-          <p className="rotulo">Sugerencia del asistente{sugerencia.confidence !== null && ` · ${Math.round(sugerencia.confidence * 100)} %`}</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{sugerencia.text}</p>
+          {/* Sin texto no hay nada que enviar (#1030): el asistente ya
+              respondió solo y lo único pendiente es la acción. Ofrecer
+              «Enviar sugerencia» acá mandaría un mensaje vacío — o peor,
+              repetiría lo que el cliente ya recibió. */}
+          <p className="rotulo">
+            {sugerencia.text.trim() === ''
+              ? 'El asistente respondió solo — esto quedó esperando tu visto bueno'
+              : `Sugerencia del asistente${sugerencia.confidence !== null ? ` · ${Math.round(sugerencia.confidence * 100)} %` : ''}`}
+          </p>
+          {sugerencia.text.trim() !== '' && (
+            <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{sugerencia.text}</p>
+          )}
           <EnQueSeApoyo herramientas={sugerencia.herramientas} fuentes={sugerencia.fuentes} />
           {/* La acción que el asistente dejó propuesta (#1000).
               Va ARRIBA de «Enviar sugerencia» porque es la decisión más
@@ -737,9 +747,11 @@ export function Chat({
             </p>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button size="chico" data-testid="enviar-sugerencia" onClick={() => void onSugerencia('send')}>
-              Enviar sugerencia
-            </Button>
+            {sugerencia.text.trim() !== '' && (
+              <Button size="chico" data-testid="enviar-sugerencia" onClick={() => void onSugerencia('send')}>
+                Enviar sugerencia
+              </Button>
+            )}
             <Button variant="fantasma" size="chico" onClick={() => void onSugerencia('dismiss')}>
               Descartar
             </Button>

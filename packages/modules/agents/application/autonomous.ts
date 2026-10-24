@@ -14,6 +14,7 @@ import type { ModelPortFactory } from './models';
 import { aiSdkModelPort } from './models';
 import { isAutonomousPaused } from './quota';
 import { activeAgent, refreshedContext } from './copilot';
+import { accionQueSePuedeProponer, accionesParaElPrompt } from './acciones-en-la-conversacion';
 import type { Agent } from './agents';
 import { abrirIntento } from './objetivo-medido';
 import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
@@ -316,7 +317,12 @@ export async function autoRespondForInbound(
       task: 'responder',
       context: contexto,
       ...(input.activeModules ? { activeModules: input.activeModules } : {}),
-      prompt: formatoAutonomo({ moneyLimitClp: limits.moneyLimitClp }),
+      // Con el catálogo de lo proponible (#1030): además de responder puede
+      // dejar una acción esperando el visto bueno, igual que en assist.
+      prompt: formatoAutonomo({
+        moneyLimitClp: limits.moneyLimitClp,
+        acciones: accionesParaElPrompt(input.activeModules),
+      }),
       requestId: input.requestId,
       ...(input.fuentes ? { fuentes: input.fuentes } : {}),
     },
@@ -351,6 +357,44 @@ export async function autoRespondForInbound(
     actor: 'system',
     requestId: input.requestId,
   });
+
+  // La acción que dejó propuesta además de responder (#1030). Va como
+  // sugerencia SIN TEXTO: la respuesta ya salió — lo único pendiente es la
+  // acción, y la bandeja no ofrece «enviar» lo que no existe. Misma
+  // validación que en assist (#1000): si no es de la lista o el catálogo ya
+  // no pide visto bueno, se pierde la acción y la respuesta viaja igual.
+  const accion = accionQueSePuedeProponer(payload.accion);
+  if (accion) {
+    const fila = await client.query(
+      `INSERT INTO suggestions
+         (tenant_id, agent_id, conversation_id, execution_id, text,
+          confidence, intent, lead_score, suggest_deal, accion)
+       VALUES ($1,$2,$3,$4,'',$5,$6,$7,false,$8) RETURNING id`,
+      [
+        input.tenantId,
+        agent.id,
+        input.conversationId,
+        res.executionId,
+        payload.confianza,
+        payload.intencion,
+        payload.calificacion,
+        JSON.stringify(accion),
+      ],
+    );
+    await publishEvent(client, {
+      name: 'agent.suggested',
+      tenantId: input.tenantId,
+      payload: {
+        suggestionId: fila.rows[0].id,
+        conversationId: input.conversationId,
+        confidence: payload.confianza,
+        suggestDeal: false,
+      },
+      actor: 'system',
+      requestId: input.requestId,
+    });
+  }
+
   return {
     action: 'reply',
     text: payload.respuesta,

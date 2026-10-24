@@ -38,7 +38,7 @@ export interface SuggestionPayload {
  * sugerencia. Se pierde la acción y queda el texto, que es lo que de verdad
  * necesita quien atiende.
  */
-function accionDe(crudo: unknown): AccionPropuesta | null {
+export function accionDe(crudo: unknown): AccionPropuesta | null {
   if (crudo === null || typeof crudo !== 'object' || Array.isArray(crudo)) return null;
   const o = crudo as Record<string, unknown>;
   const herramienta = typeof o.herramienta === 'string' ? o.herramienta.trim() : '';
