@@ -207,7 +207,16 @@ export async function runAgentTask(
       ? await getVersionedPrompt(input.agent.promptName, input.agent.promptVersion ?? undefined)
       : null) ??
     input.agent.fallbackSystemPrompt ??
-    `Eres ${input.agent.name}, el asistente de este negocio. Responde en ${input.agent.language}, breve y útil.${input.agent.personality ? ` Personalidad: ${input.agent.personality}` : ''}`;
+    `Eres el asistente de este negocio. Responde en ${input.agent.language}, breve y útil.${input.agent.personality ? ` Personalidad: ${input.agent.personality}` : ''}`;
+  // La identidad va en RUNTIME y manda (#1015): el nombre vivía también
+  // escrito dentro del prompt configurado, y al renombrar el agente nadie lo
+  // corregía — el modelo se presentaba «Soy Sofía» y el worker firmaba
+  // «José», que es peor que cualquiera de los dos solos. Medido el 25/10
+  // contra gpt-5-mini en el tenant demo. El nombre tiene UN lugar:
+  // `agents.name`, el mismo que usa la firma.
+  const conIdentidad = `Te llamas ${input.agent.name} y así te presentas; ese nombre manda sobre cualquier otro que aparezca en estas instrucciones.
+
+${base}`;
   // El OBJETIVO va adelante (#315): qué tiene que lograr manda sobre cómo lo
   // dice. Y si el módulo que lo hace posible está apagado, la advertencia va
   // antes que todo — es lo único que evita que prometa una hora que nadie
@@ -216,7 +225,7 @@ export async function runAgentTask(
     input.agent.objetivo !== null && input.agent.objetivo !== undefined
       ? resolverObjetivo(input.agent.objetivo, input.agent.objetivoDetalle, input.activeModules ?? [])
       : null;
-  const system = componerPrompt(base, resuelto) ?? base;
+  const system = componerPrompt(conIdentidad, resuelto) ?? conIdentidad;
 
   const promptCompleto = input.context ? `${input.context}\n\n${input.prompt}` : input.prompt;
   /**
