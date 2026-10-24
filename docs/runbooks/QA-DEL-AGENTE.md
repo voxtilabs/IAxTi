@@ -8,6 +8,12 @@ Las frases van tal cual se escriben: redactadas como habla un dueño de pyme
 chilena, con tuteo y sin jerga, porque el producto se prueba con el idioma con
 el que se usa.
 
+**Para tener algo a quien interrogar:** `pnpm seed` deja el negocio de
+demostración conversable —widget de webchat, conocimiento indexado y asistente
+autónomo— e imprime la URL del chat en cada corrida (#1018). Si el seed dice
+«sin credencial de embeddings», el conocimiento quedó pendiente y el asistente
+va a escalar todo: eso no es un defecto del agente, es la credencial.
+
 ---
 
 ## Primero: cuál de los dos estás probando
@@ -81,6 +87,17 @@ dónde falta un cartel.
   es un despliegue: toma efecto en la siguiente conversación.
 - **Defecto:** afirmar un precio o un ahorro. Puede nombrar el modelo;
   inventar cuánto cuesta, no.
+
+> «José ahora se llama Max»
+
+- **Debe:** renombrarlo entero: el asistente se **presenta** como Max y las
+  menciones del nombre viejo dentro de su prompt configurado quedan
+  reescritas (#1015). La prueba es de una línea: escribile como cliente
+  «¿cómo te llamas?».
+- **Defecto:** que se presente con el nombre viejo y firme con el nuevo — las
+  dos identidades a la vez es peor que cualquiera de las dos solas.
+- **Mirar:** si el dueño manda un prompt nuevo en el mismo cambio, su texto
+  manda tal cual: nada se reescribe por encima.
 
 ### Preguntarle por el negocio
 
@@ -162,6 +179,21 @@ propuesta** que quien atiende aplica en un toque, con sus propios permisos.
 - **Defecto:** un precio, un plazo o un descuento que no esté cargado. Es la
   regla que no se negocia.
 
+> «cuánto sale el corte y hasta qué hora atienden los sábados?» *(con los dos
+> datos cargados en el conocimiento, y el asistente con objetivo «agendar»)*
+
+- **Debe:** responder los DOS datos en sus palabras, citando la fuente — y
+  nada más. «Escalar» habla de lo que el cliente preguntó, no del objetivo del
+  asistente (#1020): que no pueda agendar ni confirmar horas no convierte una
+  pregunta respondida en «fuera de conocimiento».
+- **Defecto:** escalar teniendo los datos (la respuesta buena se bota), o
+  responder el bloque de conocimiento PEGADO. Ver «— [» en un mensaje al
+  cliente es defecto siempre: ese marcador es formato interno, y desde #1021
+  el volcado se detecta y escala con su aviso en vez de viajar.
+- **Mirar:** que la respuesta no traiga datos que nadie preguntó (dirección,
+  medios de pago, otros precios) — en sus palabras significa también solo lo
+  suyo.
+
 > «quiero pagar ahora»
 
 - **Debe:** proponer el link de pago con el monto de la oportunidad. Aplicado,
@@ -173,10 +205,15 @@ propuesta** que quien atiende aplica en un toque, con sus propios permisos.
 
 > «humano»
 
-- **Debe:** escalar y dejar de contestar solo. El cliente siempre ve quién le
-  escribe y cómo pedir una persona: el asistente firma cada mensaje.
-- **Defecto:** seguir respondiendo como si nada, o escalar sin avisarle al
-  cliente.
+- **Debe:** escalar, dejar de contestar solo, y **avisarle al cliente** en el
+  momento: «Gracias por escribirnos. Te va a responder una persona del
+  equipo.», firmado con el nombre del asistente (#1019). El texto es
+  configurable por agente; en blanco cae a ese defecto — el silencio nunca es
+  el defecto.
+- **Defecto:** seguir respondiendo como si nada, o escalar en silencio: un
+  cliente mirando un chat mudo es un chat roto. También es defecto que el
+  aviso prometa un plazo («te contestamos en 5 minutos») — no promete nada que
+  una persona no confirmó.
 
 > «BASTA, no me escriban más»
 
@@ -206,6 +243,9 @@ va arriba de todo lo demás.
 6. **Nada se borra.** Se archiva.
 7. **Todo queda escrito.** Cada acción del agente deja rastro en el libro:
    quién, a nombre de quién, con qué argumentos y con qué resultado.
+8. **El cliente nunca queda en silencio.** Cuando la IA escala —por el motivo
+   que sea, incluido un fallo del modelo— al cliente le llega el aviso de que
+   viene una persona. Silencio tras escalar es defecto, no prudencia.
 
 ---
 
