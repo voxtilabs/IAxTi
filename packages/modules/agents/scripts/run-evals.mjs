@@ -4,6 +4,12 @@
 // inventa un score. Falla si el promedio baja del baseline versionado.
 //
 //   pnpm --filter @iaxti/module-agents exec node scripts/run-evals.mjs
+//
+// Los prompts se IMPORTAN del producto compilado (#1029): este script tenía
+// su propia copia del formato de sugerencia, y ya había divergido — el
+// producto ganó el campo `accion` (#1000) y el gate seguía midiendo el
+// formato viejo. Un gate que evalúa un prompt que el producto no usa es la
+// clase de defecto de #869: verde, vigilando otra cosa.
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -12,8 +18,23 @@ import { generateText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
-const dataset = JSON.parse(readFileSync(join(raiz, 'evals', 'dataset-sugerir.json'), 'utf8'));
 const baseline = JSON.parse(readFileSync(join(raiz, 'evals', 'baseline.json'), 'utf8'));
+
+// Del dist y no de la fuente: este script es JS plano y corre tras el build
+// (en CI, el paso Build va antes). Si no hay dist, se dice qué falta en vez
+// de reventar con un stack de resolución.
+let FORMATO_SUGERENCIA, formatoAutonomo, accionesParaElPrompt;
+try {
+  ({ FORMATO_SUGERENCIA } = await import('../dist/domain/parser.js'));
+  ({ formatoAutonomo } = await import('../dist/domain/escalation.js'));
+  ({ accionesParaElPrompt } = await import('../dist/application/acciones-en-la-conversacion.js'));
+} catch (err) {
+  console.error(
+    'evals: no pude cargar los prompts del producto desde dist/ — compila primero\n' +
+      `       (pnpm turbo build --filter=@iaxti/module-agents). Detalle: ${String(err?.message ?? err).slice(0, 160)}`,
+  );
+  process.exit(1);
+}
 
 const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 if (!apiKey) {
@@ -28,13 +49,6 @@ const google = createGoogleGenerativeAI({ apiKey });
 const candidato = google(process.env.EVAL_MODEL ?? 'gemini-flash-latest');
 // El juez va por el modelo grande: juzgar pide más que responder.
 const juez = google(process.env.EVAL_JUDGE_MODEL ?? 'gemini-pro-latest');
-
-const FORMATO = `Responde SOLO este JSON:
-{"sugerencia": "<respuesta lista para enviar al cliente>",
- "confianza": <0 a 1>,
- "intencion": "<cotizar|agendar|reclamo|consulta|otro>",
- "calificacion": "<frio|tibio|caliente>",
- "crear_oportunidad": <true si parece querer comprar o cotizar>}`;
 
 function extraeJson(texto) {
   const i = texto.indexOf('{');
@@ -70,7 +84,7 @@ function extraeJson(texto) {
  * misma decisión que ya tomaba el script cuando falta la llave — «avisa y se
  * salta, jamás inventa un score».
  *
- * El único exit 1 es el de arriba: el promedio medido quedó bajo el
+ * El único exit 1 es el de abajo: el promedio medido quedó bajo el
  * baseline. Ese sí es del cambio.
  */
 function explicaFalloDelProveedor(err) {
@@ -96,69 +110,105 @@ function explicaFalloDelProveedor(err) {
   return 0;
 }
 
-let suma = 0;
-for (const caso of dataset.casos) {
-  try {
-  const gen = await generateText({
-    model: candidato,
-    system: 'Eres el asistente de ventas por WhatsApp de una pyme chilena. Cercano y profesional.',
-    prompt: `${caso.contexto}\n\n${FORMATO}`,
-    // Los modelos que razonan gastan tokens de SALIDA pensando antes de
-    // contestar. Una sugerencia de tres líneas consumió 665 en la primera
-    // corrida real: con 512 se cortaba a la mitad y el JSON no parseaba.
-    maxOutputTokens: 1500,
-  });
-  const respuesta = extraeJson(gen.text)?.sugerencia ?? gen.text;
-  const veredicto = await generateText({
-    model: juez,
-    prompt: `Evalúa esta respuesta de un asistente de pyme chilena.
-CONTEXTO: ${caso.contexto}
-CRITERIOS: ${caso.criterios.join(' · ')}
-RESPUESTA: ${respuesta}
-Responde SOLO: {"correctness": <0-1>, "tono": <0-1>, "tools": <0-1>}`,
-    // Ídem: con 256 el juez devolvía `{"correctness": 0.8` —cortado— y eso
-    // se contaba como un CERO. Un caso perfecto se veía como el peor.
-    maxOutputTokens: 1024,
-  });
-  // Si la nota del juez no se puede leer, ESO no es un cero.
-  //
-  // Antes caía a `{correctness:0, tono:0, tools:0}`, y un cero por no poder
-  // parsear se ve idéntico a un cero por responder pésimo. En la primera
-  // corrida de verdad, un caso dio 0.00 y no era la respuesta: era el juez
-  // devolviendo algo que no era JSON.
-  //
-  // Un gate que confunde "no pude medir" con "está mal" hace fallar el CI
-  // por un hipo del proveedor, y a la tercera vez nadie lo mira.
-  const notas = extraeJson(veredicto.text);
-  if (!notas || [notas.correctness, notas.tono, notas.tools].some((n) => !Number.isFinite(Number(n)))) {
-    console.error(
-      `evals: el juez no devolvió notas legibles para "${caso.id}". No es un cero:\n` +
-        `       es que no se pudo medir. Devolvió: ${String(veredicto.text).slice(0, 160)}`,
-    );
-    console.error('evals: EL GATE NO CORRIÓ. No es un rojo de este cambio.');
-    process.exit(0);
-  }
-  const total = (Number(notas.correctness) * 2 + Number(notas.tono) + Number(notas.tools)) / 4;
-  suma += total;
-  console.log(`evals: ${caso.id} → ${total.toFixed(2)}`);
-  // Un respiro entre casos: el tier gratis limita por minuto y el dataset
-  // son seis casos con dos llamadas cada uno. Configurable para que en una
-  // llave de pago no cueste tiempo de más.
-  // Acá un 0 sí significa algo: "sin pausa". Pero basura no debe volverse
-  // NaN y saltarse la pausa en silencio, que es lo que pasaba.
+async function pausaEntreCasos() {
+  // Un respiro entre casos: el tier gratis limita por minuto. Configurable
+  // para que en una llave de pago no cueste tiempo de más. Acá un 0 sí
+  // significa algo: "sin pausa". Pero basura no debe volverse NaN y saltarse
+  // la pausa en silencio, que es lo que pasaba.
   const crudo = process.env.EVAL_PAUSA_MS;
   const n = crudo === undefined || crudo.trim() === '' ? 4000 : Number(crudo);
   const pausa = Number.isFinite(n) && n >= 0 ? n : 4000;
   if (pausa > 0) await new Promise((r) => setTimeout(r, pausa));
-  } catch (err) {
-    process.exit(explicaFalloDelProveedor(err));
-  }
 }
 
-const promedio = suma / dataset.casos.length;
-const minimo = baseline[dataset.task] ?? 0.7;
-console.log(`evals: promedio ${promedio.toFixed(3)} (baseline ${minimo})`);
-if (promedio < minimo) {
-  console.error('evals: la versión RINDE PEOR que el baseline — no pasa (SPEC §13).');
-  process.exit(1);
+/**
+ * Corre un dataset contra su prompt REAL y devuelve el promedio.
+ *
+ * `alJuez` decide qué ve el juez como RESPUESTA: en `sugerir`, el texto de la
+ * sugerencia (lo que una persona enviaría); en `autonomo`, el JSON crudo —
+ * ahí los criterios hablan de la DECISIÓN (escalar, accion), no solo del
+ * texto, y recortarlo sería esconderle al juez justo lo que se evalúa.
+ */
+async function correrDataset(archivo, prompt, alJuez) {
+  const dataset = JSON.parse(readFileSync(join(raiz, 'evals', archivo), 'utf8'));
+  let suma = 0;
+  for (const caso of dataset.casos) {
+    try {
+      const gen = await generateText({
+        model: candidato,
+        system: 'Eres el asistente de ventas por WhatsApp de una pyme chilena. Cercano y profesional.',
+        prompt: `${caso.contexto}\n\n${prompt}`,
+        // Los modelos que razonan gastan tokens de SALIDA pensando antes de
+        // contestar. Una sugerencia de tres líneas consumió 665 en la primera
+        // corrida real: con 512 se cortaba a la mitad y el JSON no parseaba.
+        maxOutputTokens: 1500,
+      });
+      const respuesta = alJuez(gen.text);
+      const veredicto = await generateText({
+        model: juez,
+        prompt: `Evalúa esta respuesta de un asistente de pyme chilena.
+CONTEXTO: ${caso.contexto}
+CRITERIOS: ${caso.criterios.join(' · ')}
+RESPUESTA: ${respuesta}
+Responde SOLO: {"correctness": <0-1>, "tono": <0-1>, "tools": <0-1>}`,
+        // Ídem: con 256 el juez devolvía `{"correctness": 0.8` —cortado— y eso
+        // se contaba como un CERO. Un caso perfecto se veía como el peor.
+        maxOutputTokens: 1024,
+      });
+      // Si la nota del juez no se puede leer, ESO no es un cero.
+      //
+      // Antes caía a `{correctness:0, tono:0, tools:0}`, y un cero por no poder
+      // parsear se ve idéntico a un cero por responder pésimo. En la primera
+      // corrida de verdad, un caso dio 0.00 y no era la respuesta: era el juez
+      // devolviendo algo que no era JSON.
+      //
+      // Un gate que confunde "no pude medir" con "está mal" hace fallar el CI
+      // por un hipo del proveedor, y a la tercera vez nadie lo mira.
+      const notas = extraeJson(veredicto.text);
+      if (!notas || [notas.correctness, notas.tono, notas.tools].some((n) => !Number.isFinite(Number(n)))) {
+        console.error(
+          `evals: el juez no devolvió notas legibles para "${caso.id}". No es un cero:\n` +
+            `       es que no se pudo medir. Devolvió: ${String(veredicto.text).slice(0, 160)}`,
+        );
+        console.error('evals: EL GATE NO CORRIÓ. No es un rojo de este cambio.');
+        process.exit(0);
+      }
+      const total = (Number(notas.correctness) * 2 + Number(notas.tono) + Number(notas.tools)) / 4;
+      suma += total;
+      console.log(`evals: ${dataset.task}/${caso.id} → ${total.toFixed(2)}`);
+      await pausaEntreCasos();
+    } catch (err) {
+      process.exit(explicaFalloDelProveedor(err));
+    }
+  }
+  return { task: dataset.task, promedio: suma / dataset.casos.length };
 }
+
+// El catálogo de acciones viaja en los dos prompts, como en el producto
+// (#1020 en sugerir, #1030 en autónomo). Sin filtro de módulos: el gate
+// evalúa el despliegue completo.
+const acciones = accionesParaElPrompt();
+
+const corridas = [
+  await correrDataset(
+    'dataset-sugerir.json',
+    [FORMATO_SUGERENCIA, acciones].filter(Boolean).join('\n\n'),
+    (texto) => extraeJson(texto)?.sugerencia ?? texto,
+  ),
+  await correrDataset(
+    'dataset-autonomo.json',
+    formatoAutonomo({ moneyLimitClp: null, acciones }),
+    (texto) => texto,
+  ),
+];
+
+let reprobado = false;
+for (const { task, promedio } of corridas) {
+  const minimo = baseline[task] ?? 0.7;
+  console.log(`evals: ${task} promedio ${promedio.toFixed(3)} (baseline ${minimo})`);
+  if (promedio < minimo) {
+    console.error(`evals: "${task}" RINDE PEOR que el baseline — no pasa (SPEC §13).`);
+    reprobado = true;
+  }
+}
+if (reprobado) process.exit(1);
