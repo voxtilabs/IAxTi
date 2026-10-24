@@ -4,6 +4,7 @@ import { requestHandoff } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
 import {
   detectEscalation,
+  esEcoDelContexto,
   formatoAutonomo,
   parseAutonomous,
   type EscalationReason,
@@ -332,6 +333,10 @@ export async function autoRespondForInbound(
 
   const payload = parseAutonomous(res.text);
   if (payload.escalar) return escalar(payload.motivoEscalar ?? 'otro');
+  // El volcado del conocimiento no viaja al cliente (#1021): el prompt ya lo
+  // prohíbe, pero es estocástico y esto es determinista. Con #1019, escalar
+  // significa que el cliente recibe el aviso — nunca el bloque pegado.
+  if (esEcoDelContexto(payload.respuesta, input.knowledge)) return escalar('eco_del_contexto');
   if (payload.confianza < limits.confidenceThreshold) return escalar('confianza_baja');
 
   await publishEvent(client, {
