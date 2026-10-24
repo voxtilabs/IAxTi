@@ -117,6 +117,31 @@ describe('lo que hay para mirar después del seed', () => {
     expect(r.rows[0].objetivo).toBeTruthy();
   });
 
+  it('a la demo se le puede hablar: widget, conocimiento y asistente autónomo (#1016)', async () => {
+    // Las tres cosas que el 24/10 hubo que armar a mano para lograr la
+    // primera conversación real. Sin cualquiera de ellas la demo queda muda:
+    // sin widget no hay por dónde escribir, sin conocimiento el asistente
+    // escala toda pregunta, y en `assist` no contesta solo.
+    const widget = await admin.query(
+      'SELECT allowed_domain FROM webchat_widgets WHERE tenant_id = $1',
+      [tenantId],
+    );
+    expect(widget.rowCount).toBe(1);
+    expect(widget.rows[0].allowed_domain).toBe('localhost');
+
+    const fuente = await admin.query('SELECT kind, status FROM sources WHERE tenant_id = $1', [tenantId]);
+    expect(fuente.rowCount).toBe(1);
+    // `texto`, no `faq`: faq exige JSON y esto es prosa (#1014).
+    expect(fuente.rows[0].kind).toBe('texto');
+
+    const agente = await admin.query(
+      'SELECT default_mode, autonomous_hours FROM agents WHERE tenant_id = $1',
+      [tenantId],
+    );
+    expect(agente.rows[0].default_mode).toBe('autonomous');
+    expect(agente.rows[0].autonomous_hours?.days).toHaveLength(7);
+  });
+
   it('hay atajos y etiquetas: la bandeja se ve como la de alguien que trabaja', async () => {
     expect(await cuantos('SELECT count(*)::int AS n FROM quick_replies WHERE tenant_id = $1')).toBeGreaterThan(2);
     expect(await cuantos('SELECT count(*)::int AS n FROM tags WHERE tenant_id = $1')).toBeGreaterThan(2);
@@ -138,6 +163,9 @@ describe('lo que hay para mirar después del seed', () => {
     );
     const segundo = await seed(admin);
     expect(segundo.demo.yaEstaba).toBe(true);
+    // La URL del chat se imprime en TODAS las corridas (#1016), así que el
+    // widget tiene que volver también cuando los datos ya estaban.
+    expect(segundo.demo.widgetId).toBeTruthy();
     expect(await cuantos('SELECT count(*)::int AS n FROM contacts WHERE tenant_id = $1')).toBe(antes);
     expect(await cuantos('SELECT count(*)::int AS n FROM conversations WHERE tenant_id = $1')).toBe(
       conversacionesAntes,

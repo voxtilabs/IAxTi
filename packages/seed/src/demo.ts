@@ -17,7 +17,9 @@ import {
   sendMessage,
 } from '@iaxti/module-conversations';
 import { agendar, cambiarEstadoCita } from '@iaxti/module-calendar';
-import { createAgent } from '@iaxti/module-agents';
+import { createAgent, listAgents, updateAgent } from '@iaxti/module-agents';
+import { addSource, embeddingsAvailable, reindexarPendientes } from '@iaxti/module-knowledge';
+import { createWidget, listWidgets } from '@iaxti/module-webchat';
 
 /**
  * El negocio de demostración, con cosas adentro (#432).
@@ -182,6 +184,8 @@ export interface ResultadoDemo {
   oportunidades: number;
   citas: number;
   diasDeMetricas: number;
+  /** Para imprimir la URL del chat — null solo si un seed viejo dejó el tenant sin widget. */
+  widgetId: string | null;
   yaEstaba: boolean;
 }
 
@@ -201,7 +205,18 @@ export async function sembrarDemo(
     return (r.rowCount ?? 0) > 0;
   });
   if (yaEstaba) {
-    return { contactos: 0, conversaciones: 0, oportunidades: 0, citas: 0, diasDeMetricas: 0, yaEstaba: true };
+    // El widget igual se busca: la URL del chat se imprime en TODAS las
+    // corridas, no solo en la primera — es el dato que hace a la demo usable.
+    const widgets = await withTenant(pool, tenantId, (c) => listWidgets(c, tenantId));
+    return {
+      contactos: 0,
+      conversaciones: 0,
+      oportunidades: 0,
+      citas: 0,
+      diasDeMetricas: 0,
+      widgetId: widgets[0]?.id ?? null,
+      yaEstaba: true,
+    };
   }
 
   return withTenant(pool, tenantId, async (c) => {
@@ -251,6 +266,57 @@ export async function sembrarDemo(
         'Eres Sofía, del salón. Hablas como chilena, breve y cálida. Nunca prometes una hora que no confirmaste.',
       actor: 'seed',
     });
+
+    /**
+     * Que a la demo se le pueda HABLAR (#1016).
+     *
+     * El seed dejaba el tenant con cosas adentro pero mudo: sin widget de
+     * webchat no había por dónde escribirle, sin conocimiento el agente
+     * escalaba cualquier pregunta de precio —que es lo correcto, pero no
+     * demuestra nada—, y en `assist` no contestaba solo. El 24/10 armar la
+     * primera conversación real llevó cuatro pasos a mano; estos son esos
+     * cuatro pasos, por las funciones del producto, como todo lo demás acá.
+     *
+     * El agente queda AUTÓNOMO las 24 horas los 7 días a propósito: esto es
+     * una demo y lo que se quiere es verla contestar, no proteger el horario
+     * de un negocio real. Un negocio real configura sus horas en Ajustes → IA.
+     */
+    const agenteDemo = (await listAgents(c, tenantId))[0];
+    await updateAgent(c, {
+      tenantId,
+      agentId: agenteDemo.id,
+      defaultMode: 'autonomous',
+      autonomousHours: { start: '00:00', end: '23:59', days: [0, 1, 2, 3, 4, 5, 6] },
+    });
+
+    const widget = await createWidget(c, {
+      tenantId,
+      allowedDomain: 'localhost',
+      name: 'Chat del sitio (demo)',
+      welcomeMessage: 'Hola, soy Sofía. ¿En qué te ayudo?',
+    });
+
+    // `texto` y no `faq`: faq exige JSON de preguntas y respuestas, y esto es
+    // prosa — pegado como faq muere con el error críptico de #1014.
+    await addSource(c, {
+      tenantId,
+      kind: 'texto',
+      name: 'Horarios y precios del salón',
+      content:
+        'Horario de atención: lunes a viernes de 10:00 a 19:00, sábados de 10:00 a 14:00. ' +
+        'El corte de pelo cuesta $18.000 y el corte más barba $24.000. La coloración parte ' +
+        'en $45.000 según el largo. Atendemos con hora agendada en Av. Providencia 1234, ' +
+        'Santiago. Aceptamos tarjetas y transferencia.',
+    });
+    // Indexar YA si hay credencial de embeddings: sin esto, la primera
+    // pregunta llega antes que el cron de 5 minutos y la demo escala en vez
+    // de responder. Sin credencial se dice, porque un seed que calla deja la
+    // demo muda sin explicación.
+    if (embeddingsAvailable()) {
+      await reindexarPendientes(c, tenantId);
+    } else {
+      console.log('Sin credencial de embeddings: el conocimiento queda pendiente de indexar.');
+    }
 
     // — Las personas —
     const contactos: string[] = [];
@@ -422,6 +488,7 @@ export async function sembrarDemo(
       oportunidades,
       citas,
       diasDeMetricas,
+      widgetId: widget.id,
       yaEstaba: false,
     };
   });
