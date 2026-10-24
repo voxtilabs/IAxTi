@@ -18,7 +18,9 @@
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
+    "@iaxti/module-knowledge": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
+    "@iaxti/module-webchat": "workspace:*",
     "pg": "^8.13.0"
   },
   "devDependencies": {

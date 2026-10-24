@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { ModuleRegistry } from '@iaxti/core';
+import { ModuleRegistry, textoDeEntorno } from '@iaxti/core';
 import { writeAudit } from '@iaxti/module-audit';
 import { baseRoleHasPermission } from '@iaxti/module-authorization';
 import { upsertProfile } from '@iaxti/module-identity';
@@ -133,6 +133,17 @@ async function main() {
         `Datos de demostración: ${d.contactos} contactos, ${d.conversaciones} conversaciones, ` +
           `${d.oportunidades} oportunidades, ${d.citas} citas y ${d.diasDeMetricas} días de métricas.`,
       );
+    }
+    // La demo se puede HABLAR (#1016): esta URL es el punto de entrada. Se
+    // imprime en toda corrida porque sin ella el widget existe pero nadie lo
+    // encuentra — así se perdió media hora el 24/10 (#1017).
+    if (result.demo.widgetId) {
+      // APP_URL_PUBLIC es la variable que YA declaran los dos compose; el
+      // defecto es el puerto del web en `docker compose up` local.
+      const web = textoDeEntorno('APP_URL_PUBLIC', 'http://localhost:3002');
+      console.log(`Chatea con la demo: ${web}/webchat/${result.demo.widgetId}?page=http://localhost/demo`);
+    } else {
+      console.log('Sin widget de webchat: este tenant se sembró con un seed anterior a #1016.');
     }
     // El criterio de la fase: el ADMIN puede lo que el USER no.
     const adminPuede = baseRoleHasPermission('ADMIN', 'users.manage', catalog);
