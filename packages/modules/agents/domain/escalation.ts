@@ -1,3 +1,5 @@
+import { accionDe, type AccionPropuesta } from './parser';
+
 // Escalamiento (#49, SPEC §13): detectores DETERMINISTAS que mandan sobre
 // el modelo — si el cliente pide persona o hay enojo/amenaza legal, la IA
 // no responde: escala. El modelo además puede declarar "escalar" él mismo.
@@ -66,8 +68,12 @@ export function esEcoDelContexto(respuesta: string, conocimiento: string | null 
   return k.includes(r.slice(r.length - TRAMO));
 }
 
-/** Lo que se le pide al modelo en modo autónomo: respuesta O escalar. */
-export function formatoAutonomo(opts: { moneyLimitClp: number | null }): string {
+/**
+ * Lo que se le pide al modelo en modo autónomo: respuesta O escalar — y desde
+ * #1030, además de responder puede DEJAR PROPUESTA una acción, que queda
+ * esperando el visto bueno de quien atiende, igual que en modo asistido.
+ */
+export function formatoAutonomo(opts: { moneyLimitClp: number | null; acciones?: string | null }): string {
   const dinero = opts.moneyLimitClp
     ? `- Cualquier cosa que involucre dinero sobre $${opts.moneyLimitClp.toLocaleString('es-CL')} CLP: escalar.`
     : '- Cualquier compromiso de dinero que no esté confirmado en el contexto: escalar.';
@@ -84,13 +90,28 @@ eso, sin volcar el contexto entero. Que tú no puedas agendar, cobrar ni
 confirmar una hora NO es "fuera_de_conocimiento": responde lo preguntado sin
 prometer esa gestión ni ofrecer gestiones que nadie pidió.
 
-Responde SOLO este JSON:
+${
+    opts.acciones
+      ? `${opts.acciones}
+
+Sobre "accion": no la ejecutas tú — queda esperando el visto bueno de quien
+atiende. Tu respuesta NUNCA la da por hecha: "te dejo la hora lista para que
+el equipo la confirme", jamás "ya te lo agendé".
+
+`
+      : ''
+  }Responde SOLO este JSON:
 {"respuesta": "<respuesta breve y cordial lista para enviar>",
  "confianza": <0 a 1>,
  "intencion": "<cotizar|agendar|reclamo|consulta|otro>",
  "calificacion": "<frio|tibio|caliente>",
  "escalar": <true|false>,
- "motivo_escalar": "<fuera_de_conocimiento|pide_humano|enojo_o_legal|monto_alto|otro|null>"}`;
+ "motivo_escalar": "<fuera_de_conocimiento|pide_humano|enojo_o_legal|monto_alto|otro|null>"${
+   opts.acciones
+     ? `,
+ "accion": <null, o {"herramienta": "<una de la lista de arriba>", "argumentos": {…}}>`
+     : ''
+ }}`;
 }
 
 export interface AutonomousPayload {
@@ -100,6 +121,8 @@ export interface AutonomousPayload {
   calificacion: 'frio' | 'tibio' | 'caliente' | null;
   escalar: boolean;
   motivoEscalar: string | null;
+  /** La acción que deja propuesta además de responder (#1030); null es lo normal. */
+  accion: AccionPropuesta | null;
 }
 
 /**
@@ -114,6 +137,7 @@ export function parseAutonomous(raw: string): AutonomousPayload {
     calificacion: null,
     escalar: true,
     motivoEscalar: 'error_del_modelo',
+    accion: null,
   };
   const inicio = raw.indexOf('{');
   const fin = raw.lastIndexOf('}');
@@ -138,6 +162,10 @@ export function parseAutonomous(raw: string): AutonomousPayload {
         calif === 'frio' || calif === 'tibio' || calif === 'caliente' ? calif : null,
       escalar: false,
       motivoEscalar: null,
+      // Tolerante como en la sugerencia (#1000): una acción a medias se
+      // pierde y la respuesta viaja igual — lo que el cliente necesita es
+      // la respuesta.
+      accion: accionDe(obj.accion),
     };
   } catch {
     return escalado;
