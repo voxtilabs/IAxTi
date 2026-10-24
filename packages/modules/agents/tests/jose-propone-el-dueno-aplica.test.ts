@@ -129,6 +129,51 @@ describe('aplicar', () => {
   const PERMISOS = new Set(['calendar.book']);
   const MODULOS = new Set(['calendar', 'conversations']);
 
+  /**
+   * Reagendar desde el chat, que es la promesa de SPEC §16 y el cierre de #836.
+   *
+   * «Reagendar y cancelar desde el chat ("¿puedo cambiarla?") CON
+   * confirmación»: el asistente propone `agenda.mover` con la cita y la hora
+   * nueva, quien atiende confirma, y la acción sale por la MISMA ruta que el
+   * botón de la agenda — `POST /v1/agenda/{id}/mover`, con su hueco comprobado
+   * y su evento `appointment.rescheduled` (#958).
+   *
+   * Lo que esta prueba agrega sobre la de agendar: la ruta lleva `{id}` en el
+   * camino, así que acá se comprueba que `repartirArgumentos` lo SUSTITUYA en
+   * vez de mandarlo en el cuerpo. Si eso se rompiera, la llamada iría a una
+   * ruta literal con llaves y el reagendado nunca llegaría al endpoint.
+   */
+  it('reagendar desde el chat: el id viaja EN la ruta, no en el cuerpo', async () => {
+    const id = await guardar({
+      herramienta: 'agenda.mover',
+      argumentos: { id: 'cita-77', inicio: '2026-11-05T15:00:00Z' },
+    });
+    const llamadas: Array<{ metodo: string; ruta: string; cuerpo: unknown }> = [];
+    const r = await withTenant(pool, tenant, (c) =>
+      aplicarAccionDeLaSugerencia(
+        c,
+        {
+          tenantId: tenant,
+          suggestionId: id,
+          permisos: new Set(['calendar.book']),
+          modulosActivos: new Set(['calendar']),
+        },
+        {
+          llamarApi: async ({ metodo, ruta, cuerpo }) => {
+            llamadas.push({ metodo, ruta, cuerpo });
+            return { ok: true, estado: 200, datos: { movida: true } };
+          },
+        },
+      ),
+    );
+    expect(llamadas).toHaveLength(1);
+    expect(llamadas[0].metodo).toBe('POST');
+    expect(llamadas[0].ruta).toBe('/v1/agenda/cita-77/mover');
+    // Y el id NO se repite en el cuerpo: ya viajó en la ruta.
+    expect(llamadas[0].cuerpo).toEqual({ inicio: '2026-11-05T15:00:00Z' });
+    expect(r.suggestion.status).toBe('sent');
+  });
+
   it('ejecuta por la ruta, con los permisos de la persona, y recién ahí marca enviada', async () => {
     const id = await guardar({ herramienta: 'agenda.agendar', argumentos: { contactId: 'c1' } });
     const llamadas: Array<{ metodo: string; ruta: string }> = [];
