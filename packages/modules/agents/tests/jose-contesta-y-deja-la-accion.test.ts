@@ -106,6 +106,47 @@ describe('la acción también en autónomo (#1030)', () => {
     expect(evento.rows[0].n).toBe(1);
   });
 
+  it('el modelo escala CON la acción armada: la acción sobrevive para el humano', async () => {
+    // El caso medido en vivo (gpt-5-mini): armó agenda.agendar perfecta y a
+    // la vez marcó pide_humano porque ÉL ofreció «te paso con el equipo».
+    // Botar la acción era botar el trabajo bueno: el humano que recibe el
+    // handoff la encuentra lista para confirmar.
+    const escalaConAccion: ModelPortFactory = () => ({
+      async generate() {
+        return {
+          text: JSON.stringify({
+            respuesta: '',
+            confianza: 0.2,
+            intencion: 'agendar',
+            calificacion: 'caliente',
+            escalar: true,
+            motivo_escalar: 'pide_humano',
+            accion: { herramienta: 'agenda.agendar', argumentos: { cuando: 'jueves 16:00' } },
+          }),
+          tokensIn: 200,
+          tokensOut: 80,
+        };
+      },
+    });
+    const conv = await conversacionAutonoma('+56999001703');
+    const res = await withTenant(admin, tenant, (c) =>
+      autoRespondForInbound(
+        c,
+        { tenantId: tenant, conversationId: conv, activeModules: ['calendar', 'conversations', 'crm'] },
+        escalaConAccion,
+      ),
+    );
+    // El cliente recibe el aviso de escalada, como siempre (#1019)…
+    expect(res).toMatchObject({ action: 'escalated', reason: 'pide_humano' });
+    // …y la acción queda pendiente para quien venga.
+    const sug = await admin.query(
+      "SELECT text, accion->>'herramienta' AS herramienta, status FROM suggestions WHERE tenant_id = $1 AND conversation_id = $2",
+      [tenant, conv],
+    );
+    expect(sug.rowCount).toBe(1);
+    expect(sug.rows[0]).toMatchObject({ text: '', herramienta: 'agenda.agendar', status: 'pending' });
+  });
+
   it('una acción que no está en la lista se pierde y la respuesta viaja igual', async () => {
     const conv = await conversacionAutonoma('+56999001702');
     const res = await withTenant(admin, tenant, (c) =>

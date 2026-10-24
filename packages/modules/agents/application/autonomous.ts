@@ -338,33 +338,13 @@ export async function autoRespondForInbound(
   if (res.truncada) return escalar('respuesta_cortada');
 
   const payload = parseAutonomous(res.text);
-  if (payload.escalar) return escalar(payload.motivoEscalar ?? 'otro');
-  // El volcado del conocimiento no viaja al cliente (#1021): el prompt ya lo
-  // prohíbe, pero es estocástico y esto es determinista. Con #1019, escalar
-  // significa que el cliente recibe el aviso — nunca el bloque pegado.
-  if (esEcoDelContexto(payload.respuesta, input.knowledge)) return escalar('eco_del_contexto');
-  if (payload.confianza < limits.confidenceThreshold) return escalar('confianza_baja');
-
-  await publishEvent(client, {
-    name: 'agent.acted',
-    tenantId: input.tenantId,
-    payload: {
-      conversationId: input.conversationId,
-      agentId: agent.id,
-      executionId: res.executionId,
-      intent: payload.intencion,
-    },
-    actor: 'system',
-    requestId: input.requestId,
-  });
-
-  // La acción que dejó propuesta además de responder (#1030). Va como
-  // sugerencia SIN TEXTO: la respuesta ya salió — lo único pendiente es la
-  // acción, y la bandeja no ofrece «enviar» lo que no existe. Misma
-  // validación que en assist (#1000): si no es de la lista o el catálogo ya
-  // no pide visto bueno, se pierde la acción y la respuesta viaja igual.
-  const accion = accionQueSePuedeProponer(payload.accion);
-  if (accion) {
+  // La acción que dejó propuesta, escale o responda (#1030). Sin texto: si
+  // respondió, la respuesta ya salió; si escaló, el que viene es el humano —
+  // y en ambos casos lo único pendiente es la acción, validada igual que en
+  // assist (#1000).
+  const guardarAccion = async (): Promise<void> => {
+    const accion = accionQueSePuedeProponer(payload.accion);
+    if (!accion) return;
     const fila = await client.query(
       `INSERT INTO suggestions
          (tenant_id, agent_id, conversation_id, execution_id, text,
@@ -393,7 +373,31 @@ export async function autoRespondForInbound(
       actor: 'system',
       requestId: input.requestId,
     });
+  };
+  if (payload.escalar) {
+    await guardarAccion();
+    return escalar(payload.motivoEscalar ?? 'otro');
   }
+  // El volcado del conocimiento no viaja al cliente (#1021): el prompt ya lo
+  // prohíbe, pero es estocástico y esto es determinista. Con #1019, escalar
+  // significa que el cliente recibe el aviso — nunca el bloque pegado.
+  if (esEcoDelContexto(payload.respuesta, input.knowledge)) return escalar('eco_del_contexto');
+  if (payload.confianza < limits.confidenceThreshold) return escalar('confianza_baja');
+
+  await publishEvent(client, {
+    name: 'agent.acted',
+    tenantId: input.tenantId,
+    payload: {
+      conversationId: input.conversationId,
+      agentId: agent.id,
+      executionId: res.executionId,
+      intent: payload.intencion,
+    },
+    actor: 'system',
+    requestId: input.requestId,
+  });
+
+  await guardarAccion();
 
   return {
     action: 'reply',
