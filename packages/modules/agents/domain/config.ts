@@ -158,10 +158,12 @@ export interface TaskModel {
  * abajo no son topes de respuesta: con `sugerir: 1500` se midieron 448
  * razonando y 81 escribiendo, así que sobra — comprobado, no supuesto.
  *
- * `transcribir` se queda en Google y no es política: es capacidad. La
- * transcripción entra como PARTE DE AUDIO (file part) y los endpoints de
- * texto de GLM y OpenAI no la reciben — OpenAI transcribe, pero por otra
- * API (`/audio/transcriptions`), que el puerto todavía no habla. Ver #864.
+ * `transcribir` sigue al proveedor por defecto desde #864: el puerto ya
+ * habla la API de audio de OpenAI (`/audio/transcriptions`), así que los
+ * audios van al MISMO proveedor que el texto — una sola fila de compliance
+ * que decidir, y Google (la única cuenta que ya se quedó sin saldo) pasa de
+ * único camino a respaldo. Medido con voz real: «quiero una hora para corte
+ * el jueves a las cuatro» transcrito exacto por gpt-4o-mini-transcribe.
  */
 export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   // Devuelve UNA etiqueta. Medido 5/5 en mínimo, bajo y por defecto: la misma
@@ -179,7 +181,7 @@ export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   configurar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
   conocer: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
   resumir: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
-  transcribir: { provider: 'google', model: 'gemini-flash-latest' },
+  transcribir: { provider: 'openai', model: 'gpt-4o-mini-transcribe' },
   analizar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
   /**
    * `minimo`, y esto contradice el comentario de `TAREAS_PESADAS` de abajo.
@@ -265,16 +267,37 @@ export interface IaSettings {
 const SIN_GARANTIA_DE_DATOS = new Set<string>([]);
 
 /**
- * Proveedores cuyo endpoint no recibe audio ni archivos.
+ * Quién SABE transcribir, y por qué vía (#864).
  *
- * `openai` entra acá por CAPACIDAD y no por política: lo servimos por el
- * adaptador compatible (`/chat/completions`), y la transcripción de IAxTi
- * manda el audio como *file part*. OpenAI sí sabe transcribir, pero por otra
- * API (`/audio/transcriptions`), que es otra forma de petición. Dárselo a
- * `transcribir` fallaría en cada audio recibido, así que esa tarea cae al por
- * defecto — igual que con GLM (#842).
+ * Antes esto era `SOLO_TEXTO = {glm, openai}` — declaraba qué proveedor «es
+ * de texto», y esa forma de decirlo era falsa dos veces: OpenAI sí
+ * transcribe (por `/audio/transcriptions`, que el puerto ya habla), y
+ * anthropic NO transcribe pero el set lo dejaba pasar. Lo que hay que
+ * declarar es la capacidad, no su negación:
+ *
+ * - `openai` → su API de audio, multipart. El mismo proveedor que el texto.
+ * - `google` → el audio como *file part* del endpoint multimodal.
+ * - `glm` → nada: cero ASR entre los 82 modelos del catálogo (rev. 25-09).
+ * - `anthropic` → nada: no acepta audio.
  */
-const SOLO_TEXTO = new Set<string>(['glm', 'openai']);
+export const SABE_TRANSCRIBIR: Partial<Record<string, 'api-de-audio' | 'file-part'>> = {
+  openai: 'api-de-audio',
+  google: 'file-part',
+};
+
+/**
+ * El MODELO de transcripción de cada proveedor que sabe (#864).
+ *
+ * Existe porque la gama de texto no sirve acá: cuando un tenant fija
+ * `soloProveedor: openai` (o el respaldo mueve la tarea), el modelo
+ * acompañaba al proveedor con su gama liviana — `gpt-5-mini` para un AUDIO,
+ * un 404 en cada nota de voz. Lo cazó la guarda de overrides por tarea al
+ * habilitar openai para transcribir.
+ */
+export const MODELO_DE_TRANSCRIPCION: Partial<Record<Provider, string>> = {
+  openai: 'gpt-4o-mini-transcribe',
+  google: 'gemini-flash-latest',
+};
 
 /**
  * La única tarea que sobrevive a la redacción.
@@ -300,10 +323,10 @@ export function vaRedactadoAlProveedor(provider: string, task: AgentTask): boole
  * lugar para enseñar una política.
  */
 export function proveedorPermitidoParaTarea(provider: string, task: AgentTask): boolean {
-  // Capacidad, no política: `transcribir` entra como parte de audio y el
-  // endpoint de GLM es de texto. Configurárselo fallaría en CADA audio
-  // recibido, así que cae al por defecto como cualquier config inválida.
-  if (task === 'transcribir' && SOLO_TEXTO.has(provider)) return false;
+  // Capacidad, no política (#864): transcribir solo puede ir a quien sabe.
+  // Configurárselo a otro fallaría en CADA audio recibido, así que cae al
+  // por defecto como cualquier config inválida.
+  if (task === 'transcribir' && !(provider in SABE_TRANSCRIBIR)) return false;
   if (!SIN_GARANTIA_DE_DATOS.has(provider)) return true;
   return SOBREVIVE_A_LA_REDACCION.has(task);
 }
@@ -514,8 +537,10 @@ export function iaSettings(
           model:
             configurado?.provider === soloProveedor && configurado.model?.trim()
               ? configurado.model.trim()
-              : (TAREAS_PESADAS.has(task) ? gama?.pesado : gama?.liviano) ??
-                defectos[task].model,
+              : task === 'transcribir'
+                ? MODELO_DE_TRANSCRIPCION[soloProveedor] ?? defectos[task].model
+                : (TAREAS_PESADAS.has(task) ? gama?.pesado : gama?.liviano) ??
+                  defectos[task].model,
           ...esfuerzoDeLaTarea(task),
         };
         continue;
@@ -546,9 +571,11 @@ export function iaSettings(
       // `glm-4.6` apuntando a Google sería un 404 en cada mensaje entrante.
       model:
         elegido !== (t?.provider as Provider)
-          ? (TAREAS_PESADAS.has(task)
-              ? RESPALDO_POR_PROVEEDOR[elegido]?.pesado
-              : RESPALDO_POR_PROVEEDOR[elegido]?.liviano) ?? defectos[task].model
+          ? (task === 'transcribir'
+              ? MODELO_DE_TRANSCRIPCION[elegido]
+              : TAREAS_PESADAS.has(task)
+                ? RESPALDO_POR_PROVEEDOR[elegido]?.pesado
+                : RESPALDO_POR_PROVEEDOR[elegido]?.liviano) ?? defectos[task].model
           : t?.model?.trim() || defectos[task].model,
     };
   }
@@ -614,6 +641,11 @@ const PRECIOS_BASE: Record<string, { in: number; out: number }> = {
   // razonando y 81 escribiendo — el 85 % de lo que se paga no se lee.
   'openai:gpt-5': { in: 1.25, out: 10 },
   'openai:gpt-5-mini': { in: 0.25, out: 2 },
+  // El de transcripción (#864). Lista pública de OpenAI: el audio de entrada
+  // se cobra aparte del texto (US$3/M audio vs US$1.25/M texto); acá va el de
+  // AUDIO porque es lo que esta tarea manda. Se confirma contra la primera
+  // factura y se corrige sin deploy por AGENT_PRICES_JSON.
+  'openai:gpt-4o-mini-transcribe': { in: 3, out: 5 },
 };
 
 export function estimateCostUsd(

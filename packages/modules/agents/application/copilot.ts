@@ -1,10 +1,14 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { getContext, updateSummary, updateTranscription } from '@iaxti/module-conversations';
+import { getTenantSettings } from '@iaxti/module-organizations';
+import { DEFAULT_TASK_MODELS, iaSettings } from '../domain/config';
+import { estaCastigado } from './castigados';
+import { semillaCacheada } from './defecto-de-la-plataforma';
 import { FORMATO_SUGERENCIA, parseSuggestion, type AccionPropuesta } from '../domain/parser';
 import { runAgentTask } from './runtime';
 import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './models';
-import { aiSdkModelPort, aiSdkTranscriber } from './models';
+import { aiSdkModelPort, providerAvailable, transcriberPara } from './models';
 import { listAgents, type Agent } from './agents';
 import { accionEnPalabras, accionQueSePuedeProponer, accionesParaElPrompt } from './acciones-en-la-conversacion';
 import { abrirIntento } from './objetivo-medido';
@@ -436,10 +440,24 @@ export async function transcribeInboundAudio(
     contentType: string;
     requestId?: string;
   },
-  transcriber: TranscribePort = aiSdkTranscriber(),
+  transcriber?: TranscribePort,
 ): Promise<string | null> {
   const inicio = Date.now();
   try {
+    // El proveedor por TAREA, como el resto (#864): antes esto iba fijo a
+    // Google aunque la plataforma moviera todo lo demás. `iaSettings` ya
+    // filtra con `proveedorPermitidoParaTarea`, así que acá nunca llega un
+    // proveedor que no sepa transcribir.
+    if (!transcriber) {
+      const settings = iaSettings(
+        await getTenantSettings(client, input.tenantId),
+        providerAvailable,
+        estaCastigado,
+        await semillaCacheada(client),
+      );
+      const porTarea = settings.tasks.transcribir ?? DEFAULT_TASK_MODELS.transcribir;
+      transcriber = transcriberPara(porTarea.provider, porTarea.model);
+    }
     const texto = await transcriber.transcribe({ bytes: input.bytes, contentType: input.contentType });
     if (!texto) return null;
     await updateTranscription(client, {

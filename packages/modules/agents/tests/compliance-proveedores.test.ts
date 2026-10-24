@@ -65,12 +65,18 @@ describe('openai como cuarto proveedor (#842)', () => {
     expect(ENV_KEYS.openai).toBe('OPENAI_API_KEY');
   });
 
-  it('`transcribir` NO pasa por openai: es capacidad, no preferencia', () => {
-    // El adaptador compatible habla `/chat/completions` y la transcripción de
-    // IAxTi manda el audio como file part. OpenAI sí sabe transcribir, por
-    // otra API — dárselo a esta tarea fallaría en cada audio recibido.
-    expect(proveedorPermitidoParaTarea('openai', 'transcribir')).toBe(false);
-    // Y las de texto sí, que es el punto de haberlo agregado.
+  it('`transcribir` pasa por quien SABE, y por nadie más (#864)', () => {
+    // Esta guarda decía «transcribir NO pasa por openai», y el hecho del
+    // adaptador cambió: el puerto ya habla `/audio/transcriptions`, así que
+    // los audios pueden ir al MISMO proveedor que el texto. Lo que se sigue
+    // exigiendo es capacidad real: GLM no publica ningún ASR (rev. 25-09) y
+    // anthropic no acepta audio — dárselo a ellos fallaría en cada nota de
+    // voz, y ANTES esta lista dejaba pasar a anthropic por accidente.
+    expect(proveedorPermitidoParaTarea('openai', 'transcribir')).toBe(true);
+    expect(proveedorPermitidoParaTarea('google', 'transcribir')).toBe(true);
+    expect(proveedorPermitidoParaTarea('glm', 'transcribir')).toBe(false);
+    expect(proveedorPermitidoParaTarea('anthropic', 'transcribir')).toBe(false);
+    // Y las de texto como siempre, que es el punto de haberlo agregado.
     for (const tarea of ['sugerir', 'responder', 'clasificar', 'analizar'] as const) {
       expect(proveedorPermitidoParaTarea('openai', tarea)).toBe(true);
     }

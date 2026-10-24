@@ -212,11 +212,14 @@ export async function fijarDefectoDeLaTarea(
   if (!(TASKS as readonly string[]).includes(entrada.task)) {
     throw new Error(`"${entrada.task}" no es una tarea del agente.`);
   }
-  if (!PROVEEDORES_QUE_PUEDEN_SER_DEFECTO.includes(entrada.provider)) {
-    throw new ProveedorSinFilaDeCompliance(entrada.provider);
-  }
+  // La capacidad ANTES que la fila de compliance (#864): si el proveedor no
+  // sabe hacer la tarea, escribirle su fila en la matriz no lo va a arreglar
+  // — el error tiene que mandar a la causa que sí se puede atacar.
   if (!proveedorPermitidoParaTarea(entrada.provider, entrada.task)) {
     throw new TareaQueElProveedorNoAtiende(entrada.provider, entrada.task);
+  }
+  if (!PROVEEDORES_QUE_PUEDEN_SER_DEFECTO.includes(entrada.provider)) {
+    throw new ProveedorSinFilaDeCompliance(entrada.provider);
   }
   const model = entrada.model.trim();
   if (!model) throw new Error('El modelo no puede ir vacío.');
