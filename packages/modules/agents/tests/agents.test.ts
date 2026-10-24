@@ -128,8 +128,11 @@ describe('runtime (#47)', () => {
       status: 'ok',
     });
     expect(fila.rows[0].explanation).toContain('sugerir');
-    // El system prompt usó el fallback CONFIGURADO (sin Langfuse en test).
-    expect(llamadas.at(-1)?.system).toBe('Eres Sofía, asistente de la barbería.');
+    // El system prompt usó el fallback CONFIGURADO (sin Langfuse en test),
+    // con la identidad antepuesta en runtime (#1015): el nombre sale de
+    // `agents.name`, no del texto del prompt.
+    expect(llamadas.at(-1)?.system).toContain('Te llamas Sofía');
+    expect(llamadas.at(-1)?.system).toContain('Eres Sofía, asistente de la barbería.');
 
     const uso = await admin.query(
       `SELECT value FROM usage_meters WHERE tenant_id = $1 AND metric = 'ia_executions'`,

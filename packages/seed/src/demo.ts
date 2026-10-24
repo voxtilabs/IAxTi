@@ -262,8 +262,11 @@ export async function sembrarDemo(
       name: 'Sofía',
       objetivo: 'agendar',
       objetivoDetalle: 'una hora en el salón',
+      // Sin nombre propio adentro (#1015): la identidad la antepone el
+      // runtime desde `agents.name`, y un prompt con el nombre escrito
+      // sobrevive a los renombres diciendo el viejo.
       fallbackSystemPrompt:
-        'Eres Sofía, del salón. Hablas como chilena, breve y cálida. Nunca prometes una hora que no confirmaste.',
+        'Trabajas en el salón. Hablas como chilena, breve y cálida. Nunca prometes una hora que no confirmaste.',
       actor: 'seed',
     });
 
