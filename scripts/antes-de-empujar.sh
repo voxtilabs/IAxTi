@@ -55,8 +55,31 @@ if [ "$#" -eq 0 ] && [ "${TODO:-0}" != "1" ]; then
   fi
 fi
 
-export DATABASE_URL="${DATABASE_URL:-postgres://iaxti:iaxti@127.0.0.1:5432/iaxti}"
-export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379}"
+# Base y Redis DE PRUEBAS, no los del stack de desarrollo (#1027).
+#
+# Cuando las suites corrían contra la base de `docker compose`, tres cosas se
+# rompían juntas: los tests del seed resembraban el tenant demo (la URL del
+# webchat moría en cada preflight), los workers vivos se robaban los jobs de
+# BullMQ de los tests, y procesaban su outbox dejando `processed_events` que
+# rompían por FK la limpieza de once suites. El remedio era detener
+# contenedores a mano y destrabar con un DELETE — de memoria, cada vez.
+#
+# Quien exporte sus propias URLs sigue mandando (CI lo hace); la base de
+# pruebas se crea si falta y cada suite la migra sola en su beforeAll.
+export DATABASE_URL="${DATABASE_URL:-postgres://iaxti:iaxti@127.0.0.1:5432/iaxti_pruebas}"
+export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379/1}"
+if [[ "$DATABASE_URL" == *"/iaxti_pruebas" ]]; then
+  node -e '
+    // pnpm no iza pg a la raíz: se resuelve a través de packages/db, que lo declara.
+    const { Client } = require(require.resolve("pg", { paths: ["packages/db"] }));
+    const admin = new Client({ connectionString: process.env.DATABASE_URL.replace(/\/iaxti_pruebas$/, "/iaxti") });
+    admin.connect()
+      .then(() => admin.query("SELECT 1 FROM pg_database WHERE datname = $1", ["iaxti_pruebas"]))
+      .then((r) => (r.rowCount ? null : admin.query("CREATE DATABASE iaxti_pruebas")))
+      .then(() => admin.end())
+      .catch((e) => { console.error("No pude preparar iaxti_pruebas:", e.message); process.exit(1); });
+  ' || exit 1
+fi
 
 fallos=()
 # Cuántos fallos fueron SOLO de tiempo (#776).
