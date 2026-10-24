@@ -6,7 +6,7 @@ import { runAgentTask } from './runtime';
 import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './models';
 import { aiSdkModelPort, aiSdkTranscriber } from './models';
 import { listAgents, type Agent } from './agents';
-import { accionEnPalabras, accionQueSePuedeProponer } from './acciones-en-la-conversacion';
+import { accionEnPalabras, accionQueSePuedeProponer, accionesParaElPrompt } from './acciones-en-la-conversacion';
 import { abrirIntento } from './objetivo-medido';
 import { DEFINICIONES } from '../domain/objetivo';
 
@@ -261,7 +261,11 @@ export async function suggestForInbound(
       agent,
       task: 'sugerir',
       context: contexto,
-      prompt: FORMATO_SUGERENCIA,
+      // El formato más el catálogo de lo proponible (#1020): sin la lista, el
+      // modelo tenía que adivinar los nombres y el filtro se comía casi todo.
+      prompt: [FORMATO_SUGERENCIA, accionesParaElPrompt(input.activeModules)]
+        .filter(Boolean)
+        .join('\n\n'),
       requestId: input.requestId,
       ...(input.activeModules ? { activeModules: input.activeModules } : {}),
       ...(input.tools?.length ? { tools: input.tools } : {}),
