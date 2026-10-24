@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fuenteLimpia } from '@iaxti/core/testing';
-import { aiSdkModelPort } from '../application/models';
+import { aiSdkModelPort, transcriberPara } from '../application/models';
 import { PROVIDERS, proveedorPermitidoParaTarea } from '../domain/config';
 
 /**
@@ -237,6 +237,40 @@ describe('el cuerpo que el producto manda al proveedor (#870)', () => {
     expect(cuerpos).toHaveLength(1);
     expect(cuerpos[0].body).not.toHaveProperty('reasoning_effort');
     expect(cuerpos[0].body).not.toHaveProperty('reasoning');
+  });
+
+  it('la transcripción a OpenAI va por la API DE AUDIO, multipart, con el archivo adentro (#864)', async () => {
+    // Interceptor propio: el del beforeEach hace JSON.parse del cuerpo y una
+    // petición multipart no es JSON — justamente lo que esta guarda cuida.
+    const idas: Array<{ url: string; auth: string; body: unknown }> = [];
+    globalThis.fetch = (async (entrada: unknown, init?: RequestInit) => {
+      const url = typeof entrada === 'string' ? entrada : String((entrada as Request)?.url ?? entrada);
+      idas.push({
+        url,
+        auth: String((init?.headers as Record<string, string>)?.Authorization ?? ''),
+        body: init?.body,
+      });
+      return new Response(JSON.stringify({ text: 'hola, quiero una hora' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    const puerto = transcriberPara('openai', 'gpt-4o-mini-transcribe');
+    const texto = await puerto.transcribe({ bytes: new Uint8Array([1, 2, 3]), contentType: 'audio/ogg' });
+    expect(texto).toBe('hola, quiero una hora');
+
+    expect(idas).toHaveLength(1);
+    expect(idas[0].url).toBe('https://api.openai.com/v1/audio/transcriptions');
+    expect(idas[0].auth).toBe('Bearer llave-de-prueba');
+    const form = idas[0].body as FormData;
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.get('model')).toBe('gpt-4o-mini-transcribe');
+    const archivo = form.get('file') as File;
+    // El nombre lleva la extensión del formato: la API lo reconoce por ahí,
+    // y WhatsApp manda las notas de voz como ogg.
+    expect(archivo.name).toBe('audio.ogg');
+    expect(archivo.type).toBe('audio/ogg');
   });
 
   it('el modelo que se pide es el que viaja', async () => {

@@ -58,12 +58,13 @@ describe('la configuración del tenant, con GLM abierto', () => {
 
   it('GLM para transcribir cae al por defecto, con su modelo', () => {
     // No falla: un audio de un cliente esperando transcripción no es el
-    // lugar para enseñar una limitación. Cae y sigue.
+    // lugar para enseñar una limitación. Cae y sigue — desde #864 el
+    // defecto de la tarea es openai, por su API de audio.
     const s = iaSettings({
       ia: { tasks: { transcribir: { provider: 'glm', model: 'z-ai/glm-5.3' } } },
     });
-    expect(s.tasks.transcribir.provider).toBe('google');
-    // El modelo cae con el proveedor: `z-ai/glm-5.3` apuntando a Google
+    expect(s.tasks.transcribir.provider).toBe('openai');
+    // El modelo cae con el proveedor: `z-ai/glm-5.3` apuntando a otra API
     // sería un 404 en cada audio.
     expect(s.tasks.transcribir.model).not.toBe('z-ai/glm-5.3');
   });
@@ -84,22 +85,24 @@ describe('la configuración del tenant, con GLM abierto', () => {
    * revés, con ocho tareas en un proveedor sin llave y una en otro sin saldo,
    * y lo que se vio fue «8 de 9 no pueden funcionar».
    */
-  it('todas las tareas de texto comparten proveedor; transcribir es la única excepción', () => {
+  it('TODAS las tareas comparten proveedor — transcribir dejó de ser la excepción (#864)', () => {
     const porTarea = Object.entries(DEFAULT_TASK_MODELS);
     expect(porTarea.length).toBeGreaterThan(5);
 
-    const deTexto = porTarea.filter(([t]) => t !== 'transcribir');
-    const proveedores = [...new Set(deTexto.map(([, tm]) => tm.provider))];
+    // Transcribir incluida: desde que el puerto habla la API de audio, los
+    // audios van al MISMO proveedor que el texto. Una tarea que se queda
+    // atrás es el defecto de verdad — el 11-10 pasó al revés, con ocho
+    // tareas en un proveedor sin llave y una en otro sin saldo.
+    const proveedores = [...new Set(porTarea.map(([, tm]) => tm.provider))];
     expect(
       proveedores,
-      `Las tareas de texto están repartidas entre ${proveedores.join(' y ')}. Repartirlas no es ` +
+      `Las tareas están repartidas entre ${proveedores.join(' y ')}. Repartirlas no es ` +
         'una decisión: es lo que pasa cuando se mueve el defecto y se olvida una tarea.',
     ).toHaveLength(1);
 
-    // Y la excepción es por CAPACIDAD, no por preferencia: el proveedor de
-    // texto no puede recibir el audio.
-    expect(proveedorPermitidoParaTarea(proveedores[0], 'transcribir')).toBe(false);
-    expect(DEFAULT_TASK_MODELS.transcribir.provider).not.toBe(proveedores[0]);
+    // Y el proveedor único tiene que SABER transcribir, que es la condición
+    // que lo hace posible.
+    expect(proveedorPermitidoParaTarea(proveedores[0], 'transcribir')).toBe(true);
   });
 
   /**

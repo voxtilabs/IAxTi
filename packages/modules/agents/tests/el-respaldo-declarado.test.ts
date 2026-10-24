@@ -56,10 +56,13 @@ describe('el respaldo declarado (#858)', () => {
   });
 
   it('`transcribir` no cae en uno que no transcribe, aunque esté primero', () => {
-    // Capacidad, no preferencia: de los cuatro solo google manda el audio
-    // como file part. Que openai encabece el respaldo no lo vuelve elegible
-    // para esta tarea.
+    // Capacidad, no preferencia (#864): openai transcribe por su API de audio
+    // y google por file part; GLM y anthropic no saben, y da igual dónde
+    // estén en el respaldo.
     const tasks = iaSettings({ ia: {} }, () => true).tasks;
-    expect(tasks.transcribir.provider).toBe('google');
+    expect(['openai', 'google']).toContain(tasks.transcribir.provider);
+    // Y si el único con credencial fuera GLM, transcribir NO cae ahí.
+    const soloGlm = iaSettings({ ia: {} }, (p) => p === 'glm').tasks;
+    expect(soloGlm.transcribir.provider).not.toBe('glm');
   });
 });

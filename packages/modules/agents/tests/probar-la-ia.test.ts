@@ -197,15 +197,17 @@ describe('probar la IA de verdad (#869)', () => {
     expect(conSalida.contesto).toBe(true);
     expect(conSalida.pedido).toBe('anthropic');
 
-    // `transcribir` sin llave de google: NINGÚN otro proveedor puede hacerla.
+    // `transcribir` con llave SOLO de glm, que no sabe transcribir (#864):
+    // NINGÚN proveedor con credencial puede hacerla, y el consejo no manda a
+    // elegir entre una lista vacía — nombra a los que SÍ saben.
     const sinSalida = await probarLaIa(
       { settings: null, tarea: 'transcribir' },
-      { hayLlave: SOLO('openai'), modelPortFactory: queContesta('listo') },
+      { hayLlave: SOLO('glm'), modelPortFactory: queContesta('listo') },
     );
     expect(sinSalida.contesto).toBe(false);
     expect(sinSalida.motivo).toBe('sin_llave');
     expect(sinSalida.mensaje).toContain('no hay otro para elegir');
-    expect(sinSalida.mensaje).toContain('GOOGLE_GENERATIVE_AI_API_KEY');
+    expect(sinSalida.mensaje).toContain('openai y google');
     expect(sinSalida.mensaje).not.toContain('elige otro proveedor');
   });
 

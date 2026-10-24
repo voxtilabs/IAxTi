@@ -124,14 +124,15 @@ describe('el defecto de la plataforma (#858)', () => {
   });
 
   it('un proveedor que no atiende esa tarea tampoco, y el motivo es otro', async () => {
-    // `transcribir` manda el audio como file part y el adaptador compatible de
-    // OpenAI no lo recibe (#864). No es política: es capacidad, y el error lo
-    // dice distinto para que nadie lo lea como una decisión de compliance.
+    // Desde #864 OpenAI SÍ transcribe (por su API de audio); el que sigue sin
+    // poder es GLM — cero ASR en su catálogo (rev. 25-09). No es política: es
+    // capacidad, y el error lo dice distinto para que nadie lo lea como una
+    // decisión de compliance.
     await expect(
       fijarDefectoDeLaTarea(client, {
         task: 'transcribir',
-        provider: 'openai',
-        model: 'whisper-1',
+        provider: 'glm',
+        model: 'glm-4.6',
         actor: 'admin-1',
         auditar: auditor(),
       }),

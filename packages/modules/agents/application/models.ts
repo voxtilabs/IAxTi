@@ -349,6 +349,71 @@ export interface TranscribePort {
  */
 export const PROVEEDOR_DE_TRANSCRIPCION = { provider: 'google' as const, model: 'gemini-flash-latest' };
 
+/**
+ * El nombre de archivo que la API de audio necesita para reconocer el formato.
+ * WhatsApp manda notas de voz como ogg/opus; el resto son los formatos que el
+ * canal acepta como adjunto de audio.
+ */
+function nombreSegunTipo(contentType: string): string {
+  const mapa: Record<string, string> = {
+    'audio/ogg': 'audio.ogg',
+    'audio/opus': 'audio.ogg',
+    'audio/mpeg': 'audio.mp3',
+    'audio/mp3': 'audio.mp3',
+    'audio/mp4': 'audio.m4a',
+    'audio/x-m4a': 'audio.m4a',
+    'audio/wav': 'audio.wav',
+    'audio/webm': 'audio.webm',
+  };
+  return mapa[contentType.split(';')[0].trim().toLowerCase()] ?? 'audio.ogg';
+}
+
+/**
+ * Transcripción por la API DE AUDIO de OpenAI (#864): `/audio/transcriptions`,
+ * multipart. Es otra forma de petición que el adaptador de chat no habla, y
+ * era lo único que mantenía los audios atados a Google — la única cuenta que
+ * ya se quedó sin saldo una vez.
+ */
+export function openaiTranscriber(model: string): TranscribePort {
+  return {
+    proveedor: 'openai',
+    modelo: model,
+    async transcribe(audio) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey || apiKey.trim() === '') throw new Error('Sin OPENAI_API_KEY para transcribir.');
+      const base = textoDeEntorno('OPENAI_API_BASE', 'https://api.openai.com/v1');
+      const form = new FormData();
+      form.set('model', model);
+      form.set(
+        'file',
+        new Blob([Uint8Array.from(audio.bytes)], { type: audio.contentType }),
+        nombreSegunTipo(audio.contentType),
+      );
+      const res = await fetch(`${base}/audio/transcriptions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      });
+      if (!res.ok) {
+        throw new Error(`La API de audio contestó ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      }
+      const data = (await res.json()) as { text?: string };
+      return String(data.text ?? '').trim();
+    },
+  };
+}
+
+/**
+ * El transcriptor según el proveedor configurado (#864): cada uno por la vía
+ * que SABE (SABE_TRANSCRIBIR en config.ts). Quien llame con un proveedor que
+ * no sabe ya fue filtrado por `proveedorPermitidoParaTarea`; si llega igual,
+ * el camino de Google es el que menos sorprende.
+ */
+export function transcriberPara(provider: string, model: string): TranscribePort {
+  if (provider === 'openai') return openaiTranscriber(model);
+  return aiSdkTranscriber(model);
+}
+
 export function aiSdkTranscriber(model = PROVEEDOR_DE_TRANSCRIPCION.model): TranscribePort {
   return {
     proveedor: PROVEEDOR_DE_TRANSCRIPCION.provider,
