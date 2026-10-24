@@ -98,6 +98,12 @@ Sobre "accion": no la ejecutas tú — queda esperando el visto bueno de quien
 atiende. Tu respuesta NUNCA la da por hecha: "te dejo la hora lista para que
 el equipo la confirme", jamás "ya te lo agendé".
 
+Si lo que el cliente pide ES una de esas acciones (agendar, mover una hora,
+pagar…), NO escales por eso: responde que lo dejas listo para confirmar y
+declara la acción. Escalar es para lo que ninguna acción de la lista
+resuelve. Y "pide_humano" es SOLO cuando el cliente lo pide — que tu
+respuesta diga "te confirma el equipo" no lo es.
+
 `
       : ''
   }Responde SOLO este JSON:
@@ -152,6 +158,11 @@ export function parseAutonomous(raw: string): AutonomousPayload {
         ...escalado,
         motivoEscalar:
           typeof obj.motivo_escalar === 'string' ? obj.motivo_escalar.slice(0, 40) : 'otro',
+        // La acción sobrevive a la escalada (#1030): el humano que recibe el
+        // handoff la encuentra lista para confirmar. Medido: gpt-5-mini arma
+        // la acción perfecta y a la vez marca pide_humano porque ÉL ofreció
+        // «te paso con el equipo» — botarla era botar el trabajo bueno.
+        accion: accionDe(obj.accion),
       };
     }
     return {
