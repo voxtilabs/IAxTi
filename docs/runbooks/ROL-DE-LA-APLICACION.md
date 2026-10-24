@@ -166,3 +166,36 @@ SELECT current_user, rolsuper, rolbypassrls
 ```
 
 Las dos banderas tienen que venir en `false`.
+
+## El ensayo local, hecho (25-10-2026, #370)
+
+El cambio dejó de ser teoría: el stack local de `docker compose` corre con
+`iaxti_app` (sin superusuario, sin BYPASSRLS) desde el 25-10. El rol se crea
+con `infra/sql/rol-de-la-aplicacion.sql` (en un volumen nuevo, solo con el
+init del compose; en uno existente, una vez a mano) y `pnpm --filter
+@iaxti/db run permisos` lo aprobó antes de apuntar nada.
+
+La batería que pasó, con el stack vivo bajo el rol nuevo — seis validadores
+independientes, 27 verificaciones, cero defectos:
+
+- **El flujo entero**: un visitante del webchat atraviesa inbound → agente →
+  outbound con RLS evaluándose en cada paso.
+- **Aislamiento real con dos tenants**: con `app.tenant_id` del tenant A se
+  ven SOLO sus filas; con el B, solo las suyas; SIN tenant seteado,
+  `contacts`, `conversations`, `messages`, `suggestions` y
+  `agent_executions` devuelven CERO filas. RLS está FORZADO en las cinco.
+- **El libro no se reescribe**: `UPDATE`/`DELETE` sobre `audit_log` y
+  `platform_audit` rechazados por PERMISO; `schema_migrations` intocable;
+  los INSERT del flujo normal siguen entrando.
+- **Los barridos**: el outbox se consume en segundos bajo el rol nuevo; cero
+  errores de permiso en los logs de workers y agents.
+- **Las 14 funciones SECURITY DEFINER** del esquema ejecutables (incluida
+  `tenant_de_widget_de_webchat`, de la que depende todo el webchat público).
+- **Los logs de los cinco servicios**, limpios: sin `SIN AISLAMIENTO`, sin
+  `permission denied` de la app, sin reinicios.
+
+Lo que le queda a staging es MECÁNICO: correr el script con la clave del
+gestor de secretos, `pnpm --filter @iaxti/db run permisos` como el rol,
+cambiar `DATABASE_URL` del runtime en Dokploy (la de migraciones NO se
+toca), redeploy, y mirar `/ready` + logs sin la advertencia. La reversión es
+devolver la variable anterior.
