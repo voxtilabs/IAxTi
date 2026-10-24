@@ -30,17 +30,36 @@ export function guardrailLimits(agent: Agent): {
   maxAgentTurns: number;
   moneyLimitClp: number | null;
   handoffUserId: string | null;
+  escalationNotice: string | null;
 } {
   const l = agent.limits as Record<string, unknown>;
   const conf = Number(l.confidence_threshold);
   const turnos = Number(l.max_agent_turns);
   const monto = Number(l.money_limit_clp);
+  const aviso = typeof l.escalation_notice === 'string' ? l.escalation_notice.trim() : '';
   return {
     confidenceThreshold: Number.isFinite(conf) && conf > 0 && conf <= 1 ? conf : 0.7,
     maxAgentTurns: Number.isFinite(turnos) && turnos > 0 ? turnos : 5,
     moneyLimitClp: Number.isFinite(monto) && monto > 0 ? monto : null,
     handoffUserId: typeof l.handoff_user_id === 'string' ? l.handoff_user_id : null,
+    escalationNotice: aviso !== '' ? aviso : null,
   };
+}
+
+/**
+ * Lo que el CLIENTE recibe cuando la IA escala (#1019).
+ *
+ * `escalate()` avisaba al equipo y pedía el handoff, pero al cliente no le
+ * decía ni una palabra: en el widget eso se ve como un chat roto, y en
+ * WhatsApp como un negocio que ignora. El texto no promete plazo ni inventa
+ * nada — «te va a responder una persona» es lo único que acá se sabe seguro.
+ * La firma no ofrece «escribe humano»: el humano ya viene en camino.
+ */
+export function avisoDeEscalada(agent: Agent): string {
+  const texto =
+    guardrailLimits(agent).escalationNotice ??
+    'Gracias por escribirnos. Te va a responder una persona del equipo.';
+  return `${texto}\n\n${agent.name} — asistente virtual.`;
 }
 
 /** La marca manual por conversación (o null si nunca se tocó). */
@@ -200,7 +219,7 @@ export async function escalate(
 export type AutonomousOutcome =
   | { action: 'none' }
   | { action: 'assist' }
-  | { action: 'escalated'; reason: string }
+  | { action: 'escalated'; reason: string; aviso: string }
   | { action: 'reply'; text: string; agentName: string; executionId: string };
 
 /**
@@ -237,7 +256,7 @@ export async function autoRespondForInbound(
   const limits = guardrailLimits(agent);
   const escalar = async (reason: EscalationReason | string): Promise<AutonomousOutcome> => {
     await escalate(client, { ...input, agent, reason });
-    return { action: 'escalated', reason: String(reason) };
+    return { action: 'escalated', reason: String(reason), aviso: avisoDeEscalada(agent) };
   };
 
   // Detector determinista sobre el entrante: manda sobre el modelo y es gratis.
