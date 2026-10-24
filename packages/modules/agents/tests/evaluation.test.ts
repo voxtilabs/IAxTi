@@ -114,6 +114,39 @@ describe('el juez (#53)', () => {
     const baseline = JSON.parse(readFileSync(join(__dirname, '..', 'evals', 'baseline.json'), 'utf8'));
     expect(baseline.sugerir).toBeGreaterThan(0);
   });
+
+  it('el dataset del modo autónomo existe, versionado y anonimizado (#1029)', () => {
+    const dataset = JSON.parse(
+      readFileSync(join(__dirname, '..', 'evals', 'dataset-autonomo.json'), 'utf8'),
+    );
+    expect(dataset.task).toBe('autonomo');
+    expect(dataset.version).toBe(1);
+    expect(dataset.casos.length).toBeGreaterThanOrEqual(4);
+    const ids = dataset.casos.map((c: { id: string }) => c.id);
+    // Los casos nacidos de defectos medidos: si alguien los borra, el gate
+    // deja de vigilar exactamente lo que ya se rompió una vez.
+    for (const id of ['responde-lo-preguntado', 'pedir-hora-deja-la-accion', 'precio-desconocido-escala']) {
+      expect(ids).toContain(id);
+    }
+    for (const caso of dataset.casos) {
+      expect(caso.criterios.length).toBeGreaterThan(0);
+      expect(JSON.stringify(caso)).not.toMatch(/\+569\d{8}/); // anonimizado
+    }
+    const baseline = JSON.parse(readFileSync(join(__dirname, '..', 'evals', 'baseline.json'), 'utf8'));
+    expect(baseline.autonomo).toBeGreaterThan(0);
+  });
+
+  it('el runner evalúa los prompts DEL PRODUCTO, no una copia (#1029)', () => {
+    // La copia local ya divergió una vez: el producto ganó `accion` (#1000)
+    // y el gate siguió midiendo el formato viejo — verde, vigilando otra
+    // cosa (#869). Esta guarda ata el runner a los módulos compilados.
+    const runner = readFileSync(join(__dirname, '..', 'scripts', 'run-evals.mjs'), 'utf8');
+    expect(runner).toContain("import('../dist/domain/parser.js')");
+    expect(runner).toContain("import('../dist/domain/escalation.js')");
+    expect(runner).toContain('dataset-autonomo.json');
+    // Ninguna constante local con la forma del JSON de sugerencia.
+    expect(runner).not.toMatch(/const FORMATO\s*=/);
+  });
 });
 
 describe('dataset del tenant y el gate (#53)', () => {
