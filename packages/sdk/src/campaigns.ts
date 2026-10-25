@@ -57,6 +57,8 @@ export interface CampaignResults {
   entrega: Record<string, number>;
   /** null = ningún mensaje trae un monto legible. No es cero (#795). */
   costoUsd: number | null;
+  /** El costo en pesos, convertido con el dólar de cada día (#990); null = nada convertible. */
+  costo: { usd: number; clp: number | null; diasSinCambio: number } | null;
   costoMedido: { conMonto: number; sinMonto: number };
 }
 export interface CampaignTemplate {

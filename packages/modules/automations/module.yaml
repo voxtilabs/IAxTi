@@ -7,7 +7,9 @@ module:
   core: false
 depends_on:
   required: [identity, organizations, audit]
-  optional: [conversations, crm]
+  # billing por fx_rates (#990): el costo de la campaña se convierte por día,
+  # como reportes (#796) — lectura declarada, dentro de la regla de #784.
+  optional: [conversations, crm, billing]
 permissions:
   - automations.manage
   - automations.read

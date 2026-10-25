@@ -957,6 +957,13 @@ export async function resultadosDeCampana(
    * informa el costo» en vez de «US$0,00», que se lee como gratis.
    */
   costoUsd: number | null;
+  /**
+   * El mismo contrato que reportes (#796/#990): pesos convertidos con el
+   * dólar observado de CADA día del mensaje; `clp` null cuando ningún día
+   * tuvo cambio, y `diasSinCambio` para que la pantalla diga que el monto
+   * está incompleto en vez de mostrarlo como si fuera todo.
+   */
+  costo: { usd: number; clp: number | null; diasSinCambio: number } | null;
   /** Mensajes con monto legible y sin él, para no mostrar un total parcial como si fuera todo. */
   costoMedido: { conMonto: number; sinMonto: number };
 }> {
@@ -988,23 +995,44 @@ export async function resultadosDeCampana(
   // Agrupado y no fila por fila: una campaña de cinco mil destinatarios tiene
   // dos o tres formas distintas de costo, no cinco mil. Una consulta, pocas
   // filas, y la suma donde está la función que sabe sumar.
+  // Con la FECHA además de la forma (#990): sin el día no hay con qué
+  // convertir — una campaña que cruza días tiene dólares distintos, y
+  // convertir el total con uno solo es elegir una fecha a dedo (#796). El
+  // día es el chileno (zona del defecto del producto), que es el día del
+  // dólar observado de fx_rates; sigue siendo un puñado de filas.
   const costo = await client.query(
-    `SELECT m.meta->'costo' AS costo, count(*)::int AS n
+    `SELECT m.meta->'costo' AS costo,
+            (m.created_at AT TIME ZONE 'America/Santiago')::date AS day,
+            f.value AS fx,
+            count(*)::int AS n
        FROM campaign_recipients r JOIN messages m ON m.id = r.message_id
+       LEFT JOIN fx_rates f ON f.day = (m.created_at AT TIME ZONE 'America/Santiago')::date
+                           AND f.pair = 'USD/CLP'
       WHERE r.tenant_id = $1 AND r.campaign_id = $2
-      GROUP BY m.meta->'costo'`,
+      GROUP BY m.meta->'costo', (m.created_at AT TIME ZONE 'America/Santiago')::date, f.value`,
     [input.tenantId, input.campaignId],
   );
   let totalUsd = 0;
+  let totalClp = 0;
   let conMonto = 0;
   let sinMonto = 0;
+  const diasSinCambio = new Set<string>();
   for (const fila of costo.rows) {
     const n = fila.n as number;
     const monto = montoDelCosto(fila.costo);
-    if (monto === null) sinMonto += n;
-    else {
-      totalUsd += monto * n;
-      conMonto += n;
+    if (monto === null) {
+      sinMonto += n;
+      continue;
+    }
+    totalUsd += monto * n;
+    conMonto += n;
+    const fx = fila.fx === null ? null : Number(fila.fx);
+    if (fx === null || !Number.isFinite(fx)) {
+      // Un día con costo y sin dólar: el monto en pesos queda incompleto y
+      // SE DICE — convertir ese día con el dólar de otro sería inventarlo.
+      diasSinCambio.add(String(fila.day));
+    } else {
+      totalClp += monto * n * fx;
     }
   }
 
@@ -1013,6 +1041,19 @@ export async function resultadosDeCampana(
     motivos: motivos.rows.map((x) => ({ motivo: x.reason as string, n: x.n as number })),
     entrega: Object.fromEntries(entrega.rows.map((x) => [x.delivery_status ?? 'sin estado', x.n])),
     costoUsd: conMonto === 0 ? null : totalUsd,
+    // El mismo contrato que reportes (#796): pesos cuando TODOS los días
+    // tienen su dólar; si falta alguno, clp parcial solo si algo se pudo
+    // convertir, y los días que faltan contados para la nota de la pantalla.
+    costo:
+      conMonto === 0
+        ? null
+        : {
+            usd: totalUsd,
+            // null solo cuando NADA se pudo convertir: costoMostrable muestra
+            // entonces dólares; con parcial, pesos + «faltan N días».
+            clp: totalClp > 0 ? totalClp : null,
+            diasSinCambio: diasSinCambio.size,
+          },
     costoMedido: { conMonto, sinMonto },
   };
 }

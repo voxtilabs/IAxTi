@@ -8,6 +8,7 @@ import {
 } from '@iaxti/sdk';
 import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { nombreDeQuien, QuienLoHizo } from './quien-lo-hizo';
+import { costoMostrable } from '../lib/reportes';
 import { useSelectedTenant } from './tenant-switcher';
 import { impedimentoDeCampana, mismaVistaPrevia } from '../lib/campanas';
 
@@ -451,10 +452,18 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
         {resultados ? <><div className="flex flex-wrap gap-6">{[['Encolados', resultados.porEstado.queued ?? 0], ['Omitidos', resultados.porEstado.skipped ?? 0], ['Fallidos', resultados.porEstado.failed ?? 0]].map(([label, n]) => <p key={label}><span className="block text-sm text-muted">{label}</span><strong className="font-mono text-2xl text-ink">{n}</strong></p>)}</div>
           <h3 className="font-bold text-ink">Por qué no salieron</h3>{resultados.motivos.length ? <ul className="space-y-2">{resultados.motivos.map((m) => <li key={m.motivo} className="rounded-campo border border-line p-3"><span className="font-mono">{m.n}</span> · {m.motivo}</li>)}</ul> : <p className="text-sm text-muted">No se registran destinatarios omitidos ni fallidos.</p>}
           <h3 className="font-bold text-ink">Entrega confirmada por el proveedor</h3><dl className="space-y-2">{Object.entries(resultados.entrega).map(([estado, n]) => <div key={estado} className="flex gap-3"><dt>{({ queued: 'En cola', sent: 'Enviados', delivered: 'Entregados', read: 'Leídos', failed: 'Fallidos' } as Record<string, string>)[estado] ?? estado}</dt><dd className="font-mono">{n}</dd></div>)}</dl>
-          {resultados.costoUsd === null
-            ? <p className="text-sm text-muted">El proveedor no informa el costo de estos mensajes. {resultados.costoMedido.sinMonto > 0 && `Son ${resultados.costoMedido.sinMonto} mensajes sin monto en la respuesta.`}</p>
-            : <p>Costo registrado: <span className="font-mono">{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'USD' }).format(resultados.costoUsd)}</span>
-                {resultados.costoMedido.sinMonto > 0 && <span className="block text-sm text-muted">Es el costo de {resultados.costoMedido.conMonto} mensajes; de otros {resultados.costoMedido.sinMonto} el proveedor no informó monto.</span>}</p>}
+          {(() => {
+            // En pesos con el dólar de cada día, como reportes (#990/#796).
+            // costoMostrable ya sabe decir «sin cambio ese día» y «faltan N
+            // días»; acá solo se suma el matiz de los mensajes sin monto.
+            if (resultados.costoUsd === null) {
+              return <p className="text-sm text-muted">El proveedor no informa el costo de estos mensajes. {resultados.costoMedido.sinMonto > 0 && `Son ${resultados.costoMedido.sinMonto} mensajes sin monto en la respuesta.`}</p>;
+            }
+            const { valor, nota } = costoMostrable(resultados.costo ?? { usd: resultados.costoUsd, clp: null, diasSinCambio: 0 }, 2);
+            return <p>Costo registrado: <span className="font-mono">{valor}</span>
+                {nota && <span className="block text-sm text-muted">{nota}</span>}
+                {resultados.costoMedido.sinMonto > 0 && <span className="block text-sm text-muted">Es el costo de {resultados.costoMedido.conMonto} mensajes; de otros {resultados.costoMedido.sinMonto} el proveedor no informó monto.</span>}</p>;
+          })()}
         </> : <p role="status">Consulta los resultados para ver el estado del envío.</p>}
         <Button variant="secundario" disabled={ocupado || !campana} onClick={() => void ejecutar(async () => { setResultados(await cliente!.results(campana!.id)); })}>Actualizar resultados</Button>
       </section>}
