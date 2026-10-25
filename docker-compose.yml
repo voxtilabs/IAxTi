@@ -115,6 +115,11 @@ services:
     environment:
       <<: *app-env
       SERVICE: web
+      # El SSR habla con la API por la red del compose (#1058): sin esto caía
+      # a API_URL_PUBLIC y cada fetch del servidor salía del contenedor hacia
+      # el host para volver a entrar — 10,5 s por sección, medido. Es lo
+      # mismo que el e2e y staging ya hacían.
+      API_URL_INTERNAL: http://api:3000
       # El panel habla con auth-local por el puerto PUBLICADO: estas URLs las
       # usa el NAVEGADOR, no el contenedor. IAXTI_LOGIN_DEV abre /entrar-local
       # — la página además exige que IAXTI_ENV no sea staging/producción.
@@ -128,6 +133,7 @@ services:
     environment:
       <<: *app-env
       SERVICE: admin
+      API_URL_INTERNAL: http://api:3000
     ports: ["3003:3000"]
 
 volumes:
