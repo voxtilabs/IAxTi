@@ -15,6 +15,7 @@ import { aiSdkModelPort } from './models';
 import { isAutonomousPaused } from './quota';
 import { activeAgent, refreshedContext } from './copilot';
 import { accionQueSePuedeProponer, accionesParaElPrompt } from './acciones-en-la-conversacion';
+import { fechaDeHoy } from '../domain/contexto';
 import type { Agent } from './agents';
 import { abrirIntento } from './objetivo-medido';
 import { quienesSon, quienFue, type Quien } from '@iaxti/module-identity';
@@ -289,6 +290,10 @@ export async function autoRespondForInbound(
   // Sin conocimiento (#51 apagado o vacío), el prompt ya obliga a escalar
   // ante precio/stock/plazo que no estén en el contexto: escala MÁS.
   const contexto = [
+    // Sin saber qué día es, «el próximo jueves a las 4» no tiene traducción
+    // a ISO y toda acción con fecha nace muerta (#1049). Zona del defecto
+    // del producto (America/Santiago, SPEC: pymes chilenas).
+    `Hoy es ${fechaDeHoy(now)}.`,
     `Cliente: ${ctx.contact.name ?? 'sin nombre'}${ctx.contact.phone ? ` (${ctx.contact.phone})` : ''}.`,
     ctx.summary ? `Resumen de lo anterior: ${ctx.summary}` : null,
     input.knowledge ?? null,

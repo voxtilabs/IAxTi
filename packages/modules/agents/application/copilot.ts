@@ -11,6 +11,7 @@ import type { HerramientaExpuesta, ModelPortFactory, TranscribePort } from './mo
 import { aiSdkModelPort, providerAvailable, transcriberPara } from './models';
 import { listAgents, type Agent } from './agents';
 import { accionEnPalabras, accionQueSePuedeProponer, accionesParaElPrompt } from './acciones-en-la-conversacion';
+import { fechaDeHoy } from '../domain/contexto';
 import { abrirIntento } from './objetivo-medido';
 import { DEFINICIONES } from '../domain/objetivo';
 
@@ -236,6 +237,9 @@ export async function suggestForInbound(
   const ctx = await refreshedContext(client, input, agent, modelPortFactory);
 
   const contexto = [
+    // La misma ancla temporal del modo autónomo (#1049): una acción de
+    // agenda sin saber qué día es no puede dar fechas ISO.
+    `Hoy es ${fechaDeHoy(new Date())}.`,
     `Cliente: ${ctx.contact.name ?? 'sin nombre'}${ctx.contact.phone ? ` (${ctx.contact.phone})` : ''}.`,
     ctx.summary ? `Resumen de lo anterior: ${ctx.summary}` : null,
     input.knowledge ?? null,
