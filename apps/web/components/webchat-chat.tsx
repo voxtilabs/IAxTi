@@ -98,9 +98,16 @@ export function WebchatChat({
     finRef.current?.scrollIntoView({ block: 'end' });
   }, [mensajes, pideIdentidad]);
 
+  // ¿El formulario de identidad trae un teléfono o correo usable? Es lo que
+  // habilita enviar SIN texto nuevo (#1059): quien ya preguntó rellena sus
+  // datos y aprieta enviar — antes el botón quedaba muerto y nada lo decía.
+  const identidadLista =
+    pideIdentidad && (/^[+0-9 ()-]{8,}$/.test(contacto.trim()) || contacto.includes('@'));
+
   async function enviar(e: FormEvent) {
     e.preventDefault();
-    if (!sessionId || !texto.trim()) return;
+    if (!sessionId) return;
+    if (!texto.trim() && !identidadLista) return;
     setAviso(null);
     const cuerpo = texto.trim();
     const visitante = pideIdentidad
@@ -117,10 +124,10 @@ export function WebchatChat({
     try {
       const res = (await post('/messages', {
         sessionId,
-        body: cuerpo,
+        ...(cuerpo ? { body: cuerpo } : {}),
         visitor: visitante,
       })) as { status: 'pending' | 'need_identity' | 'delivered' };
-      setMensajes((prev) => [...prev, { de: 'yo', body: cuerpo }]);
+      if (cuerpo) setMensajes((prev) => [...prev, { de: 'yo', body: cuerpo }]);
       setTexto('');
       if (res.status === 'need_identity') {
         setPideIdentidad(true);
@@ -213,7 +220,7 @@ export function WebchatChat({
             }
           }}
         />
-        <Button type="submit" size="icono" aria-label="Enviar" disabled={!texto.trim()} className="h-11 w-11">
+        <Button type="submit" size="icono" aria-label="Enviar" disabled={!texto.trim() && !identidadLista} className="h-11 w-11">
           <IconoEnviar className="h-4 w-4" />
         </Button>
       </form>
