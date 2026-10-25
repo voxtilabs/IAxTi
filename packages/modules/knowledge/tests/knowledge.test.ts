@@ -160,6 +160,25 @@ describe('fuentes e índice (#51)', () => {
     expect(knowledgeContext(denuevo)).toContain('[Políticas]');
   });
 
+  it('la prosa pegada como faq se rechaza AL CREAR, en castellano (#1014)', async () => {
+    // El caso medido: un dueño pegó su lista de precios en el tipo faq y el
+    // error fue «Unexpected token 'H' … is not valid JSON» — al indexar,
+    // cuando ya nadie estaba mirando. Ahora falla al tiro y dice qué espera
+    // y a dónde ir («usa el tipo texto»).
+    await expect(
+      fuente({
+        kind: 'faq',
+        name: 'Precios pegados donde no era',
+        content: 'Horario: lunes a viernes de 10 a 19. El corte cuesta $18.000.',
+        actor: 'test',
+      }),
+    ).rejects.toThrow(/lista JSON.*usa el tipo texto/s);
+    // Y un JSON que sí parsea pero no trae ningún par q/a útil, también.
+    await expect(
+      fuente({ kind: 'faq', name: 'FAQ hueco', content: '[{"pregunta": "x"}]', actor: 'test' }),
+    ).rejects.toThrow(/pregunta \("q"\) y respuesta \("a"\)/);
+  });
+
   it('FAQ por pregunta, y la vigencia vencida ignora y AVISA', async () => {
     await fuente({
       kind: 'faq',
