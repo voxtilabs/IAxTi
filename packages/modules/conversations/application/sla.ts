@@ -22,18 +22,40 @@ export async function checkConversationAlerts(
   client: PoolClient,
   tenantId: string,
   now: Date = new Date(),
+  deps: {
+    /**
+     * ¿La está atendiendo la IA en autónomo? (#830) — el puerto lo arma el
+     * worker con el módulo agents; sin él (módulo apagado, tests de antes),
+     * nada cambia: el aviso sale como siempre. Degrada avisando DE MÁS,
+     * nunca callando de menos.
+     */
+    laAtiendeLaIa?: (conversationId: string) => Promise<boolean>;
+  } = {},
 ): Promise<AlertSweepResult> {
   const settings = bandejaSettings(await getTenantSettings(client, tenantId));
 
-  const sinDueno = await client.query(
-    `UPDATE conversations SET unattended_alerted_at = $3, updated_at = now()
+  // SELECT y no UPDATE masivo (#830): la conversación que la IA está
+  // atendiendo NI SE MARCA — si el horario autónomo termina a las 18:00 y
+  // sigue new sin dueño, el barrido siguiente avisa como corresponde. Marcarla
+  // la habría silenciado para siempre.
+  const sinDuenoCandidatas = await client.query(
+    `SELECT id, created_at FROM conversations
       WHERE tenant_id = $1 AND state = 'new' AND owner_id IS NULL
         AND unattended_alerted_at IS NULL
-        AND created_at < $3::timestamptz - make_interval(mins => $2)
-      RETURNING id, created_at`,
+        AND created_at < $3::timestamptz - make_interval(mins => $2)`,
     [tenantId, settings.alertaSinDuenoMinutos, now],
   );
-  for (const row of sinDueno.rows) {
+  const desatendidas: Array<{ id: string; created_at: Date }> = [];
+  for (const row of sinDuenoCandidatas.rows) {
+    if (deps.laAtiendeLaIa && (await deps.laAtiendeLaIa(row.id))) continue;
+    desatendidas.push(row);
+  }
+  for (const row of desatendidas) {
+    await client.query(
+      `UPDATE conversations SET unattended_alerted_at = $3, updated_at = now()
+        WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, row.id, now],
+    );
     await publishEvent(client, {
       name: 'conversation.unattended',
       tenantId,
@@ -44,6 +66,7 @@ export async function checkConversationAlerts(
       actor: 'system',
     });
   }
+  const sinDueno = { rows: desatendidas };
 
   // Prefiltro barato en SQL (los minutos hábiles nunca superan a los de
   // reloj); el cálculo fino, en dominio.
