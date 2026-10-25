@@ -38,6 +38,24 @@ x-app: &app
     OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
 
 services:
+  # El Supabase Auth del ambiente local (#1047): firma las sesiones de los
+  # usuarios del seed para que una persona entre al panel sin Supabase real.
+  # Vive en infra/ (el Dockerfile no lo copia: no hay imagen que lo lleve) y
+  # los compose de Dokploy no lo declaran — una guarda muerde si aparece.
+  # Efecto lateral deseado: con SUPABASE_JWKS_URL puesta, la API local
+  # verifica JWT de verdad y el fallback por cabeceras queda APAGADO.
+  auth-local:
+    image: node:22-alpine
+    command: ["node", "/app/server.mjs"]
+    environment:
+      PORT: "3004"
+      AUTH_ISSUER: http://auth-local:3004/auth/v1
+      WEB_ORIGIN: http://localhost:3002
+    ports: ["3004:3004"]
+    volumes:
+      - ./infra/auth-local/server.mjs:/app/server.mjs:ro
+    restart: unless-stopped
+
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -69,6 +87,10 @@ services:
     environment:
       <<: *app-env
       SERVICE: api
+      # El verificador REAL contra auth-local (#1047). Ponerlo apaga además
+      # el fallback por cabeceras del guard: en local también se entra con
+      # JWT firmado, como en staging/prod.
+      SUPABASE_JWKS_URL: http://auth-local:3004/auth/v1/.well-known/jwks.json
     ports: ["3000:3000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -93,6 +115,12 @@ services:
     environment:
       <<: *app-env
       SERVICE: web
+      # El panel habla con auth-local por el puerto PUBLICADO: estas URLs las
+      # usa el NAVEGADOR, no el contenedor. IAXTI_LOGIN_DEV abre /entrar-local
+      # — la página además exige que IAXTI_ENV no sea staging/producción.
+      SUPABASE_URL: http://localhost:3004
+      SUPABASE_ANON_KEY: auth-local
+      IAXTI_LOGIN_DEV: "1"
     ports: ["3002:3000"]
 
   admin:

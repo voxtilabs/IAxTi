@@ -245,6 +245,8 @@ export const RUTAS_SIN_REGLA_DE_PERMISO: Record<string, string> = {
   '/login': 'Se abre SIN sesión. Acá todavía no hay permisos que consultar, y de hecho es donde se consiguen.',
   '/invitacion/[token]': 'Quien acepta una invitación todavía no es parte del negocio: la credencial es el token del enlace, no un rol.',
   '/webchat/[widgetId]': 'El widget público, que carga en el sitio del cliente para un visitante anónimo: no hay sesión ni negocio elegido.',
+  '/entrar-local':
+    'La puerta del ambiente LOCAL (#1047): se abre sin sesión porque acá es donde se consigue, como /login. Tiene doble cerradura propia (IAXTI_LOGIN_DEV y el ambiente) y fuera de local es un 404.',
 };
 
 /**
