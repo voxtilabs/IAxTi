@@ -10,7 +10,9 @@ el que se usa.
 
 **Para tener algo a quien interrogar:** `pnpm seed` deja el negocio de
 demostración conversable —widget de webchat, conocimiento indexado y asistente
-autónomo— e imprime la URL del chat en cada corrida (#1018). Si el seed dice
+autónomo— e imprime la URL del chat en cada corrida (#1018). Y para entrar al
+PANEL local (la bandeja, la ficha, las propuestas): `http://localhost:3002/entrar-local`
+— un clic como la dueña o el vendedor del seed, sin Supabase (#1047). Si el seed dice
 «sin credencial de embeddings», el conocimiento quedó pendiente y el asistente
 va a escalar todo: eso no es un defecto del agente, es la credencial.
 

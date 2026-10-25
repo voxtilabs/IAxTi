@@ -229,14 +229,18 @@ describe('toda pantalla tiene su permiso o su motivo escrito (#815)', () => {
     ).toContain('<SinPermiso');
   });
 
-  it('las cuatro anotadas son las medidas, y cada motivo dice algo', () => {
+  it('las cinco anotadas son las medidas, y cada motivo dice algo', () => {
     // El número está acá a propósito: que crezca tiene que costar una línea de
     // prueba y una explicación, no pasar sin que nadie lo mire.
+    // /entrar-local (#1047) entra porque es donde se CONSIGUE la sesión local,
+    // como /login — y su acceso lo gobiernan sus dos cerraduras de ambiente,
+    // no un permiso: fuera de local la página es un 404.
     expect(Object.keys(RUTAS_SIN_REGLA_DE_PERMISO)).toEqual([
       '/',
       '/login',
       '/invitacion/[token]',
       '/webchat/[widgetId]',
+      '/entrar-local',
     ]);
     // Un motivo vacío o de tres palabras convierte la lista en un trámite.
     for (const [ruta, motivo] of Object.entries(RUTAS_SIN_REGLA_DE_PERMISO)) {
