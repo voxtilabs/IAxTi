@@ -156,7 +156,9 @@ describe('fuentes e índice (#51)', () => {
     const denuevo = await buscar('Sábado HORAS atención'); // mayúsculas y acentos: mismo hash
     expect(denuevo.cached).toBe(true);
     expect(llamadas).toBe(antes); // ni un embedding nuevo
-    expect(knowledgeContext(denuevo)).toContain('según');
+    expect(knowledgeContext(denuevo)).toContain('NOMBRE EXACTO');
+    // El ejemplo con nombre propio invitaba a la cita fantasma (QA 25/10).
+    expect(knowledgeContext(denuevo)).not.toContain('Lista de precios');
     expect(knowledgeContext(denuevo)).toContain('[Políticas]');
   });
 

@@ -299,7 +299,12 @@ export function knowledgeContext(result: KnowledgeResult): string | null {
   const partes: string[] = [];
   if (result.hits.length > 0) {
     partes.push(
-      'CONOCIMIENTO DEL NEGOCIO (responde SOLO con esto; cita la fuente entre paréntesis, p. ej. "(según Lista de precios)"):',
+      // Sin nombre de ejemplo (#1053, QA 25/10): con «p. ej. "(según Lista de
+      // precios)"» el modelo copiaba el EJEMPLO en vez del nombre real del
+      // pasaje — la cita fantasma confirmada contra la base (y que #1021
+      // atribuyó al eco: era esto). El único nombre citable es el que viene
+      // tras «— [» en cada pasaje, y así se le dice.
+      'CONOCIMIENTO DEL NEGOCIO (responde SOLO con esto; cita la fuente entre paréntesis con su NOMBRE EXACTO — el que aparece tras "— [" en cada pasaje; ningún otro nombre existe):',
       ...result.hits.map((h) => `— [${h.sourceName}] ${h.content}`),
     );
   }
