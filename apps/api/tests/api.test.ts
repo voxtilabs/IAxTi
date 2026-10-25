@@ -89,6 +89,27 @@ describe('API base', () => {
     // verla documentada —con su aviso— hasta que /v2 la saque.
     expect(Object.keys(spec.paths)).toContain('/v1/me/modules');
   });
+
+  it('/docs es Scalar con los tokens de Pulso, sobre el MISMO contrato (#594)', async () => {
+    const res = await fetch(`${base}/docs`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const html = await res.text();
+    // El visor apunta al contrato de siempre, no a una copia.
+    expect(html).toContain('data-url="/docs-json"');
+    expect(html).toContain('@scalar/api-reference');
+    // El tema sale de los tokens (una sola fuente) y del puente a Scalar.
+    // Sin ningún hex escrito acá: la guarda de Pulso prohíbe hex fuera del
+    // archivo de tokens, y eso incluye a los strings de esta prueba — lo que
+    // se afirma es que el ARCHIVO real viajó (su encabezado y sus variables),
+    // no sus valores.
+    expect(html).toContain('--scalar-background-1: var(--bg)');
+    expect(html).toContain('Tokens del sistema Pulso');
+    expect(html).toContain('--bg:');
+    // Sin internet se DICE, con la salida a mano: el contrato sigue en json.
+    expect(html).toContain('/docs-json');
+    expect(html).toContain('necesita internet');
+  });
 });
 
 describe('paginación por cursor', () => {
