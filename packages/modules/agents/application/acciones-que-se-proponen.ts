@@ -37,8 +37,10 @@ export async function aplicarAccionDeLaSugerencia(
   deps: Pick<DepsDelAgenteGeneral, 'llamarApi'>,
 ): Promise<{ suggestion: Suggestion; estado: number; datos: unknown }> {
   const r = await client.query(
-    `SELECT accion FROM suggestions
-      WHERE tenant_id = $1 AND id = $2 AND status = 'pending' AND expires_at >= now()`,
+    `SELECT s.accion, s.conversation_id, c.contact_id
+       FROM suggestions s
+       JOIN conversations c ON c.id = s.conversation_id AND c.tenant_id = s.tenant_id
+      WHERE s.tenant_id = $1 AND s.id = $2 AND s.status = 'pending' AND s.expires_at >= now()`,
     [input.tenantId, input.suggestionId],
   );
   if (r.rowCount === 0) throw new Error('Esa propuesta ya no está vigente.');
@@ -47,10 +49,23 @@ export async function aplicarAccionDeLaSugerencia(
   // pudo quedar de una versión en la que esa acción sí se proponía.
   if (!accion) throw new Error('Esa sugerencia no trae una acción que se pueda aplicar.');
 
+  // Lo que el sistema sabe lo pone el sistema, PISANDO lo del modelo (#1049):
+  // el contacto y la conversación son los de ESTA sugerencia — un modelo que
+  // los «adivina» bien no es garantía, y uno que los adivina mal agenda a
+  // otra persona. Al prompt se le dice que ni los escriba.
+  const delSistema: Record<string, Record<string, unknown>> = {
+    'agenda.agendar': {
+      contactId: r.rows[0].contact_id,
+      conversationId: r.rows[0].conversation_id,
+    },
+    'conversations.state': { id: r.rows[0].conversation_id },
+    'payments.createLink': { conversationId: r.rows[0].conversation_id },
+  };
+
   const ejecucion = await aplicarPropuesta(
     {
       herramienta: accion.herramienta,
-      argumentos: accion.argumentos,
+      argumentos: { ...accion.argumentos, ...(delSistema[accion.herramienta] ?? {}) },
       permisos: input.permisos,
       modulosActivos: input.modulosActivos,
     },

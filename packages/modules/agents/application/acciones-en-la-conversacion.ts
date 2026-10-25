@@ -70,6 +70,28 @@ export function accionQueSePuedeProponer(accion: AccionPropuesta | null): Accion
 }
 
 /**
+ * Los ARGUMENTOS que el modelo debe dar por acción (#1049), curados a mano.
+ *
+ * Sin esto, el modelo inventaba campos razonables («fecha_hora»: «próximo
+ * jueves 16:00») que la ruta rechazaba — medido: el botón Confirmar fallaba
+ * el 100 % de las veces con «La cita necesita contacto, inicio y fin». Acá
+ * va SOLO lo que el modelo puede saber; lo que el sistema sabe mejor (el
+ * contacto de la conversación, el id de la conversación) lo pone
+ * `aplicarAccionDeLaSugerencia` al aplicar, y no se le pide nunca.
+ */
+export const ARGUMENTOS_DE_LA_ACCION: Record<string, string> = {
+  'agenda.agendar':
+    '{"inicio": "<ISO 8601 con zona, ej 2026-10-29T16:00:00-03:00>", "fin": "<ISO, normalmente una hora después>", "title": "<el servicio, ej Corte de pelo>"}',
+  'agenda.mover':
+    '{"id": "<el id de la cita que se mueve, tomado del contexto>", "inicio": "<ISO 8601 con zona>", "fin": "<ISO 8601 con zona>"}',
+  'agenda.estado':
+    '{"id": "<el id de la cita, del contexto>", "estado": "<cancelada|confirmada>", "motivo": "<lo que dijo el cliente>"}',
+  'conversations.state': '{"state": "<resolved|snoozed|open>"}',
+  'payments.createLink': '{}',
+  'deals.move': '{"id": "<el id de la oportunidad, del contexto>", "stageId": "<la etapa de destino, del contexto>"}',
+};
+
+/**
  * El catálogo de acciones proponibles, EN EL PROMPT (#1020).
  *
  * Hasta esto, «una de las que te pasaron» del formato de sugerencia no
@@ -90,9 +112,12 @@ export function accionesParaElPrompt(activeModules?: readonly string[]): string 
     .map((nombre) => CATALOGO.find((x) => x.nombre === nombre))
     .filter((h): h is NonNullable<typeof h> => h !== undefined && h.trato === 'confirmar')
     .filter((h) => !h.modulo || !activeModules || activeModules.includes(h.modulo))
-    .map((h) => `- ${h.nombre}: ${h.descripcion}`);
+    .map((h) => {
+      const args = ARGUMENTOS_DE_LA_ACCION[h.nombre];
+      return `- ${h.nombre}: ${h.descripcion}${args ? `\n  argumentos: ${args}` : ''}`;
+    });
   if (!lineas.length) return null;
-  return `Acciones que puedes PROPONER en "accion" (no las ejecutas tú: quedan esperando el visto bueno de quien atiende):
+  return `Acciones que puedes PROPONER en "accion" (no las ejecutas tú: quedan esperando el visto bueno de quien atiende). Los argumentos van EXACTAMENTE con estos campos — el contacto y la conversación los pone el sistema, no los escribas:
 ${lineas.join('\n')}`;
 }
 

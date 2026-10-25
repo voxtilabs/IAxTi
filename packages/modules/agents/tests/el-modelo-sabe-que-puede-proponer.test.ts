@@ -108,6 +108,15 @@ describe('el prompt de sugerir lleva el catálogo', () => {
     expect(deSugerir).toContain('agenda.agendar');
     // Pagos no está activo: proponer un link que va a fallar no se ofrece.
     expect(deSugerir).not.toContain('payments.createLink');
+    // El esquema de argumentos viaja con cada acción (#1049): sin él, el
+    // modelo inventaba «fecha_hora: próximo jueves» y Confirmar fallaba
+    // siempre. Y lo del sistema se le pide que NI lo escriba.
+    expect(deSugerir).toContain('"inicio"');
+    expect(deSugerir).toContain('ISO 8601');
+    expect(deSugerir).toContain('no los escribas');
+    // El ancla temporal: sin saber qué día es, no hay fechas ISO posibles.
+    expect(deSugerir).toContain('Hoy es');
+    expect(deSugerir).toContain('America/Santiago');
   });
 });
 

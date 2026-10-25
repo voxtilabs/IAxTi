@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { parseSuggestion } from '../domain/parser';
@@ -28,6 +27,7 @@ import { CATALOGO } from '../application/catalogo';
 let pool: Pool;
 let tenant: string;
 let conversacion: string;
+let contactoId: string;
 
 beforeAll(async () => {
   pool = createPool();
@@ -35,10 +35,23 @@ beforeAll(async () => {
   tenant = (
     await pool.query("INSERT INTO tenants (name) VALUES ('jose-propone') RETURNING id")
   ).rows[0].id;
-  conversacion = randomUUID();
+  // Una conversación REAL con su contacto: desde #1049 aplicar hace JOIN con
+  // conversations para inyectar lo que el sistema sabe (contactId, id).
+  const contacto = await pool.query(
+    `INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1,'Prueba','+56999001999','whatsapp') RETURNING id`,
+    [tenant],
+  );
+  contactoId = contacto.rows[0].id;
+  const conv = await pool.query(
+    `INSERT INTO conversations (tenant_id, contact_id, channel, state) VALUES ($1,$2,'simulador','open') RETURNING id`,
+    [tenant, contactoId],
+  );
+  conversacion = conv.rows[0].id;
 });
 afterAll(async () => {
   await pool.query('DELETE FROM suggestions WHERE tenant_id = $1', [tenant]);
+  await pool.query('DELETE FROM conversations WHERE tenant_id = $1', [tenant]);
+  await pool.query('DELETE FROM contacts WHERE tenant_id = $1', [tenant]);
   await pool.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await pool.end();
 });
@@ -143,6 +156,74 @@ describe('aplicar', () => {
    * vez de mandarlo en el cuerpo. Si eso se rompiera, la llamada iría a una
    * ruta literal con llaves y el reagendado nunca llegaría al endpoint.
    */
+  it('lo que el sistema sabe lo pone el sistema: contacto y conversación, pisando al modelo (#1049)', async () => {
+    // El caso medido en vivo: el modelo armó agenda.agendar con «nombre» y
+    // «telefono» inventados razonables y SIN contactId — la ruta lo rechazó
+    // («La cita necesita contacto, inicio y fin») y Confirmar fallaba
+    // siempre. Peor aún: un contactId adivinado por el modelo agendaría a
+    // OTRA persona, así que el real lo pisa.
+    const id = await guardar({
+      herramienta: 'agenda.agendar',
+      argumentos: {
+        inicio: '2026-10-29T16:00:00-03:00',
+        fin: '2026-10-29T17:00:00-03:00',
+        title: 'Corte de pelo',
+        contactId: 'adivinado-por-el-modelo',
+      },
+    });
+    const llamadas: Array<{ ruta: string; cuerpo: Record<string, unknown> }> = [];
+    await withTenant(pool, tenant, (c) =>
+      aplicarAccionDeLaSugerencia(
+        c,
+        {
+          tenantId: tenant,
+          suggestionId: id,
+          permisos: new Set(['calendar.book']),
+          modulosActivos: new Set(['calendar']),
+        },
+        {
+          llamarApi: async ({ ruta, cuerpo }) => {
+            llamadas.push({ ruta, cuerpo: cuerpo as Record<string, unknown> });
+            return { ok: true, estado: 201, datos: { creada: true } };
+          },
+        },
+      ),
+    );
+    expect(llamadas).toHaveLength(1);
+    expect(llamadas[0].ruta).toBe('/v1/agenda');
+    expect(llamadas[0].cuerpo.contactId).toBe(contactoId);
+    expect(llamadas[0].cuerpo.conversationId).toBe(conversacion);
+    // Y lo que el modelo sí sabe, viaja intacto.
+    expect(llamadas[0].cuerpo.inicio).toBe('2026-10-29T16:00:00-03:00');
+    expect(llamadas[0].cuerpo.title).toBe('Corte de pelo');
+  });
+
+  it('cambiar el estado de la conversación va a ESTA conversación, diga lo que diga el modelo', async () => {
+    const id = await guardar({
+      herramienta: 'conversations.state',
+      argumentos: { state: 'resolved', id: 'otra-conversacion-inventada' },
+    });
+    const llamadas: Array<{ ruta: string }> = [];
+    await withTenant(pool, tenant, (c) =>
+      aplicarAccionDeLaSugerencia(
+        c,
+        {
+          tenantId: tenant,
+          suggestionId: id,
+          permisos: new Set(['conversations.resolve']),
+          modulosActivos: new Set(['conversations']),
+        },
+        {
+          llamarApi: async ({ ruta }) => {
+            llamadas.push({ ruta });
+            return { ok: true, estado: 200, datos: {} };
+          },
+        },
+      ),
+    );
+    expect(llamadas[0].ruta).toBe(`/v1/conversations/${conversacion}/state`);
+  });
+
   it('reagendar desde el chat: el id viaja EN la ruta, no en el cuerpo', async () => {
     const id = await guardar({
       herramienta: 'agenda.mover',
