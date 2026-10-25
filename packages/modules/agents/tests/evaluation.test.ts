@@ -120,12 +120,15 @@ describe('el juez (#53)', () => {
       readFileSync(join(__dirname, '..', 'evals', 'dataset-autonomo.json'), 'utf8'),
     );
     expect(dataset.task).toBe('autonomo');
-    expect(dataset.version).toBe(1);
+    // v2: el QA nocturno del 25/10 sumó se-presenta-sin-escalar (la escalada
+    // espuria ante «¿cómo te llamas?») y la-cita-nombra-una-fuente-real (la
+    // cita fantasma «Lista de precios»).
+    expect(dataset.version).toBe(2);
     expect(dataset.casos.length).toBeGreaterThanOrEqual(4);
     const ids = dataset.casos.map((c: { id: string }) => c.id);
     // Los casos nacidos de defectos medidos: si alguien los borra, el gate
     // deja de vigilar exactamente lo que ya se rompió una vez.
-    for (const id of ['responde-lo-preguntado', 'pedir-hora-deja-la-accion', 'precio-desconocido-escala']) {
+    for (const id of ['responde-lo-preguntado', 'pedir-hora-deja-la-accion', 'precio-desconocido-escala', 'se-presenta-sin-escalar', 'la-cita-nombra-una-fuente-real']) {
       expect(ids).toContain(id);
     }
     for (const caso of dataset.casos) {
