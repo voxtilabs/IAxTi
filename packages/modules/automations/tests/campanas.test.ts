@@ -262,7 +262,48 @@ describe('la campaña', () => {
     // el costo, así que al arreglarla el test se ponía rojo y el arreglo
     // parecía el error.
     expect(r.costoUsd).toBeNull();
+    expect(r.costo).toBeNull();
     expect(r.costoMedido).toEqual({ conMonto: 0, sinMonto: 2 });
+  });
+
+  it('el costo se convierte con el dólar de CADA día — un solo dólar daría otro número (#990)', async () => {
+    // Dos mensajes de la campaña con costo informado, en días chilenos
+    // distintos y con dólares distintos en fx_rates. Instantes FIJOS (la
+    // regla del reloj): mediodía de Chile, lejos de los bordes de día.
+    const mensajes = await admin.query(
+      `SELECT m.id FROM campaign_recipients r JOIN messages m ON m.id = r.message_id
+        WHERE r.tenant_id = $1 AND r.campaign_id = $2 ORDER BY m.created_at LIMIT 2`,
+      [tenant, campana],
+    );
+    expect(mensajes.rowCount).toBe(2);
+    await admin.query(
+      `UPDATE messages SET meta = jsonb_set(COALESCE(meta,'{}'::jsonb), '{costo}', '{"amount": 0.05, "currency": "USD"}'),
+              created_at = '2026-10-20T15:00:00Z' WHERE id = $1`,
+      [mensajes.rows[0].id],
+    );
+    await admin.query(
+      `UPDATE messages SET meta = jsonb_set(COALESCE(meta,'{}'::jsonb), '{costo}', '{"amount": 0.05, "currency": "USD"}'),
+              created_at = '2026-10-21T15:00:00Z' WHERE id = $1`,
+      [mensajes.rows[1].id],
+    );
+    await admin.query(
+      `INSERT INTO fx_rates (pair, day, value, source) VALUES
+         ('USD/CLP', '2026-10-20', 900, 'test'), ('USD/CLP', '2026-10-21', 1000, 'test')
+       ON CONFLICT (pair, day) DO UPDATE SET value = EXCLUDED.value`,
+    );
+    const r = await en((c) => resultadosDeCampana(c, { tenantId: tenant, campaignId: campana }));
+    expect(r.costoUsd).toBeCloseTo(0.1, 6);
+    // 0,05 × 900 + 0,05 × 1000 = 95. Con UN dólar: 90 o 100 — números
+    // distintos, que es exactamente lo que esta prueba tiene que probar.
+    expect(r.costo).not.toBeNull();
+    expect(r.costo!.clp).toBeCloseTo(95, 6);
+    expect(r.costo!.diasSinCambio).toBe(0);
+
+    // Y un día que se queda sin dólar se CUENTA, no se convierte con otro.
+    await admin.query(`DELETE FROM fx_rates WHERE pair = 'USD/CLP' AND day = '2026-10-21'`);
+    const parcial = await en((c) => resultadosDeCampana(c, { tenantId: tenant, campaignId: campana }));
+    expect(parcial.costo!.clp).toBeCloseTo(45, 6); // solo el día con cambio
+    expect(parcial.costo!.diasSinCambio).toBe(1);
   });
 
   /**
