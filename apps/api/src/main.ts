@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { paginaDeDocs } from './docs';
 import type { INestApplication } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { redisConnection, enteroDeEntorno } from '@iaxti/core';
@@ -205,7 +206,13 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  // Scalar en /docs (#594) sobre el MISMO documento: /docs-json sigue siendo
+  // el contrato intacto que consumen el SDK, dump-openapi.mjs y el catálogo
+  // del Agente General. SwaggerModule.setup servía su UI y este JSON juntos;
+  // acá se sirven por separado para cambiar el visor sin tocar el contrato.
+  const express = app.getHttpAdapter().getInstance() as import('express').Express;
+  express.get('/docs-json', (_req, res) => void res.json(document));
+  express.get('/docs', (_req, res) => void res.type('text/html').send(paginaDeDocs()));
 
   return app;
 }
