@@ -307,6 +307,7 @@ lugares lo convierten en una causa.
 
 | Dónde | Qué contesta |
 |---|---|
+| el webchat da 404 en TODO | lo primero: que la URL **no** lleve `/v1` — el widget vive fuera (`/webchat/{widgetId}/…`, como `/health`), y el 404 genérico es indistinguible del mudo de `widgetValido` (#1017). Recién después revisa módulo, dominio y widget |
 | `/ready` | los seis bordes con el mundo: base, colas, canal, IA, correo, adjuntos, calendario y pagos. Dice «configurado», «a medias» o «sin configurar», y qué se pierde en cada caso. Si el correo no sale, empieza acá |
 | el error de la API | siempre trae `code`, `message` y `requestId`. Copiá el `requestId` en el reporte: con eso se sigue la pista por logs, eventos y trabajos |
 | en qué se apoyó | cada sugerencia guarda qué herramientas consultó y qué fuentes usó. Una respuesta respaldada por el conocimiento y una dicha de memoria se ven iguales en pantalla, y distintas acá |
