@@ -108,12 +108,38 @@ export interface AddSourceInput {
   enlaces?: string[];
 }
 
+const FAQ_NO_ES_JSON =
+  'El tipo faq espera una lista JSON de preguntas y respuestas: [{"q": "¿Pregunta?", "a": "Respuesta"}]. ' +
+  'Para texto libre o una lista de precios en prosa, usa el tipo texto.';
+
+/** El JSON del faq, o el error en castellano (#1014) — nunca «Unexpected token». */
+function faqsDe(content: string | null | undefined): Array<{ q?: string; a?: string }> {
+  let crudo: unknown;
+  try {
+    crudo = JSON.parse(content ?? '[]');
+  } catch {
+    throw new Error(FAQ_NO_ES_JSON);
+  }
+  if (!Array.isArray(crudo)) throw new Error(FAQ_NO_ES_JSON);
+  const faqs = crudo as Array<{ q?: string; a?: string }>;
+  if (!faqs.some((f) => f.q?.trim() && f.a?.trim())) {
+    throw new Error('Ninguna entrada del faq trae pregunta ("q") y respuesta ("a") a la vez.');
+  }
+  return faqs;
+}
+
 export async function addSource(client: PoolClient, input: AddSourceInput): Promise<Source> {
   if (!input.name?.trim()) throw new Error('La fuente necesita un nombre.');
   if (input.kind === 'url' && !input.url?.trim()) throw new Error('Falta la URL.');
   if (['texto', 'faq', 'catalogo'].includes(input.kind) && !input.content?.trim()) {
     throw new Error('Falta el contenido de la fuente.');
   }
+  // El faq se valida al CREAR (#1014): antes la prosa pegada como faq se
+  // guardaba sin chistar y moría al indexar con «Unexpected token 'H' …
+  // is not valid JSON» — un error de parser para un dueño de pyme que pegó
+  // su lista de precios donde no era. Fallar acá, en castellano, mientras
+  // la persona todavía está mirando la pantalla.
+  if (input.kind === 'faq') faqsDe(input.content);
   if (input.kind === 'pdf' && !input.r2Key) throw new Error('Falta el archivo PDF.');
   const r = await client.query(
     `INSERT INTO sources (tenant_id, kind, name, content, url, r2_key, valid_until)
@@ -279,7 +305,8 @@ export async function processSource(
       }
       piezas = splitIntoChunks(texto).map((content) => ({ content }));
     } else if (source.kind === 'faq') {
-      const faqs = JSON.parse(source.content ?? '[]') as Array<{ q?: string; a?: string }>;
+      // Por las fuentes guardadas ANTES de que addSource validara (#1014).
+      const faqs = faqsDe(source.content);
       piezas = faqs
         .filter((f) => f.q?.trim() && f.a?.trim())
         .map((f) => ({ content: `P: ${f.q!.trim()}\nR: ${f.a!.trim()}`, question: f.q!.trim() }));
