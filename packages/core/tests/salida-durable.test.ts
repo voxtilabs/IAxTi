@@ -12,6 +12,11 @@ function sources(dir: string): string[] {
   });
 }
 
+// 30 s y no el tope de fábrica (#776, extendido acá el 25/10): esta guarda
+// escanea el repo entero y mide 3,5 s con la máquina libre — al borde de los
+// 5 s de vitest, y cualquier build o QA en paralelo la pasaba. Tres falsos
+// rojos en dos días, siempre en preflights con carga encima; el tope corto
+// medía la máquina, no el cambio.
 describe('no reabrir la brecha PostgreSQL → Redis (#380)', () => {
   it('todo productor declara política; solo el adaptador durable abre la cola outbound', () => {
     const violations: string[] = [];
@@ -39,5 +44,5 @@ describe('no reabrir la brecha PostgreSQL → Redis (#380)', () => {
     expect(producers).toBeGreaterThanOrEqual(7);
     expect(violations).toEqual([]);
     expect(publishers).toEqual(['apps/workers/src/outbound-dispatch.ts']);
-  });
+  }, 30_000);
 });
