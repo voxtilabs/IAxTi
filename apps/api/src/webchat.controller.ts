@@ -22,7 +22,7 @@ import {
 } from '@iaxti/module-webchat';
 import type { Widget } from '@iaxti/module-webchat';
 import { createQueue, redisConnection } from '@iaxti/core';
-import { textoRequerido, validar } from './validar';
+import { validar } from './validar';
 import { apiPool } from './db';
 import { registry } from './registry';
 import type { WithRequestId } from './request-id';
@@ -172,7 +172,11 @@ const MensajeDelVisitante = z.object({
   sessionId: z.string({ error: FALTA_SESION_O_MENSAJE }).min(1, FALTA_SESION_O_MENSAJE),
   // El texto sí se recorta, porque la comprobación de hoy es `body.trim()`: un
   // mensaje de puros espacios no es un mensaje.
-  body: textoRequerido(FALTA_SESION_O_MENSAJE),
+  // Opcional desde #1059: la IDENTIDAD SOLA basta cuando hay pendientes por
+  // entregar — el visitante que ya preguntó no tiene por qué escribir otra
+  // cosa para poder identificarse. Si no hay ni texto ni pendientes, el caso
+  // de uso lo rechaza con su propio mensaje.
+  body: z.string().optional(),
   visitor: z
     .object({
       name: z.string().optional(),

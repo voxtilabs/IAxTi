@@ -181,15 +181,23 @@ export async function postVisitorMessage(
   input: {
     widget: Widget;
     sessionId: string;
-    body: string;
+    /** Opcional desde #1059: la identidad sola basta cuando hay pendientes. */
+    body?: string;
     visitor?: { name?: string; phone?: string; email?: string };
     requestId?: string;
   },
 ): Promise<VisitorMessageResult> {
   const { widget } = input;
-  if (!input.body?.trim()) throw new Error('Escribe el mensaje primero.');
   const session = await getSession(client, widget.tenantId, widget.id, input.sessionId);
   if (!session) throw new Error('La sesión del chat expiró. Recarga la página.');
+  // La identidad SOLA basta cuando hay pendientes (#1059): el visitante que
+  // ya preguntó rellena sus datos y aprieta enviar — obligarlo a escribir
+  // OTRO mensaje para poder identificarse lo dejaba con el botón muerto.
+  const identidad = Boolean(input.visitor && (input.visitor.phone?.trim() || input.visitor.email?.trim()));
+  const haySesionPendiente = !session.contactId && session.pending.length > 0;
+  if (!input.body?.trim() && !(identidad && haySesionPendiente)) {
+    throw new Error('Escribe el mensaje primero.');
+  }
 
   const entregar = async (conversationId: string | null, contactId: string, textos: string[]) => {
     let conv = conversationId;
@@ -218,10 +226,14 @@ export async function postVisitorMessage(
     return { conversationId: conv!, messageId: ultimoMensaje };
   };
 
-  // Ya identificada: directo a la bandeja.
+  // Ya identificada: directo a la bandeja. La validación de arriba garantiza
+  // el texto en esta rama (sin pendientes no hay identidad-sola que valga);
+  // el throw repite esa verdad donde TypeScript puede verla.
   if (session.contactId) {
+    const cuerpoNuevo = input.body?.trim();
+    if (!cuerpoNuevo) throw new Error('Escribe el mensaje primero.');
     const { conversationId, messageId } = await entregar(session.conversationId, session.contactId, [
-      input.body,
+      cuerpoNuevo,
     ]);
     await client.query(
       `UPDATE webchat_sessions SET conversation_id = $3, updated_at = now()
@@ -232,7 +244,7 @@ export async function postVisitorMessage(
   }
 
   // Con identidad en la mano: contacto + conversación + flush de pendientes.
-  if (input.visitor && (input.visitor.phone?.trim() || input.visitor.email?.trim())) {
+  if (identidad && input.visitor) {
     const { contact } = await ensureWebContact(client, {
       tenantId: widget.tenantId,
       name: input.visitor.name,
@@ -240,7 +252,9 @@ export async function postVisitorMessage(
       email: input.visitor.email,
       requestId: input.requestId,
     });
-    const textos = [...session.pending.map((m) => m.body), input.body];
+    // El body nuevo solo si existe: con la identidad sola, lo que se entrega
+    // es lo que quedó esperando.
+    const textos = [...session.pending.map((m) => m.body), ...(input.body?.trim() ? [input.body] : [])];
     const { conversationId, messageId } = await entregar(null, contact.id, textos);
     await client.query(
       `UPDATE webchat_sessions SET contact_id = $3, conversation_id = $4,

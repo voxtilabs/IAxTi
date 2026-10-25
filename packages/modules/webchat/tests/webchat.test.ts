@@ -163,6 +163,49 @@ describe('el visitante (#46)', () => {
     expect(despues).toEqual([]);
   });
 
+  it('la identidad SOLA entrega lo pendiente — sin obligar a escribir otro mensaje (#1059)', async () => {
+    // El caso medido en vivo: el visitante pregunta, el widget le pide sus
+    // datos, los rellena y aprieta enviar SIN escribir nada más. Antes el
+    // botón quedaba muerto y el servidor igual lo habría rechazado.
+    const session = await withTenant(app, tenant, (c) =>
+      startSession(c, { tenantId: tenant, widgetId: widget.id }),
+    );
+    const primero = await withTenant(app, tenant, (c) =>
+      postVisitorMessage(c, { widget, sessionId: session.id, body: '¿Atienden los sábados?' }),
+    );
+    expect(primero.status).toBe('pending');
+
+    const soloIdentidad = await withTenant(app, tenant, (c) =>
+      postVisitorMessage(c, {
+        widget,
+        sessionId: session.id,
+        visitor: { name: 'Lino Prueba', phone: '+56999000456' },
+      }),
+    );
+    expect(soloIdentidad.status).toBe('delivered');
+    // Lo que se entregó es EXACTAMENTE lo que esperaba: un solo mensaje, el
+    // suyo — la identidad sola no fabrica mensajes.
+    const mensajes = await admin.query(
+      `SELECT body FROM messages WHERE tenant_id = $1 AND conversation_id = $2 AND direction = 'in' ORDER BY created_at`,
+      [tenant, soloIdentidad.conversationId],
+    );
+    expect(mensajes.rows.map((m) => m.body)).toEqual(['¿Atienden los sábados?']);
+
+    // Sin pendientes Y sin texto, el error de siempre: no hay nada que entregar.
+    const session2 = await withTenant(app, tenant, (c) =>
+      startSession(c, { tenantId: tenant, widgetId: widget.id }),
+    );
+    await expect(
+      withTenant(app, tenant, (c) =>
+        postVisitorMessage(c, {
+          widget,
+          sessionId: session2.id,
+          visitor: { name: 'Nadie', phone: '+56999000457' },
+        }),
+      ),
+    ).rejects.toThrow('Escribe el mensaje primero.');
+  });
+
   it('apagar el widget lo desactiva; el historial queda intacto', async () => {
     const apagado = await withTenant(app, tenant, (c) =>
       setWidgetActive(c, { tenantId: tenant, widgetId: widget.id, active: false }),
