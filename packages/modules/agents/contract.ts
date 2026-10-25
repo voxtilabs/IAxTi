@@ -68,6 +68,7 @@ export {
   guardrailLimits,
   escalate,
   autoRespondForInbound,
+  laIaLaEstaAtendiendo,
 } from './application/autonomous';
 export type { ConversationMode, AutonomousOutcome } from './application/autonomous';
 export { detectEscalation, parseAutonomous, formatoAutonomo } from './domain/escalation';

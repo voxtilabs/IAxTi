@@ -181,6 +181,33 @@ describe('avisos y SLA (rol de aplicación)', () => {
     expect(segunda.unattended).toEqual([]);
   });
 
+  it('la que atiende la IA en autónomo NO suena — y cuando la IA se apaga, suena (#830)', async () => {
+    const res = await withTenant(app, tenant, (c) =>
+      receiveInbound(c, { tenantId: tenant, phone: '+56930000044', channel: 'simulador', body: 'hola' }),
+    );
+    await admin.query(
+      `UPDATE conversations SET created_at = now() - interval '20 minutes' WHERE id = $1`,
+      [res.conversation.id],
+    );
+    // La IA la está atendiendo: ni aviso NI marca — si se marcara, el aviso
+    // de después quedaría silenciado para siempre.
+    const conIa = await withTenant(app, tenant, (c) =>
+      checkConversationAlerts(c, tenant, new Date(), { laAtiendeLaIa: async () => true }),
+    );
+    expect(conIa.unattended).not.toContain(res.conversation.id);
+    const marca = await admin.query(
+      'SELECT unattended_alerted_at FROM conversations WHERE id = $1',
+      [res.conversation.id],
+    );
+    expect(marca.rows[0].unattended_alerted_at).toBeNull();
+
+    // Terminó el horario autónomo y sigue new sin dueño: AHORA sí.
+    const sinIa = await withTenant(app, tenant, (c) =>
+      checkConversationAlerts(c, tenant, new Date(), { laAtiendeLaIa: async () => false }),
+    );
+    expect(sinIa.unattended).toContain(res.conversation.id);
+  });
+
   it('el SLA corre en minutos hábiles y publica el incumplimiento una vez', async () => {
     const res = await withTenant(app, tenant, (c) =>
       receiveInbound(c, { tenantId: tenant, phone: '+56930000005', channel: 'simulador', body: 'sin respuesta' }),

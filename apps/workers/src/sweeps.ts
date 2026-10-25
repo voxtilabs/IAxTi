@@ -7,6 +7,7 @@ import {
   checkConversationAlerts,
 } from '@iaxti/module-conversations';
 import { markDueActivities } from '@iaxti/module-crm';
+import { laIaLaEstaAtendiendo } from '@iaxti/module-agents';
 
 /**
  * El barrido de avisos de la bandeja (#38): recorre los tenants operativos y
@@ -24,7 +25,12 @@ export async function sweepConversationAlerts(
   let despertadas = 0;
   for (const row of tenants.rows) {
     const res = await withTenant(pool, row.id, (client) =>
-      checkConversationAlerts(client, row.id),
+      // La IA atendiendo en autónomo no es una desatendida (#830): el aviso
+      // pregunta antes de sonar. Sin agente activo o fuera de horario, el
+      // puerto dice false y todo queda como siempre.
+      checkConversationAlerts(client, row.id, new Date(), {
+        laAtiendeLaIa: (conversationId) => laIaLaEstaAtendiendo(client, row.id, conversationId),
+      }),
     );
     unattended += res.unattended.length;
     breached += res.breached.length;

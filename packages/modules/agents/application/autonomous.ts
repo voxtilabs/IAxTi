@@ -180,6 +180,27 @@ export async function effectiveMode(
   return (await isAutonomousPaused(client, tenantId, agent.id)) ? 'assist' : 'autonomous';
 }
 
+/**
+ * ¿Esta conversación la está atendiendo la IA en autónomo, AHORA? (#830)
+ *
+ * Existe para el barrido de desatendidas: una conversación `new` sin dueño
+ * que la IA está contestando cumplía las dos condiciones del aviso
+ * `conversation.unattended`, y el supervisor recibía una alarma por algo que
+ * sí se estaba atendiendo — un aviso que se repite sin motivo enseña a
+ * ignorar los avisos. Sin agente activo, o fuera de horario, o pausado por
+ * cuota: false, y el aviso sale como siempre.
+ */
+export async function laIaLaEstaAtendiendo(
+  client: PoolClient,
+  tenantId: string,
+  conversationId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const agent = await activeAgent(client, tenantId);
+  if (!agent) return false;
+  return (await effectiveMode(client, agent, tenantId, conversationId, now)) === 'autonomous';
+}
+
 /** Escala: la conversación vuelve a assist, se avisa y se asigna según la regla. */
 export async function escalate(
   client: PoolClient,

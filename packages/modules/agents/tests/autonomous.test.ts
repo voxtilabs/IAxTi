@@ -10,6 +10,7 @@ import {
   conversationMode,
   effectiveMode,
   inAutonomousHours,
+  laIaLaEstaAtendiendo,
   setConversationMode,
 } from '../application/autonomous';
 import { createAgent, updateAgent, listAgents } from '../application/agents';
@@ -237,6 +238,23 @@ describe('la corrida autónoma (#49)', () => {
     agent = await withTenant(admin, tenant, (c) =>
       updateAgent(c, { tenantId: tenant, agentId: agent.id, limits: {}, actor: 'test' }),
     );
+  });
+
+  it('laIaLaEstaAtendiendo dice la verdad del AHORA: autónomo sí, assist no (#830)', async () => {
+    const conv = await conversacionNueva('hola, una consulta');
+    // Sin marca manual y con el agente en assist (el estado del beforeAll): no.
+    expect(await withTenant(admin, tenant, (c) => laIaLaEstaAtendiendo(c, tenant, conv))).toBe(false);
+    // Marcada autónoma a mano: sí — es exactamente la que el barrido de
+    // desatendidas no debe hacer sonar.
+    await withTenant(admin, tenant, (c) =>
+      setConversationMode(c, { tenantId: tenant, conversationId: conv, mode: 'autonomous', actor: 'user-1' }),
+    );
+    expect(await withTenant(admin, tenant, (c) => laIaLaEstaAtendiendo(c, tenant, conv))).toBe(true);
+    // Apagada: no, aunque haya agente.
+    await withTenant(admin, tenant, (c) =>
+      setConversationMode(c, { tenantId: tenant, conversationId: conv, mode: 'off', actor: 'user-1' }),
+    );
+    expect(await withTenant(admin, tenant, (c) => laIaLaEstaAtendiendo(c, tenant, conv))).toBe(false);
   });
 
   it('la regla del tenant asigna el handoff a alguien concreto', async () => {
