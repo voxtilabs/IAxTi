@@ -34,12 +34,14 @@ test('con datos reales el gráfico sale y se puede leer', async ({ page }) => {
   });
   await page.goto('/reportes');
   await expect(page.getByRole('heading', { name: 'Cómo va el negocio' })).toBeVisible();
-  // El rango pedido es el que dice la pestaña: 30 días son 30 días.
+  // El rango pedido es el que dice la pestaña: 30 días son 30 días. Y se
+  // pide POR CANTIDAD (#1074): el `from`/`to` lo resuelve el servidor, que
+  // es el único de los dos que conoce la zona del negocio.
   await expect.poll(() => pedidos.length).toBeGreaterThan(0);
   const url = new URL(pedidos[0]);
-  const dias =
-    (Date.parse(url.searchParams.get('to')!) - Date.parse(url.searchParams.get('from')!)) / 86_400_000 + 1;
-  expect(dias).toBe(30);
+  expect(url.searchParams.get('dias')).toBe('30');
+  expect(url.searchParams.has('from')).toBe(false);
+  expect(url.searchParams.has('to')).toBe(false);
   // El gráfico existe y dice qué muestra. Con el dashboard real hay días
   // sin ninguna fila en `daily_metrics`, y esos huecos tienen que salir
   // como ceros: una serie que se salta los días vacíos dibuja un mes

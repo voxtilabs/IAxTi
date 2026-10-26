@@ -12,14 +12,26 @@ test.beforeEach(async ({ page }) => {
       refresh_token: 'e2e', user: { id: auth.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' } }));
   }, auth);
 });
+// Cuántos días pide el panel. Desde #1074 viaja la CANTIDAD y no el
+// rango: el `from`/`to` lo resuelve el servidor, que es el único de los dos
+// que conoce la zona del negocio.
+function dias(route: Route) {
+  return Number(new URL(route.request().url()).searchParams.get('dias'));
+}
+
 function respuesta(route: Route, conversaciones: number) {
-  const url = new URL(route.request().url());
-  return { metrics: { conversaciones_nuevas: conversaciones, resueltas: 12, oportunidades_creadas: 8,
+  // El simulacro arma el rango como lo armaría el servidor, y lo devuelve en
+  // `rango`: un stub que no tiene la forma de la respuesta real deja de
+  // proteger justo cuando la respuesta cambia.
+  const n = dias(route);
+  const dia = (atras: number) => new Date(Date.UTC(2026, 9, 26) - atras * 86_400_000).toISOString().slice(0, 10);
+  const rango = { from: dia(n - 1), to: dia(0) };
+  return { rango, metrics: { conversaciones_nuevas: conversaciones, resueltas: 12, oportunidades_creadas: 8,
     ganadas: 3, perdidas: 2, valor_ganado_clp: 1234000, ia_ejecuciones: 9, ia_costo_usd: .0123,
     mensajes_enviados: 20, costo_meta_usd: 0, citas_agendadas: 0, pagos_recibidos_clp: 0 },
     primeraRespuesta: { medianaSeg: 45, p90Seg: 150, muestras: 9 }, sinResponderAhora: 2, tasaCierre: .6,
-    porDia: [{ day: url.searchParams.get('from')!, conversaciones: 0, resueltas: 0, oportunidades: 0 },
-      { day: url.searchParams.get('to')!, conversaciones, resueltas: 12, oportunidades: 8 }],
+    porDia: [{ day: rango.from, conversaciones: 0, resueltas: 0, oportunidades: 0 },
+      { day: rango.to, conversaciones, resueltas: 12, oportunidades: 8 }],
     definiciones: { conversaciones_nuevas: 'Conversaciones creadas en el rango.', resueltas: 'Conversaciones resueltas.', primera_respuesta: 'Tiempo hasta la primera respuesta.' },
     // El período anterior va en el simulacro aunque ninguna de estas pruebas
     // mire la comparación (#588, punto 5): un stub que no tiene la forma de la
@@ -33,11 +45,6 @@ function respuesta(route: Route, conversaciones: number) {
       primeraRespuesta: { medianaSeg: 60, muestras: 7 }, tasaCierre: .5 } };
 }
 const cifra = (page: Page) => page.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Conversaciones', exact: true }) }).locator('strong');
-function dias(route: Route) {
-  const url = new URL(route.request().url());
-  return Math.round((Date.parse(url.searchParams.get('to')!) - Date.parse(url.searchParams.get('from')!)) / 86_400_000) + 1;
-}
-
 test('rangos rápidos: gana la selección más reciente, aunque la respuesta anterior llegue después', async ({ page }) => {
   let pendiente: Route | undefined;
   await page.route('**/v1/analytics/dashboard?*', async (r) => {

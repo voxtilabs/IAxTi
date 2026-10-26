@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { urlDeLaApp } from './url-de-la-app';
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
@@ -7,6 +7,7 @@ import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } fro
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { bump } from '@iaxti/module-analytics';
+import { olvidarZonas } from '@iaxti/module-organizations';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 
@@ -104,5 +105,83 @@ describe('/v1/analytics/dashboard (#66)', () => {
     const res = await pedir(supervisora, '/analytics/dashboard?from=2026-09-14&to=2026-01-01');
     expect(res.status).toBe(400);
     expect((await res.json()).code).toBe('VALIDATION_ERROR');
+  });
+
+  /**
+   * La ventana se resuelve con la zona del NEGOCIO (#1074).
+   *
+   * El navegador la armaba con `toISOString()` y mandaba `from`/`to` en UTC,
+   * mientras el servidor archiva `daily_metrics.day` con `diaEn(zona, …)`.
+   * Entre las 21:00 y la medianoche chilenas eso perdía el día más viejo de
+   * la ventana y pedía uno que todavía no existe.
+   *
+   * Solo se finge `Date` —no los temporizadores— porque lo único que hay que
+   * fijar es el instante que el controlador usa de ancla. Con el reloj de la
+   * máquina esta prueba solo podría fallar tres horas al día.
+   */
+  describe('?dias=N resuelve la ventana en la zona del negocio (#1074)', () => {
+    // 22:10 del 25 en Chile. En UTC ya es el 26.
+    const LAS_22_10_EN_CHILE = new Date('2026-10-26T01:10:00.000Z');
+
+    afterEach(async () => {
+      vi.useRealTimers();
+      await admin.query("UPDATE tenants SET timezone = 'America/Santiago' WHERE id = $1", [tenant]);
+      olvidarZonas();
+    });
+
+    async function rangoDe(dias: number): Promise<{ from: string; to: string }> {
+      const res = await pedir(supervisora, `/analytics/dashboard?dias=${dias}`);
+      expect(res.status).toBe(200);
+      return (await res.json()).rango;
+    }
+
+    it('a las 22:10 en Chile, 7 días son 10-19 … 10-25 y no 10-20 … 10-26', async () => {
+      await admin.query("UPDATE tenants SET timezone = 'America/Santiago' WHERE id = $1", [tenant]);
+      olvidarZonas();
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(LAS_22_10_EN_CHILE);
+
+      expect(await rangoDe(7)).toEqual({ from: '2026-10-19', to: '2026-10-25' });
+      // El 26 es el día que UTC habría pedido y todavía no existe para el
+      // negocio: si aparece, los dos relojes volvieron.
+      expect((await rangoDe(30)).to).toBe('2026-10-25');
+    });
+
+    it('la zona del TENANT manda, y no la del producto ni UTC', async () => {
+      // Esta necesita OTRO instante, y el motivo vale escribirlo porque es
+      // fácil caer: para un mismo instante existen solo DOS días en todo el
+      // planeta, así que con las 01:10 UTC de arriba cualquier zona da el 25
+      // (como Chile) o el 26 (como UTC) — y una prueba con Auckland pasaría
+      // igual con el defecto puesto, porque Auckland y UTC coinciden ahí.
+      // Comprobado mordiendo el arreglo: pasaba en verde.
+      //
+      // Al mediodía UTC los tres se separan: UTC el 26, Chile el 26 a las
+      // 09:00 y Auckland ya el 27 a la 01:00.
+      const MEDIODIA_UTC = new Date('2026-10-26T12:00:00.000Z');
+      await admin.query("UPDATE tenants SET timezone = 'Pacific/Auckland' WHERE id = $1", [tenant]);
+      olvidarZonas();
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(MEDIODIA_UTC);
+
+      const rango = await rangoDe(7);
+      expect(rango.to).toBe('2026-10-27');
+      // Ni la del producto ni UTC: las dos dirían el 26.
+      expect(rango.to).not.toBe('2026-10-26');
+      expect(rango.from).toBe('2026-10-21');
+    });
+
+    it('un from/to explícito se sigue respetando, y vuelve en la respuesta', async () => {
+      const res = await pedir(supervisora, '/analytics/dashboard?from=2026-09-01&to=2026-09-07');
+      expect(res.status).toBe(200);
+      expect((await res.json()).rango).toEqual({ from: '2026-09-01', to: '2026-09-07' });
+    });
+
+    it('una cantidad de días que no se entiende es 400, no una ventana inventada', async () => {
+      for (const malo of ['0', '-3', 'siete', '400', '7.5']) {
+        const res = await pedir(supervisora, `/analytics/dashboard?dias=${malo}`);
+        expect(res.status, `dias=${malo}`).toBe(400);
+        expect((await res.json()).code).toBe('VALIDATION_ERROR');
+      }
+    });
   });
 });
