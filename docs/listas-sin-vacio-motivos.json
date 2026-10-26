@@ -44,13 +44,6 @@
         "fragmento": "Respondió sin consultar nada"
       }
     },
-    "bandeja/ficha.tsx#notas": {
-      "motivo": "La sublista de notas internas informa «Sin notas todavía. El cliente jamás las ve». Existe una rama de vacío propia, pero no el componente compartido.",
-      "evidencia": {
-        "archivo": "apps/web/components/bandeja/ficha.tsx",
-        "fragmento": "Sin notas todavía. El cliente jamás las ve."
-      }
-    },
     "bandeja/reasignaciones.tsx#pasos": {
       "motivo": "El desplegable de historial distingue Skeleton, aviso de fallo y «Nunca cambió de dueño». Su explicación de historial vacío está escrita en línea.",
       "evidencia": {
@@ -77,20 +70,6 @@
       "evidencia": {
         "archivo": "apps/web/components/campanas.tsx",
         "fragmento": "Valor de la variable"
-      }
-    },
-    "conocimiento.tsx#fuentes": {
-      "motivo": "La lista de fuentes distingue Skeleton y el texto «Aún no hay fuentes. La IA solo conoce la conversación». El vacío es un párrafo local.",
-      "evidencia": {
-        "archivo": "apps/web/components/conocimiento.tsx",
-        "fragmento": "Aún no hay fuentes. La IA solo conoce la conversación."
-      }
-    },
-    "conocimiento.tsx#productos": {
-      "motivo": "Es la sección de resultados de producto al probar conocimiento. Solo se muestra cuando productos no es null y tiene resultados; no es la lista de fuentes ni un catálogo editable.",
-      "evidencia": {
-        "archivo": "apps/web/components/conocimiento.tsx",
-        "fragmento": "productos !== null && productos.length > 0"
       }
     },
     "consumo-ia.tsx#corridas": {

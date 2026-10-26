@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, EstadoVacio } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -383,7 +383,25 @@ export function Conocimiento() {
         {fuentes === null ? (
           <Skeleton className="mt-3 h-20" />
         ) : fuentes.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">Aún no hay fuentes. La IA solo conoce la conversación.</p>
+          // Era un <p> que decía el problema y no la salida (#588). Es la
+          // pantalla del onboarding: acá es donde el negocio le enseña a la
+          // IA lo suyo, así que el vacío tiene que decir qué va a aparecer y
+          // con qué acción — y ofrecer el camino del producto, pedírselo.
+          <EstadoVacio
+            compacto
+            className="mt-2"
+            titulo="La IA todavía no sabe nada de tu negocio"
+            descripcion="Acá van tus horarios, precios y respuestas frecuentes: lo que pegues o subas es lo único que el asistente puede afirmar. Sin esto solo conoce la conversación, y ante cualquier dato te pasa la conversación a ti."
+            accion={{
+              etiqueta: 'Agregar lo primero',
+              onClick: () => {
+                const boton = document.querySelector<HTMLElement>('[data-testid="agregar-fuente"]');
+                boton?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                boton?.focus();
+              },
+            }}
+            pideleAIAxTi="Cárgame los horarios y precios de mi negocio en el conocimiento"
+          />
         ) : (
           <ul className="mt-2 flex flex-col">
             {fuentes.map((f) => {

@@ -95,13 +95,10 @@ api-keys.tsx#keys
 api-keys.tsx#scopes
 asistente.tsx#agentes
 bandeja/chat.tsx#herramientas
-bandeja/ficha.tsx#notas
 bandeja/reasignaciones.tsx#pasos
 bandeja/secuencias-ficha.tsx#inscripciones
 campanas.tsx#lista
 campanas.tsx#valores
-conocimiento.tsx#fuentes
-conocimiento.tsx#productos
 consumo-ia.tsx#corridas
 crm/ficha-contacto.tsx#campos
 crm/ficha-contacto.tsx#catalogo
