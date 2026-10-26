@@ -296,9 +296,14 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           <EstadoVacio
             titulo="Todavía no has creado una campaña"
             descripcion="Aquí verás tus borradores y los resultados de cada envío: a cuántos llegó, cuántos respondieron y cuánto costó. Para armar la primera eliges una plantilla aprobada y revisas a quién le va a llegar antes de mandar nada."
+            // Las etiquetas NO repiten las que ya hay en la pantalla: el
+            // encabezado tiene «Crear campaña» y el aviso del plan tiene
+            // «Revisar mi plan», y dos controles con el mismo nombre en una
+            // misma vista son ambiguos para quien usa lector de pantalla y
+            // para el e2e por igual — lo cazó Playwright en modo estricto.
             accion={puedeEscribir === false
-              ? { etiqueta: 'Revisar mi plan', href: '/ajustes/facturacion' }
-              : { etiqueta: 'Crear campaña', onClick: () => void nueva() }}
+              ? { etiqueta: 'Ver qué incluye mi plan', href: '/ajustes/facturacion' }
+              : { etiqueta: 'Armar la primera', onClick: () => void nueva() }}
           /> : <ul className="space-y-3">{lista.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised p-4">
             <div className="min-w-0 flex-1"><h2 className="break-words text-lg font-bold text-ink">{c.name}</h2>
               <time dateTime={c.createdAt} className="font-mono text-xs text-muted">{new Date(c.createdAt).toLocaleString('es-CL')}</time>

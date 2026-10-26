@@ -412,9 +412,15 @@ function CambiarEmisor({
 
   return (
     <div className="mt-3">
-      <Button variant="secundario" size="chico" onClick={() => void pedirEmisores()} disabled={cargando}>
-        {cargando ? 'Preguntando al proveedor…' : emisores ? 'Pedir la lista de nuevo' : 'Cambiar el emisor'}
-      </Button>
+      {/* Con cero emisores este botón decía lo MISMO que la acción del panel
+          de abajo, y dos controles con el mismo nombre en una vista son
+          ambiguos —para un lector de pantalla y para el e2e estricto—. Ahí la
+          acción la ofrece el panel, que además explica qué es un emisor. */}
+      {!(emisores !== null && emisores.length === 0) && (
+        <Button variant="secundario" size="chico" onClick={() => void pedirEmisores()} disabled={cargando}>
+          {cargando ? 'Preguntando al proveedor…' : emisores ? 'Pedir la lista de nuevo' : 'Cambiar el emisor'}
+        </Button>
+      )}
       {emisores !== null && emisores.length === 0 && (
         // Era un párrafo que decía dónde se conectan y dejaba a la persona
         // sin saber qué sigue acá (#588). El emisor es el número de WhatsApp:
