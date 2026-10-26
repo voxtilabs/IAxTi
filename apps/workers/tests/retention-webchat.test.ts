@@ -19,8 +19,14 @@ beforeAll(async () => {
   await owner.query('GRANT USAGE ON SCHEMA public TO iaxti_retention_test');
   await owner.query('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO iaxti_retention_test');
   await owner.query('GRANT SELECT ON ALL TABLES IN SCHEMA public TO iaxti_retention_test');
+  // La lista es la MISMA que la de la purga, y escrita a mano a propósito:
+  // agregar una tabla a la purga sin agregarla acá deja el test rojo con
+  // «permission denied for table …», que es exactamente lo que tiene que
+  // pasar. `agent_executions` entró en #1079. Esto cazó ese olvido, así que
+  // no se cambie por un GRANT genérico.
   await owner.query(`GRANT DELETE ON conversations, messages, internal_notes, assignments,
-    suggestions, agent_conversation_modes, sequence_enrollments, response_samples TO iaxti_retention_test`);
+    suggestions, agent_conversation_modes, sequence_enrollments, response_samples,
+    agent_executions TO iaxti_retention_test`);
   await owner.query('GRANT UPDATE ON webchat_sessions, tenants, conversations TO iaxti_retention_test');
   await owner.query('GRANT INSERT ON audit_log, outbox TO iaxti_retention_test');
   const url = new URL(process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti');

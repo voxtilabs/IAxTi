@@ -99,3 +99,93 @@ describe('la corrida guarda qué herramientas usó (#699)', () => {
     expect(fila.rows[0].tools_called).toEqual(['payments.links.read']);
   });
 });
+
+/**
+ * Qué VIO el modelo (#1079).
+ *
+ * `agent_executions.input` guardaba solo `{ prompt }`, y el prompt es el
+ * FORMATO: las reglas no negociables, el JSON de salida, la lista de acciones.
+ * Es el mismo texto en cada corrida del mismo tipo de tarea. Lo que cambia —y
+ * lo único que explica la respuesta— va en `context`: qué día es, quién es el
+ * cliente, el resumen, el trozo de conocimiento y los últimos mensajes.
+ *
+ * O sea que de las dos mitades se guardaba la que no informa. Es la misma
+ * pregunta de #699 y #714 —«¿de dónde sacó eso?»— con la pieza que faltaba:
+ * `sources_used` dice de qué documento, pero el conocimiento se recupera por
+ * RAG y el nombre del documento no dice qué TROZO se le entregó.
+ */
+describe('la corrida guarda qué vio el modelo (#1079)', () => {
+  it('el contexto queda escrito junto al prompt', async () => {
+    const agente = await en((c) => createAgent(c, { tenantId: tenant, name: 'Con contexto' }));
+    const contexto = 'Hoy es lunes 26 de octubre de 2026.\nCliente: Ana Pérez (+56912345678).\nUn corte sale $18.000.';
+    await en((c) =>
+      runAgentTask(
+        c,
+        { tenantId: tenant, agent: agente, task: 'responder', prompt: 'FORMATO', context: contexto },
+        modeloQueUsa(),
+      ),
+    );
+
+    const fila = await pool.query(
+      `SELECT input FROM agent_executions
+        WHERE tenant_id = $1 AND agent_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      [tenant, agente.id],
+    );
+    expect(fila.rows[0].input.prompt).toBe('FORMATO');
+    expect(fila.rows[0].input.context).toBe(contexto);
+    // Lo que de verdad se quiere poder contestar: el precio que dijo, de qué
+    // texto salió.
+    expect(fila.rows[0].input.context).toContain('$18.000');
+  });
+
+  it('una tarea sin contexto no inventa la llave: «no tiene» y «no se le dio» son distintos', async () => {
+    const agente = await en((c) => createAgent(c, { tenantId: tenant, name: 'Sin contexto' }));
+    await en((c) =>
+      runAgentTask(c, { tenantId: tenant, agent: agente, task: 'clasificar', prompt: 'FORMATO' }, modeloQueUsa()),
+    );
+    const fila = await pool.query(
+      `SELECT input FROM agent_executions
+        WHERE tenant_id = $1 AND agent_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      [tenant, agente.id],
+    );
+    expect(fila.rows[0].input).toEqual({ prompt: 'FORMATO' });
+  });
+
+  it('la conversación queda guardada, que es por donde la purga alcanza la fila', async () => {
+    const agente = await en((c) => createAgent(c, { tenantId: tenant, name: 'Con conversación' }));
+    const contacto = (
+      await pool.query(
+        "INSERT INTO contacts (tenant_id, phone, origin) VALUES ($1, '+56987650001', 'whatsapp') RETURNING id",
+        [tenant],
+      )
+    ).rows[0].id;
+    const conversacion = (
+      await pool.query(
+        "INSERT INTO conversations (tenant_id, contact_id, channel) VALUES ($1, $2, 'whatsapp') RETURNING id",
+        [tenant, contacto],
+      )
+    ).rows[0].id;
+
+    await en((c) =>
+      runAgentTask(
+        c,
+        {
+          tenantId: tenant,
+          agent: agente,
+          task: 'responder',
+          prompt: 'FORMATO',
+          context: 'Cliente: Quien Sea (+56987650001).',
+          conversationId: conversacion,
+        },
+        modeloQueUsa(),
+      ),
+    );
+
+    const fila = await pool.query(
+      `SELECT conversation_id FROM agent_executions
+        WHERE tenant_id = $1 AND agent_id = $2 ORDER BY created_at DESC LIMIT 1`,
+      [tenant, agente.id],
+    );
+    expect(fila.rows[0].conversation_id).toBe(conversacion);
+  });
+});

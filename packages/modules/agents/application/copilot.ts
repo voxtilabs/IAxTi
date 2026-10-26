@@ -165,6 +165,9 @@ export async function refreshedContext(
         tenantId: input.tenantId,
         agent,
         task: 'resumir',
+        // El resumen se arma CON el texto de la conversación, dentro del
+        // prompt: la fila tiene que morir con ella (#1079).
+        conversationId: input.conversationId,
         ...(input.activeModules ? { activeModules: input.activeModules } : {}),
         prompt: `Resume en 3 frases lo esencial de esta parte de la conversación (acuerdos, datos del cliente, pendientes):\n${ctx.summary ? `Resumen previo: ${ctx.summary}\n` : ''}${texto}`,
         requestId: input.requestId,
@@ -269,6 +272,7 @@ export async function suggestForInbound(
       agent,
       task: 'sugerir',
       context: contexto,
+      conversationId: input.conversationId,
       // El formato más el catálogo de lo proponible (#1020): sin la lista, el
       // modelo tenía que adivinar los nombres y el filtro se comía casi todo.
       prompt: [FORMATO_SUGERENCIA, accionesParaElPrompt(input.activeModules)]

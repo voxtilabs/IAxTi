@@ -176,11 +176,28 @@ export async function purgeTenantRetention(
 
       // El orden respeta los FK; las tablas sin FK se limpian igual
       // (nada de huérfanas). Contact, Deal y Appointment NO se tocan.
+      //
+      // `agent_goal_attempts` tiene `conversation_id` y queda FUERA a
+      // propósito, medido al agregar `agent_executions` (#1079): no guarda
+      // texto del cliente —ids, el objetivo, marcas de tiempo— así que no es
+      // lo que §39 tiene que borrar, y borrarla cambiaría los números
+      // históricos del embudo hacia atrás: «cumplimos N objetivos en agosto»
+      // pasaría a depender de cuánto historial conserva el plan hoy. Sus
+      // filas quedan apuntando a una conversación que ya no existe, lo cual
+      // es una huérfana de verdad; si alguien decide limpiarla, es una
+      // decisión sobre métricas y no sobre retención.
       // #905: el dueño suelta sus FK con ESTE cliente. El puerto se conecta
       // en workers para no introducir el ciclo conversations ↔ webchat.
       // Se ejecuta incluso con webchat apagado: sus sesiones siguen guardadas.
       await deps.detachSessions(c, { tenantId, conversationIds: ids });
-      for (const tabla of ['internal_notes', 'assignments', 'suggestions', 'agent_conversation_modes', 'sequence_enrollments', 'response_samples', 'messages']) {
+      // `agent_executions` entra desde #1079: la corrida guarda el CONTEXTO
+      // que se le dio al modelo —los últimos mensajes, el nombre y el
+      // teléfono del cliente—, así que si no muriera acá el negocio podría
+      // acortar su retención, perder su historial, y dejar una copia del
+      // texto en una tabla que nadie purga. Entró recién cuando la tabla tuvo
+      // `conversation_id`: antes no había por dónde, y esa era justamente la
+      // razón para no guardar el contexto.
+      for (const tabla of ['internal_notes', 'assignments', 'suggestions', 'agent_conversation_modes', 'sequence_enrollments', 'response_samples', 'agent_executions', 'messages']) {
         await c.query(`DELETE FROM ${tabla} WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[])`, [tenantId, ids]);
       }
       await c.query(`DELETE FROM conversations WHERE tenant_id = $1 AND id = ANY($2::uuid[])`, [tenantId, ids]);
