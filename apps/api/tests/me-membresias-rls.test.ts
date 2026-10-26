@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
@@ -43,7 +44,7 @@ beforeAll(async () => {
     resolveRole: dbRoleResolver(safe), resolvePlatformAdmin: async () => false,
   });
   await app.listen(0);
-  base = await app.getUrl();
+  base = urlDeLaApp(app);
 });
 afterAll(async () => {
   await app?.close();

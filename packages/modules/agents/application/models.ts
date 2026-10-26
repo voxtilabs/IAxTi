@@ -222,13 +222,37 @@ function dialDelProveedor(
 }
 
 /** El ModelPort real sobre el AI SDK. Los tests inyectan uno falso. */
+/**
+ * El nombre que el PROVEEDOR acepta (#1063).
+ *
+ * Nuestras herramientas se llaman `crm.find_contact` —módulo punto acción,
+ * que es el nombre que entienden el guard, el catálogo y la auditoría— y
+ * OpenAI exige `^[a-zA-Z0-9_-]+$`: el punto le hace rechazar la petición
+ * ENTERA, no la herramienta. Medido el 25/10: toda corrida de `sugerir` con
+ * herramientas fallaba con «Invalid 'tools[0].name'», o sea el copiloto de
+ * la bandeja caído, mientras el modo autónomo (que no las usa) contestaba
+ * bien — por eso parecía que «la IA no habla» solo en el panel.
+ *
+ * Se traduce SOLO en el borde: el punto pasa a guion bajo al mandar, y de
+ * vuelta al leer qué pidió el modelo. Lo que se registra, se audita y se
+ * verifica sigue siendo el nombre real.
+ */
+export function nombreParaElProveedor(nombre: string): string {
+  return nombre.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 export function aiSdkModelPort(provider: Provider, model: string): ModelPort {
   return {
     async generate(args) {
       const usadas: string[] = [];
+      // La vuelta no necesita mapa: `usadas.push(h.name)` y
+      // `FalloDeHerramienta(h.name, …)` de abajo están DENTRO del closure de
+      // cada herramienta, así que lo que se registra y se audita es el
+      // nombre real — el del proveedor solo existe como clave del objeto que
+      // viaja en la petición.
       const herramientas = Object.fromEntries(
         (args.tools ?? []).map((h) => [
-          h.name,
+          nombreParaElProveedor(h.name),
           tool({
             description: h.description,
             inputSchema: jsonSchema(h.parameters as Parameters<typeof jsonSchema>[0]),

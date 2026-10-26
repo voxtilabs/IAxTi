@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
@@ -63,7 +64,7 @@ beforeAll(async () => {
       scopes: token === 'recuperar' ? ['conversations.reply', 'conversations.read_all'] : ['conversations.reply'],
     } : null,
   });
-  await app.listen(0); base = await app.getUrl();
+  await app.listen(0); base = urlDeLaApp(app);
 });
 afterAll(async () => {
   await app.close();

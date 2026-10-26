@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { Queue } from 'bullmq';
@@ -66,7 +67,7 @@ beforeAll(async () => {
   queue = new Queue('inbound', { connection: redisConnection() });
   app = await createApp({ jwtVerify: null, resolveRole: null });
   await app.listen(0);
-  base = await app.getUrl();
+  base = urlDeLaApp(app);
 });
 
 afterAll(async () => {

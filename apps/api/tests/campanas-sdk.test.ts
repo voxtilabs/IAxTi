@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -20,7 +21,7 @@ let documento: unknown;
 beforeAll(async () => {
   app = await createApp();
   await app.listen(0);
-  documento = await (await fetch(`${await app.getUrl()}/docs-json`)).json();
+  documento = await (await fetch(`${urlDeLaApp(app)}/docs-json`)).json();
   paths = (documento as { paths: typeof paths }).paths;
 });
 afterAll(async () => { await app.close(); });

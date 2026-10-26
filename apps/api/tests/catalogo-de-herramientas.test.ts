@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import type { INestApplication } from '@nestjs/common';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,7 +38,7 @@ let operacionesReales: Array<{ operationId: string; metodo: string; ruta: string
 beforeAll(async () => {
   app = await createApp();
   await app.listen(0);
-  documento = await (await fetch(`${await app.getUrl()}/docs-json`)).json();
+  documento = await (await fetch(`${urlDeLaApp(app)}/docs-json`)).json();
   // Los esquemas de cuerpo (#524) no salen del OpenAPI: Nest no publica la
   // forma del cuerpo, así que el decorador `@Cuerpo` los registra al
   // declararse y el volcado los agrega como extensión. Acá se agregan igual
