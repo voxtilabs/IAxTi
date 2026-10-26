@@ -72,6 +72,27 @@
         "fragmento": "Valor de la variable"
       }
     },
+    "canales.tsx#emisores": {
+      "motivo": "Estaba tapada por el EstadoVacio de otra lista del mismo archivo (#1068). Tiene rama de vacío propia —un párrafo que explica que el proyecto de la llave no tiene emisores y que se conectan en Zavu— pero no el componente compartido.",
+      "evidencia": {
+        "archivo": "apps/web/components/canales.tsx",
+        "fragmento": "emisores !== null && emisores.length === 0"
+      }
+    },
+    "canales.tsx#widgets": {
+      "motivo": "Tapada por el mismo archivo (#1068). Dibuja los widgets de webchat con .map y no tiene rama de vacío: con cero widgets la sección queda en blanco, sin decir que se crea uno desde acá.",
+      "evidencia": {
+        "archivo": "apps/web/components/canales.tsx",
+        "fragmento": "widgets.map((w) =>"
+      }
+    },
+    "conocimiento.tsx#productos": {
+      "motivo": "Es la sección de resultados al probar el conocimiento: solo se dibuja cuando productos tiene resultados, así que no hay un vacío que mostrar. Vuelve a la lista porque la guarda ya no la suelta por el EstadoVacio de #fuentes (#1068), no porque haya empeorado.",
+      "evidencia": {
+        "archivo": "apps/web/components/conocimiento.tsx",
+        "fragmento": "productos !== null && productos.length > 0"
+      }
+    },
     "consumo-ia.tsx#corridas": {
       "motivo": "La lista desplegable diferencia «Buscando…» de «Todavía no hay corridas registradas». Ambos estados están escritos en línea; esto no certifica que el alto de carga coincida.",
       "evidencia": {
@@ -119,6 +140,13 @@
       "evidencia": {
         "archivo": "apps/web/components/crm/historia-de-etapas.tsx",
         "fragmento": "Sin movimientos registrados todavía."
+      }
+    },
+    "crm/oportunidades.tsx#guardados": {
+      "motivo": "El archivo tiene dos EstadoVacio —el de etapas y el de oportunidades abiertas— y por eso esta tercera lista salía gratis (#1068). Son los filtros guardados del embudo: con ninguno, la fila de chips queda vacía sin decir que se guardan desde el buscador.",
+      "evidencia": {
+        "archivo": "apps/web/components/crm/oportunidades.tsx",
+        "fragmento": "guardados.map((g) =>"
       }
     },
     "dar-una-hora.tsx#contactos": {
