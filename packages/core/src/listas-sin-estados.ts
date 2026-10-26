@@ -104,8 +104,37 @@ export function listasSinVacio(raices: string[]): ListaSinVacio[] {
   const hallazgos: ListaSinVacio[] = [];
   for (const archivo of raices.flatMap((r) => fuentes(r))) {
     const codigo = fuenteLimpia(readFileSync(archivo, 'utf8'));
-    if (codigo.includes('EstadoVacio')) continue;
+    // Atajo barato: sin un `.map(` no hay lista que dibujar. El filtro que
+    // había acá —descartar el archivo entero si mencionaba `EstadoVacio`— es
+    // justo lo que #1068 vino a sacar.
+    if (!codigo.includes('.map(')) continue;
     for (const arreglo of arreglosDelComponente(codigo)) {
+      /**
+       * El vacío se mide POR COLECCIÓN, no por archivo (#1068).
+       *
+       * Esto era `if (codigo.includes('EstadoVacio')) continue` sobre el
+       * archivo entero, y contradecía la unidad que este escáner declara: un
+       * componente dibuja tres listas y ponerle vacío a UNA sacaba a las
+       * otras dos de la lista sin que nadie las mirara. Medido el 25/10 al
+       * arreglar `conocimiento.tsx#fuentes`: `#productos` salió sola.
+       *
+       * La señal correcta es de proximidad: un `EstadoVacio` dentro de la
+       * rama de vacío de ESTA colección. La ventana son 600 caracteres
+       * después del `x.length === 0` —el largo de un `EstadoVacio` con sus
+       * cuatro props bien escritas más el ternario que lo envuelve— y no más,
+       * porque a mil caracteres empieza a alcanzar la lista de al lado.
+       */
+      // TODAS las ramas de vacío de esta colección, no la primera: una lista
+      // puede preguntar `=== 0` en dos lugares —el aviso de arriba y el
+      // cuerpo— y el `EstadoVacio` estar solo en el segundo. Mirando solo la
+      // primera, `crm/contactos.tsx#items` aparecía como pendiente teniendo
+      // su vacío pegado al `map`.
+      const ramas = [
+        ...codigo.matchAll(
+          new RegExp(`\\b${arreglo}(?:\\?)?\\.length\\s*===\\s*0|!\\s*${arreglo}(?:\\?)?\\.length\\b`, 'g'),
+        ),
+      ];
+      if (ramas.some((r) => codigo.slice(r.index, r.index + 600).includes('EstadoVacio'))) continue;
       /**
        * Señal A: el autor ya escribió la rama de VACÍO.
        *

@@ -67,6 +67,59 @@ const SIN_ESQUELETO: Record<string, string> = {
 };
 
 describe('estados vacíos y esqueletos (#588)', () => {
+  it('una lista NO hereda el estado vacío de su vecina (#1068)', () => {
+    // El agujero medido el 25/10: el escáner descartaba el ARCHIVO entero si
+    // veía `EstadoVacio` en cualquier parte, aunque su unidad declarada sea
+    // la colección. Al ponerle vacío a `fuentes`, `productos` salió de la
+    // lista sin que nadie la mirara — y un trinquete que se afloja solo deja
+    // de ser un trinquete.
+    const directorio = mkdtempSync(join(tmpdir(), 'iaxti-vecinas-'));
+    const archivo = join(directorio, 'dos-listas.tsx');
+    try {
+      writeFileSync(archivo, `
+        const [fuentes, setFuentes] = useState<F[] | null>(null);
+        const [productos, setProductos] = useState<P[] | null>(null);
+        if (!fuentes) return <Skeleton />;
+        return <>
+          {fuentes.length === 0 ? (
+            <EstadoVacio titulo="Sin fuentes" descripcion="Acá van tus horarios y precios." accion={{ etiqueta: 'Agregar', href: '/x' }} />
+          ) : (
+            <ul>{fuentes.map((f) => <li>{f.nombre}</li>)}</ul>
+          )}
+          <ul>{productos.map((p) => <li>{p.nombre}</li>)}</ul>
+        </>;
+      `);
+      // La que tiene su vacío sale; la vecina se queda.
+      expect(listasSinVacio([directorio])).toEqual([
+        { archivo, arreglo: 'productos', silencioso: true },
+      ]);
+    } finally { rmSync(directorio, { recursive: true, force: true }); }
+  });
+
+  it('el vacío vale aunque la colección pregunte «=== 0» en más de un lugar (#1068)', () => {
+    // Al mirar solo la PRIMERA rama de vacío, `crm/contactos.tsx#items`
+    // aparecía como pendiente teniendo su EstadoVacio pegado al map: su
+    // primer `=== 0` era el del aviso de arriba.
+    const directorio = mkdtempSync(join(tmpdir(), 'iaxti-dos-ramas-'));
+    const archivo = join(directorio, 'dos-ramas.tsx');
+    try {
+      writeFileSync(archivo, `
+        const [items, setItems] = useState<I[] | null>(null);
+        if (!items) return <Skeleton />;
+        const aviso = items.length === 0 ? 'nada por ahora' : '';
+        return <>
+          <p>{aviso}</p>
+          {items.length === 0 ? (
+            <EstadoVacio titulo="Sin contactos" descripcion="Acá van las personas que te escriben." accion={{ etiqueta: 'Importar', href: '/x' }} />
+          ) : (
+            <ul>{items.map((i) => <li>{i.nombre}</li>)}</ul>
+          )}
+        </>;
+      `);
+      expect(listasSinVacio([directorio])).toEqual([]);
+    } finally { rmSync(directorio, { recursive: true, force: true }); }
+  });
+
   it('detecta una pantalla nueva sin estados aunque los mencione en comentarios', () => {
     const directorio = mkdtempSync(join(tmpdir(), 'iaxti-listas-'));
     const archivo = join(directorio, 'pantalla-nueva.tsx');
