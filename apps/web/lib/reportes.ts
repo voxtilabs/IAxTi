@@ -15,6 +15,12 @@ export interface DashboardDto {
   porDia: Array<{ day: string; conversaciones: number; resueltas: number; oportunidades: number }>;
   definiciones: Record<string, string>;
   /**
+   * La ventana que el servidor midió de verdad, en la zona del negocio
+   * (#1074). Opcional por lo mismo que `anterior`: durante un despliegue el
+   * front nuevo convive con la API vieja, que no lo manda.
+   */
+  rango?: { from: string; to: string };
+  /**
    * El mismo largo de ventana, pegado antes del rango pedido (#588, punto 5).
    *
    * Opcional, y no por prudencia decorativa: web y API son dos contenedores,
@@ -101,6 +107,22 @@ export function rangoCorto(from: string, to: string) {
   return `${fechaReporte(from)} – ${fechaReporte(to)}`;
 }
 
+/**
+ * El rango de RESPALDO, y solo eso (#1074).
+ *
+ * Esto es UTC, y la ventana del negocio no lo es: el servidor archiva
+ * `daily_metrics.day` con `diaEn(zona, …)`, así que entre las 21:00 y la
+ * medianoche chilenas este cálculo pide un día que todavía no existe y
+ * pierde el más viejo de la ventana. El navegador no puede hacerlo bien:
+ * no conoce `tenants.timezone` — no viaja ni en `publicConfig()` ni en la
+ * sesión.
+ *
+ * Por eso el panel pide `?dias=N` y usa el `rango` que el servidor resuelve.
+ * Esto queda para el único caso en que ese dato no está: durante un
+ * despliegue, con el front nuevo hablándole a la API vieja. Mismo motivo por
+ * el que `anterior` y `costos` son opcionales — una cifra con la ventana
+ * corrida es mejor que una pantalla en blanco, y dura lo que dura el rollout.
+ */
 export function rangoReporte(dias: number, ahora = new Date()) {
   return {
     from: new Date(ahora.getTime() - (dias - 1) * 86_400_000).toISOString().slice(0, 10),
@@ -109,6 +131,11 @@ export function rangoReporte(dias: number, ahora = new Date()) {
 }
 
 /** El agregado omite días sin eventos; el eje conserva cada día del rango. */
+/**
+ * `from` y `to` ya son días del NEGOCIO en texto (`AAAA-MM-DD`), no instantes:
+ * recorrerlos con mediodía UTC no corre nada y es lo correcto acá. No lo
+ * «arregles» a una zona — sería volver a mezclar los dos relojes de #1074.
+ */
 export function diasDelReporte(datos: DashboardDto['porDia'], from: string, to: string) {
   const porFecha = new Map(datos.map((d) => [d.day, d]));
   const dias: DashboardDto['porDia'] = [];

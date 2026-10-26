@@ -47,6 +47,7 @@ export class AnalyticsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('ownerId') ownerId?: string,
+    @Query('dias') diasPedidos?: string,
   ) {
     const actor = actorOf(request);
     // Los días viajan como texto AAAA-MM-DD en la zona del negocio: mandar
@@ -59,7 +60,21 @@ export class AnalyticsController {
     // Evita otra conexión y otro BEGIN/set_config/COMMIT para la zona.
     return withTenant(pool(), actor.tenantId, async (c) => {
       const zona = await zonaDelTenant(c, actor.tenantId);
-      const pordefecto = ultimosDias(30, zona, ancla);
+      // `dias` existe porque el NAVEGADOR no conoce la zona del negocio
+      // (#1074). Antes armaba el rango él, con `toISOString()`, y mandaba
+      // un `from`/`to` en UTC: entre las 21:00 y la medianoche chilenas el
+      // panel perdía el día más viejo de la ventana y pedía uno que todavía
+      // no existe, con la comparación contra el período anterior corrida
+      // junto con él. El servidor sí conoce la zona, así que el rango se
+      // resuelve acá y la respuesta dice cuál usó.
+      const cuantos = diasPedidos === undefined ? null : Number(diasPedidos);
+      if (cuantos !== null && (!Number.isInteger(cuantos) || cuantos < 1 || cuantos > MAX_RANGO_DIAS)) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: `La cantidad de días no se entiende (un entero entre 1 y ${MAX_RANGO_DIAS}).`,
+        });
+      }
+      const pordefecto = ultimosDias(cuantos ?? 30, zona, ancla);
       const hasta = to ?? pordefecto.to;
       const desde = from ?? pordefecto.from;
       if (!esDia(desde) || !esDia(hasta) || desde > hasta) {
@@ -79,7 +94,13 @@ export class AnalyticsController {
       // caso de uso, ADR-0008) — pedir los de un colega también exige read_all.
       const verTodo = actorCan(actor, 'analytics.read_all');
       const dueño = verTodo ? (ownerId ?? null) : actor.userId;
-      return getDashboard(c, { tenantId: actor.tenantId, from: desde, to: hasta, ownerId: dueño });
+      // El rango resuelto viaja de vuelta: la etiqueta del período y el eje
+      // del gráfico tienen que nombrar la ventana que de verdad se midió, no
+      // una que el navegador vuelva a calcular por su cuenta.
+      return {
+        ...(await getDashboard(c, { tenantId: actor.tenantId, from: desde, to: hasta, ownerId: dueño })),
+        rango: { from: desde, to: hasta },
+      };
     });
   }
 }

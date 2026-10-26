@@ -13,8 +13,17 @@ type Lectura = { datos: DashboardDto; actualizado: Date };
 export function useReporte(dias: number) {
   const { session, config } = useSession();
   const tenant = useSelectedTenant();
-  const rango = rangoReporte(dias);
-  const clave = `${rango.from}/${rango.to}`;
+  // La ventana la resuelve el SERVIDOR, que es quien conoce la zona del
+  // negocio (#1074). El rango local queda como respaldo para dibujar algo
+  // mientras llega la respuesta, y para la API vieja durante un despliegue.
+  const respaldo = rangoReporte(dias);
+  // La clave lleva el día además de la cantidad: antes cambiaba sola al
+  // cambiar el `to`, y eso era lo que hacía que una pestaña abierta desde
+  // ayer volviera a pedir. Con solo `${dias}d` el efecto no vuelve a correr
+  // —`dias` no cambió— y la lectura de ayer se quedaría dibujada. Que el día
+  // acá sea el del navegador y no el del negocio no importa: esto no mide
+  // nada, solo decide cuándo refrescar.
+  const clave = `${dias}d@${respaldo.to}`;
   const memoria = useMemo(() => new Map<string, Lectura>(), [tenant, session?.access_token, config.apiUrl]);
   const [estado, setEstado] = useState<{
     memoria: Map<string, Lectura>; clave: string; lectura?: Lectura; aviso?: string; cargando: boolean;
@@ -26,7 +35,7 @@ export function useReporte(dias: number) {
     const controller = new AbortController();
     setEstado({ memoria, clave, lectura: memoria.get(clave), cargando: true });
     void apiFetch<DashboardDto>(config, session, tenant,
-      `/analytics/dashboard?from=${rango.from}&to=${rango.to}`, { signal: controller.signal })
+      `/analytics/dashboard?dias=${dias}`, { signal: controller.signal })
       .then((datos) => {
         if (controller.signal.aborted) return;
         const lectura = { datos, actualizado: new Date() };
@@ -41,12 +50,12 @@ export function useReporte(dias: number) {
           aviso: error instanceof Error ? error.message : 'No pudimos cargar tus reportes. Intenta nuevamente.' });
       });
     return () => controller.abort();
-  }, [memoria, clave, rango.from, rango.to, config, session, tenant, intento]);
+  }, [memoria, clave, dias, config, session, tenant, intento]);
 
   // Una respuesta vieja nunca se dibuja bajo el nombre del nuevo rango o negocio.
   const actual = estado?.memoria === memoria && estado.clave === clave ? estado : null;
   const lectura = actual?.lectura ?? memoria.get(clave);
-  return { tenant, rango, datos: lectura?.datos, actualizado: lectura?.actualizado,
+  return { tenant, rango: lectura?.datos.rango ?? respaldo, datos: lectura?.datos, actualizado: lectura?.actualizado,
     cargando: actual?.cargando ?? true, aviso: actual?.aviso,
     reintentar: () => setIntento((n) => n + 1) };
 }

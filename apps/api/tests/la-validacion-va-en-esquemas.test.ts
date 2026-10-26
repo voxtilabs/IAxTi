@@ -47,8 +47,11 @@ const CON_MOTIVO: Record<string, number> = {
   // query y `@Cuerpo` solo cubre cuerpos.
   'agenda.controller.ts': 4,
   // El rango de fechas se valida contra la zona del tenant, que se lee de la
-  // base dentro del `withTenant`: el esquema no la tiene.
-  'analytics.controller.ts': 2,
+  // base dentro del `withTenant`: el esquema no la tiene. La tercera es la
+  // cantidad de días de #1074, que se compara contra `MAX_RANGO_DIAS` en el
+  // mismo lugar y por el mismo motivo — el tope de la ventana y el rango
+  // explícito son la misma regla y no pueden vivir en dos sitios.
+  'analytics.controller.ts': 3,
   // La llave tiene que empezar con el tenant de QUIEN PIDE.
   'knowledge.controller.ts': 1,
   // «Texto o adjunto, pero algo»: la regla mira dos campos ya filtrados por el

@@ -799,6 +799,10 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "ownerId": {
           "type": "string",
           "x-iaxti-en": "query"
+        },
+        "dias": {
+          "type": "string",
+          "x-iaxti-en": "query"
         }
       },
       "additionalProperties": false
