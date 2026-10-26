@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fuenteLimpia } from '@iaxti/core/testing';
-import { aiSdkModelPort, transcriberPara } from '../application/models';
+import { aiSdkModelPort, transcriberPara, nombreParaElProveedor } from '../application/models';
 import { PROVIDERS, proveedorPermitidoParaTarea } from '../domain/config';
 
 /**
@@ -118,6 +118,41 @@ describe('el cuerpo que el producto manda al proveedor (#870)', () => {
     expect(body.max_output_tokens).toBe(1234);
     expect(body).not.toHaveProperty('max_tokens');
     expect(body).not.toHaveProperty('max_completion_tokens');
+  });
+
+  it('los nombres de las herramientas viajan SIN punto: el proveedor los rechaza (#1063)', async () => {
+    // El bug medido el 25/10: `crm.find_contact` viajaba crudo y OpenAI
+    // rechazaba la petición ENTERA — «Invalid 'tools[0].name': … pattern
+    // '^[a-zA-Z0-9_-]+$'» — así que TODA sugerencia con herramientas moría
+    // y el copiloto de la bandeja quedó caído. La guarda de #870 miraba el
+    // cuerpo sin tools, y era justo el caso que el producto manda.
+    const usadas: string[] = [];
+    await aiSdkModelPort('openai', 'gpt-5-mini').generate({
+      system: 'Respondé corto.',
+      prompt: 'buscá a Ana',
+      maxOutputTokens: 500,
+      tools: [
+        {
+          name: 'crm.find_contact',
+          description: 'Busca un contacto',
+          parameters: { type: 'object', properties: { q: { type: 'string' } } },
+          ejecutar: async () => {
+            usadas.push('ejecutada');
+            return { ok: true };
+          },
+        },
+      ],
+    });
+    expect(cuerpos).toHaveLength(1);
+    const enviadas = (cuerpos[0].body as { tools?: Array<{ name?: string }> }).tools ?? [];
+    expect(enviadas).toHaveLength(1);
+    // Lo que viaja cumple el patrón del proveedor…
+    expect(enviadas[0].name).toBe('crm_find_contact');
+    expect(enviadas[0].name).toMatch(/^[a-zA-Z0-9_-]+$/);
+    // …y el nombre REAL no se pierde: es el que entienden el guard, el
+    // catálogo y la auditoría.
+    expect(nombreParaElProveedor('crm.find_contact')).toBe('crm_find_contact');
+    expect(nombreParaElProveedor('agenda.agendar')).toBe('agenda_agendar');
   });
 
   it('a GLM el tope va como max_tokens, que ahí es el correcto', async () => {
