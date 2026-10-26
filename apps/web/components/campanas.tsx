@@ -202,12 +202,12 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   }
 
   async function enviar() {
-    if (!puedeEscribir || !campana || !previa || impedimentoDeCampana(canales, previa)) return;
+    if (!puedeEscribir || !campana || !previa || impedimentoDeCampana(canales, previa, plantilla)) return;
     await ejecutar(async () => {
       // Se vuelve a consultar al enviar: una calidad que cambió mientras se leía no habilita nada.
       const [cs, actual] = await Promise.all([cliente!.channels(), cliente!.preview(campana.id)]);
       setCanales(cs); setPrevia(actual);
-      const motivo = impedimentoDeCampana(cs, actual);
+      const motivo = impedimentoDeCampana(cs, actual, plantilla);
       if (motivo) { setError(motivo); return; }
       if (!mismaVistaPrevia(previa, actual)) {
         setError('Los destinatarios cambiaron. Revisa de nuevo el conteo y la muestra antes de enviar.'); return;
@@ -263,7 +263,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
     });
   }
 
-  const impedimento = puedeEscribir ? impedimentoDeCampana(canales, previa) : 'Tu plan permite consultar campañas, pero no crear ni enviar.';
+  const impedimento = puedeEscribir ? impedimentoDeCampana(canales, previa, plantilla) : 'Tu plan permite consultar campañas, pero no crear ni enviar.';
   return (
     <div className="min-w-0 space-y-6">
       <EncabezadoDePagina

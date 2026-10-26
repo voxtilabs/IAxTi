@@ -19,7 +19,21 @@ import type { CampaignChannel, CampaignPreview } from '@iaxti/sdk';
  * la regla se escribe sobre los canales EN SERVICIO igual: si mañana vuelven a
  * llegar, esto no se rompe.
  */
-export function impedimentoDeCampana(canales: CampaignChannel[] | null, previa: CampaignPreview | null): string | null {
+export function impedimentoDeCampana(
+  canales: CampaignChannel[] | null,
+  previa: CampaignPreview | null,
+  /**
+   * La plantilla elegida, para avisar si no quedó enlazada (#1083).
+   *
+   * Es el único impedimento de esta lista cuyo fallo es del 100 % de los
+   * destinatarios, y se sabe antes de mandar: sin `providerId` el envío
+   * rechaza a cada persona con el mismo mensaje. Opcional para no cambiar a
+   * los dos llamadores que no la tienen a mano; el servidor lo rechaza igual
+   * (`iniciarCampana`), que es lo que pide la regla — la pantalla avisa, la
+   * API bloquea.
+   */
+  plantilla?: { providerId?: string | null } | null,
+): string | null {
   if (!previa) return 'Revisa primero el conteo y la muestra de destinatarios.';
   if (!canales) return 'No pudimos comprobar la calidad del número. Actualiza la vista previa.';
   const whatsapp = canales.filter((c) => c.kind === 'whatsapp');
@@ -34,6 +48,9 @@ export function impedimentoDeCampana(canales: CampaignChannel[] | null, previa: 
   if (numeros.some((n) => n.businessPausedAt)) return 'Los envíos del negocio están pausados. Revisa el número en Canales.';
   if (previa.total === 0) return 'El segmento no tiene destinatarios. Crea una campaña con otros filtros.';
   if (previa.total > 5000) return 'El segmento supera el máximo de 5.000 destinatarios. Reduce los filtros antes de enviar.';
+  if (plantilla && !plantilla.providerId) {
+    return 'La plantilla no quedó enlazada con el proveedor, así que no le llegaría a nadie. Mándala a revisión de nuevo en Ajustes → Plantillas.';
+  }
   return null;
 }
 

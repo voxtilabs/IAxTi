@@ -330,6 +330,19 @@ export interface EstadoDelLote extends ResultadoEnvio {
 
 interface DepsDeEnvio {
   calidadDelNumero: () => Promise<'verde' | 'amarillo' | 'rojo'>;
+  /**
+   * ¿La plantilla de esta campaña está enlazada con el proveedor? (#1083)
+   *
+   * Sin `provider_id` el envío falla para el 100 % de los destinatarios, con
+   * el mismo mensaje repetido una vez por persona, y la campaña igual pasa a
+   * `sending` y recorre todos los lotes. Es el único impedimento conocido de
+   * antemano cuyo fallo es total, así que se pregunta UNA vez acá en vez de
+   * descubrirlo 600 veces.
+   *
+   * Opcional para no romper a quien ya construye estas deps sin ella: sin la
+   * función, el comportamiento es el de antes.
+   */
+  plantillaEnlazada?: (templateId: string) => Promise<boolean>;
   puedeIniciar: (contactId: string) => Promise<boolean>;
   /**
    * Dónde dejar la plantilla. CREA la conversación si no existe (#1081): antes
@@ -377,7 +390,7 @@ interface DepsDeEnvio {
 export async function iniciarCampana(
   client: PoolClient,
   input: { tenantId: string; campaignId: string; actor?: string; actorKind?: ActorKind; requestId?: string },
-  deps: Pick<DepsDeEnvio, 'calidadDelNumero'>,
+  deps: Pick<DepsDeEnvio, 'calidadDelNumero' | 'plantillaEnlazada'>,
 ): Promise<{ campana: Campana; total: number; truncado: boolean }> {
   const campana = await obtenerCampana(client, input.tenantId, input.campaignId);
   if (campana.status !== 'draft') {
@@ -387,6 +400,16 @@ export async function iniciarCampana(
         : campana.status === 'partial'
           ? 'Esta campaña quedó a medias. Usa «seguir» para mandar los que faltan.'
           : 'Esta campaña ya está cerrada.',
+    );
+  }
+
+  // La plantilla enlazada, antes de congelar el total (#1083). Va junto a la
+  // calidad y no en el lote: las dos son condiciones del envío completo, y lo
+  // que la regla pide es que la API rechace aunque la pantalla falle.
+  if (deps.plantillaEnlazada && !(await deps.plantillaEnlazada(campana.templateId))) {
+    throw new Error(
+      'La plantilla de esta campaña no quedó enlazada con el proveedor, así que no le va a ' +
+        'llegar a nadie. Mándala a revisión de nuevo desde Ajustes → Plantillas y vuelve a enviar.',
     );
   }
 
@@ -552,11 +575,19 @@ export async function volverABorrador(
 export async function seguirCampana(
   client: PoolClient,
   input: { tenantId: string; campaignId: string; actor?: string; actorKind?: ActorKind; requestId?: string },
-  deps: Pick<DepsDeEnvio, 'calidadDelNumero'>,
+  deps: Pick<DepsDeEnvio, 'calidadDelNumero' | 'plantillaEnlazada'>,
 ): Promise<Campana> {
   const campana = await obtenerCampana(client, input.tenantId, input.campaignId);
   if (campana.status !== 'partial') {
     throw new Error('Solo se puede seguir una campaña que quedó a medias.');
+  }
+  // También acá (#1083): una campaña que quedó a medias justamente porque la
+  // plantilla no estaba enlazada volvería a fallar entera al seguirla.
+  if (deps.plantillaEnlazada && !(await deps.plantillaEnlazada(campana.templateId))) {
+    throw new Error(
+      'La plantilla de esta campaña no quedó enlazada con el proveedor, así que no le va a ' +
+        'llegar a nadie. Mándala a revisión de nuevo desde Ajustes → Plantillas y vuelve a enviar.',
+    );
   }
   if ((await deps.calidadDelNumero()) === 'rojo') {
     throw new Error(

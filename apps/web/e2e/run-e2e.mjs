@@ -179,7 +179,12 @@ async function main() {
   await withTenant(pool, campaignTenantId, (c) => acceptInvitation(c, { token: adminInv.token, userId: supervisora }));
   const cuenta = (await pool.query("INSERT INTO channel_accounts (tenant_id, kind, name, state) VALUES ($1, 'whatsapp', 'Número sintético', 'active') RETURNING id", [campaignTenantId])).rows[0].id;
   await pool.query("INSERT INTO whatsapp_numbers (tenant_id, channel_account_id, phone_number_id, display_phone, quality) VALUES ($1, $2, $3, '+56980001111', 'green')", [campaignTenantId, cuenta, `e2e-${randomUUID()}`]);
-  await pool.query("INSERT INTO whatsapp_templates (tenant_id, name, language, category, body, status) VALUES ($1, 'novedades_aprobada', 'es_CL', 'marketing', 'Hola {{1}}, tenemos novedades.', 'approved'), ($1, 'aun_sin_aprobar', 'es_CL', 'marketing', 'Borrador', 'draft')", [campaignTenantId]);
+  // La aprobada va CON `provider_id` (#1083). Sin él, el envío rechaza al
+  // 100 % de los destinatarios —«no quedó enlazada con el proveedor»— y desde
+  // #1083 la campaña ni arranca, así que el ensayo no podría llegar nunca al
+  // camino que dice probar. Una aprobada de verdad siempre lo tiene: el
+  // registro en el proveedor es lo que la hace enviable.
+  await pool.query("INSERT INTO whatsapp_templates (tenant_id, name, language, category, body, status, provider_id) VALUES ($1, 'novedades_aprobada', 'es_CL', 'marketing', 'Hola {{1}}, tenemos novedades.', 'approved', 'e2e-meta-template'), ($1, 'aun_sin_aprobar', 'es_CL', 'marketing', 'Borrador', 'draft', NULL)", [campaignTenantId]);
   const personas = (await pool.query("INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, 'Ana de prueba', '+56980002222', 'whatsapp'), ($1, 'Bruno de prueba', '+56980003333', 'whatsapp'), ($1, 'Sin consentimiento', '+56980004444', 'manual') RETURNING id, name", [campaignTenantId])).rows;
   await pool.query("INSERT INTO conversations (tenant_id, contact_id, channel, last_inbound_at) VALUES ($1, $2, 'whatsapp', now())", [campaignTenantId, personas.find((p) => p.name === 'Ana de prueba').id]);
   await pool.end();

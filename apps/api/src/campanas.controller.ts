@@ -252,6 +252,12 @@ export class CampanasController {
           {
             calidadDelNumero: async () =>
               (await numeroEnRojo(c, actor.tenantId)) ? 'rojo' : 'verde',
+            // `automations` no declara `whatsapp`, así que la pregunta se
+            // inyecta desde acá igual que la calidad del número (#1083): el
+            // módulo de campañas no lee la tabla de plantillas, la recibe
+            // contestada.
+            plantillaEnlazada: async (templateId) =>
+              Boolean((await getTemplate(c, actor.tenantId, templateId)).providerId),
           },
         ),
       );
@@ -355,6 +361,8 @@ export class CampanasController {
           {
             calidadDelNumero: async () =>
               (await numeroEnRojo(c, actor.tenantId)) ? 'rojo' : 'verde',
+            plantillaEnlazada: async (templateId) =>
+              Boolean((await getTemplate(c, actor.tenantId, templateId)).providerId),
           },
         ),
       );

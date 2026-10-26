@@ -244,6 +244,42 @@ describe('la campaña', () => {
     ).rejects.toThrow(/calidad ROJA/);
   });
 
+  /**
+   * Con la plantilla sin enlazar tampoco sale (#1083).
+   *
+   * Sin `provider_id` el envío rechaza al 100 % de los destinatarios con el
+   * mismo mensaje, uno por uno, y la campaña igual pasaba a `sending` y
+   * recorría todos los lotes. Es el único impedimento conocido de antemano
+   * cuyo fallo es total, así que se pregunta UNA vez.
+   *
+   * Y lo que hay que comprobar no es solo que lance el error: que NO quede
+   * ninguna fila en `campaign_recipients` y que la campaña siga en `draft`,
+   * porque lo que dolía era la campaña quemada, no el mensaje.
+   */
+  it('con la plantilla sin enlazar no sale, y no deja ningún destinatario', async () => {
+    const sinEnlace = { ...deps(), plantillaEnlazada: async () => false };
+    await expect(
+      en((c) => iniciarCampana(c, { tenantId: tenant, campaignId: campana }, sinEnlace)),
+    ).rejects.toThrow(/no quedó enlazada con el proveedor/);
+
+    const filas = await admin.query(
+      'SELECT count(*)::int AS n FROM campaign_recipients WHERE campaign_id = $1',
+      [campana],
+    );
+    expect(filas.rows[0].n).toBe(0);
+    const estado = await admin.query('SELECT status FROM campaigns WHERE id = $1', [campana]);
+    expect(estado.rows[0].status).toBe('draft');
+  });
+
+  it('y enlazada sale igual que siempre: la pregunta no cambia el camino bueno', async () => {
+    const conEnlace = { ...deps(), plantillaEnlazada: async () => true };
+    const res = await en((c) => iniciarCampana(c, { tenantId: tenant, campaignId: campana }, conEnlace));
+    expect(res.total).toBe(2);
+    // Se devuelve a borrador para no alterar las pruebas que siguen, que
+    // cuentan sobre esta misma campaña.
+    await admin.query("UPDATE campaigns SET status = 'draft', planned_total = NULL WHERE id = $1", [campana]);
+  });
+
   it('sale, y cada destinatario queda con su resultado', async () => {
     const res = await mandarTodo(campana, 'amarillo');
     expect(res.encolados).toBe(2);
