@@ -7,7 +7,7 @@ import {
   type EstadoDelLote,
 } from '@iaxti/module-automations';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
-import { sendMessage } from '@iaxti/module-conversations';
+import { conversacionParaIniciar, sendMessage } from '@iaxti/module-conversations';
 import { enviarPlantilla, MOTIVO_TOPE_DIARIO, numeroEnRojo } from '@iaxti/module-whatsapp';
 
 /**
@@ -95,15 +95,16 @@ function depsDeCampana(c: PoolClient, job: JobDeCampana) {
       ]);
       return r.rows[0] ?? {};
     },
-    conversacionDe: async (contactId: string) => {
-      const r = await c.query(
-        `SELECT id FROM conversations
-          WHERE tenant_id = $1 AND contact_id = $2 AND channel = 'whatsapp'
-          ORDER BY last_message_at DESC NULLS LAST LIMIT 1`,
-        [job.tenantId, contactId],
-      );
-      return (r.rows[0]?.id as string) ?? null;
-    },
+    // La conversación donde dejar la plantilla, creándola si no existe (#1081).
+    // Antes era un SELECT y sin fila el destinatario se saltaba: una campaña
+    // solo llegaba a quien YA había escrito, y quedaban afuera el que llenó un
+    // formulario, el que entró por el webchat y la base importada con opt-in.
+    // Va por el contrato de `conversations` y no con un INSERT desde acá: la
+    // conversación es su tabla, y la que se crea nace sin `last_inbound_at`
+    // —la ventana de 24 h sigue cerrada— y sin publicar `conversation.created`.
+    conversacionDe: async (contactId: string) =>
+      (await conversacionParaIniciar(c, { tenantId: job.tenantId, contactId, channel: 'whatsapp' }))
+        .conversationId,
     enviarPlantilla: async ({
       conversationId,
       contactId,

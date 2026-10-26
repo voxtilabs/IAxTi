@@ -137,7 +137,19 @@ async function main() {
     await withTenant(pool, tableTenant, (c) => createDeal(c, { tenantId: tableTenant, contactId: persona.id, pipelineId: pipe.pipeline.id, title: `Venta ${String(i).padStart(2, '0')}`, value: i * 1000 }));
   }
   // Campañas (#348): negocio y datos sintéticos separados de la bandeja.
+  //
   // No se levanta workers: ningún mensaje de este ensayo sale a un proveedor.
+  // Y ESO ES UN REQUISITO, no un detalle: `campanas.spec.ts:48` afirma que la
+  // campaña queda en `sending` y se puede detener, y eso solo es verdad
+  // mientras nadie corra su lote. Con el stack de `docker compose` arriba el
+  // contenedor `workers` comparte esta base y este Redis, toma el job, procesa
+  // el lote y deja la campaña en `done` — y entonces «Detener» contesta «Esta
+  // campaña ya está cerrada» y la prueba falla en local pero pasa en CI, donde
+  // no hay workers.
+  //
+  // Medido el 26-10: `docker compose stop workers` y la misma prueba pasa en
+  // 2,3 s. Si esta prueba falla con ese mensaje, el problema no es el producto
+  // ni la prueba: es que hay un worker vivo.
   // Doce días de números para que el gráfico de Reportes exista (#424).
   // Sin `daily_metrics` el tablero muestra el estado vacío —que también se
   // prueba, con el tenant por defecto— y no habría gráfico que leer.

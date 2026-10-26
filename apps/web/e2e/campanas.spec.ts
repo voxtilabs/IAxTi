@@ -39,6 +39,12 @@ async function preparar(page: import('@playwright/test').Page) {
  * sale a un proveedor», dice `run-e2e.mjs`— así que ningún lote va a correr.
  * Afirmar el motivo acá sería afirmar algo que nada puede producir.
  *
+ * Si esta prueba falla con «Esta campaña ya está cerrada» al apretar Detener,
+ * hay un worker VIVO: con el stack de `docker compose` arriba, el contenedor
+ * `workers` comparte esta base y este Redis, toma el job de la campaña, corre
+ * el lote y la cierra. `docker compose stop workers` y pasa. Falla en local y
+ * pasa en CI justamente por eso, lo que la hace parecer inestable sin serlo.
+ *
  * Eso que se pierde ya está cubierto por `campanas.test.ts` del módulo, con base
  * de verdad. Lo que SOLO esta prueba puede comprobar es el camino completo
  * navegador → API → base, y ahora cubre algo que antes no existía: que detener

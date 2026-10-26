@@ -331,7 +331,15 @@ export interface EstadoDelLote extends ResultadoEnvio {
 interface DepsDeEnvio {
   calidadDelNumero: () => Promise<'verde' | 'amarillo' | 'rojo'>;
   puedeIniciar: (contactId: string) => Promise<boolean>;
-  conversacionDe: (contactId: string) => Promise<string | null>;
+  /**
+   * Dónde dejar la plantilla. CREA la conversación si no existe (#1081): antes
+   * devolvía `null` y el destinatario se saltaba, así que una campaña solo
+   * llegaba a quien ya había escrito. El tipo dejó de admitir `null` a
+   * propósito — «no hay dónde dejarlo» no es un estado posible de un contacto
+   * que pasó el consentimiento, y mientras lo fue el producto tenía un salto
+   * silencioso que nadie leía.
+   */
+  conversacionDe: (contactId: string) => Promise<string>;
   /** Lo que se necesita para personalizar: nombre y teléfono. */
   datosDelContacto?: (contactId: string) => Promise<{ name?: string | null; phone?: string | null }>;
   enviarPlantilla: (args: {
@@ -793,15 +801,13 @@ export async function enviarLoteDeCampana(
       }
       continue;
     }
-    const conversationId = await deps.conversacionDe(contactId);
-    if (!conversationId) {
-      if (await anotar(contactId, 'skipped', 'sin conversación abierta por ese canal')) {
-        saltados += 1;
-        motivos['sin conversación'] = (motivos['sin conversación'] ?? 0) + 1;
-      }
-      continue;
-    }
     try {
+      // La conversación, creada si hace falta (#1081). Va DENTRO del try: si
+      // la base falla al resolverla, este destinatario queda `failed` con el
+      // motivo y el lote sigue — antes del arreglo esto era un `continue` con
+      // un salto silencioso, y antes de eso un error acá habría volteado el
+      // lote entero.
+      const conversationId = await deps.conversacionDe(contactId);
       // Personalizado por destinatario: `{contacto.nombre}` es el nombre de
       // quien lee, no el de la primera persona de la lista.
       const datos = deps.datosDelContacto ? await deps.datosDelContacto(contactId) : {};

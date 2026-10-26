@@ -85,7 +85,7 @@ export { historialDeAsignaciones } from './application/conversations';
 export type { Reasignacion } from './application/conversations';
 // El consumo del ciclo, reconstruible (#702): `usage_period` se leía solo como
 // marca de dedupe y no se podía listar.
-export { conversacionesPorPeriodo } from './application/conversations';
+export { conversacionesPorPeriodo, conversacionParaIniciar } from './application/conversations';
 export type { ConversacionesDelPeriodo } from './application/conversations';
 // La prioridad se usa (#550): existía desde la primera migración, la API la
 // devolvía en cada conversación y nadie podía cambiarla ni ordenar por ella.
