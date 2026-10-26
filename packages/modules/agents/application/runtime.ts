@@ -223,7 +223,15 @@ ${base}`;
   // puede dar. Sin objetivo, el prompt queda exactamente como antes.
   const resuelto =
     input.agent.objetivo !== null && input.agent.objetivo !== undefined
-      ? resolverObjetivo(input.agent.objetivo, input.agent.objetivoDetalle, input.activeModules ?? [])
+      ? resolverObjetivo(
+          input.agent.objetivo,
+          input.agent.objetivoDetalle,
+          input.activeModules ?? [],
+          // Si esta corrida lleva herramientas (#1066). En autónomo no viajan
+          // —van con la identidad del dueño de la conversación— y el objetivo
+          // se degrada a proponer en vez de prometer.
+          (input.tools?.length ?? 0) > 0,
+        )
       : null;
   const system = componerPrompt(conIdentidad, resuelto) ?? conIdentidad;
 

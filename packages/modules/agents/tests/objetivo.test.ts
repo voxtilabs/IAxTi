@@ -101,3 +101,42 @@ describe('la composición del prompt', () => {
     expect(prompt).toContain('inventar es peor que no saber');
   });
 });
+
+describe('el objetivo que SÍ se puede, pero no se puede verificar (#1066)', () => {
+  it('sin herramientas en la corrida: no escala, propone — y lo dice en el prompt', () => {
+    // El caso medido con el dueño probando (25/10, 02:13): José, con objetivo
+    // «agendar» y el módulo calendar activo, contestó «no puedo ver la
+    // agenda; paso esto al equipo» y escaló ante un «hola?». Era cierto que
+    // no podía: en autónomo las herramientas no viajan. El prompt ahora le
+    // da la salida que el producto ya tiene (#1030) en vez de la escalada.
+    const sinHerramientas = resolverObjetivo('agendar', 'una hora en el salón', ['calendar', 'conversations'], false);
+    expect(sinHerramientas.alcanzable).toBe(true); // el módulo está
+    expect(sinHerramientas.puedeVerificar).toBe(false); // la corrida no
+
+    const prompt = componerPrompt('Eres José.', sinHerramientas)!;
+    expect(prompt).toContain('no puedes CONSULTAR ni confirmar nada');
+    expect(prompt).toContain('NO es motivo para escalar');
+    expect(prompt).toContain('DÉJALA PROPUESTA');
+    // Y no se le dice lo del módulo que falta, porque no falta ninguno.
+    expect(prompt).not.toContain('NO tienes cómo cumplir esto');
+  });
+
+  it('con herramientas, el prompt queda como siempre: nada que degradar', () => {
+    const conHerramientas = resolverObjetivo('agendar', 'una hora en el salón', ['calendar', 'conversations'], true);
+    expect(conHerramientas.puedeVerificar).toBe(true);
+    const prompt = componerPrompt('Eres José.', conHerramientas)!;
+    expect(prompt).not.toContain('no puedes CONSULTAR');
+  });
+
+  it('al DUEÑO no se le habla de «el equipo»: la degradación es solo hacia el cliente', () => {
+    // «estadisticas» también declara herramientas y también puede quedarse
+    // sin ellas, pero su destinatario es el dueño: decirle «te ayuda una
+    // persona» o «déjalo propuesto para que el equipo confirme» no tiene
+    // sentido — la persona ES él (#410).
+    const alDueno = resolverObjetivo('estadisticas', null, ['analytics', 'crm', 'billing'], false);
+    expect(alDueno.definicion.destinatario).toBe('dueño');
+    const prompt = componerPrompt('Eres IAxTi.', alDueno)!;
+    expect(prompt).not.toContain('no puedes CONSULTAR');
+    expect(prompt).not.toContain('DÉJALA PROPUESTA');
+  });
+});

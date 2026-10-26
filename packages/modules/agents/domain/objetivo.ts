@@ -219,6 +219,17 @@ export interface ObjetivoResuelto {
   alcanzable: boolean;
   /** Las tools del objetivo que de verdad están disponibles. */
   tools: string[];
+  /**
+   * Si en ESTA corrida puede consultar algo (#1066).
+   *
+   * Distinto de `alcanzable`: ahí falta el módulo; acá el módulo está pero la
+   * corrida no lleva herramientas — es el caso del modo autónomo, donde las
+   * de lectura no viajan porque van con la identidad del dueño de la
+   * conversación y no hay persona mirando. Medido el 25/10: con objetivo
+   * «agendar» y sin herramientas, el modelo contestaba «no puedo ver la
+   * agenda, te paso con el equipo» y escalaba ante un «hola?».
+   */
+  puedeVerificar: boolean;
 }
 
 /**
@@ -233,6 +244,7 @@ export function resolverObjetivo(
   objetivo: Objetivo,
   detalle: string | null,
   modulosActivos: readonly string[],
+  puedeVerificar = true,
 ): ObjetivoResuelto {
   const def = DEFINICIONES[objetivo];
   const activos = new Set(modulosActivos);
@@ -248,6 +260,7 @@ export function resolverObjetivo(
     // nombre es el módulo dueño: así no hay que mantener un mapa aparte que
     // se desincronice del catálogo de tools.
     tools: def.tools.filter((t) => activos.has(t.split('.')[0])),
+    puedeVerificar,
   };
 }
 
@@ -274,6 +287,21 @@ export function componerPrompt(
           'en este negocio. Dilo con esas palabras en vez de aproximar una respuesta.'
         : `IMPORTANTE: ahora mismo NO tienes cómo cumplir esto (falta: ${resuelto.faltan.join(', ')}). ` +
           'No prometas ni des por hecho nada de eso. Explica que en un momento te ayuda una persona y pasa la conversación.',
+    );
+  }
+  // El módulo está, pero esta corrida no tiene con qué consultar (#1066): no
+  // es lo mismo que no poder, y la salida NO es escalar. Es el camino que el
+  // producto ya tiene: responder lo que sí se sabe y DEJAR LA ACCIÓN
+  // PROPUESTA para que una persona la confirme (#1030). Solo aplica a un
+  // objetivo que declara herramientas: si no las necesita, no hay nada que
+  // degradar.
+  if (resuelto.alcanzable && !resuelto.puedeVerificar && resuelto.definicion.tools.length > 0 && !alDueno) {
+    partes.push(
+      'IMPORTANTE: en esta conversación no puedes CONSULTAR ni confirmar nada — no tienes ' +
+        'herramientas acá. Eso NO es motivo para escalar ni para pedir que una persona siga: ' +
+        'responde lo que sí sabes por el conocimiento del negocio, y si el cliente pide algo que ' +
+        'se hace con una acción, DÉJALA PROPUESTA en "accion" y dile que queda lista para que el ' +
+        'equipo la confirme. Nunca des por hecha una hora, un cupo ni un precio que no esté escrito.',
     );
   }
   if (resuelto.definicion.datosMinimos.length > 0 && resuelto.alcanzable) {
