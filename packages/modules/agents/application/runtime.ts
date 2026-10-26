@@ -63,6 +63,21 @@ export interface RunInput {
    * como `[]` y dice «lo dijo sin consultar».
    */
   fuentes?: Array<{ id: string; nombre: string }>;
+  /**
+   * La conversación a la que pertenece esta corrida (#1079).
+   *
+   * Hace dos cosas, y la segunda es la que la vuelve obligatoria en la
+   * práctica: deja mirar qué contestó el agente en un caso, y deja que la
+   * purga de retención (SPEC §39) BORRE estas filas con el resto de la
+   * conversación. Sin eso, guardar el contexto —que lleva los últimos
+   * mensajes y el nombre del cliente— dejaría una copia que la purga no
+   * alcanza.
+   *
+   * `undefined` en las tareas que no pertenecen a ninguna conversación: la
+   * configuración conversada del Agente General es la principal, y esas no
+   * llevan texto del cliente.
+   */
+  conversationId?: string;
 }
 
 export interface RunResult {
@@ -127,6 +142,31 @@ export function allowedToolsFor(agent: Agent, registry: ModuleRegistry): string[
   return [...todas].filter((t) => activas.has(t));
 }
 
+/**
+ * Qué queda guardado de la ENTRADA de una corrida (#1079).
+ *
+ * Antes era solo `{ prompt }`, y el prompt es el FORMATO: las reglas no
+ * negociables, el JSON de salida, la lista de acciones. Es el mismo texto en
+ * cada corrida del mismo tipo de tarea. Lo que cambia —y lo único que
+ * explica la respuesta— es el contexto: qué día es, quién es el cliente, el
+ * resumen de lo anterior, el trozo de conocimiento recuperado y los últimos
+ * mensajes.
+ *
+ * O sea que de las dos mitades se guardaba la que no informa. El motivo para
+ * guardar la otra ya estaba escrito en el repo, al justificar `sources_used`:
+ * en modo autónomo nadie revisa antes de que salga, así que la única forma de
+ * reconstruir de dónde salió lo que se le dijo al cliente es que la corrida
+ * lo tenga escrito. `sources_used` guarda el id y el nombre de la fuente,
+ * pero el conocimiento se recupera por RAG: el nombre no dice qué trozo leyó.
+ *
+ * `context` solo si vino: hay tareas que no lo usan, y guardar `null` donde
+ * antes no había llave haría ver «no se le dio contexto» donde la verdad es
+ * «esta tarea no tiene».
+ */
+function entradaGuardada(input: RunInput): Record<string, unknown> {
+  return { prompt: input.prompt, ...(input.context ? { context: input.context } : {}) };
+}
+
 export async function runAgentTask(
   client: PoolClient,
   input: RunInput,
@@ -179,7 +219,7 @@ export async function runAgentTask(
           input.task,
           provider,
           model,
-          JSON.stringify({ prompt: input.prompt }),
+          JSON.stringify(entradaGuardada(input)),
           traceId,
           rechazo,
           `Tarea "${input.task}" rechazada por cuota (${quota.used}/${quota.limit}).`,
@@ -272,15 +312,15 @@ ${base}`;
       `INSERT INTO agent_executions
          (tenant_id, agent_id, task, provider, model, input, output,
           tokens_in, tokens_out, cost_usd, latency_ms, trace_id, explanation, tools_called,
-          sources_used)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+          sources_used, conversation_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
       [
         input.tenantId,
         input.agent.id,
         input.task,
         provider,
         model,
-        JSON.stringify({ prompt: input.prompt }),
+        JSON.stringify(entradaGuardada(input)),
         JSON.stringify({
           // Qué herramientas se usaron vive en su columna, `tools_called`, y no
           // acá (#699). Estaba metido en el jsonb de `output` y la columna
@@ -314,6 +354,9 @@ ${base}`;
         // apoyó. `null` y `[]` son distintos a propósito —ver la migración
         // 0014— así que no lleva `?? []`.
         input.fuentes === undefined ? null : JSON.stringify(input.fuentes),
+        // Por dónde la purga de retención alcanza esta fila (#1079). `null` en
+        // las tareas que no pertenecen a ninguna conversación.
+        input.conversationId ?? null,
       ],
     );
     // El medidor de §6 y los umbrales de la cuota (#52).

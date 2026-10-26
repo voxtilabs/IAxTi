@@ -197,4 +197,102 @@ describe('la purga (#77)', () => {
     const aviso = await withTenant(admin, tenant, (c) => scheduleRetentionNotice(c, tenant));
     expect(aviso).toBeNull();
   });
+
+  /**
+   * La corrida del agente muere con la conversación (#1079).
+   *
+   * Desde #1079 `agent_executions.input` guarda el CONTEXTO que se le dio al
+   * modelo: los últimos mensajes y el nombre y teléfono del cliente. Si la
+   * purga no alcanzara esa fila, el negocio podría acortar su retención,
+   * perder su historial, y dejar una copia del texto en una tabla que nadie
+   * borra — un hueco de §39 peor que el problema que el contexto resuelve.
+   *
+   * La fila SIN conversación —la configuración conversada del Agente General—
+   * sobrevive, y es lo correcto: no pertenece a ninguna conversación y no
+   * lleva texto del cliente.
+   *
+   * Se lleva su PROPIO tenant, y el motivo vale escribirlo: en el del archivo
+   * la prueba de «bajar de plan» dejó la purga diferida treinta días, así que
+   * acá `purgeTenantRetention` era un no-op y la prueba medía eso en vez de
+   * la purga. Pasó en verde al revés —las filas seguían ahí— hasta que mirar
+   * el número («expected 2 to be 0») lo delató.
+   */
+  it('la corrida del agente, con el texto del cliente adentro, se va con la conversación', async () => {
+    const propio = (
+      await admin.query(
+        "INSERT INTO tenants (name, plan, state) VALUES ('retention-corridas', 'base', 'active') RETURNING id",
+      )
+    ).rows[0].id as string;
+    const conversacion = async (phone: string, mesesAtras: number) => {
+      const res = await withTenant(admin, propio, (c) =>
+        receiveInbound(c, { tenantId: propio, phone, channel: 'simulador', body: 'hola' }),
+      );
+      await admin.query(
+        `UPDATE conversations SET state = 'resolved',
+            last_message_at = now() - make_interval(months => $2) WHERE id = $1`,
+        [res.conversation.id, mesesAtras],
+      );
+      return res.conversation.id as string;
+    };
+    const vieja = await conversacion('+56901010011', 14);
+    const reciente = await conversacion('+56901010012', 2);
+    const agente = await admin.query(
+      `INSERT INTO agents (tenant_id, name, provider, model, active)
+       VALUES ($1, 'Agente de prueba', 'openai', 'gpt-5', true) RETURNING id`,
+      [propio],
+    );
+    const corrida = async (conversationId: string | null, textoDelCliente: string) =>
+      (
+        await admin.query(
+          `INSERT INTO agent_executions
+             (tenant_id, agent_id, task, provider, model, input, conversation_id)
+           VALUES ($1, $2, 'responder', 'openai', 'gpt-5', $3::jsonb, $4) RETURNING id`,
+          [
+            propio,
+            agente.rows[0].id,
+            JSON.stringify({ prompt: 'formato', context: `Cliente: ${textoDelCliente}.` }),
+            conversationId,
+          ],
+        )
+      ).rows[0].id as string;
+
+    // Cada una con un texto DISTINTO: con el mismo, la afirmación de abajo
+    // no podría distinguir la que se fue de la que quedó.
+    const deLaVieja = await corrida(vieja, 'Quien Escribió Hace Un Año (+56901010011)');
+    const deLaReciente = await corrida(reciente, 'Quien Escribió Ayer (+56901010012)');
+    const sinConversacion = await corrida(null, 'nadie: esto es configuración conversada');
+
+    expect(await purgeTenantRetention(admin, propio, sinSesiones)).not.toBeNull();
+
+    const quedan = (
+      await admin.query(`SELECT id FROM agent_executions WHERE tenant_id = $1`, [propio])
+    ).rows.map((r) => r.id);
+    expect(quedan).not.toContain(deLaVieja);
+    expect(quedan).toContain(deLaReciente);
+    expect(quedan).toContain(sinConversacion);
+
+    // Y lo que de verdad importaba: el texto de ESE cliente no quedó en
+    // ninguna parte, y el del otro sí sigue estando.
+    const hayTexto = async (aguja: string) =>
+      (
+        await admin.query(
+          `SELECT count(*)::int AS n FROM agent_executions
+            WHERE tenant_id = $1 AND input::text LIKE '%' || $2 || '%'`,
+          [propio, aguja],
+        )
+      ).rows[0].n as number;
+    expect(await hayTexto('+56901010011')).toBe(0);
+    expect(await hayTexto('+56901010012')).toBe(1);
+
+    // Se limpia lo que se puede: `audit_log` es append-only y el trigger
+    // rechaza el DELETE incluso con el rol administrativo —«audit_log es
+    // append-only: DELETE no está permitido»—, así que la entrada de la purga
+    // se queda, igual que en producción. Y el tenant tampoco se borra: el
+    // resto del archivo tampoco borra el suyo, y una fila de tenant sin datos
+    // no desordena ninguna otra prueba.
+    for (const tabla of ['agent_executions', 'agents', 'messages', 'conversations', 'contacts', 'outbox']) {
+      await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [propio]);
+    }
+    await admin.query("UPDATE tenants SET state = 'deleted' WHERE id = $1", [propio]);
+  });
 });

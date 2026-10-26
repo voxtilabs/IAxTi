@@ -342,6 +342,10 @@ export async function autoRespondForInbound(
       agent,
       task: 'responder',
       context: contexto,
+      // Por dónde la purga alcanza esta corrida (#1079): el contexto que se
+      // guarda lleva los últimos mensajes y el nombre del cliente, así que la
+      // fila tiene que morir cuando muere la conversación.
+      conversationId: input.conversationId,
       ...(input.activeModules ? { activeModules: input.activeModules } : {}),
       // Con el catálogo de lo proponible (#1030): además de responder puede
       // dejar una acción esperando el visto bueno, igual que en assist.
