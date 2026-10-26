@@ -6,7 +6,7 @@ import {
   type CampaignListItem, type CampaignPreview, type CampaignResults, type CampaignTemplate,
   type Quien,
 } from '@iaxti/sdk';
-import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, EstadoVacio, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { nombreDeQuien, QuienLoHizo } from './quien-lo-hizo';
 import { costoMostrable } from '../lib/reportes';
 import { useSelectedTenant } from './tenant-switcher';
@@ -290,10 +290,16 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
 
       {vista === 'lista' && <>
         {lista === null ? <Skeleton className="h-32" /> : lista.length === 0 ?
-          <section className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
-            <h2 className="text-lg font-bold text-ink">Todavía no has creado una campaña</h2>
-            <p className="mt-2 text-body">Aquí verás tus borradores y los resultados de cada envío. Usa Crear campaña para elegir una plantilla y revisar a quién llegará.</p>
-          </section> : <ul className="space-y-3">{lista.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised p-4">
+          // Decía qué iba a aparecer y mandaba a buscar el botón de arriba a
+          // mano (#588). Con el plan en solo lectura la acción no se ofrece:
+          // llevaría a un formulario que no puede enviar.
+          <EstadoVacio
+            titulo="Todavía no has creado una campaña"
+            descripcion="Aquí verás tus borradores y los resultados de cada envío: a cuántos llegó, cuántos respondieron y cuánto costó. Para armar la primera eliges una plantilla aprobada y revisas a quién le va a llegar antes de mandar nada."
+            accion={puedeEscribir === false
+              ? { etiqueta: 'Revisar mi plan', href: '/ajustes/facturacion' }
+              : { etiqueta: 'Crear campaña', onClick: () => void nueva() }}
+          /> : <ul className="space-y-3">{lista.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised p-4">
             <div className="min-w-0 flex-1"><h2 className="break-words text-lg font-bold text-ink">{c.name}</h2>
               <time dateTime={c.createdAt} className="font-mono text-xs text-muted">{new Date(c.createdAt).toLocaleString('es-CL')}</time>
               {/* Quién la lanzó (#697): `created_by` se escribía desde el primer
