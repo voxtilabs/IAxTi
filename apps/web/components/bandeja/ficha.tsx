@@ -4,6 +4,7 @@ import { Bot } from 'lucide-react';
 
 import { useState } from 'react';
 import {
+  EstadoVacio,
   Avatar,
   Badge,
   Button,
@@ -147,7 +148,21 @@ export function Ficha({
       <div className="mt-6">
         <p className="rotulo">Notas del equipo</p>
         {notas.length === 0 && (
-          <p className="mt-2 text-sm text-muted">Sin notas todavía. El cliente jamás las ve.</p>
+          // Compacto: vive en el panel lateral, al lado del chat (#588).
+          <EstadoVacio
+            compacto
+            className="mt-2"
+            titulo="Sin notas todavía"
+            descripcion="Lo que escribas acá queda para tu equipo —el cliente jamás lo ve— y viaja con el contacto a su próxima conversación."
+            accion={{
+              etiqueta: 'Escribir la primera',
+              onClick: () => {
+                const campo = document.querySelector<HTMLElement>('[aria-label="Nota interna"]');
+                campo?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                campo?.focus();
+              },
+            }}
+          />
         )}
         <ul className="mt-2 flex flex-col gap-2">
           {notas.map((n) => (
