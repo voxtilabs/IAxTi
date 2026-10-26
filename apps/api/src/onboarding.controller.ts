@@ -1,7 +1,8 @@
 import { Controller, Get, Req, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
-import { onboardingStatus, type EstadoOnboarding, type Verificador } from '@iaxti/module-organizations';
+import { diaEn } from '@iaxti/core';
+import { onboardingStatus, zonaDelTenant, type EstadoOnboarding, type Verificador } from '@iaxti/module-organizations';
 import { listChannelAccounts } from '@iaxti/module-channels';
 import { listSources } from '@iaxti/module-knowledge';
 import { listarEquipo, listarInvitaciones } from '@iaxti/module-identity';
@@ -97,8 +98,17 @@ function verificadores(client: PoolClient, tenantId: string): Partial<Record<str
             return {
               hecho: conversaciones > 0,
               detalle: conversaciones
-                ? `${conversaciones} conversación${conversaciones > 1 ? 'es' : ''}` +
-                  (ultimoMensajeEl ? `, la última el ${ultimoMensajeEl.toISOString().slice(0, 10)}` : '')
+                // El plural de `conversación` pierde la tilde (#1072):
+                // pegarle `es` al singular daba «conversaciónes» en la
+                // portada, que es la primera pantalla del producto.
+                ? `${conversaciones} ${conversaciones > 1 ? 'conversaciones' : 'conversación'}` +
+                  // Y la fecha, en la zona del NEGOCIO. `toISOString()` es
+                  // UTC: entre las 21:00 y la medianoche chilenas fechaba el
+                  // último mensaje al día siguiente, o sea que la portada
+                  // mostraba de noche una fecha que todavía no llegaba.
+                  (ultimoMensajeEl
+                    ? `, la última el ${diaEn(await zonaDelTenant(client, tenantId), ultimoMensajeEl)}`
+                    : '')
                 : 'todavía no llega ningún mensaje',
             };
           },

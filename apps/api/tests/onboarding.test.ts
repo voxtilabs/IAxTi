@@ -8,6 +8,7 @@ import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { createChannelAccount, setChannelState } from '@iaxti/module-channels';
 import { createPipeline } from '@iaxti/module-crm';
+import { olvidarZonas } from '@iaxti/module-organizations';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 
@@ -71,7 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  for (const tabla of ['channel_accounts', 'stages', 'pipelines', 'user_roles', 'invitations', 'outbox']) {
+  for (const tabla of ['conversations', 'contacts', 'channel_accounts', 'stages', 'pipelines', 'user_roles', 'invitations', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
   await admin.end();
@@ -159,4 +160,109 @@ describe('GET /v1/onboarding', () => {
     expect(body.code).toBe('PERMISSION_DENIED');
     expect(body.requestId).toMatch(/^req_/);
   });
+
+  /**
+   * El detalle del primer mensaje se escribe en castellano y en la hora del
+   * negocio (#1072).
+   *
+   * Las dos cosas se rompían juntas en la PORTADA, que es `app/page.tsx`: el
+   * plural `conversación` + `es` daba «conversaciónes», y la fecha salía de
+   * `toISOString()`, o sea UTC.
+   *
+   * El instante es FIJO y no `Date.now()`: 22:10 del 25 en Chile son las
+   * 01:10 UTC del 26, así que con UTC la portada fechaba el último mensaje
+   * un día en el futuro. Medir con el reloj de la máquina haría que esta
+   * prueba solo pudiera fallar tres horas al día.
+   */
+  describe('el detalle de «Recibe tu primer mensaje» (#1072)', () => {
+    const VEINTIDOS_DIEZ_EN_CHILE = new Date('2026-10-26T01:10:00.000Z');
+
+    async function conDosConversaciones(): Promise<void> {
+      await admin.query('DELETE FROM conversations WHERE tenant_id = $1', [tenant]);
+      await admin.query('DELETE FROM contacts WHERE tenant_id = $1', [tenant]);
+      const c = await admin.query(
+        "INSERT INTO contacts (tenant_id, name) VALUES ($1, 'Quien escribió') RETURNING id",
+        [tenant],
+      );
+      // La segunda es la MÁS NUEVA y la que fecha el detalle: así se
+      // comprueba que sale del `max(last_message_at)` y no de la primera.
+      for (const cuando of [new Date(VEINTIDOS_DIEZ_EN_CHILE.getTime() - 86_400_000), VEINTIDOS_DIEZ_EN_CHILE]) {
+        await admin.query(
+          `INSERT INTO conversations (tenant_id, contact_id, channel, state, last_message_at)
+           VALUES ($1, $2, 'whatsapp', 'open', $3)`,
+          [tenant, c.rows[0].id, cuando],
+        );
+      }
+    }
+
+    async function detalleDelPaso(): Promise<string> {
+      const e = await (await pedir(dueña)).json();
+      return e.pasos.find((p: { id: string }) => p.id === 'first_message').detalle as string;
+    }
+
+    it('pluraliza sin la tilde y fecha con la zona del negocio', async () => {
+      await admin.query("UPDATE tenants SET timezone = 'America/Santiago' WHERE id = $1", [tenant]);
+      olvidarZonas();
+      await conDosConversaciones();
+
+      const detalle = await detalleDelPaso();
+      expect(detalle).toContain('2 conversaciones');
+      expect(detalle).not.toContain('conversaciónes');
+      // En Chile ese instante es el 25 a las 22:10, no el 26.
+      expect(detalle).toContain('la última el 2026-10-25');
+      expect(detalle).not.toContain('2026-10-26');
+    });
+
+    it('con una sola, el singular sí lleva tilde', async () => {
+      await admin.query('DELETE FROM conversations WHERE tenant_id = $1', [tenant]);
+      const c = await admin.query(
+        "INSERT INTO contacts (tenant_id, name) VALUES ($1, 'Una sola') RETURNING id",
+        [tenant],
+      );
+      await admin.query(
+        `INSERT INTO conversations (tenant_id, contact_id, channel, state, last_message_at)
+         VALUES ($1, $2, 'whatsapp', 'open', $3)`,
+        [tenant, c.rows[0].id, VEINTIDOS_DIEZ_EN_CHILE],
+      );
+
+      const detalle = await detalleDelPaso();
+      expect(detalle).toContain('1 conversación,');
+      expect(detalle).not.toContain('conversaciones');
+    });
+
+    it('la zona del TENANT manda, no la del producto ni UTC', async () => {
+      // Esta necesita OTRO instante, y el motivo vale escribirlo: para un
+      // mismo instante solo existen dos días en todo el planeta, así que con
+      // las 01:10 UTC de arriba cualquier zona da el 25 (como Chile) o el 26
+      // (como UTC) — y una prueba que elija Auckland pasaría igual con el
+      // defecto puesto, porque Auckland y UTC coinciden ahí. Lo comprobé
+      // mordiendo el arreglo: pasaba en verde.
+      //
+      // Al mediodía UTC los tres se separan: UTC el 26, Chile el 26 a las
+      // 09:00 y Auckland ya el 27 a la 01:00. Recién ahí la prueba puede
+      // distinguir «siguió la zona del tenant» de las otras dos respuestas.
+      const MEDIODIA_UTC = new Date('2026-10-26T12:00:00.000Z');
+      await admin.query('DELETE FROM conversations WHERE tenant_id = $1', [tenant]);
+      const c = await admin.query(
+        "INSERT INTO contacts (tenant_id, name) VALUES ($1, 'Al otro lado') RETURNING id",
+        [tenant],
+      );
+      await admin.query(
+        `INSERT INTO conversations (tenant_id, contact_id, channel, state, last_message_at)
+         VALUES ($1, $2, 'whatsapp', 'open', $3)`,
+        [tenant, c.rows[0].id, MEDIODIA_UTC],
+      );
+
+      await admin.query("UPDATE tenants SET timezone = 'Pacific/Auckland' WHERE id = $1", [tenant]);
+      olvidarZonas();
+      const detalle = await detalleDelPaso();
+      expect(detalle).toContain('la última el 2026-10-27');
+      // Ni la del producto ni UTC: las dos dirían el 26.
+      expect(detalle).not.toContain('2026-10-26');
+
+      await admin.query("UPDATE tenants SET timezone = 'America/Santiago' WHERE id = $1", [tenant]);
+      olvidarZonas();
+    });
+  });
+
 });

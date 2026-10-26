@@ -159,7 +159,6 @@ organizations/TOPE_POR_TABLA
 organizations/advanceOnboarding
 organizations/avanzarPorEvento
 organizations/olvidarPlan
-organizations/olvidarZonas
 payments/createFlowProvider
 payments/createSimuladoProvider
 payments/flowConfig
