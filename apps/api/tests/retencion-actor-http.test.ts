@@ -1,12 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { urlDeLaApp } from './url-de-la-app';
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { scheduleRetentionNotice, setRetentionOverride } from '@iaxti/module-conversations';
+import { olvidarZonas } from '@iaxti/module-organizations';
+import { olvidarEnCache } from '@iaxti/core';
 import { createApp } from '../src/main';
-import { usarPool } from '../src/db';
+import { usarPool, apiRedis } from '../src/db';
 
 const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 const rol = `retencion_${randomUUID().replaceAll('-', '')}`;
@@ -117,3 +119,68 @@ describe('la retención atribuye el cambio al actor autorizado (#907)', () => {
     ]);
   });
 });
+
+/**
+ * Y las fechas de la retención salen de la zona del NEGOCIO (#1076).
+ *
+ * `cutoff`, `deferredUntil` y `firstPurgeAt` se le muestran a una persona
+ * —«el historial anterior al X se elimina», «se eliminarán a partir del X»—
+ * y salían de `toISOString()`, o sea UTC. En Chile eso adelanta el día cada
+ * noche a partir de las 21:00, y las dos pantallas que pintan el mismo corte
+ * terminaban diciendo días distintos.
+ *
+ * Se finge solo `Date`: lo único que hay que anclar es el instante desde el
+ * que se calcula el corte.
+ */
+describe('las fechas de la retención, en la zona del negocio (#1076)', () => {
+  // 22:10 del 25 en Chile. En UTC ya es el 26.
+  const LAS_22_10_EN_CHILE = new Date('2026-10-26T01:10:00.000Z');
+
+  afterEach(async () => {
+    vi.useRealTimers();
+    await admin.query("UPDATE tenants SET timezone = 'America/Santiago' WHERE id = $1", [tenantId]);
+    olvidarZonas();
+  });
+
+  async function retencion(): Promise<{ cutoff: string | null; months: number | null }> {
+    const res = await fetch(`${base}/v1/settings/retencion`, { headers: { 'X-Api-Key': 'retencion-fixture' } });
+    expect(res.status).toBe(200);
+    return res.json() as Promise<{ cutoff: string | null; months: number | null }>;
+  }
+
+  it('el corte se fecha con el día del negocio y no con el de UTC', async () => {
+    await withTenant(safe, tenantId, (c) => setRetentionOverride(c, { tenantId, months: 6 }));
+    await admin.query("UPDATE tenants SET timezone = 'America/Santiago' WHERE id = $1", [tenantId]);
+    olvidarZonas();
+    await olvidarEnCache(apiRedis(), { clave: 'retencion', tenantId });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(LAS_22_10_EN_CHILE);
+
+    // Seis meses antes del 25 de octubre chileno: el 25 de abril.
+    expect((await retencion()).cutoff).toBe('2026-04-25');
+  });
+
+  it('la zona del TENANT manda, y no la del producto ni UTC', async () => {
+    // Otro instante, por el mismo motivo que en #1072 y #1074: para un mismo
+    // instante existen solo DOS días en el planeta, así que con las 01:10 UTC
+    // cualquier zona da el 25 (como Chile) o el 26 (como UTC), y una prueba
+    // con Auckland pasaría con el defecto puesto. Al mediodía UTC los tres se
+    // separan: UTC el 26, Chile el 26 a las 09:00, Auckland el 27 a la 01:00.
+    await withTenant(safe, tenantId, (c) => setRetentionOverride(c, { tenantId, months: 6 }));
+    await admin.query("UPDATE tenants SET timezone = 'Pacific/Auckland' WHERE id = $1", [tenantId]);
+    olvidarZonas();
+    // Y el cache de la ruta, que es de cinco minutos: sin esto la segunda
+    // afirmación lee la respuesta de la primera y la prueba mide el cache en
+    // vez de la zona. Lo encontró dando 2026-04-25, que era el corte de la
+    // prueba anterior.
+    await olvidarEnCache(apiRedis(), { clave: 'retencion', tenantId });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-26T12:00:00.000Z'));
+
+    const { cutoff } = await retencion();
+    expect(cutoff).toBe('2026-04-27');
+    // El 26 es lo que dirían UTC y la zona del producto.
+    expect(cutoff).not.toBe('2026-04-26');
+  });
+});
+

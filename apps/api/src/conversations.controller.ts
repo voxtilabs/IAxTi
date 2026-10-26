@@ -15,6 +15,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { diaEn } from '@iaxti/core';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import { z } from 'zod';
 import {
   assignConversation,
@@ -252,10 +254,14 @@ export class ConversationsController {
       // historial anterior a esa fecha ya no existe, por el plan.
       if (contactId) {
         const corte = await retentionCutoff(c, actor.tenantId);
+        // En la zona del negocio (#1076): la ficha dice «el historial anterior
+        // al X se elimina», y tiene que coincidir con lo que dice la pantalla
+        // de ajustes sobre el mismo corte.
+        const zona = await zonaDelTenant(c, actor.tenantId);
         return {
           ...res,
           retention: corte.cutoff
-            ? { cutoff: corte.cutoff.toISOString().slice(0, 10), months: corte.months }
+            ? { cutoff: diaEn(zona, corte.cutoff), months: corte.months }
             : null,
         };
       }

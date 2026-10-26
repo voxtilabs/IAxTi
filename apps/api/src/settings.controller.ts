@@ -10,8 +10,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { withTenant } from '@iaxti/db';
-import { leerConCache, olvidarEnCache } from '@iaxti/core';
-import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
+import { diaEn, leerConCache, olvidarEnCache } from '@iaxti/core';
+import { getTenantSettings, updateTenantSettings, zonaDelTenant } from '@iaxti/module-organizations';
 import { bandejaSettings, cierreSettings, scheduleRetentionNotice, setRetentionOverride } from '@iaxti/module-conversations';
 import type { BandejaSettings, CierreSettings } from '@iaxti/module-conversations';
 
@@ -187,7 +187,9 @@ export class SettingsController {
       return {
         saved: true,
         purgeNotice: aviso
-          ? { count: aviso.affected, firstPurgeAt: aviso.firstPurgeAt.toISOString().slice(0, 10) }
+          // El día del negocio (#1076): «se eliminarán a partir del X» lo lee
+          // una persona, y en UTC esa fecha se corría un día cada noche.
+          ? { count: aviso.affected, firstPurgeAt: diaEn(await zonaDelTenant(c, actor.tenantId), aviso.firstPurgeAt) }
           : null,
       };
     });

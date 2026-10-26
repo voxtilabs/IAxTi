@@ -53,6 +53,8 @@ export {
 // pueda leerlo; no lo usa nada en producción, y eso está escrito en su lista.
 export { exportsSinConsumidor, valoresQuePublica } from './exports-sin-consumidor';
 export { coalescenciasEnTexto, entornoConCoalescencia } from './entorno-con-coalescencia';
+export { diasEnUtc } from './dias-en-utc';
+export type { DiaEnUtc } from './dias-en-utc';
 export { listasSinVacio, pantallasQueDesaparecen } from './listas-sin-estados';
 export type { ListaSinVacio, PantallaQueDesaparece } from './listas-sin-estados';
 export type { LecturaConCoalescencia } from './entorno-con-coalescencia';

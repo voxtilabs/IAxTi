@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { diaLegible } from '../lib/dia';
 import { Archive } from 'lucide-react';
 import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
 import { AvisoDeCarga } from './aviso-de-carga';
@@ -146,7 +147,9 @@ export function RetencionDelNegocio() {
         Tu plan guarda {datos.months === null ? 'sin límite' : `${datos.months} meses`}. Puedes
         acortarlo si prefieres guardar menos — nunca alargarlo por encima del plan.
         {datos.cutoff && (
-          <> Hoy el corte está en <span className="dato">{datos.cutoff}</span>.</>
+          // Por `diaLegible` y no crudo (#1076): las dos pantallas de
+          // retención tienen que decir el mismo día Y escribirlo igual.
+          <> Hoy el corte está en <span className="dato">{diaLegible(datos.cutoff)}</span>.</>
         )}
       </p>
 
@@ -181,13 +184,13 @@ export function RetencionDelNegocio() {
         <p className="mt-3 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text">
           Con ese plazo, {purga.count}{' '}
           {purga.count === 1 ? 'conversación se eliminará' : 'conversaciones se eliminarán'} a partir
-          del <span className="dato">{purga.firstPurgeAt}</span>. Hasta entonces puedes volver a
+          del <span className="dato">{diaLegible(purga.firstPurgeAt)}</span>. Hasta entonces puedes volver a
           alargarlo y no se borra nada.
         </p>
       )}
       {purga === null && datos.deferredUntil && (
         <p className="mt-3 text-sm text-muted">
-          Hay una purga pendiente para el <span className="dato">{datos.deferredUntil}</span>.
+          Hay una purga pendiente para el <span className="dato">{diaLegible(datos.deferredUntil)}</span>.
         </p>
       )}
     </section>

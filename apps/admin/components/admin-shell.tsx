@@ -24,6 +24,18 @@ import {
   type PublicConfig,
 } from '@iaxti/ui/react';
 
+/**
+ * Un instante escrito como día, en la zona de quien MIRA (#1076).
+ *
+ * Acá no hay tenant: este panel es de VoxTi, y la fecha que no sorprende al
+ * operador es la de su propio día. Eran tres `toISOString().slice(0, 10)`,
+ * o sea UTC, que en Chile adelantan el día cada noche a partir de las 21:00.
+ *
+ * Reciben `timestamptz` completos (`createdAt`, `avisadoEl`, `ultimaEval`),
+ * no cadenas de día: por eso pasa por `Date` y no por `diaLegible`.
+ */
+const dia = (iso: string) => new Date(iso).toLocaleDateString('es-CL');
+
 interface TenantRow {
   id: string;
   name: string;
@@ -177,7 +189,7 @@ function TablaTenants() {
                 </span>
               </td>
               <td className="dato px-4 py-4 text-right text-ink">
-                {new Date(t.createdAt).toISOString().slice(0, 10)}
+                {dia(t.createdAt)}
               </td>
               <td className="px-4 py-4 text-right">
                 <AmpliacionDeIa
@@ -1256,7 +1268,7 @@ function ColaDeBorrado() {
                   <td className="px-4 py-3 font-medium text-ink">{t.name}</td>
                   <td className="dato px-4 py-3 text-body">{t.diasSuspendido} días</td>
                   <td className="px-4 py-3 text-body">
-                    {t.avisadoEl ? new Date(t.avisadoEl).toISOString().slice(0, 10) : 'sin avisar'}
+                    {t.avisadoEl ? dia(t.avisadoEl) : 'sin avisar'}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -1346,7 +1358,7 @@ function PromptsVivos() {
                   {f.ultimoScore === null ? '—' : `${Math.round(f.ultimoScore * 100)}%`}
                 </td>
                 <td className="px-4 py-3 text-body">
-                  {f.ultimaEval ? new Date(f.ultimaEval).toISOString().slice(0, 10) : 'nunca'}
+                  {f.ultimaEval ? dia(f.ultimaEval) : 'nunca'}
                 </td>
               </tr>
             ))}

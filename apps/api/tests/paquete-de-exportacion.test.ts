@@ -115,6 +115,34 @@ describe('el paquete de exportación', () => {
     expect(leeme).toContain('vuelve a pedir la');
   });
 
+  /**
+   * Y esa fecha en la zona del NEGOCIO (#1076).
+   *
+   * El vencimiento es un instante —siete días, el máximo que SigV4 permite
+   * firmar—, así que `toISOString()` prometía un día que en Chile ya había
+   * pasado: con el vencimiento a las 02:00 UTC, los enlaces mueren a las
+   * 23:00 del día ANTERIOR al que decía el archivo. De los seis sitios de
+   * esta familia este es el único donde la persona ACTÚA sobre la fecha:
+   * se guía por el README y se queda sin sus adjuntos.
+   */
+  it('y la fecha es del día del negocio, no de UTC', () => {
+    conAlmacen();
+    // 23:30 del 10 en Chile son las 02:30 UTC del 11; siete días después,
+    // las 02:30 UTC del 18 — que en Chile es todavía el 17 a las 23:30.
+    const casiMedianoche = new Date('2026-10-11T02:30:00.000Z');
+    const leeme = (zona?: string) =>
+      leerZip(armarPaquete(exportacionDePrueba(), { ahora: casiMedianoche, zona }).zip).get('LEEME.txt')!;
+
+    expect(leeme('America/Santiago')).toContain('funcionan hasta el 2026-10-17');
+    // El 18 es lo que decía UTC, y para el negocio no llega: si aparece, la
+    // fecha volvió a salir del reloj equivocado.
+    expect(leeme('America/Santiago')).not.toContain('2026-10-18');
+    // Sin zona se usa la del producto, que es la misma de Chile.
+    expect(leeme()).toContain('funcionan hasta el 2026-10-17');
+    // Y un negocio al otro lado ve SU día: en Auckland ese instante ya es el 18.
+    expect(leeme('Pacific/Auckland')).toContain('funcionan hasta el 2026-10-18');
+  });
+
   it('lo que NO entró se dice, en el paquete', () => {
     conAlmacen();
     const { zip } = armarPaquete(
