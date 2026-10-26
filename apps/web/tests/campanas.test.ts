@@ -30,6 +30,33 @@ describe('protecciones de la pantalla de campañas (#356)', () => {
    * La regla decía «ningún canal fuera de active/degraded», y eso es distinto de
    * «hay con qué mandar».
    */
+  /**
+   * La plantilla sin enlazar también bloquea (#1083).
+   *
+   * Es el único impedimento de la lista cuyo fallo es del 100 % de los
+   * destinatarios: sin `providerId` el envío rechaza a cada persona con el
+   * mismo mensaje, y antes se descubría fila por fila con la campaña ya
+   * quemada. El dato venía en la respuesta desde siempre; el tipo del SDK lo
+   * escondía.
+   */
+  it('la plantilla sin enlazar bloquea, y enlazada no estorba', () => {
+    expect(impedimentoDeCampana([canal], previa, { providerId: null })).toMatch(/no quedó enlazada/);
+    expect(impedimentoDeCampana([canal], previa, {})).toMatch(/no quedó enlazada/);
+    expect(impedimentoDeCampana([canal], previa, { providerId: 'meta-123' })).toBeNull();
+    // Sin plantilla a mano, el comportamiento es el de antes: la pantalla no
+    // inventa un bloqueo, y el servidor lo rechaza igual.
+    expect(impedimentoDeCampana([canal], previa)).toBeNull();
+    expect(impedimentoDeCampana([canal], previa, null)).toBeNull();
+  });
+
+  it('y los impedimentos del canal van PRIMERO: lo que se arregla antes se dice antes', () => {
+    // Con el número en rojo y la plantilla sin enlazar, lo que se lee es el
+    // rojo: recuperar la calidad es lo que destraba el envío, y re-enlazar una
+    // plantilla sobre un número quemado no sirve de nada.
+    const rojo = [{ ...canal, numbers: [{ ...canal.numbers[0], quality: 'red' as const }] }];
+    expect(impedimentoDeCampana(rojo, previa, { providerId: null })).toMatch(/rojo/);
+  });
+
   it('un canal desconectado no impide nada si hay otro sano', () => {
     const sano = { ...canal, id: 'vivo' };
     const dadoDeBaja: CampaignChannel = { ...canal, id: 'muerto', state: 'disconnected', numbers: [] };

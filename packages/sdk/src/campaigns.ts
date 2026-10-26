@@ -67,6 +67,16 @@ export interface CampaignTemplate {
   body: string;
   status: string;
   variables: number;
+  /**
+   * El id de la plantilla EN EL PROVEEDOR (#1083).
+   *
+   * Ya venía en la respuesta —`aPlantilla` lo expone— y este tipo lo
+   * escondía. Sin él, el envío falla para el 100 % de los destinatarios con
+   * el mismo mensaje repetido una vez por persona, y la pantalla no tenía con
+   * qué avisarlo antes. Opcional porque durante un despliegue el front nuevo
+   * convive con la API vieja.
+   */
+  providerId?: string | null;
 }
 export interface CampaignChannel {
   id: string;
