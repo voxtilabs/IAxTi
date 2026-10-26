@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/main';
 import { usarRedis } from '../src/db';
@@ -46,7 +47,7 @@ beforeAll(async () => {
   usarRedis(redis as never);
   app = await createApp();
   await app.listen(0);
-  base = await app.getUrl();
+  base = urlDeLaApp(app);
 });
 afterAll(async () => {
   usarRedis(null);

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,7 +34,7 @@ let base: string;
 beforeAll(async () => {
   app = await createApp();
   await app.listen(0);
-  base = await app.getUrl();
+  base = urlDeLaApp(app);
 });
 
 afterAll(async () => {
@@ -189,7 +190,7 @@ describe('el fallback por cabeceras no existe donde hay tokens (#611)', () => {
     });
     await app.listen(0);
     try {
-      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      const r = await fetch(`${urlDeLaApp(app)}/v1/me`, { headers: HEADERS_FALSOS });
       expect(r.status, 'sin token, las cabeceras no pueden dar acceso').toBe(401);
       expect((await r.json()).code).toBe('UNAUTHORIZED');
     } finally {
@@ -205,7 +206,7 @@ describe('el fallback por cabeceras no existe donde hay tokens (#611)', () => {
     const app = await createApp({ jwtVerify: null, resolveRole: async () => 'ADMIN' });
     await app.listen(0);
     try {
-      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      const r = await fetch(`${urlDeLaApp(app)}/v1/me`, { headers: HEADERS_FALSOS });
       expect(r.status).toBe(401);
     } finally {
       await app.close();
@@ -230,7 +231,7 @@ describe('el fallback por cabeceras no existe donde hay tokens (#611)', () => {
     const app = await createApp({ jwtVerify: null, resolveRole: async () => 'ADMIN' });
     await app.listen(0);
     try {
-      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      const r = await fetch(`${urlDeLaApp(app)}/v1/me`, { headers: HEADERS_FALSOS });
       expect(r.status, 'una variable en blanco no puede abrir el fallback').toBe(401);
     } finally {
       await app.close();
@@ -247,7 +248,7 @@ describe('el fallback por cabeceras no existe donde hay tokens (#611)', () => {
     const app = await createApp({ jwtVerify: null, resolveRole: async () => 'ADMIN' });
     await app.listen(0);
     try {
-      const r = await fetch(`${await app.getUrl()}/v1/me`, { headers: HEADERS_FALSOS });
+      const r = await fetch(`${urlDeLaApp(app)}/v1/me`, { headers: HEADERS_FALSOS });
       expect(r.status, 'en local sin Supabase el fallback tiene que funcionar').toBe(200);
     } finally {
       await app.close();

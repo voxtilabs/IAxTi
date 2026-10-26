@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/main';
 import { crmRoutes } from '../../../packages/sdk/src/crm-routes.generated';
@@ -7,7 +8,7 @@ let app: INestApplication;
 let document: { paths: Record<string, Record<string, { operationId: string; parameters?: Array<{ name: string }> }>> };
 beforeAll(async () => {
   app = await createApp(); await app.listen(0);
-  document = await (await fetch(`${await app.getUrl()}/docs-json`)).json();
+  document = await (await fetch(`${urlDeLaApp(app)}/docs-json`)).json();
 });
 afterAll(async () => { await app.close(); });
 

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { urlDeLaApp } from './url-de-la-app';
 import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/main';
 
@@ -11,7 +12,7 @@ let base: string;
 beforeAll(async () => {
   app = await createApp();
   await app.listen(0);
-  base = await app.getUrl();
+  base = urlDeLaApp(app);
 });
 
 afterAll(async () => {
