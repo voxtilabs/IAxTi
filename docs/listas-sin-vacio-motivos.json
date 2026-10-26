@@ -58,32 +58,11 @@
         "fragmento": "secuencias.length === 0 && inscripciones.length === 0"
       }
     },
-    "campanas.tsx#lista": {
-      "motivo": "La lista distingue Skeleton y un panel con título «Todavía no has creado una campaña» e instrucciones para crearla. Ese panel no usa EstadoVacio.",
-      "evidencia": {
-        "archivo": "apps/web/components/campanas.tsx",
-        "fragmento": "Todavía no has creado una campaña"
-      }
-    },
     "campanas.tsx#valores": {
       "motivo": "Los elementos son inputs de las variables de la plantilla elegida, no campañas. Una plantilla sin variables no requiere esos inputs; se mantiene el resto del formulario.",
       "evidencia": {
         "archivo": "apps/web/components/campanas.tsx",
         "fragmento": "Valor de la variable"
-      }
-    },
-    "canales.tsx#emisores": {
-      "motivo": "Estaba tapada por el EstadoVacio de otra lista del mismo archivo (#1068). Tiene rama de vacío propia —un párrafo que explica que el proyecto de la llave no tiene emisores y que se conectan en Zavu— pero no el componente compartido.",
-      "evidencia": {
-        "archivo": "apps/web/components/canales.tsx",
-        "fragmento": "emisores !== null && emisores.length === 0"
-      }
-    },
-    "canales.tsx#widgets": {
-      "motivo": "Tapada por el mismo archivo (#1068). Dibuja los widgets de webchat con .map y no tiene rama de vacío: con cero widgets la sección queda en blanco, sin decir que se crea uno desde acá.",
-      "evidencia": {
-        "archivo": "apps/web/components/canales.tsx",
-        "fragmento": "widgets.map((w) =>"
       }
     },
     "conocimiento.tsx#productos": {

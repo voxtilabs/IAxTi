@@ -416,10 +416,16 @@ function CambiarEmisor({
         {cargando ? 'Preguntando al proveedor…' : emisores ? 'Pedir la lista de nuevo' : 'Cambiar el emisor'}
       </Button>
       {emisores !== null && emisores.length === 0 && (
-        <p className="mt-2 text-sm text-body">
-          El proyecto de esta llave no tiene ningún emisor. Se conectan en Zavu, con la invitación
-          al negocio, y después vuelves acá.
-        </p>
+        // Era un párrafo que decía dónde se conectan y dejaba a la persona
+        // sin saber qué sigue acá (#588). El emisor es el número de WhatsApp:
+        // sin él, el canal no existe.
+        <EstadoVacio
+          compacto
+          className="mt-2"
+          titulo="Este proyecto no tiene ningún número conectado"
+          descripcion="El emisor es el número de WhatsApp con el que tu negocio contesta. Se conecta en Zavu aceptando la invitación, y al volver acá aparece en esta lista para elegirlo."
+          accion={{ etiqueta: 'Pedir la lista de nuevo', onClick: () => void pedirEmisores() }}
+        />
       )}
       {emisores !== null && emisores.length > 0 && (
         <ul className="mt-3 flex flex-col gap-2">
@@ -656,6 +662,26 @@ export function Canales() {
             Crear widget
           </Button>
         </Formulario>
+        {widgets.length === 0 && (
+          // Con cero widgets esta sección quedaba en blanco debajo de un
+          // formulario que nadie sabe para qué es (#588/#1068). El
+          // formulario está justo arriba, así que acá va el para qué.
+          <EstadoVacio
+            compacto
+            className="mt-4"
+            titulo="Todavía no tienes el chat en tu sitio"
+            descripcion="Un widget es el chat que vive en tu página web: el visitante escribe desde ahí y la conversación entra a tu bandeja como cualquier otra. Crea uno con el dominio de tu sitio y pega el código que te damos."
+            pideleAIAxTi="Créame un widget de chat para el dominio de mi sitio web"
+            accion={{
+              etiqueta: 'Crear el primero',
+              onClick: () => {
+                const campo = document.querySelector<HTMLElement>('[aria-label="Dominio del sitio"]');
+                campo?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                campo?.focus();
+              },
+            }}
+          />
+        )}
         <ul className="mt-4 flex flex-col gap-3">
           {widgets.map((w) => (
             <li key={w.id} className="rounded-campo border border-line bg-raised p-4">

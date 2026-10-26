@@ -401,6 +401,16 @@ export function FichaContacto({
           </Badge>
         ))}
         {etiquetas.length === 0 && <span className="text-sm text-muted">Sin etiquetas.</span>}
+        {/* Sin etiquetas EN EL NEGOCIO no había botón ni salida: se leía «Sin
+            etiquetas.» y nada más, y el lugar donde se crean (#588) es otra
+            pantalla que no se nombraba en ninguna parte. No va un
+            `EstadoVacio` acá: es una fila de badges dentro de la ficha, con
+            su acción al lado, no una colección de pantalla. */}
+        {catalogo.length === 0 && (
+          <a href="/ajustes/etiquetas" className="text-sm text-action-text">
+            Crear la primera etiqueta
+          </a>
+        )}
         {catalogo.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -97,10 +97,7 @@ asistente.tsx#agentes
 bandeja/chat.tsx#herramientas
 bandeja/reasignaciones.tsx#pasos
 bandeja/secuencias-ficha.tsx#inscripciones
-campanas.tsx#lista
 campanas.tsx#valores
-canales.tsx#emisores
-canales.tsx#widgets
 conocimiento.tsx#productos
 consumo-ia.tsx#corridas
 crm/ficha-contacto.tsx#campos
