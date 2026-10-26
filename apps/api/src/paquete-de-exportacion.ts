@@ -1,4 +1,5 @@
 import { crearZip, presignUrl, storageFromEnv } from '@iaxti/core';
+import { TZ_POR_DEFECTO, diaEn } from '@iaxti/core';
 import type { AdjuntoExportado, ExportacionTenant } from '@iaxti/module-organizations';
 
 /**
@@ -61,9 +62,14 @@ function csvSeguro(valor: string): string {
 
 export function armarPaquete(
   exportacion: ExportacionTenant,
-  opciones: { ahora?: Date } = {},
+  opciones: { ahora?: Date; zona?: string } = {},
 ): PaqueteDeExportacion {
   const ahora = opciones.ahora ?? new Date();
+  // La zona del negocio, porque el LEEME le habla a una persona (#1076). El
+  // vencimiento es un INSTANTE: si cae a las 02:00 UTC, en Chile los enlaces
+  // mueren a las 23:00 del día anterior al que decía este archivo, y quien se
+  // guía por él se queda sin sus adjuntos.
+  const zona = opciones.zona ?? TZ_POR_DEFECTO;
   const almacen = storageFromEnv();
   const vence = new Date(ahora.getTime() + VIGENCIA_DE_ENLACES_SEG * 1000);
 
@@ -97,7 +103,7 @@ export function armarPaquete(
     '',
     'LOS ENLACES VENCEN',
     '',
-    `  Los enlaces de ADJUNTOS.csv funcionan hasta el ${vence.toISOString().slice(0, 10)}.`,
+    `  Los enlaces de ADJUNTOS.csv funcionan hasta el ${diaEn(zona, vence)}.`,
     '  Después de esa fecha dejan de servir: si te pasaste, vuelve a pedir la',
     '  exportación y te damos enlaces nuevos.',
     '',

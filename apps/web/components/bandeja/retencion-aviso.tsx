@@ -1,6 +1,7 @@
 'use client';
 
 import { usePieza } from '../arranque';
+import { diaLegible } from '../../lib/dia';
 
 // El aviso de retención en la ficha (#77, §39): el equipo sabe desde
 // cuándo NO hay historial — sin sorpresas.
@@ -30,7 +31,10 @@ export function RetencionAviso() {
   return (
     <p className="border-t border-line px-4 py-3 text-xs text-faint">
       Según tu plan ({datos.months} meses), el historial anterior al{' '}
-      <span className="dato">{new Date(datos.cutoff).toLocaleDateString('es-CL')}</span> se elimina
+      {/* `diaLegible` y no `new Date(...)` (#1076): el corte viaja como DÍA,
+          y medianoche UTC baja un día en Chile — esta frase decía el 24
+          mientras la pantalla de ajustes decía el 25, sobre el mismo dato. */}
+      <span className="dato">{diaLegible(datos.cutoff)}</span> se elimina
       de forma definitiva.
     </p>
   );

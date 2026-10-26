@@ -66,6 +66,7 @@ import {
   exportarTenant,
   modulosDelPlan,
   modulosVendibles,
+  zonaDelTenant,
 } from '@iaxti/module-organizations';
 import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
 import { withTenant, withAuthenticatedUser } from '@iaxti/db';
@@ -231,7 +232,9 @@ class MeController {
     const actor = request.actor as { tenantId: string; userId: string };
     const paquete = await withTenant(pool, actor.tenantId, async (c) => {
       const datos = await exportarTenant(c, { tenantId: actor.tenantId });
-      const armado = armarPaquete(datos);
+      // La zona va junto con los datos, en la misma lectura: el LEEME fecha
+      // el vencimiento de los enlaces y eso lo lee una persona (#1076).
+      const armado = armarPaquete(datos, { zona: await zonaDelTenant(c, actor.tenantId) });
       await writeAudit(c, {
         tenantId: actor.tenantId,
         actor: actor.userId,

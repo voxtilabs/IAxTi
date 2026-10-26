@@ -1,4 +1,6 @@
 import type { PoolClient } from 'pg';
+import { diaEn } from '@iaxti/core';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import {
   activeAgent,
   conversationAnalysis,
@@ -81,9 +83,13 @@ export async function analisisDeConversacion(
  */
 export async function retencionVigente(c: PoolClient, tenantId: string) {
   const r = await retentionCutoff(c, tenantId);
+  // El día del NEGOCIO y no el de UTC (#1076): estas dos fechas se le
+  // muestran a una persona —«el historial anterior al X se elimina»— y en
+  // Chile `toISOString()` las corría un día cada noche.
+  const zona = await zonaDelTenant(c, tenantId);
   return {
     months: r.months,
-    cutoff: r.cutoff ? r.cutoff.toISOString().slice(0, 10) : null,
-    deferredUntil: r.deferredUntil ? r.deferredUntil.toISOString().slice(0, 10) : null,
+    cutoff: r.cutoff ? diaEn(zona, r.cutoff) : null,
+    deferredUntil: r.deferredUntil ? diaEn(zona, r.deferredUntil) : null,
   };
 }

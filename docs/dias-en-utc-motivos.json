@@ -1,0 +1,60 @@
+{
+  "issue": 1076,
+  "alcance": "Cada toISOString().slice(0, 10) del codigo de produccion, declarado como CLAVE (UTC deliberado) o MOSTRADO (tiene que salir de la zona del negocio). La guarda no prohibe el patron: obliga a decir cual de los dos es.",
+  "entradas": {
+    "apps/api/src/agenda.controller.ts": {
+      "veces": 1,
+      "tipo": "ventana",
+      "motivo": "El rango por defecto del informe de motivos de cancelacion: los ultimos 90 dias. Es la misma clase que #1074 —una ventana armada en UTC— pero un dia sobre noventa no mueve la lectura, y el rango explicito que manda la pantalla tiene prioridad. Queda medido aca y no arreglado a proposito: la ventana corta es la que importa.",
+      "evidencia": "agenda.controller.ts:343 — const comoDia = (d: Date) => d.toISOString().slice(0, 10)"
+    },
+    "apps/api/src/api-quota.guard.ts": {
+      "veces": 1,
+      "tipo": "clave",
+      "motivo": "La clave de Redis del contador diario por tenant y endpoint. UTC es deliberado y es lo correcto: el contador tiene que cortar en el MISMO instante para todos los tenants, o dos negocios en zonas distintas comparten una llave que para uno ya rodo y para el otro no. Nadie lee esta fecha.",
+      "evidencia": "api-quota.guard.ts:55 — apiq:d:${tenantId}:${dia}"
+    },
+    "apps/api/src/contacts.controller.ts": {
+      "veces": 2,
+      "tipo": "nombre de archivo",
+      "motivo": "El nombre del CSV que se baja: contactos-AAAA-MM-DD.csv. No es una afirmacion sobre un dia del negocio, es un sufijo para que dos descargas no se pisen.",
+      "evidencia": "contacts.controller.ts:179 y 206 — filename=\"contactos-${dia}.csv\""
+    },
+    "apps/api/src/paquete-de-exportacion.ts": {
+      "veces": 1,
+      "tipo": "nombre de archivo",
+      "motivo": "El nombre del zip de la exportacion. La fecha que si se le MUESTRA a la persona en ese archivo —el vencimiento de los enlaces, en el LEEME— salio de aca en #1076 y ahora usa diaEn(zona, …).",
+      "evidencia": "paquete-de-exportacion.ts:137 — const dia = ahora.toISOString().slice(0, 10)"
+    },
+    "apps/web/components/cancelar-suscripcion.tsx": {
+      "veces": 1,
+      "tipo": "nombre de archivo",
+      "motivo": "El nombre del JSON que el navegador descarga: iaxti-AAAA-MM-DD.json. Corre en el navegador, no conoce la zona del negocio, y no hace falta: es un sufijo.",
+      "evidencia": "cancelar-suscripcion.tsx:66 — a.download = `iaxti-${…}.json`"
+    },
+    "apps/web/lib/reportes.ts": {
+      "veces": 3,
+      "tipo": "respaldo y eje",
+      "motivo": "Dos son el rango de RESPALDO de #1074, con su motivo escrito en el codigo: el navegador no conoce tenants.timezone, asi que la ventana la resuelve el servidor y esto solo se usa mientras el front nuevo le habla a la API vieja durante un despliegue. La tercera es el eje del grafico, y ahi el UTC es CORRECTO porque from y to ya son dias del negocio en texto, no instantes — recorrerlos con mediodia UTC no corre nada.",
+      "evidencia": "reportes.ts:106-107 (respaldo) y 116 (eje de diasDelReporte)"
+    },
+    "packages/modules/agents/application/quota.ts": {
+      "veces": 1,
+      "tipo": "clave",
+      "motivo": "El dia de la serie de costo de IA, que vuelve de una columna date. Correcto HOY y por una razon que no esta en el codigo: el driver de pg parsea un date a medianoche LOCAL del proceso, asi que toISOString() devuelve el dia anterior si el contenedor corriera en una zona al este de Greenwich. Medido: con TZ=UTC da 2026-10-25, con America/Santiago da 2026-10-25, con Pacific/Auckland da 2026-10-24. Los contenedores corren sin TZ (o sea UTC) y por eso esta bien; si alguien pone una TZ positiva, estas series se corren un dia.",
+      "evidencia": "quota.ts:101 — day: row.day.toISOString().slice(0, 10)"
+    },
+    "packages/modules/billing/application/cambio.ts": {
+      "veces": 1,
+      "tipo": "clave",
+      "motivo": "El indice por dia de los tipos de cambio, de otra columna date: misma condicion latente que quota.ts y la misma medicion. Vale notar que este archivo YA tiene la otra mitad resuelta bien: diaDe() corta la cadena que publica mindicador ANTES de interpretarla como instante, con el motivo escrito.",
+      "evidencia": "cambio.ts:130 — const dia = fila.day.toISOString().slice(0, 10)"
+    },
+    "packages/seed/src/demo.ts": {
+      "veces": 1,
+      "tipo": "datos de prueba",
+      "motivo": "Los dias de las metricas que el seed inventa para que el tablero de la demo tenga serie. Nadie decide nada con ese dia y la demo se resiembra entera.",
+      "evidencia": "demo.ts:532 — const dia = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)"
+    }
+  }
+}
