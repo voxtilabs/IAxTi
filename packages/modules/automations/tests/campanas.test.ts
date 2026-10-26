@@ -92,7 +92,20 @@ afterAll(async () => {
 const deps = (calidad: 'verde' | 'amarillo' | 'rojo' = 'verde') => ({
   calidadDelNumero: async () => calidad,
   puedeIniciar: async (contactId: string) => !sinConsentimiento.has(contactId),
-  conversacionDe: async (contactId: string) => conversaciones.get(contactId) ?? null,
+  // Crea la conversación si el contacto no tiene (#1081), igual que
+  // `conversacionParaIniciar` en el worker. El doble tiene que reflejar ESO y
+  // no devolver `null`: el contrato dejó de admitirlo porque «no hay dónde
+  // dejarlo» no es un estado posible de quien pasó el consentimiento.
+  conversacionDe: async (contactId: string) => {
+    const ya = conversaciones.get(contactId);
+    if (ya) return ya;
+    const r = await admin.query(
+      `INSERT INTO conversations (tenant_id, contact_id, channel) VALUES ($1, $2, 'whatsapp') RETURNING id`,
+      [tenant, contactId],
+    );
+    conversaciones.set(contactId, r.rows[0].id as string);
+    return r.rows[0].id as string;
+  },
   enviarPlantilla: async ({ conversationId }: { conversationId: string }) => {
     const r = await admin.query(
       `INSERT INTO messages (tenant_id, conversation_id, direction, type, body, author_kind, delivery_status)

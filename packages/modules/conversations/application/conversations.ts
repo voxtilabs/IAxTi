@@ -351,6 +351,68 @@ interface IngestInput {
   requestId?: string;
 }
 
+/**
+ * La conversación donde dejar un mensaje que INICIA el negocio (#1081).
+ *
+ * Las campañas saltaban a cualquier contacto sin una conversación previa de
+ * WhatsApp —`skipped · sin conversación abierta por ese canal`— y eso dejaba
+ * afuera justo a quien se quiere alcanzar: el que llenó un formulario, el que
+ * entró por el webchat, la base importada con opt-in. El consentimiento se
+ * verifica aparte y antes (`canReceiveBusinessInitiated`), y la ventana de
+ * 24 h no lo justifica: fuera de la ventana sale plantilla aprobada, que es
+ * exactamente lo que una campaña manda. El motivo lo delataba solo: decía
+ * «sin conversación ABIERTA» y la consulta no filtraba por estado, o sea que
+ * la intención era la ventana y lo escrito era «sin conversación nunca».
+ *
+ * Tres cosas que esta función hace a propósito y conviene no deshacer:
+ *
+ * **No reabre una archivada.** Mismo criterio que el camino de entrada
+ * (`archived_at IS NULL`): archivar es una decisión del negocio y una campaña
+ * no la revierte.
+ *
+ * **No escribe `last_inbound_at`.** Es lo que mantiene CERRADA la ventana de
+ * 24 h: el negocio escribió primero, así que hasta que la persona conteste
+ * solo puede salir plantilla. Ponerlo abriría una ventana que nadie abrió.
+ *
+ * **No publica `conversation.created`.** Y esta es la decisión de verdad: ese
+ * evento dispara las reglas de automatización (`automations/engine.ts:299`) y
+ * los webhooks salientes. Una campaña de 600 personas publicaría 600 eventos,
+ * y una regla tan común como «al crear una conversación, saluda» le mandaría
+ * un segundo mensaje a toda la campaña. Lo que acá ocurre no es «llegó una
+ * conversación nueva» —nadie escribió— y el hecho de la campaña ya tiene su
+ * propio evento, `campaign.sent`. Si algún día hace falta avisarlo, va con un
+ * nombre propio y no reusando el del camino de entrada.
+ *
+ * Tampoco asigna: `autoAssignNew` lo llama quien recibe un mensaje. Cuando la
+ * persona conteste, el camino de entrada encuentra ESTA conversación y hace
+ * lo suyo —asignar, abrir la ventana— sobre el hilo que ya existe.
+ */
+export async function conversacionParaIniciar(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    contactId: string;
+    channel?: string;
+    channelAccountId?: string | null;
+  },
+): Promise<{ conversationId: string; creada: boolean }> {
+  const channel = input.channel ?? 'whatsapp';
+  const viva = await client.query(
+    `SELECT id FROM conversations
+      WHERE tenant_id = $1 AND contact_id = $2 AND channel = $3 AND archived_at IS NULL
+      ORDER BY last_message_at DESC NULLS LAST, created_at DESC LIMIT 1`,
+    [input.tenantId, input.contactId, channel],
+  );
+  if (viva.rowCount) return { conversationId: viva.rows[0].id as string, creada: false };
+
+  const creada = await client.query(
+    `INSERT INTO conversations (tenant_id, contact_id, channel, channel_account_id)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [input.tenantId, input.contactId, channel, input.channelAccountId ?? null],
+  );
+  return { conversationId: creada.rows[0].id as string, creada: true };
+}
+
 /** El núcleo del camino de entrada, ya con contacto resuelto. */
 async function ingestInbound(
   client: PoolClient,

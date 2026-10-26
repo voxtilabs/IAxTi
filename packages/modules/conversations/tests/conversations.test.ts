@@ -10,6 +10,7 @@ import {
 import {
   assignConversation,
   changeConversationState,
+  conversacionParaIniciar,
   getConversation,
   listMessages,
   receiveInbound,
@@ -339,5 +340,124 @@ describe('¿hubo alguna conversación? (#495)', () => {
     const r = await withTenant(app, tenantB, (c) => huboAlgunaConversacion(c, tenantB));
     const deA = await withTenant(app, tenantA, (c) => huboAlgunaConversacion(c, tenantA));
     expect(r.conversaciones).toBeLessThan(deA.conversaciones);
+  });
+});
+
+/**
+ * La conversación donde dejar un mensaje que INICIA el negocio (#1081).
+ *
+ * Las campañas saltaban a cualquier contacto sin conversación previa, así que
+ * solo llegaban a quien ya había escrito: quedaban afuera el que llenó un
+ * formulario, el que entró por el webchat y la base importada con opt-in.
+ */
+describe('conversacionParaIniciar (#1081)', () => {
+  const contactoNuevo = async (nombre: string) =>
+    (
+      await admin.query(
+        "INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, $2, $3, 'manual') RETURNING id",
+        [tenantA, nombre, `+5698${Math.floor(1_000_000 + Math.random() * 8_999_999)}`],
+      )
+    ).rows[0].id as string;
+
+  it('sin conversación la crea, y la ventana de 24 h queda CERRADA', async () => {
+    const contacto = await contactoNuevo('Dio opt-in y nunca escribió');
+    const { conversationId, creada } = await withTenant(admin, tenantA, (c) =>
+      conversacionParaIniciar(c, { tenantId: tenantA, contactId: contacto }),
+    );
+    expect(creada).toBe(true);
+
+    const fila = await admin.query(
+      'SELECT last_inbound_at, state, channel FROM conversations WHERE id = $1',
+      [conversationId],
+    );
+    // Lo que mantiene cerrada la ventana: el negocio escribió primero, así que
+    // hasta que la persona conteste solo puede salir plantilla.
+    expect(fila.rows[0].last_inbound_at).toBeNull();
+    expect(fila.rows[0].channel).toBe('whatsapp');
+  });
+
+  it('con una conversación viva la reusa, sin crear una segunda', async () => {
+    const contacto = await contactoNuevo('Ya tenía hilo');
+    const primera = await withTenant(admin, tenantA, (c) =>
+      conversacionParaIniciar(c, { tenantId: tenantA, contactId: contacto }),
+    );
+    const segunda = await withTenant(admin, tenantA, (c) =>
+      conversacionParaIniciar(c, { tenantId: tenantA, contactId: contacto }),
+    );
+    expect(segunda.creada).toBe(false);
+    expect(segunda.conversationId).toBe(primera.conversationId);
+    const cuantas = await admin.query(
+      'SELECT count(*)::int AS n FROM conversations WHERE tenant_id = $1 AND contact_id = $2',
+      [tenantA, contacto],
+    );
+    expect(cuantas.rows[0].n).toBe(1);
+  });
+
+  it('una archivada NO revive: se crea otra al lado', async () => {
+    // Archivar es una decisión del negocio y una campaña no la revierte. Mismo
+    // criterio que el camino de entrada, que también mira `archived_at`.
+    const contacto = await contactoNuevo('Tenía una archivada');
+    const vieja = await withTenant(admin, tenantA, (c) =>
+      conversacionParaIniciar(c, { tenantId: tenantA, contactId: contacto }),
+    );
+    await admin.query('UPDATE conversations SET archived_at = now() WHERE id = $1', [
+      vieja.conversationId,
+    ]);
+
+    const nueva = await withTenant(admin, tenantA, (c) =>
+      conversacionParaIniciar(c, { tenantId: tenantA, contactId: contacto }),
+    );
+    expect(nueva.creada).toBe(true);
+    expect(nueva.conversationId).not.toBe(vieja.conversationId);
+    const archivada = await admin.query('SELECT archived_at FROM conversations WHERE id = $1', [
+      vieja.conversationId,
+    ]);
+    expect(archivada.rows[0].archived_at).not.toBeNull();
+  });
+
+  it('NO publica conversation.created: una campaña de 600 no dispara 600 reglas', async () => {
+    // La decisión de verdad del cambio. Ese evento dispara las reglas de
+    // automatización y los webhooks salientes, y una regla tan común como «al
+    // crear una conversación, saluda» le mandaría un segundo mensaje a toda la
+    // campaña. Acá nadie escribió: no es «llegó una conversación nueva».
+    const contacto = await contactoNuevo('Sin evento');
+    const antes = await admin.query(
+      "SELECT count(*)::int AS n FROM outbox WHERE tenant_id = $1 AND name = 'conversation.created'",
+      [tenantA],
+    );
+    await withTenant(admin, tenantA, (c) =>
+      conversacionParaIniciar(c, { tenantId: tenantA, contactId: contacto }),
+    );
+    const despues = await admin.query(
+      "SELECT count(*)::int AS n FROM outbox WHERE tenant_id = $1 AND name = 'conversation.created'",
+      [tenantA],
+    );
+    expect(despues.rows[0].n).toBe(antes.rows[0].n);
+  });
+
+  it('y cuando la persona contesta, el camino de entrada usa ESE hilo', async () => {
+    // Lo que cierra el círculo: la conversación que creó la campaña no es un
+    // hilo aparte. El mensaje entrante cae ahí, abre la ventana y el historial
+    // queda completo.
+    const telefono = `+5698${Math.floor(1_000_000 + Math.random() * 8_999_999)}`;
+    const contacto = (
+      await admin.query(
+        "INSERT INTO contacts (tenant_id, name, phone, origin) VALUES ($1, 'Contestó después', $2, 'manual') RETURNING id",
+        [tenantA, telefono],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      "INSERT INTO contact_identities (tenant_id, contact_id, channel, identity) VALUES ($1, $2, 'whatsapp', $3)",
+      [tenantA, contacto, telefono],
+    );
+    const { conversationId } = await withTenant(admin, tenantA, (c) =>
+      conversacionParaIniciar(c, { tenantId: tenantA, contactId: contacto }),
+    );
+
+    const entrante = await withTenant(admin, tenantA, (c) =>
+      receiveInbound(c, { tenantId: tenantA, phone: telefono, body: 'sí, me interesa' }),
+    );
+    expect(entrante.conversation.id).toBe(conversationId);
+    expect(entrante.conversation.lastInboundAt).not.toBeNull();
   });
 });
