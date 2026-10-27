@@ -14,7 +14,7 @@
     "@iaxti/db": "workspace:*",
     "@iaxti/module-authorization": "workspace:*",
     "nodemailer": "^6.9.0",
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
