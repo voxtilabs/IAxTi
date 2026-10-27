@@ -13,7 +13,7 @@
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
     "@iaxti/module-audit": "workspace:*",
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -14,7 +14,7 @@
     "@iaxti/module-channels": "workspace:*",
     "@iaxti/module-conversations": "workspace:*",
     "@iaxti/module-crm": "workspace:*",
-    "pg": "^8.13.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@iaxti/db": "workspace:*",
