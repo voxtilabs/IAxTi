@@ -34,6 +34,7 @@ import {
   useArrastre,
 } from '@iaxti/ui/react';
 import {
+  etiquetaDeLaVentana,
   ventanaAbierta,
   renderPlantilla,
   renderQuickReply,
@@ -325,6 +326,10 @@ export function Chat({
    * sueltes una foto que no va a salir es prometer algo que el canal no permite.
    */
   const enVentana = detalle ? ventanaAbierta(detalle) : false;
+  // Se recalcula en cada render y no con un temporizador: la bandeja ya se
+  // repinta al llegar un mensaje y al cambiar de conversación, y un intervalo
+  // para mover un número de minutos no paga su propio costo.
+  const ventana = detalle ? etiquetaDeLaVentana(detalle) : null;
   const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana });
 
   if (!detalle) {
@@ -427,6 +432,16 @@ export function Chat({
           </Button>
         )}
         <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
+        {/* La ventana de 24 h (#1085), como la pide `ui-pulso.md`: `warn` a
+            menos de 2 h con lo que queda, `bad` cerrada. Sale de `cierraA`,
+            que la API calculaba para esto y nadie leía. Mismo criterio que la
+            prioridad: lejos del cierre no hay etiqueta. */}
+        {ventana && (
+          <Badge role={ventana.rol} title={ventana.titulo}>
+            <IconoReloj className="mr-1 inline h-3 w-3" aria-hidden />
+            {ventana.texto}
+          </Badge>
+        )}
         {/* La prioridad, solo si NO es normal (#550): una lista donde todo
             tiene etiqueta es una lista sin etiquetas. Y el color no va solo —
             la insignia lleva la palabra. */}
