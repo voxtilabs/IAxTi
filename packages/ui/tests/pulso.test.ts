@@ -11,15 +11,96 @@ function varsOf(block: string): Set<string> {
   return new Set([...block.matchAll(/--[\w-]+(?=\s*:)/g)].map((m) => m[0]));
 }
 
+/**
+ * Lo que esta guarda NO escanea, y de dónde sale la lista (#1087).
+ *
+ * `GENERADO` son los directorios que `.gitignore` declara: no los escribió
+ * nadie y no se versionan. Faltaban `test-results`, `playwright-report` y
+ * `coverage`, y el agujero se abría por el camino que el repo RECOMIENDA —
+ * correr el e2e y después `pnpm antes-de-empujar`—: Playwright guarda en la
+ * traza los CSS que el navegador descargó, y uno de ellos trae un `#fff`.
+ * Resultado: un rojo que no tiene nada que ver con el cambio de quien lo ve,
+ * en una guarda de 190 ms que hay que leer entera para descartar.
+ *
+ *     + "apps/web/test-results/.playwright-artifacts-0/traces/…css → #fff"
+ *
+ * Lo pagué: atribuí ese rojo a #988 antes de mirar la ruta del hallazgo. Y es
+ * el peor resultado posible para una guarda —«una guarda que grita de más se
+ * apaga igual de rápido que una que no grita»—, así que no es cosmético.
+ *
+ * `marca` es distinto: NO es generado y sí se versiona. Queda fuera porque es
+ * el logo y no la interfaz, que es la distinción que Pulso hace cuando dice
+ * que el isotipo es decorativo. Por eso va en su propia constante: mezclarlo
+ * con lo generado haría creer que también lo ignora git.
+ */
+const GENERADO = [
+  'node_modules',
+  'dist',
+  '.next',
+  '.turbo',
+  'coverage',
+  'test-results',
+  'playwright-report',
+  // Las capturas del shell: se generan a mano para el PR y no se versionan.
+  'capturas',
+  // Y la que más pesaba: los worktrees de los workflows (#601) son repos
+  // EMBEBIDOS, o sea una copia completa del código. Con uno presente, esta
+  // guarda escaneaba un árbol entero duplicado y cualquier hallazgo salía por
+  // partida doble, con una ruta que no existe en el repo de verdad. Lo
+  // encontró la prueba de abajo al escribirla, no yo.
+  'worktrees',
+];
+const FUERA_DEL_SISTEMA = ['.git', 'marca'];
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
-    if (['node_modules', 'dist', '.next', '.turbo', '.git', 'marca'].includes(entry)) continue;
+    if (GENERADO.includes(entry) || FUERA_DEL_SISTEMA.includes(entry)) continue;
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) walk(path, out);
     else if (/\.(tsx?|css|mjs|cjs)$/.test(entry)) out.push(path);
   }
   return out;
 }
+
+/**
+ * La lista de la guarda y `.gitignore` no se separan (#1087).
+ *
+ * El defecto no fue que faltara `test-results`: fue que **son dos
+ * declaraciones de la misma cosa** y se separaron sin que nada lo notara. La
+ * segunda vez iba a ser con `playwright-report` o con `coverage`.
+ *
+ * Así que la fuente de verdad es `.gitignore`, y esta prueba falla si declara
+ * un directorio que la guarda igual escanea. No al revés: `GENERADO` puede
+ * tener de más —un nombre que git ignora en otra parte del árbol— sin que eso
+ * sea un problema.
+ */
+describe('lo que la guarda ignora sale de .gitignore (#1087)', () => {
+  it('ningún directorio ignorado por git queda sin ignorar acá', () => {
+    const gitignore = readFileSync(join(REPO, '.gitignore'), 'utf8');
+    const ignorados = gitignore
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#') && !l.startsWith('!') && l.endsWith('/'))
+      // Solo el último segmento: `apps/web/test-results/` se ignora por el
+      // nombre del directorio, que es como `walk` decide.
+      .map((l) => l.replace(/\/$/, '').split('/').pop()!)
+      .filter(Boolean);
+    const sinIgnorar = [...new Set(ignorados)].filter((n) => !GENERADO.includes(n) && !FUERA_DEL_SISTEMA.includes(n));
+    expect(
+      sinIgnorar,
+      'Estos directorios los ignora `.gitignore` y la guarda los escanea igual.\n' +
+        'Agregalos a `GENERADO` en este archivo: lo que no versionamos no se mide.\n  ',
+    ).toEqual([]);
+  });
+
+  it('y el texto de una traza de Playwright no cuenta como hex suelto', () => {
+    // La forma exacta del hallazgo falso, para que la mordida sea del defecto
+    // y no de una ruta inventada.
+    const falso = 'apps/web/test-results/.playwright-artifacts-0/traces/resources/abc.css';
+    const nombre = falso.split('/').find((p) => GENERADO.includes(p));
+    expect(nombre).toBe('test-results');
+  });
+});
 
 describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', () => {
   const [dia, noche] = tokensCss.split('[data-mode="noche"]');
