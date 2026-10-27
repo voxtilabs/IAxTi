@@ -228,6 +228,65 @@ export function ventanaAbierta(detalle: {
   return detalle.ventanaAbierta ?? true;
 }
 
+/**
+ * La etiqueta de la ventana de 24 h (#1085), que `ui-pulso.md` pide así:
+ * «etiqueta `warn` a < 2 h y `bad` cerrada».
+ *
+ * La regla estaba declarada, la API calculaba `cierraA` PARA ESTO —su
+ * comentario lo dice— y ningún componente leía el campo. O sea que el
+ * operador veía dos estados, «puedo escribir» y «no puedo», y nunca el que
+ * importa: cuánto le queda. Dentro de la ventana la respuesta es libre; fuera
+ * es plantilla aprobada, con su tarifa. Quien ve «quedan 40 minutos»
+ * contesta ahora.
+ *
+ * Tres decisiones, y las tres son por qué esto vive acá y no en el JSX:
+ *
+ * **Sale de `cierraA` y de nada más.** Es el motivo por el que el campo
+ * existe aparte del booleano: una segunda cuenta en el navegador sería la
+ * tercera implementación de la misma regla, y las dos que había ya se habían
+ * separado una vez.
+ *
+ * **Sin `cierraA` no hay etiqueta.** Los canales declarados sin ventana
+ * —`webchat`, `simulador`— devuelven `null`, y ahí la etiqueta sería falsa:
+ * esos canales son nuestros y no cierran. Tampoco la hay con una API vieja
+ * que no manda el campo.
+ *
+ * **Lejos del cierre tampoco hay etiqueta.** Una cabecera donde todo lleva
+ * insignia es una cabecera sin insignias, el mismo criterio que la prioridad
+ * (#550): a 20 horas de margen no hay nada que decir.
+ */
+export function etiquetaDeLaVentana(
+  detalle: { cierraA?: string | null },
+  ahora: Date = new Date(),
+): { texto: string; rol: 'warn' | 'bad'; titulo: string } | null {
+  if (!detalle.cierraA) return null;
+  const cierre = new Date(detalle.cierraA);
+  if (Number.isNaN(cierre.getTime())) return null;
+  const faltanMs = cierre.getTime() - ahora.getTime();
+  if (faltanMs <= 0) {
+    return {
+      texto: 'Ventana cerrada',
+      rol: 'bad',
+      titulo:
+        'Pasaron 24 h desde el último mensaje del cliente: solo se puede escribir con una plantilla aprobada.',
+    };
+  }
+  const DOS_HORAS = 2 * 60 * 60 * 1000;
+  if (faltanMs > DOS_HORAS) return null;
+  const minutos = Math.ceil(faltanMs / 60_000);
+  // Minutos y no «1 h» redondeado: a esta altura la diferencia entre 119 y 20
+  // minutos es la diferencia entre contestar después y contestar ahora.
+  const texto =
+    minutos >= 60
+      ? `Quedan ${Math.floor(minutos / 60)} h ${minutos % 60} min`
+      : `Quedan ${minutos} min`;
+  return {
+    texto,
+    rol: 'warn',
+    titulo: 'Después de eso solo se puede escribir con una plantilla aprobada.',
+  };
+}
+
 export interface Mensaje {
   id: string;
   direction: 'in' | 'out';

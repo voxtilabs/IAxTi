@@ -189,6 +189,65 @@ export interface ResultadoDemo {
   yaEstaba: boolean;
 }
 
+/**
+ * Una conversación de WhatsApp dentro de la ventana, a punto de cerrarse
+ * (#1085).
+ *
+ * El resto de la demo es `simulador` y `webchat`, y los dos están declarados
+ * SIN ventana (`VENTANA_HORAS`), así que el camino de las 24 h —la etiqueta
+ * `warn` en la cabecera, el campo de texto que se reemplaza por el selector
+ * de plantillas— no se veía en ninguna parte. Es una de las reglas que el
+ * producto hace cumplir, y la pantalla donde se vende no la mostraba.
+ *
+ * No hace falta credencial: la conversación y su `last_inbound_at` son filas
+ * nuestras. Lo que necesita proveedor es MANDAR, no existir — y de esta
+ * conversación no sale nada.
+ *
+ * 22,5 horas atrás deja la etiqueta en `warn` con hora y media por delante,
+ * que es el estado interesante: el que hace que alguien conteste ahora en vez
+ * de después. Si la demo queda abierta más de hora y media, pasa a `bad`, que
+ * también es un estado que vale mostrar.
+ *
+ * Tiene su PROPIA idempotencia y se llama también cuando el negocio «ya
+ * estaba»: la demo de Lino y la de staging ya existen, y una pieza nueva que
+ * solo aparece en un tenant virgen no llega nunca a donde se usa. Misma razón
+ * por la que el widget se busca en las dos ramas.
+ */
+async function sembrarLaConversacionPorCerrar(
+  c: PoolClient,
+  tenantId: string,
+): Promise<boolean> {
+  const ya = await c.query(
+    "SELECT 1 FROM conversations WHERE tenant_id = $1 AND channel = 'whatsapp' LIMIT 1",
+    [tenantId],
+  );
+  if (ya.rowCount) return false;
+
+  const cuenta = await c.query(
+    `INSERT INTO channel_accounts (tenant_id, kind, name, state)
+     VALUES ($1, 'whatsapp', 'WhatsApp de la demo', 'active') RETURNING id`,
+    [tenantId],
+  );
+  const entrada = await receiveInbound(c, {
+    tenantId,
+    phone: PERSONAS[2].telefono,
+    channel: 'whatsapp',
+    channelAccountId: cuenta.rows[0].id as string,
+    body: '¿Alcanzo a pasar hoy por un corte?',
+  });
+  const haceVeintidosHoras = new Date(Date.now() - 22.5 * 60 * 60 * 1000);
+  await c.query(
+    `UPDATE conversations SET created_at = $2, last_message_at = $2, last_inbound_at = $2
+      WHERE tenant_id = $1 AND id = $3`,
+    [tenantId, haceVeintidosHoras, entrada.conversation.id],
+  );
+  await c.query(
+    `UPDATE messages SET created_at = $2 WHERE tenant_id = $1 AND conversation_id = $3`,
+    [tenantId, haceVeintidosHoras, entrada.conversation.id],
+  );
+  return true;
+}
+
 export async function sembrarDemo(
   pool: Pool,
   input: { tenantId: string; duenaId: string; vendedorId: string },
@@ -208,9 +267,16 @@ export async function sembrarDemo(
     // El widget igual se busca: la URL del chat se imprime en TODAS las
     // corridas, no solo en la primera — es el dato que hace a la demo usable.
     const widgets = await withTenant(pool, tenantId, (c) => listWidgets(c, tenantId));
+    // Y la conversación de la ventana de 24 h, por lo mismo (#1085): las
+    // demos que ya existen —la local y la de staging— nunca pasan por la
+    // rama de abajo, así que una pieza nueva que solo se siembre ahí no
+    // llega a donde se usa. Trae su propia idempotencia.
+    const conLaVentana = await withTenant(pool, tenantId, (c) =>
+      sembrarLaConversacionPorCerrar(c, tenantId),
+    );
     return {
       contactos: 0,
-      conversaciones: 0,
+      conversaciones: conLaVentana ? 1 : 0,
       oportunidades: 0,
       citas: 0,
       diasDeMetricas: 0,
@@ -402,6 +468,8 @@ export async function sembrarDemo(
         [tenantId, cuando, entrada.conversation.id],
       );
     }
+
+    if (await sembrarLaConversacionPorCerrar(c, tenantId)) conversaciones += 1;
 
     // — Las oportunidades —
     const abierta = stages.find((s) => s.type === 'open')!;
