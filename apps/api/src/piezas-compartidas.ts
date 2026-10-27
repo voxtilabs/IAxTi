@@ -1,6 +1,5 @@
 import type { PoolClient } from 'pg';
 import { diaEn } from '@iaxti/core';
-import { zonaDelTenant } from '@iaxti/module-organizations';
 import {
   activeAgent,
   conversationAnalysis,
@@ -81,12 +80,32 @@ export async function analisisDeConversacion(
  * cortando los primeros diez caracteres acierta por casualidad hasta que alguien
  * la formatee de verdad.
  */
-export async function retencionVigente(c: PoolClient, tenantId: string) {
+/**
+ * La zona viene de AFUERA, y es obligatoria (#1092).
+ *
+ * #1076 hizo que estas fechas salieran en el día del negocio y para eso puse
+ * acá adentro un `await zonaDelTenant(c, tenantId)`. Eso fue una regresión:
+ * `zonaDelTenant` degrada con `degradarSinRomper`, que usa SAVEPOINTS, y los
+ * savepoints son una pila que no admite dos en vuelo sobre el mismo cliente
+ * (#991). El arranque del panel corre sus piezas en PARALELO sobre el mismo
+ * `PoolClient`, así que desde entonces la pieza `tenant.settings` se caía
+ * cuando otra estaba degradando al mismo tiempo:
+ *
+ *     arranque: la pieza tenant.settings falló
+ *     Error: degradarSinRomper: ya hay una degradación en vuelo…
+ *       at zonaDelTenant → retencionVigente → Promise.all (index 7)
+ *
+ * Y se caía en SILENCIO: el arranque atrapa el fallo de cada pieza para que
+ * una caída no tumbe la pantalla, así que el aviso de retención simplemente
+ * no aparecía — de forma intermitente, según qué pieza saliera primero.
+ *
+ * Recibirla y no buscarla es lo que arregla las dos cosas: quien llama decide
+ * CUÁNDO resolverla —el arranque, una sola vez y antes de abrir el paralelo—
+ * y la restricción deja de estar escondida. Obligatoria a propósito: con un
+ * parámetro opcional, el llamador que lo omite vuelve a romperlo sin enterarse.
+ */
+export async function retencionVigente(c: PoolClient, tenantId: string, zona: string) {
   const r = await retentionCutoff(c, tenantId);
-  // El día del NEGOCIO y no el de UTC (#1076): estas dos fechas se le
-  // muestran a una persona —«el historial anterior al X se elimina»— y en
-  // Chile `toISOString()` las corría un día cada noche.
-  const zona = await zonaDelTenant(c, tenantId);
   return {
     months: r.months,
     cutoff: r.cutoff ? diaEn(zona, r.cutoff) : null,
