@@ -44,6 +44,7 @@ export type { VersionDelBuild } from './version';
 // `process.env` pueda traer su propia guarda (#633): el escáner general solo ve
 // `process.env.X`, así que el dueño de la lectura es el dueño de su guarda.
 export {
+  variablesObligatoriasDelCompose,
   variablesQueEntregaElCompose,
   variablesQueLeeElCodigo,
   type LecturaDeVariable,
