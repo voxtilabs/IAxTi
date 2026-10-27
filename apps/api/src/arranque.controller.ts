@@ -31,6 +31,7 @@ import {
   accesoAlModulo,
   modulosDelPlan,
   modulosVendibles,
+  zonaDelTenant,
 } from '@iaxti/module-organizations';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
@@ -428,6 +429,19 @@ export class ArranqueController {
     return withTenant(pool(), actor.tenantId, async (c) => {
       const { permisos, resuelto } = await permisosDelActorConEstado(c, actor);
       const activos = registry.health().filter((m) => m.active);
+      /**
+       * La zona ANTES de abrir el paralelo, y en serie (#1092).
+       *
+       * `zonaDelTenant` degrada con `degradarSinRomper`, que usa savepoints:
+       * son una pila y no admiten dos en vuelo sobre el mismo cliente (#991).
+       * Abajo las piezas corren con un solo `PoolClient` compartido, así que
+       * resolverla adentro hacía caer la pieza de retención cuando otra estaba
+       * degradando al mismo tiempo — y en silencio, porque cada pieza atrapa
+       * su fallo para no tumbar la pantalla.
+       *
+       * Acá cuesta una consulta cacheada cinco minutos, y una sola vez.
+       */
+      const zona = await zonaDelTenant(c, actor.tenantId);
 
       const [
         acceso,
@@ -522,7 +536,7 @@ export class ArranqueController {
           leerConCache(
             apiRedis(),
             { clave: 'retencion', tenantId: actor.tenantId, ttlSegundos: TTL_RETENCION },
-            () => retencionVigente(c, actor.tenantId),
+            () => retencionVigente(c, actor.tenantId, zona),
           ),
         ),
       ]);

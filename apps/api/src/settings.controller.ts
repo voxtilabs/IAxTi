@@ -152,7 +152,12 @@ export class SettingsController {
       () =>
         // La forma se arma en un solo lugar (#761): el arranque del shell sirve
         // esto mismo, y rearmarlo allá devolvía `Date` donde acá va 'AAAA-MM-DD'.
-        withTenant(pool(), actor.tenantId, (c) => retencionVigente(c, actor.tenantId)),
+        withTenant(pool(), actor.tenantId, async (c) =>
+          // La zona se resuelve acá y se pasa (#1092): `retencionVigente` ya no
+          // la busca sola, porque adentro de un paralelo eso rompía savepoints.
+          // Esta ruta es secuencial, así que el await extra no cuesta nada.
+          retencionVigente(c, actor.tenantId, await zonaDelTenant(c, actor.tenantId)),
+        ),
     );
   }
 

@@ -4,9 +4,11 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } from 'jose';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, degradarSinRomper, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { receiveInbound } from '@iaxti/module-conversations';
+import { olvidarZonas } from '@iaxti/module-organizations';
+import { retencionVigente } from '../src/piezas-compartidas';
 import { createApp } from '../src/main';
 import { usarPool } from '../src/db';
 import { dbRoleResolver } from '../src/auth/role-resolver';
@@ -672,6 +674,57 @@ describe('arranque de una conversación (#761)', () => {
       expect(cuerpo[p], `falta la pieza ${p}`).toBeTruthy();
       expect(['ok', 'sin-permiso', 'modulo-apagado']).toContain(cuerpo[p].estado);
     }
+  });
+
+  /**
+   * `retencionVigente` se puede llamar con otra degradación EN VUELO (#1092).
+   *
+   * #1078 metió `zonaDelTenant` adentro, y esa función degrada con
+   * `degradarSinRomper`, que usa SAVEPOINTS: son una pila y no admiten dos en
+   * vuelo sobre el mismo cliente (#991). Las piezas del arranque corren en
+   * paralelo con UN `PoolClient`, así que la pieza de retención se caía cuando
+   * otra estaba degradando al mismo tiempo — y en silencio, porque cada pieza
+   * atrapa su fallo para no tumbar la pantalla.
+   *
+   * La primera versión de esta prueba pedía `/arranque` y comprobaba que la
+   * pieza viniera `ok`. **Pasaba con el defecto puesto**: en este tenant no
+   * había ninguna otra pieza degradando, así que la carrera no ocurría. Lo
+   * dijo la mordida, no el razonamiento.
+   *
+   * Así que la condición se PROVOCA: se llama desde adentro de una degradación
+   * ya abierta, que es exactamente lo que pasa en el arranque real.
+   */
+  it('con otra degradación abierta sobre el mismo cliente, la retención igual responde', async () => {
+    // El cache de `zonaDelTenant` dura cinco minutos, y con él caliente la
+    // función ni siquiera llega a degradar: la primera versión de esta prueba
+    // pasaba con el defecto puesto por esto. Vaciarlo es lo que pone la
+    // prueba en la condición real — y explica por qué en producción el fallo
+    // era INTERMITENTE: solo lo ve la primera petición de cada tenant cada
+    // cinco minutos.
+    olvidarZonas();
+    const valor = await withTenant(admin, tenant, (c) =>
+      degradarSinRomper(
+        c,
+        // Adentro de ESTA degradación se pide la retención: si volviera a
+        // resolver la zona por su cuenta, acá revienta con «ya hay una
+        // degradación en vuelo sobre este cliente».
+        async (dentro) => retencionVigente(dentro as never, tenant, 'America/Santiago'),
+        (e) => {
+          throw e;
+        },
+      ),
+    );
+    expect(valor).toHaveProperty('months');
+    for (const campo of ['cutoff', 'deferredUntil'] as const) {
+      const v = (valor as Record<string, unknown>)[campo];
+      if (v !== null) expect(String(v), `${campo} tiene que ser AAAA-MM-DD`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('y el arranque entrega la pieza con su dato, no caída', async () => {
+    const cuerpo = await (await pedir(duena, '/arranque')).json();
+    expect(cuerpo.retencion.estado).toBe('ok');
+    expect(cuerpo.retencion.dato).toHaveProperty('months');
   });
 
   it('en el shell, un USER tampoco recibe un 403 global', async () => {
