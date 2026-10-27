@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { parse } from 'protobufjs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const ejecutar = promisify(execFile);
 // Campos del protocolo público OTLP, no del serializador de la aplicación:
@@ -18,6 +18,28 @@ message ResourceLogs { Resource resource = 1; repeated ScopeLogs scopeLogs = 2; 
 message Export { repeated ResourceLogs resourceLogs = 1; }`).root.lookupType('Export');
 type Registro = { body: { stringValue: string }; attributes: Array<{ key: string; value: { stringValue: string } }>; traceId: string; spanId: string; severityNumber: number };
 type Sobre = { resourceLogs: Array<{ resource: { attributes: Array<{ key: string; value: { stringValue: string } }> }; scopeLogs: Array<{ logRecords: Registro[] }> }> };
+
+/**
+ * Los dos presupuestos de tiempo, y cuál manda (#1089).
+ *
+ * Esta prueba levanta un receptor OTLP de verdad y lanza un proceso hijo que
+ * emite contra él. O sea que hay DOS relojes: el del hijo —que existe para
+ * cazarlo si se cuelga, con un mensaje que dice qué pasó— y el de vitest, que
+ * corta la prueba entera.
+ *
+ * Estaban al revés: el hijo tenía 8 s y vitest usaba su default de 5, así que
+ * en una máquina cargada el corte llegaba desde afuera, el guardia del hijo
+ * nunca se alcanzaba, y el fallo que se veía —«Test timed out in 5000ms»— no
+ * era el que la prueba sabe explicar. Medido: tres corridas seguidas en la
+ * misma rama, pasó 2.
+ *
+ * La regla es que **el de afuera tiene que ser mayor que el de adentro**. Si
+ * alguien toca uno de los dos números, tiene que mover el otro: un hijo
+ * colgado lo caza SU timeout, no el de vitest.
+ */
+const TOPE_DEL_HIJO_MS = 8_000;
+/** Con holgura para el arranque del hijo y el cierre del receptor. */
+const TOPE_DE_LA_PRUEBA_MS = TOPE_DEL_HIJO_MS + 7_000;
 
 async function correr(modo = 'normal', opciones: { exporter?: string; formato?: string; respuesta?: 'ok' | 'rechazo' | 'silencio'; protocolo?: string; endpoint?: string } = {}) {
   const cuerpos: Sobre[] = []; const autorizaciones: Array<string | undefined> = []; let peticionesLogs = 0;
@@ -39,7 +61,7 @@ async function correr(modo = 'normal', opciones: { exporter?: string; formato?: 
   const port = (servidor.address() as { port: number }).port;
   try {
     const { stdout, stderr } = await ejecutar(process.execPath, [join(__dirname, 'fixtures/logs-otlp.cjs'), modo, 'argv-privado-no-exportar'], {
-      timeout: 8000, maxBuffer: 2 * 1024 * 1024,
+      timeout: TOPE_DEL_HIJO_MS, maxBuffer: 2 * 1024 * 1024,
       env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(OTEL_|SENTRY_|LOG_FORMAT)/.test(k))),
         OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${port}`, OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
         OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Bearer ficticio-otlp', OTEL_EXPORTER_OTLP_LOGS_HEADERS: '', OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: opciones.endpoint || '',
@@ -52,6 +74,10 @@ async function correr(modo = 'normal', opciones: { exporter?: string; formato?: 
 }
 
 describe('console JSON llega por OTLP real a receptor local (#17)', () => {
+  // Al describe y no prueba por prueba: las cuatro llaman a `correr`, así que
+  // todas tienen el mismo contrato de tiempos y una sola es la que se olvida.
+  vi.setConfig({ testTimeout: TOPE_DE_LA_PRUEBA_MS });
+
   it('tenant/request/trace del request al job, una emisión, redacción y drenaje final', async () => {
     const r = await correr();
     for (const tenant of ['uno','dos']) {
