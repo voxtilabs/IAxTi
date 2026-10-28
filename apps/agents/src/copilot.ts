@@ -27,7 +27,7 @@ import {
   fuentesCitadas,
   searchKnowledge,
 } from '@iaxti/module-knowledge';
-import { huecosDelDia, listarCitas } from '@iaxti/module-calendar';
+import { huecosConGoogle, listarCitas } from '@iaxti/module-calendar';
 import {
   createActivity,
   createDeal,
@@ -356,7 +356,7 @@ async function herramientasDeLaConversacion(
       buscarConocimiento: (query) => searchKnowledge(client, { tenantId: data.tenantId, query }),
       buscarProducto: (query) => getProduct(client, data.tenantId, query),
       horariosLibres: (dia) =>
-        huecosDelDia(client, { tenantId: data.tenantId, ownerId: conDueno('ofrecer horarios'), dia }),
+        huecosConGoogle(client, { tenantId: data.tenantId, ownerId: conDueno('ofrecer horarios'), dia }),
 
       // Las dos que ESCRIBEN (ADR-0017): quedan adentro del negocio y se
       // deshacen. El contacto no lo elige el modelo — sale de la

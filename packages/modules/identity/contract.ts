@@ -25,3 +25,13 @@ export type {
 // en un trámite (#664).
 export { quienesSon, quienesSonEnLaPlataforma, quienFue } from './application/quien';
 export type { Quien } from './application/quien';
+export {
+  iniciarConsentimientoGoogle, consumirConsentimientoGoogle, grantGoogleDelUsuario,
+  bloquearGrantGoogle, guardarGrantGoogle, actualizarTokenGoogle,
+  marcarGoogleSinConsentimiento, prepararRevocacionGoogle, finalizarRevocacionGoogle,
+  limpiarVersionesGoogle,
+  reservarSecretoGoogle, bloquearIntentoSecretoGoogle,
+} from './application/google-grants';
+export type { GoogleGrant, GoogleAudit } from './application/google-grants';
+
+export { tenantsConLimpiezaGoogle } from './application/google-cleanup-tenants';

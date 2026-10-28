@@ -4,6 +4,8 @@ import {
   Controller,
   Delete,
   Get,
+  ForbiddenException,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -12,6 +14,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { roleOf } from '@iaxti/module-identity';
+import { writeAudit } from '@iaxti/module-audit';
 import {
   agendar,
   cambiarEstadoCita,
@@ -23,7 +27,7 @@ import {
   listarDisponibilidad,
   quitarDisponibilidad,
   desdeHora,
-  huecosDelDia,
+  huecosConGoogle,
   listarCitas,
   type EstadoCita,
 } from '@iaxti/module-calendar';
@@ -31,8 +35,8 @@ import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizat
 import { listTemplates } from '@iaxti/module-whatsapp';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
-import { actorCan } from './authz/can';
-import { Cuerpo, textoRequerido } from './validar';
+import { permisosDelActor } from './authz/can';
+import { Cuerpo, textoRequerido, idRequerido, validar } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 
@@ -51,6 +55,18 @@ function pool() {
 
 function actorOf(request: WithUser): Actor {
   return request.actor as Actor;
+}
+
+async function ownerDeAgenda(actor: Actor, requested?: string): Promise<string> {
+  const ownerId = validar(idRequerido('La persona elegida no es válida.'),requested ?? actor.userId);
+  if (ownerId !== actor.userId) {
+    const permisos = await withTenant(pool(),actor.tenantId,c=>permisosDelActor(c,actor));
+    if (!permisos.has('calendar.manage_team')) throw new ForbiddenException({
+      code:'PERMISSION_DENIED',message:'Solo puedes consultar y cambiar tu propia disponibilidad.' });
+    const member = await withTenant(pool(),actor.tenantId,c=>roleOf(c,actor.tenantId,ownerId));
+    if (!member) throw new NotFoundException({code:'CALENDAR_OWNER_NOT_FOUND',message:'Esa persona no pertenece a este negocio.'});
+  }
+  return ownerId;
 }
 
 function seVeMal(err: unknown): never {
@@ -104,7 +120,7 @@ export class AgendaController {
    * que falta se dice acá, en vez de que la sección no aparezca.
    */
   @Get('recordatorios')
-  @RequirePermission('calendar.manage_availability')
+  @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'Qué plantilla sale como recordatorio de cita' })
   async recordatorios(@Req() request: WithUser) {
     const actor = request.actor as Actor;
@@ -123,7 +139,7 @@ export class AgendaController {
   }
 
   @Put('recordatorios')
-  @RequirePermission('calendar.manage_availability')
+  @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'Elige la plantilla de cada recordatorio (o la quita)' })
   async guardarRecordatorios(
     @Req() request: WithUser,
@@ -171,8 +187,9 @@ export class AgendaController {
   @ApiOperation({ summary: 'Los horarios de atención de alguien del equipo' })
   async verDisponibilidad(@Req() request: WithUser, @Query('ownerId') ownerId?: string) {
     const actor = actorOf(request);
+    const owner = await ownerDeAgenda(actor,ownerId);
     return withTenant(pool(), actor.tenantId, (c) =>
-      listarDisponibilidad(c, { tenantId: actor.tenantId, ownerId: ownerId ?? actor.userId }),
+      listarDisponibilidad(c, { tenantId: actor.tenantId, ownerId: owner }),
     );
   }
 
@@ -185,14 +202,17 @@ export class AgendaController {
     @Query('ownerId') ownerId?: string,
   ) {
     const actor = actorOf(request);
+    const owner = await ownerDeAgenda(actor,ownerId);
     try {
-      await withTenant(pool(), actor.tenantId, (c) =>
-        quitarDisponibilidad(c, {
+      await withTenant(pool(), actor.tenantId, async (c) => {
+        await quitarDisponibilidad(c, {
           tenantId: actor.tenantId,
-          ownerId: ownerId ?? actor.userId,
+          ownerId: owner,
           id,
-        }),
-      );
+        });
+        await writeAudit(c,{tenantId:actor.tenantId,actor:actor.userId,actorKind:actor.kind==='apikey'?'apikey':'user',
+          action:'calendar.availability.deleted',resource:'availability',resourceId:id,result:'ok',requestId:request.requestId,metadata:{ownerId:owner}});
+      });
       // Las citas ya tomadas no se tocan: siguen en la agenda y hay que
       // avisarles a mano. Borrar el horario no las cancela.
       return { ok: true };
@@ -218,19 +238,23 @@ export class AgendaController {
     },
   ) {
     const actor = actorOf(request);
+    const owner = await ownerDeAgenda(actor,body?.ownerId);
     try {
-      return await withTenant(pool(), actor.tenantId, (c) =>
-        definirDisponibilidad(c, {
+      return await withTenant(pool(), actor.tenantId, async (c) => {
+        const result = await definirDisponibilidad(c, {
           tenantId: actor.tenantId,
-          ownerId: body?.ownerId ?? actor.userId,
+          ownerId: owner,
           weekday: Number(body?.weekday ?? 1),
           inicioMin: desdeHora(body?.inicio ?? '09:00'),
           finMin: desdeHora(body?.fin ?? '18:00'),
           duracion: body?.duracion,
           respiro: body?.respiro,
           anticipacionMin: body?.anticipacionMin,
-        }),
-      );
+        });
+        await writeAudit(c,{tenantId:actor.tenantId,actor:actor.userId,actorKind:actor.kind==='apikey'?'apikey':'user',
+          action:'calendar.availability.created',resource:'availability',resourceId:result.id,result:'ok',requestId:request.requestId,metadata:{ownerId:owner}});
+        return result;
+      });
     } catch (err) {
       seVeMal(err);
     }
@@ -251,9 +275,8 @@ export class AgendaController {
         message: 'El día va como AAAA-MM-DD.',
       });
     }
-    return withTenant(pool(), actor.tenantId, (c) =>
-      huecosDelDia(c, { tenantId: actor.tenantId, ownerId: ownerId ?? actor.userId, dia }),
-    );
+    const owner = await ownerDeAgenda(actor,ownerId);
+    return huecosConGoogle(pool(), { tenantId: actor.tenantId, ownerId: owner, dia, actorId: actor.userId });
   }
 
   @Get()
@@ -271,8 +294,11 @@ export class AgendaController {
     if (Number.isNaN(d.getTime()) || Number.isNaN(h.getTime())) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Las fechas no se entienden.' });
     }
+    const permisos = await withTenant(pool(),actor.tenantId,c=>permisosDelActor(c,actor));
+    const owner = ownerId ? await ownerDeAgenda(actor,ownerId)
+      : permisos.has('calendar.manage_team') ? undefined : actor.userId;
     return withTenant(pool(), actor.tenantId, (c) =>
-      listarCitas(c, { tenantId: actor.tenantId, ownerId, desde: d, hasta: h }),
+      listarCitas(c, { tenantId: actor.tenantId, ownerId: owner, desde: d, hasta: h }),
     );
   }
 
@@ -341,16 +367,16 @@ export class AgendaController {
     const hoy = new Date();
     const hace90 = new Date(hoy.getTime() - 90 * 86_400_000);
     const comoDia = (d: Date) => d.toISOString().slice(0, 10);
-    // Sin `calendar.read_all` cada uno ve SOLO sus cancelaciones, igual que su
-    // agenda. No hay un permiso aparte: el de la agenda ya decide eso.
+    const permisos = await withTenant(pool(),actor.tenantId,c=>permisosDelActor(c,actor));
+    const owner = permisos.has('calendar.manage_team') ? null : actor.userId;
     return withTenant(pool(), actor.tenantId, async (c) => ({
       ...(await motivosDeCancelacion(c, {
         tenantId: actor.tenantId,
         from: from ?? comoDia(hace90),
         to: to ?? comoDia(hoy),
-        ownerId: actorCan(actor, 'crm.read_all') ? null : actor.userId,
+        ownerId: owner,
       })),
-      desincronizadas: await citasDesincronizadasConGoogle(c, actor.tenantId),
+      desincronizadas: await citasDesincronizadasConGoogle(c, actor.tenantId, owner),
     }));
   }
 

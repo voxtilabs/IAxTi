@@ -15,6 +15,8 @@ events:
     - user.invited
     - user.joined_tenant
     - user.login_failed
+    - integration.connected
+    - integration.revoked
   consumes: []
 tools: []
 # La API de equipo está desde #28 y no tenía pantalla — y "Invita a tu

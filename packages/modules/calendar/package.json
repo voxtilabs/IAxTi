@@ -10,6 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@iaxti/google": "workspace:*",
+    "@iaxti/module-identity": "workspace:*",
     "@iaxti/core": "workspace:*",
     "@iaxti/db": "workspace:*",
     "@iaxti/module-audit": "workspace:*",

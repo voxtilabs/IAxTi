@@ -12,6 +12,9 @@ import { withTenant } from '@iaxti/db';
 import { guardarRespuesta, reservarLlave, soltarLlave } from '@iaxti/core';
 import type { WithRequestId } from './request-id';
 
+// OAuth devuelve state/nonce una sola vez: esa respuesta nunca se persiste.
+export const RESPUESTA_SENSIBLE = 'iaxti:sensitive-response';
+
 /**
  * Idempotency-Key (SPEC §28): la cabecera estaba documentada en el OpenAPI y
  * permitida por CORS desde el primer día, y no la leía nadie. Un POST
@@ -26,6 +29,7 @@ export class IdempotenciaInterceptor implements NestInterceptor {
   constructor(private readonly pool: Pool) {}
 
   intercept(context: ExecutionContext, next: CallHandler) {
+    if (Reflect.getMetadata(RESPUESTA_SENSIBLE, context.getHandler())) return next.handle();
     const request = context.switchToHttp().getRequest<WithRequestId>();
     const response = context.switchToHttp().getResponse<Response>();
     const key = request.headers['idempotency-key'];
