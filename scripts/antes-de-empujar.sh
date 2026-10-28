@@ -81,6 +81,30 @@ if [[ "$DATABASE_URL" == *"/iaxti_pruebas" ]]; then
   ' || exit 1
 fi
 
+# ¿Esta rama toca alguna de estas rutas? (#1097)
+#
+# Las dos compuertas de «solo si lo tocaste» preguntaban por `git diff HEAD` y
+# `git diff --cached`, o sea el árbol de trabajo y el índice: SOLO cambios sin
+# commitear. En una rama cuyo trabajo ya está commiteado —el caso normal de
+# «voy a empujar esto», y el único caso de una rama rebasada— veían vacío y no
+# disparaban nunca.
+#
+# Medido sobre la rama de #946: nueve archivos de `apps/web` cambiados contra
+# `staging`, y el paso del e2e se saltaba en silencio. No lo vi al escribir
+# #1095 porque yo corro esto ANTES de commitear, que es justo el único camino
+# donde la versión vieja funcionaba.
+#
+# Las tres fuentes, y el orden importa solo por costo: lo local es instantáneo,
+# el diff contra la base pide el merge-base. El tercer término se salta si no
+# hay `origin/staging` —un clon sin remoto, o CI con otra base— y ahí se cae a
+# lo de antes en vez de reventar.
+toca() {
+  ! git diff --quiet HEAD -- "$@" ||
+    ! git diff --cached --quiet -- "$@" ||
+    { git rev-parse --verify -q origin/staging >/dev/null 2>&1 &&
+      ! git diff --quiet origin/staging...HEAD -- "$@"; }
+}
+
 fallos=()
 # Cuántos fallos fueron SOLO de tiempo (#776).
 #
@@ -190,8 +214,7 @@ paso 'avisos sin rastro'                 node scripts/avisos-sin-rastro.mjs
 # Filtrado a `bandeja` y no completo: las 113 son 2,6 min y este script existe
 # para ser corrido siempre. Las cuatro de la bandeja son las que cubren el
 # arranque, que es el camino que se rompió.
-if ! git diff --quiet HEAD -- apps/web apps/api packages/ui ||
-   ! git diff --cached --quiet -- apps/web apps/api packages/ui; then
+if toca apps/web apps/api packages/ui; then
   # Los workers vivos le roban los jobs al e2e: comparten base y Redis con él
   # (el preflight está aislado desde #1028, el e2e NO). Síntoma exacto:
   # `campanas.spec.ts` falla con «Esta campaña ya está cerrada» porque el worker
@@ -223,7 +246,7 @@ fi
 # a sacar del camino— y no emula nada de lo que de verdad falla:
 # `services.credentials`, la autenticación de GHCR, el caché `type=gha`, los
 # `environments`, `concurrency` ni las cadenas de `workflow_run`.
-if ! git diff --quiet HEAD -- .github/workflows || ! git diff --cached --quiet -- .github/workflows; then
+if toca .github/workflows; then
   if command -v actionlint >/dev/null 2>&1; then
     paso 'workflows (actionlint)'        actionlint
   else
