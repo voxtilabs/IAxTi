@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { runMigrations, withTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import { GOOGLE_CALENDAR_SCOPE, GoogleIntegrationError } from '@iaxti/google';
@@ -17,6 +17,108 @@ const instant = new Date('2027-02-25T12:00:00Z');
 let admin: Pool; let app: Pool; let tenantId: string; let userId: string; let other: string;
 let deps: CalendarGoogleDeps; let versions: Map<string,string>;
 let revision = 0;
+
+const AUDIT_INEXISTENTE = 'audit_log_que_no_existe';
+const COLUMNAS_DE_LA_INTENCION = '(tenant_id,user_id,secret_ref,destroy_pending,whole_secret)';
+
+/**
+ * Un pool que reescribe el TEXTO de ciertas consultas de ESTA conexión (#910).
+ *
+ * Las dos pruebas de abajo necesitaban que algo pasara dentro de una
+ * transacción ajena —que una escritura falle, que una fila nazca vieja— y las
+ * dos lo conseguían creando un trigger en el esquema COMPARTIDO y borrándolo en
+ * un `finally`. El `finally` no corre si el proceso muere en el medio —Ctrl-C,
+ * OOM, el timeout de la suite—, así que el trigger se quedaba en la base para
+ * siempre; y mientras existía, lo veían los sesenta y pico de archivos que
+ * vitest corre en paralelo contra esta misma base.
+ *
+ * Reescribir el texto de la consulta de esta conexión consigue lo mismo sin
+ * tocar el catálogo, y es el patrón que manda la guarda de
+ * `core/tests/las-pruebas-no-dejan-basura.test.ts`. Los ejemplos que ya estaban:
+ * `payments/tests/aviso-de-pago.test.ts` y `workers/tests/outbound-vigencia.test.ts`.
+ *
+ * Va sobre el POOL y no sobre el cliente, a diferencia de esos dos, porque
+ * `completarGoogleCalendar` y `revocarGoogleCalendar` reciben un pool y abren su
+ * `withTenant` adentro: no hay dónde pasarles un cliente.
+ *
+ * `reescribir` devuelve `null` para dejar la consulta como está.
+ */
+function poolQueReescribe(pool: Pool, reescribir: (sql: string, valores: unknown) => string | null): Pool {
+  const envolver = (cliente: PoolClient): PoolClient => new Proxy(cliente, {
+    get(destino, prop, receptor) {
+      if (prop !== 'query') {
+        const valor = Reflect.get(destino, prop, receptor);
+        return typeof valor === 'function' ? valor.bind(destino) : valor;
+      }
+      const consultar = destino.query.bind(destino) as unknown as (...args: unknown[]) => unknown;
+      return (...args: unknown[]) => {
+        const [texto, ...rest] = args;
+        if (typeof texto === 'string') return consultar(reescribir(texto, rest[0]) ?? texto, ...rest);
+        const config = texto as { text?: unknown; values?: unknown } | null;
+        if (config && typeof config.text === 'string') {
+          const cambiado = reescribir(config.text, config.values);
+          if (cambiado) return consultar({ ...config, text: cambiado }, ...rest);
+        }
+        return consultar(texto, ...rest);
+      };
+    },
+  });
+  return new Proxy(pool, {
+    get(destino, prop, receptor) {
+      if (prop !== 'connect') {
+        const valor = Reflect.get(destino, prop, receptor);
+        return typeof valor === 'function' ? valor.bind(destino) : valor;
+      }
+      return async () => envolver(await destino.connect());
+    },
+  });
+}
+
+/**
+ * Desvía SOLO el INSERT de la acción pedida.
+ *
+ * `writeAudit` consulta `audit_log` también para encadenar el hash anterior, y
+ * el nombre de la tabla viaja en el texto de las dos consultas: desviar
+ * cualquiera haría fallar la primera que pase, y la prueba dejaría de hablar
+ * del revoke para hablar de «algo de la auditoría».
+ *
+ * El error lo sigue poniendo Postgres, así que la transacción se aborta de
+ * verdad —que es la mitad de lo que la prueba mira—. Ojo con lo que llega
+ * arriba: lo que se ve no es `relation … does not exist` sino el
+ * `current transaction is aborted` de la consulta siguiente de esa misma
+ * transacción. Por eso la prueba no fija el mensaje: fija que la fila de
+ * auditoría NO quedó, que es el invariante.
+ */
+const desviarElAuditDe = (accion: string) => (sql: string, valores: unknown) =>
+  // El `\b` del final deja fuera el nombre ya desviado: `_` es carácter de
+  // palabra, así que `audit_log_que_no_existe` no vuelve a calzar.
+  Array.isArray(valores) && valores.includes(accion) ? sql.replace(/\baudit_log\b/g, AUDIT_INEXISTENTE) : null;
+
+/**
+ * Hace nacer vieja la fila de intención, como el trigger `BEFORE INSERT` que
+ * reemplaza: le pone `created_at` explícito en el INSERT de
+ * `reservarSecretoGoogle`, que hoy la deja en el `now()` por defecto.
+ *
+ * No se puede hacer con un `UPDATE` de afuera —fue lo primero que probé y se
+ * cuelga—: `bloquearIntentoSecretoGoogle` toma la fila con `SELECT … FOR UPDATE`
+ * dentro de la transacción que la prueba mantiene retenida, así que cualquier
+ * escritura externa espera ese lock hasta el timeout.
+ *
+ * Lleva contador porque esto se acopla al TEXTO del INSERT. Si ese texto cambia,
+ * la prueba tiene que ponerse roja diciendo eso, y no quedarse verde habiendo
+ * dejado de envejecer nada.
+ */
+function envejecerLaIntencion(minutos: number) {
+  const veces = { reescritas: 0 };
+  const reescribir = (sql: string) => {
+    if (!sql.includes(COLUMNAS_DE_LA_INTENCION)) return null;
+    veces.reescritas++;
+    return sql
+      .replace(COLUMNAS_DE_LA_INTENCION, COLUMNAS_DE_LA_INTENCION.replace(')', ',created_at)'))
+      .replace('VALUES($1,$2,$3,true,true)', `VALUES($1,$2,$3,true,true,now()-interval '${minutos} minutes')`);
+  };
+  return { reescribir, veces };
+}
 
 beforeAll(async () => {
   admin = new Pool({ connectionString:url });
@@ -52,7 +154,7 @@ async function attempt(t=tenantId,u=userId){
   const start=await iniciarGoogleCalendar(app,{tenantId:t,userId:u,challenge},deps);
   return {tenantId:t,userId:u,state:start.state,nonce:start.nonce,verifier,code:'temporary-code'};
 }
-async function connect(t=tenantId,u=userId){return completarGoogleCalendar(app,await attempt(t,u),deps);}
+async function connect(t=tenantId,u=userId,pool: Pool=app){return completarGoogleCalendar(pool,await attempt(t,u),deps);}
 async function availability(){await withTenant(app,tenantId,c=>definirDisponibilidad(c,{tenantId,ownerId:userId,weekday:1,inicioMin:540,finMin:720,duracion:30,respiro:15,anticipacionMin:0}));}
 const slots=()=>huecosConGoogle(app,{tenantId,ownerId:userId,dia:'2027-03-01',ahora:instant},deps);
 
@@ -124,24 +226,32 @@ describe('consentimiento personal y custodia',()=>{
     } finally {await blocker.query('ROLLBACK');blocker.release();}
   });
   it('una creación en curso conserva su intención aunque el recolector la vea antigua',async()=>{
-    const trigger=`age_google_${randomBytes(5).toString('hex')}`;
-    await admin.query(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-      IF NEW.tenant_id='${tenantId}'::uuid THEN NEW.created_at=now()-interval '16 minutes'; END IF; RETURN NEW; END $$`);
-    await admin.query(`CREATE TRIGGER ${trigger} BEFORE INSERT ON google_secret_versions FOR EACH ROW EXECUTE FUNCTION ${trigger}()`);
     let entered!:()=>void;let release!:()=>void;
     const began=new Promise<void>(resolve=>{entered=resolve;});const hold=new Promise<void>(resolve=>{release=resolve;});
     const original=deps.secrets.put;
     vi.mocked(deps.secrets.put).mockImplementationOnce(async(id,payload)=>{
       const ref=`projects/iaxti-test/secrets/${id}/versions/1`;versions.set(ref,payload);entered();await hold;return ref;
     });
-    const pending=connect();
+    const vieja=envejecerLaIntencion(16);
+    const pending=connect(tenantId,userId,poolQueReescribe(app,vieja.reescribir));
     try {
-      await began;await limpiarSecretosGoogle(app,deps);
+      await began;
+      expect(vieja.veces.reescritas).toBe(1);
+      // Que la fila sea CANDIDATA del recolector es la premisa de esta prueba, y
+      // sin ella pasa por la razón equivocada: si nace joven, el barrido ni la
+      // mira —filtra `created_at<now()-interval '15 minutes'`— y la intención
+      // sobrevive sola. Lo encontré con la mordida: con el envejecimiento en
+      // cero, el caso seguía verde. Se lee desde `admin` porque la fila ya está
+      // committeada y un SELECT no espera el `FOR UPDATE` de la otra transacción.
+      expect((await admin.query(
+        "SELECT 1 FROM google_secret_versions WHERE tenant_id=$1 AND whole_secret AND created_at<now()-interval '15 minutes'",
+        [tenantId])).rowCount).toBe(1);
+      await limpiarSecretosGoogle(app,deps);
       expect(versions.size).toBe(1);
       expect((await admin.query('SELECT 1 FROM google_secret_versions WHERE tenant_id=$1 AND whole_secret',[tenantId])).rowCount).toBe(1);
       release();expect((await pending).status).toBe('active');
       expect((await admin.query('SELECT 1 FROM google_secret_versions WHERE tenant_id=$1 AND whole_secret',[tenantId])).rowCount).toBe(0);
-    } finally {release();await pending.catch(()=>{});await admin.query(`DROP TRIGGER ${trigger} ON google_secret_versions; DROP FUNCTION ${trigger}()`);deps.secrets.put=original;}
+    } finally {release();await pending.catch(()=>{});deps.secrets.put=original;}
   });
   it('un timeout de creación deja intención durable aunque no devuelva referencia',async()=>{
     vi.mocked(deps.secrets.put).mockImplementationOnce(async(id,payload)=>{
@@ -284,17 +394,15 @@ describe('revocación de la cuenta Google',()=>{
   });
   it('un fallo SQL después del revoke remoto no restaura active y bloquea reconexión',async()=>{
     await connect();await connect(other,userId);
-    const trigger=`fail_google_${randomBytes(5).toString('hex')}`;
-    await admin.query(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-      IF NEW.tenant_id='${tenantId}'::uuid AND NEW.action='integration.revoked' THEN RAISE EXCEPTION 'forced audit failure'; END IF; RETURN NEW; END $$`);
-    await admin.query(`CREATE TRIGGER ${trigger} BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION ${trigger}()`);
-    try {
-      await expect(revocarGoogleCalendar(app,{tenantId,userId},deps)).rejects.toThrow();
-      expect(deps.oauth.revoke).toHaveBeenCalledTimes(1);
-      expect((await estadoGoogleCalendar(app,{tenantId,userId},deps)).status).toBe('revoking');
-      expect((await estadoGoogleCalendar(app,{tenantId:other,userId},deps)).status).toBe('revoking');
-      await expect(connect(other,userId)).rejects.toThrow();
-    } finally {await admin.query(`DROP TRIGGER ${trigger} ON audit_log; DROP FUNCTION ${trigger}()`);}
+    const sinAudit=poolQueReescribe(app,desviarElAuditDe('integration.revoked'));
+    await expect(revocarGoogleCalendar(sinAudit,{tenantId,userId},deps)).rejects.toThrow();
+    // El invariante, no el mensaje: la auditoría del revoke no quedó escrita.
+    expect((await admin.query(
+      "SELECT 1 FROM audit_log WHERE tenant_id=$1 AND action='integration.revoked'",[tenantId])).rowCount).toBe(0);
+    expect(deps.oauth.revoke).toHaveBeenCalledTimes(1);
+    expect((await estadoGoogleCalendar(app,{tenantId,userId},deps)).status).toBe('revoking');
+    expect((await estadoGoogleCalendar(app,{tenantId:other,userId},deps)).status).toBe('revoking');
+    await expect(connect(other,userId)).rejects.toThrow();
     vi.mocked(deps.oauth.revoke).mockRejectedValue(new GoogleIntegrationError('GOOGLE_INVALID_TOKEN',400));
     expect(await revocarGoogleCalendar(app,{tenantId,userId},deps)).toEqual({revoked:true});
     expect((await estadoGoogleCalendar(app,{tenantId:other,userId},deps)).status).toBe('revoked');

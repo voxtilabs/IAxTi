@@ -137,10 +137,31 @@ describe('las pruebas no dejan basura en el disco', () => {
      */
     const LOS_CASOS_DE_ESTA_GUARDA = ['packages/core/tests/las-pruebas-no-dejan-basura.test.ts'];
 
+    /**
+     * Y la excepción más fuerte que «su propia tabla»: SU PROPIA BASE.
+     *
+     * `google-cleanup.test.ts` hace `CREATE DATABASE iaxti_google_cleanup_<hex>`
+     * en su `beforeAll` y la bota en el `afterAll`. El trigger que crea para
+     * forzar un fallo de `DELETE` nace y muere ahí dentro: ninguna otra conexión
+     * del repositorio se conecta a esa base, así que los dos daños que esta
+     * guarda existe para evitar no son posibles —no lo ven los archivos que
+     * corren en paralelo, y si el proceso muere a medias se va con la base, no
+     * queda apuntando a un tenant que ya no existe—.
+     *
+     * Queda como excepción escrita y no como regla automática a propósito. Un
+     * `CREATE DATABASE` en el archivo NO prueba que el DDL vaya a esa base: el
+     * mismo archivo tiene dos pools (`control` apunta a la compartida y `admin`
+     * a la propia), y desde la fuente no se puede saber cuál se usó. Una regla
+     * que dedujera «tiene CREATE DATABASE, entonces está limpio» dejaría pasar
+     * justo el caso que importa.
+     */
+    const CON_SU_PROPIA_BASE = ['packages/modules/calendar/tests/google-cleanup.test.ts'];
+
     const culpables = archivos.filter((ruta) => {
       const relativa = ruta.slice(RAIZ.length + 1);
       if (CON_SU_PROPIA_TABLA.includes(relativa)) return false;
       if (LOS_CASOS_DE_ESTA_GUARDA.includes(relativa)) return false;
+      if (CON_SU_PROPIA_BASE.includes(relativa)) return false;
       return creaObjetoCompartido(readFileSync(ruta, 'utf8'));
     });
     expect(
