@@ -67,7 +67,7 @@ describe('límites de adjunto (#560)', () => {
     const docConservador = LIMITES_CONSERVADORES.find((l) => l.clase === 'documento')!;
     expect(docConservador.maxBytes).toBeLessThan(doc.maxBytes);
 
-    for (const canal of ['webchat', 'instagram', 'messenger', 'simulador']) {
+    for (const canal of ['webchat', 'simulador']) {
       const tabla = limitesDelCanal(canal);
       for (const l of tabla) {
         const suyo = LIMITES_WHATSAPP.find((w) => w.clase === l.clase)!;
@@ -75,6 +75,13 @@ describe('límites de adjunto (#560)', () => {
       }
     }
     expect(limitesDelCanal('whatsapp')).toBe(LIMITES_WHATSAPP);
+  });
+
+  it.each(['instagram', 'messenger'])('%s no promete adjuntos que Zavu enviaría por WhatsApp', (canal) => {
+    expect(limitesDelCanal(canal)).toEqual([]);
+    expect(revisarAdjunto({ contentType: 'image/jpeg', sizeBytes: 10 }, canal)).toMatchObject({
+      ok: false, message: expect.stringContaining('solo permite enviar texto'),
+    });
   });
 
   it('ningún mensaje trae nombres de campo ni códigos, y todos dicen qué hacer', () => {

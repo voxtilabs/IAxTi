@@ -133,7 +133,7 @@ afterAll(async () => {
   await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM whatsapp_templates WHERE tenant_id = $1', [tenant]);
-  await sinTriggers(admin, c => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
+  await sinTriggers(admin, (c) => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });

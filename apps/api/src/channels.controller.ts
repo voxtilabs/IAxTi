@@ -12,7 +12,12 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { degradarSinRomper, withTenant } from '@iaxti/db';
-import { diagnosticarCanal, findAccountById, listChannelAccounts } from '@iaxti/module-channels';
+import {
+  diagnosticarCanal,
+  findAccountById,
+  listChannelAccounts,
+  EmisorCompartidoError,
+} from '@iaxti/module-channels';
 import { writeAudit } from '@iaxti/module-audit';
 import {
   clienteZavu,
@@ -33,6 +38,7 @@ import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool, apiRedis } from './db';
 import { CUERPO_DE_PRUEBA, probarEnvio } from './probar-envio';
+import { conectarCanalMeta, conexionesDisponibles } from './conectar-canales-zavu';
 
 function pool() {
   const p = apiPool();
@@ -73,12 +79,32 @@ const OtroEmisor = z.object({
   phoneNumberId: z.string().trim().optional(),
   wabaId: z.string().trim().optional(),
 });
+const ConexionMeta = z.object({
+  senderId: textoRequerido('Elige una conexión de tu negocio.'),
+  kind: z.enum(['instagram', 'messenger']),
+});
 
 /** La pantalla de canales (#45): estado, calidad y la reactivación manual. */
 @ApiTags('channels')
 @Controller()
 @RequireModule('channels')
 export class ChannelsController {
+  @Get('channels/conexiones-disponibles')
+  @RequireModule('whatsapp')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Instagram y Messenger disponibles en emisores acreditados a este negocio' })
+  async disponibles(@Req() request: WithUser) {
+    return conexionesDisponibles(pool(), actorOf(request).tenantId);
+  }
+
+  @Post('channels/conectar')
+  @RequireModule('whatsapp')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Conecta Instagram o Messenger acreditado y verifica su configuración en Zavu' })
+  async conectar(@Req() request: WithUser, @Cuerpo(ConexionMeta) body: z.infer<typeof ConexionMeta>) {
+    return conectarCanalMeta(pool(), { actor: actorOf(request), ...body, requestId: request.requestId });
+  }
+
   @Get('channels')
   // Mirar el estado de un número —calidad, pausa— es leer; configurarlo es
   // otra cosa. El permiso existía en el catálogo sin que ninguna ruta lo
@@ -339,6 +365,9 @@ export class ChannelsController {
         tenantId: actor.tenantId,
         accountId: id,
         senderId: elegido.sender.id,
+        actor: actor.userId,
+        actorKind: actor.kind === 'soporte' ? 'superadmin' : actor.kind ?? 'user',
+        requestId: request.requestId,
         ...(body.phoneNumberId === undefined ? {} : { phoneNumberId: body.phoneNumberId }),
         ...(body.wabaId === undefined ? {} : { wabaId: body.wabaId }),
       });
@@ -348,7 +377,7 @@ export class ChannelsController {
       await writeAudit(c, {
         tenantId: actor.tenantId,
         actor: actor.userId,
-        actorKind: 'user',
+        actorKind: actor.kind === 'soporte' ? 'superadmin' : actor.kind ?? 'user',
         action: 'channel.sender.changed',
         resource: 'channel_account',
         resourceId: id,
@@ -362,6 +391,9 @@ export class ChannelsController {
       });
       return { number, account };
     }).catch((err: unknown) => {
+      if (err instanceof EmisorCompartidoError) {
+        throw new BadRequestException({ code: 'SENDER_WEBHOOK_SHARED', message: err.message });
+      }
       if ((err as { code?: string }).code === '23505') {
         throw new BadRequestException({
           code: 'SENDER_YA_CONECTADO',
@@ -436,6 +468,7 @@ export class ChannelsController {
    * existe para desatascar.
    */
   @Post('channels/:id/probar-envio')
+  @RequireModule('whatsapp')
   @RequirePermission('channels.manage')
   @ApiOperation({ summary: 'Manda un mensaje de prueba por este canal y dice exactamente qué pasó' })
   async probar(
@@ -493,7 +526,7 @@ export class ChannelsController {
       writeAudit(c, {
         tenantId: actor.tenantId,
         actor: actor.userId,
-        actorKind: 'user',
+        actorKind: actor.kind === 'soporte' ? 'superadmin' : actor.kind ?? 'user',
         action: 'channel.test_send',
         resource: 'channel_account',
         resourceId: id,

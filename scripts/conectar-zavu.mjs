@@ -10,6 +10,7 @@ import { createPool, withTenant } from '@iaxti/db';
 import {
   clienteZavu,
   conectarSender,
+  consultarSender,
   elegirSender,
   llaveSirveParaAmbiente,
   quienSoy,
@@ -20,9 +21,10 @@ function arg(nombre, pordefecto) {
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : pordefecto;
 }
 
-const apiKey = process.env.ZAVU_API_KEY;
+const credentialRef = arg('credential-ref', 'ZAVU_API_KEY');
+const apiKey = process.env[credentialRef];
 if (!apiKey) {
-  console.error('Falta ZAVU_API_KEY en el entorno. La credencial NO se pasa por argumento:');
+  console.error('Falta la credencial indicada en el entorno. La credencial NO se pasa por argumento:');
   console.error('queda en el historial del shell y ahí ya es un secreto filtrado.');
   process.exit(1);
 }
@@ -32,7 +34,6 @@ const kind = arg('kind', 'whatsapp');
 const baseUrl = arg('base-url', process.env.API_URL_PUBLIC);
 const nombre = arg('nombre', 'Canal de Zavu');
 const senderPedido = arg('sender');
-const credentialRef = arg('credential-ref', 'ZAVU_API_KEY');
 const webhookSecretRef = arg('webhook-secret-ref', 'ZAVU_WEBHOOK_SECRET');
 
 const llamar = clienteZavu(apiKey);
@@ -62,10 +63,12 @@ console.log(
 
 // La API pagina con `{items, nextCursor}`. Lo descubrí llamándola: el
 // script leía `data` y reportaba "0 senders" con el proyecto lleno.
-const respuesta = await llamar('/senders');
-const senders = Array.isArray(respuesta)
-  ? respuesta
-  : (respuesta.items ?? respuesta.data ?? []);
+// Un id elegido en el dashboard se consulta directamente: puede estar fuera
+// de la primera página del listado. No inferimos su canal por un teléfono.
+const respuesta = senderPedido ? null : await llamar('/senders');
+const senders = senderPedido ? [await consultarSender(llamar, senderPedido)] : (
+  Array.isArray(respuesta) ? respuesta : (respuesta.items ?? respuesta.data ?? [])
+);
 
 console.log(`\nSenders del proyecto (${senders.length}):`);
 for (const s of senders) {
@@ -127,7 +130,7 @@ try {
     }),
   );
 
-  console.log(`\nListo. Canal ${kind} conectado al tenant ${tenantId}:`);
+  console.log(`\nCanal ${kind} ${res.account.state === 'connecting' ? 'preparado; completa la conexión en Canales' : 'conectado'} al tenant ${tenantId}:`);
   console.log(`  cuenta de canal: ${res.account.id}`);
   console.log(`  sender:          ${res.senderId}`);
   console.log(`  webhook:         ${res.webhookUrl}`);
@@ -136,7 +139,7 @@ try {
     console.log(`  ${res.webhookSecret}`);
   }
   for (const aviso of res.avisos) console.log(`\n⚠ ${aviso}`);
-  console.log('\nPrueba de verdad: mándale un mensaje al número y mira que llegue a la bandeja.');
+  console.log('\nPrueba de verdad: escribe a la cuenta desde el canal y comprueba recepción y respuesta en la bandeja.');
   console.log('El /health dice que el proceso vive, no que el producto funciona.');
 } finally {
   await pool.end();

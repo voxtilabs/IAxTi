@@ -93,6 +93,9 @@ export const LIMITES_CONSERVADORES: readonly LimiteDeAdjunto[] = LIMITES_WHATSAP
 const CON_TABLA_DE_WHATSAPP = new Set(['whatsapp']);
 
 export function limitesDelCanal(canal: string): readonly LimiteDeAdjunto[] {
+  // Transporte Zavu actual: messageType != text selecciona WhatsApp. No
+  // ofrecer subir un archivo que tendría que salir por otro canal (#74).
+  if (canal === 'instagram' || canal === 'messenger') return [];
   return CON_TABLA_DE_WHATSAPP.has(canal) ? LIMITES_WHATSAPP : LIMITES_CONSERVADORES;
 }
 
@@ -134,7 +137,9 @@ export function revisarAdjunto(
       ok: false,
       code: 'ADJUNTO_TIPO_NO_ACEPTADO',
       message:
-        'Este canal no acepta ese tipo de archivo. Puedes mandar una imagen, un video, un audio o un documento.',
+        canal === 'instagram' || canal === 'messenger'
+          ? 'Esta conexión solo permite enviar texto por Instagram o Messenger. Envía un mensaje de texto.'
+          : 'Este canal no acepta ese tipo de archivo. Puedes mandar una imagen, un video, un audio o un documento.',
     };
   }
   if (entrada.sizeBytes > limite.maxBytes) {

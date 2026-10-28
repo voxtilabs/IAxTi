@@ -45,6 +45,7 @@ export {
 export type { NumberQuality, QualityUpdate } from './application/quality';
 export {
   clienteZavu,
+  consultarSender,
   elegirSender,
   quienSoy,
   llaveSirveParaAmbiente,

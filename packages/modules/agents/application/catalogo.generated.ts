@@ -1729,6 +1729,35 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ChannelsController_conectar": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/conectar",
+    "resumen": "Conecta Instagram o Messenger acreditado y verifica su configuración en Zavu",
+    "permiso": "channels.manage",
+    "modulo": "whatsapp",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "senderId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "instagram",
+            "messenger"
+          ]
+        }
+      },
+      "required": [
+        "senderId",
+        "kind"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ChannelsController_desconectar": {
     "metodo": "POST",
     "ruta": "/v1/channels/{id}/desconectar",
@@ -1771,6 +1800,19 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ChannelsController_disponibles": {
+    "metodo": "GET",
+    "ruta": "/v1/channels/conexiones-disponibles",
+    "resumen": "Instagram y Messenger disponibles en emisores acreditados a este negocio",
+    "permiso": "channels.manage",
+    "modulo": "whatsapp",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "ChannelsController_emisores": {
     "metodo": "GET",
     "ruta": "/v1/channels/{id}/emisores",
@@ -1810,7 +1852,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "ruta": "/v1/channels/{id}/probar-envio",
     "resumen": "Manda un mensaje de prueba por este canal y dice exactamente qué pasó",
     "permiso": "channels.manage",
-    "modulo": "channels",
+    "modulo": "whatsapp",
     "soloSesion": false,
     "argumentos": {
       "type": "object",
