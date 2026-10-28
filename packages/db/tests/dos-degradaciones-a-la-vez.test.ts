@@ -127,3 +127,53 @@ it('un alFallar que tira no deja el cliente marcado para siempre', async () => {
   ).resolves.toBe('sigo pudiendo');
   await cliente.query('ROLLBACK');
 });
+
+/**
+ * Y el otro lado: sobre un POOL la vigilancia estorba (#1099).
+ *
+ * La marca de «en vuelo» es del objeto que llega. Cuando ese objeto es el pool,
+ * queda puesta sobre el pool entero y dos peticiones simultáneas chocan — con el
+ * mensaje de arriba, que ahí es mentira.
+ *
+ * Es mentira siempre, no a veces: con un pool cada consulta sale por su propia
+ * conexión, Postgres rechaza el `SAVEPOINT` —`can only be used in transaction
+ * blocks`— y nunca se abre un punto. No hay pila que pisar.
+ *
+ * Dónde dolía: `apps/api/src/main.ts` resuelve el acceso al módulo con
+ * `modulosDelPlan(pool, …)` en CADA request, así que con dos peticiones a la vez
+ * una se caía con 500 dentro del guard. Se destapó midiendo #945: el e2e de
+ * bandeja pasó 4/4 en una corrida y se cayó en la siguiente, con el mismo
+ * código de aplicación. Un 500 intermitente en un guard se lee como e2e flaky,
+ * que es la forma más cara de que algo esté roto.
+ */
+it('varias degradaciones a la vez sobre el POOL salen todas bien', async () => {
+  const leer = (n: number) =>
+    degradarSinRomper(
+      pool,
+      async (c) => (await c.query('SELECT $1::int AS n', [n])).rows[0].n as number,
+      () => -n,
+    );
+
+  // Seis a la vez contra un pool con menos conexiones que eso: las que esperan
+  // turno también tienen que salir bien.
+  expect(await Promise.all([1, 2, 3, 4, 5, 6].map(leer))).toEqual([1, 2, 3, 4, 5, 6]);
+
+  // Y el camino de la degradación sigue degradando, no rompiendo.
+  const caida = (n: number) =>
+    degradarSinRomper(
+      pool,
+      async (c) => {
+        await c.query('SELECT 1 FROM tabla_que_no_existe');
+        return n;
+      },
+      () => -n,
+    );
+  expect(await Promise.all([caida(1), caida(2), caida(3)])).toEqual([-1, -2, -3]);
+});
+
+it('sobre un pool nunca se abre un savepoint, que es por qué no hay nada que vigilar', async () => {
+  // La pregunta que la función se hace internamente, hecha de frente: si esto
+  // dejara de ser cierto —un pool que sí abre transacción— la excepción de
+  // arriba habría que revisarla, y esta prueba es la que lo avisaría.
+  await expect(pool.query('SAVEPOINT prueba_1099')).rejects.toThrow(/transaction block/i);
+});
