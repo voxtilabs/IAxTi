@@ -18,8 +18,24 @@
 # Esto, en cambio, no toca Docker Hub en ningún paso:
 #
 #  - `postgres` es una imagen OFICIAL, y AWS espeja las oficiales en
-#    `public.ecr.aws/docker/library/*`, que permite descargas anónimas sin ese
-#    cupo.
+#    `public.ecr.aws/docker/library/*`, que no tiene el cupo POR IP de Docker
+#    Hub.
+#
+#    **Corrección (#1091): «sin ese cupo» no era «sin cupo».** Esta línea decía
+#    «permite descargas anónimas sin ese cupo» y se leía como que ECR no limita
+#    nada. Medido el 27/10: de los dos últimos refrescos semanales de las
+#    imágenes de CI, TRES DE CUATRO murieron con
+#    `429 toomanyrequests: Data limit exceeded` de `public.ecr.aws`. El límite
+#    de ECR es de DATOS y también es compartido entre tirones anónimos, así que
+#    los runners de GitHub —que salen por IPs comunes— lo agotan igual.
+#
+#    Lo que ECR sí resolvió es real y la decisión de #760 sigue siendo correcta:
+#    es intermitente en vez de permanente —el mismo día en que el cron falló,
+#    un push construyó las dos imágenes—, mientras el cupo de Docker Hub dejaba
+#    cinco PR trancados a la vez. Pero una premisa equivocada no se puede
+#    revisar: por eso queda escrita acá y los workflows reintentan con espera.
+#    El arreglo de raíz es autenticar contra ECR, que sube el tope muy por
+#    encima y pide credenciales de una cuenta AWS (#1091).
 #  - pgvector es un paquete Debian del repositorio PGDG, que la imagen oficial
 #    ya trae configurado. O sea: una línea de `apt-get`.
 #
