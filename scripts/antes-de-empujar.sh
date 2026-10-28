@@ -169,6 +169,44 @@ paso 'consultas entre módulos'           node scripts/consultas-entre-modulos.m
 paso 'listas sin estado vacío'           node scripts/listas-sin-vacio.mjs
 paso 'avisos sin rastro'                 node scripts/avisos-sin-rastro.mjs
 
+# El e2e de la bandeja, SOLO si tocaste lo que lo afecta (#1094).
+#
+# Por qué existe: el 27/10 #1076 arregló el aviso de retención y #1078 lo volvió
+# INVISIBLE —metió `zonaDelTenant`, que degrada con savepoints, adentro de un
+# `Promise.all` que comparte un solo PoolClient—. Los dos PRs pasaron este
+# script Y CI. El defecto apareció tres PRs después, corriendo el e2e completo
+# para medir un PR de dependencias que no tenía nada que ver.
+#
+# El e2e es lo ÚNICO que ejercita el arranque del panel con sus piezas en
+# paralelo, contra una base de verdad y por HTTP. Ninguna suite de unidad monta
+# eso, y el arranque es la primera petición de cada sesión: un defecto ahí lo ve
+# todo el mundo. Este se caía callado, porque cada pieza atrapa su fallo para no
+# tumbar la pantalla.
+#
+# Cuesta 27 s, no 3 minutos: el build ya está pagado arriba —y su comentario
+# dice justamente «build antes de los tests porque el e2e corre contra el
+# build»—. Medido: 0,6 s de build con caché caliente, 17,4 s de pruebas.
+#
+# Filtrado a `bandeja` y no completo: las 113 son 2,6 min y este script existe
+# para ser corrido siempre. Las cuatro de la bandeja son las que cubren el
+# arranque, que es el camino que se rompió.
+if ! git diff --quiet HEAD -- apps/web apps/api packages/ui ||
+   ! git diff --cached --quiet -- apps/web apps/api packages/ui; then
+  # Los workers vivos le roban los jobs al e2e: comparten base y Redis con él
+  # (el preflight está aislado desde #1028, el e2e NO). Síntoma exacto:
+  # `campanas.spec.ts` falla con «Esta campaña ya está cerrada» porque el worker
+  # corrió el lote. Así que se avisa y se salta, en vez de dar un rojo que no es
+  # del cambio: un chequeo que miente es peor que uno que no corre.
+  if docker compose ps --status running --services 2>/dev/null | grep -qx workers; then
+    printf '\033[1m── e2e bandeja\033[0m\n'
+    printf '   \033[33mse salta: el contenedor `workers` está arriba.\033[0m\n'
+    printf '   Comparte base y Redis con el e2e y le toma los jobs. Para correrlo:\n'
+    printf '   docker compose stop workers && node apps/web/e2e/run-e2e.mjs bandeja\n'
+  else
+    paso 'e2e bandeja'  node apps/web/e2e/run-e2e.mjs bandeja
+  fi
+fi
+
 # Los workflows, SOLO si los tocaste (#770).
 #
 # Un error de workflow —un `needs:` a un job que no existe, un `runs-on`
