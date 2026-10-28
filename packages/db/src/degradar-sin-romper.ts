@@ -106,7 +106,32 @@ export async function degradarSinRomper<T, C extends Pick<Pool, 'query'>>(
   // `PoolClient` literal, así que esta línea ya no le aparece. Queda anotado en
   // la regla, que es donde hay que leerlo; silenciar algo que ya nadie mira es
   // la forma de que la próxima excepción se escriba por costumbre.
-  if (enVuelo.has(client)) {
+  /**
+   * Un POOL no comparte la pila, y por eso no se vigila (#1099).
+   *
+   * La marca de abajo es del OBJETO que llega. Cuando ese objeto es un pool, la
+   * marca queda puesta sobre el pool entero, así que dos peticiones simultáneas
+   * que degraden una lectura opcional con el mismo pool chocan — y la segunda
+   * muere con el mensaje de acá, que ahí es mentira.
+   *
+   * Y es mentira siempre, no a veces: con un pool cada consulta sale por su
+   * propia conexión, así que el `SAVEPOINT` de más abajo lo rechaza Postgres
+   * —`SAVEPOINT can only be used in transaction blocks`—, `enTransaccion` queda
+   * en `false` y NUNCA se abre un punto. No hay pila que pisar justo donde la
+   * guarda tiraba.
+   *
+   * Lo que se vigila sigue intacto: sobre un cliente dentro de una transacción
+   * degradar dos lecturas a la vez se lleva el trabajo de la que salió bien, y
+   * eso es lo que #991 midió.
+   *
+   * El pool se distingue sin heurística, por un campo que solo él tiene
+   * (medido: `typeof pool.totalCount === 'number'` y en el cliente es
+   * `undefined`). Deliberadamente no se usa `release` para reconocer al
+   * cliente: un `Client` suelto en una transacción no lo tiene, y con esa
+   * prueba se quedaría sin la protección que más necesita.
+   */
+  const esPool = typeof (client as { totalCount?: unknown }).totalCount === 'number';
+  if (!esPool && enVuelo.has(client)) {
     throw new Error(
       'degradarSinRomper: ya hay una degradación en vuelo sobre este cliente. ' +
         'Los savepoints son una pila: si la primera falla, se lleva el trabajo de la ' +
@@ -116,7 +141,7 @@ export async function degradarSinRomper<T, C extends Pick<Pool, 'query'>>(
     );
   }
   const punto = `degradar_sin_romper_${(proximoPunto += 1)}`;
-  enVuelo.add(client);
+  if (!esPool) enVuelo.add(client);
   const enTransaccion = await client
     .query(`SAVEPOINT ${punto}`)
     .then(() => true)
@@ -135,6 +160,6 @@ export async function degradarSinRomper<T, C extends Pick<Pool, 'query'>>(
     // no del resultado. Sin el `finally`, un `alFallar` que falle dejaría el
     // cliente marcado para siempre y la próxima lectura opcional de ESA
     // conexión moriría con el mensaje de arriba, que ahí sería mentira.
-    enVuelo.delete(client);
+    if (!esPool) enVuelo.delete(client);
   }
 }
