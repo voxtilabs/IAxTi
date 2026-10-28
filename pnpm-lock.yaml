@@ -1281,9 +1281,18 @@ importers:
       '@iaxti/db':
         specifier: workspace:*
         version: link:../../db
+      '@iaxti/google':
+        specifier: workspace:*
+        version: link:../../google
+      '@iaxti/module-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@iaxti/module-channels':
         specifier: workspace:*
         version: link:../channels
+      '@iaxti/module-organizations':
+        specifier: workspace:*
+        version: link:../organizations
       ioredis:
         specifier: ^5.4.0
         version: 5.11.1(supports-color@7.2.0)
