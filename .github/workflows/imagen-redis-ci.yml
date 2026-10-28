@@ -85,7 +85,24 @@ jobs:
           DESTINO: ghcr.io/voxtilabs/redis-ci:7
         run: |
           set -euo pipefail
-          docker pull "$ORIGEN"
+          # Reintento con espera: el espejo de AWS también tiene cupo (#1091).
+          # El encabezado de este workflow dice que `public.ecr.aws` «permite
+          # descargas anónimas» sin el cupo de Docker Hub, y eso resultó falso:
+          # medido el 27/10, tres de los cuatro últimos refrescos semanales de
+          # estas dos imágenes murieron con `429 Data limit exceeded`. La cuota
+          # anónima es compartida y los runners salen por IPs comunes, así que
+          # es intermitente — el mismo día, un push copió las dos sin problema.
+          intento=1
+          until docker pull "$ORIGEN"; do
+            if [ "$intento" -ge 4 ]; then
+              echo "::error::Cuatro intentos y el espejo sigue sin dar redis. Ver #1091."
+              exit 1
+            fi
+            espera=$((intento * 45))
+            echo "::warning::Intento $intento fallido (probable 429 del espejo). Reintento en ${espera}s."
+            sleep "$espera"
+            intento=$((intento + 1))
+          done
           docker tag "$ORIGEN" "$DESTINO"
           docker push "$DESTINO"
 

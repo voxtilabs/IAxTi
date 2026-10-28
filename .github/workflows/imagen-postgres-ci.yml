@@ -85,7 +85,33 @@ jobs:
           IMAGEN: ghcr.io/voxtilabs/postgres-pgvector:16
         run: |
           set -euo pipefail
-          docker build -f infra/docker/postgres-pgvector.Dockerfile -t "$IMAGEN" .
+          # Reintento con espera, porque el espejo de AWS TAMBIÉN tiene cupo
+          # (#1091). El Dockerfile dice que `public.ecr.aws` «permite descargas
+          # anónimas sin ese cupo» y eso resultó falso: medido el 27/10, de los
+          # dos últimos refrescos semanales TRES DE CUATRO murieron con
+          # `429 toomanyrequests: Data limit exceeded`. Es intermitente —un
+          # push del mismo día construyó las dos imágenes— porque la cuota
+          # anónima es compartida y los runners salen por IPs comunes.
+          #
+          # Reintentar NO es tapar el problema: el 429 de un cupo compartido se
+          # pasa solo. Lo que no se pasa es un refresco semanal que falla sin
+          # avisarle a nadie, y eso es lo que dejaba la imagen de CI vieja en
+          # silencio mientras `postgres:16` y pgvector avanzaban.
+          #
+          # Autenticar contra ECR subiría muy por encima el tope y sería el
+          # arreglo de raíz, pero pide credenciales de una cuenta AWS: queda
+          # dicho en #1091 y es decisión del dueño, no de este workflow.
+          intento=1
+          until docker build -f infra/docker/postgres-pgvector.Dockerfile -t "$IMAGEN" .; do
+            if [ "$intento" -ge 4 ]; then
+              echo "::error::Cuatro intentos y el espejo sigue sin dar la imagen base. Ver #1091."
+              exit 1
+            fi
+            espera=$((intento * 45))
+            echo "::warning::Intento $intento fallido (probable 429 del espejo). Reintento en ${espera}s."
+            sleep "$espera"
+            intento=$((intento + 1))
+          done
           docker push "$IMAGEN"
 
       - name: Qué versión de pgvector quedó
