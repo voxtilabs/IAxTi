@@ -14,7 +14,11 @@
     "@iaxti/db": "workspace:*",
     "@iaxti/module-channels": "workspace:*",
     "ioredis": "^5.4.0",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "@iaxti/db": "workspace:*",
+    "@iaxti/google": "workspace:*",
+    "@iaxti/module-audit": "workspace:*",
+    "@iaxti/module-organizations": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

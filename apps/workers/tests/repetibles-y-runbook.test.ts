@@ -52,9 +52,9 @@ describe('el runbook nombra TODAS las tareas repetibles (#807)', () => {
    * Anti-vacuidad: si el recorte del §4 o la expresión del nombre se rompen,
    * las dos de arriba quedan verdes con listas vacías. La lección de #790.
    */
-  it('la guarda está mirando algo: veintiuna a cada lado', () => {
-    expect(REPETIBLES).toHaveLength(21);
-    expect(tareasDelRunbook()).toHaveLength(21);
+  it('la guarda está mirando algo: veintidós a cada lado', () => {
+    expect(REPETIBLES).toHaveLength(22);
+    expect(tareasDelRunbook()).toHaveLength(22);
   });
 
   it('ningún nombre repetido: dos entradas con el mismo nombre son una sola tarea', () => {

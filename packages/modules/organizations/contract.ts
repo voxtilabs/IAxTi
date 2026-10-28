@@ -1,5 +1,6 @@
 // Única puerta pública del módulo organizations (SPEC §26).
 export const MODULE_ID = 'organizations' as const;
+export { initialBusinessOf, recordInitialBusiness } from './application/registration';
 export {
   createTenant,
   getTenant,

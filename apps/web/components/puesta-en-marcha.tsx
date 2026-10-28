@@ -7,6 +7,9 @@ import { useSelectedTenant } from './tenant-switcher';
 import { getOnboarding, type OnboardingProgress } from '@iaxti/sdk';
 import { WidgetsDelInicio } from './inicio/widgets';
 import type { WidgetItem } from '../lib/nav';
+import { RegistroInicial } from './registro-inicial';
+import { OnboardingCostos } from './onboarding-costos';
+import { WhatsAppInvitation } from './whatsapp-invitation';
 
 // La puesta en marcha (#56, SPEC §7).
 //
@@ -68,7 +71,7 @@ export function PuestaEnMarcha({ widgets = [] }: { widgets?: WidgetItem[] }) {
   return tenant ? (
     <AvanceDelNegocio key={tenant} tenant={tenant} widgets={widgets} />
   ) : (
-    <Bienvenida widgets={widgets} />
+    <RegistroInicial />
   );
 }
 
@@ -136,6 +139,7 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
           checklist de lo que ya hizo (#517). La lista se queda abajo, porque
           un negocio que conecta un segundo canal quiere volver a mirarla. */}
       {estado.completo && <WidgetsDelInicio widgets={widgets} />}
+      <OnboardingCostos tenant={tenant} />
 
       {estado.desfase.length > 0 && (
         <div
@@ -184,7 +188,8 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
                 )}
               </div>
               </div>
-              {p.ruta && !p.hecho && !p.bloqueado && (
+              {p.id === 'whatsapp_connected' && !p.hecho && !p.bloqueado && <WhatsAppInvitation tenant={tenant} primary={esSiguiente}/>}
+              {p.ruta && p.id !== 'whatsapp_connected' && !p.hecho && !p.bloqueado && (
                 <Link href={p.ruta}>
                   <Button variant={esSiguiente ? 'primario' : 'fantasma'} size="chico">
                     {esSiguiente ? 'Hacerlo ahora' : 'Ir'}

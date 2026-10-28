@@ -1,3 +1,4 @@
+import { PartnerInvitationsController, PartnerWebhookController, PARTNER_HTTP, partnerHttp } from './partner-invitations.controller';
 import {
   Controller,
   Get,
@@ -90,6 +91,7 @@ import { ContactoEmpresaController, EmpresasController } from './empresas.contro
 import { TagsController } from './tags.controller';
 import { SettingsController } from './settings.controller';
 import { OnboardingController } from './onboarding.controller';
+import { OnboardingRegistrationController } from './onboarding-registration.controller';
 import { EquipoController, QuickRepliesController } from './equipo.controller';
 import { ContactsController } from './contacts.controller';
 import { DealsController } from './deals.controller';
@@ -1254,6 +1256,9 @@ const controllers = [
   ContactoEmpresaController,
   SettingsController,
   OnboardingController,
+  PartnerInvitationsController,
+  PartnerWebhookController,
+  OnboardingRegistrationController,
   QuickRepliesController,
   EquipoController,
   ContactsController,
@@ -1287,5 +1292,5 @@ const controllers = [
   ...(esProduccion() ? [] : [SimuladorController]),
 ];
 
-@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }] })
+@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }, {provide: PARTNER_HTTP, useValue: partnerHttp}] })
 export class AppModule {}

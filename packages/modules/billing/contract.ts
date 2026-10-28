@@ -5,6 +5,7 @@ export {
   getSubscription,
   listInvoices,
   costosDelCicloEnCurso,
+  metaCostThisCycle,
   issueInvoiceForCycle,
   billingConsumers,
   sweepBilling,

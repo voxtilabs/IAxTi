@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import type { PublicConfig } from '@iaxti/ui/react';
 import type { Quien } from '@iaxti/sdk';
+import { RegistrationError } from '@iaxti/sdk';
 
 // Cliente mínimo de la API /v1 desde el navegador: Bearer de la sesión +
 // X-Tenant-Id del selector. Los errores llegan en voz Pulso ({code, message}).
@@ -49,7 +50,7 @@ export function avisoDe(err: unknown): Aviso {
  * y un renglón vacío en mono debajo del aviso es ruido.
  */
 export function rastroDelError(err: unknown): string | null {
-  if (!(err instanceof ApiError)) return null;
+  if (!(err instanceof ApiError || err instanceof RegistrationError)) return null;
   const partes = [err.code, err.requestId].filter((p) => p && p !== 'ERROR');
   return partes.length > 0 ? partes.join(' · ') : null;
 }

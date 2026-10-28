@@ -4218,6 +4218,139 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "OnboardingRegistrationController_business": {
+    "metodo": "GET",
+    "ruta": "/v1/onboarding/negocio",
+    "resumen": "Descripción y prueba del negocio para retomar la puesta en marcha",
+    "permiso": "tenant.settings",
+    "modulo": "organizations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "OnboardingRegistrationController_costs": {
+    "metodo": "GET",
+    "ruta": "/v1/onboarding/costos",
+    "resumen": "Consumo registrado de Meta e IA sin crear cobros ni suscripción",
+    "permiso": "tenant.billing",
+    "modulo": "billing",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "OnboardingRegistrationController_register": {
+    "metodo": "POST",
+    "ruta": "/v1/onboarding/registro",
+    "resumen": "Crea una sola vez el negocio inicial de la sesión",
+    "permiso": null,
+    "modulo": "organizations",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 4000
+        },
+        "vertical": {
+          "type": "string",
+          "enum": [
+            "belleza",
+            "salud",
+            "inmobiliaria",
+            "retail",
+            "servicios",
+            "otro"
+          ]
+        }
+      },
+      "required": [
+        "displayName",
+        "name",
+        "description",
+        "vertical"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "PartnerInvitationsController_resume": {
+    "metodo": "POST",
+    "ruta": "/v1/onboarding/whatsapp/retomar",
+    "resumen": "Revisar una invitación conocida o recuperar explícitamente una conexión pendiente",
+    "permiso": "whatsapp.numbers.manage",
+    "modulo": "whatsapp",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "PartnerInvitationsController_start": {
+    "metodo": "POST",
+    "ruta": "/v1/onboarding/whatsapp",
+    "resumen": "Crear una invitación de WhatsApp y guardar su correlación antes de mostrarla",
+    "permiso": "whatsapp.numbers.manage",
+    "modulo": "whatsapp",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "PartnerInvitationsController_status": {
+    "metodo": "GET",
+    "ruta": "/v1/onboarding/whatsapp",
+    "resumen": "Estado y enlace privado de la invitación de WhatsApp de mi negocio",
+    "permiso": "whatsapp.numbers.manage",
+    "modulo": "whatsapp",
+    "soloSesion": true,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "PartnerWebhookController_receive": {
+    "metodo": "POST",
+    "ruta": "/webhooks/zavu/invitations",
+    "resumen": "Verificar callback del proyecto Zavu y encolar su invitación correlacionada",
+    "permiso": null,
+    "modulo": "whatsapp",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "PaymentsController_addProvider": {
     "metodo": "POST",
     "ruta": "/v1/payments/providers",

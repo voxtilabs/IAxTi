@@ -232,6 +232,15 @@ jobs:
           pnpm --filter @iaxti/web exec playwright install --with-deps chromium
           node apps/web/e2e/run-e2e.mjs
 
+      # #56 usa otro JWKS, proveedor HTTP sintético, worker y rol RLS.
+      # No se recoge con la fixture de Bandeja; este paso es obligatorio.
+      - name: E2E invitación partner (API, worker y custodia sintética)
+        env:
+          DATABASE_URL: postgres://iaxti:iaxti@127.0.0.1:5432/iaxti_test_partner_e2e
+          APP_DATABASE_URL: postgres://iaxti_app:iaxti_app@127.0.0.1:5432/iaxti_test_partner_e2e
+          REDIS_URL: redis://127.0.0.1:6379/10
+        run: pnpm --filter @iaxti/web e2e:partner
+
       # La traza del fallo, que hasta ahora moría con el runner (#682).
       #
       # El log del paso de arriba nombra el archivo —`trace.zip`— y hasta imprime

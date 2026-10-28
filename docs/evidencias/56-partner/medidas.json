@@ -1,0 +1,93 @@
+[
+  {
+    "text": "Conectar WhatsApp",
+    "mode": "dia",
+    "viewport": 360,
+    "tag": "BUTTON",
+    "control": {
+      "width": 203,
+      "height": 46
+    },
+    "textHeight": 20,
+    "outline": "solid",
+    "fits": true
+  },
+  {
+    "text": "Continuar con Facebook",
+    "mode": "dia",
+    "viewport": 360,
+    "tag": "A",
+    "control": {
+      "width": 169,
+      "height": 24.75
+    },
+    "textHeight": 19,
+    "outline": "solid",
+    "fits": true
+  },
+  {
+    "text": "Conectar WhatsApp",
+    "mode": "noche",
+    "viewport": 360,
+    "tag": "BUTTON",
+    "control": {
+      "width": 203,
+      "height": 46
+    },
+    "textHeight": 20,
+    "outline": "solid",
+    "fits": true
+  },
+  {
+    "text": "Continuar con Facebook",
+    "mode": "noche",
+    "viewport": 360,
+    "tag": "A",
+    "control": {
+      "width": 169,
+      "height": 24.75
+    },
+    "textHeight": 19,
+    "outline": "solid",
+    "fits": true
+  },
+  {
+    "text": "Conectar WhatsApp",
+    "mode": "dia",
+    "viewport": 360,
+    "tag": "BUTTON",
+    "control": {
+      "width": 203,
+      "height": 46
+    },
+    "textHeight": 20,
+    "outline": "solid",
+    "fits": true
+  },
+  {
+    "text": "Continuar con Facebook",
+    "mode": "dia",
+    "viewport": 360,
+    "tag": "A",
+    "control": {
+      "width": 169,
+      "height": 24.75
+    },
+    "textHeight": 19,
+    "outline": "solid",
+    "fits": true
+  },
+  {
+    "text": "Reintentar conexión segura",
+    "mode": "dia",
+    "viewport": 360,
+    "tag": "BUTTON",
+    "control": {
+      "width": 248,
+      "height": 69.1875
+    },
+    "textHeight": 45.59375,
+    "outline": "solid",
+    "fits": true
+  }
+]

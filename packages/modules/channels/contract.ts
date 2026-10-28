@@ -46,3 +46,5 @@ export {
   revisarAdjunto,
 } from './domain/adjuntos';
 export type { ClaseDeAdjunto, LimiteDeAdjunto, RevisionDeAdjunto } from './domain/adjuntos';
+
+export { copyChannelWebhookSecret, setChannelWebhookSecret, isChannelSecretRef, webhookSecretResourcePrefix } from './application/webhook-secret';

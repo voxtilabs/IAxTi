@@ -4,6 +4,8 @@ import { defineConfig, devices } from '@playwright/test';
 // el e2e corre SOLO en viewport móvil. Orquestación: e2e/run-e2e.mjs.
 export default defineConfig({
   testDir: './e2e',
+  // Fixture propia: CI la ejecuta después mediante e2e:partner.
+  testIgnore: '**/partner-invitations.spec.ts',
   timeout: 60_000,
   /**
    * El plazo de cada `expect`, y por qué no son los 5 s de fábrica (#654).
@@ -42,7 +44,7 @@ export default defineConfig({
   workers: 2,
   reporter: process.env.CI ? 'line' : 'list',
   use: {
-    baseURL: `http://127.0.0.1:${process.env.E2E_WEB_PORT || 4011}`,
+    baseURL: `http://127.0.0.1:${process.env.E2E_WEB_PORT?.trim() || 4011}`,
     trace: 'retain-on-failure',
   },
   projects: [

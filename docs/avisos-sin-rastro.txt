@@ -25,8 +25,8 @@
 # corre allá la saltea cualquier PR que no repita el preflight después de
 # rebasar, que es exactamente cuando el total cambia.
 
-apps/web/components/agenda.tsx:114
-apps/web/components/agenda.tsx:133
+apps/web/components/agenda.tsx:118
+apps/web/components/agenda.tsx:137
 apps/web/components/agente-general.tsx:312
 apps/web/components/agente-general.tsx:347
 apps/web/components/ajustes-de-ia.tsx:93
@@ -54,8 +54,6 @@ apps/web/components/canales.tsx:525
 apps/web/components/canales.tsx:669
 apps/web/components/canales.tsx:729
 apps/web/components/cancelar-suscripcion.tsx:73
-apps/web/components/configurador.tsx:98
-apps/web/components/configurador.tsx:121
 apps/web/components/conocimiento.tsx:137
 apps/web/components/conocimiento.tsx:168
 apps/web/components/conocimiento.tsx:206
@@ -120,7 +118,7 @@ apps/web/components/preferencias-avisos.tsx:180
 apps/web/components/preferencias-avisos.tsx:270
 apps/web/components/preferencias-avisos.tsx:292
 apps/web/components/pregunta-a-los-numeros.tsx:105
-apps/web/components/puesta-en-marcha.tsx:87
+apps/web/components/puesta-en-marcha.tsx:90
 apps/web/components/roles.tsx:84
 apps/web/components/roles.tsx:106
 apps/web/components/roles.tsx:121

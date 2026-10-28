@@ -42,6 +42,7 @@ const SIN_CONSUMIDOR: Record<string, string> = {
 
   // Las llama alguien de afuera.
   'POST /webhooks/channels/:accountId': 'La llama el proveedor de canales cuando entra un mensaje (#41).',
+  'POST /webhooks/zavu/invitations': 'La llama Zavu para invitation.status_changed (#56); firma HMAC del proyecto y correlación durable. No es una operación humana ni herramienta IA.',
   'POST /webhooks/google/calendar': 'La llama Google Calendar en los canales events.watch registrados (#57); valida token/recurso y encola la notificación. No es una ruta de pantalla ni herramienta IA.',
   'POST /webhooks/payments/:providerId': 'La llama el proveedor de pagos al confirmar (#61).',
   'POST /mcp': 'La llama una IA de afuera con la API key del negocio (#419).',

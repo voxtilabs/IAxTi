@@ -68,7 +68,7 @@ WHERE rolname = current_user;` — las dos banderas en `false`.
 
 ## 4. El worker de tareas programadas TIENE que estar corriendo
 
-De él dependen cosas que el negocio da por hechas. **Son diecinueve**, y la
+De él dependen cosas que el negocio da por hechas. **Son veinte**, y la
 lista vive en `apps/workers/src/repetibles.ts` (`REPETIBLES`) — si acá dice otro
 número, el que manda es el código:
 
@@ -88,6 +88,7 @@ número, el que manda es el código:
 | `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
 | `knowledge.borrados_pendientes` | :50 | una fuente que perdió su archivo se sigue citando: el PDF no se puede bajar |
+| `identity.partner.maintain` | Cada 1 min | Invitaciones sin procesar o enlaces vencidos; recupera el inbox y limpia intenciones huérfanas de Secret Manager. No repite creates/rotaciones ambiguos. Limpieza incluso con WhatsApp apagado; preparación en [evidencia #56](../evidencias/56-partner/README.md). |
 | `identity.google.cleanup` | Cada 15 min | Quedan versiones revocadas pendientes de destrucción en Secret Manager; el acceso local sigue bloqueado. Corre aunque Calendar esté apagado. |
 | `calendar.google.maintain` | Cada 15 min | Vencen las suscripciones push de Google; la agenda consulta disponibilidad viva y muestra las notificaciones pendientes. |
 | `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |

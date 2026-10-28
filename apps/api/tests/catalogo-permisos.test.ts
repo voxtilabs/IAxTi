@@ -120,9 +120,13 @@ const PENDIENTES: Record<string, string> = {
   // Nota: las TOOLS de los agentes (`crm.find_contact`, `conversations.send_reply`…)
   // se declaran en el bloque `tools:` del manifiesto y no son permisos —
   // el registry las filtra por módulo activo. No van acá.
-  'tenant.billing': 'Ver y cambiar el plan desde la app; hoy lo hace el SuperAdmin (#69).',
-  'whatsapp.numbers.manage':
-    'Administrar números desde la app; hoy la conexión es por script (#42) y el resto usa channels.manage.',
+  //
+  // Salieron tres de acá y vale decir por qué, porque la lista sirve
+  // justamente para no confundir «falta hacerlo» con «se nos olvidó»:
+  // `calendar.connect` lo exige `google-calendar.controller.ts` desde #57,
+  // y `tenant.billing` y `whatsapp.numbers.manage` los exigen
+  // `onboarding-registration.controller.ts` y
+  // `partner-invitations.controller.ts` desde #56. Ya no son pendientes.
   // `crm.contacts.update` y `crm.deals.close` estaban acá y YA SE EXIGEN:
   // el primero en contacts.controller.ts:330 y empresas.controller.ts:177, el
   // segundo en deals.controller.ts:234 (`puedeCerrar`). Los sacó la prueba
