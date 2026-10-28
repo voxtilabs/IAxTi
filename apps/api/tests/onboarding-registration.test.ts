@@ -8,6 +8,7 @@ import { assignRole } from '@iaxti/module-authorization';
 import { createTenant, initialBusinessOf } from '@iaxti/module-organizations';
 import { createApp } from '../src/main';
 import { usarPool } from '../src/db';
+import { escrituraCaida } from '@iaxti/core/testing';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 import { registrationRoutes } from '../../../packages/sdk/src/registration-routes.generated';
 
@@ -120,9 +121,15 @@ it('RLS real: solo referencia propia antes del tenant, cero filas sin contexto y
 });
 
 it('fallo real de auditoría revierte tenant, perfil, membresía, outbox y referencia', async () => {
-  const user = randomUUID(); const input = body(); const identifier = `fail_${user.replaceAll('-', '')}`;
-  await owner.query(`CREATE FUNCTION ${identifier}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test registration audit failure'; END $$`);
-  await owner.query(`CREATE TRIGGER ${identifier} BEFORE INSERT ON audit_log FOR EACH ROW WHEN (NEW.action = 'onboarding.register' AND NEW.actor = '${user}') EXECUTE FUNCTION ${identifier}()`);
+  const user = randomUUID(); const input = body();
+  // La escritura falla por desvío de nombre en ESTA conexión, no por un
+  // trigger en el esquema compartido (#910): un trigger que el `finally` no
+  // alcanza a borrar queda en la base para siempre y lo ven los demás
+  // archivos que corren en paralelo.
+  //
+  // La API corre en este proceso y toma su pool por `usarPool`, así que hay
+  // dónde inyectarlo aunque la petición viaje por HTTP.
+  usarPool(escrituraCaida(safe, { tabla: 'audit_log', cuandoLosValoresIncluyan: 'onboarding.register' }));
   try {
     expect((await register(user, input)).status).toBe(500);
     expect((await owner.query('SELECT * FROM tenants WHERE name=$1', [input.name])).rowCount).toBe(0);
@@ -132,7 +139,7 @@ it('fallo real de auditoría revierte tenant, perfil, membresía, outbox y refer
     expect((await owner.query('SELECT * FROM audit_log WHERE actor=$1', [user])).rowCount).toBe(0);
     expect((await owner.query('SELECT * FROM outbox WHERE actor=$1', [user])).rowCount).toBe(0);
   } finally {
-    await owner.query(`DROP TRIGGER ${identifier} ON audit_log`); await owner.query(`DROP FUNCTION ${identifier}()`);
+    usarPool(safe);
   }
   expect((await register(user, input)).status).toBe(200);
 });

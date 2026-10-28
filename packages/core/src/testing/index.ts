@@ -7,3 +7,4 @@
 // funcionando igual.
 export { fuenteLimpia } from './fuente-limpia';
 export { outboxAcotado } from './outbox-acotado';
+export { escrituraCaida, SUFIJO_INEXISTENTE } from './escritura-caida';

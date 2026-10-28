@@ -3,6 +3,7 @@ import {createServer,type Server} from 'node:http';
 import {createHmac,randomUUID} from 'node:crypto';
 import type {Pool} from 'pg';
 import {createPool,runMigrations,withTenant,estadoRls} from '@iaxti/db';
+import {escrituraCaida} from '@iaxti/core/testing';
 import {createTenant,changeTenantState} from '@iaxti/module-organizations';
 import {setChannelState,getChannelAccount,createChannelAccount,copyChannelWebhookSecret,reservarEmisor,cuentaDelEmisor} from '@iaxti/module-channels';
 import {createGoogleSecretStore} from '@iaxti/google';
@@ -65,7 +66,7 @@ async function row(t:string){return (await owner.query('SELECT * FROM whatsapp_p
 async function complete(t:string){const r=await row(t);const inv=remote.get(r.invitation_id)!;const senderId=`snd_${randomUUID().replaceAll('-','')}`;Object.assign(inv,{status:'completed',senderId,connectedAccount:{channel:'whatsapp',id:`meta_${r.invitation_id}`,name:'Negocio ficticio'}});senders.set(senderId,{id:senderId,name:'Negocio ficticio',channels:['whatsapp'],phoneNumber:'+56911111111',whatsapp:{phoneNumberId:`meta_${r.invitation_id}`}});return r;}
 function event(invitationId:string,extra:Record<string,unknown>={}){return JSON.stringify({id:`evt_${randomUUID().replaceAll('-','')}`,type:'invitation.status_changed',projectId,data:{invitationId,currentStatus:'completed'},...extra});}
 function signature(raw:string){const t=Math.floor(Date.now()/1000);return `t=${t},v2=${createHmac('sha256',ports.config.projectWebhookSecret).update(`${t}.${raw}`).digest('hex')}`;}
-async function deliver(t:string){const r=await row(t);const raw=event(r.invitation_id);const job=await receivePartnerWebhook(safe,raw,signature(raw),ports);await processPartnerInvitation(safe,t,job.invitationId,ports);return job;}
+async function deliver(t:string,procesaCon:Pool=safe){const r=await row(t);const raw=event(r.invitation_id);const job=await receivePartnerWebhook(safe,raw,signature(raw),ports);await processPartnerInvitation(procesaCon,t,job.invitationId,ports);return job;}
 
 it('puerto HTTP real crea una vez bajo 6 solicitudes; solo correlación y refs quedan en SQL',async()=>{
  const tenant=await withTenant(owner,randomUUID(),c=>createTenant(c,{name:'Concurrente ficticio'}));const before=calls.filter(x=>x.path==='/v1/invitations').length;
@@ -141,10 +142,12 @@ it('suspensión/módulo off y desconexión no se revierten por callback tardío'
  expect((await owner.query('SELECT state FROM channel_accounts WHERE id=$1',[r.account_id])).rows[0].state).toBe('disconnected');expect((await partnerStatus(safe,y.tenant,ports)).phase).toBe('disconnected');
 });
 it('fallo audit tras activar remoto revierte active/refs/outbox; retry exige recuperación, cleanup no toca refs activas',async()=>{
- const x=await begin();await complete(x.tenant);const fn=`audit_${randomUUID().replaceAll('-','')}`;
- await owner.query(`CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic'; END $$`);
- await owner.query(`CREATE TRIGGER ${fn} BEFORE INSERT ON audit_log FOR EACH ROW WHEN(NEW.tenant_id='${x.tenant}' AND NEW.action='whatsapp.invitation.connected') EXECUTE FUNCTION ${fn}()`);
- try{await deliver(x.tenant);}finally{await owner.query(`DROP TRIGGER ${fn} ON audit_log`);await owner.query(`DROP FUNCTION ${fn}()`);}
+ const x=await begin();await complete(x.tenant);
+ await deliver(x.tenant,escrituraCaida(safe,{tabla:'audit_log',cuandoLosValoresIncluyan:'whatsapp.invitation.connected'}));
+ // Y la auditoría de esa acción NO quedó escrita, que es el invariante: si el
+ // desvío dejara de calzar, esto se pone rojo en vez de pasar por la razón
+ // equivocada.
+ expect((await owner.query("SELECT 1 FROM audit_log WHERE tenant_id=$1 AND action='whatsapp.invitation.connected'",[x.tenant])).rowCount).toBe(0);
  const r=await row(x.tenant);expect(r.phase).toBe('recovery_required');expect((await owner.query('SELECT state,webhook_secret_ref FROM channel_accounts WHERE id=$1',[r.account_id])).rows[0]).toEqual({state:'connecting',webhook_secret_ref:'ZAVU_PARTNER_PENDING'});
  expect((await owner.query("SELECT * FROM outbox WHERE tenant_id=$1 AND name='channel.connected'",[x.tenant])).rows).toHaveLength(0);
 });
