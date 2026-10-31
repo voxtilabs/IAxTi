@@ -1,6 +1,7 @@
 'use client';
 
 import { AvisoResultado } from '@iaxti/ui/react';
+import { Seccion } from '@iaxti/ui/react';
 
 import { Bot } from 'lucide-react';
 
@@ -59,7 +60,7 @@ export function ModoAutonomo() {
   };
 
   return (
-    <div className="mt-4 max-w-xl pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+    <Seccion className="mt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <span className="rotulo">Modo autónomo</span>
         <SelectorDeAsistente asistentes={asistentes} elegidoId={agente.id} onElegir={elegir} />
@@ -170,6 +171,6 @@ export function ModoAutonomo() {
           {aviso}
         </AvisoResultado>
       )}
-    </div>
+    </Seccion>
   );
 }

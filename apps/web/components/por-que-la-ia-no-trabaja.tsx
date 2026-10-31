@@ -9,6 +9,7 @@ import {
   useSession,
   type BadgeRole,
 } from '@iaxti/ui/react';
+import { Seccion } from '@iaxti/ui/react';
 import { ApiError, apiFetch } from '../lib/api';
 import { useSelectedTenant } from './tenant-switcher';
 
@@ -162,10 +163,7 @@ export function PorQueLaIaNoTrabaja() {
   const conAtencion = datos.pasos.some((p) => p.estado === 'atencion');
 
   return (
-    <section
-      aria-label="Por qué la IA no está trabajando"
-      className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6"
-    >
+    <Seccion aria-label="Por qué la IA no está trabajando">
       <div className="flex flex-wrap items-center gap-3">
         <span className="rotulo">Estado de la IA</span>
         <Badge
@@ -258,6 +256,6 @@ export function PorQueLaIaNoTrabaja() {
       )}
 
       {error && <AvisoResultado tono="error">{error}</AvisoResultado>}
-    </section>
+    </Seccion>
   );
 }

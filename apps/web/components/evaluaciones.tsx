@@ -110,7 +110,7 @@ function EvaluacionesDelAsistente({ tenant, asistentes, agente, elegir }: {
   const corridas = carga.estado === 'ok' ? carga.dato : null;
 
   // Dos corridas: 427 px medidos a 360, frente a 410 a 412 (#588).
-  const marco = 'pulso-panel rounded-tarjeta border border-line bg-raised p-5 max-[399px]:min-h-[427px]';
+  const marco = 'max-w-seccion pulso-panel rounded-tarjeta border border-line bg-raised p-5 max-[399px]:min-h-[427px]';
   const titulo = 'Evaluaciones del asistente';
 
   // Dos llamadas en cascada —los asistentes y después SUS corridas—, así que

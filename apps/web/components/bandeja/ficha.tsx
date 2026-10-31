@@ -13,6 +13,7 @@ import {
   Textarea,
   nombreVisible,
 } from '@iaxti/ui/react';
+import { PanelALaEspera } from './panel-a-la-espera';
 import type {
   AnalisisDto,
   ConversacionDetalle,
@@ -67,7 +68,11 @@ export function Ficha({
   const [nota, setNota] = useState('');
   const [guardando, setGuardando] = useState(false);
   if (!detalle) {
-    return <p className="p-6 text-sm text-muted">La ficha del contacto aparece al elegir una conversación.</p>;
+    return (
+      <PanelALaEspera rotulo="Ficha del contacto">
+        Al abrir una conversación, acá aparece quién es, su historia y lo que el asistente hizo por ella.
+      </PanelALaEspera>
+    );
   }
   // El consentimiento, con sus tres partes (#696).
   //

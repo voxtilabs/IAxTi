@@ -10,6 +10,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Seccion,
   Skeleton,
   Switch,
   useSession,
@@ -100,10 +101,7 @@ export function AjustesDeIa() {
   if (ajustes === undefined) return <Skeleton className="mt-6 h-40" />;
 
   return (
-    <section
-      aria-label="Ajustes de IA del negocio"
-      className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6"
-    >
+    <Seccion aria-label="Ajustes de IA del negocio">
       <span className="rotulo">Proveedor y datos</span>
       <p className="mt-2 max-w-prose text-sm text-body">
         Tu asistente usa los proveedores disponibles de IAxTi, con las cuentas de IAxTi.
@@ -152,7 +150,7 @@ export function AjustesDeIa() {
 
       <ConQuienTeAtiende atendiendo={ajustes.atendiendo} />
       {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
-    </section>
+    </Seccion>
   );
 }
 
