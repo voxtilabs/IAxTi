@@ -53,9 +53,11 @@ h3 { font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 13px;
 }
+/* 12 px y no 11 (#1106): es el piso de lo que se puede leer en un celular,
+   y el rótulo se usa en antetítulos que SÍ hay que leer. */
 .rotulo {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);

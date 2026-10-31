@@ -11,7 +11,6 @@ import {
   CanalChip,
   IconoVolver,
   Textarea,
-  nombreCanal,
   nombreVisible,
 } from '@iaxti/ui/react';
 import type {
@@ -91,7 +90,7 @@ export function Ficha({
         <IconoVolver className="h-4 w-4" /> Volver al chat
       </Button>
       <div className="flex items-center gap-3">
-        <Avatar nombre={detalle.contactName} fallback={detalle.contactPhone ?? nombreCanal(detalle.channel)} />
+        <Avatar nombre={detalle.contactName} />
         <div className="min-w-0">
           <p className="truncate font-display font-bold text-ink">
             {detalle.contactName ?? nombreVisible({ phone: detalle.contactPhone, channel: detalle.channel })}

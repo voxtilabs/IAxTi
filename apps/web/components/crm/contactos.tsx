@@ -133,30 +133,38 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
     <div className="max-w-5xl" data-densidad="densa">
       <div className="flex flex-wrap items-center gap-4">
         <EncabezadoDePagina titulo="Contactos" />
-        {/* Excel primero: es lo que la gente quiere cuando dice "exportar".
-            El CSV queda al lado, en secundario, para quien lo va a importar a
-            otro sistema. */}
-        <Button
-          variant="secundario"
-          className="ml-auto"
-          disabled={exportando || items?.length === 0}
-          onClick={() => void exportarXlsx()}
-        >
-          {exportando ? 'Armando el archivo…' : 'Exportar Excel'}
-        </Button>
-        <Button
-          variant="fantasma"
-          disabled={exportando || items?.length === 0}
-          onClick={() => void exportar()}
-        >
-          CSV
-        </Button>
-        <a
-          href="/contactos/importar"
-          className="inline-flex min-h-control items-center rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest"
-        >
-          Importar CSV
-        </a>
+        {/* Una sola acción con peso, y es la que mete datos (#1106).
+            Había tres hermanas con tres pesos distintos —«Exportar Excel»
+            con borde, «CSV» pelado, «Importar CSV» con otro borde— y ningún
+            primario: medido, cero en toda la vista. Tres tratamientos para
+            tres cosas del mismo rango se leen como inacabado.
+            Importar es el primario porque es lo que hace que esta pantalla
+            deje de estar vacía, y es lo que el propio estado vacío de abajo
+            ya ofrece como acción. Exportar queda detrás, en secundario:
+            Excel primero, que es lo que la gente quiere cuando dice
+            «exportar», y el CSV al lado para quien lo lleva a otro sistema. */}
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="secundario"
+            disabled={exportando || items?.length === 0}
+            onClick={() => void exportarXlsx()}
+          >
+            {exportando ? 'Armando el archivo…' : 'Exportar Excel'}
+          </Button>
+          <Button
+            variant="fantasma"
+            disabled={exportando || items?.length === 0}
+            onClick={() => void exportar()}
+          >
+            CSV
+          </Button>
+          <a
+            href="/contactos/importar"
+            className="inline-flex min-h-control items-center rounded-boton bg-action px-5 text-sm font-medium text-white transition-colors hover:bg-action-hover"
+          >
+            Importar CSV
+          </a>
+        </div>
       </div>
       <Input
         type="search"

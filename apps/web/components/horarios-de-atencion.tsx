@@ -110,7 +110,12 @@ export function HorariosDeAtencion() {
   // quedaba a 600 px del contenido—, y 600 px de salto no es un detalle: es la
   // mitad de la pantalla de un celular moviéndose de golpe.
   if (carga.estado === 'cargando') {
-    return <PanelCargando etiqueta={titulo} className={marco} alto={798} filas={5} superficie="rest" />;
+    // 840 y no 798 (#1106): los botones chicos pasaron de 36 a 44 px de alto
+    // para llegar al mínimo táctil, y este panel tiene varios. El esqueleto
+    // existe para que la página NO salte cuando llega el contenido, así que
+    // su alto es una medición, no una preferencia — `esqueletos-medidos`
+    // compara los dos y falla si se separan más de 16 px.
+    return <PanelCargando etiqueta={titulo} className={marco} alto={840} filas={5} superficie="rest" />;
   }
   if (carga.estado !== 'ok') {
     // El 403 lleva frase acá, y es el único de los cinco paneles que la lleva:

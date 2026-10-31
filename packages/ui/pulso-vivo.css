@@ -17,9 +17,19 @@ body { background: var(--canvas); font-size: 15px; }
   background: radial-gradient(ellipse at 95% 0%, var(--ambient-cool), transparent 42%),
     radial-gradient(ellipse at 35% 100%, var(--ambient-warm), transparent 48%);
 }
+/* Dos tamaños medidos, no un barrido (#1106).
+   Sube lo que se LEE y estaba indefendible: el pie de la marca, que estaba en
+   9 px, y las migas del topbar, en 10. Y el h1 de la bandeja de 27 a 28, que
+   era un píxel bajo el mínimo del propio token `titulo`.
+   Los rótulos de grupo de la barra, los antetítulos y los ejes de los
+   gráficos SE QUEDAN donde estaban: son versales con mucho espaciado, un
+   patrón legible a ese tamaño, y subirlos cortaba «Configuración (3)» contra
+   el filete. El piso de 12 px no es una regla de este repo — era el umbral
+   con que reportaba una herramienta, y aplicarlo a ciegas sobre pantallas que
+   nadie miró cambia nueve cosas para arreglar dos. */
 .pulso-topbar { height: 73px; background: var(--chrome); border-color: var(--border); }
 .pulso-context { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.pulso-context span { color: var(--text-muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.pulso-context span { color: var(--text-muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
 .pulso-context strong { color: var(--text); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Barra existente de shadcn: mismos estados, accesos y comportamiento móvil. */
@@ -37,7 +47,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-brand { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; }
 .pulso-brand .pulso-jelly { width: 43px; }
 .pulso-brand-name { font: 800 31px/1 'Outfit', sans-serif; letter-spacing: -.055em; }
-.pulso-brand-caption { display: block; margin-top: 4px; color: var(--text-muted); font-size: 9px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; }
+.pulso-brand-caption { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
 .marca-pie svg { height: 21px; width: auto; max-width: 100%; }
 .group[data-collapsible="icon"] [data-sidebar="header"] { padding: 16px 8px; }
 .group[data-collapsible="icon"] [data-sidebar="content"] { padding-inline: 0; }
@@ -132,7 +142,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-inbox { background: var(--canvas); }
 .pulso-inbox-list, .pulso-inbox-detail { background: var(--panel); }
 .pulso-inbox-list > .sticky { background: var(--panel); }
-.pulso-inbox-list h1 { font-size: 27px; }
+.pulso-inbox-list h1 { font-size: 28px; }
 .pulso-inbox-list [role="tab"] { padding-inline: 10px; }
 .pulso-inbox-list ul { gap: 4px; padding: 6px; }
 .pulso-conversation { border-radius: 15px; border: 1px solid transparent; padding-block: calc(var(--fila-y) - 1px); }
@@ -286,7 +296,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-chart-legend i { width: 22px; border-top: 3px solid currentColor; }
 .pulso-chart-legend .pulso-chart-dashed { border-top-style: dashed; }
 .pulso-chart-frame { display: flex; gap: 10px; }
-.pulso-chart-scale { width: 34px; flex: none; height: 220px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-muted); font-size: 11px; }
+.pulso-chart-scale { width: 34px; flex: none; height: 220px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; color: var(--text-muted); font-size: 12px; }
 .pulso-chart-plot { min-width: 0; flex: 1; }
 .pulso-chart-plot svg { width: 100%; height: 220px; overflow: visible; display: block; }
 .pulso-chart-grid { stroke: var(--border); stroke-width: 1; }
@@ -319,6 +329,6 @@ body { background: var(--canvas); font-size: 15px; }
 /* El gráfico de series lo dibuja recharts (#525); el color y el tamaño salen de
    acá y no del componente. Pulso son tokens: ningún componente sabe en qué modo
    está, y los 11 px de los ejes ya eran los de `.pulso-chart-scale`. */
-.pulso-chart .recharts-cartesian-axis-tick text { fill: var(--text-muted); font-size: 11px; }
+.pulso-chart .recharts-cartesian-axis-tick text { fill: var(--text-muted); font-size: 12px; }
 .pulso-chart .recharts-cartesian-grid line { stroke: var(--border); }
 .pulso-chart .recharts-reference-line line { stroke: var(--text-muted); }
