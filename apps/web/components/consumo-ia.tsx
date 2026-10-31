@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
+import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Seccion, Skeleton, useSession } from '@iaxti/ui/react';
@@ -88,10 +88,18 @@ export function ConsumoIA() {
   // `max-w-xl` apretaba a 576 px bloques que el sistema pone en 680.
   return (
     <div>
-      <EncabezadoDePagina
-        rotulo="IA"
-        titulo="Consumo del asistente"
-      />
+      {/* Un `h2`, no un `h1` (#1125): esto es una sección de la pantalla del
+          asistente, no la pantalla. Con `EncabezadoDePagina` era el único
+          titular grande de /ajustes/ia y la página se leía llamándose
+          «Consumo del asistente».
+          Y NO es una `Seccion`: es el rótulo de un grupo que contiene dos. La
+          primitiva traería el panel —fondo, borde, relieve— y habría que
+          apagárselo con clases, que es usar una primitiva quitándole lo que la
+          hace primitiva. Las dos `Seccion` de abajo son las que llevan marco. */}
+      <header className="mt-8">
+        <p className="rotulo">IA</p>
+        <h2 className="font-display text-seccion font-bold text-ink">Consumo del asistente</h2>
+      </header>
 
       <Seccion>
         <div className="flex items-baseline justify-between gap-4">
