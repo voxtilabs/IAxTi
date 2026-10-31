@@ -86,3 +86,15 @@ for (const modo of ['dia', 'noche'] as const) {
     await page.screenshot({ path: join(DESTINO, `bandeja-sin-seleccion-${modo}.png`) });
   });
 }
+
+for (const modo of ['dia', 'noche'] as const) {
+  test(`la bandeja con una conversación abierta, modo ${modo}`, async ({ page }) => {
+    await page.addInitScript((m) => { localStorage.setItem('pulso-mode', m); }, modo);
+    await page.goto('/bandeja');
+    await page.getByRole('region', { name: 'Conversaciones' })
+      .getByRole('button', { name: /\+?56\d|Contacto|Persona|Ana|Beto/ }).first().click();
+    await page.getByLabel('Mensaje', { exact: true }).waitFor();
+    await page.waitForLoadState('networkidle');
+    await page.screenshot({ path: join(DESTINO, `bandeja-abierta-${modo}.png`) });
+  });
+}

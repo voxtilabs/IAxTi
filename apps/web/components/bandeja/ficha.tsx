@@ -12,6 +12,7 @@ import {
   IconoVolver,
   Textarea,
   nombreVisible,
+  segundaLinea,
 } from '@iaxti/ui/react';
 import { PanelALaEspera } from './panel-a-la-espera';
 import type {
@@ -102,9 +103,13 @@ export function Ficha({
         <Avatar nombre={detalle.contactName} />
         <div className="min-w-0">
           <p className="truncate font-display font-bold text-ink">
-            {detalle.contactName ?? nombreVisible({ phone: detalle.contactPhone, channel: detalle.channel })}
+            {nombreVisible({ name: detalle.contactName, phone: detalle.contactPhone, channel: detalle.channel })}
           </p>
-          <p className="dato text-muted">{detalle.contactPhone}</p>
+          {/* Igual que la cabecera del chat (#1120), y por la misma regla, que
+              ahora vive en un solo lugar. */}
+          {segundaLinea({ name: detalle.contactName, phone: detalle.contactPhone, channel: detalle.channel }) && (
+            <p className="dato text-muted">{detalle.contactPhone}</p>
+          )}
         </div>
       </div>
 

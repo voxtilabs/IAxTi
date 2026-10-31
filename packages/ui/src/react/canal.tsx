@@ -35,6 +35,37 @@ export function nombreVisible(input: {
   return input.channel ? nombreCanal(input.channel) : 'Sin nombre';
 }
 
+/**
+ * La SEGUNDA línea de un contacto: el teléfono, pero solo si no es ya la
+ * primera (#1120).
+ *
+ * `nombreVisible` decide qué va arriba y existe desde siempre; esta no
+ * existía, así que cada pantalla improvisaba su subtítulo — y las dos que lo
+ * improvisaron lo hicieron igual de mal: dibujaban el teléfono SIEMPRE.
+ *
+ * Con nombre eso aporta: «Ana Pérez» arriba y el número abajo. Sin nombre
+ * —que es el caso normal, un WhatsApp nuevo llega sin nombre— es la misma
+ * cadena dos veces, una encima de la otra. Medido en la bandeja: con la
+ * cabecera del chat y la ficha haciéndolo a la vez, el mismo número salía
+ * cuatro veces en una pantalla.
+ *
+ * Devuelve `null` y no `''` a propósito: el que llama tiene que decidir no
+ * dibujar el elemento, no dibujarlo vacío. Un `<p>` vacío igual ocupa su
+ * altura y deja el hueco.
+ */
+export function segundaLinea(input: {
+  name?: string | null;
+  phone?: string | null;
+  channel?: string | null;
+  identity?: string | null;
+}): string | null {
+  if (!input.phone) return null;
+  // Comparar contra lo que de verdad se va a ver arriba, no contra `name`:
+  // en Instagram y Messenger el título lo arma el canal, y ahí el teléfono
+  // —si lo hubiera— sí es información nueva.
+  return input.phone === nombreVisible(input) ? null : input.phone;
+}
+
 function Glifo({ canal }: { canal: string }) {
   if (canal === 'instagram') {
     return (
