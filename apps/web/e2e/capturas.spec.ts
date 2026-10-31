@@ -121,3 +121,18 @@ for (const [nombre, ruta] of [
     await page.screenshot({ path: join(DESTINO, `pantalla-${nombre}.png`), fullPage: true });
   });
 }
+
+// A 360 px, que es el criterio de salida de la Fase 2 (SPEC §31) y donde
+// cualquier CRM se rompe primero.
+for (const [nombre, ruta] of [
+  ['bandeja', '/bandeja'], ['contactos', '/contactos'], ['asistente', '/ajustes/ia'],
+  ['agenda', '/agenda'], ['pendientes', '/pendientes'],
+] as const) {
+  test(`celular ${nombre}`, async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.addInitScript(() => { localStorage.setItem('pulso-mode', 'dia'); });
+    await page.goto(ruta);
+    await page.waitForLoadState('networkidle');
+    await page.screenshot({ path: join(DESTINO, `celular-${nombre}.png`), fullPage: true });
+  });
+}

@@ -90,3 +90,43 @@ test('la pantalla del asistente abre con su nombre, y «Consumo» es una secció
   const alto = await page.evaluate(() => document.documentElement.scrollHeight);
   expect(y, 'la frase que dice qué hace el producto quedó enterrada').toBeLessThan(alto * 0.2);
 });
+
+test('a 360 px nada de la barra superior envuelve', async ({ page }) => {
+  // #1127: «Modo noche» era el único control de la barra que no se acortaba,
+  // así que se partía en dos líneas — lo único de la bandeja que envolvía, y
+  // encima el texto más largo de la barra.
+  //
+  // Se mide la ALTURA de cada control contra la de una línea, que es lo que
+  // distingue «entra» de «entró partido». Mirar si se ve bonito no es una
+  // aserción, y `toBeVisible` pasa igual con el texto en dos renglones.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.addInitScript(({ auth }) => {
+    localStorage.setItem('iaxti-tenant', auth.tenantId);
+    localStorage.setItem('pulso-mode', 'dia');
+    localStorage.setItem('sb-127-auth-token', JSON.stringify({
+      access_token: auth.accessToken, token_type: 'bearer', expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'e2e',
+      user: { id: auth.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' },
+    }));
+  }, { auth });
+  await page.goto('/bandeja');
+
+  const tema = page.getByRole('button', { name: 'Cambiar entre modo día y modo noche' });
+  await expect(tema).toBeVisible();
+  const partidos = await page.evaluate(() => {
+    const barra = document.querySelector('header') ?? document.body;
+    return [...barra.querySelectorAll('button, a')]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0) return false;
+        const linea = parseFloat(getComputedStyle(el).lineHeight) || 20;
+        // Dos líneas de texto dentro de un control de 46 px de alto: se mide
+        // el alto del CONTENIDO, no el del botón.
+        const dentro = [...el.childNodes]
+          .map((n) => (n instanceof HTMLElement ? n.getBoundingClientRect().height : 0));
+        return dentro.some((h) => h > linea * 1.6);
+      })
+      .map((el) => (el.textContent ?? '').trim().slice(0, 30));
+  });
+  expect(partidos, 'algo de la barra superior quedó en dos líneas a 360 px').toEqual([]);
+});
