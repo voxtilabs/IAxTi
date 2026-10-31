@@ -101,7 +101,21 @@ export function HorariosDeAtencion() {
     }
   }
 
-  const marco = 'mt-8 rounded-campo border border-line bg-rest p-4';
+  /**
+   * El mismo marco que las `Seccion` de esta pantalla (#1122).
+   *
+   * Era `bg-rest` + `rounded-campo` (14) + `p-4` mientras los otros dos
+   * bloques de /agenda eran `bg-raised` + `rounded-tarjeta` (22): dos
+   * superficies y dos radios bajando por una sola columna.
+   *
+   * Se escribe a mano y no se usa `<Seccion>` porque este marco lo COMPARTEN
+   * el contenido y el esqueleto de carga, y `esqueletos-medidos` compara los
+   * dos altos. Con la primitiva habría que envolver también al esqueleto, que
+   * ya trae el suyo. Las clases son las de `Seccion`, a propósito — salvo el
+   * `mt-6`, que acá lo pone el `gap-6` del contenedor de la pantalla: con los
+   * dos, este bloque quedaba al doble de distancia que los otros dos.
+   */
+  const marco = 'pulso-panel w-full max-w-seccion rounded-tarjeta border border-line bg-raised p-6';
   const titulo = 'Horario de atención';
 
   if (carga.estado === 'nada-que-pedir') return null;
@@ -115,7 +129,7 @@ export function HorariosDeAtencion() {
     // existe para que la página NO salte cuando llega el contenido, así que
     // su alto es una medición, no una preferencia — `esqueletos-medidos`
     // compara los dos y falla si se separan más de 16 px.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={840} filas={5} superficie="rest" />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={840} filas={5} superficie="raised" />;
   }
   if (carga.estado !== 'ok') {
     // El 403 lleva frase acá, y es el único de los cinco paneles que la lleva:

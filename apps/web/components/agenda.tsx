@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, Seccion } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -216,16 +216,18 @@ export function Agenda() {
       )}
 
       {porDia.size === 0 ? (
-        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
-          <h2 className="text-lg font-bold text-ink">Todavía no hay horas agendadas</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-body">
-            Van a aparecer acá cuando alguien tome una hora — desde una conversación de la bandeja
-            {puedeAgendar ? ' o cuando tú la agendes.' : '.'}
-          </p>
-        </div>
+        /* Por `Seccion` y sin centrar (#1122). Era el único bloque de la
+           pantalla con el texto al medio, entre dos que lo alinean a la
+           izquierda: una alineación que cambia en el del medio es de las cosas
+           que se leen como inacabado sin que nadie sepa nombrarlas. */
+        <Seccion
+          className="mt-0"
+          titulo="Todavía no hay horas agendadas"
+          apoyo={`Van a aparecer acá cuando alguien tome una hora — desde una conversación de la bandeja${puedeAgendar ? ' o cuando tú la agendes.' : '.'}`}
+        />
       ) : (
         [...porDia.entries()].map(([clave, delDia]) => (
-          <div key={clave} className="flex flex-col gap-2">
+          <div key={clave} className="flex w-full max-w-seccion flex-col gap-2">
             <h2 className="text-sm font-medium capitalize text-muted">{dia(delDia[0].startsAt)}</h2>
             <ul className="flex flex-col gap-2">
               {delDia.map((c) => (

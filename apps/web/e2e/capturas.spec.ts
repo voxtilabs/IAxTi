@@ -107,3 +107,17 @@ for (const modo of ['dia', 'noche'] as const) {
     await page.screenshot({ path: join(DESTINO, `bandeja-abierta-${modo}.png`) });
   });
 }
+
+// Un barrido para MIRARLAS, no para afirmar nada: el defecto de composición
+// no lo encuentra un detector, lo encuentra abrir la pantalla.
+for (const [nombre, ruta] of [
+  ['oportunidades', '/oportunidades'], ['agenda', '/agenda'], ['pendientes', '/pendientes'],
+  ['asistente', '/ajustes/ia'], ['canales', '/ajustes/canales'], ['empresas', '/empresas'],
+] as const) {
+  test(`pantalla ${nombre}`, async ({ page }) => {
+    await page.addInitScript(() => { localStorage.setItem('pulso-mode', 'dia'); });
+    await page.goto(ruta);
+    await page.waitForLoadState('networkidle');
+    await page.screenshot({ path: join(DESTINO, `pantalla-${nombre}.png`), fullPage: true });
+  });
+}
