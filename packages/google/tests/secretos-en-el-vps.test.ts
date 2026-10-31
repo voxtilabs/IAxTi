@@ -82,6 +82,24 @@ it('un archivo adulterado no devuelve nada, y una llave distinta tampoco', async
   await expect(almacen().access(ref)).rejects.toMatchObject({ code: 'GOOGLE_RESPONSE_INVALID' });
 });
 
+it('un archivo recortado no pasa: la etiqueta de GCM tiene largo fijo', async () => {
+  // Lo que advertía Semgrep (gcm-no-tag-length): sin fijar el largo, el
+  // descifrador acepta una etiqueta más corta que la escrita, y una etiqueta
+  // corta se puede falsificar probando hasta acertar un prefijo.
+  const secreto = id();
+  const ref = await almacen().put(secreto, TOKEN);
+  const archivo = join(dir, secreto, (await readdir(join(dir, secreto)))[0]);
+  const crudo = await readFile(archivo);
+
+  for (const corte of [crudo.length - 1, 28, 20, 13]) {
+    await writeFile(archivo, crudo.subarray(0, corte));
+    await expect(almacen().access(ref)).rejects.toMatchObject({ code: 'GOOGLE_RESPONSE_INVALID' });
+  }
+  // Y entero vuelve a leerse: el recorte era el problema, no la prueba.
+  await writeFile(archivo, crudo);
+  expect(await almacen().access(ref)).toBe(TOKEN);
+});
+
 it('rechaza lo que el otro almacén rechaza: id, referencia y payload', async () => {
   const a = almacen();
   for (const malo of ['con espacio', 'con/barra', '', 'x'.repeat(256)]) {

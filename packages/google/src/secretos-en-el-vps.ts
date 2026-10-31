@@ -50,6 +50,18 @@ export interface LocalSecretStoreConfig {
 
 const ID = /^[A-Za-z0-9_-]{1,255}$/;
 const TOPE_BYTES = 65536;
+/**
+ * El largo de la etiqueta de GCM, FIJADO.
+ *
+ * Sin fijarlo, `createDecipheriv` acepta una etiqueta más corta que la que
+ * escribimos, y una etiqueta corta se puede falsificar: el atacante prueba
+ * hasta acertar un prefijo. Semgrep lo caza
+ * (`javascript.node-crypto.security.gcm-no-tag-length`) y tiene razón —
+ * acá siempre escribimos 16 bytes, así que exigirlos no cuesta nada y
+ * convierte un invariante del código en uno del descifrador.
+ */
+const ETIQUETA = 16;
+const NONCE = 12;
 const SUFIJO = '.sec';
 const LAPIDA = '.destruida';
 
@@ -90,18 +102,19 @@ export function createLocalSecretStore(
   const cifrar = (texto: string) => {
     const bytes = Buffer.from(texto, 'utf8');
     if (bytes.length === 0 || bytes.length > TOPE_BYTES) return invalidInput();
-    const iv = randomBytes(12);
-    const cifrador = createCipheriv('aes-256-gcm', llave, iv);
+    const iv = randomBytes(NONCE);
+    const cifrador = createCipheriv('aes-256-gcm', llave, iv, { authTagLength: ETIQUETA });
     const cuerpo = Buffer.concat([cifrador.update(bytes), cifrador.final()]);
     return Buffer.concat([iv, cifrador.getAuthTag(), cuerpo]);
   };
 
   const descifrar = (guardado: Buffer) => {
-    if (guardado.length < 12 + 16 + 1) throw new GoogleIntegrationError('GOOGLE_RESPONSE_INVALID');
-    const descifrador = createDecipheriv('aes-256-gcm', llave, guardado.subarray(0, 12));
-    descifrador.setAuthTag(guardado.subarray(12, 28));
+    if (guardado.length < NONCE + ETIQUETA + 1) throw new GoogleIntegrationError('GOOGLE_RESPONSE_INVALID');
+    const descifrador = createDecipheriv('aes-256-gcm', llave, guardado.subarray(0, NONCE),
+      { authTagLength: ETIQUETA });
+    descifrador.setAuthTag(guardado.subarray(NONCE, NONCE + ETIQUETA));
     try {
-      const bytes = Buffer.concat([descifrador.update(guardado.subarray(28)), descifrador.final()]);
+      const bytes = Buffer.concat([descifrador.update(guardado.subarray(NONCE + ETIQUETA)), descifrador.final()]);
       const texto = bytes.toString('utf8');
       // Igual que el otro almacén: UTF-8 roto no se convierte en silencio en
       // otra credencial.
