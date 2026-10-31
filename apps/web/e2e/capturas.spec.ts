@@ -86,3 +86,12 @@ for (const modo of ['dia', 'noche'] as const) {
     await page.screenshot({ path: join(DESTINO, `bandeja-sin-seleccion-${modo}.png`) });
   });
 }
+
+for (const modo of ['dia', 'noche'] as const) {
+  test(`la lista de contactos, modo ${modo} (#1118)`, async ({ page }) => {
+    await page.addInitScript((m) => { localStorage.setItem('pulso-mode', m); }, modo);
+    await page.goto('/contactos');
+    await page.waitForLoadState('networkidle');
+    await page.screenshot({ path: join(DESTINO, `lista-contactos-${modo}.png`) });
+  });
+}
