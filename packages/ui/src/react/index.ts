@@ -64,7 +64,7 @@ export {
   IconoBandeja,
   IconoAlerta,
 } from './ui/icons';
-export { CanalChip, CanalIcono, nombreCanal, nombreVisible, NOMBRE_CANAL } from './canal';
+export { CanalChip, CanalIcono, nombreCanal, nombreVisible, segundaLinea, NOMBRE_CANAL } from './canal';
 export type { CanalId } from './canal';
 export { AuditExplorer } from './audit-explorer';
 export type { AuditFetcher, AuditRow, ChainCheckDto, SignedExportDto } from './audit-explorer';
