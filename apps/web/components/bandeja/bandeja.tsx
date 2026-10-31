@@ -75,6 +75,25 @@ interface RespuestaDeSugerencia {
  * por su cuenta el día que alguien cambie el defecto.
  */
 const PAGINA_MENSAJES = 50;
+/**
+ * Cada cuánto se trae la lista cuando NO hay canal de tiempo real (#1116).
+ *
+ * 20 s y no 5: el respaldo tiene que mantener la bandeja utilizable, no imitar
+ * al realtime. Cinco segundos por cada pestaña abierta de cada persona del
+ * equipo es carga constante contra la API por una caída que puede durar horas,
+ * y veinte segundos de atraso en el peor caso no le cuestan un cliente a nadie
+ * —lo que se los cuesta es una bandeja que no se mueve NUNCA.
+ */
+const RESPALDO_MS = 20_000;
+/**
+ * Cuánto se espera antes de DECIR que no hay tiempo real (#1116).
+ *
+ * `enVivo` arranca en false porque al cargar todavía no conectó, y conectar
+ * toma un instante. Sin esta gracia el aviso parpadearía en cada carga de la
+ * bandeja, y un aviso que aparece y se va solo enseña a ignorarlo — que es
+ * justo lo contrario de lo que este aviso tiene que conseguir.
+ */
+const GRACIA_MS = 6_000;
 
 /**
  * Lo que contesta `GET /conversations/:id/arranque` (#761).
@@ -135,6 +154,10 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [trayendoAnteriores, setTrayendoAnteriores] = useState(false);
   const [pane, setPane] = useState<Pane>('lista');
   const [aviso, setAviso] = useState<Aviso | null>(null);
+  /** Si el canal de tiempo real está conectado. Arranca en false: todavía no (#1116). */
+  const [enVivo, setEnVivo] = useState(false);
+  /** Si además ya pasó la gracia, o sea: vale la pena decirlo. */
+  const [decirSinVivo, setDecirSinVivo] = useState(false);
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
   /** Plantillas del negocio; null hasta que alguien abra el selector (#460). */
   const [plantillas, setPlantillas] = useState<PlantillaDto[] | null>(null);
@@ -332,6 +355,15 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
 
   // Realtime por broadcast (SPEC §40): canal privado del tenant; cualquier
   // evento refresca la lista, y la conversación abierta si es la suya.
+  //
+  // `subscribe()` iba sin callback, así que nadie miraba nunca si el canal
+  // quedó conectado (#1116). Cuando no queda —token vencido, política del
+  // canal, la red del local, el wifi del celular— la lista se queda con lo que
+  // había y se ve EXACTAMENTE IGUAL que una bandeja sin mensajes nuevos.
+  //
+  // Quien atiende no puede distinguir «no escribió nadie» de «dejamos de
+  // escuchar», y va a creer lo primero, que es lo tranquilizador. Después hay
+  // un cliente esperando.
   useEffect(() => {
     if (!session || !tenant) return;
     supabase.realtime.setAuth(session.access_token);
@@ -344,9 +376,39 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           void cargarConversacion(payload.conversationId);
         }
       });
-    canal.subscribe();
-    return () => void supabase.removeChannel(canal);
+    canal.subscribe((estado) => setEnVivo(estado === 'SUBSCRIBED'));
+    return () => {
+      setEnVivo(false);
+      void supabase.removeChannel(canal);
+    };
   }, [supabase, session, tenant, cargarLista, cargarConversacion]);
+
+  /**
+   * El respaldo mientras el canal no está (#1116).
+   *
+   * Un cartel que dice «no estás en vivo» y nada más deja a la persona
+   * apretando F5. Lo que mantiene el trabajo andando es seguir trayendo la
+   * lista, más lento, hasta que el canal vuelva.
+   *
+   * Solo mientras NO hay canal: en cuanto conecta, el intervalo se limpia. Un
+   * respaldo que sigue corriendo con el canal sano se vuelve el camino normal
+   * —y entonces nadie se entera el día que el realtime deje de andar del todo.
+   */
+  useEffect(() => {
+    if (enVivo || !session || !tenant) return;
+    const t = setInterval(() => void cargarLista(), RESPALDO_MS);
+    return () => clearInterval(t);
+  }, [enVivo, session, tenant, cargarLista]);
+
+  // Decirlo recién pasada la gracia, y dejar de decirlo apenas vuelve.
+  useEffect(() => {
+    if (enVivo) {
+      setDecirSinVivo(false);
+      return;
+    }
+    const t = setTimeout(() => setDecirSinVivo(true), GRACIA_MS);
+    return () => clearTimeout(t);
+  }, [enVivo]);
 
   /**
    * Devuelve si la acción SALIÓ. Antes era `void` y se tragaba el fallo: quien
@@ -507,6 +569,15 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
               if (e.key === 'Enter') void buscar(busqueda);
             }}
           />
+          {/* Degradado, no roto, y la diferencia es justo la que el producto
+              tiene que saber decir (#1116). Nada de rojo: la bandeja SIGUE
+              trayendo mensajes, solo que más lento. Lo que no puede pasar es
+              que se vea igual que una bandeja sin novedades. */}
+          {decirSinVivo && (
+            <p role="status" className="mt-3 rounded-campo bg-warn-soft px-3 py-2 text-dato text-warn-text">
+              Sin conexión en vivo. Seguimos revisando cada 20 segundos.
+            </p>
+          )}
         </div>
         {hits !== null && (
           <div className="border-b border-line">
