@@ -9,7 +9,28 @@ import { join } from 'node:path';
  * en la barra del shell y no en una ruta suya — configurar conversando solo
  * sirve si está donde estás.
  */
-const AGENTE = readFileSync(join(__dirname, '..', 'components', 'agente-general.tsx'), 'utf8');
+/**
+ * La fuente del Agente General, LOS TRES archivos (#1129).
+ *
+ * Era uno solo de 505 líneas. Al incrustar la conversación en «Tu asistente»
+ * se partió en tres —el popup, el hilo y la UI— y estas nueve guardas se
+ * pusieron rojas de golpe. Tenían razón: lo que vigilan —que lo irreversible
+ * se apruebe, que al servidor no le viajen los pasos, que cambiar de negocio
+ * corte el hilo— sigue siendo verdad y sigue teniendo que estarlo, solo que
+ * ahora vive en otro archivo.
+ *
+ * Se concatenan en vez de apuntar cada aserción a su archivo a propósito: lo
+ * que importa es que el invariante exista en el Agente General, no en cuál de
+ * sus piezas. Partirlo otra vez no debería volver a poner nueve pruebas en
+ * rojo por mudanza.
+ */
+const AGENTE = [
+  'agente-general.tsx',
+  join('agente', 'estado.tsx'),
+  join('agente', 'conversacion.tsx'),
+]
+  .map((f) => readFileSync(join(__dirname, '..', 'components', f), 'utf8'))
+  .join('\n');
 const SHELL = readFileSync(join(__dirname, '..', 'components', 'app-shell.tsx'), 'utf8');
 
 describe('está presente en toda la app', () => {

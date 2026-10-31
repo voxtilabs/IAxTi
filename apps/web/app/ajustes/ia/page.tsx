@@ -7,6 +7,7 @@ import { Evaluaciones } from '../../../components/evaluaciones';
 import { LogroDelObjetivo } from '../../../components/logro-del-objetivo';
 import { Configurador } from '../../../components/configurador';
 import { AjustesDeIa } from '../../../components/ajustes-de-ia';
+import { PanelDelAgente } from '../../../components/agente/panel';
 import { PorQueLaIaNoTrabaja } from '../../../components/por-que-la-ia-no-trabaja';
 import { internalApiUrl, publicConfig } from '../../../lib/config';
 import { EncabezadoDePagina, MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
@@ -33,6 +34,15 @@ export default async function PaginaConsumoIA() {
         titulo="Tu asistente"
         apoyo="Contesta en WhatsApp con lo que tú le diste: tu catálogo, tus precios, tu agenda. Nunca inventa un dato que no pudo confirmar, y cuando no puede resolver algo te pasa la conversación."
       />
+      {/* La conversación primero (#1129, ADR-0025 §1.2): configurar hablando
+          es la vía del producto, y esta pantalla la mencionaba en vez de
+          serlo. Lo de abajo queda como registro de lo que la conversación
+          dejó configurado — el agente propone y el humano decide, así que
+          hace falta dónde ver qué quedó. */}
+      <PanelDelAgente />
+
+      <p className="rotulo mt-8">Lo que quedó configurado</p>
+
       {/* Antes del consumo (#614): un gráfico en cero es el síntoma y la causa
           se lee primero. Si falta una credencial, todo lo demás de esta página
           es configuración de algo que no va a correr. */}

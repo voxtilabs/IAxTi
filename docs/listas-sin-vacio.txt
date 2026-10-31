@@ -89,8 +89,8 @@
 # un estado vacío para un caso inalcanzable es una pantalla que nadie va a ver,
 # y peor, hace creer que el caso existe.
 
-agente-general.tsx#sugerencias
-agente-general.tsx#turnos
+agente/conversacion.tsx#sugerencias
+agente/conversacion.tsx#turnos
 api-keys.tsx#keys
 api-keys.tsx#scopes
 asistente.tsx#agentes

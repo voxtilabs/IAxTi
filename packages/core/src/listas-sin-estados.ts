@@ -97,6 +97,37 @@ function arreglosDelComponente(codigo: string): string[] {
     if (/\[\]/.test(m[2])) nombres.add(m[1]);
   }
   for (const m of codigo.matchAll(/^\s*(\w+)\??:\s*\w[\w.<>|\s]*\[\]/gm)) nombres.add(m[1]);
+  /**
+   * Y las que llegan por un hook (#1129).
+   *
+   * Las dos señales de arriba miran DECLARACIONES: un `useState` con tipo de
+   * arreglo, o un campo de props tipado. Un componente que recibe la lista de
+   * un hook —`const { turnos } = useAgente()`— no declara ninguna de las dos,
+   * así que el escáner no lo veía.
+   *
+   * Cómo apareció: al partir el Agente General en tres, el hilo se fue a
+   * `agente/estado.tsx` y el render quedó en `agente/conversacion.tsx`. El
+   * trinquete dijo «RESUELTA» por dos entradas que nadie había arreglado — la
+   * deuda no bajó, se volvió invisible, que es peor que no haberla contado
+   * nunca.
+   *
+   * Se exige que el nombre se MAPEE, no solo que esté desestructurado: un
+   * hook devuelve también funciones y banderas, y contarlas todas sería ruido.
+   * Medido al agregarlo: una sola colección nueva en todo `apps/web`, que es
+   * exactamente la que se había escondido.
+   */
+  for (const m of codigo.matchAll(/const \{([^}]*)\} = use[A-Z]\w*\(/g)) {
+    for (const crudo of m[1].split(',')) {
+      const nombre = crudo.trim().split(':')[0]?.trim();
+      if (!nombre || !/^\w+$/.test(nombre) || nombres.has(nombre)) continue;
+      // `x.map(`, `x?.map(` y `(x ?? []).map(`, que es como se dibuja una
+      // lista que puede no haber llegado.
+      const mapeada = new RegExp(
+        `\\b${nombre}(?:\\?)?\\.map\\(|\\b${nombre}\\s*\\?\\?\\s*\\[\\]\\s*\\)\\s*\\.map\\(`,
+      );
+      if (mapeada.test(codigo)) nombres.add(nombre);
+    }
+  }
   return [...nombres];
 }
 

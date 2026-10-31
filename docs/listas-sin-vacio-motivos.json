@@ -2,17 +2,17 @@
   "issue": 588,
   "alcance": "Motivos observados de las entradas del trinquete; no autoriza conservarlas ni reemplaza las pruebas visuales. No cambia pantallas ni resuelve la decisión pendiente sobre uniformidad.",
   "entradas": {
-    "agente-general.tsx#sugerencias": {
-      "motivo": "Las sugerencias son botones opcionales dentro del mensaje de bienvenida. Si no llegan sugerencias, el párrafo que invita a escribir permanece; no se agrega una respuesta o sugerencia inventada.",
+    "agente/conversacion.tsx#sugerencias": {
+      "motivo": "Las sugerencias son botones opcionales dentro del mensaje de bienvenida. Si no llegan sugerencias, el párrafo que invita a escribir permanece; no se agrega una respuesta o sugerencia inventada. Vive en agente/conversacion.tsx desde #1129, que partió el agente en tres para que la conversación pudiera incrustarse también en «Tu asistente»; el vacío es el mismo.",
       "evidencia": {
-        "archivo": "apps/web/components/agente-general.tsx",
+        "archivo": "apps/web/components/agente/conversacion.tsx",
         "fragmento": "(sugerencias ?? []).map"
       }
     },
-    "agente-general.tsx#turnos": {
-      "motivo": "El historial vacío muestra un párrafo de bienvenida y las sugerencias dentro de ConversationContent, en lugar de EstadoVacio. La entrada registra ese renderizado específico del chat.",
+    "agente/conversacion.tsx#turnos": {
+      "motivo": "El historial vacío muestra un párrafo de bienvenida y las sugerencias dentro de ConversationContent, en lugar de EstadoVacio. La entrada registra ese renderizado específico del chat. Vive en agente/conversacion.tsx desde #1129, que partió el agente en tres para que la conversación pudiera incrustarse también en «Tu asistente»; el vacío es el mismo.",
       "evidencia": {
-        "archivo": "apps/web/components/agente-general.tsx",
+        "archivo": "apps/web/components/agente/conversacion.tsx",
         "fragmento": "turnos.length === 0"
       }
     },
