@@ -1,15 +1,37 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { KeyRound } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { SessionProvider, useSession, type PublicConfig } from './session';
-import { MarcaJelly } from './marca-jelly';
 import { ModeToggle } from './mode-toggle';
 import { MARCA_LOCKUP_SVG } from './marca-svg';
 import { useMarcaSvg } from './use-marca-svg';
 
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+      <path
+        fill="rgb(66, 133, 244)"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+      />
+      <path
+        fill="rgb(52, 168, 83)"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+      />
+      <path
+        fill="rgb(251, 188, 5)"
+        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.98 0 12c0 2.02.45 3.84 1.25 5.42l4.03-3.15z"
+      />
+      <path
+        fill="rgb(234, 67, 53)"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.93 6.72-4.93z"
+      />
+    </svg>
+  );
+}
+
 const CAMPO =
-  'h-control rounded-campo border border-line-strong bg-field px-4 text-base text-ink placeholder:text-faint';
+  'h-control md:h-[56px] rounded-[14px] border border-border bg-white px-5 text-base text-ink placeholder:text-muted transition-all';
 
 function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
   const { supabase } = useSession();
@@ -63,13 +85,13 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
             "abre el enlace" es mandarlo a la aplicación equivocada y dejarlo
             preguntándose por qué ve una bandeja de conversaciones en vez del
             panel. El código entra igual y no pisa ningún redirect. */}
-        <p className="rounded-campo border border-action-soft-br bg-action-soft px-5 py-4 text-sm text-action-text">
+        <p className="rounded-[16px] border border-action-soft-br bg-action-soft px-5 py-4 text-sm text-action-text">
           <span className="font-medium">Revisa tu correo ({email}).</span>{' '}
           {recibeLosRedirects
             ? 'Abre el enlace desde este mismo dispositivo, o escribe aquí el código de 6 dígitos si viene en el correo.'
             : 'Escribe aquí el código de 6 dígitos del correo. Acá se entra con el código, no con el enlace.'}
         </p>
-        <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+        <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
           Código
           <input
             type="text"
@@ -86,7 +108,7 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
           />
         </label>
         {estado === 'codigo-malo' && (
-          <p className="rounded-campo border border-bad-soft-br bg-bad-soft px-5 py-4 text-sm text-bad-text">
+          <p className="rounded-[16px] border border-bad-soft-br bg-bad-soft px-5 py-4 text-sm text-bad-text">
             <span className="font-medium">Ese código no sirvió.</span> Revisa que sea el último
             correo, o pide otro.
           </p>
@@ -94,7 +116,7 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
         <button
           type="submit"
           disabled={codigo.length !== 6 || verificando}
-          className="h-control rounded-boton bg-action px-8 font-display text-base font-bold text-white hover:bg-action-hover disabled:opacity-50"
+          className="pulso-access-submit h-control md:h-[56px] rounded-full bg-action px-8 font-display text-base font-bold text-white hover:bg-action-hover disabled:opacity-50 transition-all cursor-pointer"
         >
           {verificando ? 'Entrando…' : 'Entrar'}
         </button>
@@ -114,7 +136,7 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
 
   return (
     <form onSubmit={enviarCodigo} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-sm font-medium text-ink">
+      <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
         Tu correo
         <input
           type="email"
@@ -127,7 +149,7 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
       </label>
 
       {estado === 'error' && (
-        <p className="rounded-campo border border-bad-soft-br bg-bad-soft px-5 py-4 text-sm text-bad-text">
+        <p className="rounded-[16px] border border-bad-soft-br bg-bad-soft px-5 py-4 text-sm text-bad-text">
           <span className="font-medium">No pudimos enviar el código.</span> Revisa el correo e
           intenta de nuevo en unos minutos.
         </p>
@@ -135,17 +157,21 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
 
       <button
         type="submit"
-        className="h-control rounded-boton bg-action px-8 font-display text-base font-bold text-white hover:bg-action-hover"
+        aria-label="Enviarme el acceso"
+        className="pulso-access-submit h-control md:h-[56px] relative flex items-center justify-center rounded-full bg-action px-8 font-display text-base font-bold text-white hover:bg-action-hover transition-all cursor-pointer"
       >
-        Enviarme el acceso
+        <span>Enviarme el acceso</span>
+        <ArrowRight className="absolute right-6 h-5 w-5" aria-hidden="true" />
       </button>
       {recibeLosRedirects && (
         <button
           type="button"
           onClick={() => void conGoogle()}
-          className="h-control rounded-boton border border-line-strong px-8 text-base text-ink"
+          aria-label="Entrar con Google"
+          className="h-control md:h-[56px] flex items-center justify-center gap-3 rounded-full border border-border bg-white px-8 text-base font-medium text-ink hover:bg-bg-raised transition-colors cursor-pointer"
         >
-          Entrar con Google
+          <GoogleIcon className="h-5 w-5 flex-shrink-0" />
+          <span>Continuar con Google</span>
         </button>
       )}
     </form>
@@ -181,6 +207,40 @@ export interface LoginCardProps {
   recibeLosRedirects?: boolean;
 }
 
+function AccessOrbs() {
+  return (
+    <div className="pulso-access-orbs" aria-hidden="true">
+      <picture>
+        <source srcSet="/marca/iaxti-access-orbs.webp" type="image/webp" />
+        <img
+          src="/marca/iaxti-access-orbs.png"
+          alt=""
+          className="h-full w-full object-contain object-top-right pointer-events-none select-none"
+          loading="eager"
+          decoding="async"
+        />
+      </picture>
+    </div>
+  );
+}
+
+function Access3DArtwork() {
+  return (
+    <div className="pulso-access-bottom-jelly" aria-hidden="true">
+      <picture>
+        <source srcSet="/marca/iaxti-stage-artwork.webp" type="image/webp" />
+        <img
+          src="/marca/iaxti-stage-artwork.png"
+          alt=""
+          className="h-full w-full object-contain object-bottom-left pointer-events-none select-none"
+          loading="eager"
+          decoding="async"
+        />
+      </picture>
+    </div>
+  );
+}
+
 export function LoginCard({
   config,
   marcaSvg,
@@ -194,44 +254,60 @@ export function LoginCard({
     <SessionProvider config={config}>
       <div className="pulso-access">
         <div className="pulso-access-stage">
+          <AccessOrbs />
+          <Access3DArtwork />
+
           <header className="pulso-access-header">
             {/* Solo SVG versionado: web/app/login usa IAXTI_LOCKUP_SVG y admin/app/login
                 MARCA_LOCKUP_SVG. useMarcaSvg solo renombra IDs; nunca recibe texto del usuario (#758). */}
             {/* nosemgrep: react-dangerouslysetinnerhtml */}
-            <span className="marca" aria-label={titulo ? 'VoxTi Labs' : 'IAxTi'} dangerouslySetInnerHTML={{ __html: marcaCabecera }} />
+            <span
+              className="marca"
+              aria-label={titulo ? 'VoxTi Labs' : 'IAxTi'}
+              dangerouslySetInnerHTML={{ __html: marcaCabecera }}
+            />
             <ModeToggle />
           </header>
           <main className="pulso-access-main">
             <section className="pulso-access-story" aria-labelledby="acceso-historia">
-              <div className="pulso-access-object" aria-hidden="true">
-                <MarcaJelly />
-                <p>Conecta lo que importa</p>
-              </div>
-              <span className="pulso-eyebrow">Tu negocio, en conversación</span>
-              <h1 id="acceso-historia">Todo empieza<br />con un <span>hola.</span></h1>
-              <p>Conversaciones, clientes y equipo. Dale continuidad a cada relación desde un mismo lugar.</p>
-              <div className="pulso-access-sequence" aria-label="Conversar, conocer y acompañar">
-                <span><b>01</b> Conversar</span>
-                <span><b>02</b> Conocer</span>
-                <span><b>03</b> Acompañar</span>
+              <div className="pulso-access-story-content">
+                <span className="pulso-access-badge">CONECTA LO QUE IMPORTA</span>
+                <h1 id="acceso-historia" className="pulso-access-title">
+                  Todo empieza<br />con un <span>hola.</span>
+                </h1>
+                <div className="pulso-access-substory">
+                  <p className="pulso-access-desc">
+                    Conversaciones, clientes y equipo.<br />
+                    Todo en un mismo lugar.
+                  </p>
+                  <div className="pulso-access-sequence" aria-label="Conversar, conocer y acompañar">
+                    <span>Conversar</span>
+                    <span className="pulso-dot" aria-hidden="true">·</span>
+                    <span>Conocer</span>
+                    <span className="pulso-dot" aria-hidden="true">·</span>
+                    <span>Acompañar</span>
+                  </div>
+                </div>
               </div>
             </section>
-            <section aria-labelledby="acceso-titulo">
+            <section className="pulso-access-form-section" aria-labelledby="acceso-titulo">
               <div className="pulso-access-card">
-                <span className="pulso-access-key" aria-hidden="true"><KeyRound size={22} /></span>
                 <h2 id="acceso-titulo">{titulo ?? 'Entra a IAxTi'}</h2>
-                <p className="mt-3 text-sm text-body">
-                  {subtitulo ?? 'Sin contraseña: te mandamos el acceso a tu correo.'}
+                <p className="mt-2 text-sm text-body">
+                  {subtitulo ?? 'Te enviamos un enlace a tu correo.'}
                 </p>
                 <Formulario recibeLosRedirects={recibeLosRedirects} />
               </div>
-              <p className="pulso-access-note">Tu equipo. Tu contexto. Tu forma de atender.</p>
             </section>
           </main>
           <footer className="pulso-access-footer">
             {/* MARCA_LOCKUP_SVG es una constante versionada; solo cambian los IDs de instancia (#758). */}
             {/* nosemgrep: react-dangerouslysetinnerhtml */}
-            <span className="marca" aria-label="VoxTi Labs" dangerouslySetInnerHTML={{ __html: marcaPie }} />
+            <span
+              className="marca"
+              aria-label="VoxTi Labs"
+              dangerouslySetInnerHTML={{ __html: marcaPie }}
+            />
             <p>Hecho para los negocios que hacen de cada conversación una relación.</p>
           </footer>
         </div>

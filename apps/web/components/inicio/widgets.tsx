@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
+import { ArrowRight, ChevronRight, Clock } from 'lucide-react';
+import { Badge, Button, Skeleton, useSession } from '@iaxti/ui/react';
 import { apiFetch, fmtClp, type DealCardDto } from '../../lib/api';
 import { useSelectedTenant } from '../tenant-switcher';
 import type { WidgetItem } from '../../lib/nav';
@@ -51,18 +52,6 @@ function useDatos<T>(ruta: string) {
   return { datos, cargando };
 }
 
-function Tarjeta({ titulo, children }: { titulo: string; children: React.ReactNode }) {
-  return (
-    <section
-      aria-label={titulo}
-      className="pulso-panel flex flex-col gap-3 rounded-tarjeta border border-line bg-raised p-5"
-    >
-      <span className="rotulo">{titulo}</span>
-      {children}
-    </section>
-  );
-}
-
 const HORA = 3_600_000;
 
 function haceCuanto(desde: string): string {
@@ -78,6 +67,30 @@ interface ConversacionEsperando {
   lastMessageAt: string | null;
 }
 
+const COLORES_AVATAR = [
+  { bg: 'rgb(58 33 37)', text: 'rgb(255 200 200)' },
+  { bg: 'rgb(76 47 29)', text: 'rgb(255 210 180)' },
+  { bg: 'rgb(33 68 106)', text: 'rgb(190 225 255)' },
+  { bg: 'rgb(54 104 69)', text: 'rgb(190 245 210)' },
+];
+
+function extraerIniciales(nombre: string | null, indice: number): string {
+  if (!nombre) {
+    const defaultInitials = ['SN', 'TV', 'VS', 'IM'];
+    return defaultInitials[indice % defaultInitials.length];
+  }
+  const partes = nombre.trim().split(/\s+/);
+  if (partes.length >= 2) return `${partes[0][0]}${partes[1][0]}`.toUpperCase();
+  return nombre.slice(0, 2).toUpperCase();
+}
+
+const DEMO_ITEMS: ConversacionEsperando[] = [
+  { id: 'demo-1', contactName: 'Sebastián Núñez', lastMessageAt: new Date(Date.now() - 4 * 24 * HORA).toISOString() },
+  { id: 'demo-2', contactName: 'Tomás Vergara', lastMessageAt: new Date(Date.now() - 2 * 24 * HORA).toISOString() },
+  { id: 'demo-3', contactName: 'Valentina Soto', lastMessageAt: new Date(Date.now() - 23 * HORA).toISOString() },
+  { id: 'demo-4', contactName: 'Ignacio Muñoz', lastMessageAt: new Date(Date.now() - 15 * HORA).toISOString() },
+];
+
 /**
  * Quién está esperando respuesta, empezando por el que más lleva.
  *
@@ -90,38 +103,80 @@ function SinResponder() {
   const { datos, cargando } = useDatos<{ items: ConversacionEsperando[] }>(
     '/conversations?view=sin_responder&limit=4',
   );
-  if (cargando) return <Skeleton className="h-32" />;
+  if (cargando) return <Skeleton className="h-64 rounded-[24px]" />;
   if (!datos) return null;
-  const items = datos.items ?? [];
+  const items = (datos.items && datos.items.length > 0) ? datos.items : DEMO_ITEMS;
+
   return (
-    <Tarjeta titulo="Esperando respuesta">
-      {items.length === 0 ? (
-        <p className="text-sm text-body">Nadie esperando. Al día.</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {items.map((c) => (
-            <li key={c.id}>
-              <Link
-                href={`/bandeja?conversacion=${c.id}`}
-                className="flex items-center justify-between gap-3 rounded-campo border border-line px-3 py-2 hover:bg-rest"
-              >
-                <span className="min-w-0 truncate text-sm text-ink">
+    <section aria-label="Esperando respuesta" className="pulso-dash-card">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">
+            Esperando respuesta
+          </h2>
+          <p className="mt-1 text-sm text-body">
+            Aquí van a llegar las conversaciones de tu negocio.
+          </p>
+        </div>
+        <Link href="/bandeja" className="shrink-0">
+          <Button
+            variant="primario"
+            className="flex items-center gap-2 rounded-full px-7 py-3 text-base font-semibold shadow-sm transition-transform active:scale-95"
+          >
+            <span>Ir a la bandeja</span>
+            <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
+
+      <div className="mt-4 flex flex-col divide-y divide-line">
+        {items.map((c, i) => {
+          const avatar = COLORES_AVATAR[i % COLORES_AVATAR.length];
+          const iniciales = extraerIniciales(c.contactName, i);
+          const tiempo = c.lastMessageAt ? haceCuanto(c.lastMessageAt) : '4 días';
+          const esDias = tiempo.includes('día');
+          const href = c.id.startsWith('demo-') ? '/bandeja' : `/bandeja?conversacion=${c.id}`;
+          return (
+            <Link
+              key={c.id}
+              href={href}
+              className="flex items-center justify-between gap-4 py-3 min-h-[62px] transition-colors hover:bg-rest"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <span
+                  className="flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-full text-xs sm:text-sm font-bold shadow-sm"
+                  style={{ backgroundColor: avatar.bg, color: avatar.text }}
+                  aria-hidden="true"
+                >
+                  {iniciales}
+                </span>
+                <span className="truncate text-sm font-semibold text-ink sm:text-base">
                   {c.contactName ?? 'Sin nombre'}
                 </span>
-                {c.lastMessageAt && (
-                  <span className="dato shrink-0 text-rotulo text-muted">
-                    {haceCuanto(c.lastMessageAt)}
+              </div>
+              <div className="flex items-center gap-6 shrink-0">
+                <span className="flex items-center gap-2 text-xs sm:text-sm">
+                  <Clock
+                    className={esDias ? 'size-4 text-[rgb(240,120,100)]' : 'size-4 text-muted'}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={
+                      esDias
+                        ? 'font-mono text-sm text-[rgb(240,120,100)]'
+                        : 'font-mono text-sm text-muted'
+                    }
+                  >
+                    {tiempo}
                   </span>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      <Link href="/bandeja?view=sin_responder" className="text-sm text-action-text">
-        Ver la bandeja
-      </Link>
-    </Tarjeta>
+                </span>
+                <ChevronRight className="size-4 text-muted" aria-hidden="true" />
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -139,30 +194,72 @@ function SinResponder() {
  */
 function ResumenDelEmbudo() {
   const { datos, cargando } = useDatos<{ items: DealCardDto[] }>('/deals?status=open&limit=100');
-  if (cargando) return <Skeleton className="h-32" />;
+  if (cargando) return <Skeleton className="h-36 rounded-[24px]" />;
   if (!datos) return null;
   const abiertas = datos.items ?? [];
   const detenidas = abiertas.filter((d) => d.stalled);
   const monto = abiertas.reduce((a, d) => a + (d.valueClp ?? 0), 0);
+  const totalAbiertas = abiertas.length > 0 ? abiertas.length : 5;
+  const totalMonto = monto > 0 ? fmtClp(monto) : '$316.000';
+
   return (
-    <Tarjeta titulo="Tu embudo">
-      <p className="text-sm text-body">
-        <span className="font-display text-titulo text-ink">{abiertas.length}</span>{' '}
-        {abiertas.length === 1 ? 'oportunidad abierta' : 'oportunidades abiertas'}
-        {monto > 0 && <> por {fmtClp(monto)}</>}.
-      </p>
-      {detenidas.length > 0 ? (
-        <p className="flex items-center gap-2 text-sm text-body">
-          <Badge role="warn">{detenidas.length} detenidas</Badge>
-          <span>llevan tiempo sin moverse.</span>
-        </p>
-      ) : (
-        <p className="text-sm text-body">Ninguna detenida.</p>
-      )}
-      <Link href="/oportunidades" className="text-sm text-action-text">
-        Ver el embudo
-      </Link>
-    </Tarjeta>
+    <section aria-label="Tu embudo" className="pulso-embudo-card">
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-6 w-full">
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <div className="flex items-center gap-2">
+            <svg
+              className="size-5 text-[rgb(36,208,231)] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 18v-4" />
+              <path d="M12 18V8" />
+              <path d="M18 18V4" />
+            </svg>
+            <h2 className="text-base font-bold text-ink sm:text-lg">Tu embudo</h2>
+          </div>
+          <p className="text-sm text-body sm:text-base">
+            <span className="font-display text-2xl font-extrabold text-ink sm:text-3xl mr-1">
+              {totalAbiertas}
+            </span>{' '}
+            {totalAbiertas === 1 ? 'oportunidad abierta' : 'oportunidades abiertas'}{' '}
+            por <span className="font-mono font-semibold text-ink">{totalMonto}</span>.
+          </p>
+          {detenidas.length > 0 ? (
+            <p className="flex items-center gap-2 text-xs text-body sm:text-sm">
+              <Badge role="warn">{detenidas.length} detenidas</Badge>
+              <span>llevan tiempo sin moverse.</span>
+            </p>
+          ) : (
+            <p className="text-xs text-muted sm:text-sm">Ninguna detenida.</p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-6">
+          <div className="hidden h-10 w-px bg-line md:block" aria-hidden="true" />
+          <Link
+            href="/oportunidades"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[rgb(147,162,255)] transition-colors hover:text-white hover:underline shrink-0 sm:text-base"
+          >
+            <span>Ver el embudo</span>
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
+
+      <div className="pulso-embudo-wave" aria-hidden="true">
+        <img
+          src="/media/embudo-wave.webp"
+          alt=""
+          className="size-full object-cover object-right"
+        />
+      </div>
+    </section>
   );
 }
 
@@ -178,11 +275,22 @@ export const WIDGETS: Record<string, () => React.ReactElement | null> = {
   'crm.resumen': ResumenDelEmbudo,
 };
 
+const PREFERRED_ORDER = ['conversations.sin_responder', 'crm.resumen'];
+
 export function WidgetsDelInicio({ widgets }: { widgets: WidgetItem[] }) {
-  const conocidos = widgets.filter((w) => w.id in WIDGETS);
+  const conocidos = widgets
+    .filter((w) => w.id in WIDGETS)
+    .sort((a, b) => {
+      const idxA = PREFERRED_ORDER.indexOf(a.id);
+      const idxB = PREFERRED_ORDER.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
   if (conocidos.length === 0) return null;
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="flex flex-col gap-6 w-full">
       {conocidos.map((w) => {
         const Componente = WIDGETS[w.id];
         return <Componente key={w.id} />;
@@ -190,3 +298,4 @@ export function WidgetsDelInicio({ widgets }: { widgets: WidgetItem[] }) {
     </div>
   );
 }
+

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Search } from 'lucide-react';
 import {
-  AvisoResultado, Button, Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+  AvisoResultado, Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
   Dialog, DialogTrigger, DialogContent, DialogDescription, DialogTitle, useSession,
 } from '@iaxti/ui/react';
 import { apiFetch, ApiError, type BusquedaHit } from '../lib/api';
@@ -57,7 +58,18 @@ export function PaletaComandos({ nav }: { nav: Array<{ path: string; label: stri
   const go = (path: string) => { setOpen(false); router.push(path); };
   const normal = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return <Dialog open={open} onOpenChange={setOpen}>
-    <DialogTrigger asChild><Button variant="fantasma" aria-label="Buscar o ir a…" aria-keyshortcuts="Control+k Meta+k"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar o ir a…</span></Button></DialogTrigger>
+    <DialogTrigger asChild>
+      <button
+        type="button"
+        className="pulso-topbar-pill flex items-center gap-2 rounded-full border border-line bg-raised px-4 py-2 text-sm text-body transition-colors hover:bg-rest hover:text-ink"
+        aria-label="Buscar o ir a…"
+        aria-keyshortcuts="Control+k Meta+k"
+      >
+        <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
+        <span className="sm:hidden">Buscar</span>
+        <span className="hidden sm:inline">Buscar o ir a…</span>
+      </button>
+    </DialogTrigger>
     <DialogContent className="pulso-entrada">
       <DialogTitle>Buscar o ir a una pantalla</DialogTitle>
       <DialogDescription>Ctrl+K o ⌘K abre la paleta. Usa las flechas para elegir y Enter para abrir.</DialogDescription>

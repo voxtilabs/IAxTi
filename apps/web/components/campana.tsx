@@ -153,9 +153,9 @@ function CampanaDelNegocio({ tenant }: { tenant: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="fantasma" size="icono" aria-label={`Avisos${unread ? `, ${unread} sin leer` : ''}`} className="relative">
-          <Bell className="size-5" aria-hidden />
-          {unread > 0 && <span className="dato absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-boton bg-action px-1 text-rotulo font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
+        <Button variant="fantasma" size="icono" aria-label={`Avisos${unread ? `, ${unread} sin leer` : ''}`} className="relative pulso-topbar-icon-btn rounded-full border border-line bg-raised hover:bg-rest">
+          <Bell className="size-4 text-ink" aria-hidden />
+          {unread > 0 && <span className="dato absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-action px-1 text-rotulo font-bold text-white shadow-[0_0_8px_rgb(61,90,254)]">{unread > 9 ? '9+' : unread}</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 max-w-[calc(100vw-2rem)]" onKeyDownCapture={(e) => {

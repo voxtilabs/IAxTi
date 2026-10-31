@@ -6,7 +6,7 @@ body { background: var(--canvas); font-size: 15px; }
 
 .pulso-workspace, .pulso-admin { isolation: isolate; background: var(--canvas); }
 .pulso-workspace > main { background: transparent; }
-.pulso-content { padding: 36px 32px 56px; min-width: 0; }
+.pulso-content { padding: 20px 32px 32px; min-width: 0; }
 .pulso-content > * { min-width: 0; }
 .pulso-content h1 { line-height: 1.12; letter-spacing: -.045em; }
 .pulso-content > :is(div, section) > :is(header, div):has(> h1) { margin-bottom: 24px; }
@@ -92,36 +92,84 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-empty[data-compact="true"] .pulso-jelly { width: 45px; margin-bottom: 12px; }
 
 /* Acceso: identidad IAxTi y el formulario OTP existente, sin cambiar auth. */
-.pulso-access { min-height: 100svh; padding: 20px; background: var(--canvas); }
-.pulso-access-stage { min-height: calc(100svh - 40px); position: relative; isolation: isolate; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 32px; background: var(--hero-surface); }
-.pulso-access-stage::before { content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 15% 48%, var(--ambient-cool-strong), transparent 48%), radial-gradient(ellipse at 100% 90%, var(--ambient-warm-strong), transparent 52%); }
-.pulso-access-header, .pulso-access-footer { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 30px 42px; }
+.pulso-access {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  color-scheme: light;
+  --bg: rgb(255 255 255);
+  --bg-raised: rgb(247 248 253);
+  --bg-rest: rgb(230 233 242);
+  --canvas: rgb(255 255 255);
+  --panel: rgb(255 255 255);
+  --chrome: rgb(255 255 255);
+  --hero-surface: rgb(247 248 253);
+  --border: rgb(232 236 244);
+  --border-strong: rgb(210 216 230);
+  --text: rgb(15 23 42);
+  --text-body: rgb(71 85 105);
+  --text-muted: rgb(100 116 139);
+  --text-faint: rgb(100 116 139);
+  --action: rgb(43 89 255);
+  --action-hover: rgb(29 71 229);
+  --action-text: rgb(43 89 255);
+  --action-soft: rgb(238 241 255);
+  --action-soft-br: rgb(221 226 255);
+  --field-bg: rgb(255 255 255);
+  --on-action: rgb(255 255 255);
+  --jelly-ice: rgb(196 250 255);
+  --jelly-sky: rgb(36 208 231);
+  --jelly-deep: rgb(28 96 232);
+  --jelly-shadow: rgb(21 73 163);
+  --jelly-glint: rgb(242 254 255);
+  --ambient-cool: rgb(61 90 254 / .08);
+  --ambient-warm: rgb(61 90 254 / .03);
+  --surface-glint: rgb(255 255 255 / .95);
+  --bad-text: rgb(166 32 60);
+  --bad-soft: rgb(255 238 241);
+  --bad-soft-br: rgb(252 214 222);
+  background: var(--canvas);
+}
+.pulso-access-stage { flex: 1; min-height: 100svh; position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; background: rgb(250 252 255); }
+.pulso-access-stage::before { content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 88% 12%, var(--ambient-cool), transparent 48%), radial-gradient(ellipse at 12% 88%, var(--ambient-cool), transparent 52%); }
+.pulso-access-orbs { position: absolute; top: -40px; right: -40px; width: clamp(380px, 32vw, 560px); height: auto; pointer-events: none; z-index: 0; opacity: 1; }
+.pulso-access-bottom-jelly { position: absolute; bottom: 0; left: 0; width: clamp(700px, 73.75vw, 1180px); max-width: 100%; pointer-events: none; z-index: 0; line-height: 0; }
+.pulso-access-bottom-jelly picture, .pulso-access-bottom-jelly img { display: block; width: 100%; height: auto; object-fit: contain; object-position: bottom left; }
+.pulso-access-header { position: relative; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 28px clamp(36px, 5.25vw, 84px) 16px; width: 100%; }
 .pulso-access-header .marca { min-width: 0; }
-.pulso-access-header .marca svg { height: 32px; max-width: 100%; }
-.pulso-access-header > button { flex-shrink: 0; min-height: 46px; white-space: nowrap; }
-.pulso-access-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); align-items: center; gap: clamp(40px, 6vw, 100px); width: min(1120px, 100%); margin: auto; padding: 40px; }
-.pulso-access-story { position: relative; min-width: 0; padding-block: 10px; }
-.pulso-access-object { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
-.pulso-access-object .pulso-jelly { width: clamp(140px, 15vw, 205px); transform: rotate(-10deg); }
-.pulso-access-object p { max-width: 13ch; color: var(--text-muted); font-size: 11px; line-height: 1.6; letter-spacing: .13em; text-transform: uppercase; }
-.pulso-access-story h1 { margin: 0; color: var(--text); font-size: clamp(42px, 5.1vw, 72px); line-height: 1.02; letter-spacing: -.055em; font-weight: 700; }
-.pulso-access-story h1 span { color: var(--action-text); }
-.pulso-access-story > p { max-width: 39ch; margin-top: 22px; color: var(--text-body); line-height: 1.8; }
-.pulso-access-sequence { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-body); }
-.pulso-access-sequence b { margin-right: 7px; font: 10px 'JetBrains Mono', monospace; color: var(--action-text); }
-.pulso-access-card { padding: clamp(24px, 3.4vw, 44px); border: 1px solid var(--border); border-radius: 28px; background: var(--panel); box-shadow: var(--elevacion-acceso); }
-.pulso-access-card h2 { font-size: 30px; line-height: 1.15; letter-spacing: -.035em; }
-.pulso-access-key { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 26px; border-radius: 16px; color: var(--action-text); background: var(--bg-raised); box-shadow: var(--relieve-marca); }
-.pulso-access-card form { margin-top: 28px; }
-.pulso-access-card input { width: 100%; min-width: 0; }
-.pulso-access-stage:has(form > p) .pulso-access-key { display: none; }
+.pulso-access-header .marca svg { height: 38px; max-width: 100%; }
+.pulso-access-header > button { flex-shrink: 0; opacity: 0; pointer-events: auto; min-height: 46px; min-width: 46px; background: transparent; border: none; cursor: pointer; white-space: nowrap; transition: opacity 150ms ease; }
+.pulso-access-header > button:focus-visible { opacity: 1; outline: 2px solid var(--focus); outline-offset: 2px; }
+.pulso-access-main { position: relative; z-index: 1; flex: 1; display: grid; grid-template-columns: 63.5% 36.5%; align-items: stretch; width: 100%; padding: 0; }
+.pulso-access-story { position: relative; min-width: 0; display: flex; flex-direction: column; justify-content: flex-start; }
+.pulso-access-story::after { content: ''; position: absolute; top: clamp(24px, 5svh, 48px); bottom: clamp(40px, 8svh, 80px); right: 0; width: 1px; background: var(--border); }
+.pulso-access-story-content { position: relative; z-index: 2; padding: clamp(36px, 6svh, 68px) clamp(36px, 5vw, 80px) 24px clamp(48px, 13.8vw, 222px); }
+.pulso-access-badge { display: block; margin-bottom: 16px; color: var(--text-faint); font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.pulso-access-title { margin: 0; color: var(--text); font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: clamp(44px, 5.5vw, 88px); line-height: 1.02; letter-spacing: -0.04em; font-weight: 800; }
+.pulso-access-title span { color: rgb(43 89 255); }
+.pulso-access-substory { margin-top: clamp(24px, 4.2svh, 44px); margin-left: clamp(24px, 17.2vw, 275px); max-width: 480px; }
+.pulso-access-desc { color: var(--text-body); font-size: clamp(16px, 1.25vw, 20px); line-height: 1.55; font-weight: 400; }
+.pulso-access-sequence { display: flex; align-items: center; gap: 8px; margin-top: 18px; color: var(--text-faint); font-size: clamp(13px, 0.95vw, 15px); font-weight: 400; }
+.pulso-dot { color: var(--text-faint); font-weight: 700; }
+.pulso-access-form-section { position: relative; padding: clamp(60px, 15.5svh, 146px) clamp(36px, 5.25vw, 84px) 40px clamp(32px, 4.5vw, 64px); display: flex; flex-direction: column; justify-content: flex-start; }
+.pulso-access-card { width: 100%; max-width: 440px; padding: 0; background: transparent; border: none; box-shadow: none; }
+.pulso-access-card h2 { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; color: var(--text); margin: 0 0 10px 0; }
+.pulso-access-card p { font-size: 15.5px; color: var(--text-muted); line-height: 1.4; }
+.pulso-access-card form { margin-top: 32px; gap: 20px; }
+.pulso-access-card input { width: 100%; min-width: 0; min-height: 56px; height: 56px; border-radius: 14px; border: 1.5px solid var(--border-strong); background: var(--field-bg); color: var(--text); font-size: 15.5px; padding: 0 18px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.03); }
+.pulso-access-card input:focus { border-color: var(--action); outline: none; box-shadow: 0 0 0 3px rgb(43 89 255 / 0.15); }
+.pulso-access-card input::placeholder { color: var(--text-muted); }
 .pulso-access-card form:has(> p) { gap: 12px; margin-top: 16px; }
 .pulso-access-card form > p { padding: 10px 12px; overflow-wrap: anywhere; }
-.pulso-access-card :is(input, button.h-control) { flex-shrink: 0; min-height: 46px; }
-.pulso-access-note { margin-top: 18px; text-align: center; color: var(--text-muted); font-size: 11px; }
-.pulso-access-footer { color: var(--text-muted); font-size: 11px; }
-.pulso-access-footer .marca svg { height: 23px; }
-.pulso-access-footer > p { text-align: right; }
+.pulso-access-card :is(input, button.h-control) { flex-shrink: 0; min-height: 56px; }
+.pulso-access-submit { border-radius: 9999px; background: rgb(43 89 255); color: rgb(255 255 255); font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 700; box-shadow: 0 4px 14px rgb(43 89 255 / 0.32); transition: background-color 0.2s ease, transform 0.15s ease; }
+.pulso-access-submit:hover:not(:disabled) { background: rgb(29 71 229); box-shadow: 0 6px 20px rgb(43 89 255 / 0.42); transform: translateY(-1px); }
+.pulso-access-footer { position: relative; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 24px; height: 80px; padding: 0 clamp(36px, 5.25vw, 84px); background: transparent; color: var(--text-muted); font-size: 13px; width: 100%; }
+.pulso-access-footer::before { content: ''; position: absolute; top: 0; left: clamp(36px, 5.25vw, 84px); right: clamp(36px, 5.25vw, 84px); height: 1px; background: var(--border); }
+.pulso-access-footer .marca svg { height: 28px; }
+.pulso-access-footer > p { text-align: right; font-size: 13px; color: var(--text-muted); }
+.pulso-access-footer .marca svg { height: 28px; }
+.pulso-access-footer > p { text-align: right; font-size: 13px; color: var(--text-muted); }
 
 /* Bandeja: tres paneles reales; el centro queda tranquilo para leer mensajes. */
 /* El shell reparte la altura real entre soporte, cabecera y paneles (#429).
@@ -167,95 +215,78 @@ body { background: var(--canvas); font-size: 15px; }
   .pulso-hero h1 { font-size: 28px; }
   .pulso-empty:not([data-compact="true"]) { grid-template-columns: 1fr; gap: 16px; padding: 24px; }
   .pulso-empty .pulso-jelly { width: 62px; }
-  .pulso-access { padding: 10px; }
-  .pulso-access-stage { min-height: calc(100svh - 20px); border-radius: 24px; }
-  .pulso-access-header { padding: 16px 20px; gap: 12px; }
-  .pulso-access-header .marca svg { height: 27px; }
-  .pulso-access-main { display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 24px; max-width: 520px; padding: 12px 20px 24px; }
-  .pulso-access-story { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 0; }
-  .pulso-access-story .pulso-eyebrow { grid-column: 1 / -1; grid-row: 1; }
-  .pulso-access-story h1 { grid-column: 1; grid-row: 2; }
-  .pulso-access-object { grid-column: 2; grid-row: 2; margin: 0 0 0 8px; }
-  .pulso-access-object .pulso-jelly { width: 76px; }
-  .pulso-access-object p, .pulso-access-sequence { display: none; }
-  .pulso-access-story h1 { font-size: clamp(30px, 7.5vw, 44px); }
-  .pulso-access-story > p { grid-column: 1 / -1; font-size: 13px; line-height: 1.6; margin-top: 14px; }
-  .pulso-access-card { padding: 24px; border-radius: 22px; }
+}
+
+/* Acceso responsive: transición apilada en tablet y celular (< 1024px) */
+@media (max-width: 1023px) {
+  .pulso-access-header { padding: 18px 24px; gap: 12px; }
+  .pulso-access-header .marca svg { height: 30px; }
+  .pulso-access-main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 28px;
+    width: 100%;
+    max-width: 520px;
+    margin-inline: auto;
+    padding: 16px 24px 36px;
+  }
+  .pulso-access-story {
+    border-right: none;
+    overflow: visible;
+    width: 100%;
+    padding: 0;
+  }
+  .pulso-access-story::after { display: none; }
+  .pulso-access-story-content {
+    padding: 0;
+    width: 100%;
+  }
+  .pulso-access-badge { margin-bottom: 8px; font-size: 11px; }
+  .pulso-access-title { font-size: clamp(30px, 5.5vw, 44px); line-height: 1.1; }
+  .pulso-access-substory { margin-left: 0; margin-top: 12px; }
+  .pulso-access-desc { font-size: 15px; line-height: 1.5; }
+  .pulso-access-sequence { margin-top: 12px; gap: 10px; font-size: 13px; }
+  .pulso-access-bottom-jelly { display: none; }
+  .pulso-access-orbs { width: 240px; height: 240px; opacity: 0.45; }
+  .pulso-access-form-section {
+    border-left: none;
+    padding: 0;
+    min-height: auto;
+    width: 100%;
+  }
+  .pulso-access-card { width: 100%; max-width: 100%; }
   .pulso-access-card h2 { font-size: 26px; }
-  .pulso-access-key { display: none; }
-  .pulso-access-card form { margin-top: 22px; }
+  .pulso-access-card form { margin-top: 16px; }
   .pulso-access-card form > p { padding: 8px 12px; }
-  .pulso-access-stage:has(form > p) .pulso-access-story > p,
-  .pulso-access-stage:has(form > p) .pulso-access-card > p,
-  .pulso-access-stage:has(form > p) .pulso-access-note { display: none; }
-  .pulso-access-footer { padding: 20px; flex-wrap: wrap; gap: 10px; }
-  .pulso-access-footer > p { text-align: left; }
+  .pulso-access-footer { padding: 16px 24px; height: auto; min-height: 52px; flex-wrap: wrap; gap: 12px; }
+  .pulso-access-footer::before { left: 24px; right: 24px; }
+  .pulso-access-footer .marca svg { height: 25px; max-width: 100%; }
+  .pulso-access-footer > p { text-align: left; font-size: 12px; }
 }
-/* La altura también forma parte del layout: cede el espacio decorativo,
-   nunca se fija la altura ni se recortan formularios, avisos o foco. */
-@media (min-width: 768px) and (max-height: 960px) {
-  .pulso-access { padding: 12px; }
-  .pulso-access-stage { min-height: calc(100svh - 24px); }
-  .pulso-access-header, .pulso-access-footer { padding: 14px 32px; }
-  .pulso-access-main { padding: 20px 32px; gap: 40px; }
-  .pulso-access-object { margin-bottom: 16px; }
-  .pulso-access-object .pulso-jelly { width: clamp(100px, 17svh, 150px); }
-  .pulso-access-story h1 { font-size: clamp(40px, 7svh, 60px); }
-  .pulso-access-story > p { margin-top: 16px; line-height: 1.6; }
-  .pulso-access-sequence { margin-top: 20px; padding-top: 16px; }
-  .pulso-access-card { padding: 28px; }
-  .pulso-access-key { width: 38px; height: 38px; margin-bottom: 16px; }
-  .pulso-access-card form { margin-top: 20px; }
-}
-@media (min-width: 768px) and (max-height: 760px) {
-  .pulso-access-header, .pulso-access-footer { padding-block: 8px; }
-  .pulso-access-main { padding-block: 12px; }
-  .pulso-access-object .pulso-jelly { width: 86px; }
-  .pulso-access-story h1 { font-size: 40px; }
-  .pulso-access-key { display: none; }
-  .pulso-access-card { padding: 20px; }
-  .pulso-access-card h2 { font-size: 26px; }
-  .pulso-access-card form { margin-top: 16px; gap: 10px; }
-  .pulso-access-card form:has(> p) { gap: 8px; }
-  .pulso-access-note { margin-top: 10px; }
-  .pulso-access-stage:has(form > p) .pulso-access-card > p,
-  .pulso-access-stage:has(form > p) .pulso-access-note { display: none; }
-}
-@media (max-width: 767px) and (max-height: 850px) {
-  .pulso-access-header { padding-block: 10px; }
-  .pulso-access-main { gap: 16px; padding-block: 8px 16px; }
-  .pulso-access-story .pulso-eyebrow { margin-bottom: 8px; }
-  .pulso-access-object .pulso-jelly { width: 62px; }
-  .pulso-access-story h1 { font-size: 30px; }
-  .pulso-access-card { padding: 20px; }
-  .pulso-access-card form { margin-top: 16px; gap: 12px; }
-  .pulso-access-card form > p { padding: 8px 12px; }
-  .pulso-access-note { margin-top: 10px; }
-  .pulso-access-footer { padding: 12px 20px; }
+
+@media (max-width: 480px) {
+  .pulso-access-header { padding: 12px 18px; }
+  .pulso-access-header .marca svg { height: 26px; }
+  .pulso-access-main { padding: 8px 16px 24px; gap: 20px; }
+  .pulso-access-title { font-size: clamp(26px, 7.5vw, 34px); }
+  .pulso-access-desc { font-size: 14px; }
+  .pulso-access-sequence { font-size: 12px; gap: 8px; }
+  .pulso-access-card h2 { font-size: 22px; }
+  .pulso-access-card input, .pulso-access-card :is(input, button.h-control) { height: 50px; min-height: 50px; }
+  .pulso-access-footer { padding: 12px 18px; }
+  .pulso-access-footer::before { left: 18px; right: 18px; }
   .pulso-access-footer > p { display: none; }
 }
-@media (max-width: 767px) and (max-height: 740px) {
-  .pulso-access { padding: 8px; }
-  .pulso-access-stage { min-height: calc(100svh - 16px); }
-  .pulso-access-main { gap: 12px; padding: 4px 16px 12px; }
-  .pulso-access-story > p, .pulso-access-note { display: none; }
-  .pulso-access-card { padding: 16px; }
-  .pulso-access-card > p { margin-top: 8px; }
-  .pulso-access-card form, .pulso-access-card form:has(> p) { margin-top: 12px; gap: 8px; }
-  .pulso-access-stage:has(form > p) .pulso-access-story .pulso-eyebrow { display: none; }
-}
-@media (min-width: 768px) and (max-height: 500px) {
-  .pulso-access { padding: 8px; }
-  .pulso-access-stage { min-height: calc(100svh - 16px); }
-  .pulso-access-main { padding-block: 4px; gap: 24px; }
-  .pulso-access-object { margin-bottom: 8px; }
-  .pulso-access-object .pulso-jelly { width: 62px; }
-  .pulso-access-story > p, .pulso-access-sequence,
-  .pulso-access-note, .pulso-access-card > p { display: none; }
-  .pulso-access-card { padding: 16px; }
-  .pulso-access-card h2 { font-size: 24px; }
-  .pulso-access-card form { margin-top: 12px; gap: 8px; }
-  .pulso-access-footer { padding-block: 6px; }
+
+@media (min-width: 1024px) and (max-height: 720px) {
+  .pulso-access-header { padding-block: 14px; }
+  .pulso-access-story-content { padding-top: 24px; }
+  .pulso-access-form-section { padding-top: 36px; }
+  .pulso-access-title { font-size: clamp(38px, 4.2vw, 54px); }
+  .pulso-access-substory { margin-top: 14px; }
+  .pulso-access-footer { height: 46px; }
 }
 @media (max-width: 420px) { .pulso-context { display: none; } .pulso-hero .pulso-jelly { width: 54px; } }
 @media (prefers-reduced-motion: reduce) {
@@ -322,3 +353,141 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-chart .recharts-cartesian-axis-tick text { fill: var(--text-muted); font-size: 11px; }
 .pulso-chart .recharts-cartesian-grid line { stroke: var(--border); }
 .pulso-chart .recharts-reference-line line { stroke: var(--text-muted); }
+
+/* Dashboard IAxTi · Portada y tarjetas del inicio (#517 / ADR-0021). */
+[data-mode="noche"] [data-sidebar="menu-button"][data-active="true"] {
+  color: rgb(255 255 255);
+  background: rgb(22 34 68);
+  box-shadow: 0 0 16px rgb(61 90 254 / 0.18), inset 0 0 0 1px rgb(42 75 140);
+  border-radius: 14px;
+}
+[data-mode="noche"] [data-sidebar="menu-button"][data-active="true"] > svg {
+  color: rgb(61 90 254);
+}
+
+.pulso-topbar-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding-inline: 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-body);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 160ms, color 160ms, border-color 160ms;
+  text-decoration: none;
+}
+.pulso-topbar-pill:hover {
+  background: var(--bg-rest);
+  color: var(--text);
+}
+.pulso-topbar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-body);
+  position: relative;
+  transition: background-color 160ms, color 160ms;
+}
+.pulso-topbar-icon-btn:hover {
+  background: var(--bg-rest);
+  color: var(--text);
+}
+
+.pulso-dash-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 16px 16px 8px;
+  text-align: left;
+}
+.pulso-dash-hero-title {
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+.pulso-dash-hero-sky {
+  color: rgb(36 208 231);
+}
+.pulso-dash-hero-sub {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: clamp(14px, 1.3vw, 16px);
+}
+.pulso-dash-indicator {
+  width: 58px;
+  height: 3.5px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, rgb(147 231 231), rgb(75 177 225));
+  box-shadow: 0 0 10px rgb(36 208 231 / 0.7);
+  margin: 10px auto 18px;
+}
+
+.pulso-dash-card {
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  padding: 24px 28px;
+  box-shadow: var(--elevacion-panel);
+}
+.pulso-dash-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 18px;
+  min-height: 62px;
+  border-radius: 14px;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 140ms;
+  text-decoration: none;
+  color: inherit;
+}
+.pulso-dash-row:last-child {
+  border-bottom: none;
+}
+.pulso-dash-row:hover {
+  background: var(--bg-rest);
+}
+
+.pulso-embudo-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  padding: 24px 28px;
+  box-shadow: var(--elevacion-panel);
+  min-height: 165px;
+  display: flex;
+  align-items: center;
+}
+.pulso-embudo-wave {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  pointer-events: none;
+  overflow: hidden;
+  border-top-right-radius: 24px;
+  border-bottom-right-radius: 24px;
+}
+.pulso-embudo-wave img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+}
+

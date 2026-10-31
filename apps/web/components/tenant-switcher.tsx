@@ -85,13 +85,13 @@ export function TenantSwitcher() {
           selectTenant(valor);
         }}
       >
-        <SelectTrigger className="h-control w-full bg-field" aria-label="Negocio">
+        <SelectTrigger className="h-control w-full rounded-xl border border-line bg-raised text-ink transition-colors hover:bg-rest" aria-label="Negocio">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {memberships.map((m) => (
             <SelectItem key={m.tenantId} value={m.tenantId}>
-              {m.tenantName} · {m.roleName}
+              {m.tenantName}
             </SelectItem>
           ))}
         </SelectContent>

@@ -354,15 +354,16 @@ export function AgenteGeneral() {
 
   return (
     <Dialog open={abierto} onOpenChange={setAbierto}>
-      <Button
-        variant="fantasma"
+      <button
+        type="button"
         onClick={() => setAbierto(true)}
         aria-keyshortcuts="Control+i Meta+i"
         aria-label="Pedirle algo a IAxTi"
+        className="pulso-topbar-pill flex items-center gap-2 rounded-full border border-line bg-raised px-4 py-2 text-sm text-ink transition-colors hover:bg-rest"
       >
-        <Sparkles aria-hidden className="size-4 text-action-text" />
+        <Sparkles aria-hidden="true" className="size-4 text-[rgb(36,208,231)]" />
         <span className="hidden sm:inline">Pídeselo a IAxTi</span>
-      </Button>
+      </button>
       <DialogContent className="pulso-entrada flex max-h-[min(78vh,640px)] w-[calc(100vw-24px)] max-w-2xl flex-col gap-0 p-0">
         <div className="flex flex-col gap-1 border-b border-line px-6 py-4">
           <DialogTitle className="flex items-center gap-2">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Button, MarcaJelly, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
+import { Badge, Button, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { getOnboarding, type OnboardingProgress } from '@iaxti/sdk';
 import { WidgetsDelInicio } from './inicio/widgets';
@@ -42,26 +42,28 @@ function etiquetaDe(p: PasoDto): { texto: string; rol: BadgeRole } {
 function Bienvenida({ widgets = [] }: { widgets?: WidgetItem[] }) {
   return (
     <div className="flex flex-col gap-6">
-    <div className="pulso-hero">
-      <div>
-      <p className="rotulo">Bandeja</p>
-      <h2 className="mt-2 text-xl font-bold text-ink">
-        Aquí van a llegar las conversaciones de tu negocio
-      </h2>
-      <p className="mt-2 max-w-prose text-body">
-        Cuando conectes WhatsApp o actives el chat de tu sitio, cada mensaje aparecerá en la bandeja
-        con su contacto y su historia.
-      </p>
-      <Link href="/bandeja" className="mt-6 inline-block">
-        <Button variant="primario">Ir a la bandeja</Button>
-      </Link>
-      </div>
-      <MarcaJelly />
-    </div>
-    {/* También para quien no puede mirar el estado del negocio: sus widgets
-        salen de lo que su rol SÍ puede pedir, y los que no, no se dibujan
-        (#517). Antes esta portada era un texto fijo. */}
-    <WidgetsDelInicio widgets={widgets} />
+      <header className="pulso-dash-hero">
+        <div className="flex items-center justify-center gap-6 max-w-4xl mx-auto w-full">
+          <img
+            src="/marca/iaxti-dashboard-hero-cross.webp"
+            alt="IAxTi"
+            className="size-20 sm:size-24 object-contain shrink-0 drop-shadow-md"
+          />
+          <div>
+            <h1 className="pulso-dash-hero-title">
+              Tu negocio está <span className="pulso-dash-hero-sky">en marcha</span>
+            </h1>
+            <p className="pulso-dash-hero-sub">
+              Conversaciones, clientes y equipo. Todo conectado.
+            </p>
+          </div>
+        </div>
+      </header>
+      <div className="pulso-dash-indicator" aria-hidden="true" />
+      {/* También para quien no puede mirar el estado del negocio: sus widgets
+          salen de lo que su rol SÍ puede pedir, y los que no, no se dibujan
+          (#517). Antes esta portada era un texto fijo. */}
+      <WidgetsDelInicio widgets={widgets} />
     </div>
   );
 }
@@ -114,110 +116,122 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
   }
 
   const siguiente = estado.pasos.find((p) => p.id === estado.siguiente) ?? null;
-  const faltan = estado.pasos.filter((p) => !p.hecho && !p.bloqueado && !p.opcional).length;
 
   return (
     <section aria-label="Puesta en marcha de tu negocio" className="flex flex-col gap-6">
-      <header className="pulso-hero">
-        <div>
-        <span className="pulso-eyebrow">A tu ritmo, con todo conectado</span>
-        <h1 className="font-display text-titulo text-ink">
-          {estado.completo ? 'Tu negocio está en marcha' : 'Pon tu negocio en marcha'}
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-body">
-          {estado.completo
-            ? 'Ya está todo lo necesario. Desde acá se atiende: las conversaciones llegan a la bandeja.'
-            : faltan === 1
-              ? 'Te falta un paso para empezar a atender.'
-              : `Te faltan ${faltan} pasos para empezar a atender.`}
-        </p>
+      <header className="pulso-dash-hero">
+        <div className="flex items-center justify-center gap-6 max-w-4xl mx-auto w-full">
+          <img
+            src="/marca/iaxti-dashboard-hero-cross.webp"
+            alt="IAxTi"
+            className="size-20 sm:size-24 object-contain shrink-0 drop-shadow-md"
+          />
+          <div>
+            <h1 className="pulso-dash-hero-title">
+              {estado.completo ? (
+                <>
+                  Tu negocio está <span className="pulso-dash-hero-sky">en marcha</span>
+                </>
+              ) : (
+                <>
+                  Pon tu negocio <span className="pulso-dash-hero-sky">en marcha</span>
+                </>
+              )}
+            </h1>
+            <p className="pulso-dash-hero-sub">
+              Conversaciones, clientes y equipo. Todo conectado.
+            </p>
+          </div>
         </div>
-        <MarcaJelly />
       </header>
+      <div className="pulso-dash-indicator" aria-hidden="true" />
 
       {/* En marcha: lo primero que se ve es cómo va el negocio HOY, no el
           checklist de lo que ya hizo (#517). La lista se queda abajo, porque
           un negocio que conecta un segundo canal quiere volver a mirarla. */}
       {estado.completo && <WidgetsDelInicio widgets={widgets} />}
-      <OnboardingCostos tenant={tenant} />
 
-      {estado.desfase.length > 0 && (
-        <div
-          role="alert"
-          className="flex flex-col gap-1 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text"
-        >
-          <span className="font-medium">Esto figura hecho y hoy no está</span>
-          <ul className="flex flex-col gap-1">
-            {estado.desfase.map((d) => (
-              <li key={d}>{d}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className={estado.completo ? 'mt-72 flex flex-col gap-6' : 'flex flex-col gap-6'}>
+        <OnboardingCostos tenant={tenant} />
 
-      {!estado.completo && <progress aria-label="Pasos obligatorios completados" className="h-2 w-full appearance-none overflow-hidden rounded-boton border-0 bg-rest [&::-webkit-progress-bar]:bg-rest [&::-webkit-progress-value]:bg-action [&::-moz-progress-bar]:bg-action"
-        max={Math.max(1, estado.pasos.filter((p) => !p.opcional && !p.bloqueado).length)}
-        value={estado.pasos.filter((p) => !p.opcional && !p.bloqueado && p.hecho).length} />}
+        {estado.desfase.length > 0 && (
+          <div
+            role="alert"
+            className="flex flex-col gap-1 rounded-campo border border-warn-soft-br bg-warn-soft px-4 py-3 text-sm text-warn-text"
+          >
+            <span className="font-medium">Esto figura hecho y hoy no está</span>
+            <ul className="flex flex-col gap-1">
+              {estado.desfase.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-      <ol className="pulso-step-list">
-        {estado.pasos.map((p, indice) => {
-          const etiqueta = etiquetaDe(p);
-          const esSiguiente = p.id === estado.siguiente;
-          return (
-            <li
-              key={p.id}
-              data-next={esSiguiente}
-              className="pulso-step flex flex-wrap items-start justify-between gap-4 pulso-panel rounded-tarjeta border border-line bg-raised"
-            >
-              <div className="pulso-step-heading">
-              <span className="pulso-step-number" aria-hidden="true">{String(indice + 1).padStart(2, '0')}</span>
-              <div className="flex flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-ink">{p.titulo}</span>
-                  <Badge role={etiqueta.rol}>{etiqueta.texto}</Badge>
-                </span>
-                <span className="max-w-prose text-sm text-body">
-                  {p.bloqueado
-                    ? 'Este paso no aplica a tu plan: el módulo que lo resuelve está apagado.'
-                    : p.ayuda}
-                </span>
-                {p.detalle && <span className="text-xs text-muted">{p.detalle}</span>}
-                {p.hecho && p.fuente === 'historial' && (
-                  // No es lo mismo "lo comprobamos" que "quedó anotado".
-                  <span className="text-xs text-muted">Quedó anotado; no lo comprobamos ahora.</span>
+        {!estado.completo && <progress aria-label="Pasos obligatorios completados" className="h-2 w-full appearance-none overflow-hidden rounded-boton border-0 bg-rest [&::-webkit-progress-bar]:bg-rest [&::-webkit-progress-value]:bg-action [&::-moz-progress-bar]:bg-action"
+          max={Math.max(1, estado.pasos.filter((p) => !p.opcional && !p.bloqueado).length)}
+          value={estado.pasos.filter((p) => !p.opcional && !p.bloqueado && p.hecho).length} />}
+
+        <ol className="pulso-step-list">
+          {estado.pasos.map((p, indice) => {
+            const etiqueta = etiquetaDe(p);
+            const esSiguiente = p.id === estado.siguiente;
+            return (
+              <li
+                key={p.id}
+                data-next={esSiguiente}
+                className="pulso-step flex flex-wrap items-start justify-between gap-4 pulso-panel rounded-tarjeta border border-line bg-raised"
+              >
+                <div className="pulso-step-heading">
+                <span className="pulso-step-number" aria-hidden="true">{String(indice + 1).padStart(2, '0')}</span>
+                <div className="flex flex-col gap-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-ink">{p.titulo}</span>
+                    <Badge role={etiqueta.rol}>{etiqueta.texto}</Badge>
+                  </span>
+                  <span className="max-w-prose text-sm text-body">
+                    {p.bloqueado
+                      ? 'Este paso no aplica a tu plan: el módulo que lo resuelve está apagado.'
+                      : p.ayuda}
+                  </span>
+                  {p.detalle && <span className="text-xs text-muted">{p.detalle}</span>}
+                  {p.hecho && p.fuente === 'historial' && (
+                    // No es lo mismo "lo comprobamos" que "quedó anotado".
+                    <span className="text-xs text-muted">Quedó anotado; no lo comprobamos ahora.</span>
+                  )}
+                </div>
+                </div>
+                {p.id === 'whatsapp_connected' && !p.hecho && !p.bloqueado && <WhatsAppInvitation tenant={tenant} primary={esSiguiente}/>}
+                {p.ruta && p.id !== 'whatsapp_connected' && !p.hecho && !p.bloqueado && (
+                  <Link href={p.ruta}>
+                    <Button variant={esSiguiente ? 'primario' : 'fantasma'} size="chico">
+                      {esSiguiente ? 'Hacerlo ahora' : 'Ir'}
+                    </Button>
+                  </Link>
                 )}
-              </div>
-              </div>
-              {p.id === 'whatsapp_connected' && !p.hecho && !p.bloqueado && <WhatsAppInvitation tenant={tenant} primary={esSiguiente}/>}
-              {p.ruta && p.id !== 'whatsapp_connected' && !p.hecho && !p.bloqueado && (
-                <Link href={p.ruta}>
-                  <Button variant={esSiguiente ? 'primario' : 'fantasma'} size="chico">
-                    {esSiguiente ? 'Hacerlo ahora' : 'Ir'}
-                  </Button>
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+              </li>
+            );
+          })}
+        </ol>
 
-      {estado.completo && (
-        <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-5">
-          <p className="text-sm text-body">
-            Lo que sigue ya no es puesta en marcha: es atender. Los mensajes de tus clientes llegan a
-            la bandeja.
+        {estado.completo && (
+          <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+            <p className="text-sm text-body">
+              Lo que sigue ya no es puesta en marcha: es atender. Los mensajes de tus clientes llegan a
+              la bandeja.
+            </p>
+            <Link href="/bandeja" className="mt-4 inline-block">
+              <Button variant="primario">Ir a la bandeja</Button>
+            </Link>
+          </div>
+        )}
+
+        {!estado.completo && siguiente?.ruta && (
+          <p className="text-xs text-muted">
+            Lo siguiente: {siguiente.titulo.toLowerCase()}.
           </p>
-          <Link href="/bandeja" className="mt-4 inline-block">
-            <Button variant="primario">Ir a la bandeja</Button>
-          </Link>
-        </div>
-      )}
-
-      {!estado.completo && siguiente?.ruta && (
-        <p className="text-xs text-muted">
-          Lo siguiente: {siguiente.titulo.toLowerCase()}.
-        </p>
-      )}
+        )}
+      </div>
     </section>
   );
 }

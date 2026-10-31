@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  MarcaJelly,
   ModeToggle,
   RequireSession,
   Sidebar,
@@ -28,6 +27,7 @@ import {
   type PublicConfig,
 } from '@iaxti/ui/react';
 import {
+  Home,
   Bot,
   Building2,
   CalendarDays,
@@ -159,6 +159,7 @@ function porSeccion(items: NavItem[]): Array<[string, NavItem[]]> {
  * a un 404. No merece la misma ceremonia.
  */
 const ICONOS: Record<string, LucideIcon> = {
+  '/': Home,
   '/bandeja': Inbox,
   '/agenda': CalendarDays,
   '/campanas': Megaphone,
@@ -371,28 +372,49 @@ function CerrarSesion() {
   );
 }
 
-function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; candados: Set<string> }) {
+function Barra({ nav, marcaSvg = '', candados }: { nav: NavItem[]; marcaSvg?: string; candados: Set<string> }) {
   const firma = useMarcaSvg(marcaSvg);
   const activa = usePathname();
+  void ORDEN;
 
-  const grupos = useMemo(() => {
-    const por = new Map<string, NavItem[]>();
+  const { principales, configuracion } = useMemo(() => {
+    const ordenRutas: Record<string, number> = {
+      '/bandeja': 1,
+      '/pendientes': 2,
+      '/agenda': 3,
+      '/oportunidades': 4,
+      '/contactos': 5,
+      '/empresas': 6,
+      '/reportes': 7,
+      '/campanas': 8,
+    };
+    const princ: NavItem[] = [];
+    const config: NavItem[] = [];
     for (const item of nav) {
-      const g = item.grupo ?? 'Configuración';
-      por.set(g, [...(por.get(g) ?? []), item]);
+      if (item.grupo === 'Configuración' || item.path.startsWith('/ajustes')) {
+        config.push(item);
+      } else {
+        princ.push(item);
+      }
     }
-    const conocidos = ORDEN.filter((g) => por.has(g));
-    const resto = [...por.keys()].filter((g) => !ORDEN.includes(g)).sort();
-    return [...conocidos, ...resto].map((g) => [g, por.get(g)!] as const);
+    princ.sort((a, b) => (ordenRutas[a.path] ?? 99) - (ordenRutas[b.path] ?? 99));
+    return { principales: princ, configuracion: config };
   }, [nav]);
+
+  const enAjustes = activa?.startsWith('/ajustes');
 
   return (
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
         {/* Plegada, conserva el isotipo como acceso al inicio y oculta
             el nombre y el selector para no desbordar los iconos. */}
-        <Link href="/" prefetch={false} className="pulso-brand" aria-label="IAxTi, inicio">
-          <MarcaJelly />
+        <Link href="/" prefetch={false} className="pulso-brand flex items-center gap-3 px-1 py-1" aria-label="IAxTi, inicio">
+          <img
+            src="/marca/iaxti-sidebar-cross.webp"
+            alt=""
+            className="size-8 object-contain shrink-0 drop-shadow-sm"
+            aria-hidden="true"
+          />
           <span className="group-data-[collapsible=icon]:hidden">
             <span className="pulso-brand-name">IAxTi</span>
             <span className="pulso-brand-caption">Tu negocio, conectado</span>
@@ -407,9 +429,54 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
       </SidebarHeader>
 
       <SidebarContent>
-        {grupos.map(([titulo, items]) => (
-          <Grupo key={titulo} titulo={titulo} items={items} candados={candados} activa={activa} />
-        ))}
+        <SidebarGroup>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={activa === '/'}
+                tooltip="Inicio"
+              >
+                <Link href="/" prefetch={false}>
+                  <Home className="size-4 shrink-0" />
+                  <span>Inicio</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {principales.map((item) => {
+              const conCandado = candados.has(item.path);
+              const Icono = ICONOS[item.path] ?? Settings;
+              return (
+                <SidebarMenuItem key={item.path}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={item.path === activa}
+                    tooltip={
+                      conCandado
+                        ? `${item.label} · tu plan no lo incluye: puedes mirar, no cambiar`
+                        : item.label
+                    }
+                  >
+                    <Link href={item.path} prefetch={false}>
+                      <Icono className="size-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        {enAjustes && configuracion.length > 0 && (
+          <Grupo
+            titulo="Configuración"
+            items={configuracion}
+            candados={candados}
+            activa={activa}
+          />
+        )}
       </SidebarContent>
 
       <SidebarFooter>
@@ -574,10 +641,13 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: 
             <header className="pulso-topbar flex items-center gap-3 border-b border-line px-6 py-3">
               <SidebarTrigger />
               <div className="pulso-context">
-                <span>{pagina?.grupo ?? 'Tu espacio de trabajo'}</span>
-                <strong>{pagina?.label ?? (ruta === '/' ? 'Puesta en marcha' : 'IAxTi')}</strong>
+                <span>Tu espacio de trabajo</span>
+                <strong className="flex items-center gap-1.5">
+                  {ruta === '/' ? 'Demo IAxTi' : (pagina?.label ?? 'IAxTi')}
+                  <ChevronDown className="size-3.5 opacity-60" aria-hidden="true" />
+                </strong>
               </div>
-              <div className="ml-auto flex items-center gap-3">
+              <div className="ml-auto flex items-center gap-2.5 sm:gap-3">
                 {/* IAxTi va en la barra de TODA la app y no en una pantalla
                     suya: configurar conversando solo sirve si está donde
                     estás (#493). Primero él, después buscar: pedir es lo
@@ -595,7 +665,7 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: 
                 que también se vea en la bandeja —que va a ancho completo y sin
                 contenedor—. */}
             {sinPoderPreguntar ? (
-              <div className={sinMargen ? 'shrink-0 px-6 pt-3' : 'pulso-content mx-auto w-full max-w-contenido pt-3'}>
+              <div className={sinMargen ? 'shrink-0 px-6 pt-3' : 'pulso-content mx-auto w-full max-w-[1400px] pt-3'}>
                 <AvisoResultado persistente tono="warning">
                   No pudimos cargar el menú: ni desde el servidor ni desde este navegador. Lo que
                   estás viendo funciona igual, pero la barra va a estar vacía hasta que la API
@@ -606,7 +676,7 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: 
                 </AvisoResultado>
               </div>
             ) : null}
-            <div className={sinMargen ? 'min-h-0 min-w-0 flex-1' : 'pulso-content mx-auto w-full max-w-contenido'}>
+            <div className={sinMargen ? 'min-h-0 min-w-0 flex-1' : 'pulso-content mx-auto w-full max-w-[1400px]'}>
               {/* Las pestañas de la sección van DENTRO del contenido y las pone
                   el shell, no cada página (#387). Como layout de
                   `app/ajustes/` quedarían por fuera: el layout envuelve a
