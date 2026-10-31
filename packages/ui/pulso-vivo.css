@@ -17,10 +17,16 @@ body { background: var(--canvas); font-size: 15px; }
   background: radial-gradient(ellipse at 95% 0%, var(--ambient-cool), transparent 42%),
     radial-gradient(ellipse at 35% 100%, var(--ambient-warm), transparent 48%);
 }
-/* Nada de interfaz baja de 12 px (#1106).
-   Este archivo pisaba los tokens con 9, 10 y 11 px: el sistema tiene una
-   escala bien resuelta y acá se la socavaba. Y el h1 de la bandeja estaba en
-   27, un píxel bajo el mínimo del propio token `titulo`. */
+/* Dos tamaños medidos, no un barrido (#1106).
+   Sube lo que se LEE y estaba indefendible: el pie de la marca, que estaba en
+   9 px, y las migas del topbar, en 10. Y el h1 de la bandeja de 27 a 28, que
+   era un píxel bajo el mínimo del propio token `titulo`.
+   Los rótulos de grupo de la barra, los antetítulos y los ejes de los
+   gráficos SE QUEDAN donde estaban: son versales con mucho espaciado, un
+   patrón legible a ese tamaño, y subirlos cortaba «Configuración (3)» contra
+   el filete. El piso de 12 px no es una regla de este repo — era el umbral
+   con que reportaba una herramienta, y aplicarlo a ciegas sobre pantallas que
+   nadie miró cambia nueve cosas para arreglar dos. */
 .pulso-topbar { height: 73px; background: var(--chrome); border-color: var(--border); }
 .pulso-context { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .pulso-context span { color: var(--text-muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
@@ -31,7 +37,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-workspace [data-variant="floating"] [data-sidebar="sidebar"] { border-radius: 24px; box-shadow: var(--elevacion-panel); }
 [data-sidebar="header"] { padding: 20px 14px 16px; gap: 22px; }
 [data-sidebar="content"] { padding-inline: 8px; gap: 16px; }
-[data-sidebar="group-label"] { height: 30px; padding-inline: 12px; font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+[data-sidebar="group-label"] { height: 30px; padding-inline: 12px; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
 [data-sidebar="menu"] { gap: 5px; }
 [data-sidebar="menu-button"] { min-height: 42px; border-radius: 13px; padding-inline: 12px; color: var(--text-body); font-size: 13px; transition: background-color 160ms, color 160ms; }
 [data-sidebar="menu-button"] > svg { width: 18px; height: 18px; stroke-width: 1.7; }
@@ -41,7 +47,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-brand { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; }
 .pulso-brand .pulso-jelly { width: 43px; }
 .pulso-brand-name { font: 800 31px/1 'Outfit', sans-serif; letter-spacing: -.055em; }
-.pulso-brand-caption { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; }
+.pulso-brand-caption { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
 .marca-pie svg { height: 21px; width: auto; max-width: 100%; }
 .group[data-collapsible="icon"] [data-sidebar="header"] { padding: 16px 8px; }
 .group[data-collapsible="icon"] [data-sidebar="content"] { padding-inline: 0; }
@@ -82,7 +88,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-hero > * { position: relative; }
 .pulso-hero h1 { max-width: 18ch; font-size: clamp(28px, 3.2vw, 46px); }
 .pulso-hero .pulso-jelly { width: clamp(100px, 15vw, 190px); transform: rotate(-9deg); }
-.pulso-eyebrow { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--action-text); font-size: 12px; line-height: 1.5; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; }
+.pulso-eyebrow { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--action-text); font-size: 10px; line-height: 1.5; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; }
 .pulso-eyebrow::before { content: ''; width: 18px; height: 2px; border-radius: 2px; background: var(--brand-warm); }
 .pulso-step-list { display: grid; gap: 12px; }
 .pulso-step { position: relative; padding: 22px; }
@@ -107,7 +113,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-access-story { position: relative; min-width: 0; padding-block: 10px; }
 .pulso-access-object { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
 .pulso-access-object .pulso-jelly { width: clamp(140px, 15vw, 205px); transform: rotate(-10deg); }
-.pulso-access-object p { max-width: 13ch; color: var(--text-muted); font-size: 12px; line-height: 1.6; letter-spacing: .13em; text-transform: uppercase; }
+.pulso-access-object p { max-width: 13ch; color: var(--text-muted); font-size: 11px; line-height: 1.6; letter-spacing: .13em; text-transform: uppercase; }
 .pulso-access-story h1 { margin: 0; color: var(--text); font-size: clamp(42px, 5.1vw, 72px); line-height: 1.02; letter-spacing: -.055em; font-weight: 700; }
 .pulso-access-story h1 span { color: var(--action-text); }
 .pulso-access-story > p { max-width: 39ch; margin-top: 22px; color: var(--text-body); line-height: 1.8; }
@@ -122,8 +128,8 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-access-card form:has(> p) { gap: 12px; margin-top: 16px; }
 .pulso-access-card form > p { padding: 10px 12px; overflow-wrap: anywhere; }
 .pulso-access-card :is(input, button.h-control) { flex-shrink: 0; min-height: 46px; }
-.pulso-access-note { margin-top: 18px; text-align: center; color: var(--text-muted); font-size: 12px; }
-.pulso-access-footer { color: var(--text-muted); font-size: 12px; }
+.pulso-access-note { margin-top: 18px; text-align: center; color: var(--text-muted); font-size: 11px; }
+.pulso-access-footer { color: var(--text-muted); font-size: 11px; }
 .pulso-access-footer .marca svg { height: 23px; }
 .pulso-access-footer > p { text-align: right; }
 
@@ -297,7 +303,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-chart-area { fill: var(--action-soft); }
 .pulso-chart-line { stroke: currentColor; stroke-width: 3; stroke-linejoin: round; }
 .pulso-chart-guide { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 5; }
-.pulso-chart-dates { display: flex; justify-content: space-between; margin-top: 12px; color: var(--text-muted); font-size: 12px; }
+.pulso-chart-dates { display: flex; justify-content: space-between; margin-top: 12px; color: var(--text-muted); font-size: 11px; }
 .pulso-chart-selector { display: block; margin: 4px 0 0 44px; }
 .pulso-chart-selector input { width: 100%; min-height: 32px; accent-color: var(--action-text); cursor: pointer; }
 .pulso-chart-reading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; min-height: 50px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-rest); color: var(--text-body); font-size: 12px; }
