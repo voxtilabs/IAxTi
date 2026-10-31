@@ -151,12 +151,18 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
           >
             {exportando ? 'Armando el archivo…' : 'Exportar Excel'}
           </Button>
+          {/* «Exportar CSV» y no «CSV» (#1118). El peso fantasma es la
+              decisión de #1106 y se queda —es la exportación menos usada—,
+              pero el rótulo a secas, al lado de «Exportar Excel», se lee como
+              una palabra suelta que alguien se olvidó de terminar, no como la
+              acción de al lado con menos énfasis. Un botón fantasma sin verbo
+              parece un error de estilado. */}
           <Button
             variant="fantasma"
             disabled={exportando || items?.length === 0}
             onClick={() => void exportar()}
           >
-            CSV
+            Exportar CSV
           </Button>
           <a
             href="/contactos/importar"
@@ -166,11 +172,17 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
           </a>
         </div>
       </div>
+      {/* Acotado (#1118). Ocupaba los 1.500 px del ancho para buscar en una
+          tabla de cuatro columnas, y un campo de texto del ancho de la
+          pantalla es lo que hace que una lista se lea como un formulario.
+          `max-w-xs` y no un valor nuevo: es el que ya usa el buscador de
+          Empresas, y tres anchos para la misma cosa en tres pantallas es
+          exactamente lo que #1109 vino a sacar. */}
       <Input
         type="search"
         aria-label="Buscar contactos"
         placeholder="Buscar por nombre o teléfono…"
-        className="mt-4"
+        className="mt-4 w-full max-w-xs"
         value={q}
         onChange={(e) => { setQ(e.target.value); firstPage(); }}
       />
