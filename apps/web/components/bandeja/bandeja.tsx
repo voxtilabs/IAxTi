@@ -584,7 +584,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                       cinco en vez de diez es peor aunque cada fila se lea
                       mejor. Al lado, el avatar cabe dentro del alto de las dos
                       líneas y no suma nada. */}
-                  <Avatar size="chico" nombre={c.contactName} fallback={c.contactPhone ?? nombreCanal(c.channel)} />
+                  <Avatar size="chico" nombre={c.contactName} />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate leading-tight text-dato font-medium text-ink">

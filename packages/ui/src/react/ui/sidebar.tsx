@@ -283,7 +283,10 @@ const SidebarTrigger = React.forwardRef<
       // Button de este paquete: `ghost`/`icon` del registro no existen acá.
       variant="fantasma"
       size="icono"
-      className={cn("h-7 w-7", className)}
+      // Sin pisar el tamaño (#1106). Decía `h-7 w-7`, o sea 28 px, y anulaba
+      // el `size="icono"` justo en el control de navegación PRINCIPAL del
+      // celular: medido daba 26×28 contra un mínimo táctil de 44.
+      className={className}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
@@ -307,10 +310,10 @@ const SidebarRail = React.forwardRef<
     <button
       ref={ref}
       data-sidebar="rail"
-      aria-label="Toggle Sidebar"
+      aria-label="Plegar o desplegar el menú"
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      title="Plegar o desplegar el menú"
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex",
         "[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize",

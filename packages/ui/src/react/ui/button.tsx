@@ -14,10 +14,22 @@ const VARIANTES: Record<ButtonVariant, string> = {
   soft: 'border border-action-soft-br bg-action-soft text-action-text hover:border-action',
 };
 
+/**
+ * `chico` e `icono` llegan a 44 px, no a 36 (#1106).
+ *
+ * Medido sobre /contactos a 1280: cincuenta de ochenta y nueve blancos de
+ * interacción quedaban bajo 44×44, y casi todos salían de acá — `h-9` son
+ * 36 px. El mínimo táctil no es una preferencia: es el tamaño con el que un
+ * pulgar acierta, y la persona que usa esto está en el celular contestando
+ * entre clienta y clienta.
+ *
+ * «Chico» sigue siendo chico donde importa, que es el ANCHO y el peso visual;
+ * lo que sube es el alto, que no se ve y sí se toca.
+ */
 const TAMANOS: Record<ButtonSize, string> = {
   normal: 'h-control px-6 text-cuerpo',
-  chico: 'h-9 px-4 text-sm',
-  icono: 'h-9 w-9 p-0',
+  chico: 'h-11 px-4 text-sm',
+  icono: 'h-11 w-11 p-0',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

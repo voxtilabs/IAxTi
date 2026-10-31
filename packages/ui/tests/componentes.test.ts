@@ -14,8 +14,12 @@ describe('componentes Pulso (shadcn-style)', () => {
   it('las iniciales caen bien: nombre completo, uno solo, o teléfono', () => {
     expect(iniciales('María Paz Soto')).toBe('MP');
     expect(iniciales('Camila')).toBe('C');
-    expect(iniciales(null, '+56912345678')).toBe('78');
-    expect(iniciales('  ', '')).toBe('?');
+    // Sin nombre devuelve null, y NO los dos últimos dígitos del teléfono
+    // (#1106). Eso hacía que la bandeja mostrara círculos con «78», «48»,
+    // «30»: hay que decodificarlos, parecen un contador y no distinguen a
+    // nadie. Quien pinta decide; el avatar pone una silueta neutra.
+    expect(iniciales(null)).toBeNull();
+    expect(iniciales('   ')).toBeNull();
   });
 
   it('los roles del Badge son exactamente los del CHECK de tags (crm)', async () => {
