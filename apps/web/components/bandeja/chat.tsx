@@ -2,6 +2,7 @@
 
 import { AvisoResultado, toast } from '@iaxti/ui/react';
 import { PanelALaEspera } from './panel-a-la-espera';
+import { ListaDeAtajos } from './atajos-de-la-bandeja';
 
 import { Bot, Paperclip, ThumbsDown, ThumbsUp } from 'lucide-react';
 
@@ -87,6 +88,14 @@ export interface LimitesDeAdjunto {
 
 export interface ChatProps {
   detalle: ConversacionDetalle | null;
+  /**
+   * Hay una conversación elegida y su detalle viene en camino (#1111).
+   *
+   * Sin esto, `!detalle` mezcla dos cosas distintas —«no elegiste nada» y
+   * «estoy trayendo la que elegiste»— y el panel muestra el mensaje de la
+   * primera durante la segunda.
+   */
+  abriendo?: boolean;
   mensajes: Mensaje[] | null;
   atajos: QuickReplyDto[];
   sugerencia: SugerenciaDto | null;
@@ -219,7 +228,7 @@ function enCastellano(herramienta: string): string {
 }
 
 export function Chat({
-  detalle, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
+  detalle, abriendo, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   hayAnteriores, trayendoAnteriores, onVerAnteriores,
   onReintentar, reintentando,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onPrioridad, onSugerencia, onModo, onCobrar, onCrearOportunidad,
@@ -338,14 +347,35 @@ export function Chat({
   // que manda.
   const arrastre = useArrastre({ alRecibir: setArchivo, activo: enVentana && admiteAdjuntos });
 
+  // Tres estados, no dos (#1111).
+  //
+  // `seleccion` se pone en el clic y `detalle` llega después del fetch, así que
+  // en el intervalo había `seleccion` sin `detalle` — y este panel decía «elegí
+  // una conversación» MIENTRAS cargaba la que acabás de elegir. Le decía al
+  // usuario que su clic no entró, justo cuando la conexión lenta es la razón de
+  // que esté leyendo algo.
+  //
+  // El ancho que queda cuando no hay nada elegido era la mitad de la pantalla
+  // diciendo que estaba vacía. Los atajos son lo único útil en ese momento, y
+  // es el único momento en que enseñarlos no interrumpe nada. Salen de
+  // `ATAJOS_DE_LA_BANDEJA`: una copia acá se desincronizaría con el diálogo de
+  // ayuda a la primera tecla nueva.
   if (!detalle) {
-    return (
+    return abriendo ? (
+      <PanelALaEspera rotulo="Abriendo">Estamos trayendo la conversación.</PanelALaEspera>
+    ) : (
       <PanelALaEspera
         rotulo="Bandeja"
         accion={(
           <Button variant="secundario" size="chico" className="mt-2 lg:hidden" onClick={onVolver}>
             <IconoVolver className="h-4 w-4" /> Ver la lista
           </Button>
+        )}
+        extra={(
+          <div className="mt-6 hidden w-full max-w-xs border-t border-line pt-5 text-left lg:block">
+            <p className="rotulo mb-3">Para ir más rápido</p>
+            <ListaDeAtajos columnas={false} />
+          </div>
         )}
       >
         Elige una conversación de la lista para atenderla aquí.

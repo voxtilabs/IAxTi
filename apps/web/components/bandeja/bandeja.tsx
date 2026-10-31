@@ -23,6 +23,7 @@ import {
 import { estaEscribiendo } from '../../lib/teclado';
 import { usePieza, type Pieza } from '../arranque';
 import type { SecuenciaDto, InscripcionDto } from './secuencias-ficha';
+import { ListaDeAtajos } from './atajos-de-la-bandeja';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
@@ -467,12 +468,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       <Dialog open={ayuda} onOpenChange={setAyuda}><DialogContent onCloseAutoFocus={(e) => { e.preventDefault(); ayudaTrigger.current?.focus(); }}>
         <DialogTitle>Atajos de la bandeja</DialogTitle>
         <DialogDescription>Funcionan cuando no estás escribiendo en un campo.</DialogDescription>
-        <dl className="mt-4 grid grid-cols-2 gap-3 text-dato">
-          <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Siguiente / anterior conversación</dd>
-          <dt><kbd>e</kbd></dt><dd>Resolver la conversación abierta</dd>
-          <dt><kbd>?</kbd></dt><dd>Mostrar esta ayuda</dd>
-          <dt><kbd>Ctrl+K</kbd> / <kbd>⌘K</kbd></dt><dd>Buscar o ir a una pantalla</dd>
-        </dl>
+        <div className="mt-4"><ListaDeAtajos /></div>
       </DialogContent></Dialog>
       {/* Panel 1 · Lista (--bg-raised) */}
       <section
@@ -642,6 +638,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       >
         <Chat
           detalle={detalle}
+          abriendo={!!seleccion}
           mensajes={mensajes}
           hayAnteriores={hayAnteriores}
           trayendoAnteriores={trayendoAnteriores}
@@ -833,7 +830,14 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         />
       </section>
 
-      {/* Panel 3 · Ficha (--bg-raised) */}
+      {/* Panel 3 · Ficha (--bg-raised)
+          Solo con conversación elegida (#1111). Sin selección, esta ficha y el
+          chat eran DOS áreas vacías de 288 y 416 px —el 69% del ancho útil a
+          1280— diciendo cada una que estaba vacía. Dos vacíos lado a lado es lo
+          que se lee como inacabado; uno, no.
+          En celular no cambia nada: `pane` nunca llega a 'ficha' sin pasar por
+          el chat de una conversación. */}
+      {seleccion && (
       <section
         aria-label="Ficha del contacto"
         className={cn(
@@ -864,6 +868,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           }}
         />
       </section>
+      )}
     </div>
   );
 }

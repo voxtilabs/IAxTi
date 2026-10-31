@@ -49,6 +49,30 @@ test('bandeja: ofrece conectar el canal, cambiar de cola y limpiar una búsqueda
   await expect(buscar).toHaveValue('');
 });
 
+test('la bandeja sin selección deja UN panel vacío, y se gana el espacio', async ({ page }) => {
+  // Antes de esto, a 1280 el chat (416 px) y la ficha (288 px) eran 704 de los
+  // 1024 de ancho útil —el 69%— y los dos decían que estaban vacíos. Es lo
+  // primero que ve alguien al entrar al producto.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/bandeja');
+  const lista = page.getByRole('region', { name: 'Conversaciones' });
+  await expect(lista).toBeVisible();
+
+  // UN vacío, no dos: la ficha no se dibuja sin conversación elegida.
+  await expect(page.getByRole('region', { name: 'Ficha del contacto' })).toHaveCount(0);
+
+  // Y el que queda se gana el espacio: los atajos, que viven escondidos tras
+  // el `?`, son lo único útil cuando no hay nada elegido.
+  const chat = page.getByRole('region', { name: 'Conversación', exact: true });
+  await expect(chat.getByText('Para ir más rápido')).toBeVisible();
+  await expect(chat.getByText('Siguiente / anterior conversación')).toBeVisible();
+
+  // El estado «abriendo» NO se prueba acá: contra localhost dura lo que dura
+  // un fetch, así que la prueba sería una carrera contra la velocidad de la
+  // máquina. Vive en tests/abriendo-no-es-sin-elegir.test.tsx, donde el estado
+  // es un dato en vez de un instante (#564).
+});
+
 test('oportunidades sin embudo indican dónde configurarlo', async ({ page }) => {
   await page.route('**/v1/pipelines', (r) => r.fulfill({ json: [] }));
   await page.goto('/oportunidades');
