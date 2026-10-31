@@ -1,5 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createLocalSecretStore } from '@iaxti/google';
 import { Pool } from 'pg';
 import { runMigrations, withTenant } from '@iaxti/db';
 import { verifyChain, writeAudit } from '@iaxti/module-audit';
@@ -168,6 +172,55 @@ describe('limpieza durable de secretos de Google', () => {
     expect(await sweep()).toEqual({ destroyed: 1, failed: 0 });
     expect(deps.secrets.deleteSecret).toHaveBeenCalledExactlyOnceWith(locked.ref);
   });
+
+it('con la custodia en el VPS la recolección sigue encontrando el secreto completo', async () => {
+  /*
+   * La prueba que justifica el desvío de ADR-0027.
+   *
+   * La recolección decide si un secreto completo sigue en uso con
+   *
+   *     g.secret_ref LIKE '%/secrets/' || v.secret_ref || '/versions/%'
+   *
+   * o sea comparando la FORMA de la referencia. Secret Manager devuelve
+   * `projects/<p>/secrets/<id>/versions/<n>`; la custodia local devuelve
+   * `custodia-local/secrets/<id>/versions/<n>`. Si esa forma no se hubiera
+   * respetado, el `LIKE` dejaría de calzar y el barrido se llevaría por
+   * delante el secreto de un grant VIVO —o, en el otro sentido, nunca
+   * recogería los reemplazados—, las dos cosas sin fallar y sin avisar.
+   *
+   * Por eso acá no se simula el almacén: se usa el de verdad, contra disco.
+   */
+  const directorio = await mkdtemp(join(tmpdir(), 'iaxti-custodia-'));
+  try {
+    const local = createLocalSecretStore({ directorio, clave: randomBytes(32).toString('base64') });
+    const barrer = () => withTenant(app, tenantId, (client) => limpiarVersionesGoogle(client, {
+      tenantId, destroy: (ref) => local.destroy(ref), deleteSecret: (id) => local.deleteSecret(id), audit,
+    }));
+
+    const user = randomUUID();
+    const secretoId = `iaxti-google-${randomUUID()}`;
+    const ref = await local.put(secretoId, JSON.stringify({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 }));
+    expect(ref).toBe(`custodia-local/secrets/${secretoId}/versions/1`);
+
+    // Un grant VIVO apuntando a esa versión, y la intención del secreto
+    // completo ya vieja: el barrido tiene que dejarlos en paz.
+    await admin.query(`INSERT INTO google_oauth_grants(id,tenant_id,user_id,client_id,google_subject,secret_ref,scopes,status)
+      VALUES($1,$2,$3,'client','subject',$4,'{}','active')`, [randomUUID(), tenantId, user, ref]);
+    await admin.query(`INSERT INTO google_secret_versions(tenant_id,user_id,secret_ref,destroy_pending,whole_secret,created_at)
+      VALUES($1,$2,$3,true,true,now()-interval '2 days')`, [tenantId, user, secretoId]);
+
+    expect(await barrer()).toEqual({ destroyed: 0, failed: 0 });
+    expect(await local.access(ref)).toContain('refreshToken');
+
+    // Revocado el grant, el mismo barrido sí se lo lleva, y el disco queda
+    // limpio: la custodia local honra `deleteSecret` de verdad.
+    await admin.query("UPDATE google_oauth_grants SET status='revoked' WHERE tenant_id=$1", [tenantId]);
+    expect(await barrer()).toEqual({ destroyed: 1, failed: 0 });
+    await expect(readdir(join(directorio, secretoId))).rejects.toThrow();
+  } finally {
+    await rm(directorio, { recursive: true, force: true });
+  }
+});
 
   it('continúa con el otro tenant si la transacción de uno no puede iniciar la limpieza', async () => {
     const healthy = await pending({ tenant: other });

@@ -17,7 +17,11 @@
   body, encolar, responder < 1 s, idempotencia por id del proveedor. Nunca
   procesar en línea.
 - Tokens OAuth de Google: almacén cifrado, nunca en la base; scopes mínimos e
-  incrementales; cada acceso a datos de Google queda en audit.
+  incrementales; cada acceso a datos de Google queda en audit. Dónde vive ese
+  almacén lo elige el despliegue (ADR-0028): en v1 es disco cifrado del VPS
+  con AES-256-GCM y la llave en el entorno, y Secret Manager queda como
+  opción. Lo que no cambia es que el almacén es UNO por despliegue y que sin
+  llave no se arranca: no hay modo sin cifrar.
 - Tools de IA: pasan por el mismo guard con la identidad del usuario que
   conversa; ninguna tool borra; ninguna tool cruza tenants.
 - PII: minimizar en logs; redactar antes de Langfuse o cualquier proveedor
