@@ -130,3 +130,44 @@ test('a 360 px nada de la barra superior envuelve', async ({ page }) => {
   });
   expect(partidos, 'algo de la barra superior quedó en dos líneas a 360 px').toEqual([]);
 });
+
+test('a 360 px el campo del chat muestra su texto entero', async ({ page }) => {
+  // #1133: el compositor era una fila y a 360 px le quedaban ~130 px al
+  // campo, así que «Pídele lo que necesitas» envolvía a dos líneas dentro de
+  // un `rows={1}` y la segunda quedaba cortada por la mitad.
+  //
+  // Se mide el RECORTE —`scrollWidth`/`scrollHeight` contra lo visible— y no
+  // que el campo «se vea»: `toBeVisible` pasa igual con el texto partido, que
+  // es exactamente cómo esto llegó a producción.
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.addInitScript(({ auth }) => {
+    localStorage.setItem('iaxti-tenant', auth.tenantId);
+    localStorage.setItem('pulso-mode', 'dia');
+    localStorage.setItem('sb-127-auth-token', JSON.stringify({
+      access_token: auth.accessToken, token_type: 'bearer', expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'e2e',
+      user: { id: auth.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' },
+    }));
+  }, { auth });
+  await page.goto('/ajustes/ia');
+
+  const campo = page.getByRole('region', { name: 'Conversación con IAxTi' })
+    .getByLabel('Pídele algo a IAxTi');
+  await expect(campo).toBeVisible();
+  const medida = await campo.evaluate((el) => {
+    const t = el as HTMLTextAreaElement;
+    // Con el placeholder puesto, el ancho que el texto PIDE contra el que tiene.
+    const sonda = document.createElement('span');
+    const s = getComputedStyle(t);
+    sonda.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${s.font}`;
+    sonda.textContent = t.placeholder;
+    document.body.appendChild(sonda);
+    const pide = sonda.getBoundingClientRect().width;
+    sonda.remove();
+    const util = t.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+    return { pide: Math.round(pide), util: Math.round(util), recortado: t.scrollHeight > t.clientHeight + 2 };
+  });
+  expect(medida.recortado, 'el campo recorta su propio contenido').toBe(false);
+  expect(medida.util, `«${'Pídele lo que necesitas'}» pide ${medida.pide} px y el campo tiene ${medida.util}`)
+    .toBeGreaterThanOrEqual(medida.pide);
+});

@@ -231,10 +231,20 @@ export function Conversacion({ alto }: { alto?: string }) {
           <ConversationScrollButton />
         </Conversation>
 
-        <div className="flex flex-col gap-2 border-t border-line px-6 py-4">
+        {/* `px-4` en angosto (#1133): con `px-6` fijos, el relleno del panel
+            más el del compositor dejaban al campo ~130 px a 360. */}
+        <div className="flex flex-col gap-2 border-t border-line px-4 py-4 sm:px-6">
           {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
+          {/* Apilado en angosto (#1133). En el popup esto vivía en un diálogo
+              de `max-w-2xl` y la fila entraba; incrustado en una columna de
+              680 que a 360 se vuelve ~300, no: «Pídele lo que necesitas»
+              envolvía a dos líneas dentro de un campo de UNA, y la segunda
+              quedaba cortada por la mitad.
+              El botón ocupa el ancho abajo en vez de encogerse a un icono: es
+              la acción de la pantalla y en el teléfono se aprieta con el
+              pulgar. */}
           <form
-            className="flex items-end gap-2"
+            className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end"
             onSubmit={(e) => {
               e.preventDefault();
               void preguntar(texto);
