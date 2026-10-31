@@ -177,6 +177,11 @@ export interface ConversacionItem {
   /** Cuándo se cierra, para la etiqueta de «menos de 2 h». */
   cierraA?: string | null;
   lastMessageAt: string | null;
+  /**
+   * Los primeros 160 caracteres del último mensaje (#1102). `null` cuando no
+   * es texto —una imagen, un audio— o cuando una API vieja no lo manda.
+   */
+  lastMessagePreview?: string | null;
   unansweredSeconds: number | null;
   snoozedUntil: string | null;
   /**

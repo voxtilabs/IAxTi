@@ -566,13 +566,28 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                   aria-current={seleccion === c.id ? 'true' : undefined}
                   onClick={() => { setSeleccion(c.id); setPane('chat'); }}
                   className={cn(
-                    'pulso-conversation flex w-full items-center min-h-control gap-fila-gap border-b border-line px-fila-x py-fila-y text-dato text-left transition-colors hover:bg-rest',
+                    'pulso-conversation flex w-full items-center gap-fila-gap border-b border-line px-fila-x py-fila-y text-dato text-left transition-colors hover:bg-rest',
                     seleccion === c.id && 'bg-rest',
                   )}
                 >
+                  {/* Dos líneas con el avatar al LADO, no encima: arriba quién
+                      y en qué está; abajo, lo último que dijo.
+
+                      Compartiendo una sola línea con el chip de canal y las
+                      insignias, al preview le quedaban unos dieciocho
+                      caracteres —«Hola, ¿me pueden ayu…»— y eso no alcanza
+                      para saber de qué va sin abrir.
+
+                      Con el avatar arriba, en cambio, la fila se iba a 79 px y
+                      `densidad.spec.ts` lo rechaza: el presupuesto es 60 px y
+                      ocho conversaciones a la vista. Una bandeja que muestra
+                      cinco en vez de diez es peor aunque cada fila se lea
+                      mejor. Al lado, el avatar cabe dentro del alto de las dos
+                      líneas y no suma nada. */}
                   <Avatar size="chico" nombre={c.contactName} fallback={c.contactPhone ?? nombreCanal(c.channel)} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-dato font-medium text-ink">
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate leading-tight text-dato font-medium text-ink">
                       {nombreVisible({
                         name: c.contactName,
                         phone: c.contactPhone,
@@ -580,14 +595,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                         identity: c.contactIdentity,
                       })}
                     </span>
-                    <span className="flex items-center gap-1 font-mono text-rotulo text-muted">
-                      {/* De dónde viene el mensaje: con tres canales, saberlo
-                          antes de abrir cambia cómo se responde. */}
-                      <CanalChip canal={c.channel} soloIcono />
-                      {c.contactPhone ?? c.contactIdentity ?? nombreCanal(c.channel)}
-                    </span>
-                  </span>
-                  <span className="flex flex-col items-end gap-1">
+                    <span className="flex shrink-0 items-center gap-1.5">
                     <Badge role={ESTADOS[c.state].role}>{ESTADOS[c.state].label}</Badge>
                     {/* La prioridad en la lista (#550): es ahí donde sirve,
                         porque es la lista la que ahora viene ordenada por
@@ -597,12 +605,25 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                         {insigniaDePrioridad(c.priority)!.label}
                       </Badge>
                     )}
-                    {c.unansweredSeconds !== null && (
-                      <span className="flex items-center gap-1 font-mono text-rotulo text-warn-text">
-                        <IconoReloj className="h-3 w-3" />
-                        {fmtEspera(c.unansweredSeconds)}
+                      {c.unansweredSeconds !== null && (
+                        <span className="flex items-center gap-1 font-mono text-rotulo text-warn-text">
+                          <IconoReloj className="h-3 w-3" />
+                          {fmtEspera(c.unansweredSeconds)}
+                        </span>
+                      )}
+                    </span>
+                    </span>
+                  {/* De dónde viene y qué dijo. El canal importa antes de
+                      abrir —con tres, cambia cómo se responde— y la frase se
+                      lleva el resto del ancho. Sin texto —una imagen, un
+                      audio— cae al identificador, que es lo que había. */}
+                    <span className="flex w-full items-center gap-1.5 leading-tight text-rotulo text-muted">
+                      <CanalChip canal={c.channel} soloIcono />
+                      <span className="min-w-0 flex-1 truncate">
+                        {c.lastMessagePreview
+                          ?? c.contactPhone ?? c.contactIdentity ?? nombreCanal(c.channel)}
                       </span>
-                    )}
+                    </span>
                   </span>
                 </button>
               </li>

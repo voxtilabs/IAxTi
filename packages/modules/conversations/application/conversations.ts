@@ -35,6 +35,16 @@ export interface Conversation {
   dealId: string | null;
   lastInboundAt: Date | null;
   lastMessageAt: Date | null;
+  /**
+   * Los primeros 160 caracteres del último mensaje, para que la lista de la
+   * bandeja diga algo sin abrir cada conversación. Lo mantiene el mismo
+   * trigger que `last_message_at`.
+   *
+   * `null` cuando el último mensaje no es texto (una imagen, un audio): el
+   * preview anterior sería decir que lo último que dijo el cliente es algo
+   * que no dijo.
+   */
+  lastMessagePreview: string | null;
   firstResponseAt: Date | null;
   snoozedUntil: Date | null;
   archivedAt: Date | null;
@@ -122,6 +132,7 @@ function rowToConversation(row: Record<string, unknown>): Conversation {
     dealId: (row.deal_id as string) ?? null,
     lastInboundAt: (row.last_inbound_at as Date) ?? null,
     lastMessageAt: (row.last_message_at as Date) ?? null,
+    lastMessagePreview: (row.last_message_preview as string) ?? null,
     firstResponseAt: (row.first_response_at as Date) ?? null,
     snoozedUntil: (row.snoozed_until as Date) ?? null,
     archivedAt: (row.archived_at as Date) ?? null,

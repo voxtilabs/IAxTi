@@ -52,6 +52,7 @@ function rowToItem(row: Record<string, unknown>): InboxItem {
     dealId: (row.deal_id as string) ?? null,
     lastInboundAt: (row.last_inbound_at as Date) ?? null,
     lastMessageAt: (row.last_message_at as Date) ?? null,
+    lastMessagePreview: (row.last_message_preview as string) ?? null,
     firstResponseAt: (row.first_response_at as Date) ?? null,
     snoozedUntil: (row.snoozed_until as Date) ?? null,
     archivedAt: (row.archived_at as Date) ?? null,

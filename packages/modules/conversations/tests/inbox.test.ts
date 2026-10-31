@@ -119,3 +119,46 @@ describe('bandeja: listado y ficha (RLS activa)', () => {
     expect(detail.state).toBe('new');
   });
 });
+
+describe('el último mensaje en la lista (#1102)', () => {
+  it('el trigger lo mantiene, y el último gana', async () => {
+    const phone = `+5699${Math.floor(1000000 + Math.random() * 8999999)}`;
+    const { conversation } = await withTenant(app, tenant, (c) =>
+      receiveInbound(c, { tenantId: tenant, phone, channel: 'simulador', body: 'Hola, ¿tienen hora para mañana?' }),
+    );
+
+    const primera = await withTenant(app, tenant, (c) => listInbox(c, tenant, { contactId: conversation.contactId }));
+    expect(primera.items[0].lastMessagePreview).toBe('Hola, ¿tienen hora para mañana?');
+
+    // Llega otro: el preview es el ÚLTIMO, no el primero.
+    await withTenant(app, tenant, (c) =>
+      receiveInbound(c, { tenantId: tenant, phone, channel: 'simulador', body: 'Mejor el jueves' }),
+    );
+    const segunda = await withTenant(app, tenant, (c) => listInbox(c, tenant, { contactId: conversation.contactId }));
+    expect(segunda.items[0].lastMessagePreview).toBe('Mejor el jueves');
+  });
+
+  it('lo que no es texto deja el preview en nulo, y no la frase anterior', async () => {
+    const phone = `+5699${Math.floor(1000000 + Math.random() * 8999999)}`;
+    const { conversation } = await withTenant(app, tenant, (c) =>
+      receiveInbound(c, { tenantId: tenant, phone, channel: 'simulador', body: 'Te mando una foto' }),
+    );
+    await withTenant(app, tenant, (c) =>
+      receiveInbound(c, { tenantId: tenant, phone, channel: 'simulador', type: 'imagen' }),
+    );
+    // Conservar «Te mando una foto» sería afirmar que eso es lo último que
+    // dijo el cliente, y no lo es: lo último fue la imagen.
+    const lista = await withTenant(app, tenant, (c) => listInbox(c, tenant, { contactId: conversation.contactId }));
+    expect(lista.items[0].lastMessagePreview).toBeNull();
+  });
+
+  it('se corta en 160 caracteres: la lista no guarda el mensaje entero', async () => {
+    const phone = `+5699${Math.floor(1000000 + Math.random() * 8999999)}`;
+    const largo = 'a'.repeat(400);
+    const { conversation } = await withTenant(app, tenant, (c) =>
+      receiveInbound(c, { tenantId: tenant, phone, channel: 'simulador', body: largo }),
+    );
+    const lista = await withTenant(app, tenant, (c) => listInbox(c, tenant, { contactId: conversation.contactId }));
+    expect(lista.items[0].lastMessagePreview).toHaveLength(160);
+  });
+});

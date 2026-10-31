@@ -205,11 +205,17 @@ describe('derecho de supresión (#81)', () => {
     );
     expect(mensajes.rows[0].n).toBe(0);
 
-    const conv = await admin.query('SELECT archived_at, summary FROM conversations WHERE id = $1', [
-      conversationId,
-    ]);
+    const conv = await admin.query(
+      'SELECT archived_at, summary, last_message_preview FROM conversations WHERE id = $1',
+      [conversationId],
+    );
     expect(conv.rows[0].archived_at).not.toBeNull();
     expect(conv.rows[0].summary).toBeNull();
+    // La copia derivada del contenido también se va (#1102). Si se quedara,
+    // la conversación se vería vacía al abrirla y en la LISTA seguiría la
+    // última frase que la persona pidió borrar — que es exactamente la forma
+    // en que #235 se escapó la primera vez.
+    expect(conv.rows[0].last_message_preview).toBeNull();
 
     // El libro de auditoría NO se toca: es la prueba de que esto ocurrió.
     const rastro = await admin.query(

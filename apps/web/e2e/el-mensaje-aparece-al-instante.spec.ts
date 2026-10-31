@@ -48,13 +48,17 @@ test('se ve al instante, aunque el servidor tarde', async ({ page }) => {
 
   await page.goto('/bandeja');
   await page.getByRole('button', { name: /\+56 ?9/ }).first().click();
-  await expect(page.getByText('¿me pueden ayudar con una cotización?')).toBeVisible();
+  const chat = page.getByRole('region', { name: 'Conversación' });
+  // Acotado al chat: desde #1103 la lista muestra el último mensaje, así que
+  // el mismo texto está en pantalla dos veces y un `getByText` suelto
+  // encuentra cuatro elementos. Lo que esta línea mira es que la conversación
+  // se abrió, y eso vive en el chat.
+  await expect(chat.getByText('¿me pueden ayudar con una cotización?')).toBeVisible();
 
   const campo = page.getByLabel('Mensaje', { exact: true });
   await campo.fill('Te confirmo en un rato.');
   await page.getByLabel('Enviar').click();
 
-  const chat = page.getByRole('region', { name: 'Conversación' });
   // Al instante, con el POST todavía en vuelo: el mensaje en el hilo...
   await expect(chat.getByText('Te confirmo en un rato.')).toBeVisible({ timeout: 1500 });
   // ...y la caja vacía. Las dos cosas juntas, porque dejar el texto en el campo

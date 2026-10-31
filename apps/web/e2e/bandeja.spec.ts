@@ -43,10 +43,15 @@ test('la supervisora asigna la conversación simulada y la resuelve desde el cel
   await item.click();
 
   // Pantalla de chat: el mensaje del cliente se lee completo.
-  await expect(page.getByText('¿me pueden ayudar con una cotización?')).toBeVisible();
+  //
+  // Acotado a la región del chat, que es lo que esta línea siempre quiso
+  // decir: desde #1102 la lista muestra el último mensaje, así que el mismo
+  // texto está en pantalla dos veces y un `getByText` suelto encuentra cuatro
+  // elementos. Que aparezca en los dos lados es el cambio, no el defecto.
+  const chat = page.getByRole('region', { name: 'Conversación' });
+  await expect(chat.getByText('¿me pueden ayudar con una cotización?')).toBeVisible();
 
   // Asignársela (permiso conversations.assign del SUPERVISOR).
-  const chat = page.getByRole('region', { name: 'Conversación' });
   await page.getByTestId('acciones').click();
   await page.getByRole('menuitem', { name: 'Asignármela' }).click();
   await expect(chat.getByText('En curso')).toBeVisible();
@@ -54,7 +59,7 @@ test('la supervisora asigna la conversación simulada y la resuelve desde el cel
   // Responde: el mensaje aparece en la conversación y el simulador entrega.
   await page.getByLabel('Mensaje', { exact: true }).fill('¡Hola! Te preparo la cotización altiro.');
   await page.getByLabel('Enviar').click();
-  await expect(page.getByText('Te preparo la cotización altiro')).toBeVisible();
+  await expect(chat.getByText('Te preparo la cotización altiro')).toBeVisible();
 
   // La resuelve.
   await page.getByTestId('acciones').click();
