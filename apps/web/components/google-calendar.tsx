@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { googleCalendarClient, GoogleCalendarSdkError, type GoogleCalendarState } from '@iaxti/sdk';
-import { AvisoResultado, Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EncabezadoDePagina, Skeleton, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EncabezadoDePagina, Skeleton, useSession , Seccion } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { useArranque } from './arranque';
 import { clearGooglePending, googlePkce, readGooglePending, saveGooglePending } from '../lib/google-oauth';
@@ -69,9 +69,16 @@ function Connection({ apiUrl, token, tenantId, userId, canConnect }: {
     finally { if (alive.current) { flight.current = false; setBusy(false); } }
   }
   const linked = data && !['disconnected', 'revoked'].includes(data.status);
-  return <section className="pulso-panel my-6 rounded-tarjeta border border-line bg-raised p-4" aria-label="Google Calendar" aria-busy={loading || busy}>
-    <h2 className="text-lg font-bold text-ink">Google Calendar</h2>
-    <p className="mt-1 text-sm text-body">Conecta tu calendario para ofrecer horas que respeten tus compromisos. No leemos títulos ni contenidos de tus eventos.</p>
+  // Por `Seccion` (#1122): este bloque traía su propio marco, y en /agenda
+  // convivía con otros dos que traían el suyo — dos superficies, dos radios y
+  // dos rellenos bajando por una sola columna.
+  return <Seccion
+    aria-label="Google Calendar"
+    titulo="Google Calendar"
+    apoyo="Conecta tu calendario para ofrecer horas que respeten tus compromisos. No leemos títulos ni contenidos de tus eventos."
+    className="mt-0"
+    {...{ 'aria-busy': loading || busy }}
+  >
     <div className="mt-3"><Notice error={error} /></div>
     {loading && !data ? <Skeleton className="mt-3 h-16 w-full" /> : data ? <>
       <div className="mt-3"><Badge role={data.status === 'active' ? 'good' : 'neutral'}>{data.status === 'active' ? 'Permiso conectado' : data.status === 'revoking' ? 'Revocación pendiente' : data.status === 'reauth_required' ? 'Necesita autorización' : 'Sin conectar'}</Badge></div>
@@ -90,7 +97,7 @@ function Connection({ apiUrl, token, tenantId, userId, canConnect }: {
       <Notice error={error} />
       <DialogFooter className="flex-col sm:flex-row"><Button variant="fantasma" disabled={busy} onClick={() => setConfirm(false)}>Volver</Button><Button aria-label="Revocar permisos de Google" disabled={busy} onClick={() => void revoke()}>{busy ? 'Revocando…' : 'Revocar permisos'}</Button></DialogFooter>
     </DialogContent></Dialog>
-  </section>;
+  </Seccion>;
 }
 
 export function GoogleCalendarCallback() {
