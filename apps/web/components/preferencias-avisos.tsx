@@ -42,9 +42,18 @@ const NOMBRES: Record<string, string> = {
  */
 function PermisoPush() {
   const { session, config } = useSession();
-  const [estado, setEstado] = useState<'cargando' | 'no_disponible' | 'listo' | 'activo' | 'negado'>(
-    'cargando',
-  );
+  // En el render va el hook, no `selectedTenant()` suelto: tiene que seguir al
+  // selector de negocio. En los manejadores sigue yendo el suelto, que lee el
+  // valor vigente en el momento de la acción (#789).
+  const tenant = useSelectedTenant();
+  // `no_pudimos` existe porque `no_disponible` devuelve `null` y se lleva la
+  // sección entera (#1114). Que el servidor no tenga llaves VAPID y que no
+  // hayamos podido preguntárselo son dos cosas, y confundirlas hace que un
+  // fallo BORRE una función en vez de reportarla. El comentario de `activar()`
+  // ya decía esto mismo; el efecto de acá arriba no lo aplicaba.
+  const [estado, setEstado] = useState<
+    'cargando' | 'no_disponible' | 'no_pudimos' | 'listo' | 'activo' | 'negado'
+  >('cargando');
   const [aviso, setAviso] = useState<string | null>(null);
   /**
    * Si los avisos están LLEGANDO a este dispositivo (#698).
@@ -64,30 +73,42 @@ function PermisoPush() {
       setEstado('no_disponible');
       return;
     }
-    void fetch(`${config.apiUrl}/v1/notifications/push/clave`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
-      .then((r) => r.json())
-      .then(async (d: { publicKey: string | null }) => {
-        if (!d.publicKey) {
-          setEstado('no_disponible');
-          return;
-        }
-        const registro = await navigator.serviceWorker.getRegistration();
-        const suscripcion = await registro?.pushManager.getSubscription();
-        setEstado(
-          suscripcion ? 'activo' : Notification.permission === 'denied' ? 'negado' : 'listo',
+    if (!tenant) return;
+    // Por `apiFetch` y no por `fetch` a mano: es lo único que garantiza el
+    // `X-Tenant-Id`. Las tres llamadas de esta pantalla lo omitían, la API
+    // contestaba 401 TENANT_REQUIRED con un JSON válido —así que `.json()` no
+    // fallaba—, `publicKey` quedaba `undefined` y la sección desaparecía. La
+    // función llevaba desplegada todo ese tiempo, invisible (#1114).
+    void (async () => {
+      let clave: { publicKey: string | null };
+      try {
+        clave = await apiFetch<{ publicKey: string | null }>(
+          config, session, tenant, '/notifications/push/clave',
         );
-        if (!suscripcion) return;
-        // La salud se pide solo si hay suscripción: sin ella no hay nada que
-        // contar, y un fallo acá no puede romper la pantalla del permiso.
-        const r = await fetch(`${config.apiUrl}/v1/notifications/push/salud`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        }).catch(() => null);
-        if (r?.ok) setSalud((await r.json()) as SaludPushDto);
-      })
-      .catch(() => setEstado('no_disponible'));
-  }, [session, config.apiUrl]);
+      } catch {
+        setEstado('no_pudimos');
+        return;
+      }
+      if (!clave.publicKey) {
+        setEstado('no_disponible');
+        return;
+      }
+      const registro = await navigator.serviceWorker.getRegistration();
+      const suscripcion = await registro?.pushManager.getSubscription();
+      setEstado(suscripcion ? 'activo' : Notification.permission === 'denied' ? 'negado' : 'listo');
+      if (!suscripcion) return;
+      // La salud se pide solo si hay suscripción: sin ella no hay nada que
+      // contar, y un fallo acá no puede romper la pantalla del permiso.
+      try {
+        setSalud(await apiFetch<SaludPushDto>(config, session, tenant, '/notifications/push/salud'));
+      } catch {
+        // Queda sin el diagnóstico de salud, que es un extra; el permiso
+        // —que es lo que esta pantalla hace— sigue funcionando.
+      }
+    })();
+    // `tenant` en las dependencias: cambiar de negocio vuelve a preguntar. Sin
+    // eso, la respuesta del negocio anterior se quedaba pegada.
+  }, [session, config, tenant]);
 
   async function activar() {
     if (!session) return;
@@ -98,11 +119,11 @@ function PermisoPush() {
       // usuario leía «el servidor todavía no tiene el push configurado» —un
       // diagnóstico falso, que manda a revisar una configuración que está
       // bien. No pudimos PREGUNTAR y no está CONFIGURADO son dos cosas.
-      const respuesta = await fetch(`${config.apiUrl}/v1/notifications/push/clave`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      const clave = await apiFetch<{ publicKey: string | null }>(
+        config, session, selectedTenant() ?? '', '/notifications/push/clave',
+      ).catch(() => {
+        throw new Error('No pudimos preguntarle al servidor por los avisos.');
       });
-      if (!respuesta.ok) throw new Error('No pudimos preguntarle al servidor por los avisos.');
-      const clave = (await respuesta.json()) as { publicKey: string | null };
       if (!clave.publicKey) throw new Error('El servidor todavía no tiene el push configurado.');
 
       const permiso = await Notification.requestPermission();
@@ -115,16 +136,16 @@ function PermisoPush() {
         userVisibleOnly: true,
         applicationServerKey: clave.publicKey,
       });
-      const res = await fetch(`${config.apiUrl}/v1/notifications/push`, {
+      // Por `apiFetch` como las demás (#1114). Esta SÍ ponía el negocio a
+      // mano y funcionaba; el problema de armar la URL a mano no es que
+      // siempre falle, es que depende de que alguien se acuerde — y en este
+      // mismo archivo tres de cinco no se acordaron.
+      await apiFetch(config, session, selectedTenant() ?? '', '/notifications/push', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': selectedTenant() ?? '',
-        },
         body: JSON.stringify(suscripcion.toJSON()),
+      }).catch(() => {
+        throw new Error('No pudimos registrar este navegador.');
       });
-      if (!res.ok) throw new Error('No pudimos registrar este navegador.');
       setEstado('activo');
     } catch (err) {
       setAviso((err as Error).message);
@@ -158,16 +179,10 @@ function PermisoPush() {
       const suscripcion = await registro?.pushManager.getSubscription();
       let servidorLimpio = true;
       if (suscripcion) {
-        const res = await fetch(`${config.apiUrl}/v1/notifications/push`, {
+        servidorLimpio = await apiFetch(config, session, selectedTenant() ?? '', '/notifications/push', {
           method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-            'X-Tenant-Id': selectedTenant() ?? '',
-          },
           body: JSON.stringify({ endpoint: suscripcion.endpoint }),
-        });
-        servidorLimpio = res.ok;
+        }).then(() => true, () => false);
         await suscripcion.unsubscribe();
       }
       setEstado('listo');
@@ -182,6 +197,16 @@ function PermisoPush() {
   }
 
   if (estado === 'cargando' || estado === 'no_disponible') return null;
+  if (estado === 'no_pudimos') {
+    return (
+      <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-4">
+        <p className="text-sm text-body">
+          No pudimos preguntarle al servidor si este dispositivo puede recibir avisos. Vuelve a
+          cargar la página; si sigue igual, avísanos.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-4">
       <p className="text-sm text-body">
