@@ -20,6 +20,7 @@ export function PanelALaEspera({
   rotulo,
   children,
   accion,
+  extra,
 }: {
   /** Dónde estás, en versales. */
   rotulo: string;
@@ -27,12 +28,29 @@ export function PanelALaEspera({
   children: ReactNode;
   /** Solo si existe de verdad: en celular, volver a la lista. */
   accion?: ReactNode;
+  /**
+   * Un bloque debajo de la frase, FUERA del párrafo (#1111).
+   *
+   * No es `children` por dos razones y las dos importan: `children` vive en un
+   * `<p>`, y una lista o una tabla dentro de un `<p>` es HTML inválido —el
+   * navegador cierra el párrafo solo y el resultado deja de ser lo que dice el
+   * código—; y `children` está acotado a `max-w-xs` a propósito, porque una
+   * frase larga en una columna ancha no se lee.
+   */
+  extra?: ReactNode;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
       <p className="rotulo">{rotulo}</p>
-      <p className="max-w-xs text-body">{children}</p>
-      {accion}
+      {/* UNA columna para la frase y el extra: con anchos distintos (320 y 352)
+          la línea divisoria del extra no calzaba con los bordes del párrafo, y
+          ese desajuste de 16 px por lado es justo lo que se lee como descuido
+          sin que nadie sepa nombrarlo. Se vio en la captura. */}
+      <div className="flex w-full max-w-[22rem] flex-col items-center gap-2">
+        <p className="text-body">{children}</p>
+        {accion}
+        {extra}
+      </div>
     </div>
   );
 }

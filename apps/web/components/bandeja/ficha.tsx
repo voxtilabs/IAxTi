@@ -69,8 +69,12 @@ export function Ficha({
   const [guardando, setGuardando] = useState(false);
   if (!detalle) {
     return (
-      <PanelALaEspera rotulo="Ficha del contacto">
-        Al abrir una conversación, acá aparece quién es, su historia y lo que el asistente hizo por ella.
+      // Este panel ya no se dibuja sin conversación elegida (#1111), así que
+      // `!detalle` significa UNA sola cosa: la elegida viene en camino. Decir
+      // acá «al abrir una conversación…» sería contarle al usuario que no
+      // abrió nada justo después de que abrió algo.
+      <PanelALaEspera rotulo="Abriendo">
+        Estamos trayendo quién es, su historia y lo que el asistente hizo por ella.
       </PanelALaEspera>
     );
   }

@@ -75,3 +75,14 @@ for (const modo of ['dia', 'noche'] as const) {
     await page.screenshot({ path: join(DESTINO, `ajustes-${modo}.png`) });
   });
 }
+
+for (const modo of ['dia', 'noche'] as const) {
+  test(`la bandeja sin selección, modo ${modo} (#1111)`, async ({ page }) => {
+    // El estado con el que se ENTRA al producto, que es el que tenía dos
+    // paneles vacíos ocupando el 69% del ancho.
+    await page.addInitScript((m) => { localStorage.setItem('pulso-mode', m); }, modo);
+    await page.goto('/bandeja');
+    await page.waitForLoadState('networkidle');
+    await page.screenshot({ path: join(DESTINO, `bandeja-sin-seleccion-${modo}.png`) });
+  });
+}
