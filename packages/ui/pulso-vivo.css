@@ -35,15 +35,26 @@ body { background: var(--canvas); font-size: 15px; }
 /* Barra existente de shadcn: mismos estados, accesos y comportamiento móvil. */
 [data-sidebar="sidebar"] { background: var(--chrome); border-color: var(--border); }
 .pulso-workspace [data-variant="floating"] [data-sidebar="sidebar"] { border-radius: 24px; box-shadow: var(--elevacion-panel); }
-[data-sidebar="header"] { padding: 20px 14px 16px; gap: 22px; }
-[data-sidebar="content"] { padding-inline: 8px; gap: 16px; }
-[data-sidebar="group-label"] { height: 30px; padding-inline: 12px; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
-[data-sidebar="menu"] { gap: 5px; }
+/* El presupuesto vertical de la barra (#1108).
+   Medido a 1440x900 con cinco grupos y once entradas: el contenido pedia 729 px
+   y veia 567, asi que «CONFIGURACION (3)» quedaba cortado por la mitad contra
+   el filete del pie — y un rotulo partido se lee como interfaz rota, no como
+   «hay mas abajo».
+   El reparto decia donde estaba el problema: 315 px de cromo (cabecera 187 +
+   pie 128) para 729 de navegacion, y 200 de esos 729 eran rotulo y relleno de
+   grupo, no entradas. Lo que NO se toca es `menu-button`: 42 px es el tamano de
+   control de Pulso y bajarlo seria arreglar la barra rompiendo el sistema.
+   Lo que se aprieta es el aire entre cosas, que no es de nadie. */
+[data-sidebar="header"] { padding: 16px 14px 12px; gap: 14px; }
+[data-sidebar="content"] { padding-inline: 8px; gap: 10px; }
+[data-sidebar="group"] { padding-block: 0; }
+[data-sidebar="group-label"] { height: 26px; padding-inline: 12px; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+[data-sidebar="menu"] { gap: 4px; }
 [data-sidebar="menu-button"] { min-height: 42px; border-radius: 13px; padding-inline: 12px; color: var(--text-body); font-size: 13px; transition: background-color 160ms, color 160ms; }
 [data-sidebar="menu-button"] > svg { width: 18px; height: 18px; stroke-width: 1.7; }
 [data-sidebar="menu-button"][data-active="true"] { color: var(--action-text); background: var(--action-soft); box-shadow: inset 3px 0 0 var(--action), var(--relieve-suave); font-weight: 600; }
 [data-sidebar="menu-button"]:hover { background: var(--action-soft); color: var(--action-text); }
-[data-sidebar="footer"] { padding: 14px; gap: 14px; }
+[data-sidebar="footer"] { padding: 10px 14px; gap: 8px; }
 .pulso-brand { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; }
 .pulso-brand .pulso-jelly { width: 43px; }
 .pulso-brand-name { font: 800 31px/1 'Outfit', sans-serif; letter-spacing: -.055em; }

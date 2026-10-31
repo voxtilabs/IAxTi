@@ -20,7 +20,6 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
   SessionProvider,
   useSession,
@@ -399,9 +398,15 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
             el nombre y el selector para no desbordar los iconos. */}
         <Link href="/" prefetch={false} className="pulso-brand" aria-label="IAxTi, inicio">
           <MarcaJelly />
+          {/* Sin el claim (#1108). Medido a 1440×900: pedía 252 px de borde
+              derecho y la cabecera termina en 247, así que estaba RECORTADO —
+              con `white-space: nowrap` no hay dónde partirlo. Además costaba
+              20 px de alto en una barra a la que le faltaban 162 para mostrar
+              su último grupo. El claim vive en la portada y en el correo, que
+              es donde alguien lo lee por primera vez; acá lo leía todos los
+              días quien ya sabe qué es IAxTi. */}
           <span className="group-data-[collapsible=icon]:hidden">
             <span className="pulso-brand-name">IAxTi</span>
-            <span className="pulso-brand-caption">Tu negocio, conectado</span>
           </span>
         </Link>
         {/* Para quien maneja varios negocios esto es lo más importante del
@@ -419,7 +424,10 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarSeparator />
+        {/* Sin filete (#1108): el pie ya está separado por su relleno y por el
+            borde del área que hace scroll, así que la línea era una tercera
+            forma de decir lo mismo — y costaba altura en la barra que no
+            llegaba a mostrar su último grupo. */}
         <SidebarMenu>
           <SidebarMenuItem>
             <CerrarSesion />

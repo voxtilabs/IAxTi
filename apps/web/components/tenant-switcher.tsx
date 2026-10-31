@@ -76,8 +76,11 @@ export function TenantSwitcher() {
   if (memberships.length === 0) return null;
 
   return (
-    <label className="flex flex-col gap-1 text-sm text-muted">
-      Negocio
+    // Sin el rótulo visible «Negocio» (#1108): el disparador ya lleva
+    // `aria-label="Negocio"`, así que el nombre accesible no cambia, y lo que
+    // muestra —«E2E Bandeja · SUPERVISORA» con su flecha— se explica solo.
+    // Costaba 24 px en una barra a la que le faltaban 162.
+    <div className="flex flex-col">
       <Select
         value={selected}
         onValueChange={(valor) => {
@@ -96,6 +99,6 @@ export function TenantSwitcher() {
           ))}
         </SelectContent>
       </Select>
-    </label>
+    </div>
   );
 }

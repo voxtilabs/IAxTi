@@ -112,6 +112,36 @@ test.describe('la barra lateral tiene destinos', () => {
     }
   });
 
+  test('la barra entera cabe a 1440x900: ningún grupo queda cortado', async ({ page }) => {
+    // El presupuesto vertical de la barra, medido y sostenido (#1108).
+    //
+    // «CONFIGURACIÓN (3)» quedaba cortado por la mitad contra el filete del
+    // pie. Se alcanzaba con scroll, pero un rótulo partido no se lee como «hay
+    // más abajo»: se lee como interfaz rota, y es lo primero que se ve en
+    // CUALQUIER pantalla del producto.
+    //
+    // Lo que midió de dónde venía: 315 px de cromo (cabecera 187 + pie 128)
+    // para 729 px de navegación, y 200 de esos 729 eran rótulo y relleno de
+    // grupo en vez de entradas. Con el aire apretado en `pulso-vivo.css`,
+    // cabecera 127 + pie 99 y la navegación entra con 32 px de sobra.
+    //
+    // ESTA PRUEBA SE VA A PONER ROJA el día que alguien agregue una entrada de
+    // navegación, y está bien que lo haga: 32 px no alcanzan para una fila de
+    // 42. Cuando pase, las salidas son plegar un grupo más, no apretar
+    // `menu-button` —42 px es el tamaño de control de Pulso y bajarlo sería
+    // arreglar la barra rompiendo el sistema—, o decidir que a 900 px de alto
+    // la barra scrollea y el recorte cae donde no parta un rótulo.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /^Configuración \(/ })).toBeVisible();
+    const holgura = await page.evaluate(() => {
+      const c = document.querySelector('[data-sidebar="content"]') as HTMLElement;
+      const ultimo = c.lastElementChild as HTMLElement;
+      return Math.round(c.getBoundingClientRect().bottom - ultimo.getBoundingClientRect().bottom);
+    });
+    expect(holgura, 'el último grupo de la barra se sale del área visible a 1440x900').toBeGreaterThanOrEqual(0);
+  });
+
   test('el grupo que se pliega SE VE que se pliega, y se recuerda', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
