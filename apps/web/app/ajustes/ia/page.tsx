@@ -22,7 +22,6 @@ export default async function PaginaConsumoIA() {
           se lee primero. Si falta una credencial, todo lo demás de esta página
           es configuración de algo que no va a correr. */}
       <PorQueLaIaNoTrabaja />
-      <ConsumoIA />
       {/* El proveedor único va arriba del configurador (#536): decide DÓNDE
           corre todo lo demás, así que elegirlo después de armar el asistente
           sería armarlo dos veces. */}
@@ -39,6 +38,17 @@ export default async function PaginaConsumoIA() {
       <div className="mt-6">
         <Evaluaciones />
       </div>
+      {/* El consumo baja al final.
+          Estaba segundo, y como es el primer bloque con título grande, la
+          página del asistente se leía llamándose «Consumo del asistente»: el
+          protagonista del producto presentado como una pantalla de
+          facturación. Lo que esta página tiene que contestar primero es «qué
+          hace por mí y cómo lo configuro», y recién después «cuánto va
+          gastando».
+          Esto NO contradice a #614, que pide que la causa se lea antes que un
+          gráfico en cero: `PorQueLaIaNoTrabaja` sigue arriba de todo, y el
+          gráfico ahora está más abajo todavía. */}
+      <ConsumoIA />
     </AppShell>
   );
 }

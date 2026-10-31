@@ -83,10 +83,27 @@ test.describe('la barra lateral tiene destinos', () => {
         'llamada falló, o el registro no trae módulos activos.',
     ).toBeGreaterThan(3);
 
+    // El asistente es lo primero de la barra (#1102): si vuelve a quedar
+    // archivado en Configuración, esto se pone rojo. Va antes que la
+    // comprobación de las secciones porque es el orden que importa.
+    const primero = items[0];
+    expect(
+      primero,
+      'El asistente dejó de ser el primer destino de la barra. IAxTi se llama ' +
+        'así por la facilidad de configurarlo, no solo porque atiende: si el ' +
+        'agente vuelve a estar bajo Configuración, la interfaz cuenta otra cosa.',
+    ).toBe('Tu asistente');
+
     // Lo que motivó el #635: las 17 pantallas de configuración quedaban detrás
     // de un rótulo idéntico a los que NO se pueden tocar, y ahí viven conectar
     // WhatsApp y prender la IA. Se cuenta lo que se VE, no lo que trae la API.
-    for (const seccion of ['Inteligencia', 'Canales', 'Tu negocio', 'Cuenta']) {
+    //
+    // «Inteligencia» salió de esta lista en #1102, y no porque se escondiera:
+    // el asistente era su única entrada visible para esta supervisora, y ahora
+    // vive arriba. Las otras dos de esa sección —Conocimiento y
+    // Automatizaciones— piden permisos que este usuario no tiene, así que la
+    // sección no tiene nada que ofrecerle y no aparecer es lo correcto.
+    for (const seccion of ['Canales', 'Tu negocio', 'Cuenta']) {
       await expect(
         page.getByRole('link', { name: seccion, exact: true }),
         `"${seccion}" no está a la vista en la barra: la configuración volvió a ` +
