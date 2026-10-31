@@ -18,6 +18,25 @@ despliegue:
 | `GOOGLE_SECRET_PROJECT_ID` | Proyecto autorizado de Secret Manager |
 | `GOOGLE_SECRET_LOCATION` | Ubicación de la réplica, por ejemplo la región aprobada `southamerica-west1` |
 
+## Dónde viven los tokens
+
+Se elige una custodia, nunca media (ADR-0028). Si están las variables de las
+dos gana la local; si falta un pedazo de la elegida, Calendar queda apagado.
+
+**v1 · en el VPS (lo que usamos hoy).** Dos variables:
+
+| variable | qué es |
+|---|---|
+| `GOOGLE_SECRET_DIR` | carpeta en un **volumen que sobreviva al redespliegue**. En un directorio efímero los tokens se pierden en el próximo deploy y cada persona tiene que reconectar su calendario. |
+| `GOOGLE_SECRET_KEY` | 32 bytes en base64: `openssl rand -base64 32`. Sin ella no se arranca; no hay modo sin cifrar. |
+
+Si esa llave se pierde, los tokens guardados no se recuperan — se revoca y
+cada persona vuelve a conectar. Si se rota, lo mismo: no hay recifrado
+automático.
+
+**Alternativa · Secret Manager.** `GOOGLE_SECRET_PROJECT_ID` y
+`GOOGLE_SECRET_LOCATION`, y entonces sí hace falta todo lo de abajo.
+
 Secret Manager usa Application Default Credentials. Configurar la identidad
 del workload según el entorno; no copiar credenciales al repositorio ni al
 navegador. Esta identidad necesita crear secretos y añadir, acceder y
@@ -26,7 +45,10 @@ ese permiso por sí solo no basta. Los recursos nuevos usan replicación
 administrada por el usuario en la ubicación declarada; no hay ubicación
 automática implícita.
 
-Activar Calendar API y Secret Manager API en el proyecto correspondiente y
+## En la consola de Google
+
+Activar Calendar API —y Secret Manager API **solo si** se eligió esa
+custodia— en el proyecto correspondiente, y
 registrar la pantalla de consentimiento y los usuarios de prueba según su
 configuración. La aplicación solicita solo `openid` y
 `https://www.googleapis.com/auth/calendar.events.freebusy`. El acceso se pide
