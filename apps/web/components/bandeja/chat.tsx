@@ -1,6 +1,7 @@
 'use client';
 
 import { AvisoResultado, toast } from '@iaxti/ui/react';
+import { PanelALaEspera } from './panel-a-la-espera';
 
 import { Bot, Paperclip, ThumbsDown, ThumbsUp } from 'lucide-react';
 
@@ -339,13 +340,16 @@ export function Chat({
 
   if (!detalle) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-        <p className="rotulo">Bandeja</p>
-        <p className="max-w-xs text-body">Elige una conversación de la lista para atenderla aquí.</p>
-        <Button variant="secundario" size="chico" className="mt-2 lg:hidden" onClick={onVolver}>
-          <IconoVolver className="h-4 w-4" /> Ver la lista
-        </Button>
-      </div>
+      <PanelALaEspera
+        rotulo="Bandeja"
+        accion={(
+          <Button variant="secundario" size="chico" className="mt-2 lg:hidden" onClick={onVolver}>
+            <IconoVolver className="h-4 w-4" /> Ver la lista
+          </Button>
+        )}
+      >
+        Elige una conversación de la lista para atenderla aquí.
+      </PanelALaEspera>
     );
   }
 

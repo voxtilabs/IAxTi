@@ -3,7 +3,7 @@
 import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
+import { Badge, Seccion, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, fmtClp } from '../lib/api';
 
@@ -80,18 +80,20 @@ export function ConsumoIA() {
       </AvisoResultado>
     );
   }
-  if (!uso) return <div className="max-w-xl"><Skeleton className="h-40" /></div>;
+  if (!uso) return <div className="max-w-seccion"><Skeleton className="h-40" /></div>;
 
   const pct = uso.pct ?? 0;
 
+  // Sin ancho en el envoltorio: lo fija cada `Seccion` (#1109). Con
+  // `max-w-xl` apretaba a 576 px bloques que el sistema pone en 680.
   return (
-    <div className="max-w-xl">
+    <div>
       <EncabezadoDePagina
         rotulo="IA"
         titulo="Consumo del asistente"
       />
 
-      <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+      <Seccion>
         <div className="flex items-baseline justify-between gap-4">
           <span className="rotulo">Asistencias este mes</span>
           {uso.exhausted ? (
@@ -119,10 +121,10 @@ export function ConsumoIA() {
           Cada respuesta, clasificación o sugerencia del asistente usa una asistencia. El tope lo
           define tu plan{uso.exhausted && !uso.economicoConfigurado ? ' — al completarlo, el asistente descansa hasta el próximo ciclo.' : '.'}
         </p>
-      </div>
+      </Seccion>
 
       {uso.costClpMonth !== undefined && (
-        <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+        <Seccion>
           <span className="rotulo">Costo estimado del mes</span>
           <p className="dato mt-2 text-3xl font-bold text-ink">{fmtClp(uso.costClpMonth)}</p>
           <p className="dato mt-1 text-sm text-muted">
@@ -224,7 +226,7 @@ export function ConsumoIA() {
               </table>
             )}
           </details>
-        </div>
+        </Seccion>
       )}
     </div>
   );

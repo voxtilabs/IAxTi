@@ -25,6 +25,8 @@ export { Badge } from './ui/badge';
 export { Checkbox } from './ui/checkbox';
 export { EncabezadoDePagina } from './ui/encabezado';
 export type { EncabezadoDePaginaProps } from './ui/encabezado';
+export { Seccion } from './ui/seccion';
+export type { SeccionProps } from './ui/seccion';
 export type { BadgeProps, BadgeRole } from './ui/badge';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 export {

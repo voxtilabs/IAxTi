@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado } from '@iaxti/ui/react';
+import { AvisoResultado, Seccion } from '@iaxti/ui/react';
 
 import { Bot } from 'lucide-react';
 
@@ -165,13 +165,10 @@ function ConfiguradorDelNegocio({ tenant }: { tenant: string }) {
   };
 
   return (
-    <div className="mt-4 max-w-xl pulso-panel rounded-tarjeta border border-line bg-raised p-6">
-      <span className="rotulo">Arma tu CRM</span>
-      <p className="mt-2 text-sm text-muted">
-        Cuéntanos de qué se trata tu negocio y el asistente propone el pipeline, las respuestas
-        rápidas y las plantillas de WhatsApp. Tú revisas el antes/después y decides — nada se
-        aplica solo.
-      </p>
+    <Seccion
+      rotulo="Arma tu CRM"
+      apoyo="Cuéntanos de qué se trata tu negocio y el asistente propone el pipeline, las respuestas rápidas y las plantillas de WhatsApp. Tú revisas el antes/después y decides — nada se aplica solo."
+    >
 
       {/* Quién la arma (#415). La propuesta sale con el modelo de ESE
           asistente, y hasta ahora no había forma de saber cuál era. */}
@@ -282,6 +279,6 @@ function ConfiguradorDelNegocio({ tenant }: { tenant: string }) {
           {aviso.texto}{aviso.rastro && <span className="dato block break-all text-xs">{aviso.rastro}</span>}
         </AvisoResultado>
       )}
-    </div>
+    </Seccion>
   );
 }

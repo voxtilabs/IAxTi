@@ -113,6 +113,12 @@ module.exports = {
       },
       maxWidth: {
         contenido: '1120px',
+        // El ancho de UN bloque dentro de una pantalla (#1109). Uno solo:
+        // `/ajustes/ia` tenía tres —`xl`, `2xl`, `prose`— bajando por la
+        // misma columna, y el borde derecho quedaba dentado. 680 px está
+        // junto al más ancho que ya se usaba (2xl = 672), así que nada se
+        // estira ni se achica de golpe.
+        seccion: '680px',
       },
       // Dos sombras y ninguna más. `boxShadow` ya existía acá: agregar un
       // segundo bloque con el mismo nombre en `extend` no da error, la

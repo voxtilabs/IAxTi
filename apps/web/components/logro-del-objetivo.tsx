@@ -119,7 +119,7 @@ export function LogroDelObjetivo() {
   );
   useEffect(() => void cargar(), [cargar]);
 
-  const marco = 'mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-5';
+  const marco = 'mt-6 max-w-seccion pulso-panel rounded-tarjeta border border-line bg-raised p-5';
   const titulo = 'Logro del objetivo';
 
   if (!tenant) return null;
