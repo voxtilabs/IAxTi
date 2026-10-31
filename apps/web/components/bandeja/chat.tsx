@@ -34,6 +34,8 @@ import {
   Textarea,
   cn,
   useArrastre,
+  nombreVisible,
+  segundaLinea,
 } from '@iaxti/ui/react';
 import {
   etiquetaDeLaVentana,
@@ -449,9 +451,15 @@ export function Chat({
         </Button>
         <div className="pulso-chat-contact min-w-0 flex-1">
           <p className="truncate font-display font-bold text-ink">
-            {detalle.contactName ?? detalle.contactPhone}
+            {nombreVisible({ name: detalle.contactName, phone: detalle.contactPhone, channel: detalle.channel })}
           </p>
-          <p className="dato truncate text-muted">{detalle.contactPhone}</p>
+          {/* Solo si dice algo que el título no diga ya (#1120). Un contacto
+              sin nombre tenía su teléfono arriba Y abajo, uno encima del otro;
+              con la ficha haciendo lo mismo, el mismo número salía cuatro
+              veces en una pantalla. */}
+          {segundaLinea({ name: detalle.contactName, phone: detalle.contactPhone, channel: detalle.channel }) && (
+            <p className="dato truncate text-muted">{detalle.contactPhone}</p>
+          )}
         </div>
         {modo !== null && modo !== 'off' && (
           <Button
