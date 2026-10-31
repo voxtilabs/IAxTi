@@ -482,10 +482,15 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-raised p-4">
           <EncabezadoDePagina titulo="Bandeja" className="mb-0" accion={<Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button>} />
           <Tabs value={vista} onValueChange={(v) => setVista(v as Vista)} className="mt-3">
-            <TabsList className="w-full">
-              <TabsTrigger value="todas" className="flex-1">Todas</TabsTrigger>
-              <TabsTrigger value="mi_cola" className="flex-1">Mi cola</TabsTrigger>
-              <TabsTrigger value="sin_responder" className="flex-1">Sin responder</TabsTrigger>
+            {/* Sin `flex-1` (#1111): repartir tercios iguales daba 96 px por
+                pestaña y «Sin responder» se partía en dos líneas, que es de
+                las cosas que se leen como producto a medio hacer. Los tres
+                rótulos juntos sí entran en los 288 px de la columna; lo que no
+                entraba era el tercio. */}
+            <TabsList className="w-full justify-between">
+              <TabsTrigger value="todas">Todas</TabsTrigger>
+              <TabsTrigger value="mi_cola">Mi cola</TabsTrigger>
+              <TabsTrigger value="sin_responder">Sin responder</TabsTrigger>
             </TabsList>
           </Tabs>
           <Input

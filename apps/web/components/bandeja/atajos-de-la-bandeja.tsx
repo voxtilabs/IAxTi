@@ -25,13 +25,28 @@ export const ATAJOS_DE_LA_BANDEJA: { teclas: ReactNode; que: string }[] = [
  * `columnas` porque el diálogo es ancho y el panel de espera es una columna
  * angosta centrada: la misma grilla de dos columnas ahí partiría las frases.
  */
-export function ListaDeAtajos({ columnas = true }: { columnas?: boolean }) {
+/**
+ * La lista, con la forma que sirve en los dos lugares donde aparece.
+ *
+ * Las teclas en una columna propia y angosta, y las frases alineadas a la
+ * izquierda en la suya. La primera versión usaba `justify-between`, y el
+ * resultado renderizado era una tecla pegada al borde izquierdo y la frase
+ * pegada al derecho con un hueco variable al medio: se lee como una tabla
+ * rota, no como una lista. Se vio mirando la captura, no el código.
+ */
+export function ListaDeAtajos({ ancho = 'dialogo' }: { ancho?: 'dialogo' | 'panel' }) {
   return (
-    <dl className={columnas ? 'grid grid-cols-2 gap-3 text-dato' : 'flex flex-col gap-2 text-dato'}>
+    <dl
+      className={
+        ancho === 'dialogo'
+          ? 'grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-dato'
+          : 'grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-2 text-dato'
+      }
+    >
       {ATAJOS_DE_LA_BANDEJA.map((a) => (
-        <div key={a.que} className={columnas ? 'contents' : 'flex items-baseline justify-between gap-4'}>
-          <dt className="shrink-0">{a.teclas}</dt>
-          <dd className={columnas ? '' : 'text-right text-body'}>{a.que}</dd>
+        <div key={a.que} className="contents">
+          <dt className="whitespace-nowrap">{a.teclas}</dt>
+          <dd className="text-body">{a.que}</dd>
         </div>
       ))}
     </dl>

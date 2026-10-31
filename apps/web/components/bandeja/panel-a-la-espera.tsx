@@ -42,9 +42,15 @@ export function PanelALaEspera({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
       <p className="rotulo">{rotulo}</p>
-      <p className="max-w-xs text-body">{children}</p>
-      {accion}
-      {extra}
+      {/* UNA columna para la frase y el extra: con anchos distintos (320 y 352)
+          la línea divisoria del extra no calzaba con los bordes del párrafo, y
+          ese desajuste de 16 px por lado es justo lo que se lee como descuido
+          sin que nadie sepa nombrarlo. Se vio en la captura. */}
+      <div className="flex w-full max-w-[22rem] flex-col items-center gap-2">
+        <p className="text-body">{children}</p>
+        {accion}
+        {extra}
+      </div>
     </div>
   );
 }

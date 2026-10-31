@@ -372,9 +372,9 @@ export function Chat({
           </Button>
         )}
         extra={(
-          <div className="mt-6 hidden w-full max-w-xs border-t border-line pt-5 text-left lg:block">
+          <div className="mt-5 hidden w-full border-t border-line pt-6 text-left lg:block">
             <p className="rotulo mb-3">Para ir más rápido</p>
-            <ListaDeAtajos columnas={false} />
+            <ListaDeAtajos ancho="panel" />
           </div>
         )}
       >
