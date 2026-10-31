@@ -57,6 +57,7 @@ import { ProveedorDeArranque, useArranque, usePieza } from './arranque';
 import { SoporteAviso } from './soporte-aviso';
 import { PaletaComandos } from './paleta-comandos';
 import { AgenteGeneral } from './agente-general';
+import { ProveedorAgente } from './agente/estado';
 import { TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
@@ -475,7 +476,14 @@ export function AppShell(props: ShellProps) {
    */
   return <SessionProvider config={props.config}><RequireSession>
     <ProveedorDeArranque>
-      <ContenidoShell {...props} />
+      {/* El hilo con IAxTi vive acá arriba (#1129): el popup de la barra y la
+          conversación incrustada en «Tu asistente» son la MISMA, y para eso el
+          estado tiene que estar por encima de las dos. Adentro de
+          `RequireSession` por lo mismo que el arranque: sin sesión no hay a
+          quién preguntarle. */}
+      <ProveedorAgente>
+        <ContenidoShell {...props} />
+      </ProveedorAgente>
     </ProveedorDeArranque>
   </RequireSession></SessionProvider>;
 }

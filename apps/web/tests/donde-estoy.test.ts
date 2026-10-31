@@ -114,7 +114,10 @@ describe('desde dónde se abrió el Agente General (#509)', () => {
    * sesión le escriba instrucciones.
    */
   it('al servidor le viaja el ID de la pantalla, nunca una frase del navegador', () => {
-    const fuente = readFileSync(join(__dirname, '..', 'components', 'agente-general.tsx'), 'utf8');
+    // Las tres piezas del agente (#1129): el hilo se mudó a `agente/estado.tsx`.
+    const fuente = ['agente-general.tsx', join('agente', 'estado.tsx'), join('agente', 'conversacion.tsx')]
+      .map((f) => readFileSync(join(__dirname, '..', 'components', f), 'utf8'))
+      .join('\n');
     expect(fuente).toContain('pantalla: pantalla.id');
     // Y la lista fija no volvió por ninguna puerta: ni como constante local,
     // ni leyendo los ejemplos de `donde-estoy`.
@@ -156,7 +159,7 @@ describe('las pantallas vacías llevan al agente (#509)', () => {
       join(__dirname, '..', '..', '..', 'packages', 'ui', 'src', 'react', 'estado-vacio.tsx'),
       'utf8',
     );
-    const receptor = componente('agente-general.tsx');
+    const receptor = componente('agente-general.tsx') + componente(join('agente', 'estado.tsx'));
     expect(emisor).toContain("'iaxti-preguntale'");
     expect(receptor).toContain("'iaxti-preguntale'");
   });
