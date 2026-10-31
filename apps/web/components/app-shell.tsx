@@ -93,14 +93,20 @@ interface ShellProps {
  * El `grupo` lo declara cada `module.yaml` —con 23 destinos, una tabla
  * paralela acá se desincroniza y el destino nuevo aparece suelto abajo sin
  * que nadie lo note— pero el ORDEN sí es decisión de la interfaz: primero
- * lo que se hace todos los días, después los datos, y la configuración al
- * final y plegada.
+ * el asistente, después lo que se hace todos los días, después los datos, y
+ * la configuración al final y plegada.
+ *
+ * El asistente va primero porque es el producto. Estaba en
+ * «Configuración → Inteligencia», rotulado «IA», o sea el protagonista
+ * archivado entre los ajustes: la arquitectura de un CRM que además tiene una
+ * IA, y no la de un asistente que además lleva el CRM. IAxTi se llama así por
+ * lo segundo.
  *
  * Un grupo que llegue sin estar en esta lista se dibuja igual, al final:
  * quedarse fuera del menú por no haber tocado este archivo sería
  * exactamente el problema que el `grupo` en el manifiesto viene a evitar.
  */
-const ORDEN = ['Trabajo', 'Clientes', 'Configuración'];
+const ORDEN = ['Asistente', 'Trabajo', 'Clientes', 'Configuración'];
 
 /**
  * Qué grupos se PUEDEN plegar. Ojo: se pueden, no arrancan plegados (#635).
