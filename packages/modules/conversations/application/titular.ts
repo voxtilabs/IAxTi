@@ -21,8 +21,16 @@ export async function suprimirDatosDelTitular(
     [input.tenantId, input.conversationIds],
   );
   // La fila queda vacía y archivada: conserva el rastro del trato.
+  //
+  // `last_message_preview` va acá por lo mismo que `summary`: las dos son
+  // copias derivadas del contenido del cliente, y el derecho de supresión
+  // borra el contenido en TODAS las tablas donde vivía. Una copia que se
+  // queda atrás no se nota —la conversación se ve vacía igual— hasta que
+  // alguien mira la lista y ahí sigue la última frase que la persona pidió
+  // borrar.
   const conversaciones = await client.query(
-    `UPDATE conversations SET summary = NULL, archived_at = COALESCE(archived_at, now())
+    `UPDATE conversations SET summary = NULL, last_message_preview = NULL,
+            archived_at = COALESCE(archived_at, now())
       WHERE tenant_id = $1 AND contact_id = $2 AND id = ANY($3::uuid[])`,
     [input.tenantId, input.contactId, input.conversationIds],
   );
