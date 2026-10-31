@@ -9,7 +9,7 @@ import { Configurador } from '../../../components/configurador';
 import { AjustesDeIa } from '../../../components/ajustes-de-ia';
 import { PorQueLaIaNoTrabaja } from '../../../components/por-que-la-ia-no-trabaja';
 import { internalApiUrl, publicConfig } from '../../../lib/config';
-import { MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
+import { EncabezadoDePagina, MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,21 @@ export default async function PaginaConsumoIA() {
   const nav = await navDesdeLaApi(internalApiUrl());
   return (
     <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
+      {/* La pantalla que ES el producto no tenía encabezado (#1125). Abría
+          directo con el panel de diagnóstico, y el único titular con peso de
+          página estaba a dos tercios hacia abajo diciendo «Consumo del
+          asistente»: la pantalla central se presentaba sin nombre y lo único
+          que la nombraba en grande era su facturación.
+          El comentario de `EncabezadoDePagina` ya lo decía entre los ejemplos
+          que #398 venía a arreglar —«el asistente abriendo con h2»— y quedó
+          sin tocar.
+          El apoyo es la frase que estaba enterrada en `asistente.tsx`, que es
+          lo que esta pantalla tiene que contestar primero. */}
+      <EncabezadoDePagina
+        rotulo="Asistente"
+        titulo="Tu asistente"
+        apoyo="Contesta en WhatsApp con lo que tú le diste: tu catálogo, tus precios, tu agenda. Nunca inventa un dato que no pudo confirmar, y cuando no puede resolver algo te pasa la conversación."
+      />
       {/* Antes del consumo (#614): un gráfico en cero es el síntoma y la causa
           se lee primero. Si falta una credencial, todo lo demás de esta página
           es configuración de algo que no va a correr. */}

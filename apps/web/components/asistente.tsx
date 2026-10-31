@@ -154,15 +154,9 @@ export function Asistente() {
 
   return (
     <section className="mt-4 flex flex-col gap-4">
-      <header>
-        <h2 className="text-base font-bold text-ink">Tu asistente</h2>
-        <p className="mt-1 max-w-2xl text-sm text-body">
-          Contesta en WhatsApp con lo que tú le diste: tu catálogo, tus precios, tu agenda. Nunca
-          inventa un dato que no pudo confirmar, y cuando no puede resolver algo te pasa la
-          conversación.
-        </p>
-      </header>
-
+      {/* Sin encabezado propio (#1125): su título y su frase subieron al
+          encabezado de la pantalla, que es donde el ojo va primero. Repetirlos
+          acá sería decir dos veces lo mismo a media pantalla de distancia. */}
       {error && (
         <p role="alert" className="rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-sm text-bad-text">
           {error}
@@ -203,7 +197,12 @@ export function Asistente() {
       )}
 
       {mostrarFormulario && (
-        <Formulario onSubmit={crear} className="flex flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
+        /* El mismo ancho y relleno que las `Seccion` de esta pantalla (#1125):
+           era el único bloque a ancho completo entre otros de 680, y `p-5`
+           entre otros de `p-6`. Se escriben las clases en vez de usar la
+           primitiva porque esto es un `<form>` y `Seccion` es un `<section>`:
+           envolverlo agregaría un marco dentro de otro marco. */
+        <Formulario onSubmit={crear} className="flex w-full max-w-seccion flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <div>
             <h3 className="text-sm font-bold text-ink">¿Qué tiene que lograr?</h3>
             <p className="mt-1 text-sm text-muted">

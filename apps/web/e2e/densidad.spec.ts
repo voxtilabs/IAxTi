@@ -58,3 +58,35 @@ for (const modo of ['dia', 'noche']) {
     });
   }
 }
+
+test('la pantalla del asistente abre con su nombre, y «Consumo» es una sección', async ({ page }) => {
+  // #1125: /ajustes/ia no tenía `EncabezadoDePagina`, así que el único titular
+  // con peso de página estaba a dos tercios hacia abajo y decía «Consumo del
+  // asistente». La pantalla central del producto se presentaba sin nombre, y
+  // lo único que la nombraba en grande era su facturación.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.addInitScript(({ auth }) => {
+    localStorage.setItem('iaxti-tenant', auth.tenantId);
+    localStorage.setItem('pulso-mode', 'dia');
+    localStorage.setItem('sb-127-auth-token', JSON.stringify({
+      access_token: auth.accessToken, token_type: 'bearer', expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'e2e',
+      user: { id: auth.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' },
+    }));
+  }, { auth });
+  await page.goto('/ajustes/ia');
+
+  const h1 = page.getByRole('heading', { level: 1 });
+  await expect(h1).toHaveCount(1);
+  await expect(h1).toHaveText('Tu asistente');
+
+  // Y el consumo sigue existiendo, pero como sección.
+  await expect(page.getByRole('heading', { level: 2, name: 'Consumo del asistente' })).toBeVisible();
+
+  // La frase que explica el producto está arriba, no enterrada: dentro del
+  // primer 20% de la altura de la página.
+  const y = await page.getByText(/Contesta en WhatsApp con lo que tú le diste/).first()
+    .evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  const alto = await page.evaluate(() => document.documentElement.scrollHeight);
+  expect(y, 'la frase que dice qué hace el producto quedó enterrada').toBeLessThan(alto * 0.2);
+});
