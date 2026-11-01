@@ -119,6 +119,23 @@ module.exports = {
         // junto al más ancho que ya se usaba (2xl = 672), así que nada se
         // estira ni se achica de golpe.
         seccion: '680px',
+        /**
+         * Qué tan largo es lo que se espera en un CAMPO (#1150).
+         *
+         * Medido a 1440: el campo más ancho de cada pantalla iba de 256 px a
+         * 1.022, sin regla. El peor era `recordatorio_hora` —diecisiete
+         * caracteres— en una caja de 1.014: el ancho de un campo es una
+         * promesa de cuánto se espera que escribas, y esa prometía un
+         * párrafo para recibir una palabra.
+         *
+         * Tres y no uno: una URL y el nombre de una etapa no esperan lo
+         * mismo, y meter todo en el mismo valor es el otro extremo del mismo
+         * problema. Van como `max-w-*`, así que a 360 px todos siguen
+         * ocupando el ancho disponible.
+         */
+        'campo-corto': '20rem',
+        'campo-medio': '28rem',
+        'campo-largo': '40rem',
       },
       // Dos sombras y ninguna más. `boxShadow` ya existía acá: agregar un
       // segundo bloque con el mismo nombre en `extend` no da error, la

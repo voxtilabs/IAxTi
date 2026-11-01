@@ -126,6 +126,11 @@ export function AtajosDeRespuesta() {
           <Textarea
             required
             rows={2}
+            /* Largo, no sin límite (#1150): este texto se lee en un
+               teléfono. Escribirlo en una línea de mil píxeles es editarlo
+               en un medio que no se parece al real, y a esa medida el ojo
+               pierde el renglón al volver. */
+            className="max-w-campo-largo"
             value={form.body}
             onChange={(e) => setForm({ ...form, body: e.target.value })}
             placeholder="Hola {{nombre}}, atendemos de lunes a viernes de 9 a 18."

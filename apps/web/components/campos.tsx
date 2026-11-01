@@ -166,6 +166,8 @@ export function Campos() {
               value={form.label}
               onChange={(e) => setForm({ ...form, label: e.target.value })}
               placeholder="Tipo de corte"
+              /* Corto (#1150): el rótulo de un campo: dos o tres palabras. */
+              className="max-w-campo-corto"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
