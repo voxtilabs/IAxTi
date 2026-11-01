@@ -48,6 +48,27 @@ body { background: var(--canvas); font-size: 15px; }
 [data-sidebar="header"] { padding: 16px 14px 12px; gap: 14px; }
 [data-sidebar="content"] { padding-inline: 8px; gap: 10px; }
 [data-sidebar="group"] { padding-block: 0; }
+
+/* Cuando la barra no cabe, que SE VEA que sigue (#1142).
+   Medido a 1440x900 con un negocio de catorce entradas: necesita 762 px y ve
+   702. Dos quedaban fuera y nada lo decia — despues de la ultima visible
+   venia el pie, asi que la lista parecia terminada.
+   Apretar pixeles era la respuesta equivocada: lo que se puede recortar sin
+   tocar `menu-button` —42 px es el tamano de control de Pulso— suma unos 61,
+   alcanzaria justo, y la siguiente entrada lo rompe de nuevo. Catorce
+   entradas de 42 px no caben, y eso es normal en cualquier CRM.
+   Es una MASCARA, no un degradado pintado: no agrega color, atenua el
+   contenido que se esta cortando. Por eso no entra en lo que ADR-0021
+   prohibe, que son superficies y adornos con color propio.
+   `scroll-timeline` no esta en todos los navegadores, asi que la pista es
+   fija abajo; en una barra que no desborda nunca se ve, porque sin scroll no
+   hay nada que atenuar en el borde. */
+[data-sidebar="content"] {
+  --pulso-desvanece: 28px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--pulso-desvanece)), transparent 100%);
+}
+/* Sin desborde no hay pista: una señal permanente es ruido. */
+[data-sidebar="content"]:not([data-desborda="true"]) { mask-image: none; }
 [data-sidebar="group-label"] { height: 26px; padding-inline: 12px; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
 [data-sidebar="menu"] { gap: 4px; }
 [data-sidebar="menu-button"] { min-height: 42px; border-radius: 13px; padding-inline: 12px; color: var(--text-body); font-size: 13px; transition: background-color 160ms, color 160ms; }
