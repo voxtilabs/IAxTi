@@ -136,3 +136,22 @@ for (const [nombre, ruta] of [
     await page.screenshot({ path: join(DESTINO, `celular-${nombre}.png`), fullPage: true });
   });
 }
+
+for (const modo of ['dia', 'noche'] as const) {
+  test(`la conversación con IAxTi en «Tu asistente», modo ${modo} (#1129)`, async ({ page }) => {
+    await page.addInitScript((m) => { localStorage.setItem('pulso-mode', m); }, modo);
+    await page.route('**/v1/agente-general', (r) => r.fulfill({ json: {
+      texto: 'Listo. Te armé un embudo con cuatro etapas y dejé la primera respuesta automática.',
+      pasos: [{ herramienta: 'crm.pipelines.create', modulo: 'crm', metodo: 'POST', ruta: '/v1/pipelines', ok: true }],
+      propuesta: { herramienta: 'crm.pipelines.create', descripcion: 'Crear el embudo «Ventas»',
+        metodo: 'POST', ruta: '/v1/pipelines', permiso: 'crm.pipelines.manage',
+        argumentos: { nombre: 'Ventas', etapas: 'Nuevo, Contactado, Cotizado, Cerrado' } },
+      truncada: false } }));
+    await page.goto('/ajustes/ia');
+    const panel = page.getByRole('region', { name: 'Conversación con IAxTi' });
+    await panel.getByLabel('Pídele algo a IAxTi').fill('Armá un embudo de ventas');
+    await panel.getByRole('button', { name: 'Pedir' }).click();
+    await panel.getByText('Listo. Te armé un embudo').waitFor();
+    await page.screenshot({ path: join(DESTINO, `chat-iaxti-${modo}.png`) });
+  });
+}
