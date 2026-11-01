@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
+import { Badge, Skeleton, nombreVisible, useSession } from '@iaxti/ui/react';
 import { apiFetch, fmtClp, type DealCardDto } from '../../lib/api';
 import { useSelectedTenant } from '../tenant-switcher';
 import type { WidgetItem } from '../../lib/nav';
@@ -75,6 +75,9 @@ function haceCuanto(desde: string): string {
 interface ConversacionEsperando {
   id: string;
   contactName: string | null;
+  /** Para nombrar a quien todavía no tiene nombre (#1139). */
+  contactPhone: string | null;
+  channel: string | null;
   lastMessageAt: string | null;
 }
 
@@ -106,7 +109,7 @@ function SinResponder() {
                 className="flex items-center justify-between gap-3 rounded-campo border border-line px-3 py-2 hover:bg-rest"
               >
                 <span className="min-w-0 truncate text-sm text-ink">
-                  {c.contactName ?? 'Sin nombre'}
+                  {nombreVisible({ name: c.contactName, phone: c.contactPhone, channel: c.channel })}
                 </span>
                 {c.lastMessageAt && (
                   <span className="dato shrink-0 text-rotulo text-muted">

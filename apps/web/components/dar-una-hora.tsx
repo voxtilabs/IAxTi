@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarPlus } from 'lucide-react';
-import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Button, Input, useSession , nombreVisible, segundaLinea } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch } from '../lib/api';
 
@@ -151,7 +151,14 @@ export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
           {contactos.map((c) => (
             <li key={c.id}>
               <Button variant="fantasma" size="chico" onClick={() => setElegido(c)}>
-                {c.name ?? 'Sin nombre'} <span className="dato ml-2 text-muted">{c.phone}</span>
+                {/* `nombreVisible` y no `?? 'Sin nombre'` (#1139): un contacto
+                    sin nombre tiene teléfono, y «Sin nombre +56955550101» es
+                    peor que el número solo — ocupa el doble y no dice nada.
+                    La segunda línea queda solo si aporta. */}
+                {nombreVisible({ name: c.name, phone: c.phone })}
+                {segundaLinea({ name: c.name, phone: c.phone }) && (
+                  <span className="dato ml-2 text-muted">{c.phone}</span>
+                )}
               </Button>
             </li>
           ))}
