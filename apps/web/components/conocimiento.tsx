@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina, EstadoVacio } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, EstadoVacio , ElegirArchivo } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -351,14 +351,16 @@ export function Conocimiento() {
           <code className="font-mono">title</code>, del primer encabezado o del archivo, en ese
           orden. Los enlaces <code className="font-mono">[[así]]</code> se conservan.
         </p>
-        <input
-          type="file"
-          accept=".md,.markdown,text/markdown"
-          multiple
-          className="mt-3 block w-full text-sm"
-          disabled={importando}
-          onChange={(e) => void importar(e.target.files)}
+        {/* Por la primitiva (#1144): el nativo decía «Choose Files · No file
+            chosen», en inglés, en medio de una pantalla en español. */}
+        <ElegirArchivo
+          className="mt-3"
+          acepta=".md,.markdown,text/markdown"
+          varios
+          deshabilitado={importando}
+          etiqueta="Elegir archivos .md"
           aria-label="Archivos markdown"
+          onElegir={(archivos) => void importar(archivos)}
         />
         {importando && <p className="ayuda mt-2">Indexando lo que llegó…</p>}
         {resumen && (

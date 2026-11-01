@@ -23,6 +23,7 @@ export { Card } from './ui/card';
 export { Label } from './ui/label';
 export { Badge } from './ui/badge';
 export { Checkbox } from './ui/checkbox';
+export { ElegirArchivo } from './ui/elegir-archivo';
 export { EncabezadoDePagina } from './ui/encabezado';
 export type { EncabezadoDePaginaProps } from './ui/encabezado';
 export { Seccion } from './ui/seccion';

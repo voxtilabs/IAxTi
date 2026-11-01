@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina , ElegirArchivo } from '@iaxti/ui/react';
 
 import { useState } from 'react';
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
@@ -98,13 +98,15 @@ export function Importar() {
       </p>
 
       <div className="mt-6 flex flex-col gap-3">
-        <input
-          type="file"
-          accept=".csv,text/csv"
+        {/* Por la primitiva (#1144). Tenía las clases `file:` —el botón con
+            la piel de Pulso y el texto de al lado todavía del navegador, en
+            inglés—, que es media solución y la peor de las tres que había. */}
+        <ElegirArchivo
+          acepta=".csv,text/csv"
+          etiqueta="Elegir archivo CSV"
           aria-label="Archivo CSV"
-          className="text-sm text-body file:mr-3 file:rounded-boton file:border file:border-line-strong file:bg-transparent file:px-4 file:py-1.5 file:text-sm file:text-ink"
-          onChange={(e) => {
-            const archivo = e.target.files?.[0];
+          onElegir={(archivos) => {
+            const archivo = archivos?.[0];
             if (!archivo) return;
             void archivo.text().then(setCsv);
           }}
