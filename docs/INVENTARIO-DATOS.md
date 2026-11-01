@@ -37,6 +37,7 @@ El alta inicial conserva una referencia operativa propia del equipo:
 | `internal_notes` | lo que el equipo anota sobre la conversación | directa | ambos | sí | se borran |
 | `suggestions` | lo que la IA propuso responder | directa | cliente final | sí | se borran |
 | `agent_executions` | **lo que se le mandó al modelo y lo que respondió** | directa | cliente final | sí | se vacía el contenido; queda la medición (tokens, costo) |
+| `agent_general_threads` | **la conversación de configuración con el Agente General**: lo que la persona contó de su negocio y lo que el agente propuso tocar | directa | equipo | sí: es texto que la persona escribió | se borran; además caducan solas a los 30 días sin actividad (ADR-0029, barrido `agents.threads.purge`) |
 | `agent_goal_attempts` | si el agente logró su objetivo en esa conversación, y si lo cerró él o una persona | indirecta | cliente final | sí | se van con el contacto |
 | `response_samples` | muestras de tiempos de respuesta | indirecta | negocio | sí | se borran |
 | `assignments` | quién atendió qué | indirecta | equipo | sí | quedan |

@@ -27,9 +27,7 @@
 
 apps/web/components/agenda.tsx:118
 apps/web/components/agenda.tsx:137
-apps/web/components/agente-general.tsx:312
-apps/web/components/agente-general.tsx:347
-apps/web/components/ajustes-de-ia.tsx:93
+apps/web/components/ajustes-de-ia.tsx:94
 apps/web/components/api-keys.tsx:56
 apps/web/components/api-keys.tsx:82
 apps/web/components/api-keys.tsx:92
@@ -105,7 +103,7 @@ apps/web/components/etiquetas.tsx:78
 apps/web/components/etiquetas.tsx:92
 apps/web/components/facturacion.tsx:73
 apps/web/components/llevarse-los-datos.tsx:85
-apps/web/components/modo-autonomo.tsx:57
+apps/web/components/modo-autonomo.tsx:58
 apps/web/components/pagos.tsx:114
 apps/web/components/pagos.tsx:162
 apps/web/components/pagos.tsx:178
@@ -113,12 +111,12 @@ apps/web/components/pagos.tsx:205
 apps/web/components/plantillas.tsx:62
 apps/web/components/plantillas.tsx:93
 apps/web/components/plantillas.tsx:107
-apps/web/components/preferencias-avisos.tsx:130
-apps/web/components/preferencias-avisos.tsx:180
-apps/web/components/preferencias-avisos.tsx:270
-apps/web/components/preferencias-avisos.tsx:292
+apps/web/components/preferencias-avisos.tsx:151
+apps/web/components/preferencias-avisos.tsx:195
+apps/web/components/preferencias-avisos.tsx:295
+apps/web/components/preferencias-avisos.tsx:317
 apps/web/components/pregunta-a-los-numeros.tsx:105
-apps/web/components/puesta-en-marcha.tsx:90
+apps/web/components/puesta-en-marcha.tsx:104
 apps/web/components/roles.tsx:84
 apps/web/components/roles.tsx:106
 apps/web/components/roles.tsx:121

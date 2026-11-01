@@ -32,7 +32,7 @@ import {
 } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession } from '@iaxti/ui/react';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, avisoDe, type Aviso } from '../../lib/api';
 import { selectedTenant } from '../tenant-switcher';
 import { pantallaDe } from '../../lib/donde-estoy';
 
@@ -72,13 +72,31 @@ interface Turno {
 
 export type { PasoDto, PropuestaDto, Turno };
 
+export interface HiloResumen {
+  id: string;
+  titulo: string;
+  turnos: number;
+  updatedAt: string;
+}
+
 interface Agente {
+  /** Mis conversaciones anteriores. `null` mientras no se han pedido. */
+  hilos: HiloResumen[] | null;
+  pedirHilos: () => void;
+  abrirHilo: (id: string) => Promise<void>;
+  olvidarHilo: (id: string) => Promise<void>;
+  /** Vaciar la pantalla para empezar de nuevo, sin borrar la anterior. */
+  nuevaConversacion: () => void;
   turnos: Turno[];
   texto: string;
   setTexto: (v: string) => void;
   pensando: boolean;
   aplicando: boolean;
-  aviso: string | null;
+  /**
+   * El aviso CON su rastro (#788): un error sin `code · requestId` deja a la
+   * persona sin nada que pegar al pedir ayuda. Era `string` y se perdía.
+   */
+  aviso: Aviso | null;
   sugerencias: string[] | null;
   /** Que el servidor mande las de ESTA pantalla. La llama quien se monta. */
   pedirSugerencias: () => void;
@@ -107,6 +125,8 @@ interface Agente {
 let hilo: Turno[] = [];
 /** De qué negocio es lo que hay en `hilo`. Ver el listener de más abajo. */
 let duenoDelHilo: string | null = null;
+/** El id del hilo guardado, si ya se guardó alguna vez (#1131). */
+let idDelHilo: string | null = null;
 const oyentes = new Set<() => void>();
 function fijarHilo(siguiente: Turno[] | ((antes: Turno[]) => Turno[])) {
   hilo = typeof siguiente === 'function' ? siguiente(hilo) : siguiente;
@@ -146,7 +166,8 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
   const [texto, setTexto] = useState('');
   const [pensando, setPensando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [hilos, setHilos] = useState<HiloResumen[] | null>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
 
   // El listener del evento se suscribe una vez y llama SIEMPRE a la última
@@ -251,6 +272,7 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
       const ahora = selectedTenant();
       if (ahora === duenoDelHilo) return;
       duenoDelHilo = ahora;
+      idDelHilo = null;
       fijarHilo([]);
       setAviso(null);
       setAbierto(false);
@@ -262,6 +284,36 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
       window.removeEventListener('storage', cambio);
     };
   }, []);
+
+  /**
+   * Guardar lo que la pantalla DIBUJA, no lo que el modelo recibió (#1131).
+   *
+   * `conversar` manda solo los turnos de texto —sin pasos ni propuestas, a
+   * propósito—. Lo que hay que poder recuperar incluye si una propuesta se
+   * aplicó o se descartó, y eso vive acá. Por eso endpoint aparte y por eso
+   * se manda el hilo entero cada vez.
+   *
+   * En segundo plano y sin avisar si falla: perder el guardado no puede
+   * interrumpir la conversación que la persona está teniendo. Lo que sí
+   * pasa es que el id vuelve, para que el siguiente guardado reemplace en
+   * vez de crear una conversación nueva en cada vuelta.
+   */
+  const guardar = useCallback(
+    (turnosAGuardar: Turno[]) => {
+      const tenant = selectedTenant();
+      if (!session || !tenant || turnosAGuardar.length === 0) return;
+      void apiFetch<{ id: string }>(config, session, tenant, '/agente-general/hilos', {
+        method: 'POST',
+        body: JSON.stringify({ id: idDelHilo, turnos: turnosAGuardar }),
+      })
+        .then((r) => {
+          idDelHilo = r.id;
+          setHilos(null);
+        })
+        .catch(() => undefined);
+    },
+    [config, session],
+  );
 
   const preguntar = useCallback(
     async (pregunta: string) => {
@@ -288,21 +340,26 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
             pantalla: pantalla.id,
           }),
         });
-        fijarHilo([
+        const completo: Turno[] = [
           ...mios,
           { role: 'assistant', content: r.texto, pasos: r.pasos, propuesta: r.propuesta },
-        ]);
+        ];
+        fijarHilo(completo);
+        // Guardar al terminar la vuelta y no al empezarla: si el proveedor
+        // falla, lo que queda guardado es la conversación que de verdad pasó
+        // y no una pregunta colgando sin respuesta (#1131).
+        guardar(completo);
         if (r.truncada) {
-          setAviso('La respuesta quedó cortada. Pídele lo mismo en partes más chicas.');
+          setAviso({ texto: 'La respuesta quedó cortada. Pídele lo mismo en partes más chicas.', rastro: null });
         }
       } catch (err) {
-        setAviso((err as Error).message);
+        setAviso(avisoDe(err));
       } finally {
         setPensando(false);
         campo.current?.focus();
       }
     },
-    [config, session, turnos, pensando, pantalla],
+    [config, session, turnos, pensando, pantalla, guardar],
   );
   preguntarRef.current = preguntar;
 
@@ -314,7 +371,11 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
       const tenant = selectedTenant();
       if (!propuesta || !session || !tenant || aplicando) return;
       if (!aplicar) {
-        fijarHilo((antes) => antes.map((t, i) => (i === indice ? { ...t, resuelta: 'descartada' } : t)));
+        fijarHilo((antes) => {
+          const siguiente = antes.map((t, i) => (i === indice ? { ...t, resuelta: 'descartada' as const } : t));
+          guardar(siguiente);
+          return siguiente;
+        });
         return;
       }
       setAplicando(true);
@@ -327,25 +388,88 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
             argumentos: propuesta.argumentos,
           }),
         });
-        fijarHilo((antes) => antes.map((t, i) => (i === indice ? { ...t, resuelta: 'aplicada' } : t)));
+        // También acá: resolver cambia un turno ANTERIOR, que es justo lo
+        // que se perdería si el guardado fuera «agregar el último».
+        fijarHilo((antes) => {
+          const siguiente = antes.map((t, i) => (i === indice ? { ...t, resuelta: 'aplicada' as const } : t));
+          guardar(siguiente);
+          return siguiente;
+        });
       } catch (err) {
         // El motivo viene del servidor con el formato único: se muestra tal
         // cual, porque explica qué pasó y qué hacer.
-        setAviso((err as Error).message);
+        setAviso(avisoDe(err));
       } finally {
         setAplicando(false);
       }
     },
-    [config, session, turnos, aplicando],
+    [config, session, turnos, aplicando, guardar],
   );
 
+
+  const pedirHilos = useCallback(() => {
+    const tenant = selectedTenant();
+    if (!session || !tenant) return;
+    void apiFetch<{ items: HiloResumen[] }>(config, session, tenant, '/agente-general/hilos')
+      .then((r) => setHilos(r.items))
+      // Sin historial se sigue conversando: es una ayuda, no el producto.
+      .catch(() => setHilos([]));
+  }, [config, session]);
+
+  const abrirHilo = useCallback(
+    async (id: string) => {
+      const tenant = selectedTenant();
+      if (!session || !tenant) return;
+      try {
+        const r = await apiFetch<{ turnosCompletos: Turno[] }>(
+          config, session, tenant, `/agente-general/hilos/${id}`,
+        );
+        idDelHilo = id;
+        duenoDelHilo = tenant;
+        fijarHilo(r.turnosCompletos ?? []);
+        setAviso(null);
+      } catch (err) {
+        setAviso(avisoDe(err));
+      }
+    },
+    [config, session],
+  );
+
+  const olvidarHilo = useCallback(
+    async (id: string) => {
+      const tenant = selectedTenant();
+      if (!session || !tenant) return;
+      try {
+        await apiFetch(config, session, tenant, `/agente-general/hilos/${id}`, { method: 'DELETE' });
+        // Si era la que está abierta, la pantalla queda limpia: seguir
+        // escribiendo en una conversación borrada la resucitaría.
+        if (idDelHilo === id) {
+          idDelHilo = null;
+          fijarHilo([]);
+        }
+        setHilos((antes) => (antes ?? []).filter((h) => h.id !== id));
+      } catch (err) {
+        setAviso(avisoDe(err));
+      }
+    },
+    [config, session],
+  );
+
+  /** Empezar de nuevo sin borrar la anterior: la de antes queda en la lista. */
+  const nuevaConversacion = useCallback(() => {
+    idDelHilo = null;
+    fijarHilo([]);
+    setAviso(null);
+  }, []);
 
   const valor = useMemo<Agente>(
     () => ({
       turnos, texto, setTexto, pensando, aplicando, aviso, sugerencias,
       pedirSugerencias, preguntar, resolver, abierto, setAbierto, campo,
+      hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion,
     }),
-    [turnos, texto, pensando, aplicando, aviso, sugerencias, pedirSugerencias, preguntar, resolver, abierto],
+    [turnos, texto, pensando, aplicando, aviso, sugerencias, pedirSugerencias, preguntar, resolver,
+     abierto, hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion],
   );
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }

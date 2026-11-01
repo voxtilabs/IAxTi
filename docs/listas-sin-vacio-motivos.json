@@ -16,6 +16,13 @@
         "fragmento": "turnos.length === 0"
       }
     },
+    "agente/conversaciones.tsx#hilos": {
+      "motivo": "La lista de conversaciones anteriores con IAxTi. Su vacío es una frase y no un `EstadoVacio` por el mismo motivo que `PanelALaEspera` (#1109): lo que la llena —escribirle al asistente— está a la vista justo abajo, en el mismo pliegue. Un botón «empezar una» sería un segundo camino al mismo campo, y `EstadoVacio` exige una acción que acá no existe por separado.",
+      "evidencia": {
+        "archivo": "apps/web/components/agente/conversaciones.tsx",
+        "fragmento": "Todavía no hay ninguna"
+      }
+    },
     "api-keys.tsx#keys": {
       "motivo": "Distingue la carga con Skeleton y la ausencia de llaves con el texto «Todavía no hay llaves». El vacío está escrito en línea, sin EstadoVacio.",
       "evidencia": {

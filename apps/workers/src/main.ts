@@ -62,7 +62,7 @@ import {
   valoresDelAviso,
 } from '@iaxti/module-calendar';
 import { getTenantSettings, onboardingConsumers } from '@iaxti/module-organizations';
-import { objetivoConsumers } from '@iaxti/module-agents';
+import { objetivoConsumers, purgarHilosViejos } from '@iaxti/module-agents';
 import { transportesDeAviso } from './transportes-aviso';
 import {
   enqueueTenantChildren,
@@ -306,6 +306,21 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           const r2 = storage ? await deleteR2Keys(storage, res.r2Keys) : { deleted: 0, failed: res.r2Keys.length };
           console.log(`retention: ${res.purged} conversaciones purgadas (corte ${res.cutoff}, ${r2.deleted} adjuntos R2)`);
           return { purged: res.purged, r2 };
+        }
+        // Los hilos con el Agente General que nadie tocó en 30 días
+        // (#1131, ADR-0029). Sin tenant: borra en todos, como el resto de
+        // los barridos de retención.
+        case 'agents.threads.purge': {
+          const cliente = await pool.connect();
+          try {
+            const borrados = await purgarHilosViejos(cliente);
+            console.log(`agents: ${borrados} hilos del Agente General purgados por retención`);
+            return { borrados };
+          } finally {
+            // Devolverla siempre: un barrido diario que se queda una conexión
+            // agota el pool en un mes sin que nadie lo relacione con esto.
+            cliente.release();
+          }
         }
         // El barrido de tiempo del motor (#62): "2 días en etapa",
         // "sin respuesta hace 24 h" — dedupe por objeto y día.

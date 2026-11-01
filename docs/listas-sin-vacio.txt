@@ -91,6 +91,7 @@
 
 agente/conversacion.tsx#sugerencias
 agente/conversacion.tsx#turnos
+agente/conversaciones.tsx#hilos
 api-keys.tsx#keys
 api-keys.tsx#scopes
 asistente.tsx#agentes

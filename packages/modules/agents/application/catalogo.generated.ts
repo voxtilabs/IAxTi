@@ -349,6 +349,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgenteGeneralController_borrarHilo": {
+    "metodo": "DELETE",
+    "ruta": "/v1/agente-general/hilos/{id}",
+    "resumen": "Borra una conversación anterior",
+    "permiso": "agents.use",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "AgenteGeneralController_conversar": {
     "metodo": "POST",
     "ruta": "/v1/agente-general",
@@ -365,6 +386,74 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         },
         "pantalla": {}
       },
+      "additionalProperties": false
+    }
+  },
+  "AgenteGeneralController_guardar": {
+    "metodo": "POST",
+    "ruta": "/v1/agente-general/hilos",
+    "resumen": "Guarda la conversación para poder volver a ella",
+    "permiso": "agents.use",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turnos": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": [
+        "turnos"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "AgenteGeneralController_hilo": {
+    "metodo": "GET",
+    "ruta": "/v1/agente-general/hilos/{id}",
+    "resumen": "Una conversación anterior, para seguirla",
+    "permiso": "agents.use",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "AgenteGeneralController_hilos": {
+    "metodo": "GET",
+    "ruta": "/v1/agente-general/hilos",
+    "resumen": "Mis conversaciones anteriores con el Agente General",
+    "permiso": "agents.use",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     }
   },
