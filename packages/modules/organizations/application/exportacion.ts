@@ -88,6 +88,11 @@ export const TABLAS_EXPORTADAS = [
   // contacto: se exporta con él, como todo lo que decimos que guardamos.
   'agent_goal_attempts',
   'agents',
+  // Las conversaciones de configuración con el Agente General (#1131). Es
+  // texto que la persona escribió sobre su negocio: se exporta como todo lo
+  // que decimos que guardamos. Caducan solas a los 30 días (ADR-0029), así
+  // que lo que sale es lo que todavía existe.
+  'agent_general_threads',
   'agent_conversation_modes',
   'deals',
   'deal_stage_history',
