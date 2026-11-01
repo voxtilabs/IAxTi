@@ -139,12 +139,14 @@ export function Conversacion({ alto }: { alto?: string }) {
       {/* `alto` lo decide quien la monta (#1135): en el popup es una ventana
           con tope, en la pantalla del asistente es TODO lo que queda. */}
       <Conversation className={alto ?? 'min-h-[220px]'}>
-        <ConversationContent>
+        {/* Centrado cuando no hay nada dicho todavía (#1135). Con el chat a
+            pantalla completa, el saludo pegado arriba y 600 px de nada debajo
+            se lee como contenido que no cargó. Va en `ConversationContent` y
+            no en un hijo: el hijo mide lo que mide su texto, y `min-h-full`
+            ahí no se refiere a la altura del panel. */}
+        <ConversationContent className={turnos.length === 0 ? 'h-full justify-center' : undefined}>
             {turnos.length === 0 && (
-              /* Centrado (#1135): un chat vacío con el texto pegado arriba y
-                 medio metro de nada abajo se lee como contenido que no
-                 cargó. */
-              <div className="flex min-h-full flex-col justify-center gap-3">
+              <div className="flex flex-col gap-3">
                 <p className="text-cuerpo text-body">
                   Dime qué necesitas en tus palabras. Puedo revisar cómo va tu negocio, dejar
                   reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.
