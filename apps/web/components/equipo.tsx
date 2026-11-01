@@ -5,7 +5,7 @@ import { AvisoResultado, EncabezadoDePagina, Formulario, Select, SelectContent, 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // El equipo (#28, SPEC §22): quién entra al negocio y con qué rol.
 //
@@ -62,7 +62,7 @@ export function Equipo() {
       setDatos(equipo.value);
       setError(null);
     } else {
-      setError((equipo.reason as Error).message);
+      setError(mensajeDeError(equipo.reason));
       setDatos({ miembros: [], invitaciones: [] });
     }
     // Sin el catálogo siguen disponibles los roles base, igual que antes.
@@ -105,7 +105,7 @@ export function Equipo() {
       setOk(`${m.nombre ?? m.email ?? 'Esa persona'} ahora es ${rol.name}.`);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setCambiando(null);
     }
@@ -125,7 +125,7 @@ export function Equipo() {
       setForm({ email: '', rol: form.rol });
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
       setOk(null);
     } finally {
       setEnviando(false);
@@ -140,7 +140,7 @@ export function Equipo() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setQuitando(null);
     }
@@ -154,7 +154,7 @@ export function Equipo() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setQuitando(null);
     }

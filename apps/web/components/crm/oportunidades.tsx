@@ -13,6 +13,7 @@ import {
   type PipelineDto,
   type SavedFilterDto,
   type StageDto,
+  mensajeDeError,
 } from '../../lib/api';
 
 import { crmClient } from '@iaxti/sdk';
@@ -123,7 +124,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     void api<PipelineDto[]>('/pipelines').then((p) => {
       setPipelines(p);
       setPipelineId((actual) => actual || p[0]?.id || '');
-    }).catch((err) => setAviso((err as Error).message));
+    }).catch((err) => setAviso(mensajeDeError(err)));
     void api<LossReasonDto[]>('/loss-reasons').then(setMotivos).catch(() => setMotivos([]));
     void api<SavedFilterDto[]>('/saved-filters').then(setGuardados).catch(() => setGuardados([]));
   }, [api, session, tenant]);
@@ -149,7 +150,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
           },
         }));
       } catch (err) {
-        setAviso((err as Error).message);
+        setAviso(mensajeDeError(err));
       }
     },
     [api, pipelineId],
@@ -186,7 +187,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     try {
       const res = await client.deals<DealCardDto>(query);
       if (request === serialLista.current) { setLista(res.items); setListaCursor(res.nextCursor); }
-    } catch (err) { if (request === serialLista.current) setAviso((err as Error).message); }
+    } catch (err) { if (request === serialLista.current) setAviso(mensajeDeError(err)); }
     finally { if (request === serialLista.current) setCargandoLista(false); }
   }, [client, pipelineId, filtros, sorting, listaActual]);
 
@@ -218,7 +219,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
       void cargarColumna(hasta);
       void cargarResumen();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }
 

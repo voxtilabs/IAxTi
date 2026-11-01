@@ -5,7 +5,7 @@ import { AvisoResultado, EncabezadoDePagina, Formulario } from '@iaxti/ui/react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, EstadoVacio, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, type PlantillaDto } from '../lib/api';
+import { apiFetch, type PlantillaDto, mensajeDeError } from '../lib/api';
 
 // Plantillas de WhatsApp (#44, SPEC §12).
 //
@@ -59,7 +59,7 @@ export function Plantillas() {
       setItems(await apiFetch<PlantillaDto[]>(config, session, tenant, '/plantillas'));
       setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
       setItems([]);
     }
   }, [config, session, tenant]);
@@ -90,7 +90,7 @@ export function Plantillas() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setCreando(false);
     }
@@ -104,7 +104,7 @@ export function Plantillas() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setEnviando(null);
     }

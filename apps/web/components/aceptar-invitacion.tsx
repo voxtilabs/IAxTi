@@ -4,7 +4,7 @@ import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useEffect, useState } from 'react';
 import { Button, SessionProvider, useSession, useMarcaSvg, type PublicConfig } from '@iaxti/ui/react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // Canjear una invitación (#28).
 //
@@ -35,7 +35,7 @@ function Canje({ token }: { token: string }) {
         if (vivo) setEstado('listo');
       } catch (e) {
         if (!vivo) return;
-        setDetalle((e as Error).message);
+        setDetalle(mensajeDeError(e));
         setEstado('error');
       }
     })();

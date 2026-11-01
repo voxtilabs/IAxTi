@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AvisoResultado, Badge, Button, EstadoVacio, Formulario, Input, Skeleton, Textarea, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, renderQuickReply, type QuickReplyDto } from '../lib/api';
+import { apiFetch, renderQuickReply, type QuickReplyDto, mensajeDeError } from '../lib/api';
 
 /**
  * Atajos de respuesta (#460).
@@ -35,7 +35,7 @@ export function AtajosDeRespuesta() {
     try {
       setItems(await apiFetch<QuickReplyDto[]>(config, session, tenant, '/quick-replies'));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setItems([]);
     }
   }, [config, session, tenant]);
@@ -56,7 +56,7 @@ export function AtajosDeRespuesta() {
     } catch (err) {
       // Un atajo del negocio lo administra quien supervisa: el servidor lo
       // dice con su propio mensaje y acá se muestra tal cual.
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setCreando(false);
     }
@@ -70,7 +70,7 @@ export function AtajosDeRespuesta() {
       setAviso(null);
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setBorrando(null);
     }

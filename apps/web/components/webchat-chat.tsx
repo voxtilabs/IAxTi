@@ -1,5 +1,6 @@
 'use client';
 
+import { mensajeDeError } from '../lib/api';
 import { AvisoResultado } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -139,8 +140,8 @@ export function WebchatChat({
       }
       if (res.status === 'delivered') setPideIdentidad(false);
     } catch (err) {
-      setAviso((err as Error).message);
-      if ((err as Error).message.includes('teléfono o tu correo')) setPideIdentidad(true);
+      setAviso(mensajeDeError(err));
+      if (mensajeDeError(err).includes('teléfono o tu correo')) setPideIdentidad(true);
     }
   }
 

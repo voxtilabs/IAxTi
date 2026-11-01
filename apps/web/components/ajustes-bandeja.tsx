@@ -5,7 +5,7 @@ import { AvisoResultado, Select, SelectContent, SelectItem, SelectTrigger, Selec
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // Pantalla del ADMIN (#38, según Pulso §39): campos de 46 px con el número
 // en mono, ayuda en --text-muted, UN solo botón primario, aviso al guardar.
@@ -60,7 +60,7 @@ export function AjustesBandeja() {
     try {
       setAjustes(await apiFetch<Ajustes>(config, session, tenant, '/settings/bandeja'));
     } catch (err) {
-      setAviso({ tono: 'error', texto: (err as Error).message });
+      setAviso({ tono: 'error', texto: mensajeDeError(err) });
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
@@ -78,7 +78,7 @@ export function AjustesBandeja() {
       setAjustes(guardado);
       setAviso({ tono: 'ok', texto: 'Ajustes guardados.' });
     } catch (err) {
-      setAviso({ tono: 'error', texto: (err as Error).message });
+      setAviso({ tono: 'error', texto: mensajeDeError(err) });
     } finally {
       setGuardando(false);
     }

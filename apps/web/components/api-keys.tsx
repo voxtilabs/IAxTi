@@ -5,7 +5,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // API keys (#24, SPEC §7/§8): el cliente se integra solo. El token se ve
 // UNA vez (en mono, con el aviso de copiarlo AHORA); acá después solo
@@ -53,7 +53,7 @@ export function ApiKeys() {
       setScopes(nuevosScopes);
       setConsumo(nuevosConsumo);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setKeys([]);
     }
   }, [config, session, tenant]);
@@ -79,7 +79,7 @@ export function ApiKeys() {
       setVence('');
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 
@@ -89,7 +89,7 @@ export function ApiKeys() {
       await apiFetch(config, session, tenant, `/apikeys/${id}`, { method: 'DELETE' });
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 

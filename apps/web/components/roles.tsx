@@ -16,7 +16,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { ApiError, apiFetch } from '../lib/api';
+import { ApiError, apiFetch, mensajeDeError } from '../lib/api';
 import { SinPermiso } from './sin-permiso';
 
 // Roles personalizados (#73): "recepcionista", "contador", "socio" —
@@ -66,7 +66,7 @@ export function Roles() {
       /**
        * Un 403 no es una caída (#815).
        *
-       * Esto dibujaba `(err as Error).message` en un aviso de error: el texto
+       * Esto dibujaba `mensajeDeError(err)` en un aviso de error: el texto
        * crudo que escribió el servidor, que para un USER que entró por URL era
        * lo único que veía de esta pantalla. La guarda del shell ya no deja
        * llegar hasta acá, pero sigue habiendo un camino: el arranque se pide
@@ -81,7 +81,7 @@ export function Roles() {
         setSinPermiso(true);
         return;
       }
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setRoles([]);
     }
   }, [config, session, tenant]);
@@ -103,7 +103,7 @@ export function Roles() {
       setMarcados(new Set(rol.permissions));
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 
@@ -118,7 +118,7 @@ export function Roles() {
       setEditando(null);
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 

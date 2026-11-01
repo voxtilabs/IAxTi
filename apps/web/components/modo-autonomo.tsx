@@ -8,7 +8,7 @@ import { Bot } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import { SelectorDeAsistente, useAsistenteElegido } from './selector-de-asistente';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // Modo autónomo (#49): la IA responde sola SOLO por horario o marca manual
 // — jamás por defecto. Aquí viven el horario y los guardrails del tenant.
@@ -55,7 +55,7 @@ export function ModoAutonomo() {
       reemplazar(actualizado);
       setGuardado(true);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 

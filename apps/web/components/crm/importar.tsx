@@ -5,7 +5,7 @@ import { AvisoResultado, EncabezadoDePagina , ElegirArchivo } from '@iaxti/ui/re
 import { useState } from 'react';
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea, useSession } from '@iaxti/ui/react';
 import { selectedTenant } from '../tenant-switcher';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, mensajeDeError } from '../../lib/api';
 
 // Importación CSV (#34, SPEC §10): mapeo de columnas, validación fila por
 // fila con el formato único de errores, y NADA se escribe hasta confirmar.
@@ -63,7 +63,7 @@ export function Importar() {
     try {
       setPreview(await api<Preview>('/contacts/import/preview', { csv, mapping }));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setTrabajando(false);
     }
@@ -78,7 +78,7 @@ export function Importar() {
       setPreview(null);
       setCsv('');
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setTrabajando(false);
     }

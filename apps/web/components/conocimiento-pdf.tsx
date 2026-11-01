@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { FileText, Upload } from 'lucide-react';
 import { AvisoResultado, Label, cn, useArrastre, useSession } from '@iaxti/ui/react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 import { selectedTenant } from './tenant-switcher';
 
 /**
@@ -124,7 +124,7 @@ export function SubirPdf({ alTerminar }: { alTerminar: () => void }) {
       if (campo.current) campo.current.value = '';
       alTerminar();
     } catch (err) {
-      setEstado({ fase: 'error', mensaje: (err as Error).message });
+      setEstado({ fase: 'error', mensaje: mensajeDeError(err) });
     }
   }
 

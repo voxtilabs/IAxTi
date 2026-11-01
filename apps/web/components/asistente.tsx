@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Formulario, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // Crear el asistente eligiendo su objetivo (#385, SPEC §14–16).
 //
@@ -71,7 +71,7 @@ export function Asistente() {
       setObjetivos(cat);
       setError(null);
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
       setAgentes([]);
     }
   }, [config, session, tenant]);
@@ -130,7 +130,7 @@ export function Asistente() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setCreando(false);
     }

@@ -9,7 +9,7 @@ import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
 // suelto para los manejadores, donde se lee en el momento de la acción y
 // siempre es el valor vigente (#789).
 import { selectedTenant, useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // Preferencias de avisos (#55): cada quien elige por tipo y canal; las
 // críticas quedan bloqueadas para quien administra.
@@ -148,7 +148,7 @@ function PermisoPush() {
       });
       setEstado('activo');
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }
 
@@ -192,7 +192,7 @@ function PermisoPush() {
         );
       }
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }
 
@@ -292,7 +292,7 @@ export function PreferenciasAvisos() {
     try {
       setPrefs(await apiFetch<PrefDto[]>(config, session, tenant, '/notifications/preferences'));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
@@ -314,7 +314,7 @@ export function PreferenciasAvisos() {
         }),
       });
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       await cargar();
     }
   }

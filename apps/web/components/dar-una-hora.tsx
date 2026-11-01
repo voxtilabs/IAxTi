@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CalendarPlus } from 'lucide-react';
 import { AvisoResultado, Button, Input, useSession , nombreVisible, segundaLinea } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 /**
  * Dar una hora desde la agenda (#460).
@@ -55,7 +55,7 @@ export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
       setHuecos(await apiFetch<Hueco[]>(config, session, tenant, `/agenda/huecos?dia=${dia}`));
       setAviso(null);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setHuecos([]);
     }
   }, [config, session, tenant, dia, abierto]);
@@ -73,7 +73,7 @@ export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
       setContactos(r.items);
       setAviso(r.items.length === 0 ? 'No encontramos a nadie con eso.' : null);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }
 
@@ -94,7 +94,7 @@ export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
     } catch (err) {
       // La hora se puede haber tomado entre que se cargó y el clic: el
       // servidor lo rechaza y por eso los huecos se vuelven a pedir.
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       await cargarHuecos();
     } finally {
       setAgendando(null);

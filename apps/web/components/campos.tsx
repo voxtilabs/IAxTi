@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AvisoResultado, Badge, Button, Checkbox, EncabezadoDePagina, Formulario, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, avisoDe, type CampoDto } from '../lib/api';
+import { apiFetch, avisoDe, type CampoDto, mensajeDeError } from '../lib/api';
 
 // Campos propios del negocio (#34, SPEC §10).
 //
@@ -51,7 +51,7 @@ export function Campos() {
       setCampos(await apiFetch<CampoDto[]>(config, session, tenant, '/campos'));
       setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
       setCampos([]);
     }
   }, [config, session, tenant]);
@@ -81,7 +81,7 @@ export function Campos() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setGuardando(false);
     }
@@ -129,7 +129,7 @@ export function Campos() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setQuitando(null);
     }

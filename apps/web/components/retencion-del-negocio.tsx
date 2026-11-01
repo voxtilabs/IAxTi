@@ -76,9 +76,9 @@ export function RetencionDelNegocio() {
       setEscrito(null);
       reintentar();
     } catch (err) {
-      // `avisoDe` conserva `code · requestId` (#659, #788): era
-      // `(err as Error).message`, que tira justo el dato con el que alguien
-      // puede ir a buscar en los registros qué pasó.
+      // `avisoDe` conserva `code · requestId` (#659, #788): leer el
+      // `.message` a mano tiraba justo el dato con el que alguien puede ir a
+      // buscar en los registros qué pasó.
       setAviso(avisoDe(err).texto);
     } finally {
       setGuardando(false);

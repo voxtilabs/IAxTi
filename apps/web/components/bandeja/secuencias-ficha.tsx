@@ -14,7 +14,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, mensajeDeError } from '../../lib/api';
 import type { Quien } from '@iaxti/sdk';
 import { QuienLoHizo } from '../quien-lo-hizo';
 
@@ -122,7 +122,7 @@ export function SecuenciasFicha({
       });
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 

@@ -7,7 +7,7 @@ import { Badge, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { LlevarseLosDatos } from './llevarse-los-datos';
 import { CancelarSuscripcion } from './cancelar-suscripcion';
-import { apiFetch, fmtClp } from '../lib/api';
+import { apiFetch, fmtClp, mensajeDeError } from '../lib/api';
 
 // Facturación (#67, SPEC §20): el plan, el próximo cobro y las facturas
 // con los TRES costos separados — montos en mono, nada de totales mágicos.
@@ -70,7 +70,7 @@ export function Facturacion() {
     try {
       setDatos(await apiFetch<FacturacionDto>(config, session, tenant, '/billing'));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);

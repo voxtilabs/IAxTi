@@ -35,24 +35,72 @@ export interface Aviso {
   rastro: string | null;
 }
 
-/** Arma el aviso a partir de lo que sea que se haya lanzado. */
+/**
+ * Si el mensaje de este error lo escribimos nosotros (#1161).
+ *
+ * Todo lo que lanzamos a mano es `new Error('…')` con la voz de Pulso, y eso
+ * deja `name` en exactamente `'Error'`. Lo que lanza el navegador nunca lo
+ * hace: es `DOMException`, `TypeError`, `SyntaxError`. El discriminador es
+ * exacto y no obliga a tocar ningún `throw`.
+ *
+ * `DOMException` se comprueba aparte porque en WebKit hereda de `Error`, así
+ * que `instanceof Error` da verdadero y su `name` puede ser cualquier cosa.
+ */
+function loEscribimosNosotros(err: unknown): err is Error {
+  if (err instanceof ApiError || err instanceof RegistrationError) return true;
+  if (typeof DOMException !== 'undefined' && err instanceof DOMException) return false;
+  return err instanceof Error && err.name === 'Error';
+}
+
+/**
+ * Arma el aviso a partir de lo que sea que se haya lanzado.
+ *
+ * Lo que NO escribimos nosotros no se muestra como frase: se muestra una en
+ * la voz de Pulso y el texto crudo baja al rastro, en mono (#1161).
+ *
+ * Lo que eso evita, que pasó el 01-11: la pantalla de `/ajustes/ia/detalle`
+ * mostró «The string did not match the expected pattern.» —el `.message` de
+ * un `DOMException` de WebKit, en inglés, sin decir qué falló— y no hubo
+ * forma de saber qué operación lo había lanzado, porque el rastro era `null`
+ * para todo lo que no fuera un error de la API.
+ */
 export function avisoDe(err: unknown): Aviso {
+  if (loEscribimosNosotros(err)) return { texto: err.message, rastro: rastroDelError(err) };
   return {
-    texto: err instanceof Error ? err.message : 'Algo salió mal. Intenta de nuevo.',
+    texto: err instanceof TypeError
+      // Lo que tira `fetch` cuando no pudo salir: el navegador no distingue
+      // «sin internet» de «el servidor no contestó», así que la frase no lo
+      // afirma.
+      ? 'No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.'
+      : 'Algo falló en esta pantalla. Intenta de nuevo; si sigue pasando, manda el dato de abajo.',
     rastro: rastroDelError(err),
   };
+}
+
+/** El texto del aviso, para las pantallas que guardan un `string` y no un `Aviso`. */
+export function mensajeDeError(err: unknown): string {
+  return avisoDe(err).texto;
 }
 
 /**
  * El rastro técnico de un error, para pegar en un mensaje pidiendo ayuda.
  *
- * `null` cuando no hay nada que mostrar: un error de red no trae identificador,
- * y un renglón vacío en mono debajo del aviso es ruido.
+ * `null` cuando no hay nada que mostrar: un renglón vacío en mono debajo del
+ * aviso es ruido.
+ *
+ * Para un error ajeno el rastro es `name · message` (#1161). Antes era `null`
+ * —solo los errores de la API traían algo—, y el día que WebKit tiró un
+ * `DOMException` en una pantalla, el reporte que llegó fue la frase en inglés
+ * y nada más. El rastro es justamente el dato con el que se pide ayuda.
  */
 export function rastroDelError(err: unknown): string | null {
-  if (!(err instanceof ApiError || err instanceof RegistrationError)) return null;
-  const partes = [err.code, err.requestId].filter((p) => p && p !== 'ERROR');
-  return partes.length > 0 ? partes.join(' · ') : null;
+  if (err instanceof ApiError || err instanceof RegistrationError) {
+    const partes = [err.code, err.requestId].filter((p) => p && p !== 'ERROR');
+    return partes.length > 0 ? partes.join(' · ') : null;
+  }
+  if (loEscribimosNosotros(err)) return null;
+  if (err instanceof Error) return [err.name, err.message].filter(Boolean).join(' · ');
+  return null;
 }
 
 export async function apiFetch<T>(

@@ -19,7 +19,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // Automatizaciones (#62, SPEC §15): que el seguimiento que hoy no se
 // hace, se haga. Vista previa ANTES del interruptor — nada corre a ciegas.
@@ -111,7 +111,7 @@ export function Automatizaciones() {
       setReglas(nuevosReglas);
       setRuns(nuevosRuns);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setReglas([]);
     }
   }, [config, session, tenant]);
@@ -127,7 +127,7 @@ export function Automatizaciones() {
       await cargar();
       return res;
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       return null;
     }
   };

@@ -18,7 +18,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, fmtClp } from '../lib/api';
+import { apiFetch, fmtClp, mensajeDeError } from '../lib/api';
 import { SubirPdf } from './conocimiento-pdf';
 
 // Conocimiento (#51, SPEC §14): que la IA responda con lo que el negocio
@@ -134,7 +134,7 @@ export function Conocimiento() {
     try {
       setFuentes(await apiFetch<FuenteDto[]>(config, session, tenant, '/knowledge/sources'));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setFuentes([]);
     }
   }, [config, session, tenant]);
@@ -165,7 +165,7 @@ export function Conocimiento() {
       );
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setImportando(false);
     }
@@ -203,7 +203,7 @@ export function Conocimiento() {
       setVigencia('');
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setGuardando(false);
     }
@@ -215,7 +215,7 @@ export function Conocimiento() {
       await apiFetch(config, session, tenant, `/knowledge/sources/${id}`, { method: 'DELETE' });
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 
@@ -227,7 +227,7 @@ export function Conocimiento() {
       await apiFetch(config, session, tenant, `/knowledge/sources/${id}/reindex`, { method: 'POST' });
       await cargar();
     } catch (e) {
-      setAviso((e as Error).message);
+      setAviso(mensajeDeError(e));
     } finally {
       setReindexando(null);
     }
@@ -253,7 +253,7 @@ export function Conocimiento() {
       setResultado(hits);
       setProductos(prods);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 

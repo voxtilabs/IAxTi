@@ -5,7 +5,7 @@ import { AvisoResultado } from '@iaxti/ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Seccion, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, fmtClp } from '../lib/api';
+import { apiFetch, fmtClp, mensajeDeError } from '../lib/api';
 
 // Consumo de IA (#52): asistencias para el equipo, pesos para quien
 // supervisa el gasto — siempre visible en la configuración, en mono.
@@ -57,7 +57,7 @@ export function ConsumoIA() {
     try {
       setUso(await apiFetch<UsoDto>(config, session, tenant, '/agents/usage'));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
@@ -67,7 +67,7 @@ export function ConsumoIA() {
     try {
       setCorridas(await apiFetch<CorridaDto[]>(config, session, tenant, '/agents/executions'));
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setCorridas([]);
     }
   }, [config, session, tenant]);

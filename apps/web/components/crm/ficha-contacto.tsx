@@ -27,7 +27,7 @@ import { DerechosDelTitular } from './derechos-del-titular';
 import { usePieza } from '../arranque';
 import { FusionarDuplicado } from './fusionar-duplicado';
 import { HistoriaDeEtapas } from './historia-de-etapas';
-import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha } from '../../lib/api';
+import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha, mensajeDeError } from '../../lib/api';
 
 /** «Sin empresa» necesita un valor: Radix no acepta la cadena vacía. */
 const SIN_EMPRESA = '__sin_empresa__';
@@ -202,7 +202,7 @@ export function FichaContacto({
         setEtiquetas([]);
       }
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }, [config, session, tenant, contactId]);
 
@@ -255,7 +255,7 @@ export function FichaContacto({
     } catch (err) {
       // El RUT malo, una opción fuera de la lista o un obligatorio vacío:
       // el mensaje del dominio ya explica cuál, y se muestra tal cual.
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setGuardando(false);
     }
@@ -272,7 +272,7 @@ export function FichaContacto({
       setAviso(null);
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }
 
@@ -288,7 +288,7 @@ export function FichaContacto({
       setAviso(null);
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setGuardandoEmpresa(false);
     }
@@ -306,7 +306,7 @@ export function FichaContacto({
       setVence('');
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }
 
@@ -314,7 +314,7 @@ export function FichaContacto({
     if (!session || !tenant) return;
     await apiFetch(config, session, tenant, `/contacts/activities/${id}/done`, { method: 'POST' })
       .then(cargar)
-      .catch((err) => setAviso((err as Error).message));
+      .catch((err) => setAviso(mensajeDeError(err)));
   }
 
   if (aviso) {

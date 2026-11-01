@@ -6,7 +6,14 @@ import { toast } from '@iaxti/ui/react';
 import { SubirPdf } from '../components/conocimiento-pdf';
 
 const { pedir } = vi.hoisted(() => ({ pedir: vi.fn() }));
-vi.mock('../lib/api', () => ({ apiFetch: pedir }));
+// El módulo entero y no solo `apiFetch` (#1161): el componente también usa
+// `mensajeDeError`, y un mock que solo declara una de las dos deja la otra en
+// `undefined` — el `catch` explota y el aviso nunca aparece, que es cómo se
+// cayó esta prueba.
+vi.mock('../lib/api', async (original) => ({
+  ...(await original<typeof import('../lib/api')>()),
+  apiFetch: pedir,
+}));
 vi.mock('@iaxti/ui/react', async (original) => ({
   ...(await original<typeof import('@iaxti/ui/react')>()),
   useSession: () => ({ config: { apiUrl: 'http://localhost' }, session: { access_token: 'fixture' } }),
