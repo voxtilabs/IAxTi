@@ -91,10 +91,9 @@ export function Importar() {
         titulo="Importar desde una planilla"
       />
       <p className="mt-2 max-w-prose text-body">
-        Exporta tu Excel como CSV y pégalo aquí (o súbelo). Antes de guardar nada te mostramos
-        fila por fila qué entra y qué necesita arreglo. Los importados nacen <strong>sin
-        consentimiento de contacto</strong>: podrás escribirles cuando ellos escriban primero o
-        registres su opt-in.
+        Antes de guardar nada te mostramos fila por fila qué entra y qué necesita arreglo. Los
+        importados nacen <strong>sin consentimiento</strong>: podrás escribirles cuando ellos
+        escriban primero o registres su opt-in.
       </p>
 
       <div className="mt-6 flex flex-col gap-3">

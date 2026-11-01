@@ -137,7 +137,7 @@ export function Empresas() {
       <EncabezadoDePagina
         rotulo="EMPRESAS"
         titulo="Empresas"
-        apoyo="Para cuando quien te compra no es una persona sino una oficina, y hablas con varias personas de la misma. Cada contacto puede colgar de una empresa desde su ficha."
+        apoyo="Cada contacto puede colgar de una empresa desde su ficha."
       />
 
       {error && (
@@ -207,7 +207,7 @@ export function Empresas() {
         ) : (
           <EstadoVacio
             titulo="Todavía no hay empresas"
-            descripcion="Sirven cuando varios contactos son de la misma oficina: los ves juntos y sabes con quién más hablaste ahí."
+            descripcion="Acá vas a ver las empresas de tus contactos."
             accion={{ etiqueta: 'Crear la primera', onClick: () => campoEmpresa.current?.focus() }}
             pideleAIAxTi="¿Para qué me sirve agrupar mis contactos por empresa?"
           />

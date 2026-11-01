@@ -199,8 +199,7 @@ export function PorQueLaIaNoTrabaja() {
         {sinRespuesta
           ? 'No alcanzamos a revisarlo. Abajo está qué pasó al intentarlo.'
           : hayProblema
-            ? 'Hay algo que impide que la IA haga su trabajo, y acá se ve cuál. Ninguna ' +
-              'credencial se muestra: solo si está configurada o no, así que esta pantalla se ' +
+            ? 'Ninguna credencial se muestra, solo si está configurada: esta pantalla se ' +
               'puede compartir para pedir ayuda.'
             : conAtencion
               ? 'La IA puede trabajar, pero no en todo. En el detalle está qué tarea queda afuera.'

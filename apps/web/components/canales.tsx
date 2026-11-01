@@ -116,9 +116,7 @@ function ProbarSinNumero() {
     <section className="mt-8 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
       <h2 className="text-lg font-bold text-ink">Probar sin número real</h2>
       <p className="mt-2 max-w-prose text-sm text-body">
-        Simula un mensaje entrante. Entra por el mismo camino que un WhatsApp de verdad —la misma
-        cola, el mismo copiloto— así que sirve para ver cómo responde el asistente antes de
-        conectar un número.
+        Entra por el mismo camino que un WhatsApp de verdad: la misma cola, el mismo copiloto.
       </p>
 
       <Formulario onSubmit={enviar} className="mt-4 flex flex-col gap-3">
@@ -650,8 +648,7 @@ function CanalesDelNegocio() {
         <p className="rotulo">Chat del sitio</p>
         <h2 className="mt-1 text-lg font-bold text-ink">Webchat</h2>
         <p className="mt-1 max-w-prose text-sm text-body">
-          Un chat en tu página que cae en la misma bandeja. Sin número, sin fricción: ideal para
-          partir hoy.
+          Un chat en tu página que cae en la misma bandeja. Sin número.
         </p>
         <Formulario
           className="mt-4 flex flex-wrap items-center gap-2"
@@ -688,7 +685,7 @@ function CanalesDelNegocio() {
             compacto
             className="mt-4"
             titulo="Todavía no tienes el chat en tu sitio"
-            descripcion="Un widget es el chat que vive en tu página web: el visitante escribe desde ahí y la conversación entra a tu bandeja como cualquier otra. Crea uno con el dominio de tu sitio y pega el código que te damos."
+            descripcion="Lo creas con el dominio de tu sitio y pegas el código que te damos."
             pideleAIAxTi="Créame un widget de chat para el dominio de mi sitio web"
             accion={{
               etiqueta: 'Crear el primero',

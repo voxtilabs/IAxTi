@@ -146,7 +146,7 @@ export function Campos() {
       <EncabezadoDePagina
         rotulo="TU NEGOCIO"
         titulo="Campos propios de tu negocio"
-        apoyo="Lo que a tu negocio le importa guardar y el CRM no trae de fábrica: el tipo de corte, el barrio que busca, la talla. Aparecen en la ficha de cada contacto."
+        apoyo="Aparecen en la ficha de cada contacto."
       />
 
       {error && (
@@ -227,8 +227,7 @@ export function Campos() {
           <span>
             El asistente puede usarlo
             <span className="block text-xs text-muted">
-              Si lo apagas, el dato se guarda igual pero no viaja al modelo. Útil para lo que no
-              quieres que salga de tu negocio.
+              Si lo apagas, el dato se guarda igual pero no viaja al modelo.
             </span>
           </span>
         </label>
@@ -244,8 +243,7 @@ export function Campos() {
         <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
           <h2 className="text-lg font-bold text-ink">Todavía no hay campos propios</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-body">
-            El CRM ya guarda nombre, teléfono, correo y RUT. Acá agregas lo que le falta para tu
-            negocio, y aparece en la ficha de cada contacto.
+            El CRM ya guarda nombre, teléfono, correo y RUT.
           </p>
         </div>
       ) : (

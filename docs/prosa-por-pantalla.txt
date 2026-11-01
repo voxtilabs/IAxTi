@@ -1,0 +1,58 @@
+# Cuánta prosa puede tener cada pantalla (#1157)
+#
+# Una línea por ruta: la ruta y su techo en palabras. Lo mide
+# `apps/web/e2e/la-prosa-tiene-techo.spec.ts` recorriendo la pantalla como
+# ADMIN a 1.440 px y sumando los párrafos visibles de cuatro palabras o más,
+# sin repetir.
+#
+# Qué NO cuenta, y por qué:
+#   · `sr-only` — es texto para lectores de pantalla. Sacarlo no es «menos
+#     texto», es menos accesibilidad.
+#   · lo que vive dentro de un `<label>` — el nombre de un control es el
+#     control, no prosa sobre el control.
+#
+# El techo lleva ~12 palabras de holgura sobre lo medido: la pantalla de
+# reportes varía 4 palabras según cuántas oportunidades cerradas haya en la
+# base, y un trinquete que se pone rojo por los datos se termina apagando.
+#
+# Bajar es libre y no hace falta tocar este archivo. Subir obliga a tocarlo, y
+# ese es el punto: que agregar un párrafo sea una decisión y no un descuido.
+#
+# Dónde está la línea entre lo que se queda y lo que se va:
+#
+#   SE QUEDA lo que cambia una decisión en el momento de decidir —la
+#   consecuencia («Cerrar no borra nada: la historia queda»), lo irreversible,
+#   la restricción legal o del plan (la ventana de 24 h, el consentimiento)— y
+#   LA ACLARACIÓN DEL DATO: qué cuenta exactamente un número que está en
+#   pantalla. Sin eso el número es ambiguo, y un número ambiguo es peor que
+#   ninguno. Por eso `/reportes` es la pantalla con más prosa y está bien que
+#   lo sea: casi todo lo que le queda son las definiciones de sus métricas.
+#
+#   SE VA lo que explica un concepto («Un widget es el chat que vive en tu
+#   página web…»), el consejo, el tutorial, el eslogan («La hora que no se
+#   recuerda es la hora que no se asiste») y lo que el párrafo de arriba ya
+#   dijo con otras palabras. Eso es justo lo que IAxTi puede contestar: tiene
+#   274 operaciones y el conocimiento del producto. Preguntárselo es mejor que
+#   leerlo en una pantalla donde estorba.
+#
+# Medido el 01-11-2026, antes y después del corte: 1.581 → 1.041 palabras.
+
+/reportes 246
+/ajustes/ia/detalle 234
+/agenda 134
+/ajustes/canales 107
+/ajustes/conocimiento 66
+/ajustes/bandeja 65
+/ajustes/automatizaciones 63
+/campanas 59
+/ajustes/plantillas 52
+/contactos/importar 42
+/pendientes 37
+/empresas 31
+/ajustes/campos 28
+/ajustes/etiquetas 28
+/ajustes/embudos 21
+/ajustes/equipo 20
+/contactos 12
+/oportunidades 16
+/ajustes/integraciones 12

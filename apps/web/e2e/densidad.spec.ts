@@ -90,12 +90,19 @@ test('la pantalla del asistente abre con su nombre, y el detalle con el suyo', a
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lo que quedó configurado');
   await expect(page.getByRole('heading', { level: 2, name: 'Consumo del asistente' })).toBeVisible();
 
-  // La frase que dice qué hace el producto sigue arriba, no enterrada: en el
+  // La línea que dice de qué va la pantalla sigue arriba, no enterrada: en el
   // primer 20% de la altura de la página.
-  const y = await page.getByText(/Contesta en WhatsApp con lo que tú le diste/).first()
+  //
+  // La frase cambió en #1157: era «Contesta en WhatsApp con lo que tú le
+  // diste: tu catálogo, tus precios, tu agenda. Nunca inventa un dato que no
+  // pudo confirmar…», 41 palabras explicando qué hace el asistente en una
+  // pantalla que se llama «Lo que quedó configurado». Lo que ahí hace falta es
+  // cómo se cambia, no qué es. La afirmación de que la IA no inventa no se
+  // perdió: vive en `/ajustes/conocimiento`, que es donde se decide con ella.
+  const y = await page.getByText(/Para cambiarlo, pídeselo conversando/).first()
     .evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
   const alto = await page.evaluate(() => document.documentElement.scrollHeight);
-  expect(y, 'la frase que dice qué hace el producto quedó enterrada').toBeLessThan(alto * 0.2);
+  expect(y, 'la línea que dice de qué va la pantalla quedó enterrada').toBeLessThan(alto * 0.2);
 });
 
 test('a 360 px nada de la barra superior envuelve', async ({ page }) => {

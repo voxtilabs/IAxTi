@@ -23,7 +23,6 @@ import {
   SidebarTrigger,
   SessionProvider,
   useSession,
-  useMarcaSvg,
   type PublicConfig,
 } from '@iaxti/ui/react';
 import {
@@ -72,7 +71,6 @@ export type { NavItem } from '../lib/nav';
 
 interface ShellProps {
   config: PublicConfig;
-  marcaSvg: string;
   /**
    * El menú que trajo el servidor, o `null` si no pudo preguntarle a la API
    * (#679).
@@ -403,8 +401,7 @@ function CerrarSesion() {
   );
 }
 
-function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; candados: Set<string> }) {
-  const firma = useMarcaSvg(marcaSvg);
+function Barra({ nav, candados }: { nav: NavItem[]; candados: Set<string> }) {
   const activa = usePathname();
 
   const grupos = useMemo(() => {
@@ -489,18 +486,20 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
             <CerrarSesion />
           </SidebarMenuItem>
         </SidebarMenu>
-        {/* El lockup de VoxTi Labs, discreto: IAxTi es lo que el cliente
-            usa; VoxTi Labs es quien lo hace. Antes vivía en un pie que la
-            bandeja no llevaba —o sea que en la pantalla donde más se está,
-            no aparecía. Acá está siempre. */}
+        {/* La firma de quien lo hace, en texto y apagada (#1157).
+            Era el lockup a color de 21 px, y en una barra donde todo lo demás
+            es texto gris con un icono de línea, la única marca a color se
+            lleva el ojo cada vez que mirás el menú —y no es dónde el ojo
+            tiene que ir—. La atribución se queda; el lockup a color vive en
+            el login y en SuperAdmin, que es donde corresponde. */}
         <a
           href="https://voxtilabs.cl"
           target="_blank"
           rel="noreferrer"
-          aria-label="VoxTi Labs"
-          className="marca-pie block px-2 py-1 text-muted group-data-[collapsible=icon]:hidden"
-          dangerouslySetInnerHTML={{ __html: firma }}
-        />
+          className="block px-2 py-1 text-rotulo text-muted hover:text-body group-data-[collapsible=icon]:hidden"
+        >
+          VoxTi Labs
+        </a>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
@@ -584,7 +583,7 @@ function useNavDeRespaldo(hace: boolean): {
   return { nav, fallo, reintentar: () => setIntento((n) => n + 1) };
 }
 
-function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, barraPlegada, altoCompleto, children }: ShellProps) {
+function ContenidoShell({ nav: navDelServidor, sinMargen, barraPlegada, altoCompleto, children }: ShellProps) {
   // Menú y pestañas comparten la misma lectura; no duplicar módulos/acceso.
   const candados = useModulosConCandado();
   const respaldo = useNavDeRespaldo(navDelServidor === null);
@@ -654,7 +653,7 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, barraPlegada
                 : 'pulso-workspace'
           }
         >
-          <Barra nav={nav} marcaSvg={marcaSvg} candados={candados} />
+          <Barra nav={nav} candados={candados} />
           <SidebarInset>
             <SoporteAviso />
             <header className="pulso-topbar flex items-center gap-3 border-b border-line px-6 py-3">

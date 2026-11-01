@@ -220,8 +220,8 @@ export function Automatizaciones() {
         titulo="El seguimiento que hoy no se hace"
       />
       <p className="mt-2 text-sm text-muted">
-        Reglas que trabajan cuando nadie está mirando — con las mismas leyes de siempre: nada sale
-        sin consentimiento ni en horario de silencio. Mira la vista previa antes de encender.
+        Nada sale sin consentimiento ni en horario de silencio. Mira la vista previa antes de
+        encender.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -486,7 +486,7 @@ export function Automatizaciones() {
           <Skeleton className="mt-3 h-24" />
         ) : reglas.length === 0 ? (
           <EstadoVacio compacto className="mt-3" titulo="Prepara tus primeros seguimientos"
-            descripcion="Aquí verás las reglas que ayudan a tu equipo a responder y dar seguimiento. Elige tu rubro arriba para partir con tres reglas que podrás revisar antes de activar."
+            descripcion="Elige tu rubro arriba para partir con tres reglas que vas a poder revisar antes de activar."
             accion={{ etiqueta: 'Elegir rubro', onClick: () => document.querySelector<HTMLButtonElement>('[aria-label="Rubro"]')?.focus() }}
             pideleAIAxTi="Avísame si una cotización lleva 2 días parada" />
         ) : (

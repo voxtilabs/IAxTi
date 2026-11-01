@@ -103,7 +103,6 @@ export function Reportes() {
       </Tabs>
     </div>
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-      <p className="text-sm text-muted">Conversaciones, resultados y recursos de tu negocio.</p>
       <div className="flex items-center gap-3 text-xs text-muted">
         <span role="status">{cargando ? 'Actualizando datos…' : actualizado ? `Actualizado ${actualizado.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
         <Button variant="fantasma" aria-label="Actualizar reportes" onClick={reintentar} disabled={cargando || !tenant}>
@@ -133,7 +132,7 @@ export function Reportes() {
       <section className="pulso-panel mt-4 rounded-tarjeta border border-line bg-raised p-4 sm:p-6" aria-label="Evolución de conversaciones">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div><h2 className="font-display text-seccion font-bold text-ink">El ritmo de tus conversaciones</h2>
-            <p className="mt-1 text-sm text-muted">Nuevas y resueltas, día a día. Las líneas comparten la misma escala.</p></div>
+            <p className="mt-1 text-sm text-muted">Las dos líneas comparten escala.</p></div>
           <Badge role="neutral">{fechaReporte(rango.from)} – {fechaReporte(rango.to)}</Badge>
         </div>
         {!movimiento ? <EstadoVacio compacto className="mt-4" titulo="Todavía no hay movimiento en este período"

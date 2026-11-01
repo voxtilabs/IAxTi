@@ -60,7 +60,7 @@ export interface Embudo {
 
 export const DEFINICIONES_EMBUDO: Record<string, string> = {
   cohorte:
-    'El embudo mira las oportunidades CREADAS en el rango y las sigue hasta hoy, aunque se hayan cerrado después. Por eso contesta si el embudo está mejorando: compara camadas, no instantes.',
+    'Mira las oportunidades CREADAS en el rango y las sigue hasta hoy, aunque se hayan cerrado después.',
   entraron:
     'Oportunidades distintas que pasaron por la etapa alguna vez. Volver a una etapa anterior es normal y cuenta una sola vez.',
   avanzaron:

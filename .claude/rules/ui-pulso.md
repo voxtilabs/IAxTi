@@ -31,6 +31,10 @@
   principal, blanco puro en texto nocturno, negro puro de fondo,
   glassmorphism, emoji en interfaz, iconos de cohete/rayo/cerebro, contadores
   animados, copy de relleno, métricas inventadas.
-- Marca: lockup VoxTi Labs inline en SuperAdmin y pie de la app. IAxTi con su isotipo oficial y
+- Marca: lockup VoxTi Labs inline en SuperAdmin, en el login y al aceptar una
+  invitación. En la barra lateral de la app NO: ahí va la firma en texto
+  apagado (#1157). En una barra donde todo lo demás es texto gris con un icono
+  de línea, la única marca a color se lleva el ojo cada vez que mirás el menú.
+  IAxTi con su isotipo oficial y
   nombre en Outfit; el SVG jelly es decorativo y no agrega funciones.
 - Antes del PR con UI: `/ui-check` y capturas en día y noche.

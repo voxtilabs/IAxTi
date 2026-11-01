@@ -131,7 +131,7 @@ export function Pendientes() {
           className="mt-5"
           titulo="No tienes nada pendiente"
           descripcion={
-            'Las tareas nacen en la ficha de un contacto, o las deja anotadas el asistente cuando ' +
+            'Nacen en la ficha de un contacto. ' +
             'algo queda por hacer después de una conversación.'
           }
           accion={{ etiqueta: 'Ir a contactos', href: '/contactos' }}

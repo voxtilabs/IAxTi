@@ -116,7 +116,7 @@ export function Etiquetas() {
       <EncabezadoDePagina
         rotulo="ETIQUETAS"
         titulo="Etiquetas"
-        apoyo="Para marcar contactos y encontrarlos después. El color dice de qué tipo es, pero el nombre se ve siempre: nadie tiene que acordarse de qué significaba el amarillo."
+        apoyo="El nombre se ve siempre: el color no es lo único que distingue una de otra."
       />
 
       {error && (

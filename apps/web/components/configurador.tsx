@@ -167,7 +167,7 @@ function ConfiguradorDelNegocio({ tenant }: { tenant: string }) {
   return (
     <Seccion
       rotulo="Arma tu CRM"
-      apoyo="Cuéntanos de qué se trata tu negocio y el asistente propone el pipeline, las respuestas rápidas y las plantillas de WhatsApp. Tú revisas el antes/después y decides — nada se aplica solo."
+      apoyo="Cuéntanos de qué se trata tu negocio. Revisas el antes/después y decides: nada se aplica solo."
     >
 
       {/* Quién la arma (#415). La propuesta sale con el modelo de ESE

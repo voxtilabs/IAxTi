@@ -104,9 +104,7 @@ export function AjustesDeIa() {
     <Seccion aria-label="Ajustes de IA del negocio">
       <span className="rotulo">Proveedor y datos</span>
       <p className="mt-2 max-w-prose text-sm text-body">
-        Tu asistente usa los proveedores disponibles de IAxTi, con las cuentas de IAxTi.
-        Si necesitas elegir uno solo, selecciónalo aquí. Esta opción no permite agregar
-        una cuenta ni una clave propia.
+        Son las cuentas de IAxTi: acá no se agrega una cuenta ni una clave propia.
       </p>
 
       <div className="mt-4 flex flex-wrap items-end gap-4">
@@ -204,8 +202,8 @@ function ConQuienTeAtiende({
         ))}
       </ul>
       <p className="mt-2 max-w-prose text-rotulo text-muted">
-        Esto es lo que el asistente usa ahora mismo, que puede no ser lo que elegiste: si un
-        proveedor no está disponible acá, se usa otro para que tu negocio no deje de responder.
+        Lo que usa ahora mismo, que puede no ser lo que elegiste: si el que elegiste no está
+        disponible, se usa otro.
       </p>
     </div>
   );

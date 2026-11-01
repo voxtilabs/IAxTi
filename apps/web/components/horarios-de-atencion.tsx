@@ -129,7 +129,7 @@ export function HorariosDeAtencion() {
     // existe para que la página NO salte cuando llega el contenido, así que
     // su alto es una medición, no una preferencia — `esqueletos-medidos`
     // compara los dos y falla si se separan más de 16 px.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={840} filas={5} superficie="raised" />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={820} filas={5} superficie="raised" />;
   }
   if (carga.estado !== 'ok') {
     // El 403 lleva frase acá, y es el único de los cinco paneles que la lleva:
@@ -158,8 +158,8 @@ export function HorariosDeAtencion() {
         <span className="rotulo">Horarios en que atiendes</span>
       </p>
       <p className="mt-1 max-w-prose text-sm text-body">
-        De acá salen las horas que se ofrecen, en la bandeja y también cuando las ofrece el
-        asistente. Sin un horario definido, la agenda ofrece lo que quedó por defecto.
+        De acá salen las horas que se ofrecen. Sin ninguno, la agenda ofrece lo que quedó por
+        defecto.
       </p>
 
       {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}

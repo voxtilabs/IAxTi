@@ -126,8 +126,7 @@ export function ConsumoIA() {
           </div>
         )}
         <p className="mt-3 text-sm text-muted">
-          Cada respuesta, clasificación o sugerencia del asistente usa una asistencia. El tope lo
-          define tu plan{uso.exhausted && !uso.economicoConfigurado ? ' — al completarlo, el asistente descansa hasta el próximo ciclo.' : '.'}
+          El tope lo define tu plan{uso.exhausted && !uso.economicoConfigurado ? ' — al completarlo, el asistente descansa hasta el próximo ciclo.' : '.'}
         </p>
       </Seccion>
 

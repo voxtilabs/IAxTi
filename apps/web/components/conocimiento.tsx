@@ -264,9 +264,8 @@ export function Conocimiento() {
         titulo="Lo que tu negocio dice"
       />
       <p className="mt-2 text-sm text-muted">
-        La IA responde SOLO con lo que cargues aquí — y siempre cita la fuente. Los precios y el
-        stock del catálogo son datos exactos, nunca inventados. Las fuentes con vigencia vencida
-        dejan de usarse solas.
+        La IA responde SOLO con lo que cargues acá, y cita la fuente. Las que tienen vigencia
+        vencida dejan de usarse solas.
       </p>
 
       <Card className="mt-6 pulso-panel p-6">
@@ -346,10 +345,9 @@ export function Conocimiento() {
       <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Traer archivos markdown</span>
         <p className="mt-1 text-sm text-body">
-          Escribe donde quieras —Obsidian, el bloc de notas, lo que uses— y trae los{' '}
-          <code className="font-mono">.md</code> acá. El nombre sale del{' '}
-          <code className="font-mono">title</code>, del primer encabezado o del archivo, en ese
-          orden. Los enlaces <code className="font-mono">[[así]]</code> se conservan.
+          El nombre sale del <code className="font-mono">title</code>, del primer encabezado o
+          del archivo, en ese orden. Los enlaces <code className="font-mono">[[así]]</code> se
+          conservan.
         </p>
         {/* Por la primitiva (#1144): el nativo decía «Choose Files · No file
             chosen», en inglés, en medio de una pantalla en español. */}
@@ -393,7 +391,7 @@ export function Conocimiento() {
             compacto
             className="mt-2"
             titulo="La IA todavía no sabe nada de tu negocio"
-            descripcion="Acá van tus horarios, precios y respuestas frecuentes: lo que pegues o subas es lo único que el asistente puede afirmar. Sin esto solo conoce la conversación, y ante cualquier dato te pasa la conversación a ti."
+            descripcion="Sin nada cargado, el asistente no afirma ningún dato: te pasa la conversación."
             accion={{
               etiqueta: 'Agregar lo primero',
               onClick: () => {

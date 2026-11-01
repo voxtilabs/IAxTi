@@ -119,7 +119,7 @@ export function Embudos() {
       <EncabezadoDePagina
         rotulo="CONFIGURACIÓN"
         titulo="Embudos y etapas"
-        apoyo="Por dónde pasa una oportunidad hasta cerrarse. Las etapas de acá son las columnas del tablero, así que conviene que se llamen como las llama tu equipo."
+        apoyo="Las etapas de acá son las columnas del tablero."
       />
 
       {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
