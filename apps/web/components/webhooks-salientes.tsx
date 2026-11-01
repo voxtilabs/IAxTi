@@ -172,7 +172,7 @@ export function WebhooksSalientes() {
                       deja la URL y su secreto guardados, y un endpoint que
                       ya no es nuestro no debería quedarse en la base. */}
                   <Button
-                    variant="fantasma"
+                      variant="quitar"
                     size="chico"
                     onClick={() => void accion(`/webhooks-salientes/${w.id}`, { method: 'DELETE' })}
                   >

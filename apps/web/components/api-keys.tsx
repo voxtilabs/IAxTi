@@ -198,7 +198,8 @@ export function ApiKeys() {
                 ) : (
                   <>
                     <Badge role="good">Activa</Badge>
-                    <Button variant="fantasma" size="chico" onClick={() => void revocar(k.id)}>
+                    <Button
+                      variant="quitar" size="chico" onClick={() => void revocar(k.id)}>
                       Revocar
                     </Button>
                   </>

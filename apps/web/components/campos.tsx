@@ -280,7 +280,7 @@ export function Campos() {
                           : 'Mostrar al asistente'}
                     </Button>
                     <Button
-                      variant="fantasma"
+                      variant="quitar"
                       size="chico"
                       disabled={quitando === c.id}
                       onClick={() => void quitar(c)}

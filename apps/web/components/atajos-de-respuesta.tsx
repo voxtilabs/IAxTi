@@ -172,7 +172,7 @@ export function AtajosDeRespuesta() {
                 {renderQuickReply(a.body, { nombre: 'Ana', telefono: '+56 9 1234 5678' })}
               </span>
               <Button
-                variant="fantasma"
+                variant="quitar"
                 size="chico"
                 disabled={borrando === a.id}
                 onClick={() => void borrar(a)}

@@ -465,7 +465,8 @@ export function Conocimiento() {
                     —el archivo ya no está, el borrado completa— y subir el
                     documento de nuevo, que es el control que está arriba en
                     esta misma pantalla. */}
-                <Button variant="fantasma" size="chico" onClick={() => void eliminar(f.id)}>
+                <Button
+                      variant="quitar" size="chico" onClick={() => void eliminar(f.id)}>
                   {f.status === 'delete_failed' ? 'Terminar de borrar' : 'Eliminar'}
                 </Button>
               </li>

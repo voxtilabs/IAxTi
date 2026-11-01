@@ -177,7 +177,7 @@ export function HorariosDeAtencion() {
                 {f.respiro > 0 && `, ${f.respiro} de respiro`}
               </span>
               <Button
-                variant="fantasma"
+                      variant="quitar"
                 size="chico"
                 className="ml-auto"
                 disabled={ocupado === f.id}

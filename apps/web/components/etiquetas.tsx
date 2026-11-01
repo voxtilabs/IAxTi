@@ -194,7 +194,8 @@ export function Etiquetas() {
                 </SelectContent>
               </Select>
               <span className="flex-1" />
-              <Button variant="fantasma" size="chico" disabled={ocupado === t.id} onClick={() => void borrar(t)}>
+              <Button
+                      variant="quitar" size="chico" disabled={ocupado === t.id} onClick={() => void borrar(t)}>
                 Borrar
               </Button>
             </li>
