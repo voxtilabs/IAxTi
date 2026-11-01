@@ -53,6 +53,16 @@ function paginas(dir = APP, prefijo = ''): string[] {
   return salida;
 }
 
+/** Todos los `.tsx` de una carpeta, para buscar quién enlaza a una ruta. */
+function archivosDe(dir: string): string[] {
+  const salida: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) salida.push(...archivosDe(join(dir, e.name)));
+    else if (e.name.endsWith('.tsx')) salida.push(join(dir, e.name));
+  }
+  return salida;
+}
+
 /** `/contactos/[id]` cubre `/contactos/loquesea`. */
 function existeRuta(ruta: string, todas: string[]): boolean {
   return todas.some((p) => {
@@ -81,19 +91,56 @@ describe('el menú no promete páginas que no existen', () => {
     ).toEqual([]);
   });
 
+/**
+ * Las de `/ajustes` a las que se llega desde dentro, no desde el menú.
+ *
+ * El comentario de la guarda ya contemplaba el caso —«las demás se alcanzan
+ * desde dentro del producto (una ficha, un detalle)»— pero el filtro miraba
+ * solo el prefijo, así que una pantalla de detalle bajo `/ajustes` no tenía
+ * dónde declararse.
+ *
+ * La excepción NO alcanza con escribirla: la prueba de más abajo exige que
+ * algún componente enlace de verdad a esa ruta. Una exención que no se
+ * comprueba es la forma más limpia de dejar una pantalla huérfana con
+ * permiso.
+ */
+const DESDE_DENTRO: Record<string, string> = {
+  '/ajustes/ia/detalle':
+    'Se llega desde la conversación con IAxTi (#1135): «Tu asistente» es el chat, ' +
+    'y acá está lo que quedó configurado. En el menú serían dos entradas para la ' +
+    'misma cosa, y la segunda contradice que el chat sea la principal.',
+};
+
   it('cada página de ajustes se alcanza desde el menú', () => {
     // Una página terminada que ningún nav menciona es trabajo que nadie
     // puede usar. Solo se revisan las de `/ajustes`: las demás se alcanzan
     // desde dentro del producto (una ficha, un detalle).
     const enMenu = new Set(menu.map((x) => x.path));
     const huerfanas = todas.filter(
-      (p) => p.startsWith('/ajustes/') && !p.includes('[') && !enMenu.has(p),
+      (p) =>
+        p.startsWith('/ajustes/') &&
+        !p.includes('[') &&
+        !enMenu.has(p) &&
+        !DESDE_DENTRO[p],
     );
     expect(
       huerfanas,
       'Estas páginas existen y no se llega a ellas desde ningún menú:\n' +
         huerfanas.map((p) => `  ${p}`).join('\n'),
     ).toEqual([]);
+  });
+
+  it('las que se alcanzan «desde dentro» tienen quién las enlace', () => {
+    // Lo que vuelve real la excepción. Sin esto, `DESDE_DENTRO` sería una
+    // lista de permisos para dejar pantallas huérfanas: se escribe el motivo
+    // una vez, el enlace se borra en otro PR, y la guarda sigue verde.
+    const fuentes = archivosDe(join(__dirname, '..', 'components'));
+    for (const [ruta, motivo] of Object.entries(DESDE_DENTRO)) {
+      expect(motivo.length, `${ruta} necesita un motivo escrito`).toBeGreaterThan(40);
+      const enlazan = fuentes.filter((f) => readFileSync(f, 'utf8').includes(`"${ruta}"`));
+      expect(enlazan.length, `nadie enlaza a ${ruta}: dejó de alcanzarse desde dentro`)
+        .toBeGreaterThan(0);
+    }
   });
 });
 
