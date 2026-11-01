@@ -168,9 +168,17 @@ body { background: var(--canvas); font-size: 15px; }
 /* Bandeja: tres paneles reales; el centro queda tranquilo para leer mensajes. */
 /* El shell reparte la altura real entre soporte, cabecera y paneles (#429).
    Las otras rutas mantienen su documento desplazable. */
-.pulso-workspace-inbox { height: 100dvh; min-height: 0; }
-.pulso-workspace-inbox > main { min-width: 0; min-height: 0; }
-.pulso-workspace-inbox > main > :is(header, p) { flex-shrink: 0; }
+/* Pantallas que ocupan el alto: la bandeja y el asistente (#1152).
+   Sin `height: 100dvh` el `flex-1` del contenido no tiene contra qué
+   resolverse y crece con lo que hay adentro. Medido en el chat del
+   asistente: el área de la conversación daba 2.222 px en una ventana de 780,
+   así que `clientHeight === scrollHeight` y no había nada que scrollear ni
+   por dentro ni por fuera — el hilo quedaba fuera de pantalla, inalcanzable.
+   La bandeja ya lo tenía; la pantalla del asistente nació sin él porque
+   `altoCompleto` se agregó como prop del shell y no como clase. */
+.pulso-workspace-inbox, .pulso-workspace-alto { height: 100dvh; min-height: 0; }
+.pulso-workspace-inbox > main, .pulso-workspace-alto > main { min-width: 0; min-height: 0; }
+.pulso-workspace-inbox > main > :is(header, p), .pulso-workspace-alto > main > :is(header, p) { flex-shrink: 0; }
 .pulso-inbox { background: var(--canvas); }
 .pulso-inbox-list, .pulso-inbox-detail { background: var(--panel); }
 .pulso-inbox-list > .sticky { background: var(--panel); }
