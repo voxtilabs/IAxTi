@@ -150,6 +150,9 @@ export function Plantillas() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             id="nombre-plantilla" placeholder="recordatorio_hora"
+            /* Corto (#1150): es un identificador interno de pocas letras y
+               estaba en una caja de 1.014 px. */
+            className="max-w-campo-corto"
           />
           <span className="text-xs text-muted">
             Solo minúsculas, números y guion bajo. Es el nombre interno, el cliente no lo ve.
@@ -185,7 +188,11 @@ export function Plantillas() {
             value={form.body}
             onChange={(e) => setForm({ ...form, body: e.target.value })}
             placeholder="Hola {{1}}, te recordamos tu hora del {{2}}. ¿Nos confirmas?"
-            className="rounded-campo border border-line-strong bg-field px-4 py-3 text-base text-ink placeholder:text-faint"
+            /* Largo, no sin límite (#1150): este texto se lee en un
+               teléfono. Escribirlo en una línea de mil píxeles es editarlo
+               en un medio que no se parece al real, y a esa medida el ojo
+               pierde el renglón al volver. */
+            className="max-w-campo-largo rounded-campo border border-line-strong bg-field px-4 py-3 text-base text-ink placeholder:text-faint"
           />
           <span className="text-xs text-muted">
             Lo que cambia por cliente va como {'{{1}}'}, {'{{2}}'}… numerado desde 1 y sin saltos.

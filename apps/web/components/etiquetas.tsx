@@ -136,6 +136,8 @@ export function Etiquetas() {
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Cliente frecuente"
+              /* Corto (#1150): el nombre de una etiqueta: dos o tres palabras. */
+              className="max-w-campo-corto"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium text-ink">
