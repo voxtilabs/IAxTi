@@ -54,18 +54,25 @@ function Conexiones({ onConectado }: { onConectado: (cuenta: Cuenta) => void }) 
    * pantalla usan 22, este usaba 14. Dos radios en una columna es lo que
    * #1122 sacó de la agenda.
    *
-   * El `min-h-96` se queda, y vale anotar por qué: me pareció un piso sin
-   * motivo que dejaba ~150 px de nada con el estado vacío adentro, lo saqué,
-   * y `canales-meta-74` me corrigió. Esa guarda compara TRES alturas —
-   * cargando, con lista y vacío— y las exige iguales al píxel: el panel no
-   * salta nunca entre sus cuatro estados, así que nada de lo que está abajo
-   * se mueve. El piso no es descuido, es esa decisión escrita como piso.
+   * El piso existe para que el panel no salte entre sus cuatro estados —
+   * cargando, con lista, vacío y fallando— y nada de lo que está abajo se
+   * mueva. Lo sostiene `canales-meta-74`, que compara las alturas y las exige
+   * iguales al píxel. No es descuido: es esa decisión escrita como piso. Lo
+   * saqué dos veces y las dos veces la guarda tenía razón.
    *
-   * Lo intenté dos veces —sacarlo del todo, y dejarlo solo donde la guarda
-   * mira— y las dos estaban mal. El espacio sobrante es el precio, y el
-   * precio está pagado a propósito.
+   * Lo que SÍ estaba mal era que fuera UN piso (#1159). `min-h-96` son 384 px,
+   * que es lo que medía el estado vacío a 360 cuando su texto envolvía en seis
+   * líneas. En escritorio el mismo panel no pasa de 240, así que el piso
+   * dejaba 144 px de nada debajo del contenido: en la captura de
+   * `/ajustes/canales` parecía un panel roto.
+   *
+   * Medido el estado más alto de cada tramo —que es el de la LISTA, no el
+   * vacío—: < 640 → 355,5 · ≥ 640 → 239,5. El piso de cada tramo es el entero
+   * siguiente, y la holgura es de medio píxel a propósito: si alguien cambia
+   * el texto, la guarda se pone roja en vez de que el panel vuelva a saltar
+   * en silencio.
    */
-  return <section className="mt-6 min-h-96 rounded-tarjeta border border-line bg-raised p-4" aria-label="Conectar Instagram y Messenger" aria-busy={enCurso !== null || carga.estado === 'cargando'}>
+  return <section className="mt-6 min-h-[22.25rem] rounded-tarjeta border border-line bg-raised p-4 sm:min-h-60" aria-label="Conectar Instagram y Messenger" aria-busy={enCurso !== null || carga.estado === 'cargando'}>
     <h2 className="text-lg font-semibold text-ink">Instagram y Messenger</h2>
     {carga.estado === 'cargando' || carga.estado === 'nada-que-pedir' ? <div className="mt-4 space-y-3" role="status" aria-label="Buscando conexiones"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-20 w-full" /></div> : null}
     <AvisoDeCarga carga={carga} onReintentar={reintentar} sinPermiso="Necesitas permiso para administrar canales y activar estas conexiones." />
@@ -73,6 +80,7 @@ function Conexiones({ onConectado }: { onConectado: (cuenta: Cuenta) => void }) 
     {/* Sin `compacto` (#1146): lo probé, y con el piso fijo de arriba achicar
         el contenido AUMENTA el hueco en vez de reducirlo. */}
     {carga.estado === 'ok' && (carga.dato.length === 0 ? <EstadoVacio
+      compacto
       titulo="No hay conexiones pendientes"
       descripcion="Primero conecta tu cuenta en Zavu y pide a quien administra el servicio que la habilite para tu negocio. Después vuelve a comprobar."
       accion={{ etiqueta: 'Volver a comprobar', onClick: reintentar }}

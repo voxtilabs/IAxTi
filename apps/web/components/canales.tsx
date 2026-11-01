@@ -551,6 +551,7 @@ function CanalesDelNegocio() {
         // ninguna acción: un negocio sin canales es un negocio que no recibe
         // mensajes, y acá era donde se quedaba parado (#509).
         <EstadoVacio
+          compacto
           className="mt-6"
           titulo="Todavía no hay canales"
           descripcion="Al conectar tu número de WhatsApp aparecerá aquí con su estado y la calidad que Meta le asigna. La puesta en marcha te va guiando paso a paso."
