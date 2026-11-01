@@ -49,11 +49,29 @@ function Conexiones({ onConectado }: { onConectado: (cuenta: Cuenta) => void }) 
     }
   }
 
-  return <section className="mt-6 min-h-96 rounded-campo border border-line bg-raised p-4" aria-label="Conectar Instagram y Messenger" aria-busy={enCurso !== null || carga.estado === 'cargando'}>
+  /*
+   * `rounded-tarjeta` y no `rounded-campo` (#1146): los otros bloques de esta
+   * pantalla usan 22, este usaba 14. Dos radios en una columna es lo que
+   * #1122 sacó de la agenda.
+   *
+   * El `min-h-96` se queda, y vale anotar por qué: me pareció un piso sin
+   * motivo que dejaba ~150 px de nada con el estado vacío adentro, lo saqué,
+   * y `canales-meta-74` me corrigió. Esa guarda compara TRES alturas —
+   * cargando, con lista y vacío— y las exige iguales al píxel: el panel no
+   * salta nunca entre sus cuatro estados, así que nada de lo que está abajo
+   * se mueve. El piso no es descuido, es esa decisión escrita como piso.
+   *
+   * Lo intenté dos veces —sacarlo del todo, y dejarlo solo donde la guarda
+   * mira— y las dos estaban mal. El espacio sobrante es el precio, y el
+   * precio está pagado a propósito.
+   */
+  return <section className="mt-6 min-h-96 rounded-tarjeta border border-line bg-raised p-4" aria-label="Conectar Instagram y Messenger" aria-busy={enCurso !== null || carga.estado === 'cargando'}>
     <h2 className="text-lg font-semibold text-ink">Instagram y Messenger</h2>
     {carga.estado === 'cargando' || carga.estado === 'nada-que-pedir' ? <div className="mt-4 space-y-3" role="status" aria-label="Buscando conexiones"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-20 w-full" /></div> : null}
     <AvisoDeCarga carga={carga} onReintentar={reintentar} sinPermiso="Necesitas permiso para administrar canales y activar estas conexiones." />
     {aviso && <AvisoResultado tono="error" persistente>{aviso.texto}{aviso.rastro && <span className="dato mt-1 block break-all">{aviso.rastro}</span>}</AvisoResultado>}
+    {/* Sin `compacto` (#1146): lo probé, y con el piso fijo de arriba achicar
+        el contenido AUMENTA el hueco en vez de reducirlo. */}
     {carga.estado === 'ok' && (carga.dato.length === 0 ? <EstadoVacio
       titulo="No hay conexiones pendientes"
       descripcion="Primero conecta tu cuenta en Zavu y pide a quien administra el servicio que la habilite para tu negocio. Después vuelve a comprobar."
