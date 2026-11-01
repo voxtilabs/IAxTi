@@ -129,6 +129,40 @@ export async function listDeals(
   };
 }
 
+/**
+ * Cuántas y cuánto hay en cada etapa (#1155).
+ *
+ * La cabecera del tablero decía solo el conteo de lo que estaba CARGADO —20
+ * por columna—, así que sumar ahí el dinero habría mostrado «$210.000»
+ * teniendo cien oportunidades más abajo. Un total que miente es peor que no
+ * tenerlo: nadie lo contrasta, se lee y se decide con él.
+ *
+ * Una consulta para el tablero entero y no una por columna: son cuatro o
+ * cinco etapas y el GROUP BY las trae todas de una.
+ *
+ * `value_clp` y no `value`: el monto en pesos es el que existe para todas las
+ * monedas —la UF guarda su valor del día (regla de base de datos)— y sumar
+ * monedas distintas daría un número sin unidad.
+ */
+export async function resumenDelTablero(
+  client: PoolClient,
+  tenantId: string,
+  pipelineId: string,
+): Promise<{ stageId: string; cuantas: number; totalClp: number }[]> {
+  const r = await client.query(
+    `SELECT d.stage_id, count(*)::int AS cuantas, COALESCE(sum(d.value_clp), 0)::bigint AS total
+       FROM deals d
+      WHERE d.tenant_id = $1 AND d.pipeline_id = $2
+      GROUP BY d.stage_id`,
+    [tenantId, pipelineId],
+  );
+  return r.rows.map((f) => ({
+    stageId: f.stage_id as string,
+    cuantas: Number(f.cuantas),
+    totalClp: Number(f.total),
+  }));
+}
+
 /** Todos los pipelines del tenant con sus etapas ordenadas (para el tablero). */
 export async function listPipelines(
   client: PoolClient,

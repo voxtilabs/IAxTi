@@ -82,8 +82,21 @@ interface ShellProps {
    * por su cuenta —ahí hay sesión— y si tampoco se puede, se dice.
    */
   nav: NavItem[] | null;
-  /** Pantallas a ancho completo (la bandeja): sin contenedor ni padding. */
+  /** Pantallas a ancho completo (la bandeja, el tablero): sin contenedor ni padding. */
   sinMargen?: boolean;
+  /**
+   * Arrancar con la barra plegada (#1155).
+   *
+   * Era parte de `sinMargen` —una prop, dos efectos— y eso obligaba a elegir
+   * entre ancho completo con la barra escondida, o la barra a la vista con la
+   * página encajonada en 1.120 px. El tablero de oportunidades necesita el
+   * ancho Y la barra: es una pantalla donde se navega, no un lugar donde te
+   * encerrás como la bandeja.
+   *
+   * Por qué la bandeja sí la pliega: sus TRES paneles —lista, chat, ficha— no
+   * caben de otra forma, y quien abre una conversación se queda ahí.
+   */
+  barraPlegada?: boolean;
   /**
    * Pantallas que ocupan el alto, no el ancho (#1135): el asistente.
    *
@@ -571,7 +584,7 @@ function useNavDeRespaldo(hace: boolean): {
   return { nav, fallo, reintentar: () => setIntento((n) => n + 1) };
 }
 
-function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, altoCompleto, children }: ShellProps) {
+function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, barraPlegada, altoCompleto, children }: ShellProps) {
   // Menú y pestañas comparten la misma lectura; no duplicar módulos/acceso.
   const candados = useModulosConCandado();
   const respaldo = useNavDeRespaldo(navDelServidor === null);
@@ -632,7 +645,7 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, altoCompleto
             pantalla de tres paneles, y ahí cada píxel de ancho es una
             columna que se ve. */}
         <SidebarProvider
-          defaultOpen={!sinMargen}
+          defaultOpen={!barraPlegada}
           className={
             sinMargen
               ? 'pulso-workspace pulso-workspace-inbox'

@@ -166,6 +166,7 @@ for (const modo of ['dia', 'noche'] as const) {
 // Como ADMIN: las pantallas de configuración se ven de verdad en vez de la
 // puerta de permisos. Es lo que vería quien hace el demo.
 for (const [nombre, ruta] of [
+  ['adm-oportunidades', '/oportunidades'], ['adm-contactos', '/contactos'],
   ['adm-canales', '/ajustes/canales'], ['adm-negocio', '/ajustes/bandeja'],
   ['adm-conocimiento', '/ajustes/conocimiento'], ['adm-equipo', '/ajustes/equipo'],
   ['adm-embudos', '/ajustes/embudos'], ['adm-plantillas', '/ajustes/plantillas'],
@@ -182,4 +183,26 @@ for (const [nombre, ruta] of [
     await page.waitForTimeout(1500);
     await page.screenshot({ path: join(DESTINO, `${nombre}.png`), fullPage: true });
   });
+}
+
+// El tablero en los tres tamaños que importan y en los dos modos (#1155).
+// `fullPage: false`: la pantalla NO scrollea a propósito, así que la captura
+// de la ventana ES la pantalla; con `fullPage` se vería lo mismo y dejaría de
+// notarse si eso se rompe.
+for (const [nombre, ancho, alto] of [
+  ['ancha', 1920, 1000], ['normal', 1280, 900], ['celular', 390, 780],
+] as const) {
+  for (const modo of ['dia', 'noche'] as const) {
+    test(`tablero ${nombre} ${modo}`, async ({ page }) => {
+      await page.setViewportSize({ width: ancho, height: alto });
+      await page.addInitScript(([id, m]) => {
+        localStorage.setItem('iaxti-tenant', id);
+        localStorage.setItem('pulso-mode', m);
+      }, [auth.tableTenantId, modo] as const);
+      await page.goto('/oportunidades', { waitUntil: 'domcontentloaded' });
+      await page.getByRole('heading', { name: 'Oportunidades' }).waitFor({ timeout: 15_000 }).catch(() => undefined);
+      await page.waitForTimeout(2000);
+      await page.screenshot({ path: join(DESTINO, `tablero-${nombre}-${modo}.png`), fullPage: false });
+    });
+  }
 }
