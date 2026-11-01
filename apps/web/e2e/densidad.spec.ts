@@ -178,3 +178,26 @@ test('a 360 px el campo del chat muestra su texto entero', async ({ page }) => {
   expect(medida.util, `«${'Pídele lo que necesitas'}» pide ${medida.pide} px y el campo tiene ${medida.util}`)
     .toBeGreaterThanOrEqual(medida.pide);
 });
+
+for (const ruta of ['/', '/contactos', '/agenda', '/pendientes'] as const) {
+  test(`${ruta} abre con un solo h1`, async ({ page }) => {
+    // #1139: la portada no tenía ninguno. Su rama de bienvenida —la que ve
+    // quien no puede leer el estado del negocio— abría con `h2`, así que la
+    // primera pantalla del producto no se nombraba a sí misma.
+    //
+    // Se revisan varias y no solo la que falló: el defecto no era de esa
+    // pantalla, era que nadie estaba mirando.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.addInitScript(({ auth }) => {
+      localStorage.setItem('iaxti-tenant', auth.tenantId);
+      localStorage.setItem('pulso-mode', 'dia');
+      localStorage.setItem('sb-127-auth-token', JSON.stringify({
+        access_token: auth.accessToken, token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'e2e',
+        user: { id: auth.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' },
+      }));
+    }, { auth });
+    await page.goto(ruta);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  });
+}

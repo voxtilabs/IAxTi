@@ -112,13 +112,17 @@ for (const modo of ['dia', 'noche'] as const) {
 // no lo encuentra un detector, lo encuentra abrir la pantalla.
 for (const [nombre, ruta] of [
   ['oportunidades', '/oportunidades'], ['agenda', '/agenda'], ['pendientes', '/pendientes'],
-  ['asistente', '/ajustes/ia'], ['asistente-detalle', '/ajustes/ia/detalle'],
+  ['inicio', '/'], ['asistente', '/ajustes/ia'], ['asistente-detalle', '/ajustes/ia/detalle'],
   ['canales', '/ajustes/canales'], ['empresas', '/empresas'],
 ] as const) {
   test(`pantalla ${nombre}`, async ({ page }) => {
     await page.addInitScript(() => { localStorage.setItem('pulso-mode', 'dia'); });
-    await page.goto(ruta);
-    await page.waitForLoadState('networkidle');
+    await page.goto(ruta, { waitUntil: 'domcontentloaded' });
+    // `networkidle` no sirve acá: las fuentes de Google no cierran en este
+    // entorno y la espera se come el minuto entero. Lo que importa es que la
+    // pantalla haya pintado.
+    await page.getByRole('heading').first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+    await page.waitForTimeout(1200);
     await page.screenshot({ path: join(DESTINO, `pantalla-${nombre}.png`), fullPage: true });
   });
 }

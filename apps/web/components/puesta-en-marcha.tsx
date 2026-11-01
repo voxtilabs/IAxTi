@@ -44,13 +44,27 @@ function Bienvenida({ widgets = [] }: { widgets?: WidgetItem[] }) {
     <div className="flex flex-col gap-6">
     <div className="pulso-hero">
       <div>
-      <p className="rotulo">Bandeja</p>
-      <h2 className="mt-2 text-xl font-bold text-ink">
-        Aquí van a llegar las conversaciones de tu negocio
-      </h2>
+      {/* Lo que este bloque puede afirmar, y nada más (#1139).
+          Decía «aquí van a llegar las conversaciones… cuando conectes
+          WhatsApp», y se dibuja cuando `GET /onboarding` da 403: o sea cuando
+          NO SABEMOS en qué va la puesta en marcha, porque este rol no puede
+          leer los ajustes del negocio.
+          Medido en la portada: el panel de al lado listaba TRES
+          conversaciones esperando respuesta mientras este decía que todavía
+          no llegaba nada. La pantalla se contradecía en el mismo pliegue, y
+          quien la miraba tenía que decidir cuál de las dos mitades le mentía.
+          Ahora dice lo que es verdad para quien lo ve: su trabajo está en la
+          bandeja. */}
+      {/* `h1` y no `h2` (#1139): esta rama ES la portada para quien no puede
+          leer el estado del negocio, y la pantalla se quedaba sin un solo
+          título de página. La otra rama ya abre con su `h1`. */}
+      <p className="rotulo">Tu día</p>
+      <h1 className="mt-2 font-display text-titulo text-ink">
+        Todo lo que llega, en un solo lugar
+      </h1>
       <p className="mt-2 max-w-prose text-body">
-        Cuando conectes WhatsApp o actives el chat de tu sitio, cada mensaje aparecerá en la bandeja
-        con su contacto y su historia.
+        Cada mensaje de tu negocio entra a la bandeja con su contacto y su historia, por el canal
+        que sea.
       </p>
       <Link href="/bandeja" className="mt-6 inline-block">
         <Button variant="primario">Ir a la bandeja</Button>

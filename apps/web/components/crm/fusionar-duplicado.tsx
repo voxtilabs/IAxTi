@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Merge } from 'lucide-react';
-import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Button, Input, useSession , nombreVisible, segundaLinea } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
 import { apiFetch, type FichaContacto } from '../../lib/api';
 
@@ -165,8 +165,15 @@ export function FusionarDuplicado({
                   elegido?.id === c.id ? 'border-action bg-action-soft' : 'border-line hover:bg-rest',
                 ].join(' ')}
               >
-                <span className="text-ink">{c.name ?? 'Sin nombre'}</span>{' '}
-                <span className="dato text-muted">{c.phone ?? c.email ?? ''}</span>
+                {/* `nombreVisible` (#1139): acá se está eligiendo CUÁL de dos
+                    contactos es el duplicado, así que decir «Sin nombre» en
+                    los dos es justo no ayudar en el único momento que
+                    importa. El correo sigue debajo cuando no hay teléfono —
+                    es el dato que los distingue. */}
+                <span className="text-ink">{nombreVisible({ name: c.name, phone: c.phone })}</span>{' '}
+                <span className="dato text-muted">
+                  {segundaLinea({ name: c.name, phone: c.phone }) ?? c.email ?? ''}
+                </span>
               </button>
             </li>
           ))}
