@@ -84,6 +84,19 @@ interface ShellProps {
   nav: NavItem[] | null;
   /** Pantallas a ancho completo (la bandeja): sin contenedor ni padding. */
   sinMargen?: boolean;
+  /**
+   * Pantallas que ocupan el alto, no el ancho (#1135): el asistente.
+   *
+   * No es `sinMargen`. Esa prop hace DOS cosas —quitar el contenedor Y
+   * arrancar con la barra plegada— porque la bandeja necesita cada píxel de
+   * ancho para sus tres paneles. El asistente es al revés: quiere su columna
+   * centrada y la barra abierta, y lo que necesita es que el chat llegue
+   * hasta abajo en vez de que la página scrollee.
+   *
+   * Separadas porque conflarlas obligaría a elegir entre un chat corto o una
+   * barra plegada sin motivo.
+   */
+  altoCompleto?: boolean;
   children: ReactNode;
 }
 
@@ -529,7 +542,7 @@ function useNavDeRespaldo(hace: boolean): {
   return { nav, fallo, reintentar: () => setIntento((n) => n + 1) };
 }
 
-function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: ShellProps) {
+function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, altoCompleto, children }: ShellProps) {
   // Menú y pestañas comparten la misma lectura; no duplicar módulos/acceso.
   const candados = useModulosConCandado();
   const respaldo = useNavDeRespaldo(navDelServidor === null);
@@ -628,7 +641,15 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, children }: 
                 </AvisoResultado>
               </div>
             ) : null}
-            <div className={sinMargen ? 'min-h-0 min-w-0 flex-1' : 'pulso-content mx-auto w-full max-w-contenido'}>
+            <div
+              className={
+                sinMargen
+                  ? 'min-h-0 min-w-0 flex-1'
+                  : altoCompleto
+                    ? 'pulso-content mx-auto flex min-h-0 w-full max-w-contenido flex-1 flex-col'
+                    : 'pulso-content mx-auto w-full max-w-contenido'
+              }
+            >
               {/* Las pestañas de la sección van DENTRO del contenido y las pone
                   el shell, no cada página (#387). Como layout de
                   `app/ajustes/` quedarían por fuera: el layout envuelve a

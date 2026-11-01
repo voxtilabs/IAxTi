@@ -11,7 +11,14 @@ import { join } from 'node:path';
  * pudiera verlo.
  */
 const LOGRO = readFileSync(join(__dirname, '..', 'components', 'logro-del-objetivo.tsx'), 'utf8');
-const PAGINA = readFileSync(join(__dirname, '..', 'app', 'ajustes', 'ia', 'page.tsx'), 'utf8');
+// Los paneles de configuración se mudaron a `/ajustes/ia/detalle` (#1135):
+// «Tu asistente» pasó a ser la conversación con IAxTi y nada más. Lo que
+// estas guardas vigilan —el ORDEN en que se leen, y que vivan donde se cambia
+// el asistente— sigue valiendo igual; lo que cambió es en qué archivo.
+const PAGINA = readFileSync(
+  join(__dirname, '..', 'app', 'ajustes', 'ia', 'detalle', 'page.tsx'),
+  'utf8',
+);
 
 describe('logro del objetivo', () => {
   it('llama a la ruta que ya medía, del asistente ELEGIDO', () => {

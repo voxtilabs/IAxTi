@@ -59,11 +59,15 @@ for (const modo of ['dia', 'noche']) {
   }
 }
 
-test('la pantalla del asistente abre con su nombre, y «Consumo» es una sección', async ({ page }) => {
+test('la pantalla del asistente abre con su nombre, y el detalle con el suyo', async ({ page }) => {
   // #1125: /ajustes/ia no tenía `EncabezadoDePagina`, así que el único titular
   // con peso de página estaba a dos tercios hacia abajo y decía «Consumo del
   // asistente». La pantalla central del producto se presentaba sin nombre, y
   // lo único que la nombraba en grande era su facturación.
+  //
+  // #1135 partió la pantalla en dos —la conversación y lo que quedó
+  // configurado—, así que la afirmación se parte igual: cada una tiene que
+  // abrir con SU nombre y con un solo `h1`.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.addInitScript(({ auth }) => {
     localStorage.setItem('iaxti-tenant', auth.tenantId);
@@ -74,16 +78,19 @@ test('la pantalla del asistente abre con su nombre, y «Consumo» es una secció
       user: { id: auth.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' },
     }));
   }, { auth });
+
   await page.goto('/ajustes/ia');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tu asistente');
+  // Y es una pantalla de chat: el compositor, no una pila de paneles.
+  await expect(page.getByLabel('Pídele algo a IAxTi')).toBeVisible();
 
-  const h1 = page.getByRole('heading', { level: 1 });
-  await expect(h1).toHaveCount(1);
-  await expect(h1).toHaveText('Tu asistente');
-
-  // Y el consumo sigue existiendo, pero como sección.
+  await page.goto('/ajustes/ia/detalle');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lo que quedó configurado');
   await expect(page.getByRole('heading', { level: 2, name: 'Consumo del asistente' })).toBeVisible();
 
-  // La frase que explica el producto está arriba, no enterrada: dentro del
+  // La frase que dice qué hace el producto sigue arriba, no enterrada: en el
   // primer 20% de la altura de la página.
   const y = await page.getByText(/Contesta en WhatsApp con lo que tú le diste/).first()
     .evaluate((el) => el.getBoundingClientRect().top + window.scrollY);

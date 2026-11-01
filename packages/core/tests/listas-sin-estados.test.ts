@@ -54,6 +54,9 @@ const SIN_ESQUELETO: Record<string, string> = {
   // el «medido, no a ojo» del criterio 4 del issue no era una formalidad.
 
   // --- Lo que NO es un defecto, con su porqué ---
+  'agente/senal-de-la-ia.tsx#roto':
+    'Es un AVISO que casi nunca aplica: solo aparece cuando la IA no puede trabajar (#1135, #614). Un esqueleto acá dibujaría una barra gris en cada carga de la pantalla del asistente, sugiriendo que algo está mal justo cuando todo está bien — y enseñando a ignorar la barra el día que sea de verdad. Devolver null mientras pregunta es lo correcto: lo que carga debajo es el chat, que tiene su propio alto fijo y no se mueve.',
+
   'ui/session.tsx#session':
     'Es el PORTÓN de sesión: mientras no hay sesión no hay pantalla que esquelesar, y dibujar la silueta de algo que quizá nunca aparece —porque hay que iniciar sesión— es peor que el hueco. Devolver null es lo correcto.',
 

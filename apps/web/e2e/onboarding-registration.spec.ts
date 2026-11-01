@@ -65,7 +65,9 @@ for (const identity of auth.registrations) {
     await page.reload();
     await expect(page.getByRole('region', { name: 'Puesta en marcha de tu negocio' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Crear mi negocio' })).toHaveCount(0);
-    await page.goto('/ajustes/ia');
+    // El configurador se mudó con el resto de la configuración (#1135):
+    // «Tu asistente» es la conversación, y lo que quedó puesto vive al lado.
+    await page.goto('/ajustes/ia/detalle');
     await expect(page.getByRole('textbox', { name: 'Descripción del negocio' })).toHaveValue('Barbería con reservas de hora en Ñuñoa.');
     expect(errors).toEqual([]);
   });

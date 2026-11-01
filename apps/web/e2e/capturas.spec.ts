@@ -112,7 +112,8 @@ for (const modo of ['dia', 'noche'] as const) {
 // no lo encuentra un detector, lo encuentra abrir la pantalla.
 for (const [nombre, ruta] of [
   ['oportunidades', '/oportunidades'], ['agenda', '/agenda'], ['pendientes', '/pendientes'],
-  ['asistente', '/ajustes/ia'], ['canales', '/ajustes/canales'], ['empresas', '/empresas'],
+  ['asistente', '/ajustes/ia'], ['asistente-detalle', '/ajustes/ia/detalle'],
+  ['canales', '/ajustes/canales'], ['empresas', '/empresas'],
 ] as const) {
   test(`pantalla ${nombre}`, async ({ page }) => {
     await page.addInitScript(() => { localStorage.setItem('pulso-mode', 'dia'); });

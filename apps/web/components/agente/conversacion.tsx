@@ -136,10 +136,15 @@ export function Conversacion({ alto }: { alto?: string }) {
 
   return (
     <>
+      {/* `alto` lo decide quien la monta (#1135): en el popup es una ventana
+          con tope, en la pantalla del asistente es TODO lo que queda. */}
       <Conversation className={alto ?? 'min-h-[220px]'}>
         <ConversationContent>
             {turnos.length === 0 && (
-              <div className="flex flex-col gap-3">
+              /* Centrado (#1135): un chat vacío con el texto pegado arriba y
+                 medio metro de nada abajo se lee como contenido que no
+                 cargó. */
+              <div className="flex min-h-full flex-col justify-center gap-3">
                 <p className="text-cuerpo text-body">
                   Dime qué necesitas en tus palabras. Puedo revisar cómo va tu negocio, dejar
                   reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.

@@ -41,7 +41,7 @@ const paneles = [
   // nunca una colección vacía. No se inventa un estado que el contrato no tiene.
   { nombre: 'retencion', titulo: 'Cuánto se guardan las conversaciones', pagina: '/ajustes/bandeja', ruta: '**/v1/settings/retencion', cuerpo: retencion, vacio: undefined },
   { nombre: 'recordatorios', titulo: 'Recordatorios de cita', pagina: '/agenda', ruta: '**/v1/agenda/recordatorios', cuerpo: recordatorios, vacio: { ...recordatorios, plantillas: [], recordatorios: { '24h': null, '2h': null } } },
-  { nombre: 'evaluaciones', titulo: 'Evaluaciones del asistente', pagina: '/ajustes/ia', ruta: '**/v1/agents/*/evals', cuerpo: corridas, vacio: [] },
+  { nombre: 'evaluaciones', titulo: 'Evaluaciones del asistente', pagina: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/evals', cuerpo: corridas, vacio: [] },
   { nombre: 'auditoria', titulo: 'El libro de tu cuenta', pagina: '/ajustes/auditoria', ruta: '**/v1/audit?*', cuerpo: { entries: entradas, nextCursor: null }, vacio: { entries: [], nextCursor: null } },
   { nombre: 'campana', titulo: 'Lista de avisos', pagina: '/', ruta: '**/v1/arranque', cuerpo: avisos, vacio: { items: [], unread: 0 } },
 ];

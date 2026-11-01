@@ -123,9 +123,9 @@ const PANELES: Array<{
   { titulo: 'Cuánto se guardan las conversaciones', pantalla: '/ajustes/bandeja', ruta: '**/v1/settings/retencion', cuerpo: RETENCION },
   { titulo: 'Horario de atención', pantalla: '/agenda', ruta: '**/v1/agenda/disponibilidad', cuerpo: FRANJAS },
   { titulo: 'Recordatorios de cita', pantalla: '/agenda', ruta: '**/v1/agenda/recordatorios', cuerpo: RECORDATORIOS },
-  { titulo: 'Evaluaciones del asistente', pantalla: '/ajustes/ia', ruta: '**/v1/agents/*/evals', cuerpo: CORRIDAS,
+  { titulo: 'Evaluaciones del asistente', pantalla: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/evals', cuerpo: CORRIDAS,
     previas: [{ ruta: '**/v1/agents', cuerpo: ASISTENTES }] },
-  { titulo: 'Logro del objetivo', pantalla: '/ajustes/ia', ruta: '**/v1/agents/*/objetivo', cuerpo: TASA,
+  { titulo: 'Logro del objetivo', pantalla: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/objetivo', cuerpo: TASA,
     previas: [{ ruta: '**/v1/agents', cuerpo: ASISTENTES }] },
 ];
 
