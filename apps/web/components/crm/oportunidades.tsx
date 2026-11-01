@@ -42,14 +42,21 @@ function TarjetaDeal({ deal, onDragStart }: { deal: DealCardDto; onDragStart: (e
       onDragStart={onDragStart}
       className="cursor-grab rounded-campo border border-line bg-bg p-3 active:cursor-grabbing"
     >
-      <p className="truncate text-sm font-medium text-ink">{deal.title}</p>
-      <a href={`/contactos/${deal.contactId}`} className="mt-0.5 block truncate text-xs text-action-text">
-        {deal.contactName ?? deal.contactPhone}
-      </a>
-      <p className="mt-2 flex items-center justify-between gap-2">
-        <span className="dato text-ink">
+      {/* Dos líneas y no tres (#1155): el monto sube al lado del título. Con
+          tres, una tarjeta medía 105 px y en una ventana de 900 entraban seis;
+          el tablero es justamente la pantalla donde querés ver muchas de una.
+          El monto queda a la derecha y en mono, que es donde el ojo lo busca
+          cuando baja por una columna. */}
+      <p className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm font-medium text-ink">{deal.title}</span>
+        <span className="dato shrink-0 text-xs text-ink">
           {deal.currency === 'UF' && deal.value !== null ? `UF ${deal.value}` : fmtClp(deal.valueClp)}
         </span>
+      </p>
+      <p className="mt-1 flex items-center justify-between gap-2">
+        <a href={`/contactos/${deal.contactId}`} className="truncate text-xs text-action-text">
+          {deal.contactName ?? deal.contactPhone}
+        </a>
         {deal.stalled && deal.status === 'open' && <Badge role="warn">Estancada</Badge>}
       </p>
     </article>
@@ -64,7 +71,9 @@ const VISIBILIDAD = '__visibilidad__';
 
 export function Oportunidades() {
   const tenant = useSelectedTenant();
-  return tenant ? <OportunidadesDelNegocio key={tenant} tenant={tenant} /> : <p className="text-muted">Elige un negocio en el selector.</p>;
+  return tenant
+    ? <OportunidadesDelNegocio key={tenant} tenant={tenant} />
+    : <p className="p-6 text-muted">Elige un negocio en el selector.</p>;
 }
 
 function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
@@ -86,6 +95,11 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   const [motivo, setMotivo] = useState('');
   const [motivoPerdidaId, setMotivoPerdidaId] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
+  // Cuántas y cuánto hay DE VERDAD en cada etapa (#1155). Las columnas traen
+  // veinte, así que su `items.length` no es el conteo de la etapa y su suma no
+  // es el dinero de la etapa. Viene del servidor en una consulta para todo el
+  // tablero.
+  const [resumen, setResumen] = useState<Record<string, { cuantas: number; totalClp: number }>>({});
 
   // Lista
   const [lista, setLista] = useState<DealCardDto[]>([]);
@@ -141,10 +155,26 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     [api, pipelineId],
   );
 
+  const cargarResumen = useCallback(async () => {
+    if (!pipelineId) return;
+    try {
+      const res = await api<{ items: { stageId: string; cuantas: number; totalClp: number }[] }>(
+        `/deals/resumen?pipelineId=${pipelineId}`,
+      );
+      setResumen(Object.fromEntries(res.items.map((f) => [f.stageId, { cuantas: f.cuantas, totalClp: f.totalClp }])));
+    } catch {
+      // El tablero funciona sin los totales: lo que no se puede es mostrar un
+      // número inventado en su lugar. Sin resumen, la cabecera muestra lo que
+      // tiene cargado y lo dice.
+      setResumen({});
+    }
+  }, [api, pipelineId]);
+
   useEffect(() => {
     if (!pipeline) return;
     for (const stage of pipeline.stages) void cargarColumna(stage);
-  }, [pipeline, cargarColumna]);
+    void cargarResumen();
+  }, [pipeline, cargarColumna, cargarResumen]);
 
   const cargarLista = useCallback(async () => {
     if (!client) return;
@@ -186,6 +216,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
       const desde = pipeline?.stages.find((s) => s.id === deal.stageId);
       if (desde) void cargarColumna(desde);
       void cargarColumna(hasta);
+      void cargarResumen();
     } catch (err) {
       setAviso((err as Error).message);
     }
@@ -208,13 +239,13 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     void ejecutarMovimiento(deal, hasta);
   }
 
-  if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
+  if (!tenant) return <p className="p-6 text-muted">Elige un negocio en el selector.</p>;
   if (!pipelines) {
-    return <div className="flex gap-4"><Skeleton className="h-64 w-72" /><Skeleton className="h-64 w-72" /></div>;
+    return <div className="flex gap-4 p-6"><Skeleton className="h-64 w-72" /><Skeleton className="h-64 w-72" /></div>;
   }
   if (!pipeline) {
     return (
-      <EstadoVacio titulo="Prepara las etapas de tus ventas"
+      <EstadoVacio className="m-6" titulo="Prepara las etapas de tus ventas"
         descripcion="Aquí verás tus oportunidades, ordenadas por etapa. Configura el negocio para crear el primer embudo."
         accion={{ etiqueta: 'Configurar mi negocio', href: '/ajustes/ia' }}
         pideleAIAxTi="Arma el embudo de mis ventas con las etapas que uso" />
@@ -222,9 +253,13 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   }
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-4">
-        <EncabezadoDePagina titulo="Oportunidades" />
+    /* La pantalla NO scrollea: el alto lo fija la ventana (`sinMargen` en la
+       página) y adentro scrollea cada columna. Así la cabecera de la etapa
+       sigue a la vista mientras mirás sus tarjetas, que es la mitad de para
+       qué sirve un tablero (#1155). */
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 flex-wrap items-center gap-4 px-6 pt-3">
+        <EncabezadoDePagina titulo="Oportunidades" className="mb-0" />
         {pipelines.length > 1 && (
           <Select
             value={pipelineId}
@@ -238,6 +273,13 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
           </SelectContent>
             </Select>
         )}
+        {/* Sin botón de IA acá: el topbar ya tiene «Pídeselo a IAxTi» en todas
+            las pantallas, y dos botones con las mismas palabras a seis
+            centímetros es lo que se lee como inacabado. Lo que el tablero sí
+            necesitaba era que la capacidad exista, y existe: el Agente General
+            tiene las operaciones del CRM entre sus herramientas —listar, mover
+            de etapa, crear, renombrar el embudo, reordenar las etapas—, porque
+            el catálogo se genera del OpenAPI de la API. */}
         <Tabs value={vista} onValueChange={(v) => setVista(v as typeof vista)} className="ml-auto">
           <TabsList>
             <TabsTrigger value="tablero">Tablero</TabsTrigger>
@@ -247,35 +289,60 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
       </div>
 
       {aviso && (
-        <AvisoResultado>
-          {aviso}
-        </AvisoResultado>
+        <div className="shrink-0 px-6">
+          <AvisoResultado>
+            {aviso}
+          </AvisoResultado>
+        </div>
       )}
 
       {vista === 'tablero' && pipeline.stages.every((s) => columnas[s.id] && !columnas[s.id].cargando && columnas[s.id].items.length === 0) ? (
-        <EstadoVacio className="mt-6" titulo="Sin oportunidades abiertas"
+        <EstadoVacio className="m-6" titulo="Sin oportunidades abiertas"
           descripcion="Aquí verás cada venta en su etapa. Desde una conversación puedes crear la primera oportunidad y seguirla en este embudo."
           accion={{ etiqueta: 'Ir a una conversación', href: '/bandeja' }} />
       ) : vista === 'tablero' ? (
         /* Columnas deslizables: al Kanban se entra desde 360 px (§29). */
-        <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
+        /* `scroll-px-6` y no solo `px-6`: `snap-start` alinea la columna con el
+             inicio del área de scroll, que NO incluye el relleno, así que al
+             cargar el tablero se desplazaba 24 px solo y la primera columna
+             quedaba pegada al borde izquierdo. Se vio en la captura de
+             celular. */
+          <div className="flex min-h-0 flex-1 snap-x scroll-px-6 gap-3 overflow-x-auto px-6 pb-6">
           {pipeline.stages.map((stage) => {
             const col = columnas[stage.id];
+            const total = resumen[stage.id];
             return (
               <section
                 key={stage.id}
                 aria-label={`Etapa ${stage.name}`}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => soltar(e, stage)}
-                className="flex w-72 shrink-0 snap-start flex-col pulso-panel rounded-tarjeta border border-line bg-raised"
+                className="flex min-w-72 max-w-[30rem] grow basis-72 snap-start flex-col pulso-panel rounded-tarjeta border border-line bg-raised"
               >
-                <header className="flex items-center justify-between border-b border-line px-4 py-3">
-                  <h2 className="text-sm font-bold text-ink">{stage.name}</h2>
-                  <span className="dato text-muted">{col?.items.length ?? 0}</span>
+                {/* La cabecera no scrollea con las tarjetas: `shrink-0` acá y
+                    el `overflow-y` en el cuerpo. */}
+                <header className="shrink-0 border-b border-line px-4 py-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h2 className="truncate text-sm font-bold text-ink">{stage.name}</h2>
+                    <span className="dato shrink-0 text-muted">{total?.cuantas ?? col?.items.length ?? 0}</span>
+                  </div>
+                  {/* El dinero de la etapa, no el de lo cargado. Sin resumen no
+                      se muestra nada: un total que miente es peor que ninguno,
+                      porque nadie lo contrasta. */}
+                  {total && total.cuantas > 0 && (
+                    <p className="dato mt-0.5 text-xs text-body">{fmtClp(total.totalClp)}</p>
+                  )}
                 </header>
-                <div className="flex min-h-24 flex-1 flex-col gap-2 p-3">
+                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
                   {col?.cargando && !col.items.length ? (
                     <Skeleton className="h-20" />
+                  ) : col && !col.items.length ? (
+                    /* Una etapa vacía es una columna de alto completo, porque
+                       sigue siendo el destino de un arrastre. Lo que no puede
+                       ser es un tubo gris sin una palabra: dice qué la llena. */
+                    <p className="m-auto rounded-campo border border-dashed border-line px-3 py-2 text-center text-xs text-muted">
+                      Arrastra una oportunidad acá
+                    </p>
                   ) : (
                     col?.items.map((deal) => (
                       <TarjetaDeal
@@ -296,7 +363,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
           })}
         </div>
       ) : (
-        <div className="mt-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
           {/* Filtros + guardados por usuario. */}
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm text-muted">

@@ -24,6 +24,7 @@ import {
   historiaDeEtapas,
   InvalidListQuery,
   listDeals,
+  resumenDelTablero,
   listLossReasons,
   listPipelines,
   listSavedFilters,
@@ -118,6 +119,26 @@ export class DealsController {
   async lossReasons(@Req() request: WithUser) {
     const actor = actorOf(request);
     return withTenant(pool(), actor.tenantId, (c) => listLossReasons(c, actor.tenantId));
+  }
+
+  /**
+   * Cuántas y cuánto hay en cada etapa del tablero (#1155).
+   *
+   * Aparte de `GET /deals` porque esa trae UNA página por etapa —veinte— y
+   * sumar ahí el dinero mostraría un total que miente con cien
+   * oportunidades debajo. Un número que miente es peor que no tenerlo:
+   * nadie lo contrasta, se lee y se decide con él.
+   */
+  @Get('deals/resumen')
+  @RequirePermission('crm.deals.read')
+  @ApiOperation({ summary: 'Cuántas oportunidades y cuánto dinero hay en cada etapa' })
+  @ApiQuery({ name: 'pipelineId', required: true, type: String })
+  async resumen(@Req() request: WithUser, @Query('pipelineId') pipelineId: string) {
+    const actor = actorOf(request);
+    const items = await withTenant(pool(), actor.tenantId, (c) =>
+      resumenDelTablero(c, actor.tenantId, pipelineId),
+    );
+    return { items };
   }
 
   @Get('deals')

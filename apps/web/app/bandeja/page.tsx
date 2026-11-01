@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function PaginaBandeja() {
   const nav = await navDesdeLaApi(internalApiUrl());
   return (
-    <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav} sinMargen>
+    <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav} sinMargen barraPlegada>
       <Bandeja />
     </AppShell>
   );

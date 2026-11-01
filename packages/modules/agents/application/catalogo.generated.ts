@@ -3215,6 +3215,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "DealsController_resumen": {
+    "metodo": "GET",
+    "ruta": "/v1/deals/resumen",
+    "resumen": "Cuántas oportunidades y cuánto dinero hay en cada etapa",
+    "permiso": "crm.deals.read",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "pipelineId": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
+      "required": [
+        "pipelineId"
+      ],
+      "additionalProperties": false
+    }
+  },
   "DealsController_save": {
     "metodo": "POST",
     "ruta": "/v1/saved-filters",
