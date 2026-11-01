@@ -631,7 +631,16 @@ function ContenidoShell({ marcaSvg, nav: navDelServidor, sinMargen, altoCompleto
         {/* La bandeja es a ancho completo y la barra arranca plegada: es la
             pantalla de tres paneles, y ahí cada píxel de ancho es una
             columna que se ve. */}
-        <SidebarProvider defaultOpen={!sinMargen} className={sinMargen ? 'pulso-workspace pulso-workspace-inbox' : 'pulso-workspace'}>
+        <SidebarProvider
+          defaultOpen={!sinMargen}
+          className={
+            sinMargen
+              ? 'pulso-workspace pulso-workspace-inbox'
+              : altoCompleto
+                ? 'pulso-workspace pulso-workspace-alto'
+                : 'pulso-workspace'
+          }
+        >
           <Barra nav={nav} marcaSvg={marcaSvg} candados={candados} />
           <SidebarInset>
             <SoporteAviso />
