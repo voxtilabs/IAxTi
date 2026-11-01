@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { EncabezadoDePagina } from '@iaxti/ui/react';
 import { Conversacion } from './conversacion';
 import { Conversaciones } from './conversaciones';
 import { SenalDeLaIa } from './senal-de-la-ia';
@@ -27,16 +26,23 @@ import { SenalDeLaIa } from './senal-de-la-ia';
  */
 export function PantallaDelAsistente() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
-      {/* El encabezado se queda, compacto (#1125): la pantalla sigue teniendo
-          que empezar como las demás, y sin él volvía a no tener `h1`. */}
-      <EncabezadoDePagina rotulo="Asistente" titulo="Tu asistente" className="shrink-0 mb-0" />
+    <div className="flex min-h-0 flex-1 flex-col gap-2 py-3">
+      {/* El nombre de la pantalla, para quien no la ve (#1163).
+          Visible aparecía CUATRO veces en los primeros 300 px: en la barra
+          lateral resaltado, en la miga del topbar, en el rótulo y en el
+          título. Y los 168 px que ocupaban rótulo y título son 168 px de no
+          ver la conversación, en la pantalla cuyo pedido fue «que sea
+          literalmente como abrir chatgpt». La miga del topbar dice dónde
+          estás, igual que en todas las demás pantallas.
+          El `h1` se queda porque la pantalla tiene que tener uno, y
+          `densidad` lo sigue midiendo. */}
+      <h1 className="sr-only">Tu asistente</h1>
       <SenalDeLaIa />
       <Conversaciones />
-      <section
-        aria-label="Conversación con IAxTi"
-        className="pulso-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-tarjeta border border-line bg-raised"
-      >
+      {/* Sin borde ni fondo: el hilo ES la pantalla. Una tarjeta alrededor de
+          la conversación la convierte en «un chat dentro de una pantalla»,
+          que es exactamente lo que el dueño dijo que no quería. */}
+      <section aria-label="Conversación con IAxTi" className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Conversacion alto="min-h-0 flex-1" />
       </section>
       <p className="shrink-0 text-center text-dato text-muted">
