@@ -88,7 +88,7 @@ export function RecordatoriosDeCita() {
   if (carga.estado === 'cargando') {
     // 431 px MEDIDOS (el panel con una plantilla elegida mide 505). A ojo:
     // 152. Las tres barras son los dos Select y su explicación.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={431} filas={3} />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={411} filas={3} />;
   }
   if (carga.estado !== 'ok' || datos === null) {
     /**
@@ -137,8 +137,8 @@ export function RecordatoriosDeCita() {
         <h2 className="font-display text-seccion font-bold text-ink">Recordatorios de cita</h2>
       </div>
       <p className="mt-1 max-w-prose text-dato text-body">
-        La hora que no se recuerda es la hora que no se asiste. Salen por plantilla aprobada, porque
-        a esa altura la conversación casi siempre está fuera de la ventana de 24 horas.
+        Salen por plantilla aprobada: a esa altura la conversación casi siempre está fuera de la
+        ventana de 24 horas.
       </p>
 
       {sinPlantillas ? (

@@ -84,8 +84,7 @@ export function AtajosDeRespuesta() {
     <section className="mt-10 border-t border-line pt-8">
       <h2 className="text-base font-bold text-ink">Atajos de respuesta</h2>
       <p className="mt-1 max-w-prose text-sm text-muted">
-        Lo que se escribe todos los días, escrito una vez. En la bandeja aparecen en el botón «/»
-        y se pegan en la respuesta; los del negocio los ve todo el equipo.
+        En la bandeja aparecen en el botón «/». Los del negocio los ve todo el equipo.
       </p>
 
       {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
@@ -157,7 +156,7 @@ export function AtajosDeRespuesta() {
           compacto
           className="mt-4"
           titulo="Todavía no hay atajos"
-          descripcion="Son respuestas que escribes una vez y mandas con dos teclas desde la bandeja. El primero suele ser el horario de atención."
+          descripcion="El primero suele ser el horario de atención."
           accion={{ etiqueta: 'Escribir el primero', onClick: () => campoAtajo.current?.focus() }}
           pideleAIAxTi="¿Qué atajos de respuesta me conviene tener para mi negocio?"
         />

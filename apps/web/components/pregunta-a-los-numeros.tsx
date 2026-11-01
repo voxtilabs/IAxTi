@@ -81,10 +81,7 @@ export function PreguntaALosNumeros() {
       <EstadoVacio
         compacto
         titulo="Pregúntale a tus números"
-        descripcion={
-          'Puedes tener un asistente que lee estos mismos reportes y te los explica en palabras. ' +
-          'No calcula nada por su cuenta: consulta la métrica y te dice de dónde la sacó.'
-        }
+        descripcion="Te explica estos mismos números en palabras. No calcula nada por su cuenta."
         accion={{ etiqueta: 'Crear el asistente', href: '/ajustes/ia' }}
       />
     );

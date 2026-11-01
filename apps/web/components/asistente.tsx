@@ -91,13 +91,12 @@ export function Asistente() {
     {
       clave: 'cliente' as const,
       titulo: 'Para contestarle a tus clientes',
-      ayuda: 'Responde por WhatsApp, con lo que tú le diste.',
       items: objetivos.filter((o) => o.destinatario === 'cliente'),
     },
     {
       clave: 'dueño' as const,
       titulo: 'Para ayudarte a ti',
-      ayuda: 'Te responde acá dentro del producto. No habla con nadie de afuera.',
+      ayuda: 'No habla con nadie de afuera.',
       items: objetivos.filter((o) => o.destinatario === 'dueño'),
     },
   ].filter((g) => g.items.length > 0);
@@ -205,10 +204,6 @@ export function Asistente() {
         <Formulario onSubmit={crear} className="flex w-full max-w-seccion flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <div>
             <h3 className="text-sm font-bold text-ink">¿Qué tiene que lograr?</h3>
-            <p className="mt-1 text-sm text-muted">
-              Es la primera decisión porque cambia todo lo demás: qué puede hacer, qué le pregunta a
-              tus clientes y con qué se mide si está sirviendo.
-            </p>
           </div>
 
           {porDestinatario.map((grupo) => (

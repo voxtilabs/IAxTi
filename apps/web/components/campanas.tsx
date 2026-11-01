@@ -295,7 +295,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           // llevaría a un formulario que no puede enviar.
           <EstadoVacio
             titulo="Todavía no has creado una campaña"
-            descripcion="Aquí verás tus borradores y los resultados de cada envío: a cuántos llegó, cuántos respondieron y cuánto costó. Para armar la primera eliges una plantilla aprobada y revisas a quién le va a llegar antes de mandar nada."
+            descripcion="Acá vas a ver cada envío: a cuántos llegó, cuántos respondieron y cuánto costó. Antes de mandar nada revisas a quién le va a llegar."
             // Las etiquetas NO repiten las que ya hay en la pantalla: el
             // encabezado tiene «Crear campaña» y el aviso del plan tiene
             // «Revisar mi plan», y dos controles con el mismo nombre en una

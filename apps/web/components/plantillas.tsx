@@ -231,7 +231,7 @@ export function Plantillas() {
 
       {items.length === 0 ? (
         <EstadoVacio titulo="Prepara tu primera plantilla"
-          descripcion="Aquí verás tus plantillas y su revisión por Meta. Necesitas una aprobada para escribir fuera de la ventana de 24 horas."
+          descripcion="Acá vas a ver cada plantilla con su revisión de Meta."
           accion={{ etiqueta: 'Escribir una plantilla', onClick: () => document.getElementById('nombre-plantilla')?.focus() }}
           pideleAIAxTi="Arma una plantilla para avisarle al cliente que llegó su pedido" />
       ) : (

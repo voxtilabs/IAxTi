@@ -9,7 +9,7 @@ import { Configurador } from '../../../../components/configurador';
 import { AjustesDeIa } from '../../../../components/ajustes-de-ia';
 import { PorQueLaIaNoTrabaja } from '../../../../components/por-que-la-ia-no-trabaja';
 import { internalApiUrl, publicConfig } from '../../../../lib/config';
-import { EncabezadoDePagina, MARCA_LOCKUP_SVG } from '@iaxti/ui/react';
+import { EncabezadoDePagina } from '@iaxti/ui/react';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,11 +32,11 @@ export const dynamic = 'force-dynamic';
 export default async function PaginaDetalleDelAsistente() {
   const nav = await navDesdeLaApi(internalApiUrl());
   return (
-    <AppShell config={publicConfig()} marcaSvg={MARCA_LOCKUP_SVG} nav={nav}>
+    <AppShell config={publicConfig()} nav={nav}>
       <EncabezadoDePagina
         rotulo="Asistente"
         titulo="Lo que quedó configurado"
-        apoyo="Contesta en WhatsApp con lo que tú le diste: tu catálogo, tus precios, tu agenda. Nunca inventa un dato que no pudo confirmar, y cuando no puede resolver algo te pasa la conversación. Acá está lo que tiene puesto hoy; para cambiarlo, pídeselo conversando."
+        apoyo="Lo que tiene puesto hoy. Para cambiarlo, pídeselo conversando."
       />
       <PorQueLaIaNoTrabaja />
       <AjustesDeIa />

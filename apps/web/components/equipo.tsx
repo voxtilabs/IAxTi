@@ -173,7 +173,7 @@ export function Equipo() {
     <section className="flex flex-col gap-6">
       <EncabezadoDePagina
         titulo="Tu equipo"
-        apoyo="Quién entra al negocio y qué puede hacer. Cada persona atiende con su propia cuenta: así se sabe quién respondió qué."
+        apoyo="Quién entra al negocio y qué puede hacer."
       />
 
       {error && (
