@@ -3,7 +3,7 @@ import { cn } from './cn';
 
 // Botón shadcn-style en vocabulario Pulso (§5): pastilla 999, alto 46,
 // una sola acción primaria por pantalla. Sin dark:; los tokens cambian solos.
-export type ButtonVariant = 'primario' | 'secundario' | 'fantasma' | 'destructivo' | 'soft';
+export type ButtonVariant = 'primario' | 'secundario' | 'fantasma' | 'destructivo' | 'quitar' | 'soft';
 export type ButtonSize = 'normal' | 'chico' | 'icono';
 
 const VARIANTES: Record<ButtonVariant, string> = {
@@ -11,6 +11,27 @@ const VARIANTES: Record<ButtonVariant, string> = {
   secundario: 'border border-line-strong bg-transparent text-ink hover:bg-rest',
   fantasma: 'bg-transparent text-body hover:bg-rest',
   destructivo: 'bg-bad text-white hover:opacity-90',
+  /**
+   * Callado pero peligroso (#1148).
+   *
+   * Faltaba el medio y el medio es el caso común: borrar una fila. Medido en
+   * `apps/web/components`, SIETE acciones destructivas usaban `fantasma`
+   * —«Borrar» en embudos, etiquetas y webhooks; «Quitar» en horarios y
+   * campos; «Revocar» en llaves y Google; «Eliminar» en conocimiento— contra
+   * DOS que usaban `destructivo`.
+   *
+   * Ninguno de los dos extremos servía. `destructivo` pinta un rectángulo
+   * rojo sólido: tres filas con tres botones rojos gritan y el ojo deja de
+   * distinguir cuál es la de verdad peligrosa. `fantasma` no distingue
+   * borrar de cancelar — y en la fila de una etapa, «Borrar» quedaba como
+   * texto negro suelto al lado de un «Guardar» con borde: la acción
+   * destructiva era el control MENOS marcado.
+   *
+   * Sin relleno y en el color del peligro: se lee como control, se lee como
+   * destructivo, y no invita a apretarlo. `destructivo` se queda para
+   * confirmar dentro de un diálogo, que es donde el peso sí corresponde.
+   */
+  quitar: 'bg-transparent text-bad-text hover:bg-bad-soft',
   soft: 'border border-action-soft-br bg-action-soft text-action-text hover:border-action',
 };
 

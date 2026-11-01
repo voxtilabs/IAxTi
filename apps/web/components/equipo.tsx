@@ -266,7 +266,7 @@ export function Equipo() {
               )}
               <span className="text-xs text-muted">desde el {cuando(m.desde)}</span>
               <Button
-                variant="fantasma"
+                variant="quitar"
                 size="chico"
                 disabled={quitando === m.userId}
                 onClick={() => void quitar(m)}

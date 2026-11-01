@@ -231,7 +231,7 @@ export function Embudos() {
                   </Button>
                   {s.type === 'open' && (
                     <Button
-                      variant="fantasma"
+                      variant="quitar"
                       size="chico"
                       disabled={ocupado === s.id}
                       onClick={() => void llamar(s.id, `/etapas/${s.id}`, { method: 'DELETE' })}
