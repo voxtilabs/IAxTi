@@ -25,6 +25,13 @@ const EXCEPCIONES: Record<string, string> = {
     'la marca jelly al lado. Es la única pantalla que se ve antes de entrar a ' +
     'trabajar y la única donde la marca aparece en grande; el encabezado ' +
     'uniforme le quitaría justo eso.',
+  'pantalla.tsx':
+    'El asistente es un chat (#1163): su nombre está en la miga del topbar, ' +
+    'como en todas las pantallas, y el `h1` es `sr-only`. Visible aparecía ' +
+    'cuatro veces en los primeros 300 px y empujaba la conversación 168 px ' +
+    'hacia abajo, en la pantalla cuyo pedido fue «que sea literalmente como ' +
+    'abrir chatgpt». No se inventa un título: se queda sin uno visible, que ' +
+    'es la decisión.',
   'aceptar-invitacion.tsx':
     'Página pública, fuera del shell: tres estados excluyentes (aceptada, ' +
     'por aceptar, inválida) y ninguno es una pantalla del producto con su ' +
