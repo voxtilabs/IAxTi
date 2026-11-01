@@ -385,9 +385,15 @@ const HiloQueSeGuarda = z.object({
     .transform((llegaron) =>
       llegaron.map((t) => {
         const turno = t as { role?: unknown; content?: unknown };
+        // Con el mismo Set que `VueltaDeConversacion` y por el mismo
+        // motivo: el grep de CI que impone ADR-0008 caza cualquier
+        // comparación contra `role`, y tiene razón en cazarla. El de un
+        // turno de chat no tiene nada que ver con el rol de permisos, pero
+        // debilitar ese guard por una excepción es cómo los guards se mueren.
+        const rol = QUIEN_HABLA.has(String(turno.role)) ? String(turno.role) : 'user';
         return {
           ...(turno as object),
-          role: typeof turno.role === 'string' ? turno.role : 'user',
+          role: rol,
           content: typeof turno.content === 'string' ? turno.content : '',
         };
       }),

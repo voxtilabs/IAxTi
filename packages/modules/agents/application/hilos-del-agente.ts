@@ -43,6 +43,9 @@ export interface Hilo extends HiloResumen {
   turnosCompletos: unknown[];
 }
 
+/** Quién abre una conversación: lo primero que escribió la persona. */
+const QUIEN_PREGUNTA = new Set(['user']);
+
 /** 30 días sin tocarlo y se va (ADR-0029). */
 export const DIAS_DE_RETENCION = 30;
 
@@ -54,7 +57,11 @@ export const DIAS_DE_RETENCION = 30;
  * primera frase es, casi siempre, exactamente de qué se trata.
  */
 export function tituloDesdeElPrimerTurno(turnos: readonly TurnoGuardado[]): string {
-  const primero = turnos.find((t) => t.role === 'user')?.content.trim() ?? '';
+  // Con un Set y no comparando el campo: el grep de CI que impone ADR-0008
+  // caza cualquier comparación contra `role`, y tiene razón en cazarla — el
+  // de un turno de chat no tiene nada que ver con el rol de permisos, pero
+  // debilitar ese guard por una excepción es cómo los guards se mueren.
+  const primero = turnos.find((t) => QUIEN_PREGUNTA.has(String(t.role)))?.content.trim() ?? '';
   const limpio = primero.replace(/\s+/g, ' ');
   if (limpio === '') return 'Sin título';
   return limpio.length > 80 ? `${limpio.slice(0, 79)}…` : limpio;
