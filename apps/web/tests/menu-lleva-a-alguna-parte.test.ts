@@ -276,7 +276,7 @@ describe('toda pantalla tiene su permiso o su motivo escrito (#815)', () => {
     ).toContain('<SinPermiso');
   });
 
-  it('las cinco anotadas son las medidas, y cada motivo dice algo', () => {
+  it('las seis anotadas son las medidas, y cada motivo dice algo', () => {
     // El número está acá a propósito: que crezca tiene que costar una línea de
     // prueba y una explicación, no pasar sin que nadie lo mire.
     // /entrar-local (#1047) entra porque es donde se CONSIGUE la sesión local,
@@ -287,6 +287,10 @@ describe('toda pantalla tiene su permiso o su motivo escrito (#815)', () => {
       '/login',
       '/invitacion/[token]',
       '/webchat/[widgetId]',
+      // #1167: la única de la lista que SÍ tiene permiso —su controlador exige
+      // `automations.manage`— y entra por el otro motivo: se le sacó la entrada
+      // del menú, y sin entrada el frontend no tiene de dónde derivarlo.
+      '/campanas',
       '/entrar-local',
     ]);
     // Un motivo vacío o de tres palabras convierte la lista en un trámite.

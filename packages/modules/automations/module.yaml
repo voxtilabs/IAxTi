@@ -34,7 +34,15 @@ events:
 tools: []
 nav:
   - { label: Automatizaciones, path: /ajustes/automatizaciones, permission: automations.manage, grupo: Configuración, seccion: Inteligencia }
-  - { label: Campañas, path: /campanas, permission: automations.manage, grupo: Trabajo }
+# Campañas NO está en el menú (#1167). La pantalla, los endpoints y los
+# permisos siguen enteros: lo único que se sacó es la entrada.
+#
+# Por qué: hasta que haya una plantilla aprobada por Meta y contactos con
+# opt-in, `/campanas` se abre vacía, y en un menú que como ADMIN ya no entra
+# en 950 px de alto (#1108) cada entrada que no se usa empuja a las que sí.
+#
+# Para devolverla, descomentar esta línea. No hace falta nada más.
+#  - { label: Campañas, path: /campanas, permission: automations.manage, grupo: Trabajo }
 widgets: []
 # Se vende desde el plan Crece (`plan_limits`): decía `base` (#834).
 plan_min: crece
