@@ -245,6 +245,8 @@ export const RUTAS_SIN_REGLA_DE_PERMISO: Record<string, string> = {
   '/login': 'Se abre SIN sesión. Acá todavía no hay permisos que consultar, y de hecho es donde se consiguen.',
   '/invitacion/[token]': 'Quien acepta una invitación todavía no es parte del negocio: la credencial es el token del enlace, no un rol.',
   '/webchat/[widgetId]': 'El widget público, que carga en el sitio del cliente para un visitante anónimo: no hay sesión ni negocio elegido.',
+  '/campanas':
+    'La única de esta lista que SÍ tiene permiso: su controlador exige `automations.manage`, igual que siempre. Entra acá por el otro motivo — se le sacó la entrada del menú (#1167) y sin entrada el frontend no tiene de dónde derivarlo. Se oculta porque hasta que haya una plantilla aprobada por Meta y contactos con opt-in se abre vacía, y el menú de un ADMIN ya no entra en 950 px de alto.',
   '/entrar-local':
     'La puerta del ambiente LOCAL (#1047): se abre sin sesión porque acá es donde se consigue, como /login. Tiene doble cerradura propia (IAXTI_LOGIN_DEV y el ambiente) y fuera de local es un 404.',
 };
