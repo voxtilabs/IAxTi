@@ -45,14 +45,16 @@ const base = {
 } as any;
 
 describe('el panel del chat sin detalle', () => {
-  it('sin selección invita a elegir, y enseña los atajos', () => {
+  it('sin selección invita a elegir, sin enseñar atajos de teclado', () => {
     render(<Chat {...base} />);
     expect(screen.getByText(/Elige una conversación de la lista/)).toBeTruthy();
-    // El espacio que queda es la mitad de la pantalla: que sirva de algo.
-    // (Solo en escritorio: son atajos de TECLADO, y en un teléfono serían
-    // ruido. jsdom no evalúa `lg:`, así que acá se ven igual.)
-    expect(screen.getByText('Para ir más rápido')).toBeTruthy();
-    expect(screen.getByText('Siguiente / anterior conversación')).toBeTruthy();
+    // La chuleta salió de acá en #1165. Estaba porque «el espacio que queda
+    // es la mitad de la pantalla: que sirva de algo», y era cierto mientras
+    // la bandeja abría sin nada elegido. Ahora abre con la primera puesta, y
+    // este panel solo aparece cuando la bandeja está VACÍA: a quien todavía
+    // no recibió un mensaje, `j / k` no le sirve de nada. Sigue detrás del «?».
+    expect(screen.queryByText('Para ir más rápido')).toBeNull();
+    expect(screen.queryByText('Siguiente / anterior conversación')).toBeNull();
   });
 
   it('con una elegida y el detalle en vuelo, dice que la está trayendo', () => {

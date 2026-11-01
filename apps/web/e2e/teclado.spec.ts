@@ -43,8 +43,12 @@ test('j/k recorren, escribir no dispara e y resolver por teclado pasa por la API
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/bandeja');
   await expect(page.getByRole('button', { name: /Beto Teclado/ })).toBeVisible();
-  await page.keyboard.press('j');
   const chat = page.getByRole('region', { name: 'Conversación', exact: true });
+  // La bandeja abre con la primera puesta (#1165), así que el recorrido
+  // empieza en Beto y no en «nada elegido». Antes esta prueba apretaba una
+  // `j` de más para llegar acá; esa `j` ahora saltaría a Ana. Es el mismo
+  // comportamiento que Gmail: siempre hay algo elegido y j/k se mueven desde
+  // ahí.
   await expect(chat.getByText('Cotización de Beto Teclado')).toBeVisible();
   await page.keyboard.press('j');
   await expect(chat.getByText('Cotización de Ana Teclado')).toBeVisible();

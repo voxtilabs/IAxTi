@@ -60,6 +60,17 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  *   bandeja:            `/me` + `/arranque` + `/conversations` + soporte   = 4
  *   con conversación:   + `:id/arranque` + `:id/arranque/ficha`            = 6
  *
+ * **Desde #1165 los dos son 6**, y no porque se haya agregado una llamada:
+ * la bandeja abre con la primera conversación puesta, así que «abrir la
+ * bandeja» y «abrir una conversación» son el mismo momento. Las dos puertas
+ * de la conversación se pagaban igual, medio segundo después, cuando la
+ * persona hacía el clic que ahora no hace. Lo que cambió es CUÁNDO, no
+ * cuántas — y el presupuesto cuida la forma de la pantalla, que sigue siendo
+ * la misma.
+ *
+ * Las dos pruebas se quedan separadas igual: si mañana abrir una conversación
+ * empieza a costar una tercera puerta, la segunda se pone roja sola.
+ *
  * Las cinco de «con conversación», nombradas, porque un número sin nombres no
  * dice si creció por algo bueno:
  *
@@ -106,7 +117,7 @@ const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
  *   GET /v1/conversations   la lista
  *   GET /v1/support-status  ¿nos están mirando? (tiene que estar fresco)
  */
-const PRESUPUESTO_BANDEJA = 4;
+const PRESUPUESTO_BANDEJA = 6;
 const PRESUPUESTO_CON_CONVERSACION = 6;
 
 /**

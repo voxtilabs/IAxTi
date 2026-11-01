@@ -49,10 +49,20 @@ test('bandeja: ofrece conectar el canal, cambiar de cola y limpiar una búsqueda
   await expect(buscar).toHaveValue('');
 });
 
-test('la bandeja sin selección deja UN panel vacío, y se gana el espacio', async ({ page }) => {
-  // Antes de esto, a 1280 el chat (416 px) y la ficha (288 px) eran 704 de los
-  // 1024 de ancho útil —el 69%— y los dos decían que estaban vacíos. Es lo
-  // primero que ve alguien al entrar al producto.
+test('la bandeja sin conversaciones deja UN panel vacío, y no enseña atajos', async ({ page }) => {
+  // Antes de #1109, a 1280 el chat (416 px) y la ficha (288 px) eran 704 de
+  // los 1024 de ancho útil —el 69%— y los dos decían que estaban vacíos. Eso
+  // sigue valiendo: UN vacío, no dos.
+  //
+  // Lo que cambió en #1165 es la otra mitad. Esta prueba afirmaba que el
+  // panel que queda muestra la chuleta de atajos, «lo único útil cuando no
+  // hay nada elegido». La premisa dejó de ser cierta: desde que la bandeja
+  // abre con la primera conversación puesta, «sin selección» en escritorio
+  // solo pasa cuando la bandeja está VACÍA —y a quien todavía no recibió un
+  // mensaje, `j / k` no le sirve de nada—. La chuleta sigue detrás del «?».
+  //
+  // Y por eso la lista se vacía a mano: sin eso, este panel ya no aparece.
+  await page.route('**/v1/conversations**', (r) => r.fulfill({ json: { items: [] } }));
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/bandeja');
   const lista = page.getByRole('region', { name: 'Conversaciones' });
@@ -61,11 +71,9 @@ test('la bandeja sin selección deja UN panel vacío, y se gana el espacio', asy
   // UN vacío, no dos: la ficha no se dibuja sin conversación elegida.
   await expect(page.getByRole('region', { name: 'Ficha del contacto' })).toHaveCount(0);
 
-  // Y el que queda se gana el espacio: los atajos, que viven escondidos tras
-  // el `?`, son lo único útil cuando no hay nada elegido.
   const chat = page.getByRole('region', { name: 'Conversación', exact: true });
-  await expect(chat.getByText('Para ir más rápido')).toBeVisible();
-  await expect(chat.getByText('Siguiente / anterior conversación')).toBeVisible();
+  await expect(chat.getByText(/Elige una conversación/)).toBeVisible();
+  await expect(chat.getByText('Siguiente / anterior conversación')).toHaveCount(0);
 
   // El estado «abriendo» NO se prueba acá: contra localhost dura lo que dura
   // un fetch, así que la prueba sería una carrera contra la velocidad de la
