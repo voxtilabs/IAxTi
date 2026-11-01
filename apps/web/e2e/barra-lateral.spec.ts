@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { comoAdmin } from './como-admin';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -6,6 +7,8 @@ interface Auth {
   accessToken: string;
   userId: string;
   tenantId: string;
+  /** El negocio donde la usuaria es ADMIN: el que tiene MÁS entradas (#1142). */
+  tableTenantId: string;
 }
 
 const auth: Auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
@@ -112,34 +115,67 @@ test.describe('la barra lateral tiene destinos', () => {
     }
   });
 
-  test('la barra entera cabe a 1440x900: ningún grupo queda cortado', async ({ page }) => {
-    // El presupuesto vertical de la barra, medido y sostenido (#1108).
-    //
-    // «CONFIGURACIÓN (3)» quedaba cortado por la mitad contra el filete del
-    // pie. Se alcanzaba con scroll, pero un rótulo partido no se lee como «hay
-    // más abajo»: se lee como interfaz rota, y es lo primero que se ve en
-    // CUALQUIER pantalla del producto.
-    //
-    // Lo que midió de dónde venía: 315 px de cromo (cabecera 187 + pie 128)
-    // para 729 px de navegación, y 200 de esos 729 eran rótulo y relleno de
-    // grupo en vez de entradas. Con el aire apretado en `pulso-vivo.css`,
-    // cabecera 127 + pie 99 y la navegación entra con 32 px de sobra.
-    //
-    // ESTA PRUEBA SE VA A PONER ROJA el día que alguien agregue una entrada de
-    // navegación, y está bien que lo haga: 32 px no alcanzan para una fila de
-    // 42. Cuando pase, las salidas son plegar un grupo más, no apretar
-    // `menu-button` —42 px es el tamaño de control de Pulso y bajarlo sería
-    // arreglar la barra rompiendo el sistema—, o decidir que a 900 px de alto
-    // la barra scrollea y el recorte cae donde no parta un rótulo.
+  test('la barra, en el negocio con MÁS entradas: cabe, o se ve que sigue', async ({ page }) => {
+    /*
+     * El presupuesto vertical de la barra, medido donde duele (#1108, #1142).
+     *
+     * «CONFIGURACIÓN» quedaba cortado por la mitad contra el filete del pie.
+     * #1108 apretó el aire —cabecera 187→127, pie 128→99— y dejó 32 px de
+     * sobra, con un comentario que decía que esto se pondría rojo «el día que
+     * alguien agregue una entrada de navegación».
+     *
+     * Nadie agregó nada. El caso peor YA EXISTÍA: con el negocio donde la
+     * usuaria es ADMIN son catorce entradas y cinco secciones de
+     * configuración, necesita 762 px y ve 702. Dos quedaban fuera en
+     * silencio. La guarda estaba midiendo el tenant cómodo, y una guarda que
+     * mide el caso cómodo no mide.
+     *
+     * Por eso ahora la afirmación es otra, y es la que de verdad importa:
+     * catorce entradas de 42 px NO caben, y eso es normal en cualquier CRM.
+     * Lo que no puede pasar es que se corte sin decirlo.
+     */
     await page.setViewportSize({ width: 1440, height: 900 });
+    await comoAdmin(page, auth);
     await page.goto('/');
     await expect(page.getByRole('button', { name: /^Configuración \(/ })).toBeVisible();
-    const holgura = await page.evaluate(() => {
+
+    const barra = await page.evaluate(() => {
       const c = document.querySelector('[data-sidebar="content"]') as HTMLElement;
       const ultimo = c.lastElementChild as HTMLElement;
-      return Math.round(c.getBoundingClientRect().bottom - ultimo.getBoundingClientRect().bottom);
+      return {
+        entradas: c.querySelectorAll('[data-sidebar="menu-button"]').length,
+        desborda: c.scrollHeight > c.clientHeight + 1,
+        marcada: c.dataset.desborda === 'true',
+        atenuada: getComputedStyle(c).maskImage !== 'none',
+        holgura: Math.round(c.getBoundingClientRect().bottom - ultimo.getBoundingClientRect().bottom),
+      };
     });
-    expect(holgura, 'el último grupo de la barra se sale del área visible a 1440x900').toBeGreaterThanOrEqual(0);
+
+    // Que de verdad estamos en el caso peor y no en otro tenant.
+    expect(barra.entradas, 'este negocio tendría que ser el de más entradas').toBeGreaterThanOrEqual(13);
+
+    if (barra.desborda) {
+      expect(barra.marcada, 'la barra desborda y no quedó marcada: se corta en silencio').toBe(true);
+      expect(barra.atenuada, 'la barra desborda y no se atenúa: parece que la lista terminó').toBe(true);
+    } else {
+      // Si llegara a caber, la pista no debe estar: una señal permanente es ruido.
+      expect(barra.marcada).toBe(false);
+      expect(barra.holgura, 'cabe, así que nada puede quedar fuera').toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  test('donde la barra SÍ cabe, no hay pista de desborde', async ({ page }) => {
+    // La otra mitad: la atenuación aparece solo cuando hace falta. Sin esto,
+    // «marcar cuando desborda» podría ser «marcar siempre» y nadie lo notaría.
+    await page.setViewportSize({ width: 1440, height: 1400 });
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /^Configuración \(/ })).toBeVisible();
+    const m = await page.evaluate(() => {
+      const c = document.querySelector('[data-sidebar="content"]') as HTMLElement;
+      return { desborda: c.scrollHeight > c.clientHeight + 1, marcada: c.dataset.desborda === 'true' };
+    });
+    expect(m.desborda, 'a 1400 px de alto esta barra tendría que caber').toBe(false);
+    expect(m.marcada).toBe(false);
   });
 
   test('el grupo que se pliega SE VE que se pliega, y se recuerda', async ({ page }) => {

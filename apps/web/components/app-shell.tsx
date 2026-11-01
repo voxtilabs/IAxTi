@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -405,6 +405,35 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
     return [...conocidos, ...resto].map((g) => [g, por.get(g)!] as const);
   }, [nav]);
 
+  /**
+   * Marca la barra cuando su navegación no cabe (#1142).
+   *
+   * El atributo lo lee `pulso-vivo.css` para atenuar el último tramo: sin él,
+   * una barra desbordada se ve igual que una que termina ahí, y la persona no
+   * tiene forma de saber que hay dos pantallas más abajo.
+   *
+   * Se recalcula al cambiar de tamaño y cuando cambia el contenido —el menú
+   * llega del servidor y puede crecer después del primer dibujo—, no una vez
+   * al montar.
+   */
+  const contenidoDeLaBarra = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const nodo = contenidoDeLaBarra.current;
+    if (!nodo) return;
+    const revisar = () => {
+      nodo.dataset.desborda = nodo.scrollHeight > nodo.clientHeight + 1 ? 'true' : 'false';
+    };
+    revisar();
+    const observador = new ResizeObserver(revisar);
+    observador.observe(nodo);
+    for (const hijo of Array.from(nodo.children)) observador.observe(hijo as Element);
+    window.addEventListener('resize', revisar);
+    return () => {
+      observador.disconnect();
+      window.removeEventListener('resize', revisar);
+    };
+  });
+
   return (
     <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
@@ -431,7 +460,7 @@ function Barra({ nav, marcaSvg, candados }: { nav: NavItem[]; marcaSvg: string; 
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent ref={contenidoDeLaBarra}>
         {grupos.map(([titulo, items]) => (
           <Grupo key={titulo} titulo={titulo} items={items} candados={candados} activa={activa} />
         ))}

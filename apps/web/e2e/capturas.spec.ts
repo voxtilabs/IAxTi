@@ -14,6 +14,8 @@ interface Auth {
   accessToken: string;
   userId: string;
   tenantId: string;
+  /** El negocio donde la usuaria es ADMIN: ahí se ven las pantallas de verdad. */
+  tableTenantId: string;
 }
 
 const auth: Auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
@@ -158,5 +160,26 @@ for (const modo of ['dia', 'noche'] as const) {
     await panel.getByRole('button', { name: 'Pedir' }).click();
     await panel.getByText('Listo. Te armé un embudo').waitFor();
     await page.screenshot({ path: join(DESTINO, `chat-iaxti-${modo}.png`) });
+  });
+}
+
+// Como ADMIN: las pantallas de configuración se ven de verdad en vez de la
+// puerta de permisos. Es lo que vería quien hace el demo.
+for (const [nombre, ruta] of [
+  ['adm-canales', '/ajustes/canales'], ['adm-negocio', '/ajustes/bandeja'],
+  ['adm-conocimiento', '/ajustes/conocimiento'], ['adm-equipo', '/ajustes/equipo'],
+  ['adm-embudos', '/ajustes/embudos'], ['adm-plantillas', '/ajustes/plantillas'],
+  ['adm-automatizaciones', '/ajustes/automatizaciones'], ['adm-reportes', '/reportes'],
+  ['adm-campanas', '/campanas'], ['adm-importar', '/contactos/importar'],
+] as const) {
+  test(`admin ${nombre}`, async ({ page }) => {
+    await page.addInitScript((id) => {
+      localStorage.setItem('iaxti-tenant', id);
+      localStorage.setItem('pulso-mode', 'dia');
+    }, auth.tableTenantId);
+    await page.goto(ruta, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading').first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: join(DESTINO, `${nombre}.png`), fullPage: true });
   });
 }
