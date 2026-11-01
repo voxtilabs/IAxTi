@@ -5,7 +5,7 @@ import { AvisoResultado, EncabezadoDePagina, Formulario, Select, SelectContent, 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Badge, Button, EstadoVacio, Input, Skeleton, useSession, type BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, type EtiquetaDto } from '../lib/api';
+import { apiFetch, type EtiquetaDto, mensajeDeError } from '../lib/api';
 
 // Etiquetas (#35, SPEC §29). La API estaba completa —crear, renombrar,
 // borrar, asignar a un contacto— y no había pantalla.
@@ -39,7 +39,7 @@ export function Etiquetas() {
       setItems(await apiFetch<EtiquetaDto[]>(config, session, tenant, '/tags'));
       setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
       setItems([]);
     }
   }, [config, session, tenant]);
@@ -58,7 +58,7 @@ export function Etiquetas() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setGuardando(false);
     }
@@ -75,7 +75,7 @@ export function Etiquetas() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setOcupado(null);
     }
@@ -89,7 +89,7 @@ export function Etiquetas() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setOcupado(null);
     }

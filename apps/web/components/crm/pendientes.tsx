@@ -15,7 +15,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
-import { apiFetch } from '../../lib/api';
+import { apiFetch, mensajeDeError } from '../../lib/api';
 
 /**
  * Lo que hay que hacer (#454).
@@ -81,7 +81,7 @@ export function Pendientes() {
         ),
       );
     } catch (e) {
-      setAviso((e as Error).message);
+      setAviso(mensajeDeError(e));
     }
   }, [config, session, tenant, ambito]);
   useEffect(() => void cargar(), [cargar]);
@@ -98,7 +98,7 @@ export function Pendientes() {
       // hacer desaparece, y lo demás no se mueve debajo del cursor.
       setItems((previos) => (previos ?? []).filter((a) => a.id !== id));
     } catch (e) {
-      setAviso((e as Error).message);
+      setAviso(mensajeDeError(e));
     } finally {
       setMarcando(null);
     }

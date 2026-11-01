@@ -12,7 +12,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, type PipelineDto, type StageDto } from '../lib/api';
+import { apiFetch, type PipelineDto, type StageDto, mensajeDeError } from '../lib/api';
 
 /**
  * Embudos y etapas (#460).
@@ -56,7 +56,7 @@ export function Embudos() {
       ])));
       setAviso(null);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setPipelines([]);
     }
   }, [config, session, tenant]);
@@ -73,7 +73,7 @@ export function Embudos() {
       // El servidor explica por qué no se puede borrar una etapa con
       // oportunidades adentro; repetirlo acá sería que un día dejen de
       // coincidir.
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setOcupado(null);
     }

@@ -1,5 +1,6 @@
 'use client';
 
+import { mensajeDeError } from '../../lib/api';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AvisoResultado, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, useSession } from '@iaxti/ui/react';
 import { crmClient } from '@iaxti/sdk';
@@ -22,7 +23,7 @@ export function EtiquetarSeleccion({ tenant, contactIds, onDone }: { tenant: str
       setTono('success');
       setNotice(`Etiqueta agregada a ${result.changed} contactos; ${result.requested - result.changed} ya la tenían.`);
       onDone();
-    } catch (e) { setTono('error'); setNotice((e as Error).message); }
+    } catch (e) { setTono('error'); setNotice(mensajeDeError(e)); }
     finally { lock.current = false; setBusy(false); }
   }
   return <div className="space-y-2">

@@ -40,8 +40,8 @@ apps/web/components/automatizaciones.tsx:114
 apps/web/components/automatizaciones.tsx:130
 apps/web/components/bandeja/reasignaciones.tsx:37
 apps/web/components/bandeja/secuencias-ficha.tsx:125
-apps/web/components/campanas.tsx:114
-apps/web/components/campanas.tsx:144
+apps/web/components/campanas.tsx:115
+apps/web/components/campanas.tsx:145
 apps/web/components/campos.tsx:54
 apps/web/components/campos.tsx:84
 apps/web/components/campos.tsx:132
@@ -76,10 +76,10 @@ apps/web/components/crm/fusionar-duplicado.tsx:102
 apps/web/components/crm/historia-de-etapas.tsx:27
 apps/web/components/crm/importar.tsx:66
 apps/web/components/crm/importar.tsx:81
-apps/web/components/crm/oportunidades.tsx:112
-apps/web/components/crm/oportunidades.tsx:138
-apps/web/components/crm/oportunidades.tsx:159
+apps/web/components/crm/oportunidades.tsx:127
+apps/web/components/crm/oportunidades.tsx:153
 apps/web/components/crm/oportunidades.tsx:190
+apps/web/components/crm/oportunidades.tsx:222
 apps/web/components/crm/pendientes.tsx:84
 apps/web/components/crm/pendientes.tsx:101
 apps/web/components/dar-una-hora.tsx:58
@@ -93,6 +93,7 @@ apps/web/components/empresas.tsx:70
 apps/web/components/empresas.tsx:88
 apps/web/components/empresas.tsx:108
 apps/web/components/empresas.tsx:123
+apps/web/components/equipo.tsx:65
 apps/web/components/equipo.tsx:108
 apps/web/components/equipo.tsx:128
 apps/web/components/equipo.tsx:143
@@ -116,11 +117,11 @@ apps/web/components/preferencias-avisos.tsx:195
 apps/web/components/preferencias-avisos.tsx:295
 apps/web/components/preferencias-avisos.tsx:317
 apps/web/components/pregunta-a-los-numeros.tsx:105
-apps/web/components/puesta-en-marcha.tsx:104
+apps/web/components/puesta-en-marcha.tsx:105
 apps/web/components/roles.tsx:84
 apps/web/components/roles.tsx:106
 apps/web/components/roles.tsx:121
-apps/web/components/webchat-chat.tsx:142
+apps/web/components/webchat-chat.tsx:143
 apps/web/components/webhooks-salientes.tsx:61
 apps/web/components/webhooks-salientes.tsx:76
 apps/admin/components/admin-shell.tsx:1048

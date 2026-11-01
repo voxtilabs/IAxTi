@@ -16,7 +16,7 @@ import {
   useSession,
 } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, fmtClp } from '../lib/api';
+import { apiFetch, fmtClp, mensajeDeError } from '../lib/api';
 import type { Quien } from '@iaxti/sdk';
 import { QuienLoHizo } from './quien-lo-hizo';
 
@@ -111,7 +111,7 @@ export function Pagos() {
         setEtapasDisponibles(ajustes.etapasDisponibles ?? []);
       }
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setProveedores([]);
     }
   }, [config, session, tenant]);
@@ -159,7 +159,7 @@ export function Pagos() {
           : null,
       );
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setGuardandoTope(false);
     }
@@ -175,7 +175,7 @@ export function Pagos() {
     } catch (err) {
       // Un link ya pagado no se cancela: eso es una devolución, y la hace
       // el proveedor. El servidor lo dice con su propio mensaje.
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setCancelando(null);
     }
@@ -202,7 +202,7 @@ export function Pagos() {
       setSecretRef('');
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, avisoDe, type Aviso } from '../lib/api';
+import { apiFetch, avisoDe, type Aviso, mensajeDeError } from '../lib/api';
 import { ConectarCanalesMeta } from './conectar-canales-meta';
 
 // La pantalla de canales (#45): el estado del número EXPLICADO — un número
@@ -108,7 +108,7 @@ function ProbarSinNumero() {
       setDetalle(null);
     } catch (err) {
       setEstado('error');
-      setDetalle((err as Error).message);
+      setDetalle(mensajeDeError(err));
     }
   }
 
@@ -492,7 +492,7 @@ function CanalesDelNegocio() {
       setCanales(nuevosCanales);
       setWidgets(nuevosWidgets);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
@@ -504,7 +504,7 @@ function CanalesDelNegocio() {
       await apiFetch(config, session, tenant, `/whatsapp/numbers/${numberId}/resume`, { method: 'POST' });
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   }
 
@@ -520,7 +520,7 @@ function CanalesDelNegocio() {
       await apiFetch(config, session, tenant, `/channels/${accountId}/desconectar`, { method: 'POST' });
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setDesconectando(null);
     }
@@ -664,7 +664,7 @@ function CanalesDelNegocio() {
                 setDominio('');
                 return cargar();
               })
-              .catch((err) => setAviso((err as Error).message));
+              .catch((err) => setAviso(mensajeDeError(err)));
           }}
         >
           <Input
@@ -724,7 +724,7 @@ function CanalesDelNegocio() {
                       body: JSON.stringify({ active: !w.active }),
                     })
                       .then(cargar)
-                      .catch((err) => setAviso((err as Error).message));
+                      .catch((err) => setAviso(mensajeDeError(err)));
                   }}
                 >
                   {w.active ? 'Apagar' : 'Encender'}

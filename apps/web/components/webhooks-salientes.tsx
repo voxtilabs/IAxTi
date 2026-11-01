@@ -5,7 +5,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Input, Skeleton, Switch, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 
 // Webhooks salientes (#76): tus sistemas reaccionan a lo que pasa en
 // IAxTi sin polling. Firma HMAC con secreto rotable, y el panel de
@@ -58,7 +58,7 @@ export function WebhooksSalientes() {
       setEventos(nuevosEventos);
       setEntregas(nuevosEntregas);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
       setWebhooks([]);
     }
   }, [config, session, tenant]);
@@ -73,7 +73,7 @@ export function WebhooksSalientes() {
       await apiFetch(config, session, tenant, path, init);
       await cargar();
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     }
   };
 

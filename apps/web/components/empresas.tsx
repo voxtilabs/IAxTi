@@ -5,7 +5,7 @@ import { AvisoResultado, Checkbox, EncabezadoDePagina, Formulario } from '@iaxti
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Badge, Button, EstadoVacio, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
-import { apiFetch, type EmpresaDto } from '../lib/api';
+import { apiFetch, type EmpresaDto, mensajeDeError } from '../lib/api';
 
 // Empresas (#36, SPEC §10): el CRM cuando quien te compra no es una persona
 // sino una oficina, y varios contactos pertenecen a la misma.
@@ -45,7 +45,7 @@ export function Empresas() {
       );
       setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
       setItems([]);
     }
   }, [config, session, tenant, buscar, verArchivadas]);
@@ -67,7 +67,7 @@ export function Empresas() {
       setError(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setGuardando(false);
     }
@@ -85,7 +85,7 @@ export function Empresas() {
       );
       setAbierta(d);
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     }
   }
 
@@ -105,7 +105,7 @@ export function Empresas() {
       setEditando(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setOcupado(null);
     }
@@ -120,7 +120,7 @@ export function Empresas() {
       if (abierta?.empresa.id === e.id) setAbierta(null);
       await cargar();
     } catch (err) {
-      setError((err as Error).message);
+      setError(mensajeDeError(err));
     } finally {
       setOcupado(null);
     }

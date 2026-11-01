@@ -45,6 +45,10 @@ describe('administrar los atajos', () => {
   it('el error del servidor se muestra tal cual', () => {
     // "Los atajos del negocio los administra quien supervisa el equipo" ya
     // está escrito allá; repetirlo acá sería que un día dejen de coincidir.
-    expect(ATAJOS).toContain('setAviso((err as Error).message)');
+    // `mensajeDeError(err)` y no `(err as Error).message` desde #1161: un
+    // `ApiError` sigue mostrando el mensaje del servidor tal cual —que es lo
+    // que esta prueba afirma—, pero un `DOMException` del navegador ya no se
+    // muestra crudo.
+    expect(ATAJOS).toContain('setAviso(mensajeDeError(err))');
   });
 });

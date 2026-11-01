@@ -1,5 +1,6 @@
 'use client';
 
+import { mensajeDeError } from '../lib/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Badge, Button, MarcaJelly, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
@@ -101,7 +102,7 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
       const avance = await getOnboarding({ apiUrl: config.apiUrl, token: session.access_token, tenantId: tenant }, signal);
       if (peticion === ultima.current) { setEstado(avance); setError(null); }
     } catch (e) {
-      if (!signal?.aborted && peticion === ultima.current) setError((e as Error).message);
+      if (!signal?.aborted && peticion === ultima.current) setError(mensajeDeError(e));
     }
   }, [config.apiUrl, session, tenant]);
 

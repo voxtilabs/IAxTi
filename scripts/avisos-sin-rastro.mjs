@@ -31,8 +31,16 @@ const RAICES = ['apps/web', 'apps/admin'];
 
 // `setAviso(err.message)` y sus variantes: `(err as Error).message`,
 // `e instanceof Error ? e.message : '...'`. Lo que se busca es que el texto
-// del error entre al estado SIN pasar por `avisoDe`.
-const TIRA_EL_RASTRO = /set(?:Aviso|Error)\(\s*\(?\s*\(?\s*(?:err|e|error)\b[^;]{0,40}?\.message/;
+// del error entre al estado SIN su rastro.
+//
+// `setAviso(mensajeDeError(err))` cuenta igual (#1161). Esa función arregla la
+// MITAD del problema —ya no muestra «The string did not match the expected
+// pattern.», el mensaje crudo que tira WebKit— pero devuelve un `string`, así
+// que el `code · requestId` se sigue perdiendo, que es de lo que habla este
+// trinquete. Si no estuviera acá, migrar una pantalla a `mensajeDeError`
+// bajaría la marca sin haber arreglado lo que la marca cuenta: el mapa diría
+// «ya está» de 86 sitios donde no está.
+const TIRA_EL_RASTRO = /set(?:Aviso|Error)\(\s*(?:mensajeDeError\(|\(?\s*\(?\s*(?:err|e|error)\b[^;]{0,40}?\.message)/;
 
 // Las pruebas quedan fuera, y no por comodidad: varias AFIRMAN sobre el
 // texto del código —`expect(HORARIOS).toContain('setAviso((err as

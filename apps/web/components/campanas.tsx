@@ -1,5 +1,6 @@
 'use client';
 
+import { mensajeDeError } from '../lib/api';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   campaignClient, type Campaign, type CampaignChannel, type CampaignFilters,
@@ -141,7 +142,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   async function ejecutar(accion: () => Promise<void>) {
     if (cerrojo.current || !cliente) return;
     cerrojo.current = true; setOcupado(true); setError(null); setAviso(null);
-    try { await accion(); } catch (e) { setError((e as Error).message); }
+    try { await accion(); } catch (e) { setError(mensajeDeError(e)); }
     finally { cerrojo.current = false; setOcupado(false); }
   }
 

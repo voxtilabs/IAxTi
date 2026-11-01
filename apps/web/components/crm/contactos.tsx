@@ -7,7 +7,7 @@ import { Badge, Button, DataTable, EstadoVacio, Input, Skeleton, useSession, typ
 import { useSelectedTenant } from '../tenant-switcher';
 import { crmClient } from '@iaxti/sdk';
 import { EtiquetarSeleccion } from './etiquetar-seleccion';
-import { apiDescargar, apiDescargarBinario } from '../../lib/api';
+import { apiDescargar, apiDescargarBinario, mensajeDeError } from '../../lib/api';
 
 interface ContactoItem {
   id: string;
@@ -52,7 +52,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       if (currentCursor) query.set('cursor', currentCursor);
       const res = await client.contacts<ContactoItem>(query);
       if (request === serial.current) { setItems(res.items); setCursor(res.nextCursor); }
-    } catch (err) { if (request === serial.current) setAviso((err as Error).message); }
+    } catch (err) { if (request === serial.current) setAviso(mensajeDeError(err)); }
     finally { if (request === serial.current) setLoading(false); }
   }, [client, q, currentCursor, sorting]);
   useEffect(() => { void cargar(); return () => { serial.current++; }; }, [cargar]);
@@ -92,7 +92,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       URL.revokeObjectURL(url);
       setAviso(null);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setExportando(false);
     }
@@ -113,7 +113,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       URL.revokeObjectURL(url);
       setAviso(null);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setExportando(false);
     }

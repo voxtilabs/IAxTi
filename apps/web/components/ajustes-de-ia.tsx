@@ -15,7 +15,7 @@ import {
   Switch,
   useSession,
 } from '@iaxti/ui/react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, mensajeDeError } from '../lib/api';
 import { useSelectedTenant } from './tenant-switcher';
 
 /**
@@ -91,7 +91,7 @@ export function AjustesDeIa() {
       setTaparPii(r.redactPII);
       setAviso(null);
     } catch (err) {
-      setAviso((err as Error).message);
+      setAviso(mensajeDeError(err));
     } finally {
       setGuardando(false);
     }

@@ -14,7 +14,7 @@ import { RecordatoriosDeCita } from './recordatorios-de-cita';
 import { HorariosDeAtencion } from './horarios-de-atencion';
 import { DarUnaHora } from './dar-una-hora';
 import { PorQueSeCancelan } from './por-que-se-cancelan';
-import { apiFetch, avisoDe, type CitaDto } from '../lib/api';
+import { apiFetch, avisoDe, type CitaDto, mensajeDeError } from '../lib/api';
 
 // La agenda (#58, SPEC §16): las citas de la semana y qué pasó con cada una.
 //
@@ -115,7 +115,7 @@ export function Agenda() {
       setCitas(r);
       setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
       setCitas([]);
     }
   }, [config, session, tenant]);
@@ -134,7 +134,7 @@ export function Agenda() {
       });
       await cargar();
     } catch (e) {
-      setError((e as Error).message);
+      setError(mensajeDeError(e));
     } finally {
       setMoviendo(null);
     }

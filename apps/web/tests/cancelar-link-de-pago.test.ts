@@ -29,6 +29,10 @@ describe('cancelar un link', () => {
   it('un link pagado lo rechaza el servidor, y se muestra su motivo', () => {
     // Cancelar algo ya pagado no es cancelar: es devolver, y eso lo hace
     // el proveedor.
-    expect(PAGOS).toContain('setAviso((err as Error).message)');
+    // `mensajeDeError(err)` y no `(err as Error).message` desde #1161: un
+    // `ApiError` sigue mostrando el mensaje del servidor tal cual —que es lo
+    // que esta prueba afirma—, pero un `DOMException` del navegador ya no se
+    // muestra crudo.
+    expect(PAGOS).toContain('setAviso(mensajeDeError(err))');
   });
 });

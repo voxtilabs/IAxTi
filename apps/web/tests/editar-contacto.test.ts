@@ -46,6 +46,10 @@ describe('corregir un contacto', () => {
   });
 
   it('el motivo del rechazo lo pone el dominio', () => {
-    expect(FICHA).toContain('setAviso((err as Error).message)');
+    // `mensajeDeError(err)` y no `(err as Error).message` desde #1161: un
+    // `ApiError` sigue mostrando el mensaje del servidor tal cual —que es lo
+    // que esta prueba afirma—, pero un `DOMException` del navegador ya no se
+    // muestra crudo.
+    expect(FICHA).toContain('setAviso(mensajeDeError(err))');
   });
 });
