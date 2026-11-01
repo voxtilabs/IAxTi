@@ -29,7 +29,21 @@ export function EstadoVacio({ titulo, descripcion, accion, pideleAIAxTi, documen
   className?: string;
 }) {
   return <section aria-label={titulo} data-compact={compacto} className={cn('pulso-empty pulso-panel rounded-tarjeta border border-line bg-raised', compacto ? 'p-4' : 'p-6', className)}>
-    <MarcaJelly />
+    {/* El isotipo solo cuando el vacío ES la pantalla (#1159).
+
+        `compacto` ya quiere decir «esto es un panel, no la pantalla», así que
+        la regla no necesita una prop nueva: necesita usar la que hay.
+
+        Lo que lo hizo evidente fue `/ajustes/canales`, donde el isotipo
+        aparecía TRES veces en un scroll —dos a 82 px y uno a 45— porque la
+        pantalla tiene tres paneles que pueden estar vacíos a la vez. La misma
+        marca repetida en la misma pantalla, y en dos tamaños, se lee como
+        relleno; y una pantalla con tres paneles no está vacía.
+
+        Cuando sí lo está —`/empresas`, `/campanas`, `/ajustes/etiquetas`— el
+        isotipo es lo único que hay y le da identidad a un callejón. Ahí se
+        queda. */}
+    {!compacto && <MarcaJelly />}
     <div className="min-w-0">
     <h2 className="font-display text-seccion font-bold text-ink">{titulo}</h2>
     <p className="mt-2 max-w-prose text-dato text-body">{descripcion}</p>

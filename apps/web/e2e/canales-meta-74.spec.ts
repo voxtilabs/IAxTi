@@ -82,3 +82,91 @@ for (const modo of ['dia', 'noche']) {
     writeFileSync(join(evidencias, `medidas-${modo}.json`), JSON.stringify({ viewport: 360, carga, lista, vacio, foco }, null, 2));
   });
 }
+
+/**
+ * Y el panel tampoco salta en las pantallas anchas (#1157).
+ *
+ * La prueba de arriba mide a 360 px, y el piso que la mantenía verde era UNO
+ * solo: los 383,6 px que ocupa el estado vacío cuando su texto envuelve en
+ * seis líneas. En escritorio el mismo texto entra en tres, el estado más alto
+ * mide 262, y el piso dejaba 122 px de nada debajo del contenido. Se veía en
+ * la captura de `/ajustes/canales` y parecía un panel roto.
+ *
+ * Así que el piso ahora es uno por tramo, y la afirmación «los estados miden
+ * lo mismo» hay que comprobarla en cada tramo o el piso de escritorio queda
+ * sin vigilar. Esta prueba no saca capturas ni recorre el teclado: solo mide,
+ * que es lo que le faltaba a la otra.
+ */
+for (const ancho of [360, 640, 768, 1024, 1280]) {
+  test(`Canales Meta a ${ancho} px: los estados miden lo mismo`, async ({ page }) => {
+    await page.setViewportSize({ width: ancho, height: 900 });
+    await page.addInitScript((a) => {
+      localStorage.setItem('pulso-mode', 'dia');
+      localStorage.setItem('iaxti-tenant', a.tableTenantId);
+      localStorage.setItem('sb-127-auth-token', JSON.stringify({
+        access_token: a.accessToken, token_type: 'bearer', expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'e2e',
+        user: { id: a.userId, aud: 'authenticated', email: 'canales@e2e.cl' },
+      }));
+    }, auth);
+
+    let liberar!: () => void;
+    const espera = new Promise<void>((r) => { liberar = r; });
+    let estado = 'carga';
+    await page.route('**/v1/channels/conexiones-disponibles', async (route) => {
+      if (estado === 'carga') await espera;
+      if (estado === 'falla') {
+        return route.fulfill({ status: 503, json: { code: 'PROVIDER_UNAVAILABLE', message: 'No pudimos comprobar el emisor. Intenta de nuevo.', requestId: 'req_ancho_74' } });
+      }
+      return route.fulfill({ json: estado === 'vacio' ? [] : opciones });
+    });
+
+    await page.goto('/ajustes/canales');
+    const panel = page.getByRole('region', { name: 'Conectar Instagram y Messenger' });
+    await expect(panel.getByRole('status', { name: 'Buscando conexiones' })).toBeVisible();
+    const carga = (await panel.boundingBox())!.height;
+
+    estado = 'lista'; liberar();
+    await expect(panel.getByRole('button', { name: 'Conectar Instagram' })).toBeVisible();
+    const lista = (await panel.boundingBox())!.height;
+    // El aire que queda DEBAJO del contenido, en el estado más alto —que es
+    // este—. Se mide acá y no al final porque medirlo en un estado corto
+    // diría «sobra» de un piso que está bien puesto.
+    const sobra = await panel.evaluate((sec) => {
+      const ultimo = sec.lastElementChild;
+      if (!ultimo) return 0;
+      return Math.round(sec.getBoundingClientRect().bottom - ultimo.getBoundingClientRect().bottom);
+    });
+
+    estado = 'vacio'; await page.reload();
+    await expect(panel.getByText('No hay conexiones pendientes')).toBeVisible();
+    const vacio = (await panel.boundingBox())!.height;
+
+    estado = 'falla';
+    await panel.getByRole('button', { name: 'Volver a comprobar' }).click();
+    await expect(panel.getByText(/PROVIDER_UNAVAILABLE/)).toBeVisible();
+    const falla = (await panel.boundingBox())!.height;
+
+    for (const [nombre, alto] of [['lista', lista], ['vacío', vacio], ['fallando', falla]] as const) {
+      expect(
+        Math.abs(alto - carga),
+        `a ${ancho} px el panel mide ${carga} cargando y ${alto} ${nombre}: ajustá el piso del tramo`,
+      ).toBeLessThanOrEqual(1);
+    }
+    // Y el piso no sobra. Dos cosas que me costó acertar:
+    //
+    // Se mide el aire debajo del último hijo y NO la altura del panel: el
+    // piso clampea todos los estados por igual, así que comparar un estado
+    // con otro no puede detectar un piso de más. Lo escribí mal primero
+    // —`carga < vacio + 20`— y la mordida del piso único pasó verde.
+    //
+    // Se exige en TODOS los anchos y no solo al arranque del tramo: el estado
+    // más alto es el de la lista, y su altura no depende del ancho dentro de
+    // un tramo —355,5 de 360 a 639; 239,5 de 640 para arriba—, así que el
+    // piso puede calzar en todos lados. Si un día alguien mete ahí un texto
+    // que envuelve distinto según el ancho, esto se pone rojo y hay que
+    // decidirlo, que es lo que se quiere.
+    // 16 del `p-4` de abajo, más 20 de tolerancia.
+    expect(sobra, `a ${ancho} px sobran ${sobra} px debajo del contenido`).toBeLessThanOrEqual(36);
+  });
+}
