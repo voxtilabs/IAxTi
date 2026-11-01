@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { EncabezadoDePagina } from '@iaxti/ui/react';
 import { Conversacion } from './conversacion';
+import { Conversaciones } from './conversaciones';
 import { SenalDeLaIa } from './senal-de-la-ia';
 
 /**
@@ -31,6 +32,7 @@ export function PantallaDelAsistente() {
           que empezar como las demás, y sin él volvía a no tener `h1`. */}
       <EncabezadoDePagina rotulo="Asistente" titulo="Tu asistente" className="shrink-0 mb-0" />
       <SenalDeLaIa />
+      <Conversaciones />
       <section
         aria-label="Conversación con IAxTi"
         className="pulso-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-tarjeta border border-line bg-raised"

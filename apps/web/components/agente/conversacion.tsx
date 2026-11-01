@@ -241,7 +241,15 @@ export function Conversacion({ alto }: { alto?: string }) {
         {/* `px-4` en angosto (#1133): con `px-6` fijos, el relleno del panel
             más el del compositor dejaban al campo ~130 px a 360. */}
         <div className="flex flex-col gap-2 border-t border-line px-4 py-4 sm:px-6">
-          {aviso && <AvisoResultado tono="error">{aviso}</AvisoResultado>}
+          {/* Con su rastro (#788): un error sin `code · requestId` deja a la
+              persona sin nada que pegar al pedir ayuda. Mismo patrón que la
+              bandeja. */}
+          {aviso && (
+            <AvisoResultado tono="error">
+              {aviso.texto}
+              {aviso.rastro && <span className="dato mt-1 block break-all">{aviso.rastro}</span>}
+            </AvisoResultado>
+          )}
           {/* Apilado en angosto (#1133). En el popup esto vivía en un diálogo
               de `max-w-2xl` y la fila entraba; incrustado en una columna de
               680 que a 360 se vuelve ~300, no: «Pídele lo que necesitas»

@@ -82,6 +82,20 @@ export const REPETIBLES: Repetible[] = [
     moduleId: 'conversations',
     repeat: { pattern: '0 4 * * *', tz: 'America/Santiago' },
   },
+  // La retención de los hilos con el Agente General (#1131, ADR-0029).
+  //
+  // A las 4:15 y no a las 4:00: media hora antes corre la purga de
+  // conversaciones, que es la pesada. Pisarlas deja dos barridos grandes
+  // peleando por la misma base a la hora en que nadie mira.
+  //
+  // Sin esto, los 30 días que la migración declara en un comentario y el ADR
+  // promete por escrito no los aplicaría nadie — que es exactamente el
+  // defecto que este repo nombra como el peor.
+  {
+    nombre: 'agents.threads.purge',
+    moduleId: 'agents',
+    repeat: { pattern: '15 4 * * *', tz: 'America/Santiago' },
+  },
   {
     nombre: 'billing.sweep',
     moduleId: 'billing',

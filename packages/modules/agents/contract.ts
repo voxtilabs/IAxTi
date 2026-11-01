@@ -27,6 +27,20 @@ export {
   VENTANA_ATRIBUCION_DIAS,
 } from './application/objetivo-medido';
 export type { TasaDeObjetivo } from './application/objetivo-medido';
+/*
+ * Solo lo que se usa desde FUERA del módulo (#664): los cuatro que llama el
+ * controlador y la purga que corre el worker. `tituloDesdeElPrimerTurno` y
+ * `DIAS_DE_RETENCION` son internos — un contrato que expone lo que nadie
+ * abre deja de ser una decisión.
+ */
+export {
+  listarHilos,
+  leerHilo,
+  guardarHilo,
+  borrarHilo,
+  purgarHilosViejos,
+} from './application/hilos-del-agente';
+export type { Hilo, HiloResumen } from './application/hilos-del-agente';
 export { OBJETIVOS, DEFINICIONES, esObjetivo, resolverObjetivo, componerPrompt } from './domain/objetivo';
 // Qué le podemos mandar a un proveedor sin garantías de datos (ADR-0023).
 export { vaRedactadoAlProveedor, proveedorPermitidoParaTarea } from './domain/config';

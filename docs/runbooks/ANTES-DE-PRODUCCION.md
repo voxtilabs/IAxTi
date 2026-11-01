@@ -76,6 +76,7 @@ número, el que manda es el código:
 |---|---|---|
 | `billing.sweep` | 04:00 | la prueba gratis no termina, el impago no suspende, la cancelación no se hace efectiva |
 | `billing.fx` | 09:40 | no se guarda el dólar del día, y los costos de ese día se muestran sin convertir a pesos — el panel lo dice en vez de usar el dólar de otra fecha (#796) |
+| `agents.threads.purge` | 04:15 | las conversaciones de configuración con el Agente General no caducan: lo que el dueño le contó de su negocio queda guardado para siempre, contra los 30 días que promete ADR-0029 |
 | `conversations.retention` | 04:00 | los datos no se purgan según el plan (y eso es un compromiso legal) |
 | `conversations.archive` | 03:00 | las conversaciones viejas no se archivan |
 | `conversations.auto_resolve` | cada hora | las conversaciones resueltas quedan abiertas para siempre |

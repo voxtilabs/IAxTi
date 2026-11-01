@@ -7,6 +7,9 @@ import {
   Query,
   Req,
   ServiceUnavailableException,
+  Delete,
+  Param,
+  NotFoundException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { PoolClient } from 'pg';
@@ -22,6 +25,10 @@ import {
   motivoDelProveedor,
   providerAvailable,
   type Provider,
+  listarHilos,
+  leerHilo,
+  guardarHilo,
+  borrarHilo,
 } from '@iaxti/module-agents';
 import { agenteGeneralApagado } from '@iaxti/module-platform';
 import { onboardingStatus, type Verificador } from '@iaxti/module-organizations';
@@ -361,6 +368,32 @@ const modulosActivos = () =>
  */
 const FALTA_LA_PREGUNTA = 'Falta lo que quieres preguntarle.';
 
+/**
+ * El hilo que la pantalla manda a guardar (#1131).
+ *
+ * Los turnos van como `unknown` por el mismo motivo que en
+ * `VueltaDeConversacion`: lo que se guarda es lo que la pantalla dibuja, y
+ * exigirle forma acá convertiría en un 400 un turno que hoy se dibuja sin
+ * problema. Lo único que se valida es lo que el servidor va a USAR —el rol y
+ * el texto, para el título— y el tope, que sí es una decisión del servidor.
+ */
+const HiloQueSeGuarda = z.object({
+  id: z.string().uuid({ error: 'Esa conversación no existe.' }).nullish(),
+  turnos: z
+    .array(z.unknown(), { error: 'No hay nada que guardar.' })
+    .max(500, { error: 'La conversación es demasiado larga para guardarla entera.' })
+    .transform((llegaron) =>
+      llegaron.map((t) => {
+        const turno = t as { role?: unknown; content?: unknown };
+        return {
+          ...(turno as object),
+          role: typeof turno.role === 'string' ? turno.role : 'user',
+          content: typeof turno.content === 'string' ? turno.content : '',
+        };
+      }),
+    ),
+});
+
 const VueltaDeConversacion = z.object({
   // El elemento es `unknown` a propósito: los turnos se NORMALIZAN, no se
   // rechazan. Un turno con rol raro o sin texto se descarta igual que antes;
@@ -590,5 +623,93 @@ export class AgenteGeneralController {
         });
       }
     });
+  }
+
+  /**
+   * Las conversaciones anteriores de QUIEN pregunta (#1131, ADR-0029).
+   *
+   * El comentario de `conversar` decía que el hilo no se guardaba «a
+   * propósito», y era cierto mientras el agente fue un popup. Desde #1135 es
+   * la pantalla «Tu asistente» y el dueño del producto pidió verlas: no hay
+   * historial con un hilo en memoria.
+   *
+   * Personal, no del negocio: lo que una persona le contó al agente no
+   * aparece en la pantalla de otra, aunque compartan tenant. Por eso el
+   * filtro lleva `userId` además del `tenant_id` que ya impone RLS.
+   */
+  /**
+   * Guarda el hilo completo, creándolo o reemplazándolo (#1131).
+   *
+   * Endpoint aparte y no dentro de `conversar` porque lo que hay que guardar
+   * NO es lo que `conversar` recibe. Ese cuerpo lleva solo los turnos de
+   * texto —sin pasos ni propuestas, a propósito: mandárselos de vuelta al
+   * modelo sería pagar tokens por algo que él mismo generó—. Lo que se
+   * vuelve a dibujar incluye los pasos y, sobre todo, si una propuesta se
+   * aplicó o se descartó; eso vive en la pantalla.
+   *
+   * También se llama al RESOLVER una propuesta, que cambia un turno
+   * anterior. Por eso reemplaza el hilo entero en vez de agregar el último.
+   */
+  @Post('hilos')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Guarda la conversación para poder volver a ella' })
+  async guardar(
+    @Req() request: WithUser,
+    @Cuerpo(HiloQueSeGuarda) body: z.infer<typeof HiloQueSeGuarda>,
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      guardarHilo(c, {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        id: body.id ?? null,
+        turnos: body.turnos,
+      }),
+    );
+  }
+
+  @Get('hilos')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Mis conversaciones anteriores con el Agente General' })
+  async hilos(@Req() request: WithUser) {
+    const actor = actorOf(request);
+    const items = await withTenant(pool(), actor.tenantId, (c) =>
+      listarHilos(c, { tenantId: actor.tenantId, userId: actor.userId }),
+    );
+    return { items };
+  }
+
+  @Get('hilos/:id')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Una conversación anterior, para seguirla' })
+  async hilo(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    const hilo = await withTenant(pool(), actor.tenantId, (c) =>
+      leerHilo(c, { tenantId: actor.tenantId, userId: actor.userId, id }),
+    );
+    if (!hilo) {
+      throw new NotFoundException({
+        code: 'HILO_NOT_FOUND',
+        message: 'Esa conversación ya no está. Puede que se haya borrado o que haya vencido.',
+      });
+    }
+    return hilo;
+  }
+
+  @Delete('hilos/:id')
+  @RequirePermission('agents.use')
+  @ApiOperation({ summary: 'Borra una conversación anterior' })
+  async borrarHilo(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    const fue = await withTenant(pool(), actor.tenantId, (c) =>
+      borrarHilo(c, { tenantId: actor.tenantId, userId: actor.userId, id }),
+    );
+    if (!fue) {
+      throw new NotFoundException({
+        code: 'HILO_NOT_FOUND',
+        message: 'Esa conversación ya no está.',
+      });
+    }
+    return { borrada: true };
   }
 }
