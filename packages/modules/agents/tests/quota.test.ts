@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { periodStart } from '@iaxti/module-organizations';
 import {
   afterExecutionQuota,
   costPerDay,
@@ -26,12 +27,21 @@ const fakeFactory: ModelPortFactory = (provider, model) => ({
   },
 });
 
+/**
+ * El ciclo lo da `periodStart()`, no el reloj de Postgres (#1137).
+ *
+ * Decía `date_trunc('month', now())::date`, que resuelve en la zona del
+ * servidor de base, y `quota.ts` lee con `periodStart()` en `IAXTI_TZ`. En el
+ * borde del mes escribía la fila de un mes y el código la buscaba en el otro,
+ * así que la cuota siempre daba cero y las cuatro pruebas de umbral se caían
+ * a la vez.
+ */
 async function fijarUso(valor: number): Promise<void> {
   await admin.query(
     `INSERT INTO usage_meters (tenant_id, metric, period_start, value)
-     VALUES ($1, 'ia_executions', date_trunc('month', now())::date, $2)
+     VALUES ($1, 'ia_executions', $3::date, $2)
      ON CONFLICT (tenant_id, metric, period_start) DO UPDATE SET value = $2`,
-    [tenant, valor],
+    [tenant, valor, periodStart()],
   );
 }
 

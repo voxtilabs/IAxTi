@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { periodStart } from '@iaxti/module-organizations';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { changePlan, getPlanLimits } from '@iaxti/module-organizations';
@@ -23,8 +24,23 @@ const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:
 let admin: Pool;
 let tenant: string;
 let telefono = 56_955_100_000;
-/** El ciclo tal como lo escribe `periodStart()`: `AAAA-MM-01`, no `AAAA-MM`. */
-const CICLO = `${new Date().toISOString().slice(0, 7)}-01`;
+/**
+ * El ciclo lo da `periodStart()`, no una copia (#1137).
+ *
+ * Decía `new Date().toISOString().slice(0, 7)`, que es UTC, y el producto lo
+ * calcula con `periodStart()` en `IAXTI_TZ` —`America/Santiago` por defecto—.
+ * Entre las 00:00 y las 03:00 UTC del día 1 no están en el mismo mes: la
+ * prueba escribía la fila del mes nuevo y el código la buscaba en el
+ * anterior. CI se puso rojo a las 00:41 UTC del 1 de noviembre.
+ *
+ * `.claude/rules/testing.md` ya lo decía —«una prueba no mide el reloj de la
+ * máquina»— y acá hay un agravante: falla TRES HORAS AL MES, así que entre
+ * borde y borde parece verde. No lo iba a encontrar nadie mirando.
+ *
+ * Y una guarda que recalcula lo que vigila, vigila su propia copia: si
+ * `periodStart()` cambiara de criterio, esto seguiría verde contra sí mismo.
+ */
+const CICLO = periodStart();
 
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
