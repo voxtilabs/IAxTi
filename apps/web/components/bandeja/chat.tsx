@@ -2,7 +2,6 @@
 
 import { AvisoResultado, toast } from '@iaxti/ui/react';
 import { PanelALaEspera } from './panel-a-la-espera';
-import { ListaDeAtajos } from './atajos-de-la-bandeja';
 
 import { Bot, Paperclip, ThumbsDown, ThumbsUp } from 'lucide-react';
 
@@ -373,12 +372,12 @@ export function Chat({
             <IconoVolver className="h-4 w-4" /> Ver la lista
           </Button>
         )}
-        extra={(
-          <div className="mt-5 hidden w-full border-t border-line pt-6 text-left lg:block">
-            <p className="rotulo mb-3">Para ir más rápido</p>
-            <ListaDeAtajos ancho="panel" />
-          </div>
-        )}
+        /* Sin la chuleta de atajos (#1165). Vivía acá y además detrás del «?»
+           de arriba, o sea dos copias; y esta estaba en el peor lugar: quien
+           abre la bandeja por primera vez todavía no sabe qué es la pantalla,
+           y lo primero que le decíamos eran combinaciones de teclas. Desde
+           que la bandeja abre con la primera conversación puesta, este panel
+           solo aparece cuando NO hay ninguna, que es cuando menos sirve. */
       >
         Elige una conversación de la lista para atenderla aquí.
       </PanelALaEspera>

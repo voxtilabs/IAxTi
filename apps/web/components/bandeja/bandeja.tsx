@@ -193,6 +193,38 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
     if (id && /^[0-9a-f-]{36}$/i.test(id)) { setSeleccion(id); setPane('chat'); }
   }, [abrirDesdeUrl]);
 
+  /**
+   * En escritorio, la bandeja abre con la primera conversación puesta (#1165).
+   *
+   * Medido antes de esto a 1.440 px: la lista usaba 440 y los otros 1.000
+   * quedaban en blanco, con la chuleta de atajos de teclado al medio. Lo
+   * primero que ve alguien al abrir la pantalla donde más se trabaja no puede
+   * ser `j / k`.
+   *
+   * Ningún buzón hace eso: Gmail, Front, Intercom y Superhuman abren la
+   * primera. La pantalla de tres paneles existe para ver lista, conversación
+   * y ficha a la vez; con el centro vacío son dos paneles y un hueco.
+   *
+   * En CELULAR no: ahí los paneles se apilan y la lista es la pantalla, así
+   * que abrir sola dejaría a alguien adentro de una conversación que no pidió
+   * y con el botón de volver como única salida.
+   *
+   * Una sola vez por montaje, y por eso el `ref` y no mirar solo `seleccion`:
+   * sin él, cerrar una conversación volvería a abrir la primera y no habría
+   * forma de quedarse en la lista.
+   */
+  const yaAbrioSola = useRef(false);
+  useEffect(() => {
+    if (yaAbrioSola.current) return;
+    // Si la URL ya eligió una, esa manda y no se vuelve a intentar.
+    if (seleccion) { yaAbrioSola.current = true; return; }
+    if (!items || items.length === 0) return;
+    if (!window.matchMedia('(min-width: 1024px)').matches) return;
+    yaAbrioSola.current = true;
+    setSeleccion(items[0].id);
+    setPane('chat');
+  }, [items, seleccion]);
+
   const cargarLista = useCallback(async () => {
     if (!session || !tenant) return;
     const query = vista === 'todas' ? '' : `?view=${vista}`;
