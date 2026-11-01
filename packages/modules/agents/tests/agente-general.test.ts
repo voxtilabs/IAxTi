@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { periodStart } from '@iaxti/module-organizations';
 import { CATALOGO } from '../application/catalogo';
 import { FalloDelProveedor } from '../application/fallo-del-proveedor';
 import {
@@ -552,10 +553,12 @@ describe('todo fallo del Agente General deja rastro (#867)', () => {
   it('la cuota agotada se DEVUELVE, no se lanza, y deja fila', async () => {
     const otro = (await admin.query("INSERT INTO tenants (name) VALUES ('sin-cuota-ag') RETURNING id")).rows[0].id;
     await admin.query(
+      // El ciclo lo da `periodStart()`, no el reloj de la base (#1137): en el
+      // borde del mes escribían meses distintos y la cuota salía en cero.
       `INSERT INTO usage_meters (tenant_id, metric, period_start, value)
-       VALUES ($1, 'ia_executions', date_trunc('month', now()), 999999)
+       VALUES ($1, 'ia_executions', $2::date, 999999)
        ON CONFLICT (tenant_id, metric, period_start) DO UPDATE SET value = 999999`,
-      [otro],
+      [otro, periodStart()],
     );
     let genero = false;
     const r = await unaVuelta(otro, {

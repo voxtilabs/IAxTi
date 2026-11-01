@@ -68,6 +68,7 @@ import {
   modulosDelPlan,
   modulosVendibles,
   zonaDelTenant,
+  periodStart,
 } from '@iaxti/module-organizations';
 import { tenantsPorBorrar, usdClpRate } from '@iaxti/module-billing';
 import { withTenant, withAuthenticatedUser } from '@iaxti/db';
@@ -724,8 +725,19 @@ class PlatformController {
            FROM tenants t
            LEFT JOIN plan_limits pl ON pl.plan = t.plan
            LEFT JOIN usage_meters um ON um.tenant_id = t.id AND um.metric = 'api_requests'
-                AND um.period_start = date_trunc('month', now())::date
+                AND um.period_start = $1::date
           ORDER BY used DESC, t.name`,
+        // El ciclo lo da `periodStart()` y no `date_trunc('month', now())`
+        // (#1137). Las filas de `usage_meters` las escribe `incrementUsage`,
+        // que resuelve el mes en `IAXTI_TZ` —`America/Santiago` por defecto—;
+        // esta consulta lo resolvía en la zona del servidor de base.
+        //
+        // No es un empate de estilos: entre las 00:00 y las 03:00 UTC del día
+        // 1, las dos cuentas dan meses distintos y el JOIN no encuentra nada.
+        // El listado de consumo de la plataforma mostraba CERO para todos los
+        // tenants durante las primeras horas de cada mes — y «cero» ahí no se
+        // lee como un error, se lee como que nadie usó la API.
+        [periodStart()],
       );
       return r.rows;
     } finally {
