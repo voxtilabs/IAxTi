@@ -119,6 +119,12 @@ module.exports = {
         // junto al más ancho que ya se usaba (2xl = 672), así que nada se
         // estira ni se achica de golpe.
         seccion: '680px',
+        // El ancho de lectura de una conversación (#1169). El hilo del
+        // asistente usaba los 1.120 px de la columna, o sea líneas de ~120
+        // caracteres; el MISMO componente en el popup corre a 672. Lo comparten
+        // el hilo y el compositor: si solo se acota el hilo, el campo de
+        // escribir queda más ancho que lo que se lee y el eje se parte.
+        hilo: '720px',
         /**
          * Qué tan largo es lo que se espera en un CAMPO (#1150).
          *
