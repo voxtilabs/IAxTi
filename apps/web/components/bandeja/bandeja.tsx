@@ -86,6 +86,34 @@ const PAGINA_MENSAJES = 50;
  */
 const RESPALDO_MS = 20_000;
 /**
+ * Y cada cuánto cuando alguien está MIRANDO esa pestaña (#1198).
+ *
+ * El motivo de los 20 s de arriba es correcto por la mitad: describe pestañas
+ * que nadie mira. La que alguien tiene adelante es donde el atraso se nota
+ * —mandar un WhatsApp y esperar veinte segundos a verlo se siente como una
+ * bandeja muerta— y donde la carga la justifica una persona esperando.
+ *
+ * La carga TOTAL baja igual, porque la pestaña escondida deja de pedir: hoy una
+ * olvidada en otro escritorio pide tres veces por minuto para siempre.
+ */
+const RESPALDO_MIRANDO_MS = 4_000;
+
+/**
+ * Cada cuánto pedir, o `null` para no pedir (#1198).
+ *
+ * Vive aparte y exportada porque es LA decisión de este arreglo, y adentro de
+ * un `useEffect` solo se puede probar montando la bandeja entera —sesión, SDK,
+ * chat y ficha—. Acá se prueban los cuatro estados de una pestaña sin arnés,
+ * y una guarda de fuente comprueba que el efecto la use y limpie sus escuchas.
+ */
+export function intervaloDelRespaldo(
+  visibilidad: DocumentVisibilityState,
+  conFoco: boolean,
+): number | null {
+  if (visibilidad === 'hidden') return null;
+  return conFoco ? RESPALDO_MIRANDO_MS : RESPALDO_MS;
+}
+/**
  * Cuánto se espera antes de DECIR que no hay tiempo real (#1116).
  *
  * `enVivo` arranca en false porque al cargar todavía no conectó, y conectar
@@ -428,8 +456,33 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
    */
   useEffect(() => {
     if (enVivo || !session || !tenant) return;
-    const t = setInterval(() => void cargarLista(), RESPALDO_MS);
-    return () => clearInterval(t);
+    let t: ReturnType<typeof setInterval> | undefined;
+    const parar = () => { if (t) { clearInterval(t); t = undefined; } };
+    /**
+     * Escondida NO pide (#1198). `visibilityState` y no `hasFocus` para esto:
+     * una pestaña visible en el segundo monitor, sin foco, sí se mira.
+     */
+    const acomodar = (recienVuelta: boolean) => {
+      parar();
+      const cada = intervaloDelRespaldo(document.visibilityState, document.hasFocus());
+      if (cada === null) return;
+      // Al volver, lo que pasó mientras no mirabas es lo primero que querés
+      // ver: una vez al tiro y recién después el intervalo.
+      if (recienVuelta) void cargarLista();
+      t = setInterval(() => void cargarLista(), cada);
+    };
+    acomodar(false);
+    const alVolver = () => acomodar(true);
+    const alCambiarFoco = () => acomodar(false);
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', alCambiarFoco);
+    window.addEventListener('blur', alCambiarFoco);
+    return () => {
+      parar();
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', alCambiarFoco);
+      window.removeEventListener('blur', alCambiarFoco);
+    };
   }, [enVivo, session, tenant, cargarLista]);
 
   // Decirlo recién pasada la gracia, y dejar de decirlo apenas vuelve.
