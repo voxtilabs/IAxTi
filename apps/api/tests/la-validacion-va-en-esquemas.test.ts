@@ -37,7 +37,12 @@ const CON_MOTIVO: Record<string, number> = {
   // cohorte son los días que se piden, así que la regla es del módulo y el
   // controlador traduce SOLO `RangoInvalido` — una base caída no es un dato mal
   // escrito.
-  'deals.controller.ts': 5,
+  // Y el sexto es la regla de las tres etapas al crear un embudo (#1172): la
+  // forma del cuerpo SÍ va en esquema —`EmbudoNuevo`, de donde el agente saca
+  // los argumentos— pero «hace falta una abierta, una ganada y una perdida» es
+  // de `validateStages`, en el dominio. Duplicarla acá sería tener la misma
+  // regla en dos lugares, que es exactamente lo que este archivo evita.
+  'deals.controller.ts': 6,
   // Relevo del dominio: el mensaje lo arma comparando `custom` contra los
   // campos que DECLARÓ ese negocio (tipo, obligatoriedad, opciones de lista).
   // El esquema no sabe qué declaró cada tenant.

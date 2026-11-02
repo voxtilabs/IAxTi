@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
+import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { resolveValueClp, validateStages } from '../domain/pipeline';
 import type { StageInput, StageType } from '../domain/pipeline';
 
@@ -81,9 +82,32 @@ function rowToDeal(row: Record<string, unknown>): Deal {
   };
 }
 
+/**
+ * El `actor` es OPCIONAL por los dos llamadores que ya existen (#1172).
+ *
+ * Esta función la usan el seed y el configurador del agente, que crean embudos
+ * como parte de armar un negocio y no tienen un actor humano al que atribuirle
+ * la acción. Dejarlo obligatorio habría forzado a inventarles uno, que es peor
+ * que no auditar: una fila de auditoría con un actor falso es una pista que
+ * manda al lugar equivocado.
+ *
+ * Con actor, se audita EN LA MISMA transacción, que es lo que pide la regla y
+ * lo que hace que la fila no pueda existir sin su embudo ni al revés.
+ *
+ * Y queda medido: hoy NINGUNA mutación de embudos audita —ni renombrar, ni
+ * agregar etapa, ni reordenar— y el configurador tampoco pasa actor. Eso es un
+ * hueco anterior a este cambio y tiene su propio issue; no se tapa acá porque
+ * taparlo a medias sería peor que dejarlo visible.
+ */
 export async function createPipeline(
   client: PoolClient,
-  input: { tenantId: string; name: string; vertical?: string; stages: StageInput[] },
+  input: {
+    tenantId: string;
+    name: string;
+    vertical?: string;
+    stages: StageInput[];
+    actor?: { actor: string; actorKind: ActorKind; requestId?: string };
+  },
 ): Promise<{ pipeline: Pipeline; stages: Stage[] }> {
   validateStages(input.stages);
   const p = await client.query(
@@ -104,6 +128,21 @@ export async function createPipeline(
       [input.tenantId, pipeline.id, s.name, position, s.type, s.probability ?? null, s.expectedDays ?? null],
     );
     stages.push(rowToStage(r.rows[0]));
+  }
+  if (input.actor) {
+    await writeAudit(client, {
+      tenantId: input.tenantId,
+      actor: input.actor.actor,
+      actorKind: input.actor.actorKind,
+      requestId: input.actor.requestId,
+      action: 'crm.pipeline.created',
+      resource: 'pipeline',
+      resourceId: pipeline.id,
+      result: 'ok',
+      // Los nombres de las etapas, no sus datos: sirve para reconstruir qué se
+      // creó sin guardar nada de negocio.
+      metadata: { name: pipeline.name, etapas: stages.map((e) => e.name) },
+    });
   }
   return { pipeline, stages };
 }

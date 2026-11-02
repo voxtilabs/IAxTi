@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
+import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
 import { resolveValueClp, validateStages } from '../domain/pipeline';
 import {
   createDeal,
@@ -55,6 +55,19 @@ beforeAll(async () => {
     'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, pipelines, stages, deals, loss_reasons, deal_stage_history TO iaxti_app',
   );
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
+  /**
+   * Y audit_log, desde #1172: `createPipeline` con actor escribe auditoría.
+   *
+   * Esto faltaba y en LOCAL no se notaba, porque el rol de la base local es
+   * superusuario y los permisos no se evalúan. CI usa un rol restringido y lo
+   * cazó con «permission denied for table audit_log». Es la misma trampa que
+   * hace que RLS no se pruebe en local: el entorno más permisivo deja pasar lo
+   * que el real rechaza.
+   *
+   * Solo INSERT: la tabla es append-only y el rol de aplicación no tiene —ni
+   * debe tener— UPDATE ni DELETE.
+   */
+  await admin.query('GRANT SELECT, INSERT ON audit_log TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));
 
   const a = await admin.query("INSERT INTO tenants (name) VALUES ('deals-a') RETURNING id");
@@ -84,6 +97,14 @@ afterAll(async () => {
     await admin.query('DELETE FROM loss_reasons WHERE tenant_id = $1', [t]);
     await admin.query('DELETE FROM contacts WHERE tenant_id = $1', [t]);
     await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [t]);
+    // Desde #1172 este archivo escribe auditoría, y `audit_log` tiene FK al
+    // tenant: sin esto el borrado del tenant falla y el ARCHIVO queda rojo con
+    // las 13 pruebas en verde, que es un modo de falla difícil de leer.
+    //
+    // Con `sinTriggers` porque la tabla es append-only de verdad: el DELETE lo
+    // bloquea un trigger, no un permiso, así que ni el dueño puede. El ayudante
+    // existe en `@iaxti/db` justo para esto y su ejemplo es este caso.
+    await sinTriggers(admin, (c) => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [t]));
     await admin.query('DELETE FROM tenants WHERE id = $1', [t]);
   }
   await admin.end();
@@ -101,6 +122,76 @@ describe('dominio de pipelines (SPEC §10)', () => {
       ]),
     ).toThrow(/repetida/);
     expect(() => validateStages(etapasVentas)).not.toThrow();
+  });
+
+  it('crear un embudo CON actor lo audita en la misma transacción (#1172)', async () => {
+    /**
+     * Esta prueba vive acá y no en `apps/api/tests` a propósito, y lo comprobé
+     * equivocándome primero: puse la afirmación de la auditoría en la prueba de
+     * la API, quité la auditoría de la fuente, y **pasó igual** — porque
+     * `apps/api` corre contra el `dist` compilado de este paquete. Recién al
+     * recompilar se puso roja. Es la trampa que la regla de testing del repo
+     * tiene escrita, y una prueba que solo falla si alguien se acordó de
+     * recompilar no sostiene nada.
+     */
+    const actor = { actor: 'usuario-de-prueba', actorKind: 'user' as const, requestId: 'req_prueba' };
+    const creado = await withTenant(app, tenantA, (c) =>
+      createPipeline(c, {
+        tenantId: tenantA,
+        name: 'Con rastro',
+        stages: [
+          { name: 'Uno', type: 'open' },
+          { name: 'Ganado', type: 'won' },
+          { name: 'Perdido', type: 'lost' },
+        ],
+        actor,
+      }),
+    );
+    const filas = await admin.query(
+      "SELECT actor, actor_kind, resource_id, metadata FROM audit_log WHERE tenant_id = $1 AND action = 'crm.pipeline.created'",
+      [tenantA],
+    );
+    expect(filas.rows).toHaveLength(1);
+    expect(filas.rows[0].actor).toBe('usuario-de-prueba');
+    expect(filas.rows[0].actor_kind).toBe('user');
+    expect(filas.rows[0].resource_id).toBe(creado.pipeline.id);
+    expect(filas.rows[0].metadata.etapas).toEqual(['Uno', 'Ganado', 'Perdido']);
+  });
+
+  it('crear un embudo SIN actor no audita, y eso es a propósito (#1172)', async () => {
+    /**
+     * El seed y el configurador del agente crean embudos armando un negocio, y
+     * no tienen un actor humano a quién atribuirle la acción. Inventarles uno
+     * sería peor que no auditar: una fila con un actor falso es una pista que
+     * manda al lugar equivocado.
+     *
+     * La otra mitad importa igual: si algún día esto empieza a auditar con un
+     * actor de relleno, esta prueba lo caza.
+     *
+     * Va en `tenantA` y NO en `tenantB`: ese es el tenant vacío con el que la
+     * prueba de RLS demuestra el aislamiento (`expect(pipelines.rowCount).toBe(0)`).
+     * Escribir ahí la rompía — y la rompí, hasta que la mordida me lo mostró.
+     */
+    const antes = await admin.query(
+      "SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'crm.pipeline.created'",
+      [tenantA],
+    );
+    await withTenant(app, tenantA, (c) =>
+      createPipeline(c, {
+        tenantId: tenantA,
+        name: 'Sin rastro',
+        stages: [
+          { name: 'Uno', type: 'open' },
+          { name: 'Ganado', type: 'won' },
+          { name: 'Perdido', type: 'lost' },
+        ],
+      }),
+    );
+    const despues = await admin.query(
+      "SELECT count(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'crm.pipeline.created'",
+      [tenantA],
+    );
+    expect(despues.rows[0].n).toBe(antes.rows[0].n);
   });
 
   it('el valor en UF exige la UF del día y congela el equivalente en pesos', () => {
