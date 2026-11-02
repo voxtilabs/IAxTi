@@ -190,7 +190,45 @@ export function codigoDelProveedor(cuerpo: string): number | string | undefined 
   return Object.keys(CAUSAS_META).find((k) => cuerpo.includes(k));
 }
 
-export function mensajeDeRechazo(status: number): string {
+/**
+ * ¿El proveedor dijo que el emisor está desactivado? (#1178)
+ *
+ * Vive aparte y mira el CUERPO por la misma razón que `esTopeDiario`: la
+ * respuesta no depende del código HTTP. Zavu manda 403 para dos cosas que no
+ * se parecen —el emisor desactivado y el destino no permitido— y lo que las
+ * distingue está en el texto.
+ *
+ * Medido contra la API de producción el 02-11, mandando el mismo cuerpo a tres
+ * emisores del mismo proyecto:
+ *
+ *     {"code":"forbidden","message":"This connection is deactivated. Activate
+ *      it from Accounts in the dashboard, or with POST /v1/senders/{senderId}/
+ *      channels/{channel}/activate, to send and receive on this channel."}
+ *
+ * Se busca solo `deactivated`, que es el término que el proveedor usa como
+ * marcador, no la frase entera: una frase entera se rompe con la primera
+ * reescritura de su documentación y eso devuelve al mensaje equivocado sin que
+ * nada se ponga rojo. Si el marcador no aparece, cae al genérico del 403, que
+ * es el comportamiento seguro: decir menos, no decir otra cosa.
+ */
+export function esEmisorDesactivado(cuerpo: string): boolean {
+  return /deactivated|desactivad/i.test(cuerpo ?? '');
+}
+
+/**
+ * El cuerpo es OBLIGATORIO y no opcional a propósito (#1178).
+ *
+ * Con un parámetro opcional, un llamador que no lo pase recibe el mensaje
+ * equivocado y nada se queja: ni el compilador ni una prueba. Es exactamente
+ * la forma del defecto que este repo nombra declarado-y-no-aplicado, y acá se
+ * puede cerrar gratis — hacerlo obligatorio pone la omisión en `typecheck`.
+ *
+ * Y conceptualmente es lo correcto: un rechazo no es un número, es un número
+ * con un motivo. La lección de #596 y de este issue es la misma —del status
+ * solo no se puede decidir qué decirle a una persona—, así que la firma lo
+ * dice.
+ */
+export function mensajeDeRechazo(status: number, cuerpo: string): string {
   if (status === 401) {
     return 'El canal rechazó nuestras credenciales. Un administrador tiene que reconectarlo en Canales.';
   }
@@ -208,7 +246,20 @@ export function mensajeDeRechazo(status: number): string {
      * reconectar un canal sano, y reconectarlo no arreglaba nada, así que se
      * hacía otra vez. Es la peor clase de mensaje: no solo no ayuda, manda en
      * la dirección contraria.
+     *
+     * **Y este 403 tenía el mismo defecto un nivel más abajo (#1178):** daba
+     * por hecho que un 403 siempre es «ese destino no». El emisor desactivado
+     * también llega como 403, y mandaba a revisar el número del contacto, la
+     * ventana de 24 h y los permisos del destino cuando lo que faltaba era un
+     * clic en el panel del proveedor. Un solo mensaje para dos causas tiene que
+     * estar equivocado en una.
      */
+    if (esEmisorDesactivado(cuerpo)) {
+      return (
+        'Este emisor está desactivado en Zavu. Actívalo en la cuenta del proveedor ' +
+        'y vuelve a intentar: la credencial y el número están bien.'
+      );
+    }
     return (
       'El canal no tiene permitido escribirle a ese número. La credencial está bien: ' +
       'lo que falta es el permiso para ese destino.'
