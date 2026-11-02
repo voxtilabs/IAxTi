@@ -126,6 +126,10 @@ export class WebhooksController {
     // Todavía no existe una referencia visible/confirmada: no atribuirlo a
     // firma inválida (401 no promete reentrega), ni aceptar el mensaje.
     if(account.state==='connecting') {
+      // Se ANOTA antes de rechazar (#1180): si no, el canal a medio conectar
+      // rechaza todo sin dejar huella, y el diagnóstico concluye «nunca llegó
+      // un webhook» y manda a cambiar la URL del proveedor, que está bien.
+      await anotar(account.tenantId, account.id, 'conexion_sin_confirmar');
       response.setHeader('Retry-After','5');
       throw new ServiceUnavailableException({code:'WEBHOOK_NOT_READY',message:'La conexión aún se está confirmando. Reintenta la entrega.'});
     }

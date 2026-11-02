@@ -133,6 +133,31 @@ describe('POST /webhooks/channels/:accountId', () => {
     expect(despues).toBe(antes);
   });
 
+  it('un canal a medio conectar deja rastro del rechazo, no silencio (#1180)', async () => {
+    /**
+     * El 503 por `connecting` salía ANTES de cualquier `anotarWebhook`, así que
+     * un canal a medio conectar rechazaba cada webhook sin dejar huella. El
+     * diagnóstico veía el rastro vacío, concluía «nunca llegó un webhook» y
+     * mandaba a cambiar la URL en el panel del proveedor — una configuración
+     * que estaba bien.
+     *
+     * Medido el 02-11: cinco mensajes entre 00:13 y 03:13 estaban en el
+     * proveedor como `inbound delivered` y ninguno había dejado rastro acá.
+     */
+    await admin.query("UPDATE channel_accounts SET state = 'connecting' WHERE id = $1", [cuenta]);
+    try {
+      const res = await disparar({ mensajes: [{ id: 'sin-confirmar-1', from: '+56955550003', text: 'hola' }] });
+      // El 503 con Retry-After no cambia: es lo que conserva el mensaje del
+      // cliente, porque un proveedor sabe reintentar eso y no un 500.
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('5');
+      const r = await admin.query('SELECT last_webhook_result FROM channel_accounts WHERE id = $1', [cuenta]);
+      expect(r.rows[0].last_webhook_result).toBe('conexion_sin_confirmar');
+    } finally {
+      await admin.query("UPDATE channel_accounts SET state = 'active', last_webhook_result = NULL, last_webhook_at = NULL WHERE id = $1", [cuenta]);
+    }
+  });
+
   it('deja rastro de lo que pasó: aceptado y firma inválida se distinguen (#434)', async () => {
     // Es la distinción que costó horas dos veces: «nunca llegó un webhook»
     // y «llegan pero la firma no calza» se veían idénticos desde adentro,

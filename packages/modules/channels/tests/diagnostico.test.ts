@@ -276,6 +276,30 @@ describe('el canal que recibe y no manda (#526)', () => {
     expect(d.problema).toBe('webhook');
   });
 
+  it('llegaron y los rechazamos nosotros: el consejo NO es la URL (#1180)', async () => {
+    /**
+     * «No llegó ninguno» y «llegaron y los devolvimos» se arreglan en lugares
+     * distintos, que es textual el motivo por el que esta tabla existe (#434).
+     * Antes este caso no dejaba rastro y caía en el primero, así que el
+     * producto mandaba a cambiar una URL sana. Eso no es solo no ayudar: es
+     * mandar en la dirección contraria.
+     */
+    const cuenta = await cuentaNueva('a medio conectar');
+    await en((c) =>
+      anotarWebhook(c, { tenantId: tenant, accountId: cuenta.id, resultado: 'conexion_sin_confirmar' }),
+    );
+    const d = await en((c) =>
+      diagnosticarCanal(c, { tenantId: tenant, accountId: cuenta.id }, { hayCredencial: () => true }),
+    );
+    const paso = d.pasos.find((p) => p.id === 'webhook')!;
+    expect(paso.estado).toBe('mal');
+    // Lo que tiene que decir: terminá la conexión.
+    expect(paso.queHacer).toMatch(/conexión segura/i);
+    // Y lo que NO: ni que nunca llegó, ni que la URL está mal.
+    expect(paso.detalle).not.toMatch(/nunca llegó/i);
+    expect(paso.queHacer).not.toMatch(/no apunta acá|nivel de proyecto/i);
+  });
+
   it('el webchat no necesita emisor y no se marca en rojo', async () => {
     // Entrega DENTRO de la app. Marcarlo mal sería mandar a arreglar algo que
     // no existe, y el diagnóstico perdería el sentido de mostrar un problema.

@@ -371,6 +371,25 @@ function pasoDelWebhook(rastro: RastroDeWebhook, ahora: Date): PasoDelDiagnostic
       detalle: `El último llegó ${cuando} y se aceptó.`,
     };
   }
+  if (rastro.resultado === 'conexion_sin_confirmar') {
+    /**
+     * Llegaron, y los rechazamos NOSOTROS (#1180).
+     *
+     * Antes este caso no dejaba rastro, así que caía en «nunca llegó un
+     * webhook» y el consejo era revisar la URL en el panel del proveedor. La
+     * URL está bien: lo que falta es terminar la conexión. Decirlo mal no es
+     * solo no ayudar, es mandar a cambiar una configuración sana.
+     */
+    return {
+      id: 'webhook',
+      titulo: 'Webhooks recibidos',
+      estado: 'mal',
+      detalle: `Llegó uno ${cuando} y lo rechazamos: la conexión de este canal no está confirmada.`,
+      queHacer:
+        'Termina la conexión segura de este canal en Canales. La URL del proveedor está bien: ' +
+        'los webhooks llegan y se devuelven para que el proveedor los reintente.',
+    };
+  }
   if (rastro.resultado === 'firma_invalida' || rastro.resultado === 'sin_secreto') {
     const nunca = !rastro.ultimoBueno;
     return {
