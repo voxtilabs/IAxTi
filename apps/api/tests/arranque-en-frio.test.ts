@@ -16,6 +16,38 @@ describe('qué cuenta como "no pude llegar a la base"', () => {
     expect(esFalloDeConexion(Object.assign(new Error('x'), { code: 'ECONNREFUSED' }))).toBe(true);
   });
 
+  it('reconoce los de RESOLUCIÓN DE NOMBRES, que llevan guión bajo (#1177)', () => {
+    /**
+     * El patrón era `/^E[A-Z]+$/` y `EAI_AGAIN` lleva guión bajo, así que no
+     * calzaba. Tampoco lo pescaba el barrido de textos de abajo. Resultado: el
+     * error MÁS frecuente de staging —39 eventos en una hora sobre
+     * /v1/arranque— estaba clasificado como «esto no fue un problema de
+     * conexión»: sin reintento, y en el webhook de canal convertido en un 500,
+     * que es justo lo que este archivo existe para evitar.
+     *
+     * Van por nombre y no por una regex en la prueba: lo que se quiere fijar es
+     * que ESTOS tres estén cubiertos, no que el patrón tenga tal forma.
+     */
+    expect(esFalloDeConexion(Object.assign(new Error('getaddrinfo EAI_AGAIN aws-0-sa-east-1.pooler.supabase.com'), { code: 'EAI_AGAIN' }))).toBe(true);
+    expect(esFalloDeConexion(Object.assign(new Error('x'), { code: 'EAI_NODATA' }))).toBe(true);
+    expect(esFalloDeConexion(Object.assign(new Error('x'), { code: 'EAI_NONAME' }))).toBe(true);
+  });
+
+  it('y ampliar el patrón NO se traga un SQLSTATE (#1177)', () => {
+    /**
+     * La otra mitad, y la que importa más: un SQLSTATE mal clasificado haría
+     * REINTENTAR un error de configuración —una contraseña mala, una base que
+     * no existe— y eso lo esconde detrás de una espera en vez de decirlo.
+     *
+     * Se sostiene porque la regla de los cinco caracteres se evalúa después y
+     * gana por ser más específica. Está probado y no supuesto: suponerlo es
+     * exactamente como se metió el defecto de arriba.
+     */
+    expect(esFalloDeConexion(Object.assign(new Error('relation does not exist'), { code: '42P01' }))).toBe(false);
+    expect(esFalloDeConexion(Object.assign(new Error('password authentication failed'), { code: '28P01' }))).toBe(false);
+    expect(esFalloDeConexion(Object.assign(new Error('database does not exist'), { code: '3D000' }))).toBe(false);
+  });
+
   it('NO reconoce un error de la consulta, aunque suene feo', () => {
     // 42P01 = tabla que no existe. Reintentarlo es perder tiempo y esconder
     // el problema: la tabla va a seguir sin existir.

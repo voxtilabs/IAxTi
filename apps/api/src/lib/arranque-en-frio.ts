@@ -50,7 +50,19 @@ export function esFalloDeConexion(error: unknown): boolean {
   if (typeof codigo === 'string') {
     // Los de Postgres son SQLSTATE de cinco caracteres (`42P01`); los del
     // sistema son nombres (`ECONNREFUSED`). Solo los segundos son de red.
-    if (/^E[A-Z]+$/.test(codigo)) return true;
+    //
+    // El guión bajo NO es decorativo (#1177): los de resolución de nombres se
+    // llaman `EAI_AGAIN`, `EAI_NODATA`, `EAI_NONAME`, y con `[A-Z]+` ninguno
+    // calzaba. Tampoco los pescaba el barrido de textos de abajo, así que
+    // `getaddrinfo EAI_AGAIN …` quedaba clasificado como «esto no fue un
+    // problema de conexión»: sin reintento, y en el webhook de canal
+    // convertido en un 500 — justo lo que #361 escribió este archivo para
+    // evitar. Medido en staging: 39 eventos en una hora sobre /v1/arranque.
+    //
+    // Ampliar este patrón no puede tragarse un SQLSTATE: el de cinco
+    // caracteres se evalúa después y gana por ser más específico. Hay pruebas
+    // de las dos mitades, porque suponerlo es como se metió este defecto.
+    if (/^E[A-Z_]+$/.test(codigo)) return true;
     if (/^[0-9A-Z]{5}$/.test(codigo)) return false;
   }
   const texto = String((error as { message?: string }).message ?? error).toLowerCase();

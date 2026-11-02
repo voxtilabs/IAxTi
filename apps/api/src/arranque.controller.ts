@@ -1,6 +1,7 @@
 import { Controller, Get, NotFoundException, Param, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
+import { conReintentoDeConexion } from './lib/arranque-en-frio';
 import { leerConCache } from '@iaxti/core';
 import {
   cierreDeLaVentana,
@@ -426,7 +427,20 @@ export class ArranqueController {
   async shell(@Req() request: WithUser) {
     const actor = actorOf(request);
 
-    return withTenant(pool(), actor.tenantId, async (c) => {
+    /**
+     * Con reintento, porque esta es la llamada que abre la aplicación (#1177).
+     *
+     * `EAI_AGAIN` contra el pooler era el error más frecuente de staging y cae
+     * al CONSEGUIR la conexión, antes de leer nada. Cuando cae acá no se ve un
+     * aviso en una pantalla: no carga la pantalla. Un segundo intento entra
+     * casi siempre y cuesta 300 ms en un caso raro.
+     *
+     * Envuelve el `withTenant` entero y no una pieza de adentro a propósito:
+     * el fallo es de la conexión, no de ninguna de las piezas, y todo lo que
+     * hay dentro son lecturas — repetirlas no cambia nada. Si alguna vez esto
+     * escribe, el reintento tiene que bajar a donde se toma la conexión.
+     */
+    return conReintentoDeConexion(() => withTenant(pool(), actor.tenantId, async (c) => {
       const { permisos, resuelto } = await permisosDelActorConEstado(c, actor);
       const activos = registry.health().filter((m) => m.active);
       /**
@@ -577,6 +591,6 @@ export class ArranqueController {
         secuencias,
         retencion,
       };
-    });
+    }));
   }
 }

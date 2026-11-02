@@ -162,6 +162,7 @@ function clienteConNotasRompibles(cliente: PoolClient): PoolClient {
  * la máquina (es lo que se cayó tres veces en #587). Cuenta `BEGIN`, que es una
  * propiedad de la FORMA del código y no de la carga del momento.
  */
+let fallaLaPrimera = false;
 function poolQueCuenta(real: Pool): Pool {
   return new Proxy(real, {
     get(destino, prop, receptor) {
@@ -182,6 +183,23 @@ function poolQueCuenta(real: Pool): Pool {
          */
         return (cb?: (err: Error | undefined, cliente?: PoolClient, liberar?: () => void) => void) => {
           retiros += 1;
+          /**
+           * La PRIMERA conexión falla como falla de verdad (#1177).
+           *
+           * `getaddrinfo EAI_AGAIN` contra el pooler era el error más frecuente
+           * de staging —39 eventos en una hora sobre /v1/arranque— y cae acá: al
+           * conseguir la conexión, antes de leer nada. Honra las dos formas de
+           * `connect` por el mismo motivo que todo lo de arriba.
+           */
+          if (fallaLaPrimera) {
+            fallaLaPrimera = false;
+            const error = Object.assign(
+              new Error('getaddrinfo EAI_AGAIN aws-0-sa-east-1.pooler.supabase.com'),
+              { code: 'EAI_AGAIN' },
+            );
+            if (typeof cb === 'function') { cb(error); return undefined; }
+            return Promise.reject(error);
+          }
           if (typeof cb === 'function') {
             /**
              * El cliente también se envuelve acá, en la forma de CALLBACK.
@@ -334,6 +352,25 @@ describe('arranque de una conversación (#761)', () => {
      * conexiones y 33 statements de más, o sea ~2 s con la base lejos.
      */
     expect(retiros, 'el arranque tiene que retirar UN cliente del pool, no uno por pieza').toBe(1);
+  });
+
+  it('un EAI_AGAIN en la primera conexión no tumba el shell: reintenta y abre (#1177)', async () => {
+    /**
+     * Esto no es afinado fino: es la diferencia entre que la aplicación abra y
+     * que no abra. `/arranque` es lo primero que pide el shell, así que cuando
+     * esta llamada se cae no se ve un aviso en una pantalla — no hay pantalla.
+     *
+     * El reintento ya existía (#361) y su clasificador dejaba pasar justo este
+     * código, porque `EAI_AGAIN` lleva guión bajo y el patrón era `E[A-Z]+`.
+     */
+    retiros = 0;
+    fallaLaPrimera = true;
+    const res = await pedir(duena, '/arranque');
+    expect(res.status, 'el shell abre aunque la primera conexión no entre').toBe(200);
+    expect(fallaLaPrimera, 'el fallo se consumió: hubo una primera conexión que falló').toBe(false);
+    // Dos retiros: el que falló y el del reintento. Ni más —no es un bucle— ni
+    // menos, que sería que el fallo nunca ocurrió y la prueba no probó nada.
+    expect(retiros, 'uno que falla y uno que entra').toBe(2);
   });
 
   it('el urgente trae SOLO lo urgente, y la conversación no es una pieza que degrada', async () => {
