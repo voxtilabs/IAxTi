@@ -18,7 +18,17 @@ export type ResultadoDeWebhook =
   | 'firma_invalida'
   | 'sin_secreto'
   | 'cuenta_desconectada'
-  | 'sin_proveedor';
+  | 'sin_proveedor'
+  /**
+   * Llegó, y se rechazó porque la conexión no está confirmada (#1180).
+   *
+   * Sin esto el rechazo no dejaba rastro y el diagnóstico decía «nunca llegó
+   * un webhook», que manda a cambiar una URL que está bien. «No llegó ninguno»
+   * y «llegaron y los rechazamos nosotros» son problemas distintos con
+   * arreglos distintos — que es, textual, el motivo por el que esta tabla
+   * existe (#434).
+   */
+  | 'conexion_sin_confirmar';
 
 /**
  * Anota el resultado, sin convertir cada mensaje en una escritura.
