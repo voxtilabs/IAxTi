@@ -33,6 +33,8 @@ export {
   findNumberBySenderId,
 } from './application/numbers';
 export type { WhatsAppNumber } from './application/numbers';
+export { nombreDePerfil, identidadDePerfil } from './application/perfil';
+export type { ConsultaDePerfil, IdentidadDePerfil } from './application/perfil';
 export { downloadAttachmentsToR2 } from './application/media';
 export type { AdjuntoEntrante, AdjuntoGuardado } from './application/media';
 export {

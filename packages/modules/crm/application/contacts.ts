@@ -329,6 +329,32 @@ export async function contactoPorIdentidad(
   return rowToContact(row);
 }
 
+/**
+ * Un contacto por su id, opcionalmente con el candado de la fila (#1170).
+ *
+ * Existe porque `contactoPorTelefono` no sirve para releer un contacto cuya
+ * identidad NO es un teléfono: `normalizePhone` lanza con un BSUID
+ * (`US.13491208655302741918`) o con un JID de grupo, y lo que se quería era
+ * simplemente volver a mirar la ficha que ya se tiene en la mano.
+ *
+ * `paraActualizar` toma `FOR NO KEY UPDATE`: es para leer-y-decidir-si-se-
+ * escribe. Sin el candado, dos escrituras en paralelo leen cada una el estado
+ * anterior a la otra y las dos pasan — que es exactamente la carrera que deja
+ * el nombre escrito por una persona pisado por el que trajo el canal.
+ */
+export async function contactoPorId(
+  client: PoolClient,
+  input: { tenantId: string; contactId: string; paraActualizar?: boolean },
+): Promise<Contact | null> {
+  const r = await client.query(
+    `SELECT * FROM contacts WHERE tenant_id = $1 AND id = $2${
+      input.paraActualizar ? ' FOR NO KEY UPDATE' : ''
+    }`,
+    [input.tenantId, input.contactId],
+  );
+  return r.rows[0] ? rowToContact(r.rows[0]) : null;
+}
+
 export async function contactoPorTelefono(
   client: PoolClient,
   input: { tenantId: string; phone: string },

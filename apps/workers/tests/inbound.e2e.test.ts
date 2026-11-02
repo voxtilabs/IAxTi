@@ -1,7 +1,7 @@
 // E2E de la bandeja (#36): el simulador encola en la cola REAL `inbound` de
 // BullMQ y el worker real procesa — el mismo camino de código que usará el
 // canal de WhatsApp en Fase 3. Necesita Postgres y Redis (docker compose up).
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 import { Queue, QueueEvents } from 'bullmq';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
@@ -147,6 +147,18 @@ describe('el adjunto que no se guarda lo dice en voz alta (#809)', () => {
     console.error = (...args: unknown[]) => {
       gritos.push(args.map(String).join(' '));
     };
+    // Esta prueba NO sale a la red, y el doble queda como cinturón.
+    //
+    // La primera versión de #1170 consultaba a Zavu DENTRO de
+    // `processInbound`, así que acá —donde la cuenta de canal tiene su
+    // credencial puesta a propósito— cada corrida le pegaba de verdad a
+    // `api.zavu.dev` (se vio el 401). Desde la revisión eso corre en la cola
+    // `sync` y este camino ya no llama a nadie; el doble se deja igual para
+    // que una regresión se vea como un fallo de red y no como un 401 en
+    // producción. Lo que se mide acá son los adjuntos.
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('fetch failed: ninguna prueba sale a la red');
+    });
     // Una cuenta de canal de verdad, con su credencial presente: así la única
     // pieza que puede faltar es R2, que es el caso que importa.
     const r = await admin.query(
@@ -160,6 +172,7 @@ describe('el adjunto que no se guarda lo dice en voz alta (#809)', () => {
 
   afterAll(async () => {
     console.error = errorReal;
+    vi.unstubAllGlobals();
     process.env = guardados;
     await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
   });

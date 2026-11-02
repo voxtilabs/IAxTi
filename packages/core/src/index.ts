@@ -33,6 +33,9 @@ export type { ArchivoZip } from './zip';
 export { leerConCache, olvidarEnCache, olvidarEnTodosLosTenants, claveDeCache } from './cache';
 export type { OpcionesDeCache } from './cache';
 export { crearXlsx, referencia } from './xlsx';
+// La celda de un CSV, en un solo lugar: la regla anti-inyección de fórmulas
+// estaba en un exportador y faltaba en el otro (#1170).
+export { csvSeguro, celdaCsv } from './csv';
 export type { HojaXlsx, ColumnaXlsx, ValorCelda } from './xlsx';
 export { enteroDeEntorno, textoDeEntorno, entornoDesplegado, esProduccion } from './entorno';
 export { consumerReadiness } from './consumer-readiness';

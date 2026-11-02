@@ -1,4 +1,4 @@
-import { crearZip, presignUrl, storageFromEnv } from '@iaxti/core';
+import { crearZip, csvSeguro, presignUrl, storageFromEnv } from '@iaxti/core';
 import { TZ_POR_DEFECTO, diaEn } from '@iaxti/core';
 import type { AdjuntoExportado, ExportacionTenant } from '@iaxti/module-organizations';
 
@@ -52,13 +52,6 @@ export interface PaqueteDeExportacion {
   conEnlace: number;
 }
 
-function csvSeguro(valor: string): string {
-  // Comillas, punto y coma, coma y saltos: todo lo que rompe una celda. Y el
-  // `'` al principio de algo que parezca fórmula, porque un CSV que se abre en
-  // Excel con `=cmd|...` es una inyección, no un dato.
-  const limpio = /^[=+\-@\t\r]/.test(valor) ? `'${valor}` : valor;
-  return `"${limpio.replace(/"/g, '""')}"`;
-}
 
 export function armarPaquete(
   exportacion: ExportacionTenant,
