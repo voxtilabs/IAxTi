@@ -163,6 +163,39 @@ describe('conexión Meta desde API real (#74)', () => {
     expect(llamadas).toHaveLength(1);
     expect((await withTenant(safe, t, (c) => getChannelAccount(c, t, preparada.account.id))).kind).toBe(kind);
   });
+  it('la pantalla NO lista los archivados, y con ?archivados=1 sí (#1202)', async () => {
+    /**
+     * Mostraban su diagnóstico en rojo —«El canal está disconnected · Vuelve a
+     * conectarlo»— al lado del que sí anda. Correcto como descripción y
+     * equivocado como consejo: nadie quiere reconectar lo que archivó, y dos
+     * rojos permanentes impiden distinguir un problema de la historia.
+     *
+     * Medido en staging el 02-11: tres canales de WhatsApp, dos archivados a
+     * propósito, los dos en rojo permanente.
+     */
+    const archivada = await withTenant(admin, t, (c) =>
+      createChannelAccount(c, {
+        tenantId: t, kind: 'whatsapp', name: 'Archivada 1202',
+        credentialRef: 'TEST_74_KEY', webhookSecretRef: 'TEST_74_HOOK',
+        config: { senderId: `snd-arch-${randomUUID()}` },
+      }),
+    );
+    await withTenant(admin, t, (c) =>
+      setChannelState(c, { tenantId: t, accountId: archivada.id, state: 'disconnected' }),
+    );
+
+    const lista = await (await fetch(`${base}/v1/channels`, { headers: headers() })).json();
+    expect(lista.map((a: { id: string }) => a.id)).not.toContain(archivada.id);
+
+    // Nada se borra: se archiva, y lo archivado se tiene que poder mirar.
+    const conArchivados = await (await fetch(`${base}/v1/channels?archivados=1`, { headers: headers() })).json();
+    expect(conArchivados.map((a: { id: string }) => a.id)).toContain(archivada.id);
+
+    // Anti-vacuidad: si la lista viniera vacía por otra razón, lo de arriba
+    // pasaría sin probar nada.
+    expect(conArchivados.length).toBeGreaterThan(lista.length);
+  });
+
   it('un sender histórico ambiguo conserva dueño y el webhook que apunta a su segunda cuenta', async () => {
     const sender = `historico-${randomUUID()}`;
     const cuentas = await withTenant(safe, t, async (c) => {

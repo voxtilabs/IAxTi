@@ -188,12 +188,29 @@ export async function reapuntarEmisorDeLaCuenta(
   return rowToAccount(r.rows[0]);
 }
 
+/**
+ * Los canales del negocio. Los archivados vienen, SALVO que se pidan sin (#1202).
+ *
+ * El defecto incluye los desconectados, al revés que `listWhatsAppNumbers`, y
+ * eso es a propósito: esta función tiene nueve llamadores y varios necesitan
+ * verlos —el que reapunta un canal archivado, que es una operación soportada;
+ * el que resuelve el webhook entrante; los barridos—. Invertir el defecto
+ * movería ocho comportamientos de una vez sin revisar ninguno.
+ *
+ * Que el defecto quede distinto del de los números es una inconsistencia
+ * reconocida: alinearlos pide una revisión llamador por llamador, con su propio
+ * issue, no un cambio a ciegas acá.
+ */
 export async function listChannelAccounts(
   client: PoolClient,
   tenantId: string,
+  opciones: { incluirDesconectados?: boolean } = {},
 ): Promise<ChannelAccountRef[]> {
+  const incluir = opciones.incluirDesconectados ?? true;
   const r = await client.query(
-    'SELECT * FROM channel_accounts WHERE tenant_id = $1 ORDER BY created_at',
+    `SELECT * FROM channel_accounts
+      WHERE tenant_id = $1 ${incluir ? '' : "AND state <> 'disconnected'"}
+      ORDER BY created_at`,
     [tenantId],
   );
   return r.rows.map(rowToAccount);
