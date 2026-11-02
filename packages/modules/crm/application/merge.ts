@@ -199,7 +199,16 @@ export async function previewImport(
     const errores: Array<{ field: string; message: string }> = [];
     const data: ImportRowResult['data'] = { phone: '' };
     for (const [col, field] of Object.entries(mapping)) {
-      const valor = cols[Number(col)]?.trim() ?? '';
+      // El `'` del principio se saca ANTES de interpretar el valor (#1170).
+      //
+      // Qué evita: desde #1170 el CSV que exportamos antepone `'` a todo lo que
+      // una planilla evaluaría como fórmula (`csvSeguro`), y un teléfono E.164
+      // empieza con `+`, así que sale `'+56955550101`. Sin esto, exportar la
+      // lista y volver a importarla —que es literalmente para lo que existe la
+      // exportación— fallaba fila por fila con «Teléfono inválido». Excel hace
+      // lo mismo por su cuenta con cualquier celda de texto que arranque con
+      // `'`, así que un archivo que pasó por una planilla llega igual.
+      const valor = (cols[Number(col)]?.trim() ?? '').replace(/^'(?=[=+\-@])/, '');
       if (!valor) continue;
       try {
         if (field === 'phone') data.phone = normalizePhone(valor);

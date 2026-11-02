@@ -405,8 +405,28 @@ describe('exportación de contactos a CSV (issue 248)', () => {
     const [cabecera, fila] = csv.split('\n');
     expect(cabecera).toContain('"telefono"');
     expect(fila).toContain('"Rosa"');
-    expect(fila).toContain('"+56955550101"');
+    // El teléfono sale con `'` adelante, y eso es correcto (#1170): toda celda
+    // que una planilla evaluaría como fórmula va escapada por `csvSeguro`, y
+    // E.164 empieza con `+`. Sin el escape Excel lee `+56955550101` como una
+    // fórmula y muestra `56955550101`: se come el `+`. La importación saca ese
+    // `'` antes de interpretar el valor, así que el viaje de ida y vuelta
+    // sigue funcionando.
+    expect(fila).toContain(String.raw`"'+56955550101"`);
     expect(fila).toContain('"42"'); // el campo declarado, en su columna
+  });
+
+  it('lo que se exporta se puede volver a importar', async () => {
+    // La exportación existe para que «quien importó su lista pueda llevársela»,
+    // así que el viaje de ida y vuelta es parte de la función. Lo que esta
+    // prueba caza: el escape anti-fórmula de #1170 dejaba `'+569…` en la
+    // columna del teléfono y CADA fila fallaba con «Teléfono inválido».
+    const { exportarContactos } = await import('../application/exportar-contactos');
+    const { previewImport } = await import('../application/merge');
+    const { csv } = await en((c) => exportarContactos(c, { tenantId: tenant }));
+
+    const previa = await en((c) => previewImport(c, { tenantId: tenant, csv }));
+    expect(previa.rows[0].errores).toEqual([]);
+    expect(previa.rows[0].data?.phone).toBe('+56955550101');
   });
 
   it('un texto con coma o comillas no corre las columnas', async () => {

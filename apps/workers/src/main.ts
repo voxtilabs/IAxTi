@@ -23,6 +23,12 @@ import {
 import { REPETIBLES } from './repetibles';
 import { sinSolaparse, candadoEnRedis } from './sin-solaparse';
 import { processInbound, type InboundJob } from './inbound';
+import {
+  idDelJobDePerfil,
+  marcaEnRedis,
+  resolverNombreDePerfil,
+  type PerfilJob,
+} from './perfil-de-whatsapp';
 
 /**
  * Baja un archivo del negocio por su llave, para reindexar un PDF (#522).
@@ -687,6 +693,42 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
       }
     })();
 
+    /**
+     * La cola `sync` (SPEC §28): lo que se le pregunta a un proveedor DESPUÉS
+     * de que el trabajo del negocio ya está hecho.
+     *
+     * Hoy la estrena el nombre de perfil de WhatsApp (#1170). Va acá y no en
+     * `inbound` por una razón medible: `inbound` corre de a uno —BullMQ nace
+     * con `concurrency: 1`— y por ella pasan los estados de entrega, los
+     * webhooks de pago y los avisos de Google Calendar. Una espera de hasta 4 s
+     * a un tercero en esa ranura atrasa TODO lo que viene detrás; acá no atrasa
+     * nada y además corre en paralelo.
+     *
+     * El mismo criterio por el que `scheduled` fija su concurrencia y
+     * `outbound` NO la fija: en `outbound` el paralelismo cambiaría el orden en
+     * que llegan los mensajes de una conversación. Acá no hay orden que
+     * respetar: son consultas independientes, una por contacto.
+     */
+    const redisPerfil = redisConnection();
+    const marcaDePerfil = marcaEnRedis(redisPerfil);
+    const syncQueue = createQueue('sync', redisConnection());
+    const syncWorker = createModuleWorker(
+      'sync',
+      registry,
+      async (job) => {
+        if (job.name === 'whatsapp.perfil') {
+          return resolverNombreDePerfil(pool, job.data as unknown as PerfilJob, {
+            marca: marcaDePerfil,
+          });
+        }
+        return { ignorado: job.name };
+      },
+      redisConnection(),
+    );
+    syncWorker.concurrency = enteroDeEntorno('WORKERS_SYNC_CONCURRENCY', 5);
+    trabajadores.push({ nombre: 'cola sync', worker: syncWorker });
+    console.log('workers: worker de cola sync activo');
+
     // El camino de entrada de mensajes (#35/#36): simulador y WhatsApp por
     // la misma cola. Los estados de entrega del webhook llegan aquí también.
     const agentsQueue = createQueue('agents', redisConnection());
@@ -712,7 +754,17 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
           return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob);
         }
         const data = job.data as unknown as InboundJob;
-        const res = await processInbound(pool, data);
+        /**
+         * El nombre de perfil se ENCOLA, no se espera (#1170).
+         *
+         * `jobId` por contacto y ventana: dos mensajes seguidos de la misma
+         * persona no encolan dos consultas. Es la misma idempotencia que ya usa
+         * el webhook con `in-${account.id}-${providerMessageId}`; el por qué de
+         * la ventana está en `idDelJobDePerfil`.
+         */
+        const res = await processInbound(pool, data, async (perfil) => {
+          await syncQueue.add('whatsapp.perfil', perfil, { jobId: idDelJobDePerfil(perfil) });
+        });
 
         /**
          * Las reglas de entrada, ANTES de que el bot conteste (#720).

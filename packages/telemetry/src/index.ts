@@ -2,6 +2,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import * as Sentry from '@sentry/node';
 import { argumentoDeLog, textoDeLog } from './redaccion-log';
 import { crearTransporteLogs } from './logs-otlp';
+import {
+  breadcrumbSinConsulta,
+  instrumentacionUndiciSinConsulta,
+} from './sin-consulta-en-la-url';
 export { frontendReadiness } from './frontend-readiness';
 
 /**
@@ -74,6 +78,20 @@ export function initObservability(serviceName: string): void {
       // En conjunto, NodeSDK registra el contexto y exporta solo a OTLP.
       skipOpenTelemetrySetup: Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT),
       integrations: [Sentry.httpIntegration({ spans: false })],
+      // Explícito aunque sea el valor de fábrica: es una decisión, no un
+      // descuido. Ninguna IP ni cabecera de cliente se manda sin pedirla.
+      sendDefaultPii: false,
+      /**
+       * La consulta de una URL no viaja a Sentry (#1170).
+       *
+       * `httpIntegration` se SUMA a las de fábrica, así que
+       * `nativeNodeFetchIntegration` sigue viva y su breadcrumb guarda
+       * `http.query` con la consulta entera. Desde #1170 hay una llamada
+       * saliente con el teléfono del cliente ahí —`/contacts?search=5699…`—,
+       * que es el primer lugar del repo que mete un dato personal en un query
+       * string. `textoDeLog` no toca los breadcrumbs: no son logs.
+       */
+      beforeBreadcrumb: (breadcrumb) => breadcrumbSinConsulta(breadcrumb),
     });
   }
 
@@ -172,6 +190,14 @@ export function initObservability(serviceName: string): void {
         getNodeAutoInstrumentations({
           // El fs genera ruido enorme y ningún diagnóstico útil aquí.
           '@opentelemetry/instrumentation-fs': { enabled: false },
+          /**
+           * El `fetch` global sale instrumentado por acá, y su span llevaba
+           * `url.full` y `url.query` con la URL COMPLETA — con el sampler por
+           * defecto, el 100 % exportado a Grafana. Desde #1170 una de esas
+           * URLs lleva el teléfono del cliente (`/contacts?search=5699…`).
+           * Queda el método, el host y la ruta, que es lo que diagnostica.
+           */
+          '@opentelemetry/instrumentation-undici': instrumentacionUndiciSinConsulta,
         }),
       ],
     });
