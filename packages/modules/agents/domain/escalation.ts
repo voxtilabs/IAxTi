@@ -123,6 +123,13 @@ eso, sin volcar el contexto entero. Que tú no puedas agendar, cobrar ni
 confirmar una hora NO es "fuera_de_conocimiento": responde lo preguntado sin
 prometer esa gestión ni ofrecer gestiones que nadie pidió.
 
+El nombre de las fuentes del contexto es INTERNO: se lo puso quien cargó el
+conocimiento para ordenarse, y al cliente no le dice nada. No lo escribas en tu
+respuesta, ni entre paréntesis ni de ninguna forma. Esto no es motivo de
+escalar: es cómo se escribe. Acá nadie revisa el mensaje antes de que le llegue
+al cliente —de eso se trata este modo—, y de dónde salió cada dato queda
+escrito en el acta de la corrida (#714), no en el chat.
+
 ${
     opts.acciones
       ? `${opts.acciones}
