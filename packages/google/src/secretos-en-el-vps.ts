@@ -227,3 +227,55 @@ export async function olvidarSecretoLocal(directorio: string, id: string): Promi
   if (!ID.test(id)) return invalidInput();
   await unlink(join(directorio, id)).catch(() => undefined);
 }
+
+/**
+ * El único lugar donde se decide DÓNDE se guarda un secreto (#1175).
+ *
+ * Había dos. El calendario elegía bien —disco si hay `GOOGLE_SECRET_DIR` y
+ * `GOOGLE_SECRET_KEY`, Secret Manager si no— y WhatsApp llamaba derecho a
+ * `createGoogleSecretStore`, así que conectar un número exigía un proyecto de
+ * Google Cloud. ADR-0028 dice lo contrario: **en la v1 la custodia es el
+ * disco cifrado del VPS** y Secret Manager es la opción.
+ *
+ * Lo que costaba: el botón «Conectar WhatsApp» devolvía 503 sin llegar a
+ * pedirle la invitación a Zavu, y desde afuera parecía un problema del
+ * proveedor. Zavu no tiene nada que ver con Google Cloud.
+ *
+ * Por qué una función y no copiar el `if`: a la tercera copia, una de las
+ * tres va a quedar vieja, y el síntoma —«creo que guardo en Secret Manager y
+ * estoy escribiendo en un disco efímero»— no se descubre hasta que se pierden
+ * los tokens. Lo dice el comentario del calendario y es el motivo de que esto
+ * viva acá.
+ *
+ * Devuelve `null` cuando NO hay custodia posible, y lanza cuando hay una
+ * configuración a MEDIAS: un directorio sin llave no es «sin configurar», es
+ * un error de despliegue que hay que decir en voz alta.
+ */
+export class CustodiaIncompleta extends Error {
+  constructor(public readonly falta: string) {
+    super(`Falta ${falta} para la custodia de secretos.`);
+    this.name = 'CustodiaIncompleta';
+  }
+}
+
+export function custodiaDesdeEntorno(
+  crearEnLaNube: (config: { projectId: string; location: string }) => GoogleSecretStore,
+  env: NodeJS.ProcessEnv = process.env,
+): GoogleSecretStore | null {
+  const dir = env.GOOGLE_SECRET_DIR?.trim();
+  const clave = env.GOOGLE_SECRET_KEY?.trim();
+  // El disco gana si hay señal de que se quiso usar, aunque esté a medias:
+  // caer a Secret Manager porque falta la llave sería guardar en otro lado
+  // sin que nadie lo pidiera.
+  if (dir || clave) {
+    if (!dir) throw new CustodiaIncompleta('GOOGLE_SECRET_DIR');
+    if (!clave) throw new CustodiaIncompleta('GOOGLE_SECRET_KEY');
+    return createLocalSecretStore({ directorio: dir, clave });
+  }
+  const projectId = env.GOOGLE_SECRET_PROJECT_ID?.trim();
+  const location = env.GOOGLE_SECRET_LOCATION?.trim();
+  if (!projectId && !location) return null;
+  if (!projectId) throw new CustodiaIncompleta('GOOGLE_SECRET_PROJECT_ID');
+  if (!location) throw new CustodiaIncompleta('GOOGLE_SECRET_LOCATION');
+  return crearEnLaNube({ projectId, location });
+}

@@ -1,5 +1,6 @@
 import {
-  createGoogleOAuth, createGoogleSecretStore, createLocalSecretStore, createGoogleCalendarClient,
+  createGoogleOAuth, createGoogleSecretStore, createGoogleCalendarClient,
+  custodiaDesdeEntorno, CustodiaIncompleta,
   type GoogleOAuth, type GoogleSecretStore, type GoogleCalendarClient,
 } from '@iaxti/google';
 
@@ -27,14 +28,18 @@ export interface CalendarGoogleDeps {
  * se pierden los tokens.
  */
 function custodia(env: NodeJS.ProcessEnv): GoogleSecretStore | null {
-  const { GOOGLE_SECRET_DIR: directorio, GOOGLE_SECRET_KEY: clave,
-    GOOGLE_SECRET_PROJECT_ID: projectId, GOOGLE_SECRET_LOCATION: location } = env;
-  if (directorio || clave) {
-    if (!directorio || !clave) return null;
-    return createLocalSecretStore({ directorio, clave });
+  // La elección vive en `@iaxti/google` desde #1175: acá estaba bien y en
+  // whatsapp estaba mal —exigía Google Cloud contra lo que dice ADR-0028— y
+  // dos copias de la misma decisión es cómo se llega a eso. Lo único que se
+  // pierde al compartirla es la diferencia entre «no configurado» y «a
+  // medias»: ahora lo segundo LANZA, y acá se traduce al `null` de siempre
+  // para no cambiar lo que ve esta pantalla.
+  try {
+    return custodiaDesdeEntorno(createGoogleSecretStore, env);
+  } catch (error) {
+    if (error instanceof CustodiaIncompleta) return null;
+    throw error;
   }
-  if (!projectId || !location) return null;
-  return createGoogleSecretStore({ projectId, location });
 }
 
 /** Solo configuración de servidor. Ninguna llave ni token llega al navegador. */

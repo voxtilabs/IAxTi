@@ -14,6 +14,14 @@
 x-app: &app
   image: ${IMAGE:?falta IMAGE con el tag de la release}
   restart: unless-stopped
+  # Resolvedor propio, no el del host (#1176). En staging, `getaddrinfo
+  # EAI_AGAIN` contra el pooler de Supabase tiraba `/v1/arranque` 39 veces en
+  # una hora: la pantalla no cargaba porque no se pudo traducir el nombre de
+  # la base. Dos resolvedores dan un segundo intento gratis. No arregla el DNS
+  # de la máquina —eso se mira aparte—, evita que una pantalla se caiga por él.
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
 
 x-env: &app-env
   IAXTI_ENV: ${IAXTI_ENV:?}
@@ -63,6 +71,12 @@ x-env: &app-env
   ZAVU_PARTNER_WEBHOOK_SECRET: ${ZAVU_PARTNER_WEBHOOK_SECRET:-}
   GOOGLE_SECRET_PROJECT_ID: ${GOOGLE_SECRET_PROJECT_ID:-}
   GOOGLE_SECRET_LOCATION: ${GOOGLE_SECRET_LOCATION:-}
+  # ADR-0028: en la v1 la custodia es el disco cifrado del VPS, y Secret
+  # Manager es la opción. El directorio es un VOLUMEN CON NOMBRE a propósito:
+  # dentro del contenedor, cada redeploy borraría los secretos del canal y
+  # habría que reconectar el número de WhatsApp.
+  GOOGLE_SECRET_DIR: ${GOOGLE_SECRET_DIR:-/datos/secretos}
+  GOOGLE_SECRET_KEY: ${GOOGLE_SECRET_KEY:-}
 
   # Correo transaccional (#55). SMTP_FROM con dominio verificado; el usuario
   # de Resend es literalmente `resend` y no es una dirección.
@@ -154,6 +168,8 @@ services:
 
   api:
     <<: *app
+    volumes:
+      - secretos-del-canal:/datos/secretos
     environment:
       <<: *app-env
       SERVICE: api
@@ -163,6 +179,8 @@ services:
 
   workers:
     <<: *app
+    volumes:
+      - secretos-del-canal:/datos/secretos
     environment:
       <<: *app-env
       SERVICE: workers
@@ -186,3 +204,4 @@ services:
 
 volumes:
   redis-data:
+  secretos-del-canal:
