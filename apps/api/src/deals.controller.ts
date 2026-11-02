@@ -18,6 +18,7 @@ import { withTenant } from '@iaxti/db';
 import {
   addStage,
   createDeal,
+  createPipeline,
   deleteSavedFilter,
   deleteStage,
   getEmbudo,
@@ -79,6 +80,33 @@ const NuevaOportunidad = z.object({
   // su propio código).
   pipelineId: z.string().optional(),
   value: z.number('El monto va en número.').optional(),
+});
+
+/**
+ * El cuerpo de POST /pipelines (#1172).
+ *
+ * El esquema cuida la FORMA y el dominio cuida la REGLA. No es reparto
+ * burocrático: `@Cuerpo` registra este JSON Schema para la operación, y de ahí
+ * sale la forma de los argumentos que ve el Agente General. Sin esquema, el
+ * modelo tendría que adivinar que una etapa lleva `type: 'open'|'won'|'lost'`
+ * y que la probabilidad va de 0 a 100 — y adivinar mal le cuesta un turno.
+ *
+ * Lo que NO va acá es «hace falta una abierta, una ganada y una perdida». Esa
+ * regla es de `validateStages`, en el dominio del CRM, que es su dueño: si
+ * alguna vez cambia, cambia en un lugar. El controlador releva su mensaje, que
+ * es el patrón de los otros cinco relevos de este archivo.
+ */
+const EtapaNueva = z.object({
+  name: textoRequerido('Toda etapa necesita nombre.'),
+  type: z.enum(['open', 'won', 'lost']),
+  probability: z.number('La probabilidad va en número.').int().min(0).max(100).optional(),
+  expectedDays: z.number('Los días esperados van en número.').int().min(0).optional(),
+});
+
+const EmbudoNuevo = z.object({
+  name: textoRequerido('El embudo necesita un nombre.'),
+  vertical: z.string().optional(),
+  stages: z.array(EtapaNueva),
 });
 
 /** El cuerpo de POST /deals/:id/stage. */
@@ -359,6 +387,61 @@ export class DealsController {
    * del módulo seguiría estando igual, y el primer cambio en una de las dos
    * copias movería el contrato sin que nadie lo note.
    */
+  /**
+   * Crear un embudo (#1172).
+   *
+   * La API sabía renombrar uno, agregarle etapas y reordenarlas, pero no
+   * crearlo. Y el catálogo de herramientas del agente se GENERA del OpenAPI,
+   * así que lo que no es endpoint no es herramienta: pedirle «arma el embudo de
+   * mis ventas» devolvía, con razón, «no tengo una herramienta para crear un
+   * embudo nuevo desde cero».
+   *
+   * Lo peor era que el estado vacío de /oportunidades OFRECE ese pedido. Le
+   * sugeríamos a alguien justo lo único que no se podía.
+   *
+   * La función ya existía (`createPipeline`, que usan el seed y el configurador
+   * del agente). Lo que faltaba era la puerta.
+   *
+   * Las etapas se validan en el dominio (`validateStages`): hace falta al menos
+   * una abierta, una ganada y una perdida. Se deja ESTRICTO en vez de
+   * completarlas solo: el error dice exactamente qué falta, en castellano, y el
+   * agente se corrige en el mismo turno. Agregar «Ganado» y «Perdido» por
+   * nuestra cuenta sería devolver un embudo distinto del que se pidió sin
+   * decirlo.
+   */
+  @Post('pipelines')
+  @RequirePermission('crm.pipelines.manage')
+  @ApiOperation({
+    summary:
+      'Crea un embudo con sus etapas. Necesita al menos una etapa abierta (open), ' +
+      'una ganada (won) y una perdida (lost).',
+  })
+  async crearPipeline(
+    @Req() request: WithUser,
+    @Cuerpo(EmbudoNuevo) body: z.infer<typeof EmbudoNuevo>,
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        createPipeline(c, {
+          tenantId: actor.tenantId,
+          name: body.name.trim(),
+          vertical: body.vertical,
+          stages: body.stages,
+          // El mismo patrón que el resto de los controladores: el id del
+          // usuario, y 'apikey' cuando entró por llave de integración.
+          actor: {
+            actor: actor.userId,
+            actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+            requestId: request.requestId,
+          },
+        }),
+      );
+    } catch (err) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: (err as Error).message });
+    }
+  }
+
   @Put('pipelines/:id')
   @RequirePermission('crm.pipelines.manage')
   @ApiOperation({ summary: 'Renombra el pipeline' })

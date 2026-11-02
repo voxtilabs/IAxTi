@@ -2876,6 +2876,65 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "DealsController_crearPipeline": {
+    "metodo": "POST",
+    "ruta": "/v1/pipelines",
+    "resumen": "Crea un embudo con sus etapas. Necesita al menos una etapa abierta (open), una ganada (won) y una perdida (lost).",
+    "permiso": "crm.pipelines.manage",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vertical": {
+          "type": "string"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "won",
+                  "lost"
+                ]
+              },
+              "probability": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "expectedDays": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ]
+          }
+        }
+      },
+      "required": [
+        "name",
+        "stages"
+      ],
+      "additionalProperties": false
+    }
+  },
   "DealsController_create": {
     "metodo": "POST",
     "ruta": "/v1/deals",

@@ -28,6 +28,8 @@ let tenant: string;
 let firmar: (sub: string) => Promise<string>;
 const supervisora = randomUUID();
 const vendedor = randomUUID();
+/** Con ADMIN: `crm.pipelines.manage` es un permiso de configuración (#1172). */
+const administradora = randomUUID();
 let dealAjeno: string; // de la supervisora
 let dealLibre: string; // sin dueño
 let etapas: Array<{ id: string; name: string; type: string }>;
@@ -56,6 +58,7 @@ beforeAll(async () => {
   for (const [userId, email, roleName] of [
     [supervisora, 'sup@deals.cl', 'SUPERVISOR'],
     [vendedor, 'vende@deals.cl', 'USER'],
+    [administradora, 'admin@deals.cl', 'ADMIN'],
   ] as const) {
     const inv = await withTenant(admin, tenant, (c) =>
       createInvitation(c, { tenantId: tenant, email, roleName }),
@@ -150,6 +153,83 @@ describe('GET /v1/deals', () => {
     expect(pipes[0].stages).toHaveLength(4);
     const motivos = await (await pedir(vendedor, '/loss-reasons')).json();
     expect(motivos.map((m: { label: string }) => m.label)).toContain('Precio');
+  });
+});
+
+describe('POST /v1/pipelines (#1172)', () => {
+  it('crea el embudo con sus etapas y lo deja en la auditoría', async () => {
+    /**
+     * Esto es lo que el agente no podía hacer. La API sabía renombrar un
+     * embudo, agregarle etapas y reordenarlas, pero no crearlo — y como el
+     * catálogo de herramientas se genera del OpenAPI, lo que no es endpoint no
+     * es herramienta. Mientras tanto el estado vacío de /oportunidades OFRECE
+     * «Arma el embudo de mis ventas con las etapas que uso».
+     */
+    const res = await pedir(administradora, '/pipelines', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Arriendos',
+        stages: [
+          { name: 'Visita agendada', type: 'open' },
+          { name: 'Propuesta enviada', type: 'open', expectedDays: 3 },
+          { name: 'Arrendado', type: 'won' },
+          { name: 'No arrendó', type: 'lost' },
+        ],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const creado = await res.json();
+    expect(creado.pipeline.name).toBe('Arriendos');
+    expect(creado.stages.map((e: { name: string }) => e.name)).toEqual([
+      'Visita agendada',
+      'Propuesta enviada',
+      'Arrendado',
+      'No arrendó',
+    ]);
+    // Y queda en la auditoría, en la misma transacción: una mutación de
+    // configuración sin rastro no se puede revisar después.
+    const audit = await admin.query(
+      "SELECT actor, metadata FROM audit_log WHERE tenant_id = $1 AND action = 'crm.pipeline.created'",
+      [tenant],
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].actor).toBe(administradora);
+    expect(audit.rows[0].metadata.etapas).toContain('Arrendado');
+  });
+
+  it('sin etapa de cierre lo rechaza diciendo QUÉ falta, no «datos inválidos»', async () => {
+    // El agente se corrige con esto en el mismo turno. Un «VALIDATION_ERROR»
+    // pelado lo dejaría adivinando.
+    const res = await pedir(administradora, '/pipelines', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Incompleto',
+        stages: [
+          { name: 'Uno', type: 'open' },
+          { name: 'Dos', type: 'open' },
+          { name: 'Ganado', type: 'won' },
+        ],
+      }),
+    });
+    expect(res.status).toBe(400);
+    const error = await res.json();
+    expect(error.code).toBe('VALIDATION_ERROR');
+    expect(error.message).toMatch(/perdido/i);
+  });
+
+  it('un vendedor no crea embudos: es configuración del negocio', async () => {
+    const res = await pedir(vendedor, '/pipelines', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Mío',
+        stages: [
+          { name: 'Uno', type: 'open' },
+          { name: 'Ganado', type: 'won' },
+          { name: 'Perdido', type: 'lost' },
+        ],
+      }),
+    });
+    expect(res.status).toBe(403);
   });
 });
 
