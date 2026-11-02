@@ -206,13 +206,28 @@ export async function processPartnerInvitation(pool:Pool,t:string,id:string,port
       return {url:phase==='pending'?remote.url:null,generation,secretId:null,accountId:null,senderId:null};
     }
     const sender=await ports.call(`/senders/${encodeURIComponent(remote.senderId!)}`);
-    if(sender.id!==remote.senderId || !Array.isArray(sender.channels) || !sender.channels.includes('whatsapp') || typeof sender.name!=='string' || (sender.whatsapp as {phoneNumberId?:unknown}|undefined)?.phoneNumberId!==remote.phoneNumberId)throw new PartnerError('PARTNER_SENDER_INVALID','El emisor todavía no tiene WhatsApp habilitado.');
+    /**
+     * El número sale de la FICHA DEL EMISOR, no del eco de la invitación (#1179).
+     *
+     * Antes se comparaba contra `remote.phoneNumberId`, que viene de
+     * `connectedAccount.id` — y Zavu manda ese campo en null. O sea que se
+     * comparaba el número real del emisor contra null y se negaba siempre.
+     *
+     * Las dos guardas que importan se conservan:
+     *  - el emisor tiene que TENER número de WhatsApp (un string no vacío);
+     *  - y si la invitación SÍ trajo un número, tiene que ser el mismo. Esa es
+     *    la que impide conectar el emisor de otro, y no se relaja.
+     */
+    const numeroDelEmisor=(sender.whatsapp as {phoneNumberId?:unknown}|undefined)?.phoneNumberId;
+    if(sender.id!==remote.senderId || !Array.isArray(sender.channels) || !sender.channels.includes('whatsapp') || typeof sender.name!=='string'
+      || typeof numeroDelEmisor!=='string' || !numeroDelEmisor
+      || (remote.phoneNumberId!==null && numeroDelEmisor!==remote.phoneNumberId))throw new PartnerError('PARTNER_SENDER_INVALID','El emisor todavía no tiene WhatsApp habilitado.');
     let accountId=r.account_id;
     if(accountId) {
       const a=await getChannelAccount(c,t,accountId);
       if(a.state!=='connecting' || a.config.senderId!==remote.senderId || r.sender_id!==remote.senderId)throw new PartnerError('PARTNER_ACCOUNT_CHANGED','La cuenta cambió. Revisa el canal antes de continuar.');
     } else {
-      const result=await connectWhatsAppNumber(c,{tenantId:t,name:sender.name.slice(0,100),senderId:remote.senderId!,phoneNumberId:remote.phoneNumberId??undefined,
+      const result=await connectWhatsAppNumber(c,{tenantId:t,name:sender.name.slice(0,100),senderId:remote.senderId!,phoneNumberId:numeroDelEmisor,
         displayPhone:typeof sender.phoneNumber==='string'?sender.phoneNumber:undefined,credentialRef:r.credential_ref,webhookSecretRef:'ZAVU_PARTNER_PENDING',activar:false,enviosReales:process.env.ZAVU_ENVIOS_REALES==='1'});
       accountId=result.account.id;
     }
@@ -221,7 +236,7 @@ export async function processPartnerInvitation(pool:Pool,t:string,id:string,port
     await c.query("UPDATE whatsapp_partner_invitations SET phase='provisioning',provider_status='completed',sender_id=$3,account_id=$4,provision_id=$5,error_code=NULL,updated_at=now() WHERE tenant_id=$1 AND id=$2",[t,id,remote.senderId,accountId,secretId]);
     await retireUrl(c,r);
     await audit(c,r,'whatsapp.invitation.connecting');
-    return {url:null,secretId,accountId,senderId:remote.senderId!,phoneNumberId:remote.phoneNumberId};
+    return {url:null,secretId,accountId,senderId:remote.senderId!,phoneNumberId:numeroDelEmisor};
   });
   if(!prepared)return;
   if(!prepared.secretId) {if(prepared.url)await saveUrl(pool,t,id,prepared.url,prepared.generation!,ports);return;}

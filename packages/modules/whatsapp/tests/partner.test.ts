@@ -64,6 +64,17 @@ afterAll(async()=>{vi.unstubAllEnvs();await new Promise<void>(r=>server.close(()
 async function begin(){const tenant=await withTenant(owner,randomUUID(),c=>createTenant(c,{name:'Negocio ficticio'}));const actor={tenantId:tenant.id,actor:randomUUID(),actorKind:'user' as const,key:randomUUID()};const state=await startPartnerInvitation(safe,actor,ports);return {tenant:tenant.id,actor,state};}
 async function row(t:string){return (await owner.query('SELECT * FROM whatsapp_partner_invitations WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 1',[t])).rows[0];}
 async function complete(t:string){const r=await row(t);const inv=remote.get(r.invitation_id)!;const senderId=`snd_${randomUUID().replaceAll('-','')}`;Object.assign(inv,{status:'completed',senderId,connectedAccount:{channel:'whatsapp',id:`meta_${r.invitation_id}`,name:'Negocio ficticio'}});senders.set(senderId,{id:senderId,name:'Negocio ficticio',channels:['whatsapp'],phoneNumber:'+56911111111',whatsapp:{phoneNumberId:`meta_${r.invitation_id}`}});return r;}
+/**
+ * Completar la invitación como lo hace Zavu DE VERDAD: sin `connectedAccount`
+ * y sin `phoneNumberId` (#1179). `complete()` manda los dos campos llenos, y
+ * por eso toda esta suite pasaba mientras en producción ninguna invitación
+ * podía completarse: el doble confirmaba el contrato supuesto.
+ *
+ * El emisor sí tiene su número, que es de donde hay que tomarlo.
+ */
+async function completeComoZavu(t:string){const r=await row(t);const inv=remote.get(r.invitation_id)!;const senderId=`snd_${randomUUID().replaceAll('-','')}`;Object.assign(inv,{status:'completed',senderId,connectedAccount:null,phoneNumberId:null});senders.set(senderId,{id:senderId,name:'Negocio ficticio',channels:['whatsapp'],phoneNumber:'+56911111111',whatsapp:{phoneNumberId:`meta_${r.invitation_id}`}});return r;}
+/** El mismo caso, pero con un emisor que NO tiene número de WhatsApp. */
+async function completeSinNumero(t:string){const r=await row(t);const inv=remote.get(r.invitation_id)!;const senderId=`snd_${randomUUID().replaceAll('-','')}`;Object.assign(inv,{status:'completed',senderId,connectedAccount:null,phoneNumberId:null});senders.set(senderId,{id:senderId,name:'Negocio ficticio',channels:['whatsapp'],phoneNumber:'+56911111111',whatsapp:{}});return r;}
 function event(invitationId:string,extra:Record<string,unknown>={}){return JSON.stringify({id:`evt_${randomUUID().replaceAll('-','')}`,type:'invitation.status_changed',projectId,data:{invitationId,currentStatus:'completed'},...extra});}
 function signature(raw:string){const t=Math.floor(Date.now()/1000);return `t=${t},v2=${createHmac('sha256',ports.config.projectWebhookSecret).update(`${t}.${raw}`).digest('hex')}`;}
 async function deliver(t:string,procesaCon:Pool=safe){const r=await row(t);const raw=event(r.invitation_id);const job=await receivePartnerWebhook(safe,raw,signature(raw),ports);await processPartnerInvitation(procesaCon,t,job.invitationId,ports);return job;}
@@ -89,6 +100,29 @@ it('completed firmado → cuenta connecting → secreto SM y GET confirmado → 
  expect((await owner.query('SELECT * FROM whatsapp_numbers WHERE tenant_id=$1',[x.tenant])).rows).toHaveLength(1);
  expect(JSON.stringify((await owner.query('SELECT metadata FROM audit_log WHERE tenant_id=$1',[x.tenant])).rows)).not.toContain('synthetic_');
  expect((await row(x.tenant)).invitation_id).toBe(r.invitation_id);
+});
+it('completed SIN connectedAccount —lo que Zavu manda— llega a active y guarda el secreto (#1179)',async()=>{
+ const x=await begin();const r=await completeComoZavu(x.tenant);await deliver(x.tenant);
+ const result=await row(x.tenant);
+ // Antes esto moría en PARTNER_RESPONSE_INVALID y la fase no pasaba de pending.
+ expect(result.phase).toBe('active');
+ const account=await withTenant(safe,x.tenant,c=>getChannelAccount(c,x.tenant,result.account_id));
+ expect(account.state).toBe('active');
+ // Y el paso que vivía DETRÁS del guard roto: el secreto del webhook queda
+ // guardado y se resuelve. Sin esto el canal no puede verificar lo que entra,
+ // que es por lo que no llegaba ni un mensaje a la bandeja.
+ expect(account.webhookSecretRef).toMatch(/^sm:projects\/test-project/);
+ expect(await resolveChannelWebhookSecret(account,ports.secrets)).toBe(`synthetic_${result.sender_id}`);
+ // El número salió de la FICHA DEL EMISOR, no del eco de la invitación.
+ expect((await owner.query('SELECT phone_number_id FROM whatsapp_numbers WHERE tenant_id=$1',[x.tenant])).rows[0].phone_number_id).toBe(`meta_${r.invitation_id}`);
+});
+it('un emisor sin número de WhatsApp no se conecta, aunque la invitación diga completed (#1179)',async()=>{
+ // La guarda que reemplaza a la comparación contra null: el emisor tiene que
+ // TENER número. Sin esto, aflojar el campo opcional dejaría conectar un
+ // emisor a medio aprovisionar y el canal quedaría activo sin poder enviar.
+ const x=await begin();await completeSinNumero(x.tenant);
+ await expect(deliver(x.tenant)).rejects.toMatchObject({code:'PARTNER_SENDER_INVALID'});
+ expect((await owner.query('SELECT * FROM channel_accounts WHERE tenant_id=$1',[x.tenant])).rows).toHaveLength(0);
 });
 it('respuesta create perdida queda ambigua: ni reintento ni nueva key repiten POST',async()=>{
  loseCreate=true;const x=await begin();expect(x.state.phase).toBe('ambiguous');const count=calls.filter(x=>x.path==='/v1/invitations').length;

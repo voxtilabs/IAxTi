@@ -77,8 +77,31 @@ export function invitationFrom(value:unknown, expected?:string):PartnerInvitatio
     || typeof r.url!=='string' || !Number.isFinite(Date.parse(String(r.expiresAt)))) throw new PartnerError('PARTNER_RESPONSE_INVALID','Zavu devolvió una conexión que no pudimos comprobar.',502);
   const u=new URL(r.url);
   if(u.origin!=='https://dashboard.zavu.dev' || !/^\/invite\/[A-Za-z0-9_-]+$/.test(u.pathname) || u.search || u.hash || u.username || u.password) throw new PartnerError('PARTNER_RESPONSE_INVALID','Zavu devolvió un enlace que no pudimos comprobar.',502);
-  const connected=r.connectedAccount as {channel?:unknown;id?:unknown}|null;
-  if(r.status==='completed' && (typeof r.senderId!=='string' || !/^[a-zA-Z0-9_-]{1,200}$/.test(r.senderId) || connected?.channel!=='whatsapp' || typeof connected.id!=='string')) throw new PartnerError('PARTNER_RESPONSE_INVALID','Zavu no confirmó el número conectado.',502);
+  /**
+   * `connectedAccount` es OPCIONAL porque Zavu lo manda VACÍO (#1179).
+   *
+   * Medido contra la API de producción el 02-11, pidiendo el detalle de una
+   * invitación que el panel de Zavu muestra como completada:
+   *
+   *     "status": "completed",
+   *     "senderId": "kd7c40p7vkwmt4e33me44edwph8hdxfs",
+   *     "connectedAccount": null,
+   *     "phoneNumberId": null
+   *
+   * Acá se exigía `connected?.channel==='whatsapp'`, así que TODA invitación
+   * completada lanzaba 502 y el onboarding por invitación no podía terminar
+   * nunca. Y el mensaje que salía —«Zavu no confirmó el número conectado»— era
+   * cierto desde donde estaba escrito y contradecía lo que el cliente veía en
+   * el panel del proveedor, que decía completed.
+   *
+   * Lo opcional es que FALTE, no que mienta: si Zavu empieza a mandarlo, su
+   * contenido se sigue validando igual que antes. Y el número no se pierde: lo
+   * da la ficha del emisor, que `processPartnerInvitation` pide dos líneas
+   * después y es la fuente de verdad del proveedor.
+   */
+  const connected=r.connectedAccount as {channel?:unknown;id?:unknown}|null|undefined;
+  if(r.status==='completed' && (typeof r.senderId!=='string' || !/^[a-zA-Z0-9_-]{1,200}$/.test(r.senderId))) throw new PartnerError('PARTNER_RESPONSE_INVALID','Zavu no confirmó el número conectado.',502);
+  if(connected!==null && connected!==undefined && (connected.channel!=='whatsapp' || typeof connected.id!=='string')) throw new PartnerError('PARTNER_RESPONSE_INVALID','Zavu no confirmó el número conectado.',502);
   return {id:r.id,url:r.url,status:String(r.status),expiresAt:String(r.expiresAt),senderId:typeof r.senderId==='string'?r.senderId:null,
     phoneNumberId:typeof connected?.id==='string'?connected.id:null,wabaId:null};
 }
