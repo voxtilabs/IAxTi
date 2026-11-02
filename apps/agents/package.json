@@ -25,6 +25,8 @@
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-knowledge": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.0",
     "pg": "^8.23.1"
   }
 }

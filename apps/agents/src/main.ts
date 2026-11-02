@@ -12,6 +12,7 @@ import {
 } from '@iaxti/core';
 import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
 import { processSuggest, type SuggestJob } from './copilot';
+import { candadoEnRedis, deAUnoPorConversacion } from './de-a-uno-por-conversacion';
 
 const service = textoDeEntorno('SERVICE', 'agents');
 const port = enteroDeEntorno('PORT', 3000);
@@ -52,12 +53,24 @@ function start(): void {
     console.log('agents: sin REDIS_URL; la cola espera configuración');
     return;
   }
-  createModuleWorker(
+  /**
+   * En paralelo, pero de a uno por conversación (#1214).
+   *
+   * Por esta cola pasan TODAS las respuestas de la IA y corría de a un job
+   * —el valor por defecto de BullMQ—, así que diez personas escribiendo juntas
+   * dejaban a la última esperando un minuto: medido, 15,3 s con la cola vacía
+   * contra 82 s con jobs adelante.
+   */
+  const redisCandado = redisConnection();
+  const agentsWorker = createModuleWorker(
     'agents',
     registry,
-    async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
+    deAUnoPorConversacion(candadoEnRedis(redisCandado), async (job) =>
+      processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
+    ),
     redisConnection(),
   );
+  agentsWorker.concurrency = enteroDeEntorno('AGENTS_CONCURRENCY', 5);
   consumersStarted = true;
   console.log('agents: worker de cola agents activo');
 }
