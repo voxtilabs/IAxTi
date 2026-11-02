@@ -957,7 +957,11 @@ export async function getContext(
   summarySeq: number | null;
   /** Mensajes viejos SIN resumir aún (para refrescar el resumen). */
   unsummarized: number;
-  lastMessages: Array<{ direction: 'in' | 'out'; body: string | null; seq: number }>;
+  /**
+   * El `id` viaja desde #1204: el copiloto ancla en él las propuestas que
+   * todavía no se enviaron, para intercalarlas en el orden correcto.
+   */
+  lastMessages: Array<{ id: string; direction: 'in' | 'out'; body: string | null; seq: number }>;
 }> {
   const conv = await client.query(
     `SELECT c.state, c.summary, c.summary_seq, k.id AS contact_id, k.name, k.phone
@@ -968,7 +972,7 @@ export async function getContext(
   if (conv.rowCount === 0) throw new Error('No encontramos esa conversación. Puede que se haya archivado.');
   const row = conv.rows[0];
   const ultimos = await client.query(
-    `SELECT direction, COALESCE(body, transcription) AS body, seq FROM messages
+    `SELECT id, direction, COALESCE(body, transcription) AS body, seq FROM messages
       WHERE tenant_id = $1 AND conversation_id = $2
       ORDER BY seq DESC LIMIT $3`,
     [tenantId, conversationId, lastN],
@@ -989,6 +993,7 @@ export async function getContext(
     summarySeq: row.summary_seq === null ? null : Number(row.summary_seq),
     unsummarized: sinResumir.rows[0].n,
     lastMessages: ultimos.rows.reverse().map((m) => ({
+      id: m.id as string,
       direction: m.direction,
       body: m.body ?? null,
       seq: Number(m.seq),
