@@ -814,7 +814,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
             "resumir",
             "transcribir",
             "analizar",
-            "configuracion_conversada"
+            "configuracion_conversada",
+            "retomar"
           ]
         },
         "prompt": {

@@ -12,6 +12,7 @@ import {
 } from '@iaxti/core';
 import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
 import { processSuggest, type SuggestJob } from './copilot';
+import { processPulso, type PulsoJob } from './pulso';
 
 const service = textoDeEntorno('SERVICE', 'agents');
 const port = enteroDeEntorno('PORT', 3000);
@@ -55,7 +56,15 @@ function start(): void {
   createModuleWorker(
     'agents',
     registry,
-    async (job) => processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
+    async (job) =>
+      // Dos trabajos en la misma cola y por el nombre, no por el contenido
+      // (#1210): `suggest` viene del camino de entrada y contesta un mensaje;
+      // `pulso` no contesta nada, lo empieza el negocio. Mirar el payload para
+      // adivinar cuál es —«si no trae messageId es un pulso»— convierte un
+      // campo que falta por un defecto en un mensaje saliente.
+      job.name === 'pulso'
+        ? processPulso(pool, job.data as unknown as PulsoJob, { registry })
+        : processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
     redisConnection(),
   );
   consumersStarted = true;

@@ -97,4 +97,31 @@ describe('el saliente abandonado y los barridos', () => {
     // vez mandan el mismo recordatorio dos veces.
     expect(MAIN).toMatch(/sinSolaparse\(correrProgramado, candadoEnRedis\(/);
   });
+
+  /**
+   * El pulso del evento (#1210) comparte la cola `agents` con las sugerencias
+   * del camino de entrada, y esa cola corre de a un job: una generación son
+   * ~6 s medidos, así que catorce pulsos encolados juntos atrasarían hasta
+   * minuto y medio la respuesta a alguien que acaba de escribir.
+   *
+   * Por eso el pulso va con `priority`, y alcanza con priorizar ese lado: en
+   * BullMQ 5, «0 significa sin prioridad explícita, y los jobs sin prioridad
+   * se procesan antes que los priorizados». Si alguien le saca la prioridad al
+   * pulso, el síntoma en el evento sería «el bot tarda un minuto en contestar»
+   * y nadie lo ataría a esta línea.
+   */
+  it('el pulso se encola DETRÁS de las respuestas a clientes', () => {
+    // El recorte va de la llamada a su `.catch`, no a tantos caracteres: con
+    // una ventana fija, agregarle un comentario al código deja la prueba roja
+    // sin que nada se haya roto. (Pasó al escribirla: `priority` quedó fuera
+    // de los 1200 caracteres.)
+    const bloque = (nombre: string) => {
+      const i = MAIN.indexOf(`'${nombre}',`);
+      expect(i, `no se encontró el encolado de ${nombre}`).toBeGreaterThan(0);
+      return MAIN.slice(i, MAIN.indexOf('.catch(', i));
+    };
+    expect(bloque('pulso')).toMatch(/priority: [1-9]/);
+    // Y la sugerencia NO lleva prioridad, que es lo que la deja adelante.
+    expect(bloque('suggest')).not.toMatch(/priority:/);
+  });
 });

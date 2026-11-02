@@ -86,6 +86,11 @@ export {
 } from './application/autonomous';
 export type { ConversationMode, AutonomousOutcome } from './application/autonomous';
 export { detectEscalation, parseAutonomous, formatoAutonomo } from './domain/escalation';
+// `configDelPulso` y `FORMATO_RETOMAR` NO salen: los usa `pulso.ts` por
+// dentro y sus pruebas por su ruta interna. Un contrato que expone lo que
+// nadie abre deja de ser una decisión (#664).
+export { tocaPulso, agenteConPulso, textoParaRetomar, negociosDelPulso } from './application/pulso';
+export type { PulsoConfig, MotivoDelPulso } from './application/pulso';
 export type { EscalationReason, AutonomousPayload } from './domain/escalation';
 export {
   snapshotConfig,

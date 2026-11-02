@@ -585,6 +585,13 @@ export interface SendMessageInput {
   /** Pedido durable a outbound; opcional durante la migración de emisores (#380). */
   delivery?: OutboundPolicy;
   actorKind?: ActorKind;
+  /**
+   * Sello del mensaje, en `meta` (#1210). Hasta acá `meta` solo guardaba la
+   * plantilla y cualquier otra cosa se perdía: sin un sello, un mensaje que el
+   * agente mandó por su cuenta no se distingue después de uno que contestó, y
+   * entonces no se puede contar ni topear.
+   */
+  meta?: Record<string, unknown>;
 }
 
 /**
@@ -612,7 +619,7 @@ export async function sendMessage(client: PoolClient, input: SendMessageInput): 
       JSON.stringify(input.attachments ?? []),
       input.authorKind,
       input.authorId ?? null,
-      JSON.stringify(input.plantilla ? { plantilla: input.plantilla } : {}),
+      JSON.stringify({ ...(input.meta ?? {}), ...(input.plantilla ? { plantilla: input.plantilla } : {}) }),
     ],
   );
   if (input.authorKind !== 'system') {
@@ -1222,4 +1229,59 @@ export async function cambiarPrioridad(
     metadata: { from: antes.priority, to: input.prioridad },
   });
   return rowToConversation(r.rows[0]);
+}
+
+/**
+ * Las conversaciones que un agente podría RETOMAR, con lo que hace falta para
+ * decidirlo (#1210).
+ *
+ * Vive acá y no en `agents` por la regla de módulos: `conversations`,
+ * `contacts` y `messages` son de este módulo, y una consulta de agents sobre
+ * ellas es justo el cruce que el trinquete de #784 no deja pasar. Lo que no
+ * vive acá es el CRITERIO —cada cuánto, hasta qué hora, con qué tope—: eso es
+ * del agente, se prueba aparte, y acá no se podría explicar.
+ *
+ * Lo que sí se filtra es lo que no es cuestión de criterio: cerradas,
+ * archivadas, y quien pidió que no le escriban más.
+ */
+export interface ParaRetomar {
+  conversationId: string;
+  canal: string;
+  ultimoEntrante: Date | null;
+  ultimoSaliente: Date | null;
+  /** Cuántos mensajes de este tipo ya recibió: `meta->>'pulso' = '1'`. */
+  pulsosEnviados: number;
+}
+
+export async function conversacionesParaRetomar(
+  client: PoolClient,
+  tenantId: string,
+  limite = 200,
+): Promise<ParaRetomar[]> {
+  const r = await client.query(
+    `SELECT c.id, c.channel, c.last_inbound_at,
+            (SELECT max(m.created_at) FROM messages m
+              WHERE m.tenant_id = c.tenant_id AND m.conversation_id = c.id
+                AND m.direction = 'out') AS ultimo_saliente,
+            (SELECT count(*) FROM messages m
+              WHERE m.tenant_id = c.tenant_id AND m.conversation_id = c.id
+                AND m.direction = 'out' AND m.meta->>'pulso' = '1') AS pulsos
+       FROM conversations c
+       JOIN contacts k ON k.id = c.contact_id
+      WHERE c.tenant_id = $1
+        AND c.state IN ('new','open')
+        AND c.archived_at IS NULL
+        AND k.opted_out_at IS NULL
+        AND c.last_inbound_at IS NOT NULL
+      ORDER BY c.last_inbound_at DESC
+      LIMIT $2`,
+    [tenantId, limite],
+  );
+  return r.rows.map((f) => ({
+    conversationId: f.id as string,
+    canal: f.channel as string,
+    ultimoEntrante: (f.last_inbound_at as Date | null) ?? null,
+    ultimoSaliente: (f.ultimo_saliente as Date | null) ?? null,
+    pulsosEnviados: Number(f.pulsos ?? 0),
+  }));
 }

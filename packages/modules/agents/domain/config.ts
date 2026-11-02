@@ -67,6 +67,14 @@ export const TASKS = [
   // se lee SEPARADO del de los asistentes que atienden clientes — es gasto
   // de configuración, no de atención.
   'configuracion_conversada',
+  // Retomar una conversación por iniciativa del negocio (#1210). Tarea propia
+  // y no `responder` por tres razones y ninguna es estética: el tope de salida
+  // es la mitad —un mensaje para retomar que se va a tres frases ya es malo—,
+  // su costo se lee separado del de atender (quien paga tiene derecho a saber
+  // cuánto le cuesta ir a buscar y cuánto contestar), y el acta de la corrida
+  // tiene que decir la verdad: «retomar» y «responder» se arreglan distinto
+  // cuando alguna de las dos sale mal.
+  'retomar',
 ] as const;
 export type AgentTask = (typeof TASKS)[number];
 
@@ -180,6 +188,9 @@ export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
   // respuestas rápidas y tres plantillas— y en mínimo la forma se suelta.
   configurar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
   conocer: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
+  // Mismo modelo y esfuerzo que `responder`: es el mismo trabajo de redacción,
+  // con el mismo tono, solo que sin una pregunta delante.
+  retomar: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
   resumir: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
   transcribir: { provider: 'openai', model: 'gpt-4o-mini-transcribe' },
   analizar: { provider: 'openai', model: 'gpt-5', esfuerzo: 'bajo' },
@@ -228,6 +239,9 @@ export const DEFAULT_TASK_OUTPUT_TOKENS: Record<AgentTask, number> = {
   // razona. Cortarla acá es el onboarding fallando en el primer intento.
   configurar: 4000,
   conocer: 1500,
+  // La mitad que `responder`, a propósito. Un mensaje para retomar es de dos
+  // frases: darle más espacio es invitar al párrafo que nadie lee de pie.
+  retomar: 700,
   resumir: 1024,
   transcribir: 2048,
   // La respuesta es corta, pero antes hay un ida y vuelta de herramientas:
