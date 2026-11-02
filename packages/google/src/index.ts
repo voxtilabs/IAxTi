@@ -6,4 +6,10 @@ export { createGoogleCalendarClient } from './calendar';
 export type { GoogleCalendarClient, GoogleBusyInterval, GoogleFreebusyInput, GoogleWatchInput, GoogleWatchChannel } from './calendar';
 export { GoogleIntegrationError } from './http';
 export type { GoogleErrorCode, GoogleTransportOptions, GoogleRequestOptions } from './http';
-export { createLocalSecretStore, custodiaLocalDesdeEntorno, type LocalSecretStoreConfig } from './secretos-en-el-vps';
+export {
+  createLocalSecretStore,
+  custodiaLocalDesdeEntorno,
+  custodiaDesdeEntorno,
+  CustodiaIncompleta,
+  type LocalSecretStoreConfig,
+} from './secretos-en-el-vps';

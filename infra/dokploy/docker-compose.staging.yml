@@ -9,6 +9,24 @@
 x-app: &app
   image: ${IMAGE}
   restart: unless-stopped
+  # Resolvedor propio, no el del host (#1176).
+  #
+  # Medido en Sentry el 02-11: `getaddrinfo EAI_AGAIN
+  # aws-0-sa-east-1.pooler.supabase.com` 39 veces en una hora sobre
+  # `/v1/arranque`, o sea la pantalla no carga porque no se pudo traducir el
+  # nombre de la base. EAI_AGAIN es «fallo temporal»: el resolvedor no
+  # contestó a tiempo, no que el nombre no exista.
+  #
+  # Los contenedores heredan el resolvedor del host a través del DNS
+  # embebido de Docker. Cuando ese camino falla, falla para TODO lo que salga
+  # a internet. Dos resolvedores públicos lo saltan y dan un segundo intento
+  # gratis: si el primero no contesta, se prueba el otro.
+  #
+  # Esto NO arregla el DNS del VPS, que hay que mirar igual. Lo que hace es
+  # que una pantalla deje de caerse por eso.
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
 
 x-env: &app-env
   IAXTI_ENV: ${IAXTI_ENV}
@@ -56,6 +74,12 @@ x-env: &app-env
   ZAVU_PARTNER_WEBHOOK_SECRET: ${ZAVU_PARTNER_WEBHOOK_SECRET:-}
   GOOGLE_SECRET_PROJECT_ID: ${GOOGLE_SECRET_PROJECT_ID:-}
   GOOGLE_SECRET_LOCATION: ${GOOGLE_SECRET_LOCATION:-}
+  # ADR-0028: en la v1 la custodia es el disco cifrado del VPS, y Secret
+  # Manager es la opción. El directorio es un VOLUMEN CON NOMBRE a propósito:
+  # dentro del contenedor, cada redeploy borraría los secretos del canal y
+  # habría que reconectar el número de WhatsApp.
+  GOOGLE_SECRET_DIR: ${GOOGLE_SECRET_DIR:-/datos/secretos}
+  GOOGLE_SECRET_KEY: ${GOOGLE_SECRET_KEY:-}
 
   # Correo transaccional (#55). El usuario SMTP de Resend es literalmente
   # `resend` y NO es una dirección: el remitente va en SMTP_FROM con un
@@ -159,6 +183,8 @@ services:
 
   api:
     <<: *app
+    volumes:
+      - secretos-del-canal:/datos/secretos
     environment:
       <<: *app-env
       SERVICE: api
@@ -168,6 +194,8 @@ services:
 
   workers:
     <<: *app
+    volumes:
+      - secretos-del-canal:/datos/secretos
     environment:
       <<: *app-env
       SERVICE: workers
@@ -191,3 +219,4 @@ services:
 
 volumes:
   redis-data:
+  secretos-del-canal:

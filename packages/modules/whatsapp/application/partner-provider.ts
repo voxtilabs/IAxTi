@@ -1,4 +1,4 @@
-import { createGoogleSecretStore, type GoogleSecretStore } from '@iaxti/google';
+import { createGoogleSecretStore, type GoogleSecretStore, custodiaDesdeEntorno} from '@iaxti/google';
 import { esNombreDeVariable, textoDeEntorno } from '@iaxti/core';
 import { isChannelSecretRef } from '@iaxti/module-channels';
 import { ZAVU_API_BASE_DEFAULT } from './zavu';
@@ -13,8 +13,29 @@ export interface PartnerPorts {
   secrets: GoogleSecretStore;
   enabled: () => boolean;
 }
+/**
+ * Dónde se guarda el secreto del webhook (#1175).
+ *
+ * Acá decía `createGoogleSecretStore` a secas, así que conectar un WhatsApp
+ * exigía un proyecto de Google Cloud — y como `partnerPorts` construye esto
+ * ANTES de la primera llamada, el botón «Conectar WhatsApp» devolvía 503 sin
+ * llegar a pedirle nada a Zavu. Zavu no tiene nada que ver con Google Cloud.
+ *
+ * ADR-0028: en la v1 la custodia es el disco cifrado del VPS y Secret Manager
+ * es la opción. El calendario ya lo hacía bien; esto no. Ahora los dos usan el
+ * MISMO selector, que vive en `@iaxti/google` para que no haya una tercera
+ * versión.
+ */
 export function partnerSecretStore(): GoogleSecretStore {
-  return createGoogleSecretStore({projectId: process.env.GOOGLE_SECRET_PROJECT_ID ?? '', location: process.env.GOOGLE_SECRET_LOCATION ?? ''});
+  const custodia = custodiaDesdeEntorno(createGoogleSecretStore);
+  if (!custodia) {
+    throw new PartnerError(
+      'PARTNER_NOT_CONFIGURED',
+      'Falta decir dónde se guardan los secretos del canal. Pide a quien configura el servicio que defina GOOGLE_SECRET_DIR y GOOGLE_SECRET_KEY.',
+      503,
+    );
+  }
+  return custodia;
 }
 export function partnerPorts(enabled: () => boolean): PartnerPorts {
   const credentialRef = process.env.ZAVU_PARTNER_CREDENTIAL_REF?.trim() || 'ZAVU_API_KEY';
