@@ -11,5 +11,6 @@ export {
   custodiaLocalDesdeEntorno,
   custodiaDesdeEntorno,
   CustodiaIncompleta,
+  CustodiaSinPermiso,
   type LocalSecretStoreConfig,
 } from './secretos-en-el-vps';
