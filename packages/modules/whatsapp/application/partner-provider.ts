@@ -52,6 +52,20 @@ export function partnerPorts(enabled: () => boolean): PartnerPorts {
     async call(path,method='GET',body) {
       try {
         const response = await fetch(`${base}${path}`,{method,signal:AbortSignal.timeout(8000),headers:{Authorization:`Bearer ${process.env[credentialRef]}`,...(body ? {'Content-Type':'application/json'} : {})},...(body ? {body:JSON.stringify(body)} : {})});
+        /**
+         * Un 404 es DEFINITIVO y el resto no (#1183).
+         *
+         * Acá todo fallo salía con el mismo error y el mismo consejo —«revisa
+         * el estado antes de reintentar»—, que para un 404 es falso: un emisor
+         * que Zavu borró no reaparece, y reintentar es lo único que seguro no
+         * va a funcionar. Medido: las dos invitaciones completadas del tenant
+         * de staging apuntan a emisores que hoy dan 404, y la conexión quedó
+         * encerrada apretando ese botón.
+         *
+         * El cuerpo del proveedor sigue sin salir: lo que se conserva es que
+         * el recurso no está, no lo que Zavu dijo de él.
+         */
+        if (response.status === 404) throw new PartnerError('PARTNER_RESOURCE_GONE','Zavu ya no tiene ese recurso. Hay que empezar la conexión de nuevo.',410);
         if (!response.ok) throw new PartnerError('PARTNER_PROVIDER_FAILED','Zavu no pudo completar este paso. Revisa el estado antes de reintentar.',502);
         const reader=response.body?.getReader(); let size=0; const chunks:Uint8Array[]=[];
         if (!reader) throw new Error('empty');
@@ -59,7 +73,15 @@ export function partnerPorts(enabled: () => boolean): PartnerPorts {
         const value:unknown=JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (!value || typeof value!=='object' || Array.isArray(value)) throw new Error('shape');
         return value as Record<string,unknown>;
-      } catch { throw new PartnerError('PARTNER_PROVIDER_FAILED','Zavu no pudo completar este paso. Revisa el estado antes de reintentar.',502); }
+      } catch (e) {
+        // Un `PartnerError` ya clasificado pasa tal cual: este catch existe
+        // para el timeout, el cuerpo gigante y el JSON roto, no para tragarse
+        // la clasificación de arriba (#1183). Con un `catch` pelado, el 410
+        // del recurso ausente salía convertido en 502 «reintenta», que es
+        // exactamente el consejo equivocado.
+        if (e instanceof PartnerError) throw e;
+        throw new PartnerError('PARTNER_PROVIDER_FAILED','Zavu no pudo completar este paso. Revisa el estado antes de reintentar.',502);
+      }
     }};
 }
 export async function resolveChannelWebhookSecret(account:{tenantId:string;id:string;webhookSecretRef:string|null}, store?:GoogleSecretStore, signal?:AbortSignal):Promise<string|undefined> {

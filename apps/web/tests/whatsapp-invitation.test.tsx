@@ -31,6 +31,42 @@ it.each(['tenant','session'])('respuesta tardía anterior no filtra el enlace al
  if(kind==='session')mock.session={access_token:'two'};view.rerender(<WhatsAppInvitation tenant={kind==='tenant'?'b':'a'}/>);await screen.findByRole('button',{name:'Conectar WhatsApp'});
  await act(async()=>finish({...state('pending'),url:'https://dashboard.zavu.dev/invite/old'}));expect(screen.queryByRole('link')).not.toBeInTheDocument();expect(mock.status.mock.calls[0]![0].aborted).toBe(true);
 });
+it('emisor borrado en Zavu: dice que no se puede retomar y deja empezar de nuevo (#1183)',async()=>{
+ // La cuarta puerta cerrada. Reintentar daba 404 para siempre, empezar de
+ // nuevo estaba bloqueado en el backend, cancelar no existe y el enlace vencía
+ // después del evento. Esta pantalla era la última que podía ofrecer la salida
+ // y tampoco lo hacía: `canStart` era MÁS estricto que el backend.
+ mock.status.mockResolvedValue({...state('failed'),errorCode:'PARTNER_SENDER_GONE'});
+ render(<WhatsAppInvitation tenant="a"/>);
+ expect(await screen.findByRole('alert')).toHaveTextContent(/ya no está en Zavu/);
+ expect(await screen.findByRole('button',{name:'Conectar WhatsApp'})).toBeInTheDocument();
+ // Y no se ofrece revisar: revisar una invitación cuyo emisor no existe solo
+ // puede volver a fallar, y ofrecerlo es mandar a repetir lo que no funciona.
+ expect(screen.queryByRole('button',{name:'Revisar conexión'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Reintentar conexión segura'})).not.toBeInTheDocument();
+});
+it('empezar de nuevo tras el emisor borrado pide una invitación NUEVA, no la misma',async()=>{
+ // Con la misma `key` el backend devuelve el intento anterior (`create:false`),
+ // o sea el que está fallado. La pantalla ya limpiaba la key cuando la fase no
+ // es 'none'; esto lo sostiene para la fase nueva.
+ mock.status.mockResolvedValue({...state('failed'),errorCode:'PARTNER_SENDER_GONE'});
+ mock.start.mockResolvedValue(state('pending'));
+ render(<WhatsAppInvitation tenant="a"/>);
+ await userEvent.click(await screen.findByRole('button',{name:'Conectar WhatsApp'}));
+ await waitFor(()=>expect(mock.start).toHaveBeenCalledTimes(1));
+ const primera=mock.start.mock.calls[0]![0] as string;
+ expect(typeof primera).toBe('string');
+ expect(primera).not.toBe('');
+});
+it('recovery_required SÍ sigue ofreciendo reintentar: no todo fallo es definitivo',async()=>{
+ // La otra mitad de #1183. Un timeout del proveedor es temporal y reintentar
+ // es el camino correcto; si el arreglo del 404 se tragara este caso, un corte
+ // de red de diez segundos mandaría a empezar de cero.
+ mock.status.mockResolvedValue({...state('recovery_required'),errorCode:'PARTNER_SECRET_UNCERTAIN'});
+ render(<WhatsAppInvitation tenant="a"/>);
+ expect(await screen.findByRole('button',{name:'Reintentar conexión segura'})).toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Conectar WhatsApp'})).not.toBeInTheDocument();
+});
 it('respuesta POST tardía al cambiar de negocio no sustituye su estado',async()=>{
  let finish!:(value:unknown)=>void;mock.start.mockImplementation(()=>new Promise(r=>{finish=r;}));const view=render(<WhatsAppInvitation tenant="a"/>);await userEvent.click(await screen.findByRole('button',{name:'Conectar WhatsApp'}));view.rerender(<WhatsAppInvitation tenant="b"/>);await screen.findByRole('button',{name:'Conectar WhatsApp'});
  await act(async()=>finish({...state('active'),accountId:'old'}));expect(screen.queryByText(/está conectado/)).not.toBeInTheDocument();

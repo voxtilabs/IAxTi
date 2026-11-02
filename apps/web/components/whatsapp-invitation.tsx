@@ -22,7 +22,7 @@ const words:Record<string,string>={
   checking_expiry:'El enlace venció. Estamos comprobando si la autorización terminó antes de crear otra invitación.',
   expired:'La invitación venció. Puedes crear una nueva para conectar tu número.',
   cancelled:'La invitación fue cancelada. Puedes crear una nueva.',
-  failed:'La invitación no terminó. Puedes volver a abrir el mismo enlace.',
+  failed:'La conexión no terminó. Puedes empezar una nueva.',
 };
 function Invitation({tenant,token,apiUrl,primary}:{tenant:string;token:string;apiUrl:string;primary:boolean}) {
   const [data,setData]=useState<PartnerInvitationState|null>(null);
@@ -50,18 +50,28 @@ function Invitation({tenant,token,apiUrl,primary}:{tenant:string;token:string;ap
     finally{mutation.current=false;if(alive.current)setBusy(false);}
   }
   const phase=data?.phase;
-  const canStart=phase==='none'||phase==='expired'||phase==='cancelled';
+  /**
+   * `failed` también deja empezar de nuevo (#1183).
+   *
+   * El backend ya lo permitía —`startPartnerInvitation` no crea otra mientras
+   * la fase no esté en ('expired','cancelled','failed','active')— y la
+   * interfaz era MÁS estricta que él: no ofrecía el botón. Daba igual mientras
+   * ninguna ruta escribiera `failed`; ahora el emisor ausente lo escribe, y
+   * sin esto la pantalla sería la cuarta puerta cerrada.
+   */
+  const canStart=phase==='none'||phase==='expired'||phase==='cancelled'||phase==='failed';
   return <section aria-label="Conexión de WhatsApp" className="w-full min-w-0 rounded-campo border border-line bg-rest p-4">
     {!data&&!error?<div role="status" aria-label="Cargando conexión"><Skeleton className="h-5 w-3/4"/><Skeleton className="mt-3 h-12 w-full"/></div>:<>
       {data&&<p role="status" className="text-sm text-body">{data.providerStatus==='failed'?'No se terminó la autorización en Facebook. El mismo enlace permite intentarlo otra vez.':words[data.phase]??'Revisa el estado de la conexión.'}</p>}
       {error&&<div role="alert" className="mt-2 text-sm text-bad-text"><p>{error.texto}</p>{error.rastro&&<p className="dato mt-1 break-all text-xs">{error.rastro}</p>}</div>}
       {data?.errorCode==='PARTNER_OTHER_INVITATION_CHANGED'&&<p role="alert" className="mt-2 text-sm text-warn-text">Una invitación anterior cambió en Zavu. Conservamos este intento; pide ayuda para revisar la anterior.</p>}
+      {data?.errorCode==='PARTNER_SENDER_GONE'&&<p role="alert" className="mt-2 text-sm text-warn-text">El número que se había conectado ya no está en Zavu, así que este intento no se puede retomar. Empieza una conexión nueva.</p>}
       {data?.errorCode&&<p className="dato mt-2 break-all text-xs text-muted">{data.errorCode}</p>}
       {data?.url&&phase==='pending'&&<a href={data.url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="mt-3 inline-block text-action-text underline underline-offset-4">Continuar con Facebook</a>}
       {data?.expiresAt&&phase==='pending'&&<p className="mt-2 text-xs text-muted">Disponible hasta <span className="dato">{new Date(data.expiresAt).toLocaleDateString('es-CL',{timeZone:'America/Santiago'})}</span>.</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         {canStart&&<Button className="!h-auto min-h-control py-2" variant={primary?'primario':'secundario'} disabled={busy} onClick={()=>{if(phase!=='none')key.current=null;void act(true);}}>{busy?'Preparando invitación…':'Conectar WhatsApp'}</Button>}
-        {data?.id&&['pending','checking_expiry','connecting','recovery_required','failed'].includes(data.phase)&&<Button className="!h-auto min-h-control py-2" variant="secundario" disabled={busy} onClick={()=>void act(false)}>{busy?'Revisando…':phase==='recovery_required'?'Reintentar conexión segura':'Revisar conexión'}</Button>}
+        {data?.id&&['pending','checking_expiry','connecting','recovery_required'].includes(data.phase)&&<Button className="!h-auto min-h-control py-2" variant="secundario" disabled={busy} onClick={()=>void act(false)}>{busy?'Revisando…':phase==='recovery_required'?'Reintentar conexión segura':'Revisar conexión'}</Button>}
         <Button className="!h-auto min-h-control py-2" variant="fantasma" disabled={busy} onClick={()=>void load()}>Actualizar estado</Button>
       </div>
     </>}
