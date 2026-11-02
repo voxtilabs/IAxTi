@@ -53,6 +53,7 @@ import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
 import { realtimeConsumers } from './realtime';
 import {
+  conversacionesParaRetomar,
   deleteR2Keys,
   onContactMerged,
   purgeTenantRetention,
@@ -68,7 +69,15 @@ import {
   valoresDelAviso,
 } from '@iaxti/module-calendar';
 import { getTenantSettings, onboardingConsumers } from '@iaxti/module-organizations';
-import { objetivoConsumers, purgarHilosViejos } from '@iaxti/module-agents';
+import {
+  agenteConPulso,
+  conversationMode,
+  listAgents,
+  negociosDelPulso,
+  objetivoConsumers,
+  purgarHilosViejos,
+  tocaPulso,
+} from '@iaxti/module-agents';
 import { transportesDeAviso } from './transportes-aviso';
 import {
   enqueueTenantChildren,
@@ -221,6 +230,17 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
    */
   let colaAutomations: ReturnType<typeof createQueue> | null = null;
   const colaDeCampanas = () => (colaAutomations ??= createQueue('automations', redisConnection()));
+
+  /**
+   * La cola de `agents`, por lo mismo y para dos productores igual de
+   * separados: el camino de entrada, que pide una sugerencia por cada mensaje
+   * que llega, y el pulso del evento (#1210), que la pide sin que nadie haya
+   * escrito. La de entrada se crea abajo, cuando se arma su worker; esta se
+   * crea la primera vez que un pulso tiene a quién mandarle, que en un negocio
+   * con el pulso apagado es nunca.
+   */
+  let colaAgents: ReturnType<typeof createQueue> | null = null;
+  const colaDeAgentes = () => (colaAgents ??= createQueue('agents', redisConnection()));
 
   if (process.env.REDIS_URL) {
     const scheduled = createQueue('scheduled', redisConnection());
@@ -633,6 +653,75 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
             );
           }
           return { listas, fallidas, quedanMas };
+        }
+        /**
+         * El pulso del evento (#1210): el agente retoma solo a quien tiene la
+         * ventana de 24 h abierta.
+         *
+         * Acá se DECIDE y se encola; generar y mandar es del proceso de
+         * agents, como todo lo que llama al modelo. Y se decide con la función
+         * del módulo, no con un SQL acá: el motivo de cada salto —la ventana,
+         * la hora, el ritmo, el tope— es lo único que después permite explicar
+         * por qué alguien no recibió nada.
+         *
+         * En un negocio con el pulso apagado esto son dos consultas y cero
+         * trabajo: `agenteConPulso` devuelve null y no se mira ni una
+         * conversación.
+         */
+        case 'agents.pulso': {
+          const negocios = await negociosDelPulso(pool);
+          let encolados = 0;
+          const porMotivo: Record<string, number> = {};
+          for (const tenantId of negocios) {
+            const pendientes = await withTenant(pool, tenantId, async (c) => {
+              const conPulso = agenteConPulso(await listAgents(c, tenantId));
+              if (!conPulso) return [];
+              const candidatas = await conversacionesParaRetomar(c, tenantId);
+              const listas: string[] = [];
+              for (const cand of candidatas) {
+                const { manda, motivo } = tocaPulso({
+                  ahora: new Date(),
+                  cfg: conPulso.cfg,
+                  canal: cand.canal,
+                  ultimoEntrante: cand.ultimoEntrante,
+                  ultimoSaliente: cand.ultimoSaliente,
+                  pulsosEnviados: cand.pulsosEnviados,
+                });
+                porMotivo[motivo] = (porMotivo[motivo] ?? 0) + 1;
+                // La marca manual de la conversación es de este módulo, así
+                // que se pregunta acá y no en la consulta de arriba: una
+                // conversación que el dueño puso en `off` no recibe pulso ni
+                // con el pulso prendido.
+                if (manda && (await conversationMode(c, tenantId, cand.conversationId)) !== 'off') {
+                  listas.push(cand.conversationId);
+                }
+              }
+              return listas;
+            });
+            for (const conversationId of pendientes) {
+              await colaDeAgentes()
+                .add(
+                  'pulso',
+                  { moduleId: 'agents', tenantId, conversationId, knowledgeActivo: registry.isActive('knowledge') },
+                  // Un pulso por conversación y por minuto como máximo: si la
+                  // pasada anterior todavía no terminó, el mismo jobId no
+                  // entra dos veces y nadie recibe el mensaje duplicado.
+                  { jobId: `pl-${conversationId}-${Math.floor(Date.now() / 60_000)}` },
+                )
+                .then(() => {
+                  encolados += 1;
+                })
+                .catch(() => {});
+            }
+          }
+          if (encolados > 0) {
+            console.log(
+              `scheduled: pulso — ${encolados} conversaciones a retomar (${Object.entries(porMotivo)
+                .map(([m, n]) => `${m}:${n}`)
+                .join(' ')})`,
+            );
+          }
+          return { encolados, porMotivo };
         }
         default:
           console.log(`scheduled: job ${job.name} procesado`);

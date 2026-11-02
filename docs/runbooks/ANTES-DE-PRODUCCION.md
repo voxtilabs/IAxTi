@@ -87,6 +87,7 @@ número, el que manda es el código:
 | `automations.sweep` | 5 min | las reglas por tiempo ("2 días sin respuesta") no disparan |
 | `api_usage.flush` | 5 min | el consumo de API no se cobra ni se muestra |
 | `knowledge.reindex` | 5 min | la IA se queda sin el conocimiento que el negocio subió |
+| `agents.pulso` | 1 min | el agente no retoma a nadie; con el pulso apagado no hace nada y eso es lo normal |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
 | `knowledge.borrados_pendientes` | :50 | una fuente que perdió su archivo se sigue citando: el PDF no se puede bajar |
 | `identity.partner.maintain` | Cada 1 min | Invitaciones sin procesar o enlaces vencidos; recupera el inbox y limpia intenciones huérfanas de Secret Manager. No repite creates/rotaciones ambiguos. Limpieza incluso con WhatsApp apagado; preparación en [evidencia #56](../evidencias/56-partner/README.md). |
