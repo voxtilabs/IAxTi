@@ -118,11 +118,28 @@ COPY infra/docker/entrypoint.sh /entrypoint.sh
 # Los cinco servicios escuchan en un puerto no privilegiado. El código queda
 # de root y solo las cachés de Next son escribibles por el usuario de runtime.
 # UID/GID 1000 es node en la imagen oficial que copia nuestro espejo (#758).
+# La custodia de secretos del canal también la escribe el runtime (#1192).
+#
+# Va acá y no en el compose porque un volumen con nombre lo crea Docker como
+# root:root, y el proceso corre como 1000: crear la carpeta de un secreto
+# adentro daba EACCES, que `createLocalSecretStore` no preveía —esperaba EEXIST
+# o ENOENT— y subía crudo. Llegaba como «no se sabe si la custodia quedó a
+# medias» y costó una mañana.
+#
+# Docker copia contenido Y DUEÑO del punto de montaje de la imagen a un volumen
+# con nombre vacío la primera vez que lo monta, así que declararlo acá es lo que
+# le da el dueño correcto al volumen.
+#
+# 700 a propósito: es material criptográfico, y el usuario no privilegiado es lo
+# que hace que ese 700 signifique algo.
 RUN chmod +x /entrypoint.sh && \
     for a in web admin; do \
       mkdir -p /app/standalone-$a/apps/$a/.next/cache; \
       chown -R 1000:1000 /app/standalone-$a/apps/$a/.next/cache; \
-    done
+    done && \
+    mkdir -p /datos/secretos && \
+    chown 1000:1000 /datos /datos/secretos && \
+    chmod 700 /datos/secretos
 USER 1000:1000
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]

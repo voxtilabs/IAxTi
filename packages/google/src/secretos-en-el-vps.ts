@@ -176,9 +176,13 @@ export function createLocalSecretStore(
           throw new GoogleIntegrationError('GOOGLE_ALREADY_EXISTS');
         }
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-          await mkdir(config.directorio, { recursive: true, mode: 0o700 });
-          await mkdir(dir, { recursive: false, mode: 0o700 });
-        } else throw error;
+          try {
+            await mkdir(config.directorio, { recursive: true, mode: 0o700 });
+            await mkdir(dir, { recursive: false, mode: 0o700 });
+          } catch (segundo) {
+            throw sinPermiso(segundo, config.directorio);
+          }
+        } else throw sinPermiso(error, config.directorio);
       }
       return addVersion(id, payload, opt);
     },
@@ -251,6 +255,38 @@ export async function olvidarSecretoLocal(directorio: string, id: string): Promi
  * configuración a MEDIAS: un directorio sin llave no es «sin configurar», es
  * un error de despliegue que hay que decir en voz alta.
  */
+/**
+ * El directorio de la custodia no se puede escribir (#1192).
+ *
+ * Lleva la ruta y qué hacer, al contrario de `GoogleIntegrationError`, que a
+ * propósito no conserva detalle: ahí el detalle sería del PROVEEDOR y podría
+ * filtrar algo suyo. Acá el detalle es nuestro —una ruta y un dueño de
+ * archivo— y es exactamente lo que necesita quien configura el servicio.
+ *
+ * Lo que costó no tenerlo: un volumen con nombre lo crea Docker como
+ * `root:root` y el contenedor corre como 1000, así que `mkdir` dentro daba
+ * EACCES. No es `EEXIST` ni `ENOENT`, los dos casos que `put` preveía, así que
+ * subía crudo y el flujo de WhatsApp lo mostraba como «no se sabe si la
+ * custodia quedó a medias». Una mañana para encontrar un permiso.
+ */
+export class CustodiaSinPermiso extends Error {
+  constructor(public readonly directorio: string) {
+    super(
+      `No puedo escribir en ${directorio}. El directorio de la custodia tiene que ` +
+        'pertenecer al usuario del contenedor (1000) y ser suyo con modo 700.',
+    );
+    this.name = 'CustodiaSinPermiso';
+  }
+}
+/**
+ * EACCES y EPERM son configuración, no «algo pasó». Cualquier otro error del
+ * sistema de archivos se deja pasar tal cual: inventarle un nombre a lo que no
+ * se entiende es cómo se pierde el error de verdad.
+ */
+function sinPermiso(error: unknown, directorio: string): unknown {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'EACCES' || code === 'EPERM' ? new CustodiaSinPermiso(directorio) : error;
+}
 export class CustodiaIncompleta extends Error {
   constructor(public readonly falta: string) {
     super(`Falta ${falta} para la custodia de secretos.`);

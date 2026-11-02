@@ -152,3 +152,12 @@ it('una señal ya abortada no escribe nada', async () => {
     .rejects.toMatchObject({ code: 'GOOGLE_REQUEST_ABORTED' });
   await expect(readdir(join(dir, secreto))).rejects.toThrow();
 });
+
+it('un id repetido sigue siendo GOOGLE_ALREADY_EXISTS, no un permiso (#1192)', async () => {
+  // La otra mitad: clasificar EACCES no puede tragarse el caso de EEXIST, que
+  // tiene su propio significado y su propio camino en la limpieza.
+  const secreto = id();
+  await almacen().put(secreto, TOKEN);
+  await expect(almacen().put(secreto, TOKEN)).rejects.toBeInstanceOf(GoogleIntegrationError);
+  await expect(almacen().put(secreto, TOKEN)).rejects.toMatchObject({ code: 'GOOGLE_ALREADY_EXISTS' });
+});
