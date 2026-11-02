@@ -7,10 +7,11 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { degradarSinRomper, withTenant } from '@iaxti/db';
 import {
   diagnosticarCanal,
@@ -112,15 +113,28 @@ export class ChannelsController {
   // puerta lista para dárselo a SUPERVISOR cuando se decida.
   @RequirePermission('channels.read')
   @ApiOperation({ summary: 'Cuentas de canal con sus números y calidad' })
-  async list(@Req() request: WithUser) {
+  @ApiQuery({ name: 'archivados', required: false, description: '1 para incluir los canales archivados' })
+  async list(@Req() request: WithUser, @Query('archivados') archivados?: string) {
     const actor = actorOf(request);
+    /**
+     * Los archivados NO salen, salvo que se pidan (#1202).
+     *
+     * Mostraban su diagnóstico en rojo —«El canal está disconnected · Vuelve a
+     * conectarlo»— al lado del que sí anda. Correcto como descripción y
+     * equivocado como consejo: nadie quiere reconectar lo que archivó, y dos
+     * rojos permanentes impiden distinguir un problema de la historia.
+     *
+     * Se pueden pedir porque nada se borra: se archiva, y lo archivado se tiene
+     * que poder mirar.
+     */
+    const incluirDesconectados = archivados === '1';
     return withTenant(pool(), actor.tenantId, async (c) => {
       // Los números son opcionales —la pantalla se dibuja igual sin ellos—
       // pero la cuenta de canal NO: sin ella no hay nada que mostrar. Por eso
       // una se degrada y la otra no, y por eso la que se degrada va dentro de
       // un savepoint: si no, su fallo se lleva puesta la otra (#962, #966).
       const [accounts, numbers] = await Promise.all([
-        listChannelAccounts(c, actor.tenantId),
+        listChannelAccounts(c, actor.tenantId, { incluirDesconectados }),
         degradarSinRomper(
           c,
           (cl) => listWhatsAppNumbers(cl, actor.tenantId),

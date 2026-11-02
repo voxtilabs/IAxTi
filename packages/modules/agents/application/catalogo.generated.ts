@@ -1932,7 +1932,12 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "archivados": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
       "additionalProperties": false
     }
   },

@@ -184,3 +184,55 @@ describe('la credencial va por referencia y se comprueba (#801)', () => {
     expect(buena.credentialRef).toBe('ZAVU_API_KEY');
   });
 });
+
+describe('los archivados no estorban la lista (#1202)', () => {
+  /**
+   * La pantalla de Canales mostraba su diagnóstico en rojo —«El canal está
+   * disconnected · Vuelve a conectarlo»— al lado del que sí anda. Correcto
+   * como descripción y equivocado como consejo: nadie quiere reconectar lo que
+   * archivó, y dos rojos permanentes impiden distinguir un problema de la
+   * historia.
+   */
+  it('el defecto los INCLUYE, y pedirlos sin archivados los deja fuera', async () => {
+    /**
+     * El defecto no se invierte a propósito: esta función tiene nueve
+     * llamadores y varios necesitan verlos —el que reapunta un canal
+     * archivado, que es una operación soportada con su prueba; el que resuelve
+     * el webhook entrante; los barridos—. Cambiarlo movería ocho
+     * comportamientos de una vez sin revisar ninguno, y esta prueba existe
+     * para que eso no se cuele sin querer.
+     */
+    const viva = await withTenant(app, tenant, (c) =>
+      createChannelAccount(c, {
+        tenantId: tenant, kind: 'whatsapp', name: 'Viva 1202',
+        credentialRef: 'K_1202', webhookSecretRef: 'H_1202', config: { senderId: 'snd-viva-1202' },
+      }),
+    );
+    const archivada = await withTenant(app, tenant, (c) =>
+      createChannelAccount(c, {
+        tenantId: tenant, kind: 'whatsapp', name: 'Archivada 1202',
+        credentialRef: 'K_1202', webhookSecretRef: 'H_1202', config: { senderId: 'snd-arch-1202' },
+      }),
+    );
+    await withTenant(app, tenant, (c) =>
+      setChannelState(c, { tenantId: tenant, accountId: archivada.id, state: 'disconnected' }),
+    );
+
+    const porDefecto = (await withTenant(app, tenant, (c) => listChannelAccounts(c, tenant))).map((a) => a.id);
+    expect(porDefecto).toContain(viva.id);
+    expect(porDefecto, 'el defecto los incluye: ocho llamadores dependen de eso').toContain(archivada.id);
+
+    const sinArchivados = (await withTenant(app, tenant, (c) =>
+      listChannelAccounts(c, tenant, { incluirDesconectados: false }),
+    )).map((a) => a.id);
+    expect(sinArchivados).toContain(viva.id);
+    expect(sinArchivados, 'lo que pide la pantalla de Canales').not.toContain(archivada.id);
+
+    // Y pedirlos explícitamente da lo mismo que el defecto: nada se borra, se
+    // archiva, y lo archivado se tiene que poder mirar.
+    const conArchivados = (await withTenant(app, tenant, (c) =>
+      listChannelAccounts(c, tenant, { incluirDesconectados: true }),
+    )).map((a) => a.id);
+    expect(conArchivados).toContain(archivada.id);
+  });
+});
