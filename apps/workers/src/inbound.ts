@@ -41,6 +41,16 @@ export interface InboundOutcome {
   optedOut: boolean;
   /** Dueño puesto por la asignación automática del tenant (#38), si hubo. */
   assignedTo: string | null;
+  /**
+   * Los adjuntos COMO QUEDARON, con su `key` de R2 si se pudieron guardar (#1200).
+   *
+   * Existe porque `main.ts` encolaba la sugerencia leyendo `data.attachments`
+   * —el job original, donde el adjunto todavía es `{url}` del proveedor— así
+   * que `audioKey` era SIEMPRE undefined y ninguna nota de voz se transcribía
+   * jamás. La fila de `messages` sí tenía la versión guardada, porque
+   * `receiveInbound` recibe la local; el job no.
+   */
+  attachments: AdjuntoEntrante[] | undefined;
 }
 
 /**
@@ -122,8 +132,11 @@ export async function processInbound(
     // bajan AL LLEGAR y van a R2 por tenant; en el mensaje queda solo la llave
     // (carpeta whatsapp/ del tenant). Si la descarga falla, el mensaje entra
     // igual con la metadata original: perder el texto por un adjunto sería peor.
-    let attachments = data.attachments;
-    const conMedia = (attachments as AdjuntoEntrante[] | undefined)?.some((a) => a?.url);
+    // Tipado acá y no con tres aserciones repartidas abajo: desde #1200 este
+    // valor SALE de la función, y un `unknown[]` que cruza la frontera obliga a
+    // adivinarlo del otro lado.
+    let attachments: AdjuntoEntrante[] | undefined = data.attachments as AdjuntoEntrante[] | undefined;
+    const conMedia = attachments?.some((a) => a?.url);
     if (conMedia && data.channelAccountId) {
       try {
         const account = await findAccountById(client, data.channelAccountId);
@@ -150,7 +163,7 @@ export async function processInbound(
               ? 'R2 no está configurado (R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_ADJUNTOS)'
               : null;
         if (falta) {
-          const cuantos = (attachments as AdjuntoEntrante[]).filter((a) => a?.url).length;
+          const cuantos = (attachments ?? []).filter((a) => a?.url).length;
           console.error(
             `inbound: ${cuantos} adjunto(s) del tenant ${data.tenantId} NO se guardaron y se van a ` +
               `perder cuando venza la URL del proveedor — ${falta}`,
@@ -159,7 +172,7 @@ export async function processInbound(
           attachments = await downloadAttachmentsToR2({
             tenantId: data.tenantId,
             conversationId: 'whatsapp',
-            attachments: attachments as AdjuntoEntrante[],
+            attachments: attachments ?? [],
             apiKey,
             storage,
           });
@@ -210,6 +223,9 @@ export async function processInbound(
         reopened: res.reopened,
         optedOut,
         assignedTo,
+        // Los que de verdad quedaron: con `key` si se guardaron, con `url` si
+        // no se pudo (#1200). Quien encola la sugerencia necesita ESTOS.
+        attachments,
       },
       perfil: await trabajoDelNombre(client, data, res.contact),
     };

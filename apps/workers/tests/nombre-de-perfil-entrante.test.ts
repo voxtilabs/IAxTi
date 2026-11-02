@@ -184,6 +184,57 @@ describe('el camino de entrada no espera a ningún tercero', () => {
     expect((await fichaDe(res.contactId)).name).toBeNull();
   });
 
+  /**
+   * El adjunto guardado SALE de processInbound (#1200).
+   *
+   * Lo que esto cierra: `main.ts` encolaba la sugerencia del copiloto leyendo
+   * `data.attachments` —el job del proveedor, donde el adjunto es `{url}` y la
+   * `key` de R2 todavía no existe— así que `audioKey` era SIEMPRE undefined y
+   * NINGUNA nota de voz se transcribía jamás. La IA contestaba sin saber qué
+   * decía el audio.
+   *
+   * Medido en staging el 02-11: el mensaje quedó con su `key` en la base y en
+   * `agent_executions` no hubo ninguna tarea `transcribir`.
+   */
+  it('el adjunto del audio vuelve en el outcome, no se queda dentro', async () => {
+    zavuResponde(() => new Response('{}', { status: 200 }));
+    const adjunto = { url: 'https://proveedor.invalido/audio.ogg', name: 'audio', contentType: 'audio/ogg' };
+    const res = await entra({
+      phone: '+56955551200',
+      channel: 'whatsapp',
+      type: 'audio',
+      attachments: [adjunto],
+      providerMessageId: `wamid.audio-${Date.now()}`,
+    });
+    // Sin R2 configurado la descarga se salta y el adjunto queda como llegó;
+    // lo que importa acá es que CRUCE la frontera, que es lo que no pasaba.
+    expect(res.attachments).toEqual([adjunto]);
+  });
+
+  it('un mensaje de texto no inventa adjuntos', async () => {
+    // Anti-vacuidad: si el campo devolviera siempre algo, la prueba de arriba
+    // pasaría sin que el dato viaje de verdad.
+    zavuResponde(() => new Response('{}', { status: 200 }));
+    const res = await entra({
+      phone: '+56955551201',
+      channel: 'whatsapp',
+      type: 'texto',
+      body: 'hola',
+      providerMessageId: `wamid.texto-${Date.now()}`,
+    });
+    expect(res.attachments).toBeUndefined();
+  });
+
+  it('quien encola la sugerencia lee los adjuntos del OUTCOME, no los del job', () => {
+    // Guarda de fuente: el defecto era leer `data.attachments` en main.ts, y
+    // eso no se ve montando el worker — se ve leyendo qué lado se usa.
+    const main = fuenteLimpia(readFileSync(join(__dirname, '../src/main.ts'), 'utf8'));
+    expect(main).toContain('res.attachments?.[0]');
+    expect(main).not.toContain('data.attachments as Array<{ key?: string');
+    // Y un audio sin llave lo DICE, en vez de irse sin transcribir en silencio.
+    expect(main).toMatch(/if \(data\.type === 'audio' && !adjunto\?\.key\)/);
+  });
+
   it('si no se puede encolar, el mensaje entra igual', async () => {
     zavuResponde(() => json({ items: [] }));
     const res = await processInbound(

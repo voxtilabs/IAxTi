@@ -809,7 +809,25 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
 
         // El copiloto (#48) corre DESPUÉS, en su cola: la bandeja no espera.
         if (registry.isActive('agents') && !res.optedOut) {
-          const adjunto = (data.attachments as Array<{ key?: string; contentType?: string }> | undefined)?.[0];
+          /**
+           * Los adjuntos de `res`, NO los del job (#1200).
+           *
+           * `data.attachments` es lo que llegó del proveedor: ahí el adjunto
+           * todavía es `{url}` y la `key` de R2 no existe, porque se asigna al
+           * guardarlo dentro de `processInbound`. Leyendo el job, `audioKey`
+           * era SIEMPRE undefined y ninguna nota de voz se transcribía jamás —
+           * la IA contestaba sin saber qué decía el audio.
+           */
+          const adjunto = res.attachments?.[0] as { key?: string; contentType?: string } | undefined;
+          if (data.type === 'audio' && !adjunto?.key) {
+            // Un audio que no se pudo guardar es una degradación aceptada; uno
+            // que no se intenta por un dato que no viajó es un defecto, y hasta
+            // ahora se veían igual: en silencio los dos.
+            console.warn(
+              `copiloto: el audio del mensaje ${res.messageId} va SIN transcribir — ` +
+                'el adjunto no quedó guardado en R2, así que no hay nada que transcribir.',
+            );
+          }
           await agentsQueue
             .add(
               'suggest',
