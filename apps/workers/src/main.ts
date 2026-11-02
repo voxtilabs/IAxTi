@@ -703,10 +703,29 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
                 .add(
                   'pulso',
                   { moduleId: 'agents', tenantId, conversationId, knowledgeActivo: registry.isActive('knowledge') },
-                  // Un pulso por conversación y por minuto como máximo: si la
-                  // pasada anterior todavía no terminó, el mismo jobId no
-                  // entra dos veces y nadie recibe el mensaje duplicado.
-                  { jobId: `pl-${conversationId}-${Math.floor(Date.now() / 60_000)}` },
+                  {
+                    // Un pulso por conversación y por minuto como máximo: si la
+                    // pasada anterior todavía no terminó, el mismo jobId no
+                    // entra dos veces y nadie recibe el mensaje duplicado.
+                    jobId: `pl-${conversationId}-${Math.floor(Date.now() / 60_000)}`,
+                    /**
+                     * Detrás de TODA respuesta a un cliente.
+                     *
+                     * El pulso comparte la cola `agents` con las sugerencias
+                     * del camino de entrada, y esa cola corre de a un job: una
+                     * generación son ~6 s, así que catorce pulsos encolados
+                     * juntos atrasarían hasta minuto y medio la respuesta a
+                     * alguien que acaba de escribir. Nadie que pregunta puede
+                     * esperar a que el bot termine de ir a buscar gente.
+                     *
+                     * Alcanza con priorizar ESTE lado: en BullMQ 5 «`0`
+                     * significa sin prioridad explícita, y los jobs sin
+                     * prioridad se procesan antes que los priorizados». Las
+                     * sugerencias se encolan sin `priority`, así que no hay que
+                     * tocar el camino de entrada para que siempre gane.
+                     */
+                    priority: 1,
+                  },
                 )
                 .then(() => {
                   encolados += 1;
