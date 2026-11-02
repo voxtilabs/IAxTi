@@ -14,9 +14,9 @@ async function tenant() {
   const r = await admin.query("INSERT INTO tenants(name) VALUES ('Emisor ficticio 74') RETURNING id");
   tenants.push(r.rows[0].id); return r.rows[0].id as string;
 }
-async function alta(t: string, sender: string, kind: 'whatsapp' | 'instagram' | 'messenger' = 'instagram', fallar = false) {
+async function alta(t: string, sender: string, kind: 'whatsapp' | 'instagram' | 'messenger' = 'instagram', fallar = false, hook = 'TEST_74_HOOK') {
   return withTenant(app, t, async (c) => {
-    const cuenta = await createChannelAccount(c, { tenantId: t, kind, name: 'Ficticia', credentialRef: 'TEST_74_KEY', webhookSecretRef: 'TEST_74_HOOK', config: { senderId: sender } });
+    const cuenta = await createChannelAccount(c, { tenantId: t, kind, name: 'Ficticia', credentialRef: 'TEST_74_KEY', webhookSecretRef: hook, config: { senderId: sender } });
     const reserva = await reservarEmisor(c, { tenantId: t, senderId: sender, accountId: cuenta.id, actor: 'operador-ficticio', actorKind: 'user' });
     await setChannelState(c, { tenantId: t, accountId: cuenta.id, state: 'active' });
     if (fallar) throw new Error('Falla posterior deliberada');
@@ -66,6 +66,49 @@ describe('reserva de emisor compartido (#74)', () => {
     }
     expect((await admin.query('SELECT actor, actor_kind FROM audit_log WHERE tenant_id=$1', [ganador])).rows).toEqual([{ actor: 'operador-ficticio', actor_kind: 'user' }]);
   });
+  it('un receptor DESCONECTADO no impone sus referencias: la conexión nueva lo reemplaza (#1190)', async () => {
+    /**
+     * El caso real, medido en staging el 02-11. Un canal de WhatsApp quedó
+     * `disconnected` con `webhook_secret_ref=ZAVU_WEBHOOK_SECRET`, y el flujo de
+     * invitación crea el suyo con `ZAVU_PARTNER_PENDING` —su marcador de
+     * «todavía no custodié el secreto»—. La comparación de referencias lanzaba
+     * SIEMPRE, así que un número que alguna vez se conectó a mano no se podía
+     * reconectar por invitación nunca. Y el `catch` del barrido lo mostraba
+     * como `PARTNER_PROVIDER_FAILED`, culpando al proveedor.
+     */
+    const t = await tenant();
+    const sender = `snd_${randomUUID().replaceAll('-', '')}`;
+    const vieja = await alta(t, sender, 'whatsapp');
+    await withTenant(app, t, (c) => setChannelState(c, { tenantId: t, accountId: vieja.cuenta.id, state: 'disconnected' }));
+
+    // Con OTRA referencia de secreto, que es lo que hacía imposible el caso.
+    const nueva = await alta(t, sender, 'whatsapp', false, 'PENDIENTE_DE_CUSTODIA');
+    expect(nueva.reserva.webhookAccountId).toBe(nueva.cuenta.id);
+    expect(nueva.reserva.primeraConexion).toBe(true);
+    // La reserva quedó apuntando al canal nuevo, no al desconectado.
+    expect((await withTenant(app, t, (c) => emisorAcreditado(c, t, sender)))?.id).toBe(nueva.cuenta.id);
+    // Y el traspaso queda en la auditoría: quién recibe los webhooks de un
+    // emisor no es un detalle que pueda cambiar sin rastro.
+    const rastro = await admin.query(
+      "SELECT metadata FROM audit_log WHERE tenant_id = $1 AND action = 'channel.sender.rebound'",
+      [t],
+    );
+    expect(rastro.rows).toHaveLength(1);
+    expect(rastro.rows[0].metadata.receptorAnterior).toBe(vieja.cuenta.id);
+  });
+
+  it('un receptor VIVO sigue imponiendo sus referencias (#1190)', async () => {
+    // La otra mitad, y la que no se puede aflojar: un emisor tiene UN receptor
+    // de webhooks y UN secreto. Dos canales vivos con secretos distintos
+    // partirían la entrada, y el fallo se vería como mensajes que no llegan.
+    const t = await tenant();
+    const sender = `snd_${randomUUID().replaceAll('-', '')}`;
+    await alta(t, sender, 'whatsapp');
+    await expect(alta(t, sender, 'instagram', false, 'OTRO_HOOK')).rejects.toThrow(
+      /referencias de su conexión original/i,
+    );
+  });
+
   it('el segundo canal conserva receptor primario y se resuelve por canal dentro del tenant', async () => {
     const t = await tenant(); const sender = randomUUID();
     const wa = await alta(t, sender, 'whatsapp'); const ig = await alta(t, sender);
