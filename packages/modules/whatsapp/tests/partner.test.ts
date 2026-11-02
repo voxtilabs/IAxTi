@@ -16,7 +16,7 @@ const remote=new Map<string,Record<string,unknown>>();
 const senders=new Map<string,Record<string,unknown>>();
 const secrets=new Map<string,{data:string;dataCrc32c:string}>();
 const calls:Array<{path:string;method:string;body:Record<string,unknown>}>=[];
-let loseCreate=false,loseRotation=false,failSecret=false,wrongPhone=false,senderRompe=false;
+let loseCreate=false,loseRotation=false,failSecret=false,wrongPhone=false,senderRompe=false,webhookTorcido='';
 const projectId='project_synthetic';
 beforeAll(async()=>{
  owner=createPool(process.env.DATABASE_URL!);await runMigrations(owner);
@@ -45,6 +45,13 @@ beforeAll(async()=>{
    if(!sender)return send({},404);
    if(path.endsWith('/webhook/secret')){if(loseRotation){loseRotation=false;res.destroy();return;}return send({secret:`synthetic_${id}`});}
    if(method==='PATCH'){sender.webhook={url:body.webhookUrl,active:body.webhookActive,events:body.webhookEvents};return send(sender);}
+   if(webhookTorcido&&sender.webhook){
+    // La confirmación final: se devuelve el webhook con UN campo que no calza,
+    // para que la prueba vea qué nombre sale (#1185).
+    const w=sender.webhook as Record<string,unknown>;
+    const torcido={url:'https://otra.cosa/webhooks/channels/x',active:false,events:['message.inbound']}[webhookTorcido as 'url'|'active'|'events'];
+    return send({...sender,webhook:{...w,[webhookTorcido]:torcido}});
+   }
    return send(wrongPhone?{...sender,whatsapp:{phoneNumberId:'another_meta_number'}}:sender);
   }
   if(path.startsWith('/v1/projects/')){
@@ -184,10 +191,42 @@ it('RLS real y referencias de otra cuenta no acceden al almacén',async()=>{
 it.each(['rotation','custody'])('fallo %s no activa ni reintenta rotación por callback; recuperación humana reanuda',async(kind)=>{
  const x=await begin();await complete(x.tenant);loseRotation=kind==='rotation';failSecret=kind==='custody';await deliver(x.tenant);failSecret=false;
  let r=await row(x.tenant);expect(r.phase).toBe('recovery_required');expect((await owner.query('SELECT state FROM channel_accounts WHERE id=$1',[r.account_id])).rows[0].state).toBe('connecting');
+ /**
+  * Y el código dice CUÁL paso falló (#1185).
+  *
+  * Los dos casos de este `it.each` rompen pasos distintos y antes dejaban el
+  * mismo `PARTNER_PROVISION_UNCERTAIN`:
+  *  - `rotation` corta la respuesta de Zavu al pedir el secreto → eso ya está
+  *    clasificado como fallo del proveedor y se conserva;
+  *  - `custody` hace fallar al almacén, que NO lanza un PartnerError → sigue
+  *    siendo incierto, que es lo correcto: no se sabe si quedó a medias.
+  */
+ expect(r.error_code).toBe(kind==='rotation'?'PARTNER_PROVIDER_FAILED':'PARTNER_PROVISION_UNCERTAIN');
  const rotations=calls.filter(c=>c.path.endsWith('/webhook/secret')).length;await deliver(x.tenant);expect(calls.filter(c=>c.path.endsWith('/webhook/secret'))).toHaveLength(rotations);
  await resumePartnerInvitation(safe,{...x.actor,id:r.id},ports);await processPartnerInvitation(safe,x.tenant,r.id,ports);r=await row(x.tenant);expect(r.phase).toBe('active');
  await owner.query("UPDATE whatsapp_partner_secrets SET created_at=now()-interval '1 hour' WHERE tenant_id=$1",[x.tenant]);
  await cleanupPartnerSecrets(safe,x.tenant,ports);const account=await withTenant(safe,x.tenant,c=>getChannelAccount(c,x.tenant,r.account_id));expect(await resolveChannelWebhookSecret(account,ports.secrets)).toBe(`synthetic_${r.sender_id}`);
+});
+it.each([['url','webhook.url'],['active','webhook.active'],['events','webhook.events.faltan']])(
+ 'la confirmación del webhook dice qué campo no calzó: %s (#1185)',async(cual,nombre)=>{
+ /**
+  * El paso cuya forma NO está verificada contra la API real: el `GET` de un
+  * emisor sin webhook configurado no trae el campo, así que no se sabe qué
+  * devuelve Zavu cuando sí está. Si normaliza la URL o cambia la lista de
+  * eventos, esto falla — y antes el síntoma era indistinguible de un timeout.
+  */
+ const x=await begin();await completeComoZavu(x.tenant);webhookTorcido=cual;
+ try{await deliver(x.tenant);}finally{webhookTorcido='';}
+ const r=await row(x.tenant);
+ expect(r.phase).toBe('recovery_required');
+ expect(r.error_code).toBe('PARTNER_WEBHOOK_UNCONFIRMED');
+ // El NOMBRE del campo, que es lo que convierte una noche de adivinar en un
+ // minuto de leer. Va en la auditoría, no solo en el log del proceso.
+ const meta=(await owner.query("SELECT metadata FROM audit_log WHERE tenant_id=$1 AND action='whatsapp.invitation.recovery_required' ORDER BY occurred_at DESC LIMIT 1",[x.tenant])).rows[0].metadata;
+ expect(JSON.stringify(meta)).toContain(nombre);
+ // Y el secreto NO está en nada de lo que se guardó.
+ expect(JSON.stringify(meta)).not.toContain('synthetic_');
+ expect(JSON.stringify(r)).not.toContain('synthetic_');
 });
 it('Meta phoneNumberId sustituido se rechaza antes de crear cuenta/configurar webhook',async()=>{
  const x=await begin();await complete(x.tenant);wrongPhone=true;
