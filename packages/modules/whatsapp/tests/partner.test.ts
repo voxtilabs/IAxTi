@@ -16,7 +16,7 @@ const remote=new Map<string,Record<string,unknown>>();
 const senders=new Map<string,Record<string,unknown>>();
 const secrets=new Map<string,{data:string;dataCrc32c:string}>();
 const calls:Array<{path:string;method:string;body:Record<string,unknown>}>=[];
-let loseCreate=false,loseRotation=false,failSecret=false,wrongPhone=false;
+let loseCreate=false,loseRotation=false,failSecret=false,wrongPhone=false,senderRompe=false;
 const projectId='project_synthetic';
 beforeAll(async()=>{
  owner=createPool(process.env.DATABASE_URL!);await runMigrations(owner);
@@ -41,6 +41,7 @@ beforeAll(async()=>{
   if(path.startsWith('/v1/invitations/'))return send({invitation:remote.get(path.split('/').at(-1)!)});
   if(path.startsWith('/v1/senders/')){
    const id=path.split('/')[3]!;const sender=senders.get(id);
+   if(senderRompe)return send({},500);
    if(!sender)return send({},404);
    if(path.endsWith('/webhook/secret')){if(loseRotation){loseRotation=false;res.destroy();return;}return send({secret:`synthetic_${id}`});}
    if(method==='PATCH'){sender.webhook={url:body.webhookUrl,active:body.webhookActive,events:body.webhookEvents};return send(sender);}
@@ -73,6 +74,14 @@ async function complete(t:string){const r=await row(t);const inv=remote.get(r.in
  * El emisor sí tiene su número, que es de donde hay que tomarlo.
  */
 async function completeComoZavu(t:string){const r=await row(t);const inv=remote.get(r.invitation_id)!;const senderId=`snd_${randomUUID().replaceAll('-','')}`;Object.assign(inv,{status:'completed',senderId,connectedAccount:null,phoneNumberId:null});senders.set(senderId,{id:senderId,name:'Negocio ficticio',channels:['whatsapp'],phoneNumber:'+56911111111',whatsapp:{phoneNumberId:`meta_${r.invitation_id}`}});return r;}
+/**
+ * Completada contra un emisor que Zavu YA NO TIENE (#1183).
+ *
+ * No se registra en `senders`, así que `/v1/senders/{id}` responde 404 — que es
+ * exactamente lo que devuelve la API de producción para los dos emisores de las
+ * invitaciones completadas del tenant de staging.
+ */
+async function completeConEmisorBorrado(t:string){const r=await row(t);const inv=remote.get(r.invitation_id)!;Object.assign(inv,{status:'completed',senderId:`snd_${randomUUID().replaceAll('-','')}`,connectedAccount:null,phoneNumberId:null});return r;}
 /** El mismo caso, pero con un emisor que NO tiene número de WhatsApp. */
 async function completeSinNumero(t:string){const r=await row(t);const inv=remote.get(r.invitation_id)!;const senderId=`snd_${randomUUID().replaceAll('-','')}`;Object.assign(inv,{status:'completed',senderId,connectedAccount:null,phoneNumberId:null});senders.set(senderId,{id:senderId,name:'Negocio ficticio',channels:['whatsapp'],phoneNumber:'+56911111111',whatsapp:{}});return r;}
 function event(invitationId:string,extra:Record<string,unknown>={}){return JSON.stringify({id:`evt_${randomUUID().replaceAll('-','')}`,type:'invitation.status_changed',projectId,data:{invitationId,currentStatus:'completed'},...extra});}
@@ -123,6 +132,33 @@ it('un emisor sin número de WhatsApp no se conecta, aunque la invitación diga 
  const x=await begin();await completeSinNumero(x.tenant);
  await expect(deliver(x.tenant)).rejects.toMatchObject({code:'PARTNER_SENDER_INVALID'});
  expect((await owner.query('SELECT * FROM channel_accounts WHERE tenant_id=$1',[x.tenant])).rows).toHaveLength(0);
+});
+it('emisor borrado en Zavu deja la invitación FALLIDA y desbloquea empezar de nuevo (#1183)',async()=>{
+ const x=await begin();await completeConEmisorBorrado(x.tenant);
+ // No lanza: el 404 del emisor no es un fallo nuestro, es una invitación que
+ // ya no se puede terminar. Lanzar la habría dejado en la misma fase.
+ await deliver(x.tenant);
+ const r=await row(x.tenant);
+ expect(r.phase).toBe('failed');
+ expect(r.error_code).toBe('PARTNER_SENDER_GONE');
+ expect((await owner.query("SELECT 1 FROM audit_log WHERE tenant_id=$1 AND action='whatsapp.invitation.sender_gone'",[x.tenant])).rows).toHaveLength(1);
+ // Y lo que importa: el negocio puede empezar de nuevo. Antes de esto, las
+ // cuatro salidas estaban cerradas y la conexión quedaba encerrada.
+ const otra=await startPartnerInvitation(safe,{...x.actor,key:randomUUID()},ports);
+ expect(otra.phase).toBe('pending');
+ expect((await row(x.tenant)).id).not.toBe(r.id);
+});
+it('un fallo TEMPORAL del proveedor no la da por fallida: reintentar sigue siendo el camino (#1183)',async()=>{
+ // La otra mitad. Si el 500 se tratara como el 404, un corte de red de diez
+ // segundos tiraría una conexión sana y mandaría a empezar de cero.
+ const x=await begin();await completeComoZavu(x.tenant);senderRompe=true;
+ try{await expect(deliver(x.tenant)).rejects.toMatchObject({code:'PARTNER_PROVIDER_FAILED'});}finally{senderRompe=false;}
+ const r=await row(x.tenant);
+ expect(r.phase).not.toBe('failed');
+ expect(r.error_code).not.toBe('PARTNER_SENDER_GONE');
+ // Y al reintentar, ahora que el proveedor contesta, termina bien.
+ await deliver(x.tenant);
+ expect((await row(x.tenant)).phase).toBe('active');
 });
 it('respuesta create perdida queda ambigua: ni reintento ni nueva key repiten POST',async()=>{
  loseCreate=true;const x=await begin();expect(x.state.phase).toBe('ambiguous');const count=calls.filter(x=>x.path==='/v1/invitations').length;

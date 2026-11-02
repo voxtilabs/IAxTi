@@ -205,7 +205,34 @@ export async function processPartnerInvitation(pool:Pool,t:string,id:string,port
       await audit(c,r,'whatsapp.invitation.status');
       return {url:phase==='pending'?remote.url:null,generation,secretId:null,accountId:null,senderId:null};
     }
-    const sender=await ports.call(`/senders/${encodeURIComponent(remote.senderId!)}`);
+    /**
+     * Si el emisor ya no está en Zavu, la invitación FALLÓ: no está pendiente
+     * de recuperación (#1183).
+     *
+     * Antes el 404 subía como PARTNER_PROVIDER_FAILED y la fase no se movía,
+     * y eso dejaba al negocio encerrado: reintentar vuelve a dar 404 para
+     * siempre, empezar de nuevo está bloqueado porque `startPartnerInvitation`
+     * no crea otra mientras la fase no esté en ('expired','cancelled','failed',
+     * 'active'), cancelar no existe como endpoint, y el enlace vencía después
+     * del evento. Cuatro caminos y ninguno salía.
+     *
+     * `failed` es la fase correcta y además la única que ningún código escribía
+     * todavía. Al dejarla en `failed`, el propio producto permite empezar de
+     * nuevo sin que nadie toque la base.
+     *
+     * SOLO el 404. Un timeout o un 500 son temporales y `recovery_required` es
+     * su fase: ahí reintentar sí arregla. Confundirlos haría tirar una conexión
+     * sana por un corte de red de diez segundos.
+     */
+    let sender: Record<string,unknown>;
+    try { sender=await ports.call(`/senders/${encodeURIComponent(remote.senderId!)}`); }
+    catch(e) {
+      if(!(e instanceof PartnerError) || e.code!=='PARTNER_RESOURCE_GONE') throw e;
+      await c.query("UPDATE whatsapp_partner_invitations SET phase='failed',error_code='PARTNER_SENDER_GONE',updated_at=now() WHERE tenant_id=$1 AND id=$2",[t,id]);
+      await c.query('UPDATE whatsapp_partner_events SET processed_at=now() WHERE tenant_id=$1 AND invitation_id=$2 AND processed_at IS NULL',[t,id]);
+      await audit(c,r,'whatsapp.invitation.sender_gone','error');
+      return null;
+    }
     /**
      * El número sale de la FICHA DEL EMISOR, no del eco de la invitación (#1179).
      *
