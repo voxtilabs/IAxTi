@@ -18,8 +18,8 @@ function isLinkRef(ref:string,id:string) {
   const match=/^projects\/[^/]+\/secrets\/([A-Za-z0-9_-]+)\/versions\/[1-9][0-9]{0,19}$/.exec(ref);
   return !!match&&match[1]!.startsWith(prefix)&&/^[a-f0-9]{32}$/.test(match[1]!.slice(prefix.length));
 }
-async function audit(c:PoolClient,row:Pick<Row,'tenant_id'|'id'>,action:string,result:'ok'|'error'='ok',actor?:PartnerActor) {
-  await writeAudit(c,{tenantId:row.tenant_id,actor:actor?.actor??'system',actorKind:actor?.actorKind??'system',requestId:actor?.requestId,action,resource:'whatsapp_invitation',resourceId:row.id,result});
+async function audit(c:PoolClient,row:Pick<Row,'tenant_id'|'id'>,action:string,result:'ok'|'error'='ok',actor?:PartnerActor,metadata?:Record<string,unknown>) {
+  await writeAudit(c,{tenantId:row.tenant_id,actor:actor?.actor??'system',actorKind:actor?.actorKind??'system',requestId:actor?.requestId,action,resource:'whatsapp_invitation',resourceId:row.id,result,...(metadata?{metadata}:{})});
 }
 async function usable(c:PoolClient,t:string,ports:PartnerPorts) {
   if(!ports.enabled())throw new PartnerError('MODULE_DISABLED','La conexión de WhatsApp está desactivada.',403);
@@ -286,7 +286,32 @@ export async function processPartnerInvitation(pool:Pool,t:string,id:string,port
       await setChannelWebhookSecret(c,{tenantId:t,accountId:account.id,ref:`sm:${ref}`});
       await ports.call(path,'PATCH',{webhookUrl,webhookEvents:[...EVENTOS_WEBHOOK],webhookActive:true});
       const confirmed=await ports.call(path);const webhook=confirmed.webhook as {url?:unknown;active?:unknown;events?:unknown}|undefined;
-      if(confirmed.id!==prepared.senderId || (confirmed.whatsapp as {phoneNumberId?:unknown}|undefined)?.phoneNumberId!==prepared.phoneNumberId || !Array.isArray(confirmed.channels) || !confirmed.channels.includes('whatsapp') || webhook?.url!==webhookUrl || webhook.active!==true || !Array.isArray(webhook.events) || !EVENTOS_WEBHOOK.every(e=>(webhook.events as unknown[]).includes(e)))throw new PartnerError('PARTNER_WEBHOOK_UNCONFIRMED','Zavu no confirmó el webhook de la conexión.');
+      /**
+       * Ocho razones, ocho nombres (#1185).
+       *
+       * Esto era una sola condición con ocho cláusulas y un único
+       * `PARTNER_WEBHOOK_UNCONFIRMED`. Importa más que en los otros pasos
+       * porque **la forma de esta respuesta no está verificada contra la API
+       * real**: el `GET /senders/{id}` de un emisor sin webhook configurado no
+       * trae el campo `webhook`, así que no se sabe qué devuelve cuando sí
+       * está. Si Zavu normaliza la URL o devuelve los eventos de otra forma,
+       * el fallo era indistinguible de un timeout.
+       *
+       * Ninguno de estos nombres es secreto: son la URL que mandamos, los
+       * eventos que pedimos y el id del número que el proveedor publica. El
+       * secreto del webhook no entra acá ni en lo que se guarda.
+       */
+      const noCalza=[
+        ['sender.id', confirmed.id!==prepared.senderId],
+        ['whatsapp.phoneNumberId', (confirmed.whatsapp as {phoneNumberId?:unknown}|undefined)?.phoneNumberId!==prepared.phoneNumberId],
+        ['sender.channels', !Array.isArray(confirmed.channels)],
+        ['sender.channels.whatsapp', Array.isArray(confirmed.channels) && !confirmed.channels.includes('whatsapp')],
+        ['webhook.url', webhook?.url!==webhookUrl],
+        ['webhook.active', webhook?.active!==true],
+        ['webhook.events', !Array.isArray(webhook?.events)],
+        ['webhook.events.faltan', Array.isArray(webhook?.events) && !EVENTOS_WEBHOOK.every(e=>(webhook!.events as unknown[]).includes(e))],
+      ].find(([,mal])=>mal) as [string,boolean]|undefined;
+      if(noCalza)throw new PartnerError('PARTNER_WEBHOOK_UNCONFIRMED',`Zavu no confirmó el webhook de la conexión: no calza ${noCalza[0]}.`);
       await usable(c,t,ports);
       await setChannelState(c,{tenantId:t,accountId:account.id,state:'active'});
       await c.query("UPDATE whatsapp_partner_invitations SET phase='active',error_code=NULL,updated_at=now() WHERE tenant_id=$1 AND id=$2",[t,id]);
@@ -294,12 +319,34 @@ export async function processPartnerInvitation(pool:Pool,t:string,id:string,port
       await c.query('UPDATE whatsapp_partner_events SET processed_at=now() WHERE tenant_id=$1 AND invitation_id=$2',[t,id]);
       await audit(c,r,'whatsapp.invitation.connected');
     });
-  } catch {
+  } catch (e) {
+    /**
+     * El código ya clasificado se CONSERVA (#1185).
+     *
+     * Este bloque hace cinco cosas contra el proveedor y cada una lanza su
+     * propio error —`PARTNER_SECRET_UNCERTAIN`, `PARTNER_WEBHOOK_UNCONFIRMED`,
+     * `PARTNER_ACCOUNT_CHANGED`, los de `ports.call`—, y un `catch` pelado los
+     * aplastaba todos en `PARTNER_PROVISION_UNCERTAIN`. La clasificación se
+     * construía con cuidado cinco líneas antes y se tiraba acá, que es la forma
+     * de defecto que este repo viene arrastrando (#1178, #1179, #1183).
+     *
+     * Los nombres ya dicen su grado de certeza: `UNCERTAIN` donde no se sabe si
+     * el paso quedó a medias, `UNCONFIRMED` donde el proveedor contestó que no.
+     * Así que conservar el código no pierde lo que
+     * `PARTNER_PROVISION_UNCERTAIN` significaba: lo gana para los casos en que
+     * SÍ se sabe. Lo que no es `PartnerError` —una red cortada, un JSON roto—
+     * sigue siendo incierto, que es lo correcto.
+     *
+     * La fase NO cambia: `recovery_required` es la correcta para los cinco,
+     * porque los cinco se pueden reintentar.
+     */
+    const codigo=e instanceof PartnerError ? e.code : 'PARTNER_PROVISION_UNCERTAIN';
+    const detalle=e instanceof PartnerError ? e.message : undefined;
     await withTenant(pool,t,async c=>{
       const r=await rowById(c,t,id,true);
       if(r.phase==='provisioning' && r.provision_id===prepared.secretId) {
-        await c.query("UPDATE whatsapp_partner_invitations SET phase='recovery_required',error_code='PARTNER_PROVISION_UNCERTAIN',updated_at=now() WHERE tenant_id=$1 AND id=$2",[t,id]);
-        await audit(c,r,'whatsapp.invitation.recovery_required','error');
+        await c.query("UPDATE whatsapp_partner_invitations SET phase='recovery_required',error_code=$3,updated_at=now() WHERE tenant_id=$1 AND id=$2",[t,id,codigo]);
+        await audit(c,r,'whatsapp.invitation.recovery_required','error',undefined,{codigo,...(detalle?{detalle}:{})});
       }
     });
   }
