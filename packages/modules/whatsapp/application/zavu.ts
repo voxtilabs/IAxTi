@@ -457,7 +457,7 @@ export function createZavuProvider(
           // la traducción: «Pasaron más de 24 horas…» le sirve a quien está
           // atendiendo; `{"error":{"code":"whatsapp_window_closed"}}`, no.
           throw new ErrorPermanente(
-            causaLegible(codigoDelProveedor(motivo), mensajeDeRechazo(res.status)),
+            causaLegible(codigoDelProveedor(motivo), mensajeDeRechazo(res.status, motivo)),
             `HTTP ${res.status} ${motivo}`.trim(),
           );
         }

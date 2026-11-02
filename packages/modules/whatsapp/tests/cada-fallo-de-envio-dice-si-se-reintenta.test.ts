@@ -109,7 +109,7 @@ describe('el motivo del proveedor se traduce (#556)', () => {
     expect(codigoDelProveedor('{"error":{"code":"algo_nuevo_de_zavu"}}')).toBeUndefined();
     expect(codigoDelProveedor('')).toBeUndefined();
     // Y entonces se cae al mensaje por status, que también dice qué hacer.
-    expect(causaLegible(undefined, mensajeDeRechazo(401))).toMatch(/reconectarlo en Canales/);
+    expect(causaLegible(undefined, mensajeDeRechazo(401, ''))).toMatch(/reconectarlo en Canales/);
   });
 
   it('cada causa de la tabla está en voz de Pulso: sin código, sin nombre de campo', () => {
@@ -266,7 +266,7 @@ describe('un 403 no es una credencial mala (#596)', () => {
   });
 
   it('el rechazo de sandbox se explica por lo que ES, no como credencial mala', () => {
-    const frase = causaLegible(codigoDelProveedor(CUERPO_REAL), mensajeDeRechazo(403));
+    const frase = causaLegible(codigoDelProveedor(CUERPO_REAL), mensajeDeRechazo(403, CUERPO_REAL));
     expect(frase).toMatch(/llave de prueba/);
     expect(frase).toMatch(/números del equipo/);
     // Y NO manda a reconectar, que es lo que hacía y no arreglaba nada.
@@ -274,8 +274,10 @@ describe('un 403 no es una credencial mala (#596)', () => {
     expect(frase).not.toMatch(/credenciales/);
   });
 
+  const SIN_MOTIVO = JSON.stringify({ code: 'forbidden' });
+
   it('un 403 sin cuerpo reconocible tampoco culpa a la credencial', () => {
-    const frase = causaLegible(codigoDelProveedor('{"code":"forbidden"}'), mensajeDeRechazo(403));
+    const frase = causaLegible(codigoDelProveedor(SIN_MOTIVO), mensajeDeRechazo(403, SIN_MOTIVO));
     expect(frase).toMatch(/no tiene permitido/);
     expect(frase).toMatch(/La credencial está bien/);
   });
@@ -283,9 +285,62 @@ describe('un 403 no es una credencial mala (#596)', () => {
   it('el 401 SÍ es la credencial, y sigue mandando a reconectar', () => {
     // La otra mitad: si se arreglara el 403 rompiendo el 401, el producto
     // dejaría de avisar cuando de verdad hay que reconectar.
-    const frase = mensajeDeRechazo(401);
+    const frase = mensajeDeRechazo(401, '');
     expect(frase).toMatch(/credenciales/);
     expect(frase).toMatch(/reconectarlo en Canales/);
+  });
+
+  /**
+   * El OTRO 403 de Zavu (#1178). Textual, medido contra la API de producción el
+   * 02-11 mandando el mismo cuerpo al emisor `kd764401…`, que es uno de los dos
+   * registros que quedaron del mismo número `+56 9 2201 3949`.
+   *
+   * Se prueba la composición COMPLETA —`causaLegible(codigoDelProveedor(…),
+   * mensajeDeRechazo(…))`— y no `mensajeDeRechazo` sola, porque es lo que corre
+   * en `zavu.ts`. Si algún día una clave de `CAUSAS_META` resulta ser subcadena
+   * de este texto, `codigoDelProveedor` ganaría y el mensaje nuevo no se vería
+   * nunca: probar la función aislada diría que está bien y el producto seguiría
+   * mandando a revisar el número del contacto.
+   */
+  const DESACTIVADO = JSON.stringify({
+    code: 'forbidden',
+    message:
+      'This connection is deactivated. Activate it from Accounts in the dashboard, ' +
+      'or with POST /v1/senders/{senderId}/channels/{channel}/activate, to send and ' +
+      'receive on this channel.',
+  });
+
+  it('el emisor desactivado manda a Zavu, no a revisar el número', () => {
+    const frase = causaLegible(codigoDelProveedor(DESACTIVADO), mensajeDeRechazo(403, DESACTIVADO));
+    expect(frase).toMatch(/desactivado/i);
+    expect(frase).toMatch(/Zavu/);
+    // Y NO manda a buscar donde no está: ni el destino, ni el permiso del
+    // número, ni reconectar un canal que está sano.
+    expect(frase).not.toMatch(/ese número/);
+    expect(frase).not.toMatch(/permiso para ese destino/);
+    expect(frase).not.toMatch(/reconect/i);
+  });
+
+  it('un 403 que NO es desactivación conserva el mensaje de destino', () => {
+    // La otra mitad. Sin esto, «arreglar» el caso nuevo podría tragarse el
+    // de la llave de prueba, que es el que #596 dejó bien.
+    const frase = causaLegible(codigoDelProveedor(SIN_MOTIVO), mensajeDeRechazo(403, SIN_MOTIVO));
+    expect(frase).toMatch(/no tiene permitido/);
+    expect(frase).not.toMatch(/desactivado/i);
+  });
+
+  it('el marcador es el término del proveedor, no su frase entera', () => {
+    // Zavu reescribe su documentación sin avisar. Lo que no puede pasar es que
+    // un cambio de redacción devuelva en silencio al mensaje equivocado.
+    const otraRedaccion = JSON.stringify({
+      code: 'forbidden',
+      message: 'Channel deactivated for this sender.',
+    });
+    expect(mensajeDeRechazo(403, otraRedaccion)).toMatch(/desactivado/i);
+    // Y si el marcador no aparece, cae al genérico del 403: decir menos, no
+    // decir otra cosa.
+    const desconocido = JSON.stringify({ code: 'forbidden', message: 'Nope.' });
+    expect(mensajeDeRechazo(403, desconocido)).toMatch(/no tiene permitido/);
   });
 
   it('el rechazo de sandbox es PERMANENTE: reintentar no lo arregla', () => {
