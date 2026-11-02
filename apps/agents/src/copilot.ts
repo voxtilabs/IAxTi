@@ -178,10 +178,33 @@ export async function processSuggest(
     let fuentes: Array<{ id: string; nombre: string }> | undefined;
     if (data.knowledgeActivo && embeddingsAvailable()) {
       try {
+        /**
+         * Con qué texto se consulta el conocimiento (#1212).
+         *
+         * El de ESTE mensaje, y si no trae —una foto sin pie, un documento,
+         * un audio que no se pudo transcribir—, lo último que dijo el cliente
+         * en esta conversación.
+         *
+         * Antes esto era solo el primero, así que una foto sin pie llegaba al
+         * modelo sin el conocimiento del negocio: el acta de las 20:13:56 lo
+         * dice con sus palabras, «no tengo el catálogo a mano», con cinco
+         * fuentes activas sin usar.
+         *
+         * El respaldo NO es inventarle una pregunta: es el mismo contexto con
+         * el que el agente contesta todo lo demás. Y si la conversación
+         * arranca con una foto y el cliente nunca escribió nada, no hay con
+         * qué buscar y no se busca.
+         */
         const entrante = await client.query(
-          `SELECT COALESCE(body, transcription) AS body FROM messages
-            WHERE tenant_id = $1 AND id = $2`,
-          [data.tenantId, data.messageId],
+          `SELECT COALESCE(
+                    (SELECT COALESCE(body, transcription) FROM messages
+                      WHERE tenant_id = $1 AND id = $2),
+                    (SELECT COALESCE(body, transcription) FROM messages
+                      WHERE tenant_id = $1 AND conversation_id = $3 AND direction = 'in'
+                        AND COALESCE(body, transcription) IS NOT NULL
+                      ORDER BY seq DESC LIMIT 1)
+                  ) AS body`,
+          [data.tenantId, data.messageId, data.conversationId],
         );
         const pregunta = entrante.rows[0]?.body as string | null;
         if (pregunta) {
