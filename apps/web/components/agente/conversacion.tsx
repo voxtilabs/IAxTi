@@ -16,6 +16,7 @@ import {
   AvisoResultado,
   Badge,
   Button,
+  cn,
   Conversation,
   ConversationContent,
   ConversationScrollButton,
@@ -144,14 +145,26 @@ export function Conversacion({ alto }: { alto?: string }) {
             se lee como contenido que no cargó. Va en `ConversationContent` y
             no en un hijo: el hijo mide lo que mide su texto, y `min-h-full`
             ahí no se refiere a la altura del panel. */}
-        <ConversationContent className={turnos.length === 0 ? 'h-full justify-center' : undefined}>
+        {/* Acotado y centrado (#1169): a 1.280 px el hilo usaba los 1.120 de
+            la columna, o sea líneas de ~120 caracteres. El mismo componente
+            en el popup corre a 672, así que la pantalla dedicada era la
+            versión peor de las dos. */}
+        <ConversationContent
+          className={cn(
+            'mx-auto w-full max-w-hilo',
+            turnos.length === 0 ? 'h-full justify-center' : undefined,
+          )}
+        >
             {turnos.length === 0 && (
               <div className="flex flex-col gap-3">
                 <p className="text-cuerpo text-body">
                   Dime qué necesitas en tus palabras. Puedo revisar cómo va tu negocio, dejar
                   reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.
                 </p>
-                <ul className="flex flex-col gap-2">
+                {/* Mismo largo y alineadas a la izquierda (#1169): con el
+                    ancho del texto, tres pastillas de largo distinto en
+                    columna se leen como una lista rota. */}
+                <ul className="grid gap-2 sm:grid-cols-2">
                   {(sugerencias ?? []).map((e) => (
                     <li key={e}>
                       <Button variant="secundario" size="chico" onClick={() => void preguntar(e)}>
@@ -245,10 +258,12 @@ export function Conversacion({ alto }: { alto?: string }) {
               persona sin nada que pegar al pedir ayuda. Mismo patrón que la
               bandeja. */}
           {aviso && (
-            <AvisoResultado tono="error">
-              {aviso.texto}
-              {aviso.rastro && <span className="dato mt-1 block break-all">{aviso.rastro}</span>}
-            </AvisoResultado>
+            <div className="mx-auto w-full max-w-hilo">
+              <AvisoResultado tono="error">
+                {aviso.texto}
+                {aviso.rastro && <span className="dato mt-1 block break-all">{aviso.rastro}</span>}
+              </AvisoResultado>
+            </div>
           )}
           {/* Apilado en angosto (#1133). En el popup esto vivía en un diálogo
               de `max-w-2xl` y la fila entraba; incrustado en una columna de
@@ -258,8 +273,11 @@ export function Conversacion({ alto }: { alto?: string }) {
               El botón ocupa el ancho abajo en vez de encogerse a un icono: es
               la acción de la pantalla y en el teléfono se aprieta con el
               pulgar. */}
+          {/* Al MISMO ancho que el hilo: si solo se acota lo que se lee, el
+              campo de escribir queda más ancho y el eje de la pantalla se
+              parte al medio. */}
           <form
-            className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end"
+            className="mx-auto flex w-full max-w-hilo flex-col items-stretch gap-2 sm:flex-row sm:items-end"
             onSubmit={(e) => {
               e.preventDefault();
               void preguntar(texto);
@@ -280,8 +298,12 @@ export function Conversacion({ alto }: { alto?: string }) {
               aria-label="Pídele algo a IAxTi"
               className="max-h-32"
             />
+            {/* Dice que está pidiendo (#1169). La respuesta tarda 10-30 s y
+                el botón se quedaba igual: la única señal de que algo pasaba
+                era un spinner de 14 px allá arriba. El patrón ya estaba en
+                este archivo, en el botón de aplicar una propuesta. */}
             <Button type="submit" disabled={pensando || !texto.trim()}>
-              Pedir
+              {pensando ? 'Pidiendo…' : 'Pedir'}
             </Button>
           </form>
         </div>

@@ -22,7 +22,7 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
 export const Message = ({ className, from, ...props }: MessageProps) => (
   <div
     className={cn(
-      'group flex w-full max-w-[95%] flex-col gap-2',
+      'pulso-entrada group flex w-full max-w-[95%] flex-col gap-2',
       from === 'user' ? 'is-user ml-auto justify-end' : 'is-assistant',
       className,
     )}
@@ -39,7 +39,18 @@ export const MessageContent = ({ children, className, ...props }: MessageContent
       'group-[.is-user]:ml-auto group-[.is-user]:rounded-tarjeta group-[.is-user]:rounded-br-campo',
       'group-[.is-user]:border group-[.is-user]:border-action-soft-br group-[.is-user]:bg-action-soft',
       'group-[.is-user]:px-4 group-[.is-user]:py-2.5 group-[.is-user]:text-ink',
-      'group-[.is-assistant]:text-body',
+      // El turno del asistente también tiene superficie (#1169). Antes era
+      // texto suelto sobre el fondo y en `--text-body` (8,7:1) contra el
+      // `--text` del usuario (17,3:1): la respuesta de la IA tenía la MITAD
+      // de contraste que la pregunta de quien la escribió, que es al revés de
+      // lo que importa leer. La bandeja ya lo hacía así.
+      //
+      // `bg-raised` y no `bg-action-soft`: el globo azul es de quien escribe.
+      // La esquina chica va del lado contrario, que es lo que dice de qué
+      // lado viene sin usar color.
+      'group-[.is-assistant]:rounded-tarjeta group-[.is-assistant]:rounded-bl-campo',
+      'group-[.is-assistant]:border group-[.is-assistant]:border-line group-[.is-assistant]:bg-raised',
+      'group-[.is-assistant]:px-4 group-[.is-assistant]:py-2.5 group-[.is-assistant]:text-ink',
       className,
     )}
     {...props}
