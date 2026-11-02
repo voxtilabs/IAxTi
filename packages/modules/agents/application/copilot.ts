@@ -238,6 +238,7 @@ export async function suggestForInbound(
   if (!agent) return null;
 
   const ctx = await refreshedContext(client, input, agent, modelPortFactory);
+  const propuestas = await propuestasSinEnviar(client, input.tenantId, input.conversationId);
 
   const contexto = [
     // La misma ancla temporal del modo autónomo (#1049): una acción de
@@ -247,7 +248,20 @@ export async function suggestForInbound(
     ctx.summary ? `Resumen de lo anterior: ${ctx.summary}` : null,
     input.knowledge ?? null,
     'Últimos mensajes:',
-    ...ctx.lastMessages.map((m) => `${m.direction === 'in' ? 'Cliente' : 'Negocio'}: ${m.body ?? '[adjunto]'}`),
+    /**
+     * Intercaladas y no en un bloque al final (#1204): si las propuestas van
+     * todas juntas después, el modelo no puede saber qué vino antes de qué.
+     *
+     * Y marcadas como PROPUESTO y no como enviado: son cosas distintas. Si lo
+     * lee como enviado, puede dar por hecho que el cliente ya lo vio y
+     * referirse a algo que nunca recibió.
+     */
+    ...ctx.lastMessages.flatMap((m) => {
+      const linea = `${m.direction === 'in' ? 'Cliente' : 'Negocio'}: ${m.body ?? '[adjunto]'}`;
+      const propuesta = propuestas.porMensaje.get(m.id);
+      return propuesta ? [linea, `Propuesto por ti, SIN ENVIAR todavía: ${propuesta}`] : [linea];
+    }),
+    ...propuestas.sueltas.map((t) => `Propuesto por ti, SIN ENVIAR todavía: ${t}`),
   ]
     .filter(Boolean)
     .join('\n');
@@ -338,6 +352,48 @@ export async function suggestForInbound(
 }
 
 /** La sugerencia vigente de la conversación (pendiente y sin expirar). */
+/**
+ * Lo que el agente ya PROPUSO en esta conversación y no se envió (#1204).
+ *
+ * Reproducido de punta a punta el 02-11: en modo `assist` las sugerencias
+ * quedan en `pending`, así que no son mensajes y no aparecían en
+ * `ctx.lastMessages`. El agente veía solo líneas de `Cliente:` —ninguna de
+ * `Negocio:`— y concluía, con razón, que nunca había saludado. Resultado: se
+ * presentaba de nuevo en cada turno y repreguntaba lo que el cliente acababa
+ * de contestar.
+ *
+ * Agregar instrucciones al prompt no lo arreglaba: el prompt YA decía «si ya
+ * saludaste no repitas quién eres». El dato no estaba.
+ *
+ * Las `sent` se excluyen porque ya están entre los mensajes: incluirlas sería
+ * contar la misma cosa dos veces y hacerle creer al modelo que dijo todo dos
+ * veces.
+ */
+export async function propuestasSinEnviar(
+  client: PoolClient,
+  tenantId: string,
+  conversationId: string,
+): Promise<{ porMensaje: Map<string, string>; sueltas: string[] }> {
+  const r = await client.query<{ message_id: string | null; text: string }>(
+    `SELECT message_id, text FROM suggestions
+      WHERE tenant_id = $1 AND conversation_id = $2 AND status <> 'sent'
+      ORDER BY created_at`,
+    [tenantId, conversationId],
+  );
+  const porMensaje = new Map<string, string>();
+  // `message_id` es opcional en la tabla: una propuesta sin mensaje asociado no
+  // se puede anclar, y dejarla afuera la perdería EN SILENCIO — que es el
+  // defecto que este arreglo persigue. Van al final, que es donde caen por
+  // orden de creación.
+  const sueltas: string[] = [];
+  for (const f of r.rows) {
+    if (!f.text) continue;
+    if (f.message_id) porMensaje.set(f.message_id, f.text);
+    else sueltas.push(f.text);
+  }
+  return { porMensaje, sueltas };
+}
+
 export async function pendingSuggestion(
   client: PoolClient,
   tenantId: string,

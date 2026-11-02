@@ -236,6 +236,114 @@ describe('el copiloto (#48)', () => {
     expect(promptVisto).toContain('cita la fuente');
   });
 
+  it('lo que el agente YA PROPUSO y no se envió entra al contexto, en su lugar (#1204)', async () => {
+    /**
+     * Reproducido de punta a punta en staging el 02-11, por el camino real:
+     *
+     *   → "Hola, los vi en el stand"
+     *   ← "Gracias por pasar por el stand — soy el asistente de IAxTi. ¿A qué se dedica?"
+     *   → "Tengo una distribuidora de repuestos, 4 vendedores"
+     *   ← "Gracias por pasar por el stand — soy el asistente de IAxTi. ¿A qué se dedica tu empresa?"
+     *
+     * Las dos propuestas quedaron `pending`: en modo asistido no se envían, así
+     * que no son mensajes y no aparecían en el contexto. El agente veía solo
+     * líneas de `Cliente:` y concluía que nunca había saludado — así que se
+     * presentaba otra vez y repreguntaba lo ya contestado.
+     *
+     * El prompt YA decía «si ya saludaste no repitas quién eres». El dato no
+     * estaba.
+     */
+    let promptVisto = '';
+    const espia: ModelPortFactory = () => ({
+      async generate(args) {
+        promptVisto = args.prompt;
+        return { text: JSON_SUGERENCIA, tokensIn: 10, tokensOut: 10 };
+      },
+    });
+    // Con `messageId`, que es lo que pasa el worker de verdad: así la propuesta
+    // queda ANCLADA a su mensaje y se intercala en su lugar. Sin él iría al
+    // final por el camino de las sueltas, y entonces esta prueba no probaría el
+    // orden — que es la mitad del arreglo.
+    const ultimo = (
+      await admin.query<{ id: string }>(
+        'SELECT id FROM messages WHERE conversation_id = $1 ORDER BY seq DESC LIMIT 1',
+        [conversacion],
+      )
+    ).rows[0].id;
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conversacion, messageId: ultimo }, espia),
+    );
+    const pend = await withTenant(admin, tenant, (c) => pendingSuggestion(c, tenant, conversacion));
+    expect(pend, 'la primera vuelta tiene que dejar una propuesta pendiente').not.toBeNull();
+
+    // Segunda vuelta: el contexto tiene que traerla, marcada como NO enviada.
+    promptVisto = '';
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conversacion, messageId: ultimo }, espia),
+    );
+    expect(promptVisto).toContain('SIN ENVIAR');
+    expect(promptVisto).toContain(pend!.text);
+    // Y en su lugar, no en un bloque al final: la propuesta va DESPUÉS de la
+    // línea del mensaje que contestaba.
+    const iMensaje = promptVisto.indexOf('Cliente:');
+    const iPropuesta = promptVisto.indexOf('SIN ENVIAR');
+    expect(iMensaje).toBeGreaterThanOrEqual(0);
+    expect(iPropuesta).toBeGreaterThan(iMensaje);
+  });
+
+  it('una propuesta SIN mensaje asociado tampoco se pierde (#1204)', async () => {
+    // `message_id` es opcional en la tabla. Dejarla afuera la perdería en
+    // silencio, que es exactamente el defecto que este arreglo persigue.
+    //
+    // Se LIMPIAN las sugerencias de esta conversación primero, y no es higiene:
+    // las pruebas anteriores dejan propuestas ANCLADAS pendientes, y con ellas
+    // presentes esta pasaba por el camino del ancla. Lo descubrí mordiendo —
+    // quité el camino de las sueltas y esta prueba siguió verde.
+    await admin.query('DELETE FROM suggestions WHERE tenant_id = $1 AND conversation_id = $2', [
+      tenant,
+      conversacion,
+    ]);
+    let promptVisto = '';
+    const espia: ModelPortFactory = () => ({
+      async generate(args) {
+        promptVisto = args.prompt;
+        return { text: JSON_SUGERENCIA, tokensIn: 10, tokensOut: 10 };
+      },
+    });
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conversacion }, espia),
+    );
+    promptVisto = '';
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conversacion }, espia),
+    );
+    expect(promptVisto).toContain('SIN ENVIAR');
+  });
+
+  it('una propuesta YA ENVIADA no se cuenta dos veces (#1204)', async () => {
+    // Anti-duplicado: una enviada ya está entre los mensajes. Incluirla además
+    // como propuesta le haría creer al modelo que dijo lo mismo dos veces.
+    let promptVisto = '';
+    const espia: ModelPortFactory = () => ({
+      async generate(args) {
+        promptVisto = args.prompt;
+        return { text: JSON_SUGERENCIA, tokensIn: 10, tokensOut: 10 };
+      },
+    });
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conversacion }, espia),
+    );
+    await admin.query(
+      `UPDATE suggestions SET status = 'sent' WHERE tenant_id = $1 AND conversation_id = $2`,
+      [tenant, conversacion],
+    );
+    promptVisto = '';
+    await withTenant(admin, tenant, (c) =>
+      suggestForInbound(c, { tenantId: tenant, conversationId: conversacion }, espia),
+    );
+    expect(promptVisto).not.toContain('SIN ENVIAR');
+  });
+
   it('sin agente activo no sugiere nada (y no gasta)', async () => {
     await admin.query(`UPDATE agents SET default_mode = 'off' WHERE tenant_id = $1`, [tenant]);
     const res = await withTenant(admin, tenant, (c) =>
