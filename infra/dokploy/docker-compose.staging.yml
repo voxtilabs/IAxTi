@@ -30,6 +30,11 @@ x-env: &app-env
   # instancia de staging tiene max_connections 60 y Supabase ya se lleva unas
   # quince con PostgREST, realtime y el propio Supavisor. Vacía usa 6.
   DB_POOL_MAX: ${DB_POOL_MAX}
+  # Cuánto se guarda una conexión ociosa (#1173). Vacía usa 5 minutos: con los
+  # 30 segundos de antes, medio minuto de silencio dejaba el pool vacío y la
+  # siguiente petición tenía que resolver DNS y reconectar contra el pooler.
+  # Eran 23 de los 25 errores del proyecto en Sentry.
+  DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-}
   REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
   SUPABASE_URL: ${SUPABASE_URL}
   SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
