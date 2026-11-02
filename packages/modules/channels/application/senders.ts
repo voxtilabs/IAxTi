@@ -25,6 +25,40 @@ export async function reservarEmisor(
   const webhookAccountId = reserva.rows[0].webhook_account_id;
   if (!webhookAccountId) throw new Error('Este emisor histórico tiene varias cuentas. Su receptor debe ser comprobado antes de añadir otra conexión.');
   const primaria = await getChannelAccount(client, input.tenantId, webhookAccountId);
+  /**
+   * Un receptor DESCONECTADO no manda sobre una conexión nueva (#1190).
+   *
+   * La reserva dice quién recibe los webhooks de este emisor, y su dueño le
+   * impone sus referencias a cualquier canal que se sume. Eso es correcto
+   * mientras ese dueño esté vivo: un emisor tiene un solo receptor y un solo
+   * secreto, y relajarlo partiría la entrada.
+   *
+   * Pero un canal `disconnected` no recibe nada, y seguía dictando. Medido en
+   * staging el 02-11: el canal `2210485b` estaba desconectado con
+   * `webhook_secret_ref=ZAVU_WEBHOOK_SECRET`, y el flujo de invitación crea el
+   * suyo con `ZAVU_PARTNER_PENDING` —su marcador de «todavía no custodié el
+   * secreto»—, así que la comparación de abajo lanzaba SIEMPRE. No era una
+   * carrera: un número que alguna vez se conectó a mano no se podía reconectar
+   * por invitación nunca, y el `catch` del barrido lo mostraba como
+   * `PARTNER_PROVIDER_FAILED`, culpando al proveedor.
+   *
+   * Que los desconectados no estorben ya era la regla acá: el cupo de números
+   * (#600), la lista de canales (#772) y el chequeo de duplicado de más abajo
+   * los excluyen a propósito. Esto aplica el mismo principio al receptor.
+   */
+  if (primaria.state === 'disconnected' && primaria.id !== cuenta.id) {
+    await client.query(
+      `UPDATE channel_senders SET webhook_account_id = $3 WHERE sender_id = $1 AND tenant_id = $2`,
+      [input.senderId, input.tenantId, cuenta.id],
+    );
+    await writeAudit(client, {
+      tenantId: input.tenantId, actor: input.actor ?? 'system', actorKind: input.actorKind ?? 'system',
+      requestId: input.requestId, action: 'channel.sender.rebound', resource: 'channel_account',
+      resourceId: cuenta.id, result: 'ok',
+      metadata: { senderId: input.senderId, kind: cuenta.kind, receptorAnterior: primaria.id },
+    });
+    return { webhookAccountId: cuenta.id, primeraConexion: true };
+  }
   if (primaria.config.senderId !== input.senderId) throw new Error('El receptor de este emisor cambió. Su conexión debe ser revisada antes de añadir otro canal.');
   if (cuenta.credentialRef !== primaria.credentialRef || cuenta.webhookSecretRef !== primaria.webhookSecretRef) {
     throw new Error('Los canales del mismo emisor deben usar las referencias de su conexión original.');
