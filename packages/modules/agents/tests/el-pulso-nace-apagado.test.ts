@@ -163,3 +163,58 @@ describe('cuando el pulso no manda, dice por qué (#1210)', () => {
     expect(caso({ ultimoSaliente: null, ultimoEntrante: hace(41) }).manda).toBe(true);
   });
 });
+
+/**
+ * El horario del pulso se lee en la hora del NEGOCIO (#1225).
+ *
+ * Antes se comparaba con el reloj del proceso. Para cubrir 08:30–18:00 del
+ * Tech AI Summit hubo que configurarle 11:30–21:00 —mentirle a la
+ * configuración para que hiciera lo correcto—, y cualquiera que mirara esos
+ * números después no habría entendido nada.
+ */
+describe('el horario del pulso es el del negocio (#1225)', () => {
+  /** 2026-11-03 12:00 UTC = 09:00 en Chile. */
+  const nueveEnChile = new Date('2026-11-03T12:00:00.000Z');
+  const base = {
+    ahora: nueveEnChile,
+    cfg: { cadaMinutos: 40, desde: '08:30', hasta: '18:00', maxPorPersona: 6 } as PulsoConfig,
+    canal: 'whatsapp',
+    ultimoEntrante: new Date('2026-11-03T11:00:00.000Z'),
+    ultimoSaliente: new Date('2026-11-03T11:00:00.000Z'),
+    pulsosEnviados: 0,
+  };
+
+  it('a las 09:00 de Chile manda, aunque en UTC sean las 12:00', () => {
+    expect(tocaPulso({ ...base, zona: 'America/Santiago' })).toEqual({ manda: true, motivo: 'manda' });
+  });
+
+  /**
+   * El MISMO instante y la MISMA configuración, juzgados con el reloj del
+   * contenedor: 12:00 sigue dentro de 08:30–18:00, así que esto solo no
+   * discrimina. El caso que discrimina es el de abajo.
+   */
+  it('y el mismo instante en UTC también cae dentro: por eso hace falta el de abajo', () => {
+    expect(tocaPulso({ ...base, zona: 'UTC' }).manda).toBe(true);
+  });
+
+  it('a las 17:00 de Chile manda y con el reloj del contenedor ya NO', () => {
+    // 2026-11-03 20:00 UTC = 17:00 en Chile, dentro de 08:30–18:00.
+    const cincoDeLaTarde = new Date('2026-11-03T20:00:00.000Z');
+    const caso = {
+      ...base,
+      ahora: cincoDeLaTarde,
+      ultimoEntrante: new Date('2026-11-03T19:00:00.000Z'),
+      ultimoSaliente: new Date('2026-11-03T19:00:00.000Z'),
+    };
+    expect(tocaPulso({ ...caso, zona: 'America/Santiago' })).toEqual({ manda: true, motivo: 'manda' });
+    // Con la zona del proceso, a esa misma hora el pulso ya se apagó: son las
+    // 20:00 «suyas». Eso es lo que pasaba en staging, y es lo que obligaba a
+    // escribirle el horario corrido.
+    expect(tocaPulso({ ...caso, zona: 'UTC' })).toEqual({ manda: false, motivo: 'fuera_de_horario' });
+  });
+
+  it('sin zona usa la del producto, que es la de Chile', () => {
+    const sinZona = tocaPulso({ ...base });
+    expect(sinZona).toEqual(tocaPulso({ ...base, zona: 'America/Santiago' }));
+  });
+});

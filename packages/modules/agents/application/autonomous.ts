@@ -1,7 +1,8 @@
 import type { PoolClient } from 'pg';
-import { publishEvent } from '@iaxti/core';
+import { TZ_POR_DEFECTO, diaDeSemanaEn, horaEn, publishEvent } from '@iaxti/core';
 import { requestHandoff } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import {
   detectEscalation,
   esEcoDelContexto,
@@ -145,13 +146,30 @@ export async function setConversationMode(
 }
 
 /** ¿El reloj cae dentro del horario autónomo del tenant? Vacío = nunca. */
-export function inAutonomousHours(hours: Record<string, unknown>, now: Date): boolean {
+export function inAutonomousHours(
+  hours: Record<string, unknown>,
+  now: Date,
+  /**
+   * La zona del NEGOCIO, no la del proceso (#1225).
+   *
+   * Esto comparaba `now.getHours()`, que es el reloj del contenedor. Los de
+   * staging corren en UTC, así que un negocio chileno que escribía «08:00 a
+   * 22:00» obtenía 05:00 a 19:00 de su hora: el agente dejaba de contestar
+   * solo tres horas antes de lo que decía su configuración y acumulaba
+   * sugerencias que nadie enviaba —había 16— sin un error en ninguna parte.
+   *
+   * El defecto hermano, con el «día», ya estaba arreglado en `core/dias.ts`;
+   * de ahí salen estas dos funciones y por el mismo motivo: dos definiciones
+   * de cuándo es ahora es el bug.
+   */
+  zona: string = TZ_POR_DEFECTO,
+): boolean {
   const start = typeof hours.start === 'string' ? hours.start : null;
   const end = typeof hours.end === 'string' ? hours.end : null;
   if (!start || !end) return false; // sin horario configurado: JAMÁS solo
   const days = Array.isArray(hours.days) ? (hours.days as number[]) : [0, 1, 2, 3, 4, 5, 6];
-  if (!days.includes(now.getDay())) return false;
-  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  if (!days.includes(diaDeSemanaEn(zona, now))) return false;
+  const hhmm = horaEn(zona, now);
   // start > end cruza medianoche (p. ej. 19:00–09:00).
   return start <= end ? hhmm >= start && hhmm < end : hhmm >= start || hhmm < end;
 }
@@ -175,7 +193,11 @@ export async function effectiveMode(
     manual === 'autonomous' ||
     (manual === null &&
       agent.defaultMode === 'autonomous' &&
-      inAutonomousHours(agent.autonomousHours, now));
+      // La zona del negocio (#1225), no la del contenedor. `zonaDelTenant`
+      // cachea cinco minutos y degrada a `America/Santiago` sin romper la
+      // transacción de quien llama (#962), así que preguntarla acá es barato
+      // y no puede dejar al agente sin contestar por un permiso que falte.
+      inAutonomousHours(agent.autonomousHours, now, await zonaDelTenant(client, tenantId)));
   if (!quiereAutonomo) return 'assist';
   return (await isAutonomousPaused(client, tenantId, agent.id)) ? 'assist' : 'autonomous';
 }

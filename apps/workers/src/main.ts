@@ -68,7 +68,7 @@ import {
   configuracionDeAvisos,
   valoresDelAviso,
 } from '@iaxti/module-calendar';
-import { getTenantSettings, onboardingConsumers } from '@iaxti/module-organizations';
+import { getTenantSettings, onboardingConsumers, zonaDelTenant } from '@iaxti/module-organizations';
 import {
   agenteConPulso,
   conversationMode,
@@ -676,6 +676,10 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
             const pendientes = await withTenant(pool, tenantId, async (c) => {
               const conPulso = agenteConPulso(await listAgents(c, tenantId));
               if (!conPulso) return [];
+              // La zona del negocio (#1225): el horario del pulso se escribe en
+              // la hora del negocio, no en la del contenedor. Se pregunta una
+              // vez por pasada y no por conversación.
+              const zona = await zonaDelTenant(c, tenantId);
               const candidatas = await conversacionesParaRetomar(c, tenantId);
               const listas: string[] = [];
               for (const cand of candidatas) {
@@ -686,6 +690,7 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
                   ultimoEntrante: cand.ultimoEntrante,
                   ultimoSaliente: cand.ultimoSaliente,
                   pulsosEnviados: cand.pulsosEnviados,
+                  zona,
                 });
                 porMotivo[motivo] = (porMotivo[motivo] ?? 0) + 1;
                 // La marca manual de la conversación es de este módulo, así
