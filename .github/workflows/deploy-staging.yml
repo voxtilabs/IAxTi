@@ -222,6 +222,9 @@ jobs:
           # recreación necesita las dos cosas a la vez: la URL pública y las
           # credenciales de Dokploy, y el Smoke a propósito no tiene las segundas.
           STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          # Por `env:` y no dentro del `run:` (#758): una interpolación en el
+          # script se expande antes de que bash lo lea.
+          FORZAR: ${{ inputs.forzar }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
           auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
@@ -387,7 +390,7 @@ jobs:
           # automático `inputs.forzar` no existe, así que queda vacío y el
           # script sigue decidiendo por el SHA — que es lo que evita detener
           # staging en cada despliegue (#254).
-          BASE="${STAGING_BASE_URL}" FORZAR="${{ inputs.forzar }}" bash scripts/forzar-recreacion.sh
+          BASE="${STAGING_BASE_URL}" bash scripts/forzar-recreacion.sh
 
       - name: Smoke
         env:
