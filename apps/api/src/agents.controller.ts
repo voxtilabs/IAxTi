@@ -23,6 +23,7 @@ import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import {
   DEFINICIONES,
+  MODOS_DEL_ASISTENTE,
   OBJETIVOS,
   TASKS,
   costPerDay,
@@ -66,9 +67,9 @@ import {
   runEvaluation,
 } from '@iaxti/module-agents';
 import { ConflictException } from '@nestjs/common';
-import type { AgentInput, Provider } from '@iaxti/module-agents';
+import type { Provider } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
-import { Cuerpo, textoRequerido, validar } from './validar';
+import { Cuerpo, horaRequerida, objetoCerrado, textoRequerido } from './validar';
 import { actorCan } from './authz/can';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool, apiRedis } from './db';
@@ -157,12 +158,237 @@ const DescripcionDelNegocio = z.object({
  * interfaz de perillas que un dueño de pyme no puede evaluar. Se siguen
  * respetando si están escritas; lo que no hay es pantalla para ponerlas.
  */
-const AjustesDeIa = z.object({
-  soloProveedor: z
+const AjustesDeIa = objetoCerrado(
+  {
+    soloProveedor: z
+      .enum(PROVIDERS, { error: `El proveedor es uno de: ${PROVIDERS.join(', ')}.` })
+      .nullable(),
+    redactPII: z.boolean({ error: 'Dinos si tapamos los datos personales, sí o no.' }).optional(),
+  },
+  'los ajustes de IA',
+);
+
+/**
+ * El pulso del evento (#1210), con forma (#1232).
+ *
+ * Las tres primeras llaves van JUNTAS y obligatorias porque `configDelPulso`
+ * devuelve `null` —o sea, pulso apagado— si falta cualquiera: un `pulso` con
+ * `activo: true` y sin horario queda prendido en la pantalla y mudo en el
+ * motor, que es el defecto exacto de este issue en la función que más rápido
+ * puede costar un número de WhatsApp.
+ *
+ * Los rangos salen de lo que ese archivo ya midió, no de un gusto:
+ *
+ * - `cada_minutos` entre 5 y 720. Abajo de 5 no es «retomar», es el mismo
+ *   número escribiéndole a la misma persona cada rato; arriba de 720 no cabe
+ *   ni un pulso en la ventana de un día, así que sería «prendido y nunca
+ *   manda» — silencio otra vez.
+ * - `max_por_persona` hasta 12. Entre 8:30 y 18:00 caben CATORCE pulsos de 40
+ *   minutos, y el comentario de `pulso.ts` dice que catorce mensajes del mismo
+ *   número al mismo teléfono en un día es exactamente el patrón que Meta mira.
+ *   El tope del esquema queda abajo de ese número, no en él.
+ */
+const PulsoDelEvento = objetoCerrado(
+  {
+    activo: z.boolean({ error: 'Dinos si el pulso va prendido o apagado, sí o no.' }),
+    desde: horaRequerida('La hora en que empieza el pulso va como HH:MM, por ejemplo 08:30.'),
+    hasta: horaRequerida('La hora en que termina el pulso va como HH:MM, por ejemplo 18:00.'),
+    cada_minutos: z
+      .int({ error: 'Los minutos entre pulsos van en números enteros.' })
+      .min(5, 'Entre un pulso y el siguiente tienen que pasar al menos 5 minutos.')
+      .max(720, 'Más de 720 minutos entre pulsos no alcanza para mandar ninguno en el día.')
+      .optional(),
+    max_por_persona: z
+      .int({ error: 'El tope de pulsos por persona va en números enteros.' })
+      .min(1, 'El tope de pulsos por persona es de 1 a 12.')
+      .max(12, 'El tope de pulsos por persona es de 1 a 12: más es insistir, no retomar.')
+      .optional(),
+  },
+  'el pulso del asistente',
+);
+
+/**
+ * Los guardrails del asistente (#1232).
+ *
+ * Son exactamente las llaves que `guardrailLimits` y `configDelPulso` LEEN, con
+ * el rango que esos lectores respetan. Lo que había antes era un `jsonb` libre:
+ * `confidence_threshold: 5` se guardaba, la pantalla mostraba 5 y la IA
+ * escalaba con 0,7 — el dueño configuró una cosa y el producto hizo otra, sin
+ * un aviso en ninguna parte.
+ *
+ * Los rangos, uno por uno, y de dónde sale cada uno:
+ *
+ * - `confidence_threshold` en (0, 1]: es la probabilidad con que el modelo
+ *   contesta, y `guardrailLimits` descarta todo lo que no esté ahí.
+ * - `max_agent_turns` de 1 a 50: el lector solo exige «> 0», y por eso un 500
+ *   —un 5 con un dedo pesado— apagaba el guardrail entero sin decirlo. 50
+ *   turnos sin avanzar ya es una conversación que nadie tiene.
+ * - `money_limit_clp` entero y sobre 0, o `null`. El 0 NO se acepta: el lector
+ *   lo convierte en «sin tope», que es lo contrario de lo que escribe alguien
+ *   que pone 0. Para dejarlo sin tope se omite la llave o se manda `null`, y el
+ *   mensaje lo dice.
+ * - `escalation_notice` acepta el texto EN BLANCO, que es lo que hoy significa
+ *   «usa el texto por defecto» (`autonomous.ts`), con un techo de 500: es un
+ *   mensaje de WhatsApp, no una carta.
+ * - `handoff_user_id` con forma de uuid: va derecho a `requestHandoff` como
+ *   dueño de la conversación, y cualquier otro texto se traga el handoff.
+ */
+const LimitesDelAsistente = objetoCerrado(
+  {
+    confidence_threshold: z
+      .number({ error: 'La confianza mínima va en número, entre 0 y 1.' })
+      .gt(0, 'La confianza mínima va entre 0 y 1 —por ejemplo 0,7— y no puede ser 0.')
+      .max(1, 'La confianza mínima va entre 0 y 1 —por ejemplo 0,7—: 1 es lo más exigente.')
+      .optional(),
+    max_agent_turns: z
+      .int({ error: 'Los turnos sin avanzar van en números enteros.' })
+      .min(1, 'Los turnos sin avanzar van de 1 a 50.')
+      .max(50, 'Los turnos sin avanzar van de 1 a 50: con más, deja de ser un resguardo.')
+      .optional(),
+    money_limit_clp: z
+      .int({ error: 'El tope de dinero va en pesos, sin decimales.' })
+      .positive(
+        'El tope de dinero va en pesos y sobre 0. Déjalo en blanco si quieres que escale ' +
+          'ante cualquier monto.',
+      )
+      .nullable()
+      .optional(),
+    handoff_user_id: z
+      .uuid('Elige a quién le queda la conversación de la lista de tu equipo.')
+      .nullable()
+      .optional(),
+    escalation_notice: z
+      .string({ error: 'El aviso de escalada va en texto.' })
+      .max(500, 'El aviso de escalada es un mensaje, no una carta: hasta 500 caracteres.')
+      .optional(),
+    pulso: PulsoDelEvento.optional(),
+  },
+  'los límites del asistente',
+);
+
+/**
+ * El horario autónomo (#1232).
+ *
+ * `inAutonomousHours` devuelve false —o sea, la IA no contesta sola nunca— si
+ * falta `start` o falta `end`, y la pantalla de modo autónomo podía mandar uno
+ * sin el otro: quien escribía solo el «desde» quedaba con el modo prendido, el
+ * badge «Por horario» en verde y el asistente sin contestar jamás.
+ *
+ * De ahí las dos reglas que no son de forma sino de sentido:
+ *
+ * - **los dos o ninguno**: `{}` sigue siendo válido y significa «nunca sola»,
+ *   que es el valor con que nace un asistente (SPEC §13, ADR-0010);
+ * - **`days` con al menos un día**: `days: []` también es «nunca», pero
+ *   escrito como si fuera una configuración. Si alguien apaga los siete días,
+ *   lo que quiere es apagar el modo, y eso se dice en `defaultMode`.
+ */
+const HorarioAutonomo = objetoCerrado(
+  {
+    start: horaRequerida('La hora de inicio va como HH:MM, por ejemplo 19:00.').optional(),
+    end: horaRequerida('La hora de término va como HH:MM, por ejemplo 09:00.').optional(),
+    days: z
+      .array(
+        z
+          .int({ error: 'Los días van en números, del 0 (domingo) al 6 (sábado).' })
+          .min(0, 'Los días van del 0 (domingo) al 6 (sábado).')
+          .max(6, 'Los días van del 0 (domingo) al 6 (sábado).'),
+      )
+      .max(7, 'La semana tiene siete días.')
+      .optional(),
+  },
+  'el horario autónomo',
+)
+  .refine((h) => (h.start === undefined) === (h.end === undefined), {
+    error:
+      'El horario necesita las dos horas, desde y hasta: con una sola, tu asistente no ' +
+      'contestaría sola nunca.',
+    path: ['end'],
+  })
+  .refine((h) => h.days === undefined || h.days.length > 0, {
+    error:
+      'Elige al menos un día. Sin días marcados tu asistente no contestaría sola nunca; para ' +
+      'apagarla, cambia el modo a «Solo sugiere».',
+    path: ['days'],
+  });
+
+/**
+ * Lo que se puede escribir del asistente, y es el cuerpo de las DOS rutas de
+ * escritura (#1232).
+ *
+ * Antes eran `@Body() body: AgentInput` y `@Body() body: Partial<AgentInput> &
+ * { active?: boolean }` — una declaración de TypeScript, que no comprueba nada
+ * en ejecución, y que además dejaba al Agente General sin argumentos: el
+ * generador del catálogo no sabe leer un tipo de intersección, así que
+ * `AgentsController_update` publicaba solo `id` mientras la pantalla de detalle
+ * le promete al dueño «para cambiarlo, pídeselo conversando».
+ *
+ * Los dos enums salen de las MISMAS listas que usa el runtime
+ * (`PROVIDERS`, `MODOS_DEL_ASISTENTE`, `OBJETIVOS`), así que agregar un
+ * proveedor o un objetivo no pide tocar este archivo.
+ *
+ * `objetivo` y `objetivoDetalle` NO aceptan `null` a propósito, aunque el tipo
+ * del módulo lo permita: `updateAgent` escribe con `COALESCE($16, objetivo)`,
+ * o sea que un `null` significa «no lo cambies» y no «bórralo». Aceptarlo
+ * sería prometer un borrado que no ocurre — el mismo silencio que este issue
+ * viene a cerrar. Para dejarlos como están, se omite la llave.
+ */
+const CAMPOS_DEL_ASISTENTE = {
+  name: textoRequerido('El asistente necesita un nombre visible.').max(
+    80,
+    'El nombre del asistente es el que ve el cliente: hasta 80 caracteres.',
+  ),
+  personality: z
+    .string({ error: 'La personalidad va en texto.' })
+    .max(2000, 'La personalidad va en pocas líneas: hasta 2.000 caracteres.')
+    .optional(),
+  language: z
+    .string({ error: 'El idioma va como código, por ejemplo es-CL.' })
+    .regex(/^[a-z]{2}(-[A-Z]{2})?$/, 'El idioma va como código, por ejemplo es-CL.')
+    .optional(),
+  provider: z
     .enum(PROVIDERS, { error: `El proveedor es uno de: ${PROVIDERS.join(', ')}.` })
-    .nullable(),
-  redactPII: z.boolean({ error: 'Dinos si tapamos los datos personales, sí o no.' }).optional(),
-});
+    .optional(),
+  model: textoRequerido('Dinos con qué modelo tiene que contestar.').max(120).optional(),
+  promptName: z.string({ error: 'El nombre del prompt va en texto.' }).max(120).optional(),
+  promptVersion: z.string({ error: 'La versión del prompt va en texto.' }).max(60).optional(),
+  fallbackSystemPrompt: z
+    .string({ error: 'El prompt de respaldo va en texto.' })
+    .max(20_000, 'El prompt de respaldo no puede pasar de 20.000 caracteres.')
+    .optional(),
+  allowedTools: z
+    .array(z.string({ error: 'Cada herramienta va por su nombre, en texto.' }))
+    .max(200, 'Son demasiadas herramientas para un asistente.')
+    .optional(),
+  defaultMode: z
+    .enum(MODOS_DEL_ASISTENTE, {
+      error: `El modo es uno de: ${MODOS_DEL_ASISTENTE.join(', ')}.`,
+    })
+    .optional(),
+  autonomousHours: HorarioAutonomo.optional(),
+  limits: LimitesDelAsistente.optional(),
+  objetivo: z
+    .enum(OBJETIVOS, { error: `El objetivo es uno de: ${OBJETIVOS.join(', ')}.` })
+    .optional(),
+  objetivoDetalle: z
+    .string({ error: 'El detalle del objetivo va en texto.' })
+    .max(200, 'El detalle del objetivo va en una frase: hasta 200 caracteres.')
+    .optional(),
+};
+
+const AsistenteNuevo = objetoCerrado(CAMPOS_DEL_ASISTENTE, 'el asistente');
+
+const CambiosDelAsistente = objetoCerrado(
+  {
+    ...CAMPOS_DEL_ASISTENTE,
+    // Lo único obligatorio al crear es el nombre, y al editar no: un PUT que
+    // solo cambia el modelo no tiene por qué repetirlo.
+    name: CAMPOS_DEL_ASISTENTE.name.optional(),
+    // `active` no está en `AgentInput` —apagar un asistente no es configurarlo—
+    // pero `updateAgent` lo escribe, así que el cuerpo del PUT lo lleva.
+    active: z.boolean({ error: 'Dinos si el asistente queda prendido o apagado, sí o no.' }).optional(),
+  },
+  'el asistente',
+);
 
 @ApiTags('agents')
 @Controller('agents')
@@ -303,11 +529,17 @@ export class AgentsController {
   @Put('ajustes')
   @RequirePermission('tenant.settings')
   @ApiOperation({ summary: 'Guarda el proveedor único y el trato de datos personales' })
-  async guardarAjustesDeIa(@Req() request: WithUser, @Body() body: unknown) {
+  async guardarAjustesDeIa(
+    @Req() request: WithUser,
+    // Pasó de `validar` suelto a `@Cuerpo` (#1232): la comprobación es la
+    // misma, pero solo el decorador registra el esquema, y sin registro el
+    // catálogo publicaba esta operación con `properties: {}` — o sea que el
+    // Agente General la ofrecía sin poder mandarle ni el proveedor. El cuerpo
+    // ausente lo convierte el pipe en `{}`, y `soloProveedor` es obligatorio,
+    // así que sigue siendo 400.
+    @Cuerpo(AjustesDeIa) ajustes: z.infer<typeof AjustesDeIa>,
+  ) {
     const actor = actorOf(request);
-    // `validar` suelto: el pipe de `@Cuerpo` convierte el cuerpo ausente en `{}`
-    // y acá esa diferencia ES el 400.
-    const ajustes = validar(AjustesDeIa, body);
     // Sin llave no se guarda. Elegir un proveedor que este ambiente no tiene
     // deja al asistente sin contestar a cada mensaje, y el negocio no tiene
     // forma de saber por qué: mismo criterio que al subir un PDF sin el
@@ -352,7 +584,10 @@ export class AgentsController {
   @Post()
   @RequirePermission('agents.configure')
   @ApiOperation({ summary: 'Crea un asistente (proveedor y modelo configurables)' })
-  async create(@Req() request: WithUser, @Body() body: AgentInput) {
+  async create(
+    @Req() request: WithUser,
+    @Cuerpo(AsistenteNuevo) body: z.infer<typeof AsistenteNuevo>,
+  ) {
     const actor = actorOf(request);
     try {
       return await withTenant(pool(), actor.tenantId, (c) =>
@@ -366,7 +601,11 @@ export class AgentsController {
   @Put(':id')
   @RequirePermission('agents.configure')
   @ApiOperation({ summary: 'Edita el asistente — cambiar de modelo no es deploy' })
-  async update(@Req() request: WithUser, @Param('id') id: string, @Body() body: Partial<AgentInput> & { active?: boolean }) {
+  async update(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Cuerpo(CambiosDelAsistente) body: z.infer<typeof CambiosDelAsistente>,
+  ) {
     const actor = actorOf(request);
     try {
       return await withTenant(pool(), actor.tenantId, async (c) => {

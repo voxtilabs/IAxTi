@@ -513,3 +513,178 @@ describe('los ajustes de IA del negocio se pueden escribir (#536)', () => {
     expect(r.status).toBe(403);
   });
 });
+
+/**
+ * El PUT del asistente valida lo que recibe (#1232).
+ *
+ * Lo que había antes era `@Body() body: Partial<AgentInput> & { active?: boolean }`:
+ * una declaración de TypeScript, que no comprueba nada en ejecución. El
+ * resultado medido no era un 500 ni un dato corrupto —habría sido más fácil—,
+ * era SILENCIO: `confidence_threshold: 5` se guardaba, la pantalla mostraba 5 y
+ * la IA seguía escalando con 0,7 porque `guardrailLimits` descarta lo que no
+ * esté en (0, 1]. El dueño configuró una cosa y el producto hizo otra, sin un
+ * aviso en ninguna parte.
+ *
+ * Por eso cada prueba de acá comprueba DOS cosas y no una: que la respuesta sea
+ * un 400 que dice qué pasó, y que la base NO tenga el valor. Solo con el status
+ * pasarían igual si el valor se guardara de todas formas.
+ */
+describe('el asistente no se come un valor inválido (#1232)', () => {
+  let asistente: string;
+
+  beforeAll(async () => {
+    const r = await pedir(duena, '/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Guardarrieles' }),
+    });
+    asistente = ((await r.json()) as { id: string }).id;
+  });
+
+  const editar = (cuerpo: unknown) =>
+    pedir(duena, `/agents/${asistente}`, { method: 'PUT', body: JSON.stringify(cuerpo) });
+
+  const guardado = async (columna: 'limits' | 'autonomous_hours') => {
+    const f = await admin.query(`SELECT ${columna} AS v FROM agents WHERE id = $1`, [asistente]);
+    return f.rows[0].v as Record<string, unknown>;
+  };
+
+  it('un valor fuera de rango es un 400 que dice el rango, y no se guarda', async () => {
+    const r = await editar({ limits: { confidence_threshold: 5 } });
+    expect(r.status).toBe(400);
+    const cuerpo = (await r.json()) as { code: string; message: string; details: unknown[] };
+    expect(cuerpo.code).toBe('VALIDATION_ERROR');
+    // El rango, escrito: «fuera de rango» a secas no le dice a nadie qué poner.
+    expect(cuerpo.message).toContain('entre 0 y 1');
+    expect(cuerpo.details).toContainEqual(
+      expect.objectContaining({ field: 'limits.confidence_threshold' }),
+    );
+    expect(await guardado('limits')).not.toHaveProperty('confidence_threshold');
+  });
+
+  it('una llave que nadie lee se rechaza nombrándola, y nombrando las que sí valen', async () => {
+    // `max_executions_day` es la del comentario de la migración de
+    // `agents.limits`: está nombrada ahí desde el primer día y ningún lector la
+    // mira. Era exactamente lo que se guardaba sin hacer nada.
+    const r = await editar({ limits: { max_executions_day: 10 } });
+    expect(r.status).toBe(400);
+    const cuerpo = (await r.json()) as { code: string; message: string };
+    expect(cuerpo.code).toBe('VALIDATION_ERROR');
+    expect(cuerpo.message).toContain('max_executions_day');
+    expect(cuerpo.message).toContain('confidence_threshold');
+    expect(await guardado('limits')).not.toHaveProperty('max_executions_day');
+  });
+
+  it('los valores válidos se guardan, y el tope de dinero se puede limpiar', async () => {
+    const puesto = await editar({
+      limits: {
+        confidence_threshold: 0.85,
+        max_agent_turns: 3,
+        money_limit_clp: 50_000,
+        // En blanco significa «usa el texto por defecto» (`avisoDeEscalada`), así
+        // que el esquema lo acepta: rechazarlo quitaría una forma de borrarlo.
+        escalation_notice: '   ',
+      },
+    });
+    expect(puesto.status).toBe(200);
+    expect(await guardado('limits')).toEqual({
+      confidence_threshold: 0.85,
+      max_agent_turns: 3,
+      money_limit_clp: 50_000,
+      escalation_notice: '   ',
+    });
+
+    // Limpiar el tope es omitir la llave, que es lo que manda la pantalla
+    // cuando el campo queda vacío (`JSON.stringify` borra los `undefined`).
+    const limpio = await editar({ limits: { confidence_threshold: 0.85, max_agent_turns: 3 } });
+    expect(limpio.status).toBe(200);
+    expect(await guardado('limits')).not.toHaveProperty('money_limit_clp');
+  });
+
+  it('el 0 en el tope de dinero no pasa en silencio: dice cómo dejarlo sin tope', async () => {
+    // `guardrailLimits` convierte el 0 en «sin tope», que es lo CONTRARIO de lo
+    // que escribe quien pone 0 esperando que escale por cualquier peso.
+    const r = await editar({ limits: { money_limit_clp: 0 } });
+    expect(r.status).toBe(400);
+    expect((await r.json()).message).toContain('en blanco');
+  });
+
+  it('el pulso a medio configurar no queda prendido y mudo', async () => {
+    // Sin `hasta`, `configDelPulso` devuelve null: el pulso se ve prendido en la
+    // configuración y no manda nunca. Es la función que más rápido puede costar
+    // un número de WhatsApp, así que acá el silencio no se admite.
+    const aMedias = await editar({ limits: { pulso: { activo: true, desde: '08:30' } } });
+    expect(aMedias.status).toBe(400);
+
+    const insistente = await editar({
+      limits: { pulso: { activo: true, desde: '08:30', hasta: '18:00', max_por_persona: 20 } },
+    });
+    expect(insistente.status).toBe(400);
+    expect((await insistente.json()).message).toContain('de 1 a 12');
+
+    const bueno = await editar({
+      limits: { pulso: { activo: true, desde: '08:30', hasta: '18:00', cada_minutos: 40 } },
+    });
+    expect(bueno.status).toBe(200);
+    expect(await guardado('limits')).toEqual({
+      pulso: { activo: true, desde: '08:30', hasta: '18:00', cada_minutos: 40 },
+    });
+  });
+
+  it('guardar un guardarriel no se lleva el pulso que esta pantalla no muestra', async () => {
+    // El PUT reemplaza `limits` completo, así que la pantalla reenvía lo que no
+    // toca. Que el esquema CONOZCA `pulso` es lo que lo hace posible: si lo
+    // rechazara, reenviarlo dejaría la pantalla sin poder guardar.
+    const r = await editar({
+      limits: {
+        pulso: { activo: true, desde: '08:30', hasta: '18:00', cada_minutos: 40 },
+        confidence_threshold: 0.6,
+      },
+    });
+    expect(r.status).toBe(200);
+    const limites = await guardado('limits');
+    expect(limites.pulso).toEqual({
+      activo: true,
+      desde: '08:30',
+      hasta: '18:00',
+      cada_minutos: 40,
+    });
+    expect(limites.confidence_threshold).toBe(0.6);
+  });
+
+  it('el horario autónomo necesita las dos horas, y al menos un día', async () => {
+    const media = await editar({ autonomousHours: { start: '19:00' } });
+    expect(media.status).toBe(400);
+    expect((await media.json()).message).toContain('las dos horas');
+
+    // `inAutonomousHours` compara los horarios como TEXTO: `7pm` no es una hora
+    // y `7:00` sin cero adelante queda mayor que `19:00`.
+    const sinFormato = await editar({ autonomousHours: { start: '7pm', end: '09:00' } });
+    expect(sinFormato.status).toBe(400);
+
+    const sinDias = await editar({ autonomousHours: { start: '19:00', end: '09:00', days: [] } });
+    expect(sinDias.status).toBe(400);
+    expect((await sinDias.json()).message).toContain('al menos un día');
+
+    // Vacío sigue siendo válido: es el «nunca sola» con que nace un asistente.
+    expect((await editar({ autonomousHours: {} })).status).toBe(200);
+
+    const bueno = await editar({ autonomousHours: { start: '19:00', end: '09:00', days: [1, 2] } });
+    expect(bueno.status).toBe(200);
+    expect(await guardado('autonomous_hours')).toEqual({
+      start: '19:00',
+      end: '09:00',
+      days: [1, 2],
+    });
+  });
+
+  it('un campo que el asistente no tiene se rechaza al crear, y no crea nada', async () => {
+    const antes = (await (await pedir(duena, '/agents')).json()).length;
+    const r = await pedir(duena, '/agents', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Inventado', temperatura: 0.9 }),
+    });
+    expect(r.status).toBe(400);
+    expect((await r.json()).message).toContain('temperatura');
+    expect((await (await pedir(duena, '/agents')).json()).length).toBe(antes);
+  });
+});

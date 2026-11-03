@@ -78,6 +78,36 @@ interface AgenteDto {
   limits: LimitesDto;
 }
 
+const LLAVES_DE_LIMITS: readonly (keyof LimitesDto)[] = [
+  'confidence_threshold',
+  'max_agent_turns',
+  'money_limit_clp',
+  'handoff_user_id',
+  'escalation_notice',
+  'pulso',
+];
+
+/**
+ * Lo que vuelve al servidor: lo conocido, y nada más (#1232).
+ *
+ * Antes era un `{ ...limits }` pelado. Desde que el PUT valida lo que recibe,
+ * RECHAZA una llave que nadie lee, así que un `limits` con basura heredada
+ * —hubo un `max_executions_day` nombrado en el comentario de la migración
+ * desde el primer día— dejaría esta pantalla sin poder guardar nada, y el
+ * error hablaría de una llave que el dueño nunca escribió.
+ *
+ * La lista incluye `pulso`, que llegó después en #1210: una lista blanca que
+ * se olvida de una llave nueva la borra en silencio en el próximo guardado, y
+ * eso apagaría el pulso del evento sin que nadie toque el pulso.
+ */
+function limitesConocidos(limits: LimitesDto): LimitesDto {
+  const salida: Record<string, unknown> = {};
+  for (const llave of LLAVES_DE_LIMITS) {
+    if (limits[llave] !== undefined) salida[llave] = limits[llave];
+  }
+  return salida as LimitesDto;
+}
+
 interface MiembroDto {
   userId: string;
   nombre: string | null;
@@ -166,7 +196,8 @@ export function ModoAutonomo() {
    * objeto a mano: todas pasan por acá, y la guarda de fuente comprueba que
    * siga siendo la única.
    */
-  const guardarLimites = (cambio: Partial<LimitesDto>) => guardar({ limits: { ...limits, ...cambio } });
+  const guardarLimites = (cambio: Partial<LimitesDto>) =>
+    guardar({ limits: limitesConocidos({ ...limits, ...cambio }) });
 
   /** Lo mismo un nivel más adentro: `pulso` también se reemplaza entero. */
   const guardarPulso = (cambio: Partial<PulsoDto>) => guardarLimites({ pulso: { ...pulso, ...cambio } });

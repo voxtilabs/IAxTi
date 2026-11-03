@@ -667,7 +667,180 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "personality": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "glm",
+            "anthropic",
+            "google"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "promptName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "promptVersion": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "fallbackSystemPrompt": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "allowedTools": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultMode": {
+          "type": "string",
+          "enum": [
+            "assist",
+            "autonomous",
+            "off"
+          ]
+        },
+        "autonomousHours": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+            },
+            "end": {
+              "type": "string",
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+            },
+            "days": {
+              "maxItems": 7,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "confidence_threshold": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "max_agent_turns": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "money_limit_clp": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "handoff_user_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "escalation_notice": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "pulso": {
+              "type": "object",
+              "properties": {
+                "activo": {
+                  "type": "boolean"
+                },
+                "desde": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "hasta": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "cada_minutos": {
+                  "type": "integer",
+                  "minimum": 5,
+                  "maximum": 720
+                },
+                "max_por_persona": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12
+                }
+              },
+              "required": [
+                "activo",
+                "desde",
+                "hasta"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "objetivo": {
+          "type": "string",
+          "enum": [
+            "agendar",
+            "vender",
+            "informar",
+            "calificar",
+            "cobrar",
+            "estadisticas",
+            "configuracion"
+          ]
+        },
+        "objetivoDetalle": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "name"
+      ],
       "additionalProperties": false
     }
   },
@@ -748,7 +921,30 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "soloProveedor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "openai",
+                "glm",
+                "anthropic",
+                "google"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "redactPII": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "soloProveedor"
+      ],
       "additionalProperties": false
     }
   },
@@ -946,6 +1142,178 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "id": {
           "type": "string",
           "x-iaxti-en": "ruta"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "personality": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "glm",
+            "anthropic",
+            "google"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "promptName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "promptVersion": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "fallbackSystemPrompt": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "allowedTools": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultMode": {
+          "type": "string",
+          "enum": [
+            "assist",
+            "autonomous",
+            "off"
+          ]
+        },
+        "autonomousHours": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string",
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+            },
+            "end": {
+              "type": "string",
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+            },
+            "days": {
+              "maxItems": 7,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "confidence_threshold": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "max_agent_turns": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "money_limit_clp": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "handoff_user_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "escalation_notice": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "pulso": {
+              "type": "object",
+              "properties": {
+                "activo": {
+                  "type": "boolean"
+                },
+                "desde": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "hasta": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "cada_minutos": {
+                  "type": "integer",
+                  "minimum": 5,
+                  "maximum": 720
+                },
+                "max_por_persona": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12
+                }
+              },
+              "required": [
+                "activo",
+                "desde",
+                "hasta"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "objetivo": {
+          "type": "string",
+          "enum": [
+            "agendar",
+            "vender",
+            "informar",
+            "calificar",
+            "cobrar",
+            "estadisticas",
+            "configuracion"
+          ]
+        },
+        "objetivoDetalle": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "active": {
+          "type": "boolean"
         }
       },
       "required": [
