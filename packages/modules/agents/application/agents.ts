@@ -8,6 +8,18 @@ import { semillaCacheada } from './defecto-de-la-plataforma';
 
 // Agent (#47): el asistente del tenant, con TODO configurable.
 
+/**
+ * Los modos como LISTA, no solo como tipo (#1232).
+ *
+ * El tipo estaba escrito a mano en tres lugares —acá, en `ConversationMode` y
+ * en el `CHECK` de la migración— y un tipo no existe en ejecución: el esquema
+ * que valida el PUT del asistente necesita la lista de verdad. Escribirla otra
+ * vez en el controlador sería la cuarta copia, y la que se desincroniza es
+ * siempre la que está más lejos de la base.
+ */
+export const MODOS_DEL_ASISTENTE = ['assist', 'autonomous', 'off'] as const;
+export type ModoDelAsistente = (typeof MODOS_DEL_ASISTENTE)[number];
+
 export interface Agent {
   id: string;
   tenantId: string;
@@ -20,7 +32,7 @@ export interface Agent {
   promptVersion: string | null;
   fallbackSystemPrompt: string | null;
   allowedTools: string[];
-  defaultMode: 'assist' | 'autonomous' | 'off';
+  defaultMode: ModoDelAsistente;
   autonomousHours: Record<string, unknown>;
   limits: Record<string, unknown>;
   /** Qué tiene que LOGRAR (#315). Null en los agentes de antes: siguen igual. */
