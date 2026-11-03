@@ -54,6 +54,15 @@ export async function aplicarAccionDeLaSugerencia(
   // los «adivina» bien no es garantía, y uno que los adivina mal agenda a
   // otra persona. Al prompt se le dice que ni los escriba.
   const delSistema: Record<string, Record<string, unknown>> = {
+    /**
+     * Crear la oportunidad lleva el contacto de ESTA conversación (#1229), por
+     * lo mismo que `agenda.agendar`: el modelo no lo escribe y no se le pide.
+     * Una oportunidad creada sobre el contacto equivocado es peor que ninguna
+     * —el dueño la ve en el embudo con el nombre de otro cliente—.
+     */
+    'deals.create': {
+      contactId: r.rows[0].contact_id,
+    },
     'agenda.agendar': {
       contactId: r.rows[0].contact_id,
       conversationId: r.rows[0].conversation_id,

@@ -46,6 +46,20 @@ export const ACCIONES_EN_LA_CONVERSACION: Record<string, string> = {
   'deals.move':
     'Lo que dijo mueve la oportunidad de etapa —ganada, perdida, o un paso más—. Sin esto ' +
     'el embudo cuenta mal y las métricas del dueño mienten.',
+  /**
+   * Y crear la primera (#1229).
+   *
+   * Estaba `deals.move` y no `deals.create`: el agente podía mover una
+   * oportunidad que no existía y no podía proponer la primera. Medido en el
+   * tenant del Tech AI Summit tras cinco conversaciones reales: 5 contactos,
+   * 5 conversaciones, CERO oportunidades. Para un negocio que recién empieza
+   * —y para un stand, donde todos los que escriben son nuevos— eso es el CRM
+   * vacío por definición.
+   */
+  'deals.create':
+    'Mostró interés concreto en comprar o contratar y todavía no tiene oportunidad. Sin ' +
+    'esto el embudo arranca vacío y el dueño no se entera de quién vino: el contacto entra ' +
+    'solo, la oportunidad no la crea nadie.',
 };
 
 /**
@@ -64,8 +78,23 @@ export const ACCIONES_EN_LA_CONVERSACION: Record<string, string> = {
 export function accionQueSePuedeProponer(accion: AccionPropuesta | null): AccionPropuesta | null {
   if (!accion) return null;
   if (!(accion.herramienta in ACCIONES_EN_LA_CONVERSACION)) return null;
+  /**
+   * Que la herramienta EXISTA, no que pida confirmación (#1229).
+   *
+   * Antes exigía `trato === 'confirmar'`, y eso excluía justo a las libres
+   * —`deals.create` entre ellas, por estar en `SIN_CONFIRMACION`—. Mirado de
+   * cerca está al revés: el `trato` decide si el agente puede EJECUTARLA sola
+   * cuando lleva herramientas. La propuesta existe para la corrida donde NO
+   * las lleva, que es el modo autónomo. Así que excluir a las libres
+   * significaba «en autónomo, una acción libre no puede ocurrir nunca», y eso
+   * es el CRM vacío que midió #1229: cinco conversaciones, cinco contactos,
+   * cero oportunidades.
+   *
+   * La puerta sigue siendo `ACCIONES_EN_LA_CONVERSACION`, que es una lista
+   * curada a mano, y la aplica una PERSONA con su propio permiso.
+   */
   const h = CATALOGO.find((x) => x.nombre === accion.herramienta);
-  if (!h || h.trato !== 'confirmar') return null;
+  if (!h) return null;
   return accion;
 }
 
@@ -89,6 +118,14 @@ export const ARGUMENTOS_DE_LA_ACCION: Record<string, string> = {
   'conversations.state': '{"state": "<resolved|snoozed|open>"}',
   'payments.createLink': '{}',
   'deals.move': '{"id": "<el id de la oportunidad, del contexto>", "stageId": "<la etapa de destino, del contexto>"}',
+  /**
+   * `contactId` NO se le pide, aunque la ruta lo exija: lo pone el sistema al
+   * aplicar, igual que en `agenda.agendar` (#1049). Un modelo que adivina
+   * bien el contacto no es garantía; uno que adivina mal le crea la
+   * oportunidad a otra persona.
+   */
+  'deals.create':
+    '{"title": "<qué quiere, en pocas palabras, ej Corte y barba para el viernes>", "value": "<monto en pesos SOLO si el cliente lo dijo; si no, omitir el campo>"}',
 };
 
 /**

@@ -66,14 +66,28 @@ const guardar = async (accion: unknown) =>
   ).rows[0].id as string;
 
 describe('lo que el asistente puede proponer', () => {
-  it('cada nombre de la lista existe en el catálogo y sigue pidiendo visto bueno', () => {
+  it('cada nombre de la lista existe en el catálogo y ESCRIBE algo', () => {
     // La lista es corta a mano y el catálogo se genera del código: sin esta
     // prueba, renombrar una ruta dejaría una entrada apuntando a nada y la
     // acción se caería recién cuando un cliente la pidiera.
+    //
+    // Esta prueba exigía además `trato === 'confirmar'` para cada entrada, y
+    // esa parte se cayó a propósito en #1229. El motivo: `deals.create` es
+    // `libre` —está en `SIN_CONFIRMACION` porque «queda adentro del negocio y
+    // se deshace»— y el `trato` decide si el agente puede EJECUTARLA sola
+    // cuando lleva herramientas. La propuesta existe para la corrida donde NO
+    // las lleva, que es el modo autónomo; exigir `confirmar` ahí significaba
+    // «en autónomo una acción libre no puede ocurrir nunca», y eso se midió
+    // como un CRM vacío: cinco conversaciones, cinco contactos, cero
+    // oportunidades.
+    //
+    // Lo que queda en su lugar no es nada: que la herramienta ESCRIBA. Una
+    // propuesta de lectura no tiene sentido —no hay nada que confirmar— y
+    // sería la forma de que una entrada mal copiada pasara sin que se note.
     for (const nombre of Object.keys(ACCIONES_EN_LA_CONVERSACION)) {
       const h = CATALOGO.find((x) => x.nombre === nombre);
       expect(h, `${nombre} no está en el catálogo`).toBeDefined();
-      expect(h?.trato, `${nombre} dejó de pedir confirmación`).toBe('confirmar');
+      expect(h?.metodo, `${nombre} no escribe nada: una propuesta de lectura no se confirma`).not.toBe('GET');
     }
   });
 
