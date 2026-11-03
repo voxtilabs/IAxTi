@@ -168,6 +168,39 @@ describe('forzar la recreación (#652)', () => {
     }
   });
 
+  /**
+   * La recreación pedida a mano (#1217).
+   *
+   * El caso que #652 no cubría: el stack sirviendo la imagen CORRECTA con un
+   * proceso caído adentro. Pasó el 02/11 —el bot mudo con `/health`, `/ready`
+   * y el smoke en verde— y no había forma de pedir un reinicio sin pasarse las
+   * credenciales de Dokploy por un chat.
+   */
+  describe('pedida a mano con FORZAR (#1217)', () => {
+    it('recrea aunque el SHA ya calce, y lo dice sin mentir sobre el motivo', () => {
+      const r = correr('forzar-a-mano', { SHA_VIVO: 'nuevo1234567', FORZAR: '1' });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(r.llamadas).toEqual(['STOP', 'DEPLOY']);
+      // Lo que importa tanto como el stop: el log NO dice «no tomó la imagen»,
+      // porque la tomó. Un log de despliegue que miente sobre por qué hizo lo
+      // que hizo es peor que no tener log.
+      expect(r.stdout).toContain('RECREACIÓN PEDIDA A MANO');
+      expect(r.stdout).not.toContain('EL CONTENEDOR NO TOMÓ LA IMAGEN');
+    });
+
+    /**
+     * `false` y `0` NO fuerzan: así se escribe un input booleano de
+     * `workflow_dispatch` cuando el usuario lo deja desmarcado. Con la prueba
+     * de `-n` a secas, cada despliegue automático habría detenido staging.
+     */
+    it.each(['false', '0', ''])('FORZAR=%j no detiene nada', (valor) => {
+      const r = correr(`forzar-no-${valor || 'vacio'}`, { SHA_VIVO: 'nuevo1234567', FORZAR: valor });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(r.llamadas).toEqual([]);
+      expect(r.stdout).toContain('tomó la imagen');
+    });
+  });
+
   it('sin SHA en el entorno no hace NADA: el script corre de verdad en esta prueba', () => {
     const r = correr('sin-entorno', { SHA: '' });
     expect(r.status).toBe(0);
