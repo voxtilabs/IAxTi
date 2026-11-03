@@ -145,6 +145,35 @@ export async function processSuggest(
     return { skipped: 'sin llaves de proveedor de IA en este ambiente' };
   }
   return withTenant(pool, data.tenantId, async (client) => {
+    /**
+     * El último entrante gana (#1223).
+     *
+     * El job se encola con un respiro de unos segundos para que la persona
+     * termine de escribir. Si en ese rato llegó otro mensaje, ESTE job se
+     * salta: el del mensaje nuevo va a contestar, y va a contestar con los
+     * dos a la vista porque el contexto se lee al ejecutar.
+     *
+     * Medido antes de esto: «Hola» y «Sigo vivo» en el mismo minuto recibieron
+     * dos respuestas completas, con firma las dos. Nadie escribe un mensaje
+     * por idea, así que esto no es un caso raro: es el caso normal.
+     *
+     * Se compara por `seq`, que es el orden propio de la conversación y el
+     * mismo con el que se arma el contexto. `created_at` también serviría
+     * —`timestamptz` tiene microsegundos—, así que esto no es una corrección
+     * de un defecto: es usar el orden que la conversación ya define en vez de
+     * uno paralelo. La prueba no distingue los dos, y está bien que no lo
+     * haga: no hay defecto que atajar ahí.
+     */
+    const masNuevo = await client.query(
+      `SELECT 1 FROM messages m
+        WHERE m.tenant_id = $1 AND m.conversation_id = $2 AND m.direction = 'in'
+          AND m.seq > (SELECT seq FROM messages WHERE tenant_id = $1 AND id = $3)
+        LIMIT 1`,
+      [data.tenantId, data.conversationId, data.messageId],
+    );
+    if (masNuevo.rowCount) {
+      return { skipped: 'llegó otro mensaje después: contesta el job de ese' };
+    }
     let transcribed = false;
     // El audio primero (#48): transcrito, entra solo al contexto.
     if (data.audioKey && providerAvailable('google')) {
