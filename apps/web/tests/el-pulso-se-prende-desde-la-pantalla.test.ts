@@ -45,34 +45,26 @@ function elMotorLaLee(llave: string): boolean {
   return new RegExp(`\\b(?:l|limits)\\.${llave}\\b`).test(MOTOR);
 }
 
-/**
- * Las llaves que la pantalla escribe y el motor todavía NO lee, con su motivo.
- *
- * No crece sin uno escrito, y la prueba de abajo la hace caerse sola el día
- * que el motor empiece a leerla: una excepción que sobrevive a su causa es una
- * regla ablandada sin que nadie lo decidiera.
- */
-const PENDIENTES: Record<string, string> = {
-  firma_en_cada_mensaje:
-    'La lee #1227 ("poder dejar la firma solo en el primer mensaje"), que todavía no está en ' +
-    'staging. El control se agrega igual porque la llave y su defecto (`true`) ya están ' +
-    'decididos ahí; cuando ese PR entre, esta fila se borra y la guarda la cubre sola.',
-};
-
 describe('ninguna perilla de la pantalla miente (#1230)', () => {
+  /**
+   * Sin excepciones, y lo fue a pulso.
+   *
+   * Esta prueba nació con una: `firma_en_cada_mensaje` la leía #1227, que
+   * estaba por mergear, así que la llave se escribía y nadie la leía. La
+   * excepción vivía en un mapa `PENDIENTES` con su motivo escrito y una
+   * segunda prueba que comprobaba que el motor NO la leyera — pensada para
+   * caerse sola el día que lo hiciera, porque una excepción que sobrevive a
+   * su causa es una regla ablandada sin que nadie lo decidiera.
+   *
+   * Y se cayó: al rebasar sobre `staging`, #1228 ya estaba mergeado y la
+   * guarda se puso roja con «el motor ya la lee. Saca la fila de PENDIENTES».
+   * Así que la fila se borró y la excepción con ella. Si mañana hace falta
+   * otra, esta prueba se pone roja y obliga a escribir el motivo: no hay
+   * mapa vacío esperando que alguien lo llene sin justificar nada.
+   */
   it('cada llave de `limits` que la pantalla escribe la lee el motor', () => {
-    const mudas = llavesDe('LimitesDto').filter((ll) => !(ll in PENDIENTES) && !elMotorLaLee(ll));
+    const mudas = llavesDe('LimitesDto').filter((ll) => !elMotorLaLee(ll));
     expect(mudas).toEqual([]);
-  });
-
-  it('la excepción pendiente dice por qué, y se cae sola cuando el motor la lea', () => {
-    for (const [llave, motivo] of Object.entries(PENDIENTES)) {
-      expect(motivo.length, `${llave} necesita un motivo escrito`).toBeGreaterThan(60);
-      expect(
-        elMotorLaLee(llave),
-        `${llave}: el motor ya la lee. Saca la fila de PENDIENTES.`,
-      ).toBe(false);
-    }
   });
 
   it('cada llave del pulso que la pantalla escribe la lee `configDelPulso`', () => {
