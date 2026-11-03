@@ -12,6 +12,7 @@ import {
 } from '@iaxti/core';
 import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
 import { processSuggest, type SuggestJob } from './copilot';
+import { candadoEnRedis, deAUnoPorConversacion } from './de-a-uno-por-conversacion';
 import { processPulso, type PulsoJob } from './pulso';
 
 const service = textoDeEntorno('SERVICE', 'agents');
@@ -53,20 +54,33 @@ function start(): void {
     console.log('agents: sin REDIS_URL; la cola espera configuración');
     return;
   }
-  createModuleWorker(
+  /**
+   * En paralelo, pero de a uno por conversación (#1214).
+   *
+   * Por esta cola pasan TODAS las respuestas de la IA y corría de a un job
+   * —el valor por defecto de BullMQ—, así que diez personas escribiendo juntas
+   * dejaban a la última esperando un minuto: medido, 15,3 s con la cola vacía
+   * contra 82 s con jobs adelante.
+   */
+  const redisCandado = redisConnection();
+  const agentsWorker = createModuleWorker(
     'agents',
     registry,
-    async (job) =>
-      // Dos trabajos en la misma cola y por el nombre, no por el contenido
-      // (#1210): `suggest` viene del camino de entrada y contesta un mensaje;
-      // `pulso` no contesta nada, lo empieza el negocio. Mirar el payload para
-      // adivinar cuál es —«si no trae messageId es un pulso»— convierte un
-      // campo que falta por un defecto en un mensaje saliente.
+    // El candado envuelve a LOS DOS trabajos, y eso es lo que importa de esta
+    // combinación: un pulso y una respuesta sobre la misma conversación no
+    // pueden generarse en paralelo, o la persona recibe dos mensajes que no
+    // se conocen. El despacho por nombre va adentro (#1210): `suggest`
+    // contesta un mensaje, `pulso` no contesta nada —lo empieza el negocio— y
+    // mirar el payload para adivinar cuál es convertiría un campo que falta
+    // por un defecto en un mensaje saliente.
+    deAUnoPorConversacion(candadoEnRedis(redisCandado), async (job) =>
       job.name === 'pulso'
         ? processPulso(pool, job.data as unknown as PulsoJob, { registry })
         : processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
+    ),
     redisConnection(),
   );
+  agentsWorker.concurrency = enteroDeEntorno('AGENTS_CONCURRENCY', 5);
   consumersStarted = true;
   console.log('agents: worker de cola agents activo');
 }
