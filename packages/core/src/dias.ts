@@ -32,6 +32,46 @@ export function diaEn(timeZone = TZ_POR_DEFECTO, cuando: Date = new Date()): str
   }).format(cuando);
 }
 
+/**
+ * `HH:MM` del instante dado, en la zona pedida (#1225).
+ *
+ * La hermana de `diaEn`, y nace del mismo defecto una capa más abajo: el
+ * horario autónomo del agente se comparaba contra `now.getHours()`, que es el
+ * reloj del PROCESO. Los contenedores corren en UTC, así que un negocio
+ * chileno que escribía «08:00 a 22:00» obtenía 05:00 a 19:00 de su hora — el
+ * bot dejaba de contestar solo tres horas antes de lo que decía su propia
+ * configuración, sin un error en ninguna parte.
+ *
+ * `en-GB` con `hour12: false` da `HH:MM` de dos dígitos, que es el formato en
+ * que el producto guarda el horario y por lo tanto comparable como texto.
+ */
+export function horaEn(timeZone = TZ_POR_DEFECTO, cuando: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(cuando);
+}
+
+/**
+ * El día de la semana (0 = domingo) en la zona pedida.
+ *
+ * `getDay()` tiene el mismo problema que `getHours()`: a las 22:00 de un
+ * domingo en Chile, un contenedor en UTC ya está en lunes. Un horario
+ * configurado «solo de lunes a viernes» arrancaba el domingo a las 21:00.
+ */
+export function diaDeSemanaEn(timeZone = TZ_POR_DEFECTO, cuando: Date = new Date()): number {
+  const corto = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(cuando);
+  const dias = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const i = dias.indexOf(corto);
+  // `indexOf` no puede fallar con `weekday: 'short'` en `en-US`, pero devolver
+  // -1 en silencio dejaría a `days.includes(-1)` diciendo «no es ninguno de
+  // los días», o sea el agente callado para siempre y nada que mirar.
+  if (i === -1) throw new Error(`No pude leer el día de la semana en ${timeZone}: "${corto}".`);
+  return i;
+}
+
 /** El rango por defecto del tablero: los últimos N días del negocio. */
 export function ultimosDias(n: number, timeZone = TZ_POR_DEFECTO, hoy: Date = new Date()): {
   from: string;

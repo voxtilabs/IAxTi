@@ -86,6 +86,8 @@ export function tocaPulso(input: {
   ultimoEntrante: Date | null;
   ultimoSaliente: Date | null;
   pulsosEnviados: number;
+  /** La zona del negocio (#1225): sin ella se juzgaría con la del contenedor. */
+  zona?: string;
 }): { manda: boolean; motivo: MotivoDelPulso } {
   const { cfg } = input;
   if (!cfg) return { manda: false, motivo: 'apagado' };
@@ -95,7 +97,7 @@ export function tocaPulso(input: {
   if (!isWithinWindow(input.canal, input.ultimoEntrante)) {
     return { manda: false, motivo: 'ventana_cerrada' };
   }
-  if (!inAutonomousHours({ start: cfg.desde, end: cfg.hasta }, input.ahora)) {
+  if (!inAutonomousHours({ start: cfg.desde, end: cfg.hasta }, input.ahora, input.zona)) {
     return { manda: false, motivo: 'fuera_de_horario' };
   }
   if (input.pulsosEnviados >= cfg.maxPorPersona) {

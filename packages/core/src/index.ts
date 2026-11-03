@@ -17,7 +17,7 @@ export type { Repetible } from './queues';
 export type { QueueName, ModuleJobData } from './queues';
 export { attachmentKey, knowledgeKey, presignUrl, presignPutUrl, firmaPresignada, storageFromEnv, almacenR2 } from './storage';
 export type { StorageConfig, LimitesSubida, AlmacenObjetos } from './storage';
-export { diaEn, mesEn, ultimosDias, esDia, TZ_POR_DEFECTO } from './dias';
+export { diaEn, mesEn, ultimosDias, esDia, horaEn, diaDeSemanaEn, TZ_POR_DEFECTO } from './dias';
 export {
   reservarLlave,
   guardarRespuesta,
