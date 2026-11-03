@@ -71,6 +71,14 @@ export function guardrailLimits(agent: Agent): {
    * hoy. Ningún negocio existente cambia de comportamiento por este PR.
    */
   actuaComoUserId: string | null;
+  /**
+   * El pie que el cliente ve, escrito por el negocio (#1242).
+   *
+   * `null` es «sin configurar» y vale el texto de siempre; una cadena vacía es
+   * una decisión —este negocio no quiere pie— y hay que poder distinguirlas, que
+   * es justo lo que un `?? ''` borraría.
+   */
+  firma: string | null;
 } {
   const l = agent.limits as Record<string, unknown>;
   const conf = Number(l.confidence_threshold);
@@ -94,6 +102,9 @@ export function guardrailLimits(agent: Agent): {
       typeof l.actua_como_user_id === 'string' && l.actua_como_user_id.trim() !== ''
         ? l.actua_como_user_id.trim()
         : null,
+    // Sin `.trim()` y sin descartar la vacía: acá la cadena vacía SIGNIFICA
+    // algo. Lo único que no es configuración es que el campo no sea texto.
+    firma: typeof l.firma === 'string' ? l.firma : null,
   };
 }
 
@@ -322,7 +333,22 @@ export type AutonomousOutcome =
    * que saberse una frase del SPEC y no tenía con qué decidir. Vacía = sin
    * firma en este mensaje.
    */
-  | { action: 'reply'; text: string; agentName: string; firma: string; executionId: string };
+  | {
+      action: 'reply';
+      text: string;
+      agentName: string;
+      firma: string;
+      executionId: string;
+      /**
+       * Cómo clasificó el modelo esta conversación (#1243).
+       *
+       * Viaja con la respuesta porque ya está decidida: quien abre la
+       * oportunidad la LEE en vez de preguntarle otra vez al modelo. Una
+       * segunda consulta sería otro gasto y, peor, podría contestar distinto
+       * que la respuesta que el cliente ya recibió.
+       */
+      clasificacion: { intencion: string | null; calificacion: string | null };
+    };
 
 /**
  * La corrida autónoma por entrante (#49). Devuelve la respuesta para que
@@ -535,6 +561,10 @@ export async function autoRespondForInbound(
     text: payload.respuesta,
     agentName: agent.name,
     executionId: res.executionId,
+    clasificacion: {
+      intencion: payload.intencion ?? null,
+      calificacion: payload.calificacion ?? null,
+    },
   };
 }
 
@@ -563,7 +593,17 @@ export async function leTocaFirma(
   return r.rowCount === 0;
 }
 
-/** El pie que el cliente ve: quién escribe y cómo pedir una persona (SPEC §13). */
+/**
+ * El pie que el cliente ve: quién escribe y cómo pedir una persona (SPEC §13).
+ *
+ * El texto lo elige el negocio (#1242) y el defecto es el de siempre. Que pueda
+ * quedar vacío contradice la letra de SPEC §13 y no su motivo: lo que el cliente
+ * tiene que saber es quién le escribe y cómo pedir una persona, y un agente que
+ * se presenta por su nombre lo dice mejor que un pie repetido. La decisión es
+ * del dueño, que es quien responde por su voz.
+ */
 export function firmaDelAgente(agent: Agent): string {
+  const propia = guardrailLimits(agent).firma;
+  if (propia !== null) return propia;
   return `${agent.name} — asistente virtual. Escribe "humano" y te paso con una persona.`;
 }

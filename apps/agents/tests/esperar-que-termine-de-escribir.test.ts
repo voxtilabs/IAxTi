@@ -22,7 +22,10 @@ vi.mock('@iaxti/module-agents', async (importOriginal) => ({
   providerAvailable: () => true,
   autoRespondForInbound: async () => {
     generadas.push('una');
-    return { action: 'reply', text: 'Te ayudo', agentName: 'Asistente' };
+    return { action: 'reply', text: 'Te ayudo', agentName: 'Asistente',
+    // La clasificación viaja con la respuesta (#1243). `consulta`/`frio` para
+    // que estas pruebas midan la ENTREGA y no de paso el embudo.
+    clasificacion: { intencion: 'consulta', calificacion: 'frio' } };
   },
 }));
 

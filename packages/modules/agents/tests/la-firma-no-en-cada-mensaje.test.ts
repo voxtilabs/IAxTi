@@ -145,3 +145,46 @@ describe('cuándo le toca firma a un mensaje (#1227)', () => {
     expect(toca, 'el bot todavía no se presentó: le toca firmar').toBe(true);
   });
 });
+
+/**
+ * El texto de la firma lo escribe el negocio (#1242).
+ *
+ * El pie estaba en el código, y en el agente del evento quedaba pegado a una
+ * respuesta que dos frases antes ya decía quién era y a quién pasaba: «Pásate
+ * por el stand de VoxTi Labs… / IAxTi — asistente virtual. Escribe "humano"…».
+ * El requisito de SPEC §13 es que el cliente lo SEPA, y eso se puede cumplir
+ * con otras palabras — o con un agente que se presenta.
+ */
+describe('el texto de la firma (#1242)', () => {
+  it('sin configurar: el texto de siempre, carácter por carácter', () => {
+    // Escrito a mano y no construido con la misma plantilla que el código: si
+    // esta prueba armara el texto igual que `firmaDelAgente`, cambiar la
+    // plantilla las movería a las dos y ningún negocio se enteraría.
+    expect(firmaDelAgente(agenteCon({}))).toBe(
+      'IAxTi — asistente virtual. Escribe "humano" y te paso con una persona.',
+    );
+  });
+
+  it('con texto propio: ese texto', () => {
+    expect(firmaDelAgente(agenteCon({ firma: 'Soy el bot de VoxTi. Pide "humano" y te paso con Lino.' }))).toBe(
+      'Soy el bot de VoxTi. Pide "humano" y te paso con Lino.',
+    );
+  });
+
+  /**
+   * La cadena vacía es una DECISIÓN, no un campo sin llenar, y por eso el
+   * lector no la recorta ni la descarta. Un `?? ''` o un `.trim() !== ''` en
+   * `guardrailLimits` haría caer este caso al defecto, y el dueño vería que
+   * guardó «sin firma» y el bot sigue firmando.
+   */
+  it('vacía: el mensaje sale sin pie', () => {
+    expect(firmaDelAgente(agenteCon({ firma: '' }))).toBe('');
+    expect(guardrailLimits(agenteCon({ firma: '' })).firma).toBe('');
+  });
+
+  it('lo que no es texto no es configuración', () => {
+    expect(guardrailLimits(agenteCon({ firma: null })).firma).toBeNull();
+    expect(guardrailLimits(agenteCon({ firma: 42 })).firma).toBeNull();
+    expect(firmaDelAgente(agenteCon({ firma: 42 }))).toContain('asistente virtual');
+  });
+});
