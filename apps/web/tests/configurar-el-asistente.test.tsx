@@ -299,3 +299,53 @@ describe('el tono (#1230)', () => {
     expect(screen.queryByText(/el modelo no lo va a leer/)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Cambiar de asistente tiene que cambiar lo que los campos MUESTRAN (#1230).
+ *
+ * Los campos de esta pantalla son no controlados (`defaultValue`): React
+ * ignora un `defaultValue` nuevo en un input que ya está montado. Y el
+ * selector de asistente no desmonta nada — cambia `agente` y reconcilia el
+ * mismo árbol—, así que elegir el segundo dejaba los números y el texto del
+ * PRIMERO en pantalla, con el PUT ya apuntando al segundo.
+ *
+ * Eso es exactamente el defecto que #494 vino a arreglar, a medias: el
+ * selector acertaba a QUIÉN se le guarda y la pantalla seguía mostrando al
+ * otro. Y es peor que una pantalla desactualizada, porque el siguiente `blur`
+ * —tocar y salir alcanza— escribe el valor del primero encima del segundo.
+ *
+ * En staging eran 3 campos así; esta pantalla los lleva a 9 más el área de
+ * texto del tono, que es donde confundir dos asistentes se ve de inmediato.
+ */
+describe('cambiar de asistente (#1230)', () => {
+  it('los campos muestran los valores del asistente ELEGIDO, no los del anterior', async () => {
+    montar([
+      { id: 'ag-jose', name: 'José', personality: 'Formal y de usted.', limits: { pulso: { cada_minutos: 40 } } },
+      { id: 'ag-sofia', name: 'Sofía', personality: 'Cercana, trata de tú.', limits: { pulso: { cada_minutos: 15 } } },
+    ]);
+    expect(await screen.findByRole('textbox', { name: 'El tono' })).toHaveValue('Formal y de usted.');
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'De qué asistente' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Sofía' }));
+
+    expect(screen.getByRole('textbox', { name: 'El tono' })).toHaveValue('Cercana, trata de tú.');
+    expect(screen.getByRole('spinbutton', { name: 'Cada cuántos minutos' })).toHaveValue(15);
+  });
+
+  it('y tocar un campo después de cambiar no le escribe al elegido lo del anterior', async () => {
+    montar([
+      { id: 'ag-jose', name: 'José', personality: 'Formal y de usted.', limits: {} },
+      { id: 'ag-sofia', name: 'Sofía', personality: 'Cercana, trata de tú.', limits: {} },
+    ]);
+    await screen.findByRole('textbox', { name: 'El tono' });
+    await userEvent.click(screen.getByRole('combobox', { name: 'De qué asistente' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Sofía' }));
+
+    // Tocar y salir, sin escribir nada: lo que viaja es lo que el campo tenía.
+    await userEvent.click(screen.getByRole('textbox', { name: 'El tono' }));
+    await userEvent.tab();
+
+    await waitFor(() => expect(enviados).toHaveLength(1));
+    expect(ultimo()).toEqual({ personality: 'Cercana, trata de tú.' });
+  });
+});

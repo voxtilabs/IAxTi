@@ -176,10 +176,15 @@ export function ModoAutonomo() {
       activo
         ? {
             activo: true,
-            // El horario se escribe AL PRENDER, con lo que el campo está
-            // mostrando. Sin esto queda `activo: true` sin `desde`/`hasta`,
+            // El horario se escribe AL PRENDER: el guardado, o el propuesto si
+            // todavía no hay. Sin esto queda `activo: true` sin `desde`/`hasta`,
             // `configDelPulso` devuelve null, y el negocio se queda mirando un
             // interruptor prendido que no manda un solo mensaje.
+            //
+            // Es el guardado y no lo que el campo tenga a medio escribir: una
+            // hora tipeada y sin salir del campo todavía no pasó por su `blur`,
+            // así que acá no existe. Al prender, el clic saca el foco del campo
+            // y ese `blur` guarda la hora tipeada por su cuenta.
             desde: pulso.desde ?? PULSO_DESDE,
             hasta: pulso.hasta ?? PULSO_HASTA,
           }
@@ -215,9 +220,32 @@ export function ModoAutonomo() {
   const destinatarioYaNoEsta =
     destinatario !== null && equipo !== null && !equipo.some((m) => m.userId === destinatario);
 
+  /**
+   * Cambiar de asistente REMONTA los bloques, y sin eso la pantalla miente.
+   *
+   * Los campos de acá son no controlados (`defaultValue`), que es lo que
+   * permite escribir tranquilo y guardar al salir del campo. El precio es que
+   * React ignora un `defaultValue` nuevo en un input YA montado: el selector
+   * cambia `agente` y reconcilia el MISMO árbol, así que elegir el segundo
+   * asistente dejaba en pantalla los números y el tono del primero con el PUT
+   * ya apuntando al segundo. Y el siguiente `blur` —tocar y salir alcanza—
+   * escribía el valor del primero encima del segundo.
+   *
+   * Es el defecto de #494 a medias: el selector acertaba a QUIÉN se le guarda
+   * y la pantalla seguía mostrando al otro. Medido: en staging eran 3 campos
+   * así, acá son 9 más el área de texto del tono, que es donde confundir dos
+   * asistentes se ve de inmediato.
+   *
+   * Va en la `key` y no en estado controlado porque el id es exactamente la
+   * condición: mientras sea el mismo asistente, guardar NO tiene que pisar lo
+   * que haya a medio escribir en otro campo — `reemplazar` devuelve el mismo
+   * id, así que la key no cambia y no se remonta nada.
+   */
+  const bloque = agente.id;
+
   return (
     <>
-      <Seccion className="mt-4">
+      <Seccion key={`modo-${bloque}`} className="mt-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <span className="rotulo">Modo autónomo</span>
           <SelectorDeAsistente asistentes={asistentes} elegidoId={agente.id} onElegir={elegir} />
@@ -327,6 +355,7 @@ export function ModoAutonomo() {
       </Seccion>
 
       <Seccion
+        key={`asistente-${bloque}`}
         rotulo="Asistente"
         titulo="Cómo habla y a quién te la pasa"
         apoyo={`Cuatro cosas que ${agente.name} ya respeta y que hasta ahora solo se podían escribir por fuera del producto.`}
@@ -411,6 +440,7 @@ export function ModoAutonomo() {
       </Seccion>
 
       <Seccion
+        key={`pulso-${bloque}`}
         rotulo="Pulso"
         titulo="Retomar conversaciones solo"
         apoyo="Lo único de esta pantalla que le escribe a un cliente sin que nadie apriete nada. Nace apagado."
