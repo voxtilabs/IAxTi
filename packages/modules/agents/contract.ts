@@ -84,6 +84,7 @@ export {
   autoRespondForInbound,
   laIaLaEstaAtendiendo,
 } from './application/autonomous';
+export { leTocaFirma, firmaDelAgente } from './application/autonomous';
 export type { ConversationMode, AutonomousOutcome } from './application/autonomous';
 export { detectEscalation, parseAutonomous, formatoAutonomo } from './domain/escalation';
 // `configDelPulso` y `FORMATO_RETOMAR` NO salen: los usa `pulso.ts` por

@@ -285,7 +285,10 @@ export async function processSuggest(
     }
     if (auto.action === 'reply') {
       // El cliente siempre ve QUIÉN escribe y cómo pedir humano (SPEC §13).
-      const firmado = `${auto.text}\n\n${auto.agentName} — asistente virtual. Escribe "humano" y te paso con una persona.`;
+      // La firma la resuelve el módulo (#1227): sabe los límites del agente y
+      // si ya habló en esta conversación. Acá solo se pega, y vacía no pega
+      // nada — el defecto sigue siendo firmar siempre, que es SPEC §13.
+      const firmado = auto.firma ? `${auto.text}\n\n${auto.firma}` : auto.text;
       return { autoReplied: await entregar(firmado), transcribed };
     }
     if (auto.action === 'none') {
