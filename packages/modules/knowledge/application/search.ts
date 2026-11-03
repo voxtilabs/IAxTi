@@ -294,8 +294,27 @@ export function fuentesCitadas(result: KnowledgeResult): Array<{ id: string; nom
  * El bloque de conocimiento para el prompt del copiloto: pasajes CON su
  * fuente y la instrucción de citar. Si hay fuentes vencidas, se avisa.
  */
-export function knowledgeContext(result: KnowledgeResult): string | null {
+export function knowledgeContext(
+  result: KnowledgeResult,
+  /**
+   * `citar: false` para la respuesta que va DIRECTO al cliente (#1239).
+   *
+   * #1207 dejó esta instrucción donde estaba y agregó una contra-instrucción
+   * en `formatoAutonomo` diciendo que el nombre de la fuente es interno. Dos
+   * instrucciones opuestas en el mismo prompt, y el modelo elige: medido con
+   * el arreglo ya desplegado, eligió citar y al visitante le llegaron tres
+   * nombres internos entre paréntesis.
+   *
+   * No es un modelo que se portó mal: es un prompt que se contradice. La
+   * forma de que no haga algo no es pedírselo dos veces — es no pedírselo.
+   *
+   * En modo asistido la cita SE QUEDA: es lo que deja a quien atiende
+   * comprobar de dónde salió cada afirmación antes de enviarla.
+   */
+  opciones: { citar?: boolean } = {},
+): string | null {
   if (result.hits.length === 0 && result.expiredSources.length === 0) return null;
+  const citar = opciones.citar !== false;
   const partes: string[] = [];
   if (result.hits.length > 0) {
     partes.push(
@@ -304,8 +323,13 @@ export function knowledgeContext(result: KnowledgeResult): string | null {
       // pasaje — la cita fantasma confirmada contra la base (y que #1021
       // atribuyó al eco: era esto). El único nombre citable es el que viene
       // tras «— [» en cada pasaje, y así se le dice.
-      'CONOCIMIENTO DEL NEGOCIO (responde SOLO con esto; cita la fuente entre paréntesis con su NOMBRE EXACTO — el que aparece tras "— [" en cada pasaje; ningún otro nombre existe):',
-      ...result.hits.map((h) => `— [${h.sourceName}] ${h.content}`),
+      citar
+        ? 'CONOCIMIENTO DEL NEGOCIO (responde SOLO con esto; cita la fuente entre paréntesis con su NOMBRE EXACTO — el que aparece tras "— [" en cada pasaje; ningún otro nombre existe):'
+        : // Sin pedir cita, y además sin el nombre delante de cada pasaje: lo
+          // que no está en el prompt no se puede copiar. Dejarlo «pero no lo
+          // cites» es la contradicción que #1239 vino a cerrar.
+          'CONOCIMIENTO DEL NEGOCIO (responde SOLO con esto, con tus palabras; NO menciones de dónde salió):',
+      ...result.hits.map((h) => (citar ? `— [${h.sourceName}] ${h.content}` : `— ${h.content}`)),
     );
   }
   if (result.expiredSources.length > 0) {
