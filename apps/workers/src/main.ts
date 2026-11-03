@@ -173,6 +173,13 @@ function start(): void {
  */
 const REGLAS_DE_ENTRADA_MS = 2_000;
 
+/**
+ * Cuánto se espera antes de que la IA conteste, para que la persona termine de
+ * escribir (#1223). Cinco segundos: alcanza para juntar el «Hola» con lo que
+ * viene atrás y no se siente como una espera.
+ */
+const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
+
   const automationDeps: EngineDeps = {
     activeModules: ['conversations', 'crm'].filter((m) => registry.isActive(m)),
   };
@@ -949,7 +956,27 @@ const REGLAS_DE_ENTRADA_MS = 2_000;
                 knowledgeActivo: registry.isActive('knowledge'),
                 requestId: data.requestId,
               },
-              { jobId: `sg-${res.messageId}` },
+              {
+                jobId: `sg-${res.messageId}`,
+                /**
+                 * Un respiro para que la persona termine de escribir (#1223).
+                 *
+                 * Nadie manda un mensaje por idea: llega «Hola», después
+                 * «tengo una consulta», después la consulta. Sin esta espera
+                 * eso son tres generaciones y tres párrafos encima, que es lo
+                 * que delata a un bot. Medido con dos mensajes en el mismo
+                 * minuto: dos respuestas, las dos con firma.
+                 *
+                 * El job NO se deduplica por conversación —ver el issue: con
+                 * `removeOnComplete` el id sobrevive y el mensaje siguiente se
+                 * ignoraría para siempre—. Cada mensaje encola el suyo y el
+                 * que corre se pregunta si sigue siendo el último.
+                 *
+                 * El costo es honesto: la respuesta tarda estos segundos más.
+                 * Es lo que cuesta no contestar dos veces.
+                 */
+                delay: ESPERA_PARA_TERMINAR_MS,
+              },
             )
             .catch(() => {});
         }
