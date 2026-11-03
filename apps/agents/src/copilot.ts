@@ -5,6 +5,7 @@ import {
   PROVIDERS,
   activeAgent,
   allowedToolsFor,
+  effectiveMode,
   marcarLogradoPorElAgente,
   autoRespondForInbound,
   herramientasExpuestas,
@@ -200,6 +201,15 @@ export async function processSuggest(
     // generar — la IA responde con lo que el negocio dice, no lo que
     // imagina. Sin módulo o sin llaves, sigue sin conocimiento (y el
     // modo autónomo escala más, por diseño del prompt).
+    /**
+     * El agente del negocio, una sola vez (#1239).
+     *
+     * Hace falta ANTES del bloque de conocimiento para saber si esta
+     * conversación va a contestarse sola: de eso depende si se le pide al
+     * modelo que cite la fuente o no. `activeAgent` cachea por tenant, así
+     * que pedirlo acá no agrega una consulta por mensaje.
+     */
+    const agenteDelTenant = await activeAgent(client, data.tenantId);
     let knowledge: string | null = null;
     // Y en QUÉ fuentes se apoyó ese bloque (#714): el acta de la corrida. Se
     // arma acá, donde el retrieval acaba de pasar, porque `knowledgeContext`
@@ -241,7 +251,20 @@ export async function processSuggest(
             tenantId: data.tenantId,
             query: pregunta,
           });
-          knowledge = knowledgeContext(res);
+          /**
+           * Sin pedir la cita si la respuesta va DIRECTO al cliente (#1239).
+           *
+           * El modo se resuelve acá y no se adivina: `effectiveMode` es la
+           * misma función que después decide si el agente contesta solo, así
+           * que el bloque de conocimiento se arma con la misma verdad con la
+           * que se va a usar. Una conversación en assist sigue recibiendo las
+           * citas, que es lo que deja a quien atiende comprobar de dónde salió
+           * cada afirmación antes de enviarla.
+           */
+          const modo = agenteDelTenant
+            ? await effectiveMode(client, agenteDelTenant, data.tenantId, data.conversationId)
+            : 'assist';
+          knowledge = knowledgeContext(res, { citar: modo !== 'autonomous' });
           // `[]` si consultó y no encontró nada: eso es «lo dijo sin apoyarse en
           // ninguna fuente», y es distinto de `undefined` —el módulo apagado,
           // sin llaves, o el RAG caído— que es «no se sabe». La pantalla las
