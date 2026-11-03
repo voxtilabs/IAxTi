@@ -13,6 +13,7 @@ import {
 import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
 import { processSuggest, type SuggestJob } from './copilot';
 import { candadoEnRedis, deAUnoPorConversacion } from './de-a-uno-por-conversacion';
+import { processPulso, type PulsoJob } from './pulso';
 
 const service = textoDeEntorno('SERVICE', 'agents');
 const port = enteroDeEntorno('PORT', 3000);
@@ -65,8 +66,17 @@ function start(): void {
   const agentsWorker = createModuleWorker(
     'agents',
     registry,
+    // El candado envuelve a LOS DOS trabajos, y eso es lo que importa de esta
+    // combinación: un pulso y una respuesta sobre la misma conversación no
+    // pueden generarse en paralelo, o la persona recibe dos mensajes que no
+    // se conocen. El despacho por nombre va adentro (#1210): `suggest`
+    // contesta un mensaje, `pulso` no contesta nada —lo empieza el negocio— y
+    // mirar el payload para adivinar cuál es convertiría un campo que falta
+    // por un defecto en un mensaje saliente.
     deAUnoPorConversacion(candadoEnRedis(redisCandado), async (job) =>
-      processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
+      job.name === 'pulso'
+        ? processPulso(pool, job.data as unknown as PulsoJob, { registry })
+        : processSuggest(pool, job.data as unknown as SuggestJob, { registry }),
     ),
     redisConnection(),
   );

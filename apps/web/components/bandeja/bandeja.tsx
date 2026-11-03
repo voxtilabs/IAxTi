@@ -462,14 +462,32 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
      * Escondida NO pide (#1198). `visibilityState` y no `hasFocus` para esto:
      * una pestaña visible en el segundo monitor, sin foco, sí se mira.
      */
+    /**
+     * La lista Y la conversación abierta (#1221).
+     *
+     * El respaldo traía solo la lista, y por eso había que recargar la
+     * pestaña: con un chat abierto —que es justo lo que uno hace para mirar si
+     * el bot contestó— los mensajes nuevos no llegaban nunca. La lista de la
+     * izquierda sí se movía, así que la pantalla parecía viva y el panel del
+     * medio estaba quieto.
+     *
+     * Es lo mismo que hace el camino de realtime unas líneas más arriba. Un
+     * respaldo que refresca la mitad de lo que refresca el canal no es un
+     * respaldo.
+     */
+    const traer = () => {
+      void cargarLista();
+      const abierta = seleccionRef.current;
+      if (abierta) void cargarConversacion(abierta);
+    };
     const acomodar = (recienVuelta: boolean) => {
       parar();
       const cada = intervaloDelRespaldo(document.visibilityState, document.hasFocus());
       if (cada === null) return;
       // Al volver, lo que pasó mientras no mirabas es lo primero que querés
       // ver: una vez al tiro y recién después el intervalo.
-      if (recienVuelta) void cargarLista();
-      t = setInterval(() => void cargarLista(), cada);
+      if (recienVuelta) traer();
+      t = setInterval(traer, cada);
     };
     acomodar(false);
     const alVolver = () => acomodar(true);
@@ -483,7 +501,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
       window.removeEventListener('focus', alCambiarFoco);
       window.removeEventListener('blur', alCambiarFoco);
     };
-  }, [enVivo, session, tenant, cargarLista]);
+  }, [enVivo, session, tenant, cargarLista, cargarConversacion]);
 
   // Decirlo recién pasada la gracia, y dejar de decirlo apenas vuelve.
   useEffect(() => {

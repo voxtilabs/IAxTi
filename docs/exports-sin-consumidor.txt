@@ -21,7 +21,6 @@ agents/aiSdkTranscriber
 agents/atiendeClientes
 agents/buildDiff
 agents/componerPrompt
-agents/conversationMode
 agents/describirSinSugerencia
 agents/detectEscalation
 agents/ejecutarHerramienta

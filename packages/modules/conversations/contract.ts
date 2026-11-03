@@ -17,7 +17,9 @@ export {
   getConversation,
   ventanaDelContacto,
   listMessages,
+  conversacionesParaRetomar,
 } from './application/conversations';
+export type { ParaRetomar } from './application/conversations';
 export type {
   Conversation,
   Message,

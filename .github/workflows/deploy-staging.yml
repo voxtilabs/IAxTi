@@ -13,6 +13,14 @@ on:
     workflows: [build]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      forzar:
+        description: >-
+          Recrear el stack (stop + deploy) aunque sirva la imagen correcta.
+          Para el caso que el SHA no detecta: el stack arriba con un proceso
+          caído adentro. Deja staging abajo unos minutos.
+        type: boolean
+        default: false
 
 # Un despliegue a la vez, y gana el ÚLTIMO commit.
 #
@@ -214,6 +222,9 @@ jobs:
           # recreación necesita las dos cosas a la vez: la URL pública y las
           # credenciales de Dokploy, y el Smoke a propósito no tiene las segundas.
           STAGING_BASE_URL: ${{ secrets.STAGING_BASE_URL }}
+          # Por `env:` y no dentro del `run:` (#758): una interpolación en el
+          # script se expande antes de que bash lo lea.
+          FORZAR: ${{ inputs.forzar }}
         run: |
           if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
           auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
@@ -375,6 +386,10 @@ jobs:
           # Dokploy dice «done» en 11 s y con sourceType raw no recrea nada.
           # Va acá y no en el Smoke porque necesita las credenciales de Dokploy,
           # y el Smoke a propósito no las tiene.
+          # `FORZAR` solo llega por `workflow_dispatch` (#1217): en el camino
+          # automático `inputs.forzar` no existe, así que queda vacío y el
+          # script sigue decidiendo por el SHA — que es lo que evita detener
+          # staging en cada despliegue (#254).
           BASE="${STAGING_BASE_URL}" bash scripts/forzar-recreacion.sh
 
       - name: Smoke

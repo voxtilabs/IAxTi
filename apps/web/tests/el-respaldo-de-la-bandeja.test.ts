@@ -63,6 +63,26 @@ describe('el efecto cablea la decisión y limpia lo que escucha', () => {
   it('al volver de escondida pide una vez antes de reanudar', () => {
     // Sin esto, volver a la pestaña deja hasta cuatro segundos de pantalla
     // vieja justo cuando la persona vuelve a mirar.
-    expect(fuente).toContain('if (recienVuelta) void cargarLista()');
+    expect(fuente).toContain('if (recienVuelta) traer()');
+  });
+
+  /**
+   * El respaldo trae la lista Y la conversación abierta (#1221).
+   *
+   * Traía solo la lista, y por eso había que recargar la pestaña para ver que
+   * el bot contestó. Lo peor no era que faltara: era que la lista SÍ se movía
+   * —cambiaba el último mensaje y el no leído— así que la pantalla parecía
+   * viva mientras el panel del medio estaba congelado.
+   *
+   * Hoy el respaldo es el único camino: `SUPABASE_SERVICE_ROLE_KEY` no está en
+   * el compose de staging, así que el canal de realtime nunca conecta.
+   */
+  it('trae la lista Y la conversación abierta, como el realtime', () => {
+    const cuerpo = fuente.slice(fuente.indexOf('const traer = ()'));
+    expect(cuerpo.slice(0, 200)).toContain('cargarLista()');
+    expect(cuerpo.slice(0, 200)).toContain('cargarConversacion(abierta)');
+    // Y que el intervalo use eso, no la lista pelada: ahí volvería el defecto.
+    expect(fuente).toContain('setInterval(traer, cada)');
+    expect(fuente).not.toMatch(/setInterval\(\(\) => void cargarLista\(\)/);
   });
 });

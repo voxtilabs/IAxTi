@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { diagnosticarLaIa } from '../application/diagnostico-ia';
+import { TASKS } from '../domain/config';
 
 /**
  * Por qué la IA no hace nada (#614).
@@ -106,12 +107,17 @@ describe('con una sola llave, se distingue lo que sí de lo que no (#614)', () =
     // Con UNA sola llave, el respaldo manda todas las tareas de texto ahí.
     // Lo único que queda sin atender es el audio, por capacidad.
     const tareas = d.pasos.find((p) => p.id === 'tareas')!;
-    expect(tareas.detalle).toContain('1 de 9');
+    // El total sale de `TASKS` y no escrito a mano: con el número fijo, esta
+    // prueba se pone roja cada vez que el producto gana una tarea —pasó al
+    // agregar `retomar` (#1210), que no tiene nada que ver con lo que acá se
+    // mide—. Lo que esta prueba afirma es el UNO que no se atiende, no cuántas
+    // tareas existen.
+    expect(tareas.detalle).toContain(`1 de ${TASKS.length}`);
     expect(tareas.detalle).toContain('audio');
     expect(tareas.estado).toBe('atencion');
     // Y la prueba no puede pasar por omisión: si contara lo escrito, con el
-    // defecto apuntando a otro proveedor diría «9 de 9».
-    expect(tareas.detalle).not.toContain('9 de 9');
+    // defecto apuntando a otro proveedor diría «todas de todas».
+    expect(tareas.detalle).not.toContain(`${TASKS.length} de ${TASKS.length}`);
   });
 
   it('avisa de los que no tienen llave, sin exigirlos todos', () => {

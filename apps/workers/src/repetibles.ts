@@ -21,6 +21,12 @@ export const REPETIBLES: Repetible[] = [
   // el barrido pasa por todos los negocios y cada fuente reindexada le paga
   // al proveedor.
   { nombre: 'knowledge.reindex', moduleId: 'knowledge', repeat: { every: 300_000 } },
+  // Cada minuto, y la pasada no cuesta nada mientras nadie prenda el pulso
+  // (#1210): con el agente sin `limits.pulso.activo` son dos consultas y
+  // ninguna conversación mirada. Cada minuto y no cada cinco porque el ritmo
+  // lo elige el negocio —40 minutos en el caso que lo pidió— y un barrido de
+  // cinco minutos le agregaría hasta cinco de error a cada envío.
+  { nombre: 'agents.pulso', moduleId: 'agents', repeat: { every: 60_000 } },
   { nombre: 'automations.sweep', moduleId: 'automations', repeat: { every: 300_000 } },
   { nombre: 'api_usage.flush', moduleId: 'organizations', repeat: { every: 300_000 } },
   // Limpieza del lifecycle sigue activa aunque Calendar se apague.
