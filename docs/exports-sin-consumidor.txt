@@ -33,7 +33,6 @@ agents/formatoConfiguracion
 agents/formatoJuez
 agents/getProposal
 agents/getVersionedPrompt
-agents/guardrailLimits
 agents/herramientasPara
 agents/inAutonomousHours
 agents/isAutonomousPaused
