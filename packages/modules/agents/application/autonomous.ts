@@ -13,7 +13,8 @@ import {
   type GatillosDelNegocio,
 } from '../domain/escalation';
 import { runAgentTask } from './runtime';
-import type { ModelPortFactory } from './models';
+
+import type { HerramientaExpuesta, ModelPortFactory } from './models';
 import { aiSdkModelPort } from './models';
 import { isAutonomousPaused } from './quota';
 import { activeAgent, refreshedContext } from './copilot';
@@ -50,6 +51,26 @@ export function guardrailLimits(agent: Agent): {
    */
   firmaEnCadaMensaje: boolean;
   gatillos: GatillosDelNegocio;
+  /**
+   * Con la identidad de QUIÉN trabaja el agente cuando la conversación no
+   * tiene dueño (#1235).
+   *
+   * En autónomo el modelo corría sin herramientas, y no por olvido: viajan con
+   * la identidad del dueño de la conversación, y una conversación autónoma
+   * normalmente no tiene. Lo medido: cinco conversaciones, cinco contactos,
+   * CERO oportunidades — el CRM vacío mientras el bot atendía bien.
+   *
+   * Esto NO es un modo sin permisos. Es una persona real del equipo cuyos
+   * permisos el agente usa, y la propiedad que lo hace seguro ya existe:
+   * `permisosDe` resuelve el rol con `roleOf(tenantId, userId)`, que devuelve
+   * null si esa persona no es del negocio. Sin rol no hay permisos, y sin
+   * permisos `herramientasExpuestas` no entrega nada que escriba: apuntar la
+   * llave a un usuario ajeno da CERO herramientas, no acceso cruzado.
+   *
+   * Sin configurar es null, y el autónomo sigue sin herramientas como hasta
+   * hoy. Ningún negocio existente cambia de comportamiento por este PR.
+   */
+  actuaComoUserId: string | null;
 } {
   const l = agent.limits as Record<string, unknown>;
   const conf = Number(l.confidence_threshold);
@@ -69,6 +90,10 @@ export function guardrailLimits(agent: Agent): {
     // Los gatillos de derivación que el negocio ajustó (#1231). Vive acá para
     // que `limits` siga leyéndose en UN solo lugar.
     gatillos: gatillosDeLimits(l),
+    actuaComoUserId:
+      typeof l.actua_como_user_id === 'string' && l.actua_como_user_id.trim() !== ''
+        ? l.actua_como_user_id.trim()
+        : null,
   };
 }
 
@@ -311,6 +336,13 @@ export async function autoRespondForInbound(
     conversationId: string;
     knowledge?: string | null;
     /**
+     * Las herramientas de ESTA corrida (#1235). Vacío o ausente = el agente
+     * contesta sin poder tocar nada, que es como venía funcionando: la
+     * decisión de dárselas la toma el worker, que es el que resuelve con qué
+     * identidad y con qué permisos.
+     */
+    tools?: HerramientaExpuesta[];
+    /**
      * Las fuentes detrás de ese conocimiento (#714). Acá importan MÁS que en la
      * sugerencia: en modo autónomo nadie revisa antes de que salga, así que la
      * única forma de reconstruir después de dónde salió lo que se le dijo al
@@ -394,6 +426,15 @@ export async function autoRespondForInbound(
       tenantId: input.tenantId,
       agent,
       task: 'responder',
+      /**
+       * Las herramientas, si esta corrida las trae (#1235).
+       *
+       * `runtime.ts` mira si vienen para decidir si el objetivo PROMETE o
+       * solo propone, así que pasarlas cambia dos cosas a la vez y es a
+       * propósito: un agente que puede crear la oportunidad no tiene que
+       * decir «te la dejo lista para que el equipo la confirme».
+       */
+      ...(input.tools?.length ? { tools: input.tools } : {}),
       context: contexto,
       // Por dónde la purga alcanza esta corrida (#1079): el contexto que se
       // guarda lleva los últimos mensajes y el nombre del cliente, así que la

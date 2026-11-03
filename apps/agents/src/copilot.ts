@@ -12,6 +12,7 @@ import {
   providerAvailable,
   suggestForInbound,
   transcribeInboundAudio,
+  guardrailLimits,
 } from '@iaxti/module-agents';
 import type { HerramientaExpuesta } from '@iaxti/module-agents';
 import {
@@ -301,6 +302,16 @@ export async function processSuggest(
       conversationId: data.conversationId,
       knowledge,
       activeModules,
+      /**
+       * Las mismas herramientas que la sugerencia (#1235).
+       *
+       * Antes se calculaban acá y se le daban SOLO al camino de la sugerencia:
+       * el autónomo corría sin ninguna y por eso el CRM quedaba vacío mientras
+       * el bot atendía. `herramientasDeLaConversacion` ya decide con qué
+       * identidad y con qué permisos; si no hay ninguna identidad, devuelve
+       * solo las que no leen datos de nadie y el autónomo sigue como antes.
+       */
+      tools,
       ...(fuentes ? { fuentes } : {}),
       requestId: data.requestId,
     });
@@ -382,7 +393,60 @@ async function herramientasDeLaConversacion(
   if (!agent) return [];
 
   const conv = await getConversation(client, data.tenantId, data.conversationId);
-  const dueno = (conv as { ownerId?: string | null }).ownerId ?? null;
+  /**
+   * La identidad con la que trabaja el agente (#1235).
+   *
+   * El dueño de la conversación primero; si no tiene —y en autónomo
+   * normalmente no tiene—, la que el negocio configuró en
+   * `limits.actua_como_user_id`. Sin ninguna de las dos queda en null y pasa
+   * exactamente lo de antes: solo las herramientas que no leen datos de nadie.
+   *
+   * El orden importa: si alguien del equipo tomó la conversación, manda ESA
+   * persona. La identidad configurada es el respaldo para lo que nadie tomó,
+   * no una forma de actuar a nombre de otro cuando hay un responsable.
+   *
+   * Y no hace falta comprobar acá que esa persona sea del negocio: `permisosDe`
+   * resuelve el rol con `roleOf(tenantId, userId)` y sin rol devuelve conjunto
+   * vacío, así que un id ajeno da CERO permisos y por lo tanto ninguna
+   * herramienta que escriba. Está comprobado en la prueba, no asumido.
+   */
+  const delaConversacion = (conv as { ownerId?: string | null }).ownerId ?? null;
+  const configurada = guardrailLimits(agent).actuaComoUserId;
+
+  /**
+   * La identidad con la que trabaja el agente (#1235).
+   *
+   * El dueño de la conversación primero; si no tiene —y en autónomo
+   * normalmente no tiene—, la que el negocio configuró en
+   * `limits.actua_como_user_id`. Sin ninguna, null y pasa lo de antes: solo
+   * las herramientas que no leen datos de nadie.
+   *
+   * El orden importa: si alguien del equipo tomó la conversación, manda ESA
+   * persona. La identidad configurada es el respaldo para lo que nadie tomó,
+   * no una forma de actuar a nombre de otro cuando hay un responsable.
+   *
+   * Y la configurada se COMPRUEBA antes de usarla. Creí que no hacía falta
+   * —«sin rol no hay permisos»— y la prueba me mostró que estaba mirando el
+   * nivel equivocado: `herramientasExpuestas` ofrece las herramientas por lo
+   * que el agente tiene habilitado, y el permiso se verifica recién al
+   * EJECUTAR. Así que un id mal configurado no abría ninguna puerta —cada
+   * llamada habría sido rechazada— pero le daba al modelo un juego de
+   * herramientas que fallan todas, y el dueño vería un bot que intenta y no
+   * logra nada, sin una línea que lo explique.
+   */
+  let dueno = delaConversacion;
+  if (!dueno && configurada) {
+    const suyos = await permisosDe(client, data.tenantId, configurada, registry);
+    if (suyos.size > 0) {
+      dueno = configurada;
+    } else {
+      console.warn(
+        `copiloto: el agente ${agent.id} de ${data.tenantId} dice actuar como ${configurada}, ` +
+          'y esa persona no tiene permisos en este negocio. Se sigue sin herramientas: ' +
+          'revisa `limits.actua_como_user_id`.',
+      );
+    }
+  }
 
   /**
    * Sin dueño NO es sin herramientas (#715).
