@@ -142,3 +142,50 @@ export const idRequerido = (mensaje: string) => z.string({ error: mensaje }).uui
 /** `AAAA-MM-DD` en la zona del negocio, que es como viajan las fechas acá. */
 export const diaRequerido = (mensaje: string) =>
   z.string({ error: mensaje }).regex(/^\d{4}-\d{2}-\d{2}$/, mensaje);
+
+/**
+ * `HH:MM` de 24 h, con el cero adelante — y el cero adelante no es cosmética:
+ * `inAutonomousHours` compara los horarios COMO TEXTO (`hhmm >= start`), así
+ * que un `7:00` sin cero queda mayor que `19:00` y el horario se da vuelta.
+ */
+export const horaRequerida = (mensaje: string) =>
+  z.string({ error: mensaje }).regex(/^([01]\d|2[0-3]):[0-5]\d$/, mensaje);
+
+/**
+ * Un objeto que RECHAZA la llave que no conoce, y dice cuáles conoce (#1232).
+ *
+ * `z.object()` descarta en silencio lo que no está en la forma, y para un
+ * `jsonb` de configuración eso es el peor comportamiento posible: el dueño
+ * escribe `confidence_threshhold`, el servidor responde 200, la pantalla le
+ * muestra lo que él mandó y la IA sigue escalando con el valor de antes.
+ *
+ * Por qué RECHAZAR y no «aceptar avisando», que era la otra opción:
+ *
+ *  1. **No hay dónde poner el aviso.** El formato único de la plataforma
+ *     (`{ code, message, requestId, details[] }`) es para errores; un campo
+ *     `avisos[]` en el 200 lo tendrían que leer el SDK y cada pantalla, y
+ *     mientras nadie lo lea el resultado es idéntico al silencio de hoy.
+ *  2. **El que más se equivoca es el modelo.** Estas rutas son las que el
+ *     Agente General usa para configurar el asistente (ADR-0025): un 400 que
+ *     nombra las llaves buenas lo corrige EN EL MISMO TURNO; un 200 con un
+ *     aviso que no mira lo deja creyendo que configuró algo.
+ *  3. **Una llave desconocida casi nunca es una idea nueva**: es un typo o una
+ *     llave vieja. `max_executions_day` está nombrada en el comentario de la
+ *     migración de `agents.limits` desde el primer día y nadie la lee.
+ *
+ * El mensaje nombra las rechazadas y las válidas, porque «llave desconocida» a
+ * secas obliga a ir a leer el código para arreglarlo.
+ */
+export function objetoCerrado<T extends z.ZodRawShape>(forma: T, deQue: string) {
+  const conocidas = Object.keys(forma).join(', ');
+  return z.strictObject(forma, {
+    error: (problema) => {
+      if (problema.code !== 'unrecognized_keys') return undefined;
+      const malas = problema.keys.map((k) => `«${k}»`).join(', ');
+      return (
+        `No conocemos ${malas} en ${deQue}, así que no lo guardamos: se habría quedado ahí ` +
+        `sin hacer nada. Lo que sí se puede escribir: ${conocidas}.`
+      );
+    },
+  });
+}

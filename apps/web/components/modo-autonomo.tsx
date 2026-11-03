@@ -13,19 +13,65 @@ import { apiFetch, mensajeDeError } from '../lib/api';
 // Modo autónomo (#49): la IA responde sola SOLO por horario o marca manual
 // — jamás por defecto. Aquí viven el horario y los guardrails del tenant.
 
+/**
+ * Los guardrails, TODOS los que el servidor lee (#1232).
+ *
+ * Esta pantalla toca tres y tiene que REENVIAR los otros, porque el PUT
+ * reemplaza `limits` completo (`limits = COALESCE($14::jsonb, limits)`): sin
+ * reenviarlos, guardar la confianza mínima apagaría el pulso del evento y
+ * borraría el aviso de escalada.
+ */
+interface LimitesDto {
+  confidence_threshold?: number;
+  max_agent_turns?: number;
+  money_limit_clp?: number | null;
+  handoff_user_id?: string | null;
+  escalation_notice?: string;
+  pulso?: Record<string, unknown>;
+}
+
+const LLAVES_DE_LIMITS: readonly (keyof LimitesDto)[] = [
+  'confidence_threshold',
+  'max_agent_turns',
+  'money_limit_clp',
+  'handoff_user_id',
+  'escalation_notice',
+  'pulso',
+];
+
+/**
+ * Lo que vuelve al servidor: lo conocido, y nada más.
+ *
+ * Antes era un `{ ...limits }` pelado. Desde #1232 el PUT RECHAZA una llave
+ * que nadie lee, así que un `limits` con basura heredada —hubo un
+ * `max_executions_day` nombrado en el comentario de la migración desde el
+ * primer día— dejaría esta pantalla sin poder guardar nada, y el error hablaría
+ * de una llave que el dueño nunca escribió.
+ */
+function limitesConocidos(limits: LimitesDto): LimitesDto {
+  const salida: Record<string, unknown> = {};
+  for (const llave of LLAVES_DE_LIMITS) {
+    if (limits[llave] !== undefined) salida[llave] = limits[llave];
+  }
+  return salida as LimitesDto;
+}
+
 interface AgenteDto {
   id: string;
   name: string;
   defaultMode: 'assist' | 'autonomous' | 'off';
   autonomousHours: { start?: string; end?: string; days?: number[] };
-  limits: {
-    confidence_threshold?: number;
-    max_agent_turns?: number;
-    money_limit_clp?: number;
-  };
+  limits: LimitesDto;
 }
 
 const DIAS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+
+// Los mismos valores que muestran los campos de hora, y se MANDAN los dos
+// juntos: `inAutonomousHours` exige `start` y `end` para que la IA contente
+// alguna vez, así que guardar solo el «desde» dejaba el modo prendido, el
+// badge «Por horario» puesto y el asistente mudo para siempre (#1232).
+const DESDE_POR_DEFECTO = '19:00';
+const HASTA_POR_DEFECTO = '09:00';
 
 export function ModoAutonomo() {
   const { config, session } = useSession();
@@ -41,8 +87,10 @@ export function ModoAutonomo() {
   if (!agente) return null;
 
   const hours = agente.autonomousHours ?? {};
-  const limits = agente.limits ?? {};
+  const limits = limitesConocidos(agente.limits ?? {});
   const dias = hours.days ?? [1, 2, 3, 4, 5];
+  const desde = hours.start ?? DESDE_POR_DEFECTO;
+  const hasta = hours.end ?? HASTA_POR_DEFECTO;
 
   const guardar = async (cambios: Partial<AgenteDto>) => {
     setAviso(null);
@@ -99,16 +147,20 @@ export function ModoAutonomo() {
             aria-label="Desde"
             type="time"
             className="w-28"
-            defaultValue={hours.start ?? '19:00'}
-            onBlur={(e) => void guardar({ autonomousHours: { ...hours, start: e.target.value, days: dias } })}
+            defaultValue={desde}
+            onBlur={(e) =>
+              void guardar({ autonomousHours: { start: e.target.value, end: hasta, days: dias } })
+            }
           />
           <span className="text-sm text-muted">a</span>
           <Input
             aria-label="Hasta"
             type="time"
             className="w-28"
-            defaultValue={hours.end ?? '09:00'}
-            onBlur={(e) => void guardar({ autonomousHours: { ...hours, end: e.target.value, days: dias } })}
+            defaultValue={hasta}
+            onBlur={(e) =>
+              void guardar({ autonomousHours: { start: desde, end: e.target.value, days: dias } })
+            }
           />
           <span className="ml-2 flex gap-1">
             {DIAS.map((d, i) => (
@@ -124,7 +176,8 @@ export function ModoAutonomo() {
                 onClick={() =>
                   void guardar({
                     autonomousHours: {
-                      ...hours,
+                      start: desde,
+                      end: hasta,
                       days: dias.includes(i) ? dias.filter((x) => x !== i) : [...dias, i].sort(),
                     },
                   })
@@ -143,7 +196,7 @@ export function ModoAutonomo() {
           <Input
             type="number" min={0.1} max={1} step={0.05}
             defaultValue={limits.confidence_threshold ?? 0.7}
-            onBlur={(e) => void guardar({ limits: { ...limits, confidence_threshold: Number(e.target.value) } } as Partial<AgenteDto>)}
+            onBlur={(e) => void guardar({ limits: { ...limits, confidence_threshold: Number(e.target.value) } })}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-body">
@@ -151,16 +204,16 @@ export function ModoAutonomo() {
           <Input
             type="number" min={2} max={20}
             defaultValue={limits.max_agent_turns ?? 5}
-            onBlur={(e) => void guardar({ limits: { ...limits, max_agent_turns: Number(e.target.value) } } as Partial<AgenteDto>)}
+            onBlur={(e) => void guardar({ limits: { ...limits, max_agent_turns: Number(e.target.value) } })}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-body">
           Tope de dinero (CLP)
           <Input
-            type="number" min={0} step={1000}
+            type="number" min={1} step={1000}
             placeholder="Sin tope: siempre escala"
             defaultValue={limits.money_limit_clp ?? ''}
-            onBlur={(e) => void guardar({ limits: { ...limits, money_limit_clp: e.target.value ? Number(e.target.value) : undefined } } as Partial<AgenteDto>)}
+            onBlur={(e) => void guardar({ limits: { ...limits, money_limit_clp: e.target.value ? Number(e.target.value) : undefined } })}
           />
         </label>
       </div>

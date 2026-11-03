@@ -9,8 +9,14 @@ export {
   estimateCostUsd,
 } from './domain/config';
 export type { Provider, AgentTask, TaskModel, IaSettings } from './domain/config';
-export { createAgent, updateAgent, listAgents, getAgent } from './application/agents';
-export type { Agent, AgentInput } from './application/agents';
+export {
+  createAgent,
+  updateAgent,
+  listAgents,
+  getAgent,
+  MODOS_DEL_ASISTENTE,
+} from './application/agents';
+export type { Agent, AgentInput, ModoDelAsistente } from './application/agents';
 export { runAgentTask, listExecutions, allowedToolsFor } from './application/runtime';
 export {
   abrirIntento,
