@@ -13,6 +13,14 @@ on:
     workflows: [build]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      forzar:
+        description: >-
+          Recrear el stack (stop + deploy) aunque sirva la imagen correcta.
+          Para el caso que el SHA no detecta: el stack arriba con un proceso
+          caído adentro. Deja staging abajo unos minutos.
+        type: boolean
+        default: false
 
 # Un despliegue a la vez, y gana el ÚLTIMO commit.
 #
@@ -375,7 +383,11 @@ jobs:
           # Dokploy dice «done» en 11 s y con sourceType raw no recrea nada.
           # Va acá y no en el Smoke porque necesita las credenciales de Dokploy,
           # y el Smoke a propósito no las tiene.
-          BASE="${STAGING_BASE_URL}" bash scripts/forzar-recreacion.sh
+          # `FORZAR` solo llega por `workflow_dispatch` (#1217): en el camino
+          # automático `inputs.forzar` no existe, así que queda vacío y el
+          # script sigue decidiendo por el SHA — que es lo que evita detener
+          # staging en cada despliegue (#254).
+          BASE="${STAGING_BASE_URL}" FORZAR="${{ inputs.forzar }}" bash scripts/forzar-recreacion.sh
 
       - name: Smoke
         env:

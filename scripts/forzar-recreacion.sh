@@ -89,6 +89,64 @@ es_el_desplegado() {
 # acá y el Smoke la encuentra ya cumplida.
 ESPERA_SHA_SEG=${ESPERA_SHA_SEG:-660}
 PASO_SHA_SEG=${PASO_SHA_SEG:-15}
+
+# Parar y volver a levantar: lo ÚNICO que recrea con `sourceType: raw`.
+#
+# En una función porque ahora hay DOS motivos para llegar acá —el SHA que no
+# calza (#652) y la recreación pedida a mano (#1217)— y porque lo que esto
+# hace es detener staging: dos copias de eso es una de más.
+recrear() {
+  curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
+    -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.stop" >/dev/null
+  echo "Stack detenido."
+
+  curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
+    -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.deploy" >/dev/null
+  echo "Despliegue pedido de nuevo. Esperando a que atienda el build nuevo..."
+
+  inicio=$(date +%s)
+  sondeos=$(( ESPERA_RECREAR_SEG / PASO_SEG ))
+  for _ in $(seq 1 "$sondeos"); do
+    sleep "$PASO_SEG"
+    vivo=$(que_atiende)
+    if es_el_desplegado "$vivo"; then
+      echo "Listo: ahora atiende ${vivo}, en $(( $(date +%s) - inicio ))s desde que se forzó."
+      exit 0
+    fi
+  done
+
+  echo "Después de forzarlo, sigue sin tomar la imagen tras ${ESPERA_RECREAR_SEG}s."
+  echo "  atiende:     ${vivo:-<no informa el SHA>}"
+  echo "  se desplegó: ${SHA}"
+  echo "Esto ya no es lentitud: revisa el panel de Dokploy y si la imagen existe"
+  echo "en el registro. El despliegue se da por FALLADO, que es la verdad."
+  exit 1
+}
+
+
+# `FORZAR=1`: recrear porque alguien lo PIDIÓ, sin mirar el SHA (#1217).
+#
+# El camino automático decide por el SHA, y eso cubre el caso de #652 —el
+# contenedor que no tomó la imagen—. No cubre el otro: el stack sirviendo la
+# imagen correcta con un proceso caído adentro. Pasó el 02/11, con el bot mudo
+# mientras `/health`, `/ready` y el smoke estaban los tres en verde: `workers`
+# y `agents` no exponen nada público, así que desde afuera no se los puede ver
+# ni reiniciar, y este script no se dejaba pedir.
+if [ -n "${FORZAR:-}" ] && [ "${FORZAR}" != "false" ] && [ "${FORZAR}" != "0" ]; then
+  vivo=$(que_atiende)
+  echo "=============================================================="
+  echo "RECREACIÓN PEDIDA A MANO (FORZAR=${FORZAR})."
+  echo "  atiende:     ${vivo:-<no informa el SHA>}"
+  echo "  se desplegó: ${SHA}"
+  echo ""
+  echo "No se compara el SHA: esto NO es «el contenedor no tomó la imagen»."
+  echo "Se pidió recrear, que es lo único que revive un proceso caído con"
+  echo "sourceType raw. Staging queda abajo mientras tanto."
+  echo "=============================================================="
+  recrear
+  exit $?
+fi
+
 echo "Esperando a que conteste el build desplegado (hasta ${ESPERA_SHA_SEG}s)..."
 inicio_sha=$(date +%s)
 vivo=''
@@ -118,28 +176,5 @@ echo "que lo recrea. Staging queda abajo mientras tanto — a propósito: es"
 echo "preferible a seguir sirviendo código viejo diciendo que salió bien."
 echo "=============================================================="
 
-curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
-  -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.stop" >/dev/null
-echo "Stack detenido."
-
-curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
-  -d "{\"composeId\": \"${COMPOSE_ID}\"}" "${DOKPLOY_URL}/api/compose.deploy" >/dev/null
-echo "Despliegue pedido de nuevo. Esperando a que atienda el build nuevo..."
-
-inicio=$(date +%s)
-sondeos=$(( ESPERA_RECREAR_SEG / PASO_SEG ))
-for _ in $(seq 1 "$sondeos"); do
-  sleep "$PASO_SEG"
-  vivo=$(que_atiende)
-  if es_el_desplegado "$vivo"; then
-    echo "Listo: ahora atiende ${vivo}, en $(( $(date +%s) - inicio ))s desde que se forzó."
-    exit 0
-  fi
-done
-
-echo "Después de forzarlo, sigue sin tomar la imagen tras ${ESPERA_RECREAR_SEG}s."
-echo "  atiende:     ${vivo:-<no informa el SHA>}"
-echo "  se desplegó: ${SHA}"
-echo "Esto ya no es lentitud: revisa el panel de Dokploy y si la imagen existe"
-echo "en el registro. El despliegue se da por FALLADO, que es la verdad."
-exit 1
+recrear
+exit $?
