@@ -19,8 +19,15 @@ import type { Agent } from '../application/agents';
  */
 
 const CFG: PulsoConfig = { cadaMinutos: 40, desde: '08:30', hasta: '18:00', maxPorPersona: 6 };
-/** Miércoles 4 de noviembre de 2026, 10:00 — dentro del horario. */
-const EN_HORARIO = new Date(2026, 10, 4, 10, 0);
+/**
+ * Miércoles 4 de noviembre de 2026, 12:00 EN CHILE — dentro del horario.
+ *
+ * Instante explícito en UTC y no `new Date(2026, 10, 4, 10, 0)`, que es hora
+ * local: la primera versión usaba eso «para no depender de la zona» y era
+ * justo al revés —dependía de la de la máquina—. En CI, que corre en UTC,
+ * esas 10:00 eran 07:00 de Chile y el pulso caía fuera de horario (#1225).
+ */
+const EN_HORARIO = new Date('2026-11-04T15:00:00Z');
 const hace = (minutos: number) => new Date(EN_HORARIO.getTime() - minutos * 60_000);
 
 describe('el pulso nace apagado (#1210)', () => {
@@ -123,9 +130,11 @@ describe('cuando el pulso no manda, dice por qué (#1210)', () => {
   });
 
   it('fuera del horario no manda, y en horario sí — el mismo caso, dos instantes', () => {
-    const temprano = caso({ ahora: new Date(2026, 10, 4, 7, 0), ultimoEntrante: new Date(2026, 10, 4, 6, 0), ultimoSaliente: null });
+    // 07:00 y 06:00 de Chile: antes de que abra.
+    const temprano = caso({ ahora: new Date('2026-11-04T10:00:00Z'), ultimoEntrante: new Date('2026-11-04T09:00:00Z'), ultimoSaliente: null });
     expect(temprano).toEqual({ manda: false, motivo: 'fuera_de_horario' });
-    const tarde = caso({ ahora: new Date(2026, 10, 4, 19, 0), ultimoEntrante: new Date(2026, 10, 4, 18, 0), ultimoSaliente: null });
+    // 19:00 y 18:00 de Chile: ya cerró.
+    const tarde = caso({ ahora: new Date('2026-11-04T22:00:00Z'), ultimoEntrante: new Date('2026-11-04T21:00:00Z'), ultimoSaliente: null });
     expect(tarde).toEqual({ manda: false, motivo: 'fuera_de_horario' });
     expect(caso({}).manda).toBe(true);
   });

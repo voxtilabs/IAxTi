@@ -129,8 +129,17 @@ describe('el modo efectivo (#49): jamás autónomo por defecto', () => {
       autonomousHours: { start: '19:00', end: '09:00', days: [0, 1, 2, 3, 4, 5, 6] },
     };
     const sinHorario = { ...agent, defaultMode: 'autonomous' as const, autonomousHours: {} };
-    const nocturno = new Date('2026-09-14T23:30:00');
-    const laboral = new Date('2026-09-14T11:00:00');
+    /**
+     * Instantes EXPLÍCITOS en UTC (#1225).
+     *
+     * Decían `'2026-09-14T23:30:00'` sin `Z`, o sea hora LOCAL de la máquina:
+     * pasaban en Chile y fallaban en CI, que corre en UTC. Desde que el
+     * horario se juzga en la zona del negocio, el instante tiene que ser
+     * inequívoco y el comentario tiene que decir a qué hora de Chile
+     * corresponde — si no, nadie puede releer esta prueba.
+     */
+    const nocturno = new Date('2026-09-15T02:30:00Z'); // 23:30 del 14 en Chile
+    const laboral = new Date('2026-09-14T14:00:00Z'); // 11:00 del 14 en Chile, lunes
     expect(await withTenant(admin, tenant, (c) => effectiveMode(c, sinHorario, tenant, conv, nocturno))).toBe('assist');
     expect(await withTenant(admin, tenant, (c) => effectiveMode(c, conHorario, tenant, conv, nocturno))).toBe('autonomous');
     expect(await withTenant(admin, tenant, (c) => effectiveMode(c, conHorario, tenant, conv, laboral))).toBe('assist');
