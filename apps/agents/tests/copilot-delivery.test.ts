@@ -9,7 +9,10 @@ import { processSuggest } from '../src/copilot';
 vi.mock('@iaxti/module-agents', async importOriginal => ({
   ...await importOriginal<typeof import('@iaxti/module-agents')>(),
   providerAvailable: () => true,
-  autoRespondForInbound: async () => ({ action: 'reply', text: 'Te ayudo', agentName: 'Asistente' }),
+  autoRespondForInbound: async () => ({ action: 'reply', text: 'Te ayudo', agentName: 'Asistente',
+    // La clasificación viaja con la respuesta (#1243). `consulta`/`frio` para
+    // que estas pruebas midan la ENTREGA y no de paso el embudo.
+    clasificacion: { intencion: 'consulta', calificacion: 'frio' } }),
 }));
 
 let pool: Pool;

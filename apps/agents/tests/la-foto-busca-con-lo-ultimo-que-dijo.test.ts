@@ -30,7 +30,14 @@ vi.mock('@iaxti/module-knowledge', async (importOriginal) => ({
 vi.mock('@iaxti/module-agents', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@iaxti/module-agents')>()),
   providerAvailable: () => true,
-  autoRespondForInbound: async () => ({ action: 'reply', text: 'Dale', agentName: 'Asistente' }),
+  autoRespondForInbound: async () => ({
+    action: 'reply',
+    text: 'Dale',
+    agentName: 'Asistente',
+    // #1243: la clasificación viaja con la respuesta. Acá no es de compra,
+    // para que esta prueba siga midiendo con qué texto se consulta el RAG.
+    clasificacion: { intencion: 'consulta', calificacion: 'frio' },
+  }),
 }));
 
 let pool: Pool;

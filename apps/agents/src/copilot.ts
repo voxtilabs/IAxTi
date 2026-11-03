@@ -15,6 +15,7 @@ import {
   guardrailLimits,
 } from '@iaxti/module-agents';
 import type { HerramientaExpuesta } from '@iaxti/module-agents';
+import { abreLaOportunidad } from './abre-la-oportunidad';
 import {
   getContext,
   getConversation,
@@ -349,10 +350,46 @@ export async function processSuggest(
     if (auto.action === 'reply') {
       // El cliente siempre ve QUIÉN escribe y cómo pedir humano (SPEC §13).
       // La firma la resuelve el módulo (#1227): sabe los límites del agente y
-      // si ya habló en esta conversación. Acá solo se pega, y vacía no pega
-      // nada — el defecto sigue siendo firmar siempre, que es SPEC §13.
+      // si ya habló en esta conversación, y desde #1242 también qué dice. Acá
+      // solo se pega, y vacía no pega nada.
       const firmado = auto.firma ? `${auto.text}\n\n${auto.firma}` : auto.text;
-      return { autoReplied: await entregar(firmado), transcribed };
+      const autoReplied = await entregar(firmado);
+      /**
+       * El embudo, DESPUÉS de entregar (#1243).
+       *
+       * El orden es la mitad del asunto: el cliente ya tiene su respuesta
+       * cuando esto corre, así que un CRM que falla o un permiso que falta no
+       * le pueden quitar el mensaje. `abreLaOportunidad` además se come su
+       * propio error y devuelve el motivo.
+       */
+      const conversacion = await getConversation(client, data.tenantId, data.conversationId);
+      const nombre = conversacion.contactId
+        ? ((await client.query(`SELECT name FROM contacts WHERE tenant_id = $1 AND id = $2`, [
+            data.tenantId,
+            conversacion.contactId,
+          ])).rows[0]?.name as string | null) ?? null
+        : null;
+      const oportunidad = await abreLaOportunidad({
+        tools,
+        clasificacion: auto.clasificacion,
+        datos: { nombreDelContacto: nombre, intencion: auto.clasificacion.intencion },
+        yaTiene: async () => {
+          const r = await client.query(
+            `SELECT 1 FROM deals
+              WHERE tenant_id = $1 AND source_conversation_id = $2 AND status = 'open'
+              LIMIT 1`,
+            [data.tenantId, data.conversationId],
+          );
+          return r.rowCount !== 0;
+        },
+      });
+      if (oportunidad.motivo === 'falló') {
+        console.warn(
+          `copiloto: el visitante de ${data.conversationId} quería comprar y la oportunidad NO se creó: ` +
+            `${oportunidad.detalle}`,
+        );
+      }
+      return { autoReplied, oportunidad, transcribed };
     }
     if (auto.action === 'none') {
       return { skipped: 'sin agente activo', transcribed };
@@ -393,23 +430,6 @@ async function herramientasDeLaConversacion(
   if (!agent) return [];
 
   const conv = await getConversation(client, data.tenantId, data.conversationId);
-  /**
-   * La identidad con la que trabaja el agente (#1235).
-   *
-   * El dueño de la conversación primero; si no tiene —y en autónomo
-   * normalmente no tiene—, la que el negocio configuró en
-   * `limits.actua_como_user_id`. Sin ninguna de las dos queda en null y pasa
-   * exactamente lo de antes: solo las herramientas que no leen datos de nadie.
-   *
-   * El orden importa: si alguien del equipo tomó la conversación, manda ESA
-   * persona. La identidad configurada es el respaldo para lo que nadie tomó,
-   * no una forma de actuar a nombre de otro cuando hay un responsable.
-   *
-   * Y no hace falta comprobar acá que esa persona sea del negocio: `permisosDe`
-   * resuelve el rol con `roleOf(tenantId, userId)` y sin rol devuelve conjunto
-   * vacío, así que un id ajeno da CERO permisos y por lo tanto ninguna
-   * herramienta que escriba. Está comprobado en la prueba, no asumido.
-   */
   const delaConversacion = (conv as { ownerId?: string | null }).ownerId ?? null;
   const configurada = guardrailLimits(agent).actuaComoUserId;
 
