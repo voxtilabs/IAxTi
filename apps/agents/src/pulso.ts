@@ -3,6 +3,8 @@ import { withTenant } from '@iaxti/db';
 import {
   agenteConPulso,
   effectiveMode,
+  firmaDelAgente,
+  leTocaFirma,
   listAgents,
   textoParaRetomar,
   providerAvailable,
@@ -86,9 +88,14 @@ export async function processPulso(
     });
     if (!texto) return { skipped: `el modelo no dejó texto (${motivo})` };
 
-    // La firma, igual que en la respuesta autónoma (SPEC §13): el cliente
-    // siempre ve QUIÉN le escribe y cómo pedir una persona.
-    const body = `${texto}\n\n${agent.name} — asistente virtual. Escribe "humano" y te paso con una persona.`;
+    // La firma, igual que en la respuesta autónoma (SPEC §13) y con la misma
+    // decisión (#1227): siempre por defecto, una vez por conversación si el
+    // negocio lo eligió. Un pulso cada 40 minutos repitiendo el pie es
+    // exactamente donde más molesta.
+    const firma = (await leTocaFirma(client, { tenantId: data.tenantId, conversationId: data.conversationId, agent }))
+      ? `\n\n${firmaDelAgente(agent)}`
+      : '';
+    const body = `${texto}${firma}`;
     const message = await sendMessage(client, {
       tenantId: data.tenantId,
       conversationId: data.conversationId,

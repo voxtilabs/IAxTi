@@ -34,6 +34,18 @@ export function guardrailLimits(agent: Agent): {
   moneyLimitClp: number | null;
   handoffUserId: string | null;
   escalationNotice: string | null;
+  /**
+   * Si la firma va en CADA respuesta o solo en la primera (#1227).
+   *
+   * Nace en `true`, que es lo que pide SPEC §13: «cada respuesta autónoma
+   * lleva el nombre del asistente y la opción de pedir humano». Cambiar ese
+   * defecto sería cambiar el SPEC y pide un ADR.
+   *
+   * En `false`, un negocio elige que la firma vaya una vez por conversación.
+   * Quien lee sigue enterándose de las dos cosas —que es un bot y cómo pedir
+   * humano—; lo que se evita es repetirlo cuatro veces en la misma pantalla.
+   */
+  firmaEnCadaMensaje: boolean;
 } {
   const l = agent.limits as Record<string, unknown>;
   const conf = Number(l.confidence_threshold);
@@ -46,6 +58,10 @@ export function guardrailLimits(agent: Agent): {
     moneyLimitClp: Number.isFinite(monto) && monto > 0 ? monto : null,
     handoffUserId: typeof l.handoff_user_id === 'string' ? l.handoff_user_id : null,
     escalationNotice: aviso !== '' ? aviso : null,
+    // `!== false` y no `Boolean(...)`: la ausencia tiene que dar `true`, que
+    // es el defecto del SPEC. Con `Boolean(l.firma_en_cada_mensaje)`, un
+    // agente que nunca configuró nada dejaría de firmar.
+    firmaEnCadaMensaje: l.firma_en_cada_mensaje !== false,
   };
 }
 
@@ -244,7 +260,16 @@ export type AutonomousOutcome =
   | { action: 'none' }
   | { action: 'assist' }
   | { action: 'escalated'; reason: string; aviso: string }
-  | { action: 'reply'; text: string; agentName: string; executionId: string };
+  /**
+   * `firma` ya resuelta acá y no en el worker (#1227).
+   *
+   * El texto del pie lo pide SPEC §13 y la decisión de repetirlo o no depende
+   * de los límites del agente y de si ya habló en esta conversación — las dos
+   * cosas viven en este módulo. Cuando el worker armaba el pie a mano, tenía
+   * que saberse una frase del SPEC y no tenía con qué decidir. Vacía = sin
+   * firma en este mensaje.
+   */
+  | { action: 'reply'; text: string; agentName: string; firma: string; executionId: string };
 
 /**
  * La corrida autónoma por entrante (#49). Devuelve la respuesta para que
@@ -431,8 +456,45 @@ export async function autoRespondForInbound(
 
   return {
     action: 'reply',
+    firma: (await leTocaFirma(client, {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      agent,
+    }))
+      ? firmaDelAgente(agent)
+      : '',
     text: payload.respuesta,
     agentName: agent.name,
     executionId: res.executionId,
   };
+}
+
+/**
+ * ¿Le toca firma a este mensaje? (#1227)
+ *
+ * Con `firmaEnCadaMensaje` en true —el defecto del SPEC— siempre. Con false,
+ * solo si el agente no habló antes en esta conversación.
+ *
+ * Se pregunta por `author_kind = 'agent'` y no por «hay algún saliente»: un
+ * mensaje que escribió una PERSONA del equipo no presenta al bot, así que
+ * después de eso la primera respuesta autónoma sigue siendo la primera.
+ */
+export async function leTocaFirma(
+  client: PoolClient,
+  input: { tenantId: string; conversationId: string; agent: Agent },
+): Promise<boolean> {
+  if (guardrailLimits(input.agent).firmaEnCadaMensaje) return true;
+  const r = await client.query(
+    `SELECT 1 FROM messages
+      WHERE tenant_id = $1 AND conversation_id = $2
+        AND direction = 'out' AND author_kind = 'agent'
+      LIMIT 1`,
+    [input.tenantId, input.conversationId],
+  );
+  return r.rowCount === 0;
+}
+
+/** El pie que el cliente ve: quién escribe y cómo pedir una persona (SPEC §13). */
+export function firmaDelAgente(agent: Agent): string {
+  return `${agent.name} — asistente virtual. Escribe "humano" y te paso con una persona.`;
 }
