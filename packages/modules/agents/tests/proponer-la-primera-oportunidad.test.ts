@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 import {
   ACCIONES_EN_LA_CONVERSACION,
   ARGUMENTOS_DE_LA_ACCION,
@@ -66,9 +69,13 @@ describe('proponer la primera oportunidad (#1229)', () => {
     expect(ARGUMENTOS_DE_LA_ACCION['deals.create']).toMatch(/SOLO si el cliente lo dijo/);
   });
 
-  it('el sistema pisa el contacto al aplicar', async () => {
-    const fuente = await import('node:fs').then((fs) =>
-      fs.readFileSync(new URL('../application/acciones-que-se-proponen.ts', import.meta.url), 'utf8'),
+  it('el sistema pisa el contacto al aplicar', () => {
+    // `__dirname` y no `import.meta.url`: el typecheck del paquete compila con
+    // un `module` que no lo admite (TS1343), y una prueba que no typechequea
+    // rompe el CI del repo entero por un detalle que no tiene nada que ver con
+    // lo que mide.
+    const fuente = fuenteLimpia(
+      readFileSync(join(__dirname, '..', 'application', 'acciones-que-se-proponen.ts'), 'utf8'),
     );
     const bloque = fuente.slice(fuente.indexOf("'deals.create': {"), fuente.indexOf("'agenda.agendar': {"));
     expect(bloque).toContain('contactId: r.rows[0].contact_id');
