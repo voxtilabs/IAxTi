@@ -92,7 +92,9 @@ export { detectEscalation, parseAutonomous, formatoAutonomo } from './domain/esc
 // nadie abre deja de ser una decisión (#664).
 export { tocaPulso, agenteConPulso, textoParaRetomar, negociosDelPulso } from './application/pulso';
 export type { PulsoConfig, MotivoDelPulso } from './application/pulso';
-export type { EscalationReason, AutonomousPayload } from './domain/escalation';
+// `gatillosDeLimits` NO sale: lo lee `guardrailLimits` por dentro y su tipo es
+// lo único que un consumidor necesita nombrar (#664).
+export type { EscalationReason, AutonomousPayload, GatillosDelNegocio } from './domain/escalation';
 export {
   snapshotConfig,
   proposeConfiguration,

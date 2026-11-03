@@ -7,8 +7,10 @@ import {
   detectEscalation,
   esEcoDelContexto,
   formatoAutonomo,
+  gatillosDeLimits,
   parseAutonomous,
   type EscalationReason,
+  type GatillosDelNegocio,
 } from '../domain/escalation';
 import { runAgentTask } from './runtime';
 import type { ModelPortFactory } from './models';
@@ -47,6 +49,7 @@ export function guardrailLimits(agent: Agent): {
    * humano—; lo que se evita es repetirlo cuatro veces en la misma pantalla.
    */
   firmaEnCadaMensaje: boolean;
+  gatillos: GatillosDelNegocio;
 } {
   const l = agent.limits as Record<string, unknown>;
   const conf = Number(l.confidence_threshold);
@@ -63,6 +66,9 @@ export function guardrailLimits(agent: Agent): {
     // es el defecto del SPEC. Con `Boolean(l.firma_en_cada_mensaje)`, un
     // agente que nunca configuró nada dejaría de firmar.
     firmaEnCadaMensaje: l.firma_en_cada_mensaje !== false,
+    // Los gatillos de derivación que el negocio ajustó (#1231). Vive acá para
+    // que `limits` siga leyéndose en UN solo lugar.
+    gatillos: gatillosDeLimits(l),
   };
 }
 
@@ -337,7 +343,7 @@ export async function autoRespondForInbound(
       ORDER BY seq DESC LIMIT 1`,
     [input.tenantId, input.conversationId],
   );
-  const detectado = detectEscalation(entrante.rows[0]?.body);
+  const detectado = detectEscalation(entrante.rows[0]?.body, limits.gatillos);
   if (detectado) return escalar(detectado);
 
   // Más de N turnos sin avanzar: respuestas del asistente sin que un humano

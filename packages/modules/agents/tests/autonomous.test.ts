@@ -284,6 +284,39 @@ describe('la corrida autónoma (#49)', () => {
     );
   });
 
+  it('los gatillos del negocio llegan al detector por la corrida real (#1231)', async () => {
+    // Que `detectEscalation` sepa recibir la configuración no es que la
+    // configuración LLEGUE: entre `agents.limits` y el detector hay una lectura
+    // y un parámetro, y eso solo se mide corriendo el entrante completo.
+    agent = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, {
+        tenantId: tenant,
+        agentId: agent.id,
+        limits: { escalation_triggers: { add: ['cobro indebido'], remove: ['estafa'] } },
+        actor: 'test',
+      }),
+    );
+    const sumada = await conversacionNueva('esto es un cobro indebido');
+    await withTenant(admin, tenant, (c) =>
+      setConversationMode(c, { tenantId: tenant, conversationId: sumada, mode: 'autonomous', actor: 'user-1' }),
+    );
+    expect(await alAire(sumada, fabricaOk)).toMatchObject({
+      action: 'escalated',
+      reason: 'gatillo_del_negocio',
+    });
+
+    // Y la que el negocio sacó deja de derivar: la IA contesta.
+    const sacada = await conversacionNueva('me parece una estafa esto');
+    await withTenant(admin, tenant, (c) =>
+      setConversationMode(c, { tenantId: tenant, conversationId: sacada, mode: 'autonomous', actor: 'user-1' }),
+    );
+    expect(await alAire(sacada, fabricaOk)).toMatchObject({ action: 'reply' });
+
+    agent = await withTenant(admin, tenant, (c) =>
+      updateAgent(c, { tenantId: tenant, agentId: agent.id, limits: {}, actor: 'test' }),
+    );
+  });
+
   it('confianza bajo el umbral del tenant: escala en vez de enviar', async () => {
     const conv = await conversacionNueva('¿cuánto sale el más caro?');
     await withTenant(admin, tenant, (c) =>
