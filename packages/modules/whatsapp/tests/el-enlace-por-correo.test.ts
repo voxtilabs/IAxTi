@@ -24,8 +24,12 @@ async function negocio(): Promise<string> {
   return t.id;
 }
 
-/** Unos `ports` que solo saben contestar el estado: es lo único que se mira. */
-const portsCon = (estado: Record<string, unknown>) =>
+/**
+ * Unos `ports` que no deciden nada: el estado de la invitación lo pone el
+ * espía de `partnerStatus`, no esto. Sin parámetros a propósito — tenerlos
+ * haría creer que el estado entra por acá.
+ */
+const portsInertes = () =>
   ({ config: {}, enabled: () => true, secrets: {}, call: async () => ({}) }) as unknown as PartnerPorts;
 
 async function conEstado(estado: Record<string, unknown>, fn: () => Promise<unknown>) {
@@ -48,7 +52,7 @@ describe('mandar el enlace por correo (#1259)', () => {
       enviarElEnlace(
         pool,
         { tenantId: t, actor: randomUUID(), actorKind: 'user', correoDelActor: 'duena@negocio.cl', nombreDelNegocio: 'Barbería Dos Sillas' },
-        portsCon(pendiente),
+        portsInertes(),
         async (c) => { mandados.push({ para: c.para, enlace: c.enlace }); return true; },
       ),
     )) as { enviado: boolean; para: string };
@@ -74,7 +78,7 @@ describe('mandar el enlace por correo (#1259)', () => {
       enviarElEnlace(
         pool,
         { tenantId: t, actor: randomUUID(), actorKind: 'user', para: 'elquetiene@elfono.cl', correoDelActor: 'duena@negocio.cl', nombreDelNegocio: 'X' },
-        portsCon(pendiente),
+        portsInertes(),
         async (c) => { destino = c.para; return true; },
       ),
     );
@@ -98,7 +102,7 @@ describe('mandar el enlace por correo (#1259)', () => {
         enviarElEnlace(
           pool,
           { tenantId: t, actor: randomUUID(), actorKind: 'user', correoDelActor: 'duena@negocio.cl', nombreDelNegocio: 'X' },
-          portsCon({}),
+          portsInertes(),
           espia,
         ),
       ),
@@ -116,7 +120,7 @@ describe('mandar el enlace por correo (#1259)', () => {
         enviarElEnlace(
           pool,
           { tenantId: t, actor: randomUUID(), actorKind: 'user', para: correo, correoDelActor: null, nombreDelNegocio: 'X' },
-          portsCon({}),
+          portsInertes(),
           espia,
         ),
       ).rejects.toMatchObject({ code: 'CORREO_INVALIDO' });
