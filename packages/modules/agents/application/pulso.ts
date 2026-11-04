@@ -94,7 +94,12 @@ export function tocaPulso(input: {
   if (!input.ultimoEntrante) return { manda: false, motivo: 'sin_entrante' };
   // Sin plantilla aprobada, fuera de la ventana el proveedor no entrega nada:
   // generar el mensaje sería pagarle al modelo por algo que no sale.
-  if (!isWithinWindow(input.canal, input.ultimoEntrante)) {
+  // `input.ahora` y NO el reloj de la máquina (#1256): `isWithinWindow` tiene
+  // ese parámetro con un defecto, y omitirlo hacía que esta comprobación
+  // midiera contra un instante distinto del que usan las otras cuatro. En
+  // producción coincidían y por eso no se veía; la prueba de #1225 caducó
+  // sola al pasar 24 h de su fecha fija y dejó la suite entera roja.
+  if (!isWithinWindow(input.canal, input.ultimoEntrante, input.ahora)) {
     return { manda: false, motivo: 'ventana_cerrada' };
   }
   if (!inAutonomousHours({ start: cfg.desde, end: cfg.hasta }, input.ahora, input.zona)) {

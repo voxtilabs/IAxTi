@@ -227,3 +227,54 @@ describe('el horario del pulso es el del negocio (#1225)', () => {
     expect(sinZona).toEqual(tocaPulso({ ...base, zona: 'America/Santiago' }));
   });
 });
+
+/**
+ * La ventana se mide con el instante que se recibe (#1256).
+ *
+ * `tocaPulso` promete decidir sobre `ahora`, y la comprobación de la ventana
+ * de 24 h se saltaba ese parámetro: `isWithinWindow` lo tiene con un defecto
+ * —el reloj de la máquina— y no se lo pasábamos. En producción los dos
+ * coincidían, así que el defecto era invisible; lo que lo destapó fue que la
+ * prueba de #1225, con su fecha fija, caducara sola a las 24 h y dejara la
+ * suite de `staging` entera roja.
+ *
+ * Estos casos usan un instante MUY lejano a propósito. Una prueba que dependa
+ * de qué día es hoy no es una prueba: es una cuenta regresiva.
+ */
+describe('la ventana se mide con el instante recibido, no con el reloj (#1256)', () => {
+  const lejos = new Date('2030-06-12T14:00:00.000Z'); // 10:00 en Chile
+  const cfg: PulsoConfig = { cadaMinutos: 40, desde: '08:30', hasta: '18:00', maxPorPersona: 6 };
+
+  it('entrante una hora antes de ESE instante: la ventana está abierta', () => {
+    expect(
+      tocaPulso({
+        ahora: lejos,
+        cfg,
+        canal: 'whatsapp',
+        ultimoEntrante: new Date('2030-06-12T13:00:00.000Z'),
+        ultimoSaliente: new Date('2030-06-12T13:00:00.000Z'),
+        pulsosEnviados: 0,
+        zona: 'America/Santiago',
+      }),
+    ).toEqual({ manda: true, motivo: 'manda' });
+  });
+
+  /**
+   * El otro lado de la misma moneda: 25 h ANTES de ese instante sí cierra.
+   * Con los dos casos, un `tocaPulso` que ignorara `ahora` falla en uno o en
+   * el otro siempre, sea cual sea la fecha en que se corra.
+   */
+  it('entrante 25 h antes de ESE instante: la ventana está cerrada', () => {
+    expect(
+      tocaPulso({
+        ahora: lejos,
+        cfg,
+        canal: 'whatsapp',
+        ultimoEntrante: new Date('2030-06-11T13:00:00.000Z'),
+        ultimoSaliente: new Date('2030-06-11T13:00:00.000Z'),
+        pulsosEnviados: 0,
+        zona: 'America/Santiago',
+      }),
+    ).toEqual({ manda: false, motivo: 'ventana_cerrada' });
+  });
+});
