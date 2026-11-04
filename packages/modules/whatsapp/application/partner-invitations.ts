@@ -13,9 +13,28 @@ type Row={id:string;tenant_id:string;project_id:string;credential_ref:string;pha
 export interface PartnerActor {tenantId:string;actor:string;actorKind:ActorKind;requestId?:string}
 export interface PartnerStatus {id:string|null;phase:string;providerStatus:string|null;url:string|null;expiresAt:string|null;accountId:string|null;errorCode:string|null}
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
+/**
+ * ¿Esta referencia es la del enlace de ESTA invitación? (#1253)
+ *
+ * Aceptaba solo `projects/<p>/secrets/<n>/versions/<v>`, que es la forma de
+ * Google Secret Manager. La custodia que ADR-0028 define como la de v1 —el
+ * disco cifrado del VPS— produce `custodia-local/secrets/<n>/versions/<v>`,
+ * así que el alta guardaba su enlace y la línea siguiente lo rechazaba por
+ * malformado: `link_ready` en ok y `link_accessed` en error, 503 para el
+ * negocio y un consejo falso («revisa la conexión»).
+ *
+ * Lo que decide la seguridad es el NOMBRE del secreto, no el prefijo del
+ * backend: `iaxti-zavu-invite-<id sin guiones>-<32 hex>` es lo que impide que
+ * una invitación lea el enlace de otra. Eso se mantiene exactamente igual de
+ * estricto; lo que se abre es solo de qué almacén viene.
+ *
+ * El espacio local se valida con el mismo alfabeto que usa el almacén al
+ * crearlo (`/^[A-Za-z0-9_-]{1,64}$/`), así que una referencia con `..` o con
+ * barras de más no entra por acá.
+ */
 function isLinkRef(ref:string,id:string) {
   const prefix=`iaxti-zavu-invite-${id.replaceAll('-','')}-`;
-  const match=/^projects\/[^/]+\/secrets\/([A-Za-z0-9_-]+)\/versions\/[1-9][0-9]{0,19}$/.exec(ref);
+  const match=/^(?:projects\/[^/]+|[A-Za-z0-9_-]{1,64})\/secrets\/([A-Za-z0-9_-]+)\/versions\/[1-9][0-9]{0,19}$/.exec(ref);
   return !!match&&match[1]!.startsWith(prefix)&&/^[a-f0-9]{32}$/.test(match[1]!.slice(prefix.length));
 }
 async function audit(c:PoolClient,row:Pick<Row,'tenant_id'|'id'>,action:string,result:'ok'|'error'='ok',actor?:PartnerActor,metadata?:Record<string,unknown>) {
