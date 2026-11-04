@@ -11,6 +11,7 @@ import {
   versionDelBuild,
 } from '@iaxti/core';
 import { createPool, exigeRolQueRespetaRls } from '@iaxti/db';
+import { alApagar, instalarApagadoOrdenado, plazoDeApagado } from '@iaxti/telemetry';
 import { processSuggest, type SuggestJob } from './copilot';
 import { candadoEnRedis, deAUnoPorConversacion } from './de-a-uno-por-conversacion';
 import { processPulso, type PulsoJob } from './pulso';
@@ -81,8 +82,59 @@ function start(): void {
     redisConnection(),
   );
   agentsWorker.concurrency = enteroDeEntorno('AGENTS_CONCURRENCY', 5);
+
+  /**
+   * El apagado ordenado (#1216).
+   *
+   * `apps/workers` lo tiene desde siempre y este proceso —el que de verdad
+   * genera— nunca lo tuvo: cada despliegue lo mataba con SIGKILL a mitad de
+   * una generación.
+   *
+   * Lo que eso costaba, en orden de gravedad:
+   *
+   * 1. **Un mensaje repetido.** BullMQ es at-least-once y el job vuelve a
+   *    tomarse al vencer su lock. Si el proceso muere DESPUÉS de entregar la
+   *    respuesta y antes de que el job termine, el reintento la genera y la
+   *    entrega otra vez: el cliente recibe dos. El apagado ordenado no lo
+   *    vuelve imposible —una caída real sigue pudiendo— pero cierra la única
+   *    ventana que abríamos nosotros a propósito, varias veces por día. Lo que
+   *    sí lo vuelve imposible es idempotencia en el camino, y eso va aparte.
+   * 2. **Media conversación de espera.** El job cortado no se pierde: se
+   *    reintenta cuando vence el lock (30 s por omisión de BullMQ) y además
+   *    necesita que el proceso nuevo ya esté arriba para marcarlo colgado. Son
+   *    30 s y pico de silencio para alguien que acaba de escribir.
+   * 3. **La generación pagada se tira.** Los tokens ya se gastaron.
+   *
+   * El orden: primero se drena el worker —`close()` deja de TOMAR trabajo y
+   * espera al que está en vuelo—, después la base, que el worker usa mientras
+   * drena. El servidor de sondas se cierra al final, en `listen`, para que
+   * `/health` siga contestando mientras se drena y el orquestador no lo mate
+   * antes de tiempo.
+   */
+  alApagar('worker de cola agents', () => agentsWorker.close());
+  alApagar('candado de conversaciones', () => redisCandado.quit().then(() => undefined));
+  alApagar('base de datos', () => pool.end());
+
   consumersStarted = true;
-  console.log('agents: worker de cola agents activo');
+  const plazo = plazoDeApagado();
+  console.log(`agents: worker de cola agents activo (plazo de apagado ${plazo} ms)`);
+  /**
+   * Una generación tarda más que el plazo, y decirlo es el punto.
+   *
+   * Medido hoy: 7,4 s de modelo y ~20 s de punta a punta con la espera de
+   * #1223. El plazo por omisión son 8 s porque Docker manda SIGKILL a los 10,
+   * así que un drenaje que no alcanza NO es un defecto de este código: es el
+   * `stop_grace_period` del despliegue, que hay que subir junto con
+   * `SHUTDOWN_TIMEOUT_MS`. Subir solo la variable es prometer lo que el
+   * orquestador no deja cumplir, y por eso el aviso nombra las dos.
+   */
+  if (plazo < 25_000) {
+    console.warn(
+      `agents: con ${plazo} ms no alcanza a terminar una generación (tardan ~20 s). ` +
+        'Sube SHUTDOWN_TIMEOUT_MS y el stop_grace_period del compose a la vez, o el ' +
+        'SIGKILL llegará igual y el job se reintentará.',
+    );
+  }
 }
 
 // `/health` es "el proceso vive" y `/ready` es "puede trabajar", que para un
@@ -106,4 +158,17 @@ const server = createServer((req, res) => {
   res.end(JSON.stringify({ code: 'NOT_FOUND', message: 'Nada por aquí todavía.', requestId: '', details: [] }));
 });
 
-server.listen(port, () => start());
+instalarApagadoOrdenado();
+
+server.listen(port, () => {
+  start();
+  // Al final de la lista: mientras se drena, `/health` sigue contestando.
+  // `closeAllConnections` porque una sonda con keep-alive abierto dejaría
+  // `close()` esperando para siempre.
+  alApagar('servidor de sondas', () =>
+    new Promise<void>((listo) => {
+      server.closeAllConnections();
+      server.close(() => listo());
+    }),
+  );
+});
