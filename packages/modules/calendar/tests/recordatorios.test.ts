@@ -285,18 +285,19 @@ describe('el aviso que falla deja su motivo (#1250)', () => {
     });
 
     const fila = await admin.query(
-      'SELECT reminders_sent, status, aviso_error, aviso_error_at FROM appointments WHERE id = $1',
+      'SELECT reminders_sent, status, aviso_error, updated_at FROM appointments WHERE id = $1',
       [cita],
     );
     const f = fila.rows[0] as {
       reminders_sent: string[];
       status: string;
       aviso_error: string | null;
-      aviso_error_at: Date | null;
+      updated_at: Date;
     };
     // Las tres cosas juntas, y las tres importan por razones distintas:
     expect(f.aviso_error).toBe('este contacto no tiene conversación por dónde avisarle');
-    expect(f.aviso_error_at).not.toBeNull();
+    // El cuándo no necesita columna propia: el mismo UPDATE mueve `updated_at`.
+    expect(f.updated_at).not.toBeNull();
     // `reminded` significa «se le avisó», y no se le avisó.
     expect(f.status).toBe('confirmed');
     // Pero el aviso SIGUE consumido: el fallo no se arregla solo, lo arregla
@@ -332,7 +333,7 @@ describe('el aviso que falla deja su motivo (#1250)', () => {
   it('un envío que sí sale borra el motivo anterior', async () => {
     const cita = await citaProxima('Primero falla, después sale');
     await admin.query(
-      `UPDATE appointments SET aviso_error = 'algo viejo', aviso_error_at = now() WHERE id = $1`,
+      `UPDATE appointments SET aviso_error = 'algo viejo' WHERE id = $1`,
       [cita],
     );
     await barrerRecordatorios(admin, {
@@ -340,11 +341,10 @@ describe('el aviso que falla deja su motivo (#1250)', () => {
       enviar: async () => ({ enviado: true }),
     });
     const fila = await admin.query(
-      'SELECT aviso_error, aviso_error_at, status FROM appointments WHERE id = $1',
+      'SELECT aviso_error, status FROM appointments WHERE id = $1',
       [cita],
     );
     expect(fila.rows[0].aviso_error).toBeNull();
-    expect(fila.rows[0].aviso_error_at).toBeNull();
     expect(fila.rows[0].status).toBe('reminded');
   });
 });

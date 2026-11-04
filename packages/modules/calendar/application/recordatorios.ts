@@ -96,7 +96,6 @@ export async function guardarElMotivo(
   await client.query(
     `UPDATE appointments
         SET aviso_error = $3,
-            aviso_error_at = now(),
             status = CASE WHEN status = 'reminded' THEN 'confirmed' ELSE status END,
             updated_at = now()
       WHERE tenant_id = $1 AND id = $2`,
@@ -113,7 +112,6 @@ export async function marcarAvisoEnviado(
         SET reminders_sent = reminders_sent || to_jsonb($3::text),
             status = CASE WHEN status = 'confirmed' THEN 'reminded' ELSE status END,
             aviso_error = NULL,
-            aviso_error_at = NULL,
             updated_at = now()
       WHERE tenant_id = $1 AND id = $2 AND NOT (reminders_sent ? $3)
       RETURNING id`,

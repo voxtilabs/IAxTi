@@ -278,6 +278,15 @@ export interface Cita {
    * qué. Se dice en vez de callarse.
    */
   googleSyncError: string | null;
+  /**
+   * Por qué no salió el recordatorio (#1250).
+   *
+   * Viaja con la cita por el mismo motivo que `googleSyncError`: el dueño no
+   * puede arreglar lo que no ve, y un aviso que falló en silencio es una cita
+   * que él cree avisada. Nulo cuando no hubo fallo o cuando un envío
+   * posterior lo resolvió.
+   */
+  avisoError: string | null;
 }
 
 function aCita(row: Record<string, unknown>): Cita {
@@ -292,6 +301,7 @@ function aCita(row: Record<string, unknown>): Cita {
     cancelReason: (row.cancel_reason as string) ?? null,
     googleEventId: (row.google_event_id as string) ?? null,
     googleSyncError: (row.google_sync_error as string) ?? null,
+    avisoError: (row.aviso_error as string) ?? null,
   };
 }
 

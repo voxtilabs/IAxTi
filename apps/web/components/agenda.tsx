@@ -254,6 +254,12 @@ export function Agenda() {
                   {c.googleSyncError && (
                     <span className="w-full text-xs text-warn-text">{c.googleSyncError}</span>
                   )}
+                  {/* El recordatorio que no salió (#1250). Sin esto la fila
+                      decía «Avisada» sobre alguien a quien no le llegó nada:
+                      el dueño no puede arreglar lo que no ve. */}
+                  {c.avisoError && (
+                    <span className="w-full text-xs text-warn-text">{c.avisoError}</span>
+                  )}
                   <span className="flex flex-wrap gap-2">
                     {puedeAgendar && SIGUIENTES[c.status].map((s) => (
                       <Button
