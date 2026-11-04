@@ -31,6 +31,7 @@ import {
   listarCitas,
   type EstadoCita,
 } from '@iaxti/module-calendar';
+import { conversacionParaIniciar } from '@iaxti/module-conversations';
 import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
 import { listTemplates } from '@iaxti/module-whatsapp';
 import { z } from 'zod';
@@ -311,8 +312,44 @@ export class AgendaController {
   ) {
     const actor = actorOf(request);
     try {
-      return await withTenant(pool(), actor.tenantId, (c) =>
-        agendar(c, {
+      return await withTenant(pool(), actor.tenantId, async (c) => {
+        /**
+         * La conversación por donde avisarle, resuelta acá (#1249).
+         *
+         * Una cita sin `conversation_id` no puede recibir recordatorio: el
+         * envío muere en el worker con «la cita no tiene conversación por
+         * dónde avisar» y, peor, el aviso ya quedó consumido, así que tampoco
+         * se reintenta. La pantalla «Dar una hora» nunca mandó ese campo, así
+         * que TODA cita creada desde la interfaz nacía sin recordatorio.
+         *
+         * Se resuelve en el controller y no dentro de `calendar` a propósito:
+         * `calendar` no declara `conversations` en su `depends_on` y meterle
+         * esa dependencia para una línea sería acoplar dos módulos por la
+         * puerta de atrás. El controller es el lugar donde orquestar dos
+         * contratos es legítimo (regla de arquitectura), y
+         * `conversacionParaIniciar` recibe NUESTRO cliente, así que entra en
+         * la misma transacción que la cita.
+         *
+         * Degrada y no rompe: un contacto sin canal todavía puede recibir una
+         * hora —se la dieron por teléfono—, simplemente no habrá recordatorio.
+         * Eso se ve después en la fila (#1250), no se esconde.
+         */
+        let conversationId = body.conversationId;
+        if (!conversationId) {
+          try {
+            const r = await conversacionParaIniciar(c, {
+              tenantId: actor.tenantId,
+              contactId: body.contactId,
+            });
+            conversationId = r.conversationId;
+          } catch (err) {
+            console.warn(
+              `[${(request as { requestId?: string }).requestId}] agenda: la cita de ${body.contactId} ` +
+                `se crea SIN conversación, así que no tendrá recordatorio — ${(err as Error).message}`,
+            );
+          }
+        }
+        return agendar(c, {
           tenantId: actor.tenantId,
           contactId: body.contactId,
           ownerId: body.ownerId ?? actor.userId,
@@ -322,13 +359,27 @@ export class AgendaController {
           inicio: new Date(body.inicio),
           fin: new Date(body.fin),
           title: body.title,
-          conversationId: body.conversationId,
-          confirmada: body.confirmada,
+          conversationId,
+          /**
+           * Por omisión, CONFIRMADA (#1249).
+           *
+           * `proposed` existe para la hora que alguien pidió y nadie aceptó
+           * todavía. Cuando una persona del negocio entra a «Dar una hora» y
+           * la da, el visto bueno humano YA ocurrió: dejarla en `proposed`
+           * obligaba a un segundo clic en otra pantalla y, mientras tanto, la
+           * cita quedaba fuera del barrido de recordatorios —que solo mira
+           * `confirmed` y `reminded`— para siempre si nadie volvía.
+           *
+           * Quien quiera una propuesta la pide explícitamente con
+           * `confirmada: false`. El defecto cambia; la posibilidad no se
+           * pierde.
+           */
+          confirmada: body.confirmada ?? true,
           actor: actor.userId,
           actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
           requestId: (request as { requestId?: string }).requestId,
-        }),
-      );
+        });
+      });
     } catch (err) {
       seVeMal(err);
     }
