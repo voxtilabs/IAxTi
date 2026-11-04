@@ -68,7 +68,8 @@ describe('qué se le ofrece al modelo', () => {
   });
 
   it('una herramienta que sale hacia el cliente NO se ofrece, aunque esté configurada', async () => {
-    const extra = ['conversations.send_reply', 'payments.create_link', 'calendar.book'];
+    // Ver ADR-0029: `calendar.book` ya se ofrece. `calendar.cancel` no.
+    const extra = ['conversations.send_reply', 'payments.create_link', 'calendar.cancel'];
     const hs = await en(async (c) =>
       herramientasExpuestas(
         c,

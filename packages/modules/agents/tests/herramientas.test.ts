@@ -155,7 +155,10 @@ describe('lo que NO puede hacer', () => {
     // `crm.create_deal` salió de esta lista con la ADR-0017: queda adentro
     // del negocio y se marca perdida, así que la IA sí la puede crear. Las
     // que siguen acá son las que el cliente ve.
-    for (const tool of ['conversations.send_reply', 'payments.create_link', 'calendar.book']) {
+    // `calendar.book` salió de esta lista en ADR-0029 y la reemplaza
+    // `calendar.cancel`, que SIGUE cerrada: cancelar la hora de alguien que
+    // no lo pidió es otro riesgo y no lo cubre ese ADR.
+    for (const tool of ['conversations.send_reply', 'payments.create_link', 'calendar.cancel']) {
       const res = await en((c) =>
         ejecutarHerramienta(
           c,

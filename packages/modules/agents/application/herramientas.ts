@@ -95,6 +95,21 @@ export type HerramientaDeLectura = keyof typeof HERRAMIENTAS_DE_LECTURA;
 export const HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS = {
   'crm.create_activity': 'crm.activities.manage',
   'crm.create_deal': 'crm.deals.create',
+  /**
+   * Tomar la hora (ADR-0029).
+   *
+   * ADR-0017 la dejó fuera con dos preguntas, y las dos siguen siendo las
+   * correctas; lo que cambió es la respuesta. «¿Lo ve el cliente?» dejó de
+   * discriminar cuando el modo autónomo (#49) empezó a entregar los mensajes
+   * él mismo. «¿Se puede deshacer?» la cumple: una cita se cancela, libera el
+   * hueco y avisa — el mismo criterio que dejó dentro a `crm.create_deal`.
+   *
+   * Y suma una garantía que ADR-0017 no tenía cómo exigir: la hora NO la
+   * elige el modelo. Lo que mande se valida contra los huecos reales dentro
+   * del mismo cerrojo que toma `agendar`, así que lo peor que puede pasar es
+   * agendar a quien solo preguntaba — no agendar a una hora que no existe.
+   */
+  'calendar.book': 'calendar.book',
 } as const;
 
 export type HerramientaQueEscribe = keyof typeof HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS;
@@ -136,7 +151,9 @@ export const HERRAMIENTAS_PENDIENTES: Record<string, string> = {
 
 /** Las que siguen cerradas, con su motivo en la ADR-0017. */
 export const HERRAMIENTAS_QUE_ESCRIBEN = [
-  'calendar.book',
+  // `calendar.book` salió de acá en ADR-0029. Estas dos NO: mover o cancelar
+  // la hora de alguien que no lo pidió es otro riesgo y necesita su propia
+  // medición.
   'calendar.reschedule',
   'calendar.cancel',
   'conversations.send_reply',
@@ -181,6 +198,12 @@ export interface DepsHerramientas {
    * una lista larga en un chat no se lee, se abandona.
    */
   horariosLibres?: (dia: string) => Promise<unknown[]>;
+  /**
+   * Toma una hora (ADR-0029). Recibe el instante EXACTO que el modelo eligió
+   * y es quien lo valida contra la disponibilidad real: esta capa no sabe de
+   * huecos ni de cerrojos, y no tiene por qué.
+   */
+  tomarLaHora?: (inicio: string) => Promise<unknown>;
   /**
    * Las que ESCRIBEN (ADR-0017). Opcionales: sin ellas, pedirlas devuelve
    * que no están disponibles, que es la verdad — no una excepción.
@@ -363,6 +386,19 @@ export async function ejecutarHerramienta(
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) throw new Error('El día va como AAAA-MM-DD.');
         // TRES como mucho: en un chat, una lista larga no se lee.
         datos = (await deps.horariosLibres(dia)).slice(0, 3);
+        break;
+      }
+      case 'calendar.book': {
+        if (!deps.tomarLaHora) throw new Error('La agenda no está disponible.');
+        const inicio = String(input.args.inicio ?? '').trim();
+        // Forma ISO con zona, que es lo que devuelve `calendar.get_slots`: el
+        // modelo tiene que repetir uno de los horarios que se le ofrecieron,
+        // no redactar una fecha. Una hora sin zona la interpretaría el
+        // servidor en UTC y serían tres horas de diferencia en Chile.
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(inicio)) {
+          throw new Error('La hora va tal como te la ofrecí, con fecha y zona.');
+        }
+        datos = await deps.tomarLaHora(inicio);
         break;
       }
       case 'crm.create_activity': {

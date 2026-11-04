@@ -85,7 +85,9 @@ describe('lo que la IA NO puede hacer', () => {
     // renombre. Si alguien saca una de acá, este test lo dice.
     expect([...HERRAMIENTAS_QUE_ESCRIBEN].sort()).toEqual(
       [
-        'calendar.book',
+        // `calendar.book` salió en ADR-0029, y esta prueba es la que obligó a
+        // escribir ese ADR en vez de cambiar una constante: hizo exactamente
+        // lo que su comentario promete. Las otras seis siguen acá.
         'calendar.cancel',
         'calendar.reschedule',
         'conversations.send_reply',
@@ -96,8 +98,12 @@ describe('lo que la IA NO puede hacer', () => {
     );
   });
 
-  it('solo dos escriben, y son las que se deshacen', () => {
+  it('las que escriben son las que se deshacen, y ahora son tres', () => {
+    // El criterio de ADR-0017 no cambió —se deshacen— y por eso `calendar.book`
+    // entra: una cita se cancela, libera el hueco y avisa. Lo que ADR-0029
+    // agrega es que la hora la elige el SISTEMA y no el modelo.
     expect(Object.keys(HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS).sort()).toEqual([
+      'calendar.book',
       'crm.create_activity',
       'crm.create_deal',
     ]);
