@@ -1,6 +1,8 @@
 import type { Pool, PoolClient } from 'pg';
 import type { ModuleRegistry } from '@iaxti/core';
 import { degradarSinRomper, withTenant } from '@iaxti/db';
+import { diaEn } from '@iaxti/core';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import {
   PROVIDERS,
   activeAgent,
@@ -30,7 +32,7 @@ import {
   fuentesCitadas,
   searchKnowledge,
 } from '@iaxti/module-knowledge';
-import { huecosConGoogle, listarCitas } from '@iaxti/module-calendar';
+import { agendar, huecosConGoogle, listarCitas } from '@iaxti/module-calendar';
 import {
   createActivity,
   createDeal,
@@ -520,6 +522,49 @@ async function herramientasDeLaConversacion(
       horariosLibres: (dia) =>
         huecosConGoogle(client, { tenantId: data.tenantId, ownerId: conDueno('ofrecer horarios'), dia }),
 
+      /**
+       * Tomar la hora que el cliente eligió (ADR-0029).
+       *
+       * El fin NO viene del modelo: sale de la duración configurada del
+       * hueco. Pedírselo sería darle una forma de agendar dos horas donde
+       * caben treinta minutos.
+       *
+       * `exigirHuecoDisponible` es lo que vuelve defendible esto: la
+       * validación ocurre DENTRO del cerrojo de `agendar`, con los huecos
+       * recalculados. Entre que se ofrecieron y que la persona eligió pudo
+       * entrar otra cita.
+       */
+      tomarLaHora: async (inicio) => {
+        const cuando = new Date(inicio);
+        if (!Number.isFinite(cuando.getTime())) throw new Error('Esa hora no se entiende.');
+        const dueno = conDueno('tomar una hora');
+        const dia = diaEn(await zonaDelTenant(client, data.tenantId), cuando);
+        const huecos = await huecosConGoogle(client, { tenantId: data.tenantId, ownerId: dueno, dia });
+        const elegido = huecos.find((h) => new Date(h.inicio).getTime() === cuando.getTime());
+        if (!elegido) {
+          throw new Error('Ese horario ya no está libre. Mira los horarios de nuevo y ofrece otro.');
+        }
+        const contactId = conv.contactId;
+        if (!contactId) throw new Error('Esta conversación todavía no tiene una ficha asociada.');
+        const cita = await agendar(client, {
+          tenantId: data.tenantId,
+          contactId,
+          ownerId: dueno,
+          inicio: cuando,
+          fin: new Date(elegido.fin),
+          // Confirmada y con la conversación: así entra al barrido de
+          // recordatorios (#1249). Una cita `proposed` no recibe aviso, que
+          // es el mismo agujero con otro nombre.
+          confirmada: true,
+          conversationId: data.conversationId,
+          exigirHuecoDisponible: true,
+          actor: dueno,
+          actorKind: 'agent',
+          ...(data.requestId ? { requestId: data.requestId } : {}),
+        });
+        return { id: cita.id, inicio: cita.startsAt, fin: cita.endsAt };
+      },
+
       // Las dos que ESCRIBEN (ADR-0017): quedan adentro del negocio y se
       // deshacen. El contacto no lo elige el modelo — sale de la
       // conversación, porque un nombre mal leído terminaría creándole una
@@ -624,6 +669,17 @@ async function herramientasDeLaConversacion(
           value: i.value,
           ownerId: conDueno('crear una oportunidad'),
           sourceConversationId: data.conversationId,
+          // Quién la creó. Faltaba desde #1243: el historial de etapa quedaba
+          // con `actor NULL`, o sea que la oportunidad que abre el bot no
+          // decía quién la abrió — justo en la herramienta cuya seguridad
+          // entera es «la IA actúa con la identidad de una persona y queda
+          // auditado».
+          // Quién la creó. Faltaba desde #1243: `deal_stage_history.actor`
+          // quedaba en NULL, o sea que la oportunidad que abre el bot no
+          // decía quién la abrió — justo en la herramienta cuya seguridad
+          // entera es «la IA actúa con la identidad de una persona».
+          actor: conDueno('crear una oportunidad'),
+          ...(data.requestId ? { requestId: data.requestId } : {}),
         });
         // El agente lo logró ÉL (#319). Es un hecho, no una inferencia: lo
         // acaba de hacer, en esta transacción y en esta conversación. Se

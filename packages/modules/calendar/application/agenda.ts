@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { publishEvent } from '@iaxti/core';
+import { diaEn, publishEvent } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
 import { bloquearGrantGoogle } from '@iaxti/module-identity';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
@@ -326,6 +326,20 @@ export async function agendar(
     actor?: string;
     actorKind?: ActorKind;
     requestId?: string;
+    /**
+     * Exigir que el inicio sea un hueco REAL de la disponibilidad (ADR-0029).
+     *
+     * Lo pide quien agenda sin una persona mirando: el agente autónomo. Una
+     * persona del equipo puede dar una hora fuera del horario publicado
+     * —se quedó atendiendo, le hizo un favor a alguien— y eso es legítimo;
+     * el modelo no tiene cómo saber que es legítimo, así que para él la
+     * disponibilidad es la frontera.
+     *
+     * Va DENTRO de esta función y no antes de llamarla a propósito: la
+     * comprobación tiene que ocurrir después del cerrojo. Hecha afuera, dos
+     * clientes que eligen el mismo hueco a la vez lo ven libre los dos.
+     */
+    exigirHuecoDisponible?: boolean;
   },
 ): Promise<Cita> {
   if (!Number.isFinite(input.inicio.getTime()) || !Number.isFinite(input.fin.getTime())) {
@@ -342,6 +356,23 @@ export async function agendar(
        'calendar:agenda:' || $1::uuid::text || ':' || $2::uuid::text, 0))`,
     [input.tenantId, input.ownerId],
   );
+  if (input.exigirHuecoDisponible) {
+    // El mismo cálculo que ofreció los horarios, rehecho con el cerrojo
+    // puesto: entre que se ofrecieron y que el cliente eligió pudo entrar
+    // otra cita, cambiar la disponibilidad o pasar la anticipación mínima.
+    const dia = diaEn(await zonaDelTenant(client, input.tenantId), input.inicio);
+    const huecos = await huecosDelDia(client, {
+      tenantId: input.tenantId,
+      ownerId: input.ownerId,
+      dia,
+    });
+    const existe = huecos.some((h) => new Date(h.inicio).getTime() === input.inicio.getTime());
+    if (!existe) {
+      throw new Error(
+        'Ese horario ya no está disponible. Vuelve a mirar los horarios libres y ofrece otro.',
+      );
+    }
+  }
   const choca = await client.query(
     `SELECT id FROM appointments
       WHERE tenant_id = $1 AND owner_id = $2

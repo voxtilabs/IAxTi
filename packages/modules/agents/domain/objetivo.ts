@@ -84,11 +84,12 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
     // exactamente lo que la arquitectura le prohíbe.
     instruccion:
       'Tu objetivo es dejar lista {detalle}. Ofrece COMO MÁXIMO tres horarios concretos que hayas ' +
-      'confirmado con la agenda, nunca inventes disponibilidad, y cuando la persona elija uno pasa la ' +
-      'conversación para que alguien lo confirme y lo tome. Tú no tomas la hora: la ofreces. ' +
-      'Si no puedes ver la agenda, dilo y pasa la conversación a una persona.',
+      'confirmado con la agenda y nunca inventes disponibilidad. Cuando la persona elija uno, TÓMALO ' +
+      'con calendar.book, copiando el horario tal cual te lo devolvió calendar.get_slots: no lo ' +
+      'reescribas ni lo redondees. Si solo está preguntando qué horas hay, no tomes ninguna. ' +
+      'Si no puedes ver la agenda o no logras tomarla, dilo y pasa la conversación a una persona.',
     requiere: ['calendar'],
-    tools: ['calendar.get_slots', 'conversations.get_context'],
+    tools: ['calendar.get_slots', 'calendar.book', 'conversations.get_context'],
     eventoDeExito: ['appointment.created'],
     datosMinimos: ['el horario que prefiere', 'nombre'],
     detallePorDefecto: 'una hora',

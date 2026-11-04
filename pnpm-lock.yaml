@@ -266,6 +266,9 @@ importers:
       '@iaxti/module-knowledge':
         specifier: workspace:*
         version: link:../../packages/modules/knowledge
+      '@iaxti/module-organizations':
+        specifier: workspace:*
+        version: link:../../packages/modules/organizations
       '@iaxti/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
