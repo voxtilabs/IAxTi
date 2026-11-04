@@ -80,6 +80,29 @@ export async function citasPorRecordar(
  * caso del orden inverso es mandarlo tres veces, que es de las cosas que
  * hacen que alguien bloquee un número.
  */
+/**
+ * Deja escrito por qué no salió el aviso, y devuelve la cita a `confirmed`
+ * (#1250).
+ *
+ * Va en su propia función y no dentro de `tick` para que se pueda probar
+ * sola, y escribe el motivo tal como lo dio quien envía: ese texto ya está
+ * redactado para que lo lea el dueño («este contacto no tiene conversación por
+ * dónde avisarle»), no es un error de servidor.
+ */
+export async function guardarElMotivo(
+  client: PoolClient,
+  input: { tenantId: string; appointmentId: string; motivo: string },
+): Promise<void> {
+  await client.query(
+    `UPDATE appointments
+        SET aviso_error = $3,
+            status = CASE WHEN status = 'reminded' THEN 'confirmed' ELSE status END,
+            updated_at = now()
+      WHERE tenant_id = $1 AND id = $2`,
+    [input.tenantId, input.appointmentId, input.motivo],
+  );
+}
+
 export async function marcarAvisoEnviado(
   client: PoolClient,
   input: { tenantId: string; appointmentId: string; aviso: AvisoId; requestId?: string },
@@ -88,12 +111,15 @@ export async function marcarAvisoEnviado(
     `UPDATE appointments
         SET reminders_sent = reminders_sent || to_jsonb($3::text),
             status = CASE WHEN status = 'confirmed' THEN 'reminded' ELSE status END,
+            aviso_error = NULL,
             updated_at = now()
       WHERE tenant_id = $1 AND id = $2 AND NOT (reminders_sent ? $3)
       RETURNING id`,
     [input.tenantId, input.appointmentId, input.aviso],
   );
   if (r.rowCount === 0) return false; // ya estaba marcado: alguien se adelantó
+  // Un intento nuevo borra el motivo del anterior: si no, un fallo de ayer
+  // seguiría en pantalla sobre una cita a la que hoy sí se le avisó.
 
   await publishEvent(client, {
     name: 'appointment.reminder_sent',
@@ -202,8 +228,30 @@ export async function barrerRecordatorios(
           enviado: false,
           motivo: err.message,
         }));
-        if (res.enviado) enviados += 1;
-        else saltados += 1;
+        if (res.enviado) {
+          enviados += 1;
+          continue;
+        }
+        saltados += 1;
+        /**
+         * El fallo deja rastro EN LA CITA (#1250).
+         *
+         * Antes solo se contaba. El aviso quedaba consumido y la cita en
+         * `reminded`, así que la pantalla decía «Avisada» sobre alguien a
+         * quien no le llegó nada: un silencio convertido en mentira, que es
+         * peor que el silencio.
+         *
+         * El estado se devuelve a `confirmed` porque `reminded` significa
+         * «se le avisó» y no se le avisó. El aviso SÍ queda consumido —no se
+         * deshace— para no reintentar en bucle un fallo que no se va a
+         * arreglar solo: quien lo arregla es una persona, y para eso necesita
+         * ver el motivo.
+         */
+        await guardarElMotivo(client, {
+          tenantId: cita.tenantId,
+          appointmentId: cita.appointmentId,
+          motivo: res.motivo ?? 'no se pudo enviar y nadie dijo por qué',
+        });
       }
     }
   }, { ids: conCitas });

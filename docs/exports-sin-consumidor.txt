@@ -84,7 +84,6 @@ billing/planPricing
 calendar/AVISOS
 calendar/ESTADOS_CITA
 calendar/assertTransicionCita
-calendar/citasPorRecordar
 calendar/comoHora
 calendar/cuandoEnPalabras
 calendar/huecosLibres

@@ -1,0 +1,17 @@
+-- Por qué no salió el recordatorio (#1250).
+--
+-- `marcarAvisoEnviado` consume el aviso y pasa la cita a `reminded` ANTES de
+-- intentar el envío —a propósito: el orden inverso manda el mismo recordatorio
+-- tres veces cuando dos barridos se cruzan—. Pero si el envío después fallaba,
+-- el motivo se perdía: `tick` solo lo contaba (`saltados += 1`) y la pantalla
+-- seguía diciendo «Avisada». El dueño veía una cita avisada a la que nunca le
+-- llegó nada.
+--
+-- Una sola columna, y no dos: la primera versión traía también `aviso_error_at`
+-- y un índice para «los fallos de este negocio, del más nuevo al más viejo».
+-- El trinquete de columnas sin lector (#703) la rechazó con razón — esa
+-- pantalla no existe, y `updated_at` ya cambia en el mismo UPDATE, así que el
+-- cuándo no se pierde. Se agrega cuando haya quien la lea.
+--
+-- Aditiva: nace nula y ninguna cita existente cambia de comportamiento.
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS aviso_error text;

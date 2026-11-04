@@ -615,6 +615,7 @@ export interface CitaDto {
    * se dice en la cita en vez de quedar en una columna que nadie mira.
    */
   googleSyncError: string | null;
+  avisoError: string | null;
 }
 
 /** Por qué se nos cancelan las visitas (#700). */
