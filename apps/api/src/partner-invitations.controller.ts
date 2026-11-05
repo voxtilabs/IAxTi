@@ -4,6 +4,9 @@ import { z } from 'zod';
 import type { Response } from 'express';
 import { createQueue, redisConnection } from '@iaxti/core';
 import { partnerPorts, partnerStatus, startPartnerInvitation, resumePartnerInvitation, receivePartnerWebhook, PartnerError, type PartnerPorts } from '@iaxti/module-whatsapp';
+import { resolveUserEmail, sendNotificationEmail } from '@iaxti/module-notifications';
+import { getTenant } from '@iaxti/module-organizations';
+import { withTenant } from '@iaxti/db';
 import { apiPool } from './db';
 import { registry } from './registry';
 import { RequireAuth, RequireModule, RequirePermission } from './authz/decorators';
@@ -49,7 +52,44 @@ export class PartnerInvitationsController {
   start(@Req()req:WithUser,@Cuerpo(empty)_body:z.infer<typeof empty>){
     const key=req.headers['idempotency-key'];
     if(typeof key!=='string'||!key.trim()||key.length>255)throw new BadRequestException({code:'IDEMPOTENCY_KEY_REQUIRED',message:'Actualiza la página y vuelve a iniciar la conexión.'});
-    return safe(()=>startPartnerInvitation(pool(this.deps),{...actor(req),key},this.deps.ports()));
+    return safe(async()=>{
+      const a=actor(req);const p=pool(this.deps);
+      const estado=await startPartnerInvitation(p,{...a,key},this.deps.ports());
+      /**
+       * Y el enlace sale por correo, SOLO (#1259).
+       *
+       * No hay botón ni ruta aparte: quien crea la conexión recibe el enlace
+       * en su bandeja y puede reenviárselo a quien tenga el teléfono. Una
+       * ruta «enviar» que ninguna pantalla llama es una ruta que no existe —
+       * lo dice el trinquete de rutas sin consumidor, y tiene razón.
+       *
+       * Va DESPUÉS y en su propio `catch`: el alta ya está creada y el
+       * enlace ya viaja en la respuesta. Que el correo falle no puede
+       * convertir una conexión creada en un error.
+       */
+      // En una constante: dentro del cierre asíncrono TypeScript pierde el
+      // estrechamiento de `estado.url`, y con razón — podría cambiar.
+      const enlace=estado.phase==='pending'?estado.url:null;
+      if(enlace){
+        try{
+          const [correo,negocio]=await Promise.all([
+            withTenant(p,a.tenantId,c=>resolveUserEmail(c,a.tenantId,a.actor)),
+            withTenant(p,a.tenantId,c=>getTenant(c,a.tenantId)),
+          ]);
+          if(correo){
+            await withTenant(p,a.tenantId,c=>sendNotificationEmail(c,{
+              tenantId:a.tenantId,userId:a.actor,para:correo ?? undefined,
+              title:`Conecta el WhatsApp de ${negocio.name}`,
+              body:'Abre este enlace para conectar el WhatsApp del negocio. Lo atiende Zavu, nuestro proveedor, y tiene fecha de vencimiento. Si el teléfono lo tiene otra persona, reenvíale este correo.',
+              cta:'Conectar el WhatsApp',enlaceAbsoluto:enlace,destinatario:'invitado',
+            }));
+          }
+        }catch(err){
+          console.warn(`[${a.requestId}] alta de WhatsApp: el enlace se creó pero el correo no salió — ${(err as Error).message}`);
+        }
+      }
+      return estado;
+    });
   }
   @Post('retomar')
   @HttpCode(200)

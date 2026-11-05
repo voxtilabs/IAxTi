@@ -179,7 +179,20 @@ describe('campana y preferencias (#55)', () => {
     expect(deVendedor.find((p) => p.type === 'calidad_numero')?.bloqueada).toBe(false);
   });
 
-  it('la plantilla del correo es sobria: titular, párrafo, un enlace', () => {
+  /**
+   * Esta prueba exigía además que no hubiera `<table>` (#1258).
+   *
+   * La intención era «sobria», y la mitad sigue en pie: nada de imágenes, que
+   * Gmail y Outlook bloquean por omisión y dejan un hueco con una cruz. Pero
+   * prohibir tablas era confundir sobriedad con HTML de página: en correo la
+   * tabla es la ÚNICA maquetación que respeta el motor de Word que usa
+   * Outlook, y un botón hecho con `padding` sobre un `<a>` sale plano ahí.
+   *
+   * Se cambia a sabiendas, porque el producto decidió que sus correos tengan
+   * su identidad. Lo que las reglas de correo exigen de verdad —nada externo,
+   * nada obligatorio— lo fija `el-correo-parece-nuestro.test.ts`.
+   */
+  it('la plantilla lleva el titular, el párrafo y un enlace que funciona', () => {
     const { subject, html } = renderEmail({
       title: 'Conversación nueva sin dueño',
       body: 'Lleva 12 minutos esperando.',
@@ -189,7 +202,7 @@ describe('campana y preferencias (#55)', () => {
     expect(subject).toBe('Conversación nueva sin dueño');
     expect(html).toContain('https://app-staging.iaxti.cl/bandeja');
     expect(html).toContain('Ajustes → Notificaciones');
-    expect(html).not.toMatch(/<img|<table/); // sobria de verdad
+    expect(html).not.toMatch(/<img/);
   });
 });
 
