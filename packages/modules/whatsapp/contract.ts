@@ -96,3 +96,8 @@ export type { PartnerPorts } from './application/partner-provider';
 export { partnerStatus, startPartnerInvitation, resumePartnerInvitation, receivePartnerWebhook, processPartnerInvitation, maintainPartnerInvitations } from './application/partner-invitations';
 export type { PartnerStatus } from './application/partner-invitations';
 
+export { consultarMensajeDelCanal, type MensajeDelCanal, type ConsultaDelCanal } from './application/mensaje-del-canal';
+
+// La tabla de tipos del canal. Se exporta para que la guarda del camino de
+// entrada pueda cruzarla contra lo que la tabla acepta (#1266).
+export { TIPOS } from './application/zavu';

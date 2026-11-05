@@ -212,6 +212,9 @@ export class WebhooksController {
           moduleId: 'conversations',
           tenantId: account.tenantId,
           statuses,
+          // Para resolver el eco (#1265): con qué credencial preguntarle a
+          // Zavu por un id desconocido, y a qué emisor pertenece el hilo.
+          channelAccountId: account.id,
           requestId: request.requestId,
         },
         { jobId: `st-${account.id}-${primer.providerMessageId}-${primer.status}-${statuses.length}` },

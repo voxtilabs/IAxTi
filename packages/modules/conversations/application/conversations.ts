@@ -20,9 +20,51 @@ export type MessageType =
   | 'ubicacion'
   | 'contacto'
   | 'plantilla'
-  | 'interactivo';
+  | 'interactivo'
+  // Los dos que faltaban (#1266). El adaptador de Zavu los producía desde
+  // siempre y la tabla los rechazaba, así que un video o un 👍 del cliente
+  // reventaban la transacción y se perdían con su contacto y su conversación.
+  | 'video'
+  | 'reaccion';
 
 export type AuthorKind = 'contact' | 'user' | 'agent' | 'system';
+
+/**
+ * Los tipos que la tabla acepta, y la red que impide perder un mensaje por
+ * uno que no conoce (#1266).
+ *
+ * Esta lista y el CHECK de la migración son la MISMA declaración en dos
+ * idiomas, y separarlas ya costó caro: el adaptador producía `video` y
+ * `reaccion`, la tabla los rechazaba, y cada video de un cliente se llevaba
+ * por delante su contacto y su conversación.
+ *
+ * Ensanchar el CHECK arregla los dos que faltaban. Esto arregla el PRÓXIMO:
+ * el día que el proveedor estrene un tipo —y lo va a hacer—, el mensaje entra
+ * como `texto` y se ve en la bandeja. Un mensaje con el tipo equivocado es
+ * infinitamente mejor que un mensaje perdido con su ficha.
+ */
+const TIPOS_QUE_LA_TABLA_ACEPTA: readonly MessageType[] = [
+  'texto',
+  'imagen',
+  'audio',
+  'documento',
+  'ubicacion',
+  'contacto',
+  'plantilla',
+  'interactivo',
+  'video',
+  'reaccion',
+];
+
+export function tipoQueSePuedeGuardar(
+  tipo: string | undefined,
+  avisar?: (desconocido: string) => void,
+): MessageType {
+  if (!tipo) return 'texto';
+  if ((TIPOS_QUE_LA_TABLA_ACEPTA as readonly string[]).includes(tipo)) return tipo as MessageType;
+  avisar?.(tipo);
+  return 'texto';
+}
 
 export interface Conversation {
   id: string;
@@ -518,7 +560,12 @@ async function ingestInbound(
     [
       input.tenantId,
       conversation.id,
-      input.type ?? 'texto',
+      tipoQueSePuedeGuardar(input.type, (t) =>
+        console.warn(
+          `conversaciones: el canal mandó el tipo "${t}", que la tabla no conoce. ` +
+            'Entra como texto para no perder el mensaje; si se repite, ensancha el CHECK (#1266).',
+        ),
+      ),
       input.body ?? null,
       JSON.stringify(input.attachments ?? []),
       input.providerMessageId ?? null,
@@ -614,7 +661,7 @@ export async function sendMessage(client: PoolClient, input: SendMessageInput): 
     [
       input.tenantId,
       conversation.id,
-      input.plantilla ? 'plantilla' : input.type ?? 'texto',
+      input.plantilla ? 'plantilla' : tipoQueSePuedeGuardar(input.type),
       input.body ?? null,
       JSON.stringify(input.attachments ?? []),
       input.authorKind,
@@ -842,6 +889,139 @@ export async function listMessages(
  * repetidos: lo no-avanzable se IGNORA en silencio (no es un error).
  * El costo de Meta, cuando viene, queda en meta.costo.
  */
+/**
+ * Qué pasó con un estado que llegó del canal (#1265).
+ *
+ * Antes esto devolvía `Message | null`, y ese `null` significaba tres cosas a
+ * la vez: «no es un mensaje nuestro», «el estado no avanza» y «algo reventó».
+ * Las tres se trataban igual —en silencio—, y la primera resultó ser la puerta
+ * por la que se perdía todo lo que el dueño manda desde su teléfono.
+ */
+export type ResultadoDeEstado =
+  | { estado: 'aplicado'; message: Message }
+  | { estado: 'no_avanzable'; actual: DeliveryStatus | null }
+  | { estado: 'desconocido' };
+
+export interface SalienteDelCanalInput {
+  tenantId: string;
+  conversationId: string;
+  /** El id del PROVEEDOR. Es lo que da la idempotencia. */
+  providerMessageId: string;
+  /** Como lo reportó el canal. Nunca `queued`: esto ya salió. */
+  deliveryStatus: Exclude<DeliveryStatus, 'queued'>;
+  type?: MessageType;
+  body?: string | null;
+  channelAccountId?: string | null;
+  meta?: Record<string, unknown>;
+  requestId?: string;
+}
+
+/**
+ * Registra un saliente que el negocio mandó POR FUERA de IAxTi (#1265).
+ *
+ * El caso real: el dueño contesta desde la aplicación de WhatsApp de su
+ * teléfono. Zavu lo guarda y nos avisa —como el estado de un mensaje que no
+ * conocemos—, y hasta ahora lo descartábamos. El resultado era una bandeja
+ * que muestra media conversación, y un bot que no sabe que ya le
+ * contestaron.
+ *
+ * Lo que esta función NO hace, y es la mitad del diseño:
+ *
+ * - **No mueve la ventana de 24 h.** La abre el cliente, no el negocio. El
+ *   trigger solo toca `last_inbound_at` con `direction='in'` y así se queda:
+ *   refrescarla haría que mandáramos mensajes libres fuera de ventana, que
+ *   Meta rechaza con 131047.
+ * - **No publica `message.sent`.** Ese evento suma `mensajes_enviados` y su
+ *   costo en analytics como si lo hubiéramos mandado nosotros, y le tilda a
+ *   `organizations` el paso `first_message` del onboarding.
+ * - **No publica `message.received`.** Dispararía el camino del copiloto: el
+ *   bot contestándole al dueño su propio mensaje.
+ * - **No vuelve a enviarlo.** Nace con el estado que ya traía del canal, y
+ *   `processOutbound` solo despacha lo que está en `queued`.
+ *
+ * `author_kind = 'user'` no es una etiqueta cómoda: es el valor que ya leen
+ * las guardas de autonomía para saber que habló una persona del negocio.
+ */
+export async function registrarSalienteDelCanal(
+  client: PoolClient,
+  input: SalienteDelCanalInput,
+): Promise<{ message: Message; creado: boolean }> {
+  const meta = { ...(input.meta ?? {}), eco: '1' };
+  /**
+   * El conflicto se absorbe acá y no se evita con un SELECT previo: los tres
+   * eventos del mismo mensaje (`sent`, `delivered`, `read`) llegan casi
+   * juntos, y entre el SELECT y el INSERT caben los otros dos.
+   *
+   * El `WHERE` del `ON CONFLICT` es obligatorio: `messages_provider_id_idx`
+   * es un índice PARCIAL y sin el predicado Postgres no lo infiere.
+   */
+  const insertado = await client.query(
+    `INSERT INTO messages
+       (tenant_id, conversation_id, direction, type, body, author_kind,
+        provider_message_id, delivery_status, meta)
+     VALUES ($1, $2, 'out', $3, $4, 'user', $5, $6, $7)
+     ON CONFLICT (tenant_id, provider_message_id)
+       WHERE provider_message_id IS NOT NULL
+       DO NOTHING
+     RETURNING *`,
+    [
+      input.tenantId,
+      input.conversationId,
+      tipoQueSePuedeGuardar(input.type, (t) =>
+        console.warn(
+          `conversaciones: el canal mandó el tipo "${t}", que la tabla no conoce. ` +
+            'Entra como texto para no perder el mensaje; si se repite, ensancha el CHECK (#1266).',
+        ),
+      ),
+      input.body ?? null,
+      input.providerMessageId,
+      input.deliveryStatus,
+      JSON.stringify(meta),
+    ],
+  );
+  if (insertado.rowCount === 0) {
+    const ya = await client.query(
+      `SELECT * FROM messages WHERE tenant_id = $1 AND provider_message_id = $2`,
+      [input.tenantId, input.providerMessageId],
+    );
+    return { message: rowToMessage(ya.rows[0]), creado: false };
+  }
+  const message = rowToMessage(insertado.rows[0]);
+
+  // El dueño contestó: el incumplimiento de SLA se detiene. Igual que
+  // `sendMessage`, y con COALESCE para no pisar una respuesta anterior.
+  await client.query(
+    `UPDATE conversations
+        SET first_response_at = COALESCE(first_response_at, now()), updated_at = now()
+      WHERE tenant_id = $1 AND id = $2`,
+    [input.tenantId, input.conversationId],
+  );
+
+  // Siempre, no bajo condición: importar a la bandeja algo que el negocio
+  // mandó por fuera es una mutación importante, y es el ÚNICO registro de que
+  // esa fila no la escribió IAxTi.
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: 'system',
+    actorKind: 'system',
+    ...(input.requestId ? { requestId: input.requestId } : {}),
+    action: 'conversation.message_imported_from_channel',
+    resource: 'message',
+    resourceId: message.id,
+    result: 'ok',
+    metadata: { conversationId: input.conversationId, canal: input.channelAccountId ?? null },
+  });
+
+  await publishEvent(client, {
+    name: 'message.imported_from_channel',
+    tenantId: input.tenantId,
+    payload: { conversationId: input.conversationId, messageId: message.id },
+    actor: 'system',
+    ...(input.requestId ? { requestId: input.requestId } : {}),
+  });
+  return { message, creado: true };
+}
+
 export async function updateDeliveryStatusByProviderId(
   client: PoolClient,
   input: {
@@ -852,13 +1032,17 @@ export async function updateDeliveryStatusByProviderId(
     cost?: Record<string, unknown>;
     requestId?: string;
   },
-): Promise<Message | null> {
+): Promise<ResultadoDeEstado> {
   const r = await client.query(
-    `SELECT id FROM messages
-      WHERE tenant_id = $1 AND provider_message_id = $2 AND direction = 'out'`,
+    `SELECT id, delivery_status FROM messages
+      WHERE tenant_id = $1 AND provider_message_id = $2 AND direction = 'out'
+      FOR UPDATE`,
     [input.tenantId, input.providerMessageId],
   );
-  if (r.rowCount === 0) return null; // estado de un mensaje que no es nuestro
+  // Desconocido NO es un error: puede ser el eco de algo que el negocio mandó
+  // por fuera de IAxTi. Quien llama decide qué hacer con eso.
+  if (r.rowCount === 0) return { estado: 'desconocido' };
+  const actual = (r.rows[0].delivery_status as DeliveryStatus | null) ?? null;
   try {
     const message = await updateDeliveryStatus(client, {
       tenantId: input.tenantId,
@@ -874,9 +1058,24 @@ export async function updateDeliveryStatusByProviderId(
         [input.tenantId, r.rows[0].id, JSON.stringify(input.cost)],
       );
     }
-    return message;
-  } catch {
-    return null; // regresión o terminal repetido: Meta reintenta, nosotros no lloramos
+    return { estado: 'aplicado', message };
+  } catch (err) {
+    /**
+     * Antes este `catch` era pelado y devolvía `null`.
+     *
+     * Se comía dos cosas distintas: un estado que retrocede —que es normal,
+     * Meta reintenta y nosotros no lloramos— y cualquier error de Postgres.
+     * Y como `withTenant` abre UNA transacción para todo el lote, un error de
+     * verdad dejaba a los estados siguientes del mismo job devolviendo `null`
+     * sin que nadie se enterara.
+     *
+     * Ahora solo se absorbe lo que `assertDeliveryAdvance` rechaza; lo demás
+     * se propaga y rompe el job, que es lo correcto.
+     */
+    if (err instanceof Error && /avanz|retroced|estado/i.test(err.message)) {
+      return { estado: 'no_avanzable', actual };
+    }
+    throw err;
   }
 }
 
