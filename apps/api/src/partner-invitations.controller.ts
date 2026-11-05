@@ -3,7 +3,7 @@ import { ApiBody, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/
 import { z } from 'zod';
 import type { Response } from 'express';
 import { createQueue, redisConnection } from '@iaxti/core';
-import {enviarElEnlace,  partnerPorts, partnerStatus, startPartnerInvitation, resumePartnerInvitation, receivePartnerWebhook, PartnerError, type PartnerPorts } from '@iaxti/module-whatsapp';
+import { partnerPorts, partnerStatus, startPartnerInvitation, resumePartnerInvitation, receivePartnerWebhook, PartnerError, type PartnerPorts } from '@iaxti/module-whatsapp';
 import { resolveUserEmail, sendNotificationEmail } from '@iaxti/module-notifications';
 import { getTenant } from '@iaxti/module-organizations';
 import { withTenant } from '@iaxti/db';
@@ -23,8 +23,6 @@ export const partnerHttp={pool:apiPool,ports:():PartnerPorts=>partnerPorts(()=>r
   }};
 const resume=z.strictObject({id:z.string().uuid()});
 const empty=z.strictObject({});
-/** Solo `para`, y opcional: sin él, al correo de quien lo pide. */
-const destinatario=z.strictObject({para:z.string().trim().min(1).max(254).optional()});
 function actor(req:WithUser) {const a=req.actor!;return {tenantId:a.tenantId,actor:a.userId,actorKind:a.kind==='apikey'?'apikey' as const:'user' as const,requestId:req.requestId};}
 function pool(deps:typeof partnerHttp) {const value=deps.pool();if(!value)throw new PartnerError('DB_NOT_CONFIGURED','No pudimos abrir la conexión. Intenta más tarde.',503);return value;}
 async function safe<T>(fn:()=>Promise<T>):Promise<T> {try{return await fn();}catch(e){if(e instanceof PartnerError)throw new HttpException({code:e.code,message:e.message},e.status);throw new HttpException({code:'PARTNER_UNAVAILABLE',message:'No pudimos completar la conexión. Revisa el estado y vuelve a intentar.'},503);}}
@@ -54,45 +52,45 @@ export class PartnerInvitationsController {
   start(@Req()req:WithUser,@Cuerpo(empty)_body:z.infer<typeof empty>){
     const key=req.headers['idempotency-key'];
     if(typeof key!=='string'||!key.trim()||key.length>255)throw new BadRequestException({code:'IDEMPOTENCY_KEY_REQUIRED',message:'Actualiza la página y vuelve a iniciar la conexión.'});
-    return safe(()=>startPartnerInvitation(pool(this.deps),{...actor(req),key},this.deps.ports()));
+    return safe(async()=>{
+      const a=actor(req);const p=pool(this.deps);
+      const estado=await startPartnerInvitation(p,{...a,key},this.deps.ports());
+      /**
+       * Y el enlace sale por correo, SOLO (#1259).
+       *
+       * No hay botón ni ruta aparte: quien crea la conexión recibe el enlace
+       * en su bandeja y puede reenviárselo a quien tenga el teléfono. Una
+       * ruta «enviar» que ninguna pantalla llama es una ruta que no existe —
+       * lo dice el trinquete de rutas sin consumidor, y tiene razón.
+       *
+       * Va DESPUÉS y en su propio `catch`: el alta ya está creada y el
+       * enlace ya viaja en la respuesta. Que el correo falle no puede
+       * convertir una conexión creada en un error.
+       */
+      // En una constante: dentro del cierre asíncrono TypeScript pierde el
+      // estrechamiento de `estado.url`, y con razón — podría cambiar.
+      const enlace=estado.phase==='pending'?estado.url:null;
+      if(enlace){
+        try{
+          const [correo,negocio]=await Promise.all([
+            withTenant(p,a.tenantId,c=>resolveUserEmail(c,a.tenantId,a.actor)),
+            withTenant(p,a.tenantId,c=>getTenant(c,a.tenantId)),
+          ]);
+          if(correo){
+            await withTenant(p,a.tenantId,c=>sendNotificationEmail(c,{
+              tenantId:a.tenantId,userId:a.actor,para:correo ?? undefined,
+              title:`Conecta el WhatsApp de ${negocio.name}`,
+              body:'Abre este enlace para conectar el WhatsApp del negocio. Lo atiende Zavu, nuestro proveedor, y tiene fecha de vencimiento. Si el teléfono lo tiene otra persona, reenvíale este correo.',
+              cta:'Conectar el WhatsApp',enlaceAbsoluto:enlace,destinatario:'invitado',
+            }));
+          }
+        }catch(err){
+          console.warn(`[${a.requestId}] alta de WhatsApp: el enlace se creó pero el correo no salió — ${(err as Error).message}`);
+        }
+      }
+      return estado;
+    });
   }
-  /**
-   * Mandar el enlace por correo (#1259).
-   *
-   * Existe porque quien abre la cuenta y quien tiene el teléfono con el
-   * WhatsApp del negocio casi nunca son la misma persona, y hasta ahora la
-   * única forma de pasárselo era copiarlo a mano.
-   *
-   * Mismo permiso que iniciar la conexión: quien puede crear la invitación
-   * puede mandarla. Un permiso nuevo para esto sería una puerta más que
-   * configurar sin proteger nada distinto.
-   */
-  @Post('enviar')
-  @HttpCode(200)
-  @RequirePermission('whatsapp.numbers.manage')
-  @Header('Cache-Control','no-store')
-  @ApiBody({schema:{type:'object',additionalProperties:false,properties:{para:{type:'string',description:'A quién. Sin esto, a tu propio correo.'}}}})
-  @ApiOperation({summary:'Enviar por correo el enlace para conectar WhatsApp'})
-  async enviar(@Req()req:WithUser,@Cuerpo(destinatario)body:z.infer<typeof destinatario>){
-    const a=actor(req);
-    const p=pool(this.deps);
-    const [correoPropio,negocio]=await Promise.all([
-      withTenant(p,a.tenantId,c=>resolveUserEmail(c,a.tenantId,a.actor)),
-      withTenant(p,a.tenantId,c=>getTenant(c,a.tenantId)),
-    ]);
-    return safe(()=>enviarElEnlace(p,{
-      tenantId:a.tenantId,actor:a.actor,actorKind:a.actorKind,
-      ...(a.requestId?{requestId:a.requestId}:{}),
-      ...(body.para?{para:body.para}:{}),
-      correoDelActor:correoPropio,
-      nombreDelNegocio:negocio.name,
-    },this.deps.ports(),async (correo)=>withTenant(p,a.tenantId,c=>sendNotificationEmail(c,{
-      tenantId:a.tenantId,userId:a.actor,para:correo.para,
-      title:correo.titulo,body:correo.cuerpo,cta:correo.cta,
-      enlaceAbsoluto:correo.enlace,destinatario:'invitado',
-    }))));
-  }
-
   @Post('retomar')
   @HttpCode(200)
   @RequirePermission('whatsapp.numbers.manage')

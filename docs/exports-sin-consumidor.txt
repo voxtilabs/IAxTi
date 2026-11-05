@@ -145,7 +145,6 @@ notifications/dispatchTeamWhatsApp
 notifications/notifyUser
 notifications/renderEmail
 notifications/resetSmtp
-notifications/resolveUserEmail
 notifications/sendPushToUser
 notifications/teamWhatsAppTargets
 organizations/FUERA_DE_LA_EXPORTACION

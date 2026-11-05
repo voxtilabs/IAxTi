@@ -96,4 +96,3 @@ export type { PartnerPorts } from './application/partner-provider';
 export { partnerStatus, startPartnerInvitation, resumePartnerInvitation, receivePartnerWebhook, processPartnerInvitation, maintainPartnerInvitations } from './application/partner-invitations';
 export type { PartnerStatus } from './application/partner-invitations';
 
-export { enviarElEnlace, type EnvioDelEnlace } from './application/enviar-el-enlace';
