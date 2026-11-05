@@ -187,10 +187,24 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
       for (const file of walk(base)) {
         if (file.endsWith('pulso-tokens.css')) continue;
         if (file.endsWith('pulso.test.ts')) continue; // este archivo cita hex del documento
-        // El snippet del webchat (#46) corre en SITIOS DE TERCEROS, donde las
-        // variables Pulso no existen: sus dos hex (acción y blanco) son el
-        // único caso legítimo fuera de los tokens.
+        /**
+         * Lo que NO se renderiza en nuestra aplicación.
+         *
+         * Pulso vive en variables CSS, y hay dos medios donde esas variables
+         * sencillamente no existen. No es una concesión de estilo: es que el
+         * mecanismo no llega hasta ahí.
+         *
+         * - El snippet del webchat (#46) corre en SITIOS DE TERCEROS.
+         * - La plantilla de correo (#1258) corre en Gmail y en Outlook, que
+         *   borran `<style>` y no tienen `:root`. Un color sin declarar en
+         *   línea termina invertido por el modo oscuro del cliente, que es
+         *   peor que un hex escrito a mano.
+         *
+         * Son dos, y la lista no debería crecer sin esa misma justificación:
+         * «el medio no soporta variables CSS», no «me quedaba más cómodo».
+         */
         if (file.endsWith('public/webchat.js')) continue;
+        if (file.endsWith('notifications/application/email.ts')) continue;
         const content = readFileSync(file, 'utf8');
         // Hex de color CSS/JSX; el límite de 8 deja fuera ids y hashes largos.
         //
