@@ -1,5 +1,5 @@
 import IORedis from 'ioredis';
-import { DelayedError, Queue, Worker, type JobsOptions, type Processor } from 'bullmq';
+import { DelayedError, Queue, Worker, type Processor, type RepeatOptions } from 'bullmq';
 import { conContextoDeLog, conTrazaDelJob, contextoDeTraza } from '@iaxti/telemetry';
 import { textoDeEntorno } from './entorno';
 import type { ModuleRegistry } from './registry';
@@ -131,7 +131,13 @@ export function createModuleWorker(
 export interface Repetible {
   nombre: string;
   moduleId: string;
-  repeat: JobsOptions['repeat'];
+  /**
+   * La pauta. En BullMQ 6 `repeat` salió de `JobsOptions` y vive en su propio
+   * tipo: los repetibles dejaron de ser «un job con una opción» para ser
+   * `jobSchedulers`, que es lo que este archivo ya leía con
+   * `getJobSchedulers()`.
+   */
+  repeat: Omit<RepeatOptions, 'key'>;
 }
 
 /**
@@ -168,10 +174,50 @@ export async function programarRepetibles(
   cola: Queue,
   repetibles: Repetible[],
 ): Promise<string[]> {
+  /*
+   * `upsertJobScheduler` y no `add(..., { repeat })` (BullMQ 6).
+   *
+   * Es la misma cosa con otro nombre: BullMQ 5 ya creaba un `jobScheduler` por
+   * debajo —de ahí que la comprobación de abajo lea `getJobSchedulers()`—, y
+   * en 6 eso dejó de estar escondido detrás de una opción de `add`. El id del
+   * scheduler es el nombre de la tarea, que es lo que la comprobación compara.
+   */
   await Promise.all(
-    repetibles.map((r) => cola.add(r.nombre, { moduleId: r.moduleId }, { repeat: r.repeat })),
+    repetibles.map((r) =>
+      cola.upsertJobScheduler(r.nombre, r.repeat, {
+        name: r.nombre,
+        data: { moduleId: r.moduleId },
+      }),
+    ),
   );
-  const programados = new Set((await cola.getJobSchedulers()).map((s) => s.name));
+  /*
+   * Y se limpia lo que sobra, que en BullMQ 6 no es opcional.
+   *
+   * Medido en el Redis de desarrollo antes de subir: los 19 repetibles
+   * estaban registrados con una clave HASH —`6e0f6def…`, con el nombre
+   * guardado adentro—, porque así los creaba `add(..., { repeat })`. Con
+   * `upsertJobScheduler` la clave pasa a ser el NOMBRE, así que al desplegar
+   * quedarían los dos: el hash viejo repitiendo y el nuevo también. Diecinueve
+   * tareas corriendo dos veces, entre ellas `conversations.retention` —que el
+   * runbook marca como compromiso legal— y `api_usage.flush`, que cobra.
+   *
+   * Se borra por CLAVE y no por nombre: la clave de los viejos es el hash, que
+   * nunca va a estar en la lista de nombres esperados. De paso arregla algo
+   * que ya faltaba —un repetible que se saca del código seguía programado para
+   * siempre— y por eso el borrado se NOMBRA en el log: borrar tareas
+   * programadas en silencio es peor que dejarlas.
+   */
+  const esperados = new Set(repetibles.map((r) => r.nombre));
+  const sobran = (await cola.getJobSchedulers()).filter((s) => !esperados.has(s.key));
+  for (const s of sobran) {
+    await cola.removeJobScheduler(s.key);
+    console.warn(
+      `colas: se quitó el repetible «${s.name ?? '(sin nombre)'}» (clave ${s.key}), que ya no ` +
+        'está declarado. Si es de una versión anterior, esto evita que la tarea corra dos veces.',
+    );
+  }
+
+  const programados = new Set((await cola.getJobSchedulers()).map((s) => s.key));
   const faltan = repetibles.map((r) => r.nombre).filter((n) => !programados.has(n));
   if (faltan.length > 0) {
     throw new Error(
