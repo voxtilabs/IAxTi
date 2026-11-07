@@ -121,11 +121,27 @@ export function DiasCerrados() {
 
   if (carga.estado === 'nada-que-pedir') return null;
   if (carga.estado === 'cargando') {
-    // 728 MEDIDOS con `esqueletos-medidos`, no puestos a ojo: el panel cargado
-    // con un feriado y una semana de vacaciones mide 810 px a 360 px de ancho,
-    // y el marco aporta los 82 que faltan. A ojo le había puesto 332 —casi 400
-    // px de salto, que en un celular es media pantalla moviéndose de golpe.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={728} filas={2} superficie="raised" />;
+    /*
+     * 730 MEDIDOS con `esqueletos-medidos`, y el número sale de DOS mediciones
+     * que no coinciden:
+     *
+     *   acá  → contenido 799,6 px
+     *   CI   → contenido 825,6 px  (medido 835,6 antes de recortar la prosa)
+     *
+     * Los 26 px de diferencia son el renderizado de fuentes del runner, que no
+     * tiene las mismas instaladas: el mismo texto envuelve en más líneas. Los
+     * otros cinco paneles también difieren, solo que menos que la tolerancia
+     * de 16 px; este tiene más párrafo que puede envolver.
+     *
+     * Así que el alto no persigue ninguna de las dos: queda a 13 px de las
+     * dos, dentro de la tolerancia en los dos entornos (el marco aporta 82).
+     * Perseguir la medida local deja CI rojo, y perseguir la de CI deja un
+     * salto visible acá.
+     *
+     * (A ojo le había puesto 332 — casi 400 px de salto, que en un celular es
+     * media pantalla moviéndose de golpe.)
+     */
+    return <PanelCargando etiqueta={titulo} className={marco} alto={730} filas={2} superficie="raised" />;
   }
   if (carga.estado !== 'ok') {
     return (
@@ -151,8 +167,7 @@ export function DiasCerrados() {
         <span className="rotulo">Feriados, vacaciones, el día que cierras</span>
       </p>
       <p className="mt-1 max-w-prose text-sm text-body">
-        Un día cerrado no ofrece ninguna hora, aunque sea un día que atiendes. El asistente
-        tampoco lo ofrece.
+        Un día cerrado no ofrece ninguna hora, ni el asistente tampoco.
       </p>
 
       {aviso && <AvisoResultado tono={aviso.tono}>{aviso.texto}</AvisoResultado>}
@@ -227,8 +242,7 @@ export function DiasCerrados() {
           {ocupado === 'nuevo' ? 'Cerrando…' : 'Cerrar estos días'}
         </Button>
         <span className="w-full text-xs text-muted">
-          Cerrar un día no cancela las citas que ya estaban tomadas: te decimos cuántas quedaron
-          adentro para que las muevas tú.
+          Cerrar no cancela las citas ya tomadas: te decimos cuántas quedaron adentro.
         </span>
       </Formulario>
     </section>
