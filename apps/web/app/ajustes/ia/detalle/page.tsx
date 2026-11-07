@@ -2,6 +2,7 @@ import { AppShell } from '../../../../components/app-shell';
 import { navDesdeLaApi } from '../../../../lib/nav';
 import { ConsumoIA } from '../../../../components/consumo-ia';
 import { Asistente } from '../../../../components/asistente';
+import { QuePuedeHacer } from '../../../../components/que-puede-hacer';
 import { ModoAutonomo } from '../../../../components/modo-autonomo';
 import { Evaluaciones } from '../../../../components/evaluaciones';
 import { LogroDelObjetivo } from '../../../../components/logro-del-objetivo';
@@ -42,6 +43,9 @@ export default async function PaginaDetalleDelAsistente() {
       <AjustesDeIa />
       <Configurador />
       <Asistente />
+      {/* Debajo del asistente: primero quién es y qué objetivo tiene,
+          después qué puede hacer (#1285). */}
+      <QuePuedeHacer />
       <ModoAutonomo />
       <LogroDelObjetivo />
       <div className="mt-6">

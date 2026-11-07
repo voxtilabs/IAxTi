@@ -216,3 +216,10 @@ export type { DefectoDeLaTarea } from './application/defecto-de-la-plataforma';
 
 // Supresión legal coordinada por CRM en una única transacción (#903).
 export { suprimirDatosDelTitular } from './application/titular';
+
+// Qué puede hacer el asistente, dicho para el dueño (#1285).
+export {
+  CATALOGO_PARA_EL_DUENO,
+  sirveParaEseAsistente,
+} from './domain/catalogo-para-el-dueno';
+export type { HerramientaParaElDueno } from './domain/catalogo-para-el-dueno';

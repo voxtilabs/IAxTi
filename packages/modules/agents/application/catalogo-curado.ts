@@ -24,6 +24,13 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PartnerInvitationsController_status: 'Invitación privada de WhatsApp: consentimiento humano, nunca tool de IA.',
   PartnerInvitationsController_start: 'Inicia autorización externa de Meta desde sesión humana.',
   PartnerInvitationsController_resume: 'Recuperación explícita de autorización externa por la persona.',
+  // El catálogo de herramientas es para la pantalla que configura al
+  // asistente (#1285). No se le ofrece al Agente General: lo que un asistente
+  // puede hacer ya viaja en su propio `tools/list`, y darle esta ruta sería
+  // un segundo camino a la misma respuesta — con la diferencia de que esta
+  // habla de OTRO asistente, que no es asunto suyo.
+  AgentsController_herramientas: 'El catálogo de lo que puede hacer un asistente es para su pantalla de configuración; cada asistente ya recibe sus propias herramientas (#1285).',
+
   GoogleCalendarController_estado: 'Estado de la conexión OAuth personal para su pantalla; el agente usa agenda.huecos, no credenciales (#57).',
   GoogleCalendarController_iniciar: 'Consentimiento del navegador con state, nonce y PKCE; solo lo inicia la persona (#57).',
   GoogleCalendarController_completar: 'Canje de código OAuth y verifier de una pestaña; nunca son argumentos de una herramienta de IA (#57).',

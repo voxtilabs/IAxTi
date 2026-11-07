@@ -6,6 +6,7 @@ import type { RetencionDto } from '../components/retencion-del-negocio';
 import type { ConfigDto } from '../components/recordatorios-de-cita';
 import type { CorridaDto } from '../components/evaluaciones';
 import type { TasaDto } from '../components/logro-del-objetivo';
+import type { QuePuedeHacerDto } from '../components/que-puede-hacer';
 import { join } from 'node:path';
 
 /**
@@ -115,6 +116,24 @@ const ASISTENTES = [
   { id: '00000000-0000-4000-8000-00000000a001', name: 'Vendedora', provider: 'openai', model: 'gpt-5-mini', objetivo: 'agendar_visita' },
 ];
 
+/**
+ * Lo que un asistente de `agendar` tiene a la vista: seis de mirar y dos de
+ * escribir, con una obligada por el objetivo (#1285).
+ */
+const QUE_PUEDE_HACER: QuePuedeHacerDto = {
+  destinatario: 'cliente',
+  herramientas: [
+    { nombre: 'conversations.get_context', rotulo: 'Mirar lo que ya se habló en la conversación', escribe: false, modulo: 'conversations', obligatoria: true, marcada: true, disponible: true },
+    { nombre: 'knowledge.search', rotulo: 'Buscar en lo que le enseñaste del negocio', escribe: false, modulo: 'knowledge', obligatoria: false, marcada: false, disponible: true },
+    { nombre: 'knowledge.get_product', rotulo: 'Consultar un producto del catálogo', escribe: false, modulo: 'knowledge', obligatoria: false, marcada: false, disponible: true },
+    { nombre: 'calendar.get_slots', rotulo: 'Ver los horarios libres de la agenda', escribe: false, modulo: 'calendar', obligatoria: true, marcada: true, disponible: true },
+    { nombre: 'crm.find_contact', rotulo: 'Buscar la ficha de un cliente', escribe: false, modulo: 'crm', obligatoria: false, marcada: false, disponible: true },
+    { nombre: 'crm.get_history', rotulo: 'Ver qué le compró antes y qué se le dijo', escribe: false, modulo: 'crm', obligatoria: false, marcada: false, disponible: true },
+    { nombre: 'calendar.book', rotulo: 'Tomar una hora en la agenda', escribe: true, modulo: 'calendar', obligatoria: true, marcada: true, disponible: true },
+    { nombre: 'crm.create_activity', rotulo: 'Dejar una nota o una tarea en la ficha', escribe: true, modulo: 'crm', obligatoria: false, marcada: false, disponible: true },
+  ],
+};
+
 const PANELES: Array<{
   titulo: string; pantalla: string; ruta: string; cuerpo: unknown;
   /** Rutas que hay que contestar ANTES, sin demora, para que el panel exista. */
@@ -126,6 +145,8 @@ const PANELES: Array<{
   { titulo: 'Evaluaciones del asistente', pantalla: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/evals', cuerpo: CORRIDAS,
     previas: [{ ruta: '**/v1/agents', cuerpo: ASISTENTES }] },
   { titulo: 'Logro del objetivo', pantalla: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/objetivo', cuerpo: TASA,
+    previas: [{ ruta: '**/v1/agents', cuerpo: ASISTENTES }] },
+  { titulo: 'Qué puede hacer', pantalla: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/herramientas', cuerpo: QUE_PUEDE_HACER,
     previas: [{ ruta: '**/v1/agents', cuerpo: ASISTENTES }] },
 ];
 

@@ -1,4 +1,11 @@
-import { diagnosticarLaIa, semillaCacheada } from '@iaxti/module-agents';
+import {
+  diagnosticarLaIa,
+  semillaCacheada,
+  CATALOGO_PARA_EL_DUENO,
+  sirveParaEseAsistente,
+  HERRAMIENTAS_DE_LECTURA,
+  HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS,
+} from '@iaxti/module-agents';
 import {
   BadRequestException,
   Body,
@@ -363,6 +370,39 @@ export class AgentsController {
     const actor = actorOf(request);
     try {
       return await withTenant(pool(), actor.tenantId, async (c) => {
+        /*
+         * Las herramientas que manda se validan ACÁ y no solo en la pantalla
+         * (#1285).
+         *
+         * La pantalla filtra por destinatario, pero una llave de API entra por
+         * la misma puerta sin pasar por ninguna pantalla. Sin esta validación,
+         * un `PUT` con `allowedTools: ['analytics.metrica']` sobre un asistente
+         * de WhatsApp le colgaría las cifras del negocio a un bot que habla con
+         * clientes — el agujero exacto que la #410 cerró por el otro lado.
+         *
+         * Y lo segundo: una herramienta que no existe se guardaba sin chistar.
+         * No rompía nada porque `allowedToolsFor` la filtra después, pero el
+         * dueño guardaba algo que no hacía nada y nadie se lo decía.
+         */
+        if (body.allowedTools !== undefined) {
+          const agente = await getAgentContract(c, actor.tenantId, id);
+          // El objetivo puede venir cambiado en el MISMO cuerpo, y entonces
+          // manda el nuevo: validar contra el viejo rechazaría una
+          // configuración legítima.
+          const objetivo = body.objetivo === undefined ? agente.objetivo : body.objetivo;
+          const destinatario = objetivo ? DEFINICIONES[objetivo].destinatario : ('cliente' as const);
+          const malas = body.allowedTools.filter((t) => !sirveParaEseAsistente(t, destinatario));
+          if (malas.length) {
+            throw new BadRequestException({
+              code: 'AGENT_TOOL_INVALID',
+              message:
+                `Estas no se le pueden dar a este asistente: ${malas.join(', ')}. ` +
+                (destinatario === 'cliente'
+                  ? 'Las cifras del negocio son del asistente del dueño, no de uno que atiende clientes.'
+                  : 'Un asistente del dueño no toma ni mueve horas de clientes.'),
+            });
+          }
+        }
         // El gate (#53): a una config con score MENOR no se pasa. Solo
         // bloquea cuando hay evaluaciones de ambas versiones.
         const cambiaConfig =
@@ -391,6 +431,11 @@ export class AgentsController {
       });
     } catch (err) {
       if (err instanceof ConflictException) throw err;
+      // Y el BadRequest que lanza la validación de herramientas: sin esta
+      // línea se reenvolvía en `AGENT_INVALID` y su `message` —que es un
+      // objeto, no una cadena— terminaba en el cuerpo como `undefined`. El
+      // dueño veía «algo salió mal» en vez de qué herramienta no corresponde.
+      if (err instanceof BadRequestException) throw err;
       const message = (err as Error).message;
       if (/No encontramos/.test(message)) throw new NotFoundException({ code: 'AGENT_NOT_FOUND', message });
       throw new BadRequestException({ code: 'AGENT_INVALID', message });
@@ -435,6 +480,72 @@ export class AgentsController {
         mide: d.eventoDeExito.length > 0,
       };
     });
+  }
+
+  /**
+   * Qué puede hacer este asistente, para la pantalla que lo configura (#1285).
+   *
+   * Va por el servidor y no como constante del frontend, por el mismo motivo
+   * que `GET agents/objetivos`: una copia allá se desincroniza y nadie se
+   * entera hasta que alguien marca una casilla que ya no existe.
+   *
+   * Tres cosas que la pantalla no puede calcular sola:
+   *
+   *  - **`obligatoria`** — la exige el objetivo y no se puede quitar. Un
+   *    asistente de `agendar` sin `calendar.get_slots` prometería horas que no
+   *    puede ver.
+   *  - **`disponible`** — su módulo está activo para este negocio. Lo que no
+   *    está disponible NO se esconde: se muestra bloqueado con el motivo,
+   *    porque es lo que le dice al negocio qué le falta (SPEC §6).
+   *  - **el filtro por destinatario** — a un asistente que atiende clientes no
+   *    se le ofrecen las cifras del negocio (#410). Sin esto, la pantalla
+   *    reabriría por configuración el agujero que `atiendeClientes()` cerró.
+   */
+  @Get(':id/herramientas')
+  @RequirePermission('agents.configure')
+  @ApiOperation({ summary: 'Qué puede hacer este asistente, y qué más podría' })
+  async herramientas(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    const agente = await withTenant(pool(), actor.tenantId, (c) =>
+      getAgentContract(c, actor.tenantId, id),
+    );
+    const activos = new Set(registry.health().filter((m) => m.active).map((m) => m.id));
+    // Sin objetivo atiende clientes, que es como funcionaban todos antes de
+    // que el eje existiera (#410).
+    const destinatario = agente.objetivo
+      ? DEFINICIONES[agente.objetivo].destinatario
+      : ('cliente' as const);
+    const delObjetivo = new Set(
+      agente.objetivo ? DEFINICIONES[agente.objetivo].tools : [],
+    );
+    const marcadas = new Set(agente.allowedTools);
+
+    const todas = [
+      ...Object.keys(HERRAMIENTAS_DE_LECTURA),
+      ...Object.keys(HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS),
+    ];
+    return {
+      destinatario,
+      herramientas: todas
+        .filter((nombre) => sirveParaEseAsistente(nombre, destinatario))
+        .map((nombre) => {
+          const d = CATALOGO_PARA_EL_DUENO[nombre];
+          const modulo = nombre.split('.')[0];
+          const disponible = activos.has(modulo);
+          return {
+            nombre,
+            rotulo: d.rotulo,
+            escribe: d.escribe,
+            modulo,
+            obligatoria: delObjetivo.has(nombre),
+            marcada: marcadas.has(nombre) || delObjetivo.has(nombre),
+            disponible,
+            ...(disponible
+              ? {}
+              : { motivo: `Necesita el módulo de ${modulo}, que este negocio no tiene activo.` }),
+          };
+        }),
+    };
   }
 
   @Get('usage')
