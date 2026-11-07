@@ -62,6 +62,9 @@ interface LimitesDto {
   escalation_notice?: string;
   handoff_user_id?: string;
   firma_en_cada_mensaje?: boolean;
+  firma?: string;
+  /* No la edita esta pantalla, pero viaja para no borrarse (#1235). */
+  actua_como_user_id?: string | null;
   pulso?: PulsoDto;
 }
 
@@ -76,6 +79,52 @@ interface AgenteDto {
   defaultMode: 'assist' | 'autonomous' | 'off';
   autonomousHours: { start?: string; end?: string; days?: number[] };
   limits: LimitesDto;
+}
+
+const LLAVES_DE_LIMITS = [
+  'confidence_threshold',
+  'max_agent_turns',
+  'money_limit_clp',
+  'handoff_user_id',
+  'escalation_notice',
+  'firma_en_cada_mensaje',
+  'firma',
+  'actua_como_user_id',
+  'pulso',
+] as const satisfies readonly (keyof LimitesDto)[];
+
+/*
+ * Que la lista esté COMPLETA lo exige el compilador, no la memoria.
+ *
+ * Si `LimitesDto` gana una llave y nadie la agrega acá, esta línea no compila.
+ * Sin ella, el olvido no da error: la llave se borra en silencio en el próximo
+ * guardado. Pasó al rebasar esto sobre `staging`, que había agregado
+ * `firma_en_cada_mensaje` — y el comentario de abajo ya advertía del riesgo
+ * mientras la lista lo tenía.
+ */
+type FaltaDeclarar = Exclude<keyof LimitesDto, (typeof LLAVES_DE_LIMITS)[number]>;
+const _todasDeclaradas: FaltaDeclarar extends never ? true : FaltaDeclarar = true;
+void _todasDeclaradas;
+
+/**
+ * Lo que vuelve al servidor: lo conocido, y nada más (#1232).
+ *
+ * Antes era un `{ ...limits }` pelado. Desde que el PUT valida lo que recibe,
+ * RECHAZA una llave que nadie lee, así que un `limits` con basura heredada
+ * —hubo un `max_executions_day` nombrado en el comentario de la migración
+ * desde el primer día— dejaría esta pantalla sin poder guardar nada, y el
+ * error hablaría de una llave que el dueño nunca escribió.
+ *
+ * La lista incluye `pulso`, que llegó después en #1210: una lista blanca que
+ * se olvida de una llave nueva la borra en silencio en el próximo guardado, y
+ * eso apagaría el pulso del evento sin que nadie toque el pulso.
+ */
+function limitesConocidos(limits: LimitesDto): LimitesDto {
+  const salida: Record<string, unknown> = {};
+  for (const llave of LLAVES_DE_LIMITS) {
+    if (limits[llave] !== undefined) salida[llave] = limits[llave];
+  }
+  return salida as LimitesDto;
 }
 
 interface MiembroDto {
@@ -146,7 +195,14 @@ export function ModoAutonomo() {
     try {
       const actualizado = await apiFetch<AgenteDto>(config, session!, tenant, `/agents/${agente.id}`, {
         method: 'PUT',
-        body: JSON.stringify(cambios),
+        // El filtro va acá, en el borde, y no en `guardarLimites`: la guarda
+        // de #1230 exige que el único literal de `limits` arranque con
+        // `...limits` para que nadie olvide el spread, y envolverlo en una
+        // llamada lo escondía de esa comprobación. Acá es además el único
+        // punto por donde salen los límites al servidor.
+        body: JSON.stringify(
+          cambios.limits ? { ...cambios, limits: limitesConocidos(cambios.limits) } : cambios,
+        ),
       });
       reemplazar(actualizado);
       setGuardado(true);
