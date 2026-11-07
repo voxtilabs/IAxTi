@@ -12,6 +12,8 @@ export {
   // Por qué se nos cancelan las visitas, y qué quedó vivo en Google (#700).
   motivosDeCancelacion,
   citasDesincronizadasConGoogle,
+  // Para mover una hora desde el chat sin recibir un id de cita (#1283).
+  citasFuturasDelContacto,
 } from './application/agenda';
 export type {
   Disponibilidad,

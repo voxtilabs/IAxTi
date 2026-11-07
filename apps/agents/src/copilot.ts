@@ -32,7 +32,13 @@ import {
   fuentesCitadas,
   searchKnowledge,
 } from '@iaxti/module-knowledge';
-import { agendar, huecosConGoogle, listarCitas } from '@iaxti/module-calendar';
+import {
+  agendar,
+  citasFuturasDelContacto,
+  huecosConGoogle,
+  listarCitas,
+  reagendarCita,
+} from '@iaxti/module-calendar';
 import {
   createActivity,
   createDeal,
@@ -606,6 +612,57 @@ async function herramientasDeLaConversacion(
           ...(data.requestId ? { requestId: data.requestId } : {}),
         });
         return { id: cita.id, inicio: cita.startsAt, fin: cita.endsAt };
+      },
+      /**
+       * Mover la hora que ya tiene esta persona (ADR-0030, #1283).
+       *
+       * No recibe id de cita, y eso es la garantía entera: la cita la elige
+       * `citasFuturasDelContacto` a partir de quién está escribiendo, así que
+       * el modelo no tiene forma de nombrar la hora de otra persona ni
+       * alucinando un UUID.
+       *
+       * Los tres casos se contestan distinto a propósito, y los dos que no
+       * mueven nada devuelven un mensaje redactado para que el agente lo
+       * pueda decir tal cual: ninguna cita, una, o varias —donde no adivina—.
+       */
+      moverLaHora: async (inicio) => {
+        const cuando = new Date(inicio);
+        if (!Number.isFinite(cuando.getTime())) throw new Error('Esa hora no se entiende.');
+        const dueno = conDueno('mover una hora');
+        const contactId = conv.contactId;
+        if (!contactId) throw new Error('Esta conversación todavía no tiene una ficha asociada.');
+
+        const suyas = await citasFuturasDelContacto(client, {
+          tenantId: data.tenantId,
+          contactId,
+        });
+        if (suyas.length === 0) {
+          throw new Error('Esta persona no tiene ninguna hora tomada, así que no hay nada que mover. Ofrécele tomar una.');
+        }
+        if (suyas.length > 1) {
+          throw new Error(`Esta persona tiene ${suyas.length} horas tomadas y no puedo saber cuál quiere mover. Pasa la conversación a alguien del equipo.`);
+        }
+
+        const dia = diaEn(await zonaDelTenant(client, data.tenantId), cuando);
+        const huecos = await huecosConGoogle(client, { tenantId: data.tenantId, ownerId: dueno, dia });
+        const elegido = huecos.find((h) => new Date(h.inicio).getTime() === cuando.getTime());
+        if (!elegido) {
+          throw new Error('Ese horario ya no está libre. Mira los horarios de nuevo y ofrece otro.');
+        }
+        const movida = await reagendarCita(client, {
+          tenantId: data.tenantId,
+          appointmentId: suyas[0].id,
+          inicio: cuando,
+          fin: new Date(elegido.fin),
+          motivo: 'Lo pidió el cliente por WhatsApp',
+          // La misma garantía que al tomarla: el horario se valida contra la
+          // disponibilidad DENTRO del cerrojo (#1251).
+          exigirHuecoDisponible: true,
+          actor: dueno,
+          actorKind: 'agent',
+          ...(data.requestId ? { requestId: data.requestId } : {}),
+        });
+        return { id: movida.id, inicio: movida.startsAt, fin: movida.endsAt };
       },
 
       // Las dos que ESCRIBEN (ADR-0017): quedan adentro del negocio y se

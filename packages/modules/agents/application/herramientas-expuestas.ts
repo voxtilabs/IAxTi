@@ -148,6 +148,21 @@ export const ESQUEMAS: Record<string, { description: string; parameters: Record<
       additionalProperties: false,
     },
   },
+  'calendar.reschedule': {
+    description:
+      'Mueve la hora que ya tiene el cliente de esta conversación a otro horario de calendar.get_slots. No lleva id de cita: se mueve la que tiene esta persona. Si no tiene ninguna, o tiene más de una, te lo digo y ahí pasas la conversación a alguien del equipo.',
+    parameters: {
+      type: 'object',
+      properties: {
+        inicio: {
+          type: 'string',
+          description: 'El inicio del horario NUEVO, copiado tal cual de calendar.get_slots.',
+        },
+      },
+      required: ['inicio'],
+      additionalProperties: false,
+    },
+  },
   'crm.create_activity': {
     description:
       'Deja una nota o una tarea en la ficha del cliente de esta conversación. No la ve el cliente: es para el equipo. Úsala cuando quede algo pendiente que alguien tiene que hacer o recordar.',

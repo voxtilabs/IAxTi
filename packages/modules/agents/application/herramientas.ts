@@ -110,6 +110,24 @@ export const HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS = {
    * agendar a quien solo preguntaba — no agendar a una hora que no existe.
    */
   'calendar.book': 'calendar.book',
+  /**
+   * Mover la hora (ADR-0030).
+   *
+   * ADR-0017 la cerró junto con `calendar.cancel` por un riesgo concreto:
+   * «mover o cancelar la hora de alguien que no lo pidió». Esa objeción no se
+   * contesta con una regla del prompt —un prompt que dice «mueve solo la cita
+   * de quien te escribe» se incumple el día que el modelo alucina un UUID—,
+   * así que se contesta con la firma: **esta herramienta no recibe un id de
+   * cita**. Opera sobre la única cita futura del contacto de esta
+   * conversación. Si hay varias, no adivina: escala.
+   *
+   * El horario nuevo se valida contra la disponibilidad dentro del cerrojo,
+   * igual que al tomarla (#1251).
+   *
+   * `calendar.cancel` sigue cerrada, y la asimetría es el punto: mover deja a
+   * la persona con otra hora, cancelar la deja sin ninguna.
+   */
+  'calendar.reschedule': 'calendar.book',
 } as const;
 
 export type HerramientaQueEscribe = keyof typeof HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS;
@@ -151,10 +169,11 @@ export const HERRAMIENTAS_PENDIENTES: Record<string, string> = {
 
 /** Las que siguen cerradas, con su motivo en la ADR-0017. */
 export const HERRAMIENTAS_QUE_ESCRIBEN = [
-  // `calendar.book` salió de acá en ADR-0029. Estas dos NO: mover o cancelar
-  // la hora de alguien que no lo pidió es otro riesgo y necesita su propia
-  // medición.
-  'calendar.reschedule',
+  // `calendar.book` salió de acá en ADR-0029 y `calendar.reschedule` en
+  // ADR-0030, que contesta el riesgo que esta lista nombraba —mover la hora de
+  // alguien que no lo pidió— quitándole al modelo la posibilidad de nombrar
+  // una cita ajena. `calendar.cancel` se queda: mover deja a la persona con
+  // otra hora, cancelar la deja sin ninguna.
   'calendar.cancel',
   'conversations.send_reply',
   'conversations.set_state',
@@ -204,6 +223,14 @@ export interface DepsHerramientas {
    * huecos ni de cerrojos, y no tiene por qué.
    */
   tomarLaHora?: (inicio: string) => Promise<unknown>;
+  /**
+   * Mover la hora del contacto de esta conversación (#1283).
+   *
+   * Misma firma que `tomarLaHora` y por el mismo motivo: lo único que decide
+   * el modelo es el horario. QUÉ cita se mueve lo resuelve quien implementa
+   * esto, a partir de quién está escribiendo.
+   */
+  moverLaHora?: (inicio: string) => Promise<unknown>;
   /**
    * Las que ESCRIBEN (ADR-0017). Opcionales: sin ellas, pedirlas devuelve
    * que no están disponibles, que es la verdad — no una excepción.
@@ -399,6 +426,18 @@ export async function ejecutarHerramienta(
           throw new Error('La hora va tal como te la ofrecí, con fecha y zona.');
         }
         datos = await deps.tomarLaHora(inicio);
+        break;
+      }
+      case 'calendar.reschedule': {
+        if (!deps.moverLaHora) throw new Error('La agenda no está disponible.');
+        const inicio = String(input.args.inicio ?? '').trim();
+        // La misma validación de forma que `calendar.book`: una hora sin zona
+        // la interpretaría el servidor en UTC, y en Chile son tres o cuatro
+        // horas de diferencia.
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(inicio)) {
+          throw new Error('La hora va tal como te la ofrecí, con fecha y zona.');
+        }
+        datos = await deps.moverLaHora(inicio);
         break;
       }
       case 'crm.create_activity': {
