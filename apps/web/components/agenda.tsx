@@ -12,6 +12,7 @@ import { useArranque } from './arranque';
 import { GoogleCalendarConnection } from './google-calendar';
 import { RecordatoriosDeCita } from './recordatorios-de-cita';
 import { HorariosDeAtencion } from './horarios-de-atencion';
+import { DiasCerrados } from './dias-cerrados';
 import { DarUnaHora } from './dar-una-hora';
 import { PorQueSeCancelan } from './por-que-se-cancelan';
 import { apiFetch, avisoDe, type CitaDto, mensajeDeError } from '../lib/api';
@@ -380,6 +381,9 @@ export function Agenda() {
       <PorQueSeCancelan />
       {puedeAgendar && <DarUnaHora onAgendada={() => void cargar()} />}
       {arranque?.permisos?.includes('calendar.manage_availability') && <HorariosDeAtencion />}
+      {/* Debajo del horario y no arriba: primero se dice cuándo se atiende, y
+          después las excepciones a eso (#1281). */}
+      {arranque?.permisos?.includes('calendar.manage_availability') && <DiasCerrados />}
       {arranque?.permisos?.includes('tenant.settings') && <RecordatoriosDeCita />}
     </section>
   );

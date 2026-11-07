@@ -5,6 +5,7 @@ import { bloquearGrantGoogle } from '@iaxti/module-identity';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { assertTransicionCita, ocupaAgenda, type EstadoCita } from '../domain/estado';
 import { huecosLibres, comoHora, type Ocupado } from '../domain/horarios';
+import { diaCerrado } from './cierres';
 
 /**
  * La agenda (SPEC §16): disponibilidad configurada, huecos reales y citas.
@@ -184,6 +185,15 @@ export async function huecosDelDia(
 ): Promise<HuecoOfrecido[]> {
   const zona = await zonaDelTenant(client, input.tenantId);
   const ahora = input.ahora ?? new Date();
+
+  // Un día cerrado apaga el cálculo entero (#1281). Va acá y no en cada
+  // llamador a propósito: este es el único lugar donde la disponibilidad se
+  // calcula, y lo que se ofrece, lo que se valida al agendar y lo que se
+  // valida al mover salen todos de acá. Una comprobación aparte sería una que
+  // alguien se olvida de hacer, que es exactamente cómo nació este agujero.
+  if (await diaCerrado(client, { tenantId: input.tenantId, ownerId: input.ownerId, dia: input.dia })) {
+    return [];
+  }
 
   // El día de la semana se pregunta en la zona del negocio: a las 23:00 en
   // Chile ya es otro día en UTC, y ahí la agenda ofrecería el día que no es.
@@ -887,5 +897,33 @@ export async function citasDesincronizadasConGoogle(
     appointmentId: f.id as string,
     startsAt: f.starts_at as Date,
     problema: f.google_sync_error as string,
+  }));
+}
+
+/**
+ * Las citas que quedan dentro de un cierre.
+ *
+ * Cerrar NO las cancela: cerrar una semana con cinco personas confirmadas es
+ * un aviso al dueño, no una cancelación masiva automática que le llega al
+ * cliente sin que nadie la haya decidido. Esto es lo que la pantalla usa para
+ * decir «hay 5 citas en esos días» y dejar que una persona resuelva.
+ */
+export async function citasDentroDelCierre(
+  client: PoolClient,
+  input: { tenantId: string; ownerId?: string | null; desde: string; hasta: string; zona: string },
+): Promise<{ id: string; startsAt: string; contactId: string }[]> {
+  const r = await client.query(
+    `SELECT id, starts_at, contact_id FROM appointments
+      WHERE tenant_id = $1
+        AND ($2::uuid IS NULL OR owner_id = $2)
+        AND status IN ('proposed','confirmed','reminded')
+        AND (starts_at AT TIME ZONE $5)::date BETWEEN $3::date AND $4::date
+      ORDER BY starts_at`,
+    [input.tenantId, input.ownerId ?? null, input.desde, input.hasta, input.zona],
+  );
+  return r.rows.map((row) => ({
+    id: row.id as string,
+    startsAt: (row.starts_at as Date).toISOString(),
+    contactId: row.contact_id as string,
   }));
 }

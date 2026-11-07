@@ -45,6 +45,7 @@ El alta inicial conserva una referencia operativa propia del equipo:
 | `deal_stage_history` | el paso por cada etapa | indirecta | negocio | sí | queda |
 | `activities` | tareas y notas sobre esa persona | directa | ambos | sí | se borran |
 | `appointments` | la cita de una persona: cuándo, con quién y cómo terminó | indirecta | cliente final | sí | se van con el contacto |
+| `time_off` | los días que el negocio no abre, y el motivo que escribió el dueño («vacaciones») | ninguna del cliente | negocio | sí | queda: es configuración de la agenda, no un dato de una persona |
 | `webchat_sessions` | la sesión del visitante y su nombre si lo dio | directa | cliente final | sí | se van con el contacto |
 | `payment_links` | monto, concepto y estado del cobro | indirecta | negocio | sí | se vacía el concepto; montos y fechas quedan por obligación de guarda |
 | `payments` | el pago recibido | indirecta | negocio | sí | queda: registro contable |

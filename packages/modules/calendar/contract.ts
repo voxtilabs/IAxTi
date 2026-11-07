@@ -12,6 +12,8 @@ export {
   // Por qué se nos cancelan las visitas, y qué quedó vivo en Google (#700).
   motivosDeCancelacion,
   citasDesincronizadasConGoogle,
+  // Las citas que quedan dentro de un cierre, para avisar sin cancelar (#1281).
+  citasDentroDelCierre,
 } from './application/agenda';
 export type {
   Disponibilidad,
@@ -22,6 +24,12 @@ export type {
   MoverEnGoogle,
   MotivoDeCancelacion,
 } from './application/agenda';
+// Los días que el negocio no abre: feriados, vacaciones (#1281).
+//
+// `diaCerrado` NO se publica: lo consume `huecosDelDia` dentro del módulo, y
+// un contrato que expone lo que nadie abre deja de ser una decisión (#664).
+export { cierrePorId, cerrarDias, listarCierres, abrirDias } from './application/cierres';
+export type { Cierre } from './application/cierres';
 export { ESTADOS_CITA, assertTransicionCita, ocupaAgenda } from './domain/estado';
 export type { EstadoCita } from './domain/estado';
 export { huecosLibres, comoHora, desdeHora } from './domain/horarios';
