@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { CalendarOff } from 'lucide-react';
-import { AvisoResultado, Button, Input, useSession } from '@iaxti/ui/react';
+import { AvisoResultado, Button, Checkbox, Formulario, Input, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, avisoDe } from '../lib/api';
 import { AvisoDeCarga } from './aviso-de-carga';
@@ -183,7 +183,10 @@ export function DiasCerrados() {
         </ul>
       )}
 
-      <form onSubmit={cerrar} className="mt-4 flex flex-wrap items-end gap-3">
+      {/* `Formulario` y no `<form>`: es lo que impide que salga la burbuja
+          nativa de validación del navegador, que no se tematiza y habla en el
+          idioma del sistema operativo (#618). */}
+      <Formulario onSubmit={cerrar} className="mt-4 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           Día
           <Input
@@ -213,12 +216,10 @@ export function DiasCerrados() {
             onChange={(e) => setForm({ ...form, motivo: e.target.value })}
           />
         </label>
-        <label className="flex items-center gap-2 text-sm font-medium text-ink">
-          <input
-            type="checkbox"
-            className="size-4"
+        <label className="inline-flex min-h-control items-center gap-2 text-sm font-medium text-ink">
+          <Checkbox
             checked={form.todoElNegocio}
-            onChange={(e) => setForm({ ...form, todoElNegocio: e.target.checked })}
+            onCheckedChange={(marcado) => setForm({ ...form, todoElNegocio: marcado === true })}
           />
           Para todo el equipo
         </label>
@@ -229,7 +230,7 @@ export function DiasCerrados() {
           Cerrar un día no cancela las citas que ya estaban tomadas: te decimos cuántas quedaron
           adentro para que las muevas tú.
         </span>
-      </form>
+      </Formulario>
     </section>
   );
 }
