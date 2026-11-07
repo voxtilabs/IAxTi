@@ -270,15 +270,33 @@ describe('programarRepetibles comprueba lo que programó', () => {
     { nombre: 'conversations.retention', moduleId: 'conversations', repeat: { pattern: '0 4 * * *' } },
   ];
 
-  function colaFalsa(quedan: string[]) {
+  /**
+   * `quedan` son las CLAVES que Redis devuelve, que es por lo que se compara
+   * desde BullMQ 6: la clave de un scheduler nuevo es el nombre de la tarea, y
+   * la de uno creado por la API vieja es un hash.
+   */
+  function colaFalsa(quedan: string[], nombrePorClave: Record<string, string> = {}) {
     const pedidos: string[] = [];
+    const borrados: string[] = [];
+    const vivas = [...quedan];
     return {
       pedidos,
+      borrados,
       cola: {
-        add: async (nombre: string) => {
-          pedidos.push(nombre);
+        // `upsertJobScheduler` y no `add`: en BullMQ 6 los repetibles dejaron
+        // de ser «un job con la opción `repeat`» para ser schedulers con su
+        // propio id. El doble sigue la API nueva porque si no, la prueba
+        // seguiría verde contra una cola que ya no existe.
+        upsertJobScheduler: async (id: string) => {
+          pedidos.push(id);
         },
-        getJobSchedulers: async () => quedan.map((name) => ({ name })),
+        getJobSchedulers: async () =>
+          vivas.map((key) => ({ key, name: nombrePorClave[key] ?? key })),
+        removeJobScheduler: async (key: string) => {
+          borrados.push(key);
+          vivas.splice(vivas.indexOf(key), 1);
+          return true;
+        },
       } as unknown as Parameters<typeof programarRepetibles>[0],
     };
   }
@@ -304,5 +322,42 @@ describe('programarRepetibles comprueba lo que programó', () => {
   it('si no quedó ninguno, lo dice entero: es el caso de Redis caído al arrancar', async () => {
     const { cola } = colaFalsa([]);
     await expect(programarRepetibles(cola, tres)).rejects.toThrow(/3 de 3 repetibles/);
+  });
+
+  /**
+   * Lo que BullMQ 6 obliga a limpiar, medido antes de subir la versión.
+   *
+   * En el Redis de desarrollo los 19 repetibles estaban registrados con una
+   * clave HASH —así los creaba `add(..., { repeat })`, con el nombre guardado
+   * adentro—. Con `upsertJobScheduler` la clave pasa a ser el nombre, así que
+   * al desplegar quedarían los dos: el hash viejo repitiendo y el nuevo
+   * también. Diecinueve tareas corriendo dos veces, entre ellas
+   * `conversations.retention` y `api_usage.flush`.
+   */
+  it('borra el repetible viejo registrado con clave hash, y deja el nuevo', async () => {
+    const hashViejo = '6e0f6defba3f859f9954da3fdca7ade3';
+    const { cola, borrados } = colaFalsa(
+      [hashViejo, ...tres.map((r) => r.nombre)],
+      { [hashViejo]: 'billing.sweep' },
+    );
+    const programados = await programarRepetibles(cola, tres);
+    expect(borrados, 'el hash viejo se va').toEqual([hashViejo]);
+    expect(programados.sort(), 'y los tres declarados quedan').toEqual(
+      tres.map((r) => r.nombre).sort(),
+    );
+  });
+
+  it('borra un repetible que ya no está declarado', async () => {
+    // El otro agujero que esto cierra: una tarea que se saca del código
+    // seguía programada para siempre, sin que nada lo dijera.
+    const { cola, borrados } = colaFalsa([...tres.map((r) => r.nombre), 'algo.que.ya.no.existe']);
+    await programarRepetibles(cola, tres);
+    expect(borrados).toEqual(['algo.que.ya.no.existe']);
+  });
+
+  it('y no borra ninguno de los declarados', async () => {
+    const { cola, borrados } = colaFalsa(tres.map((r) => r.nombre));
+    await programarRepetibles(cola, tres);
+    expect(borrados).toEqual([]);
   });
 });

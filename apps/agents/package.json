@@ -26,7 +26,7 @@
     "@iaxti/module-knowledge": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
-    "bullmq": "^5.34.0",
+    "bullmq": "^6.3.11",
     "ioredis": "^5.4.0",
     "pg": "^8.23.1"
   }

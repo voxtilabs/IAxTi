@@ -39,7 +39,7 @@
     "@iaxti/module-webchat": "workspace:*",
     "@iaxti/module-whatsapp": "workspace:*",
     "@iaxti/telemetry": "workspace:*",
-    "bullmq": "^5.34.0",
+    "bullmq": "^6.3.11",
     "ioredis": "^5.4.0",
     "pg": "^8.23.1",
     "web-push": "^3.6.7"

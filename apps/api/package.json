@@ -46,7 +46,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.0",
-    "bullmq": "^5.34.0",
+    "bullmq": "^6.3.11",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }
