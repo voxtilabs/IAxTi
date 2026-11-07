@@ -84,6 +84,38 @@ async function avisoDe(event: EventEnvelope, client: PoolClient): Promise<Aviso 
         recipients: [...destinatarios],
       };
     }
+    case 'channel.quota_threshold': {
+      /*
+       * El cupo del canal entró en la reserva (#1248).
+       *
+       * Va a los ADMIN y no a supervisión: quien puede hacer algo con esto es
+       * quien configura el canal y quien paga el medio de pago que sube el
+       * tope. Y el cuerpo dice qué queda y qué pasa con lo automático, porque
+       * el aviso tiene que servir para DECIDIR —mandar lo importante ahora—,
+       * no solo para explicar después lo que no se pudo.
+       */
+      const quedan = Number(p.quedan);
+      const tope = Number(p.tope);
+      const partes = [
+        Number.isFinite(quedan)
+          ? `Quedan ${quedan} mensajes de hoy y están reservados para lo que mandes tú.`
+          : 'El cupo de hoy entró en la reserva.',
+        'Lo automático sale cuando el canal renueve el cupo.',
+        // Que el tope sea un supuesto cambia qué hacer: configurarlo puede
+        // hacer desaparecer el aviso, y no decirlo manda a alguien a buscar
+        // un problema que no tiene.
+        p.topeAsumido === true && Number.isFinite(tope)
+          ? `Estamos asumiendo un tope de ${tope}; si el tuyo es mayor, configúralo.`
+          : null,
+      ].filter(Boolean);
+      return {
+        type: 'cupo_del_canal',
+        title: TIPOS_LEGIBLES.cupo_del_canal,
+        body: partes.join(' '),
+        link: '/ajustes/canales',
+        recipients: await admins(client, event.tenantId),
+      };
+    }
     case 'conversation.unattended':
       return {
         type: 'conversacion_sin_dueno',
@@ -312,6 +344,8 @@ export const EVENTOS = [
   'tenant.state_changed',
   // El aviso antes del borrado (#218): 15 días para exportar o volver.
   'tenant.deletion_warned',
+  // El cupo diario del canal entrando en la reserva (#1248).
+  'channel.quota_threshold',
 ] as const;
 
 /**

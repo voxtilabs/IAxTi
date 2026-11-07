@@ -27,6 +27,8 @@ export {
   reapuntarEmisorDeLaCuenta,
   EmisorCompartidoError,
   listChannelAccounts,
+  // Un aviso de cupo por día y por canal (#1248).
+  avisarDelCupoUnaVezAlDia,
 } from './application/accounts';
 export { simuladorProvider, firmarWebhook } from './application/simulador';
 // El rastro de los webhooks y por qué no llegan los mensajes (#434).

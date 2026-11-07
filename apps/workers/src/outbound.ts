@@ -17,6 +17,7 @@ import {
   cupoDelDia,
   findAccountById,
   hayMargenParaUnAutomatismo,
+  avisarDelCupoUnaVezAlDia,
   msHastaElReinicioDelCupo,
 } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
@@ -181,6 +182,30 @@ export async function processOutbound(
             `usados${cupo.topeAsumido ? ' (tope asumido)' : ''}; quedan ${cupo.quedan} y ` +
             `${cupo.reserva} están reservados para lo que mande una persona. Se difiere a mañana.`,
         );
+        /*
+         * Y que el dueño se entere (#1248).
+         *
+         * El primer defecto del evento fue justamente este: el cupo se gastó a
+         * lo largo de seis horas y el producto no dijo nada. El dueño se enteró
+         * cuando lo importante —el mensaje de cierre— no salió.
+         *
+         * `marcarAvisoDeCupo` es un cerrojo, no una comprobación: con el cupo
+         * agotado hay muchos jobs en la cola y cada uno querría avisar.
+         * Cincuenta avisos iguales no son cincuenta veces más útiles que uno:
+         * son una campana que el dueño silencia, y entonces el aviso que
+         * importa tampoco llega.
+         *
+         * Se avisa cuando el cupo entra en la RESERVA, no cuando se agota del
+         * todo. En ese momento todavía le quedan los 50 de las personas, así
+         * que el aviso sirve para decidir —mandar lo importante ahora— y no
+         * solo para explicar lo que ya no se pudo.
+         */
+        await avisarDelCupoUnaVezAlDia(client, {
+          tenantId: data.tenantId,
+          accountId: account.id,
+          cupo,
+          ...(data.requestId ? { requestId: data.requestId } : {}),
+        });
         throw new DelayUntilError(msHastaElReinicioDelCupo());
       }
 

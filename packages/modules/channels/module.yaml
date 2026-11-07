@@ -21,6 +21,8 @@ events:
     - template.approved
     - template.rejected
     - number.quality_changed
+    # El cupo diario entrando en la reserva (#1248).
+    - channel.quota_threshold
   consumes: []
 tools: []
 nav:

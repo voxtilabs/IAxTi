@@ -12,6 +12,7 @@ export const NOTIFICATION_TYPES = [
   'calidad_numero',
   'pago_recibido',
   'estado_cuenta',
+  'cupo_del_canal',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -33,6 +34,7 @@ export const TIPOS_LEGIBLES: Record<NotificationType, string> = {
   calidad_numero: 'Calidad del número de WhatsApp',
   pago_recibido: 'Pago recibido',
   estado_cuenta: 'El estado de tu cuenta cambió',
+  cupo_del_canal: 'Cupo diario del canal por agotarse',
 };
 
 export interface Notification {
