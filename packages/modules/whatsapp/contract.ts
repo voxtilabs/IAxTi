@@ -77,6 +77,7 @@ export {
   normalizarNombre,
   variablesDe,
   puedeEnviarse,
+  transicionPermitida,
 } from './domain/plantillas';
 export type { CategoriaPlantilla, EstadoPlantilla, PlantillaBorrador } from './domain/plantillas';
 export {
