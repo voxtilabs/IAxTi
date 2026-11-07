@@ -79,7 +79,10 @@ describe('se espera a que la persona termine de escribir (#1223)', () => {
     expect(dos.autoReplied).toBeDefined();
     // Y el que se saltó lo DICE: un `skipped` sin motivo deja a quien mira el
     // log sin saber si fue esto o un fallo.
-    expect(uno.skipped ?? '').toContain('llegó otro mensaje después');
+    expect(uno.skipped ?? '').toContain(// El texto cambió con #1245: el guardia ya no cuenta solo entrantes, así
+      // que «otro mensaje» se quedaba corto. El comportamiento que esta
+      // prueba fija —contesta UNA vez, la del último— no cambió.
+      'pasó algo después');
   });
 
   it('un mensaje solo se contesta igual: la espera no se come el caso normal', async () => {
