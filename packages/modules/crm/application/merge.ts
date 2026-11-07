@@ -109,9 +109,43 @@ export async function mergeContacts(
   );
 
   // Lo del propio módulo se re-apunta aquí; conversaciones, por el evento.
-  await client.query('UPDATE deals SET contact_id = $3 WHERE tenant_id = $1 AND contact_id = $2', [
-    input.tenantId, input.duplicateId, input.primaryId,
-  ]);
+  /**
+   * Las oportunidades, esquivando el índice único (#1269).
+   *
+   * `deals_one_open_per_contact_pipeline` (0002_pipelines.sql:91) permite UNA
+   * oportunidad abierta por contacto y embudo. Este `UPDATE` no lo miraba, y
+   * el caso que lo rompe es el CENTRAL de la fusión: la misma persona escribió
+   * desde dos números y cada ficha abrió la suya en el embudo por omisión —
+   * que es justo lo que hace el bot desde #1243.
+   *
+   * Lo que costaba: 23505, y se revertía la fusión ENTERA. Se perdía el
+   * traspaso de identidades, el `merged_into`, el evento que re-apunta las
+   * conversaciones y —lo más caro— la absorción del `opted_out_at`: alguien
+   * que pidió que no le escriban quedaba sin esa marca en la ficha que sí se
+   * usa.
+   *
+   * La salida es la MISMA que ya eligió este archivo doce líneas más arriba
+   * para las identidades: se mueve lo que no choca, y lo que choca se queda en
+   * el duplicado. No se cierra ni se borra nada — cuál de las dos
+   * oportunidades vale es una decisión de negocio, no algo que la fusión pueda
+   * adivinar. Queda en la auditoría para que alguien la tome.
+   */
+  const oportunidades = await client.query(
+    `UPDATE deals SET contact_id = $3
+      WHERE tenant_id = $1 AND contact_id = $2
+        AND NOT EXISTS (
+          SELECT 1 FROM deals p
+           WHERE p.tenant_id = $1 AND p.contact_id = $3
+             AND p.pipeline_id = deals.pipeline_id
+             AND p.status = 'open' AND deals.status = 'open')
+      RETURNING id`,
+    [input.tenantId, input.duplicateId, input.primaryId],
+  );
+  const sinMover = await client.query(
+    `SELECT id, pipeline_id FROM deals
+      WHERE tenant_id = $1 AND contact_id = $2`,
+    [input.tenantId, input.duplicateId],
+  );
   await client.query('UPDATE activities SET contact_id = $3 WHERE tenant_id = $1 AND contact_id = $2', [
     input.tenantId, input.duplicateId, input.primaryId,
   ]);
@@ -145,6 +179,11 @@ export async function mergeContacts(
       duplicatePhone: duplicado.phone,
       optOutAbsorbed: optOutAbsorbido,
       identitiesMoved: movidas.rows.map((row) => row.channel as string),
+      dealsMoved: oportunidades.rowCount ?? 0,
+      // Las que se quedaron en el duplicado porque el principal ya tenía una
+      // abierta en ese embudo. Sin esto, la decisión que la fusión no pudo
+      // tomar quedaría sin nadie que la tome.
+      dealsLeftOnDuplicate: sinMover.rows.map((row) => row.id as string),
     },
   });
   await publishEvent(client, {
