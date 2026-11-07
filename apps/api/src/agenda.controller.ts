@@ -476,7 +476,9 @@ export class AgendaController {
    */
   @Post(':id/mover')
   @RequirePermission('calendar.book')
-  @ApiOperation({ summary: 'Mueve una cita a otra hora, con su hueco comprobado' })
+  @ApiOperation({
+    summary: 'Mueve una cita a otra hora; por llave de API, contra el horario publicado',
+  })
   async mover(
     @Req() request: WithUser,
     @Param('id') id: string,
@@ -496,6 +498,17 @@ export class AgendaController {
           inicio,
           fin,
           motivo: body?.motivo,
+          // El criterio del ADR-0029, tal cual: una persona del equipo puede
+          // mover una hora fuera del horario publicado —se quedó atendiendo,
+          // le hizo un favor a alguien— y eso es legítimo. Un programa no
+          // tiene cómo saber que es legítimo, así que para él la
+          // disponibilidad es la frontera.
+          //
+          // Hasta la #1251 esta ruta prometía en su propia descripción «con su
+          // hueco comprobado» y no comprobaba nada: el único control era que
+          // no chocara con otra cita, así que una llave de API podía dejar una
+          // hora a las tres de la mañana de un domingo.
+          exigirHuecoDisponible: actor.kind === 'apikey',
           actor: actor.userId,
           actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
           requestId: (request as { requestId?: string }).requestId,
