@@ -6,7 +6,7 @@ import type { PoolClient } from 'pg';
  * El controlador decía que no guardarlos «es a propósito», y lo era mientras
  * el agente fue un popup. Desde #1135 es la pantalla «Tu asistente», y el
  * dueño del producto pidió ver sus conversaciones anteriores — que es elegir
- * guardarlas (ADR-0029).
+ * guardarlas (ADR-0031).
  *
  * Lo que de verdad lo justifica no es la comodidad: el agente PROPONE
  * acciones que el humano aprueba, y una propuesta sin resolver que
@@ -46,7 +46,7 @@ export interface Hilo extends HiloResumen {
 /** Quién abre una conversación: lo primero que escribió la persona. */
 const QUIEN_PREGUNTA = new Set(['user']);
 
-/** 30 días sin tocarlo y se va (ADR-0029). */
+/** 30 días sin tocarlo y se va (ADR-0031). */
 export const DIAS_DE_RETENCION = 30;
 
 /**
