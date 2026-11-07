@@ -122,26 +122,28 @@ export function DiasCerrados() {
   if (carga.estado === 'nada-que-pedir') return null;
   if (carga.estado === 'cargando') {
     /*
-     * 730 MEDIDOS con `esqueletos-medidos`, y el número sale de DOS mediciones
+     * 691 MEDIDOS con `esqueletos-medidos`, y el número sale de DOS mediciones
      * que no coinciden:
      *
-     *   acá  → contenido 799,6 px
-     *   CI   → contenido 825,6 px  (medido 835,6 antes de recortar la prosa)
+     *   acá  → contenido 759,8 px
+     *   CI   → ~785,8 px  (el runner mide 26 px más, medido en esta misma rama)
      *
-     * Los 26 px de diferencia son el renderizado de fuentes del runner, que no
-     * tiene las mismas instaladas: el mismo texto envuelve en más líneas. Los
-     * otros cinco paneles también difieren, solo que menos que la tolerancia
-     * de 16 px; este tiene más párrafo que puede envolver.
+     * Los 26 px son el renderizado de fuentes del runner, que no tiene las
+     * mismas instaladas: el mismo texto envuelve en más líneas. Los otros
+     * cinco paneles también difieren, solo que menos que la tolerancia de
+     * 16 px; este tiene más párrafo que puede envolver.
      *
-     * Así que el alto no persigue ninguna de las dos: queda a 13 px de las
-     * dos, dentro de la tolerancia en los dos entornos (el marco aporta 82).
-     * Perseguir la medida local deja CI rojo, y perseguir la de CI deja un
-     * salto visible acá.
+     * El alto no persigue ninguna de las dos: queda a 13 px de las dos (el
+     * marco aporta 82). Perseguir la medida local deja CI rojo, y perseguir
+     * la de CI deja un salto visible acá.
      *
-     * (A ojo le había puesto 332 — casi 400 px de salto, que en un celular es
-     * media pantalla moviéndose de golpe.)
+     * Y OJO si se toca el texto: este número DEPENDE de la prosa del panel.
+     * Recortar dos líneas para bajar del techo de #1157 le quitó 40 px al
+     * contenido y dejó el esqueleto 52 px largo. Cambiar un párrafo obliga a
+     * volver a medir — a ojo le había puesto 332 la primera vez, casi 400 px
+     * de salto, que en un celular es media pantalla moviéndose de golpe.
      */
-    return <PanelCargando etiqueta={titulo} className={marco} alto={730} filas={2} superficie="raised" />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={691} filas={2} superficie="raised" />;
   }
   if (carga.estado !== 'ok') {
     return (
