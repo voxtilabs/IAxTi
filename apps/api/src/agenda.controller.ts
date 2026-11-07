@@ -26,13 +26,18 @@ import {
   definirDisponibilidad,
   listarDisponibilidad,
   quitarDisponibilidad,
+  cerrarDias,
+  listarCierres,
+  abrirDias,
+  cierrePorId,
+  citasDentroDelCierre,
   desdeHora,
   huecosConGoogle,
   listarCitas,
   type EstadoCita,
 } from '@iaxti/module-calendar';
 import { conversacionParaIniciar } from '@iaxti/module-conversations';
-import { getTenantSettings, updateTenantSettings } from '@iaxti/module-organizations';
+import { getTenantSettings, updateTenantSettings, zonaDelTenant } from '@iaxti/module-organizations';
 import { listTemplates } from '@iaxti/module-whatsapp';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
@@ -92,6 +97,24 @@ const NuevaCita = z.object({
   title: z.string().optional(),
   conversationId: z.string().optional(),
   confirmada: z.boolean().optional(),
+});
+
+/**
+ * Cerrar días: feriados, vacaciones, el día que no se abre (#1281).
+ *
+ * `hasta` ausente cierra UN día. Y `todoElNegocio` es un campo aparte y
+ * explícito a propósito: si el cierre del negocio completo fuera lo que pasa
+ * al omitir `ownerId`, cerrar la pyme entera sería un descuido de un campo.
+ * Por omisión se cierra la agenda de quien lo pide.
+ */
+const UN_DIA = 'Dinos qué día cierras, en formato 2026-09-18.';
+
+const CerrarDias = z.object({
+  desde: textoRequerido(UN_DIA).regex(/^\d{4}-\d{2}-\d{2}$/, UN_DIA),
+  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, UN_DIA).optional(),
+  motivo: z.string().optional(),
+  ownerId: z.string().optional(),
+  todoElNegocio: z.boolean().optional(),
 });
 
 /** Mover una cita (#836): a qué hora queda, y por qué si alguien lo escribió. */
@@ -517,5 +540,118 @@ export class AgendaController {
     } catch (err) {
       seVeMal(err);
     }
+  }
+
+  /**
+   * Cerrar días (#1281).
+   *
+   * La respuesta trae las citas que quedan dentro del cierre, y no las toca:
+   * cerrar una semana con cinco personas confirmadas es un aviso al dueño, no
+   * una cancelación masiva que le llega al cliente sin que nadie la haya
+   * decidido. La pantalla muestra cuántas son y una persona resuelve.
+   */
+  @Post('cierres')
+  @RequirePermission('calendar.manage_availability')
+  @ApiOperation({ summary: 'Cierra un día o un rango: feriado, vacaciones, el día que no se abre' })
+  async cerrar(@Req() request: WithUser, @Cuerpo(CerrarDias) body: z.infer<typeof CerrarDias>) {
+    const actor = actorOf(request);
+    // Cerrar el negocio completo afecta a todo el equipo, así que pide lo
+    // mismo que tocar la agenda de otra persona.
+    const owner = body.todoElNegocio ? null : await ownerDeAgenda(actor, body.ownerId);
+    if (body.todoElNegocio) {
+      const permisos = await withTenant(pool(), actor.tenantId, (c) => permisosDelActor(c, actor));
+      if (!permisos.has('calendar.manage_team')) {
+        throw new ForbiddenException({
+          code: 'PERMISSION_DENIED',
+          message: 'Cerrar el negocio completo lo hace quien administra el equipo.',
+        });
+      }
+    }
+    try {
+      return await withTenant(pool(), actor.tenantId, async (c) => {
+        const cierre = await cerrarDias(c, {
+          tenantId: actor.tenantId,
+          ownerId: owner,
+          desde: body.desde,
+          hasta: body.hasta,
+          motivo: body.motivo,
+          actor: actor.userId,
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+          requestId: (request as { requestId?: string }).requestId,
+        });
+        const citasAfectadas = await citasDentroDelCierre(c, {
+          tenantId: actor.tenantId,
+          ownerId: cierre.ownerId,
+          desde: cierre.desde,
+          hasta: cierre.hasta,
+          zona: await zonaDelTenant(c, actor.tenantId),
+        });
+        return { cierre, citasAfectadas };
+      });
+    } catch (err) {
+      seVeMal(err);
+    }
+  }
+
+  @Get('cierres')
+  @RequirePermission('calendar.manage_availability')
+  @ApiQuery({ name: 'ownerId', required: false })
+  @ApiQuery({
+    name: 'incluirPasados',
+    required: false,
+    description: 'Por omisión solo salen los cierres que vienen, con el día de hoy en la zona del negocio',
+  })
+  @ApiOperation({ summary: 'Los días cerrados de alguien del equipo y los del negocio' })
+  async cierres(
+    @Req() request: WithUser,
+    @Query('ownerId') ownerId?: string,
+    @Query('incluirPasados') incluirPasados?: string,
+  ) {
+    const actor = actorOf(request);
+    const owner = await ownerDeAgenda(actor, ownerId);
+    return withTenant(pool(), actor.tenantId, (c) =>
+      listarCierres(c, {
+        tenantId: actor.tenantId,
+        ownerId: owner,
+        incluirPasados: incluirPasados === 'true',
+      }),
+    );
+  }
+
+  @Delete('cierres/:id')
+  @RequirePermission('calendar.manage_availability')
+  @ApiOperation({ summary: 'Reabre un día cerrado' })
+  async reabrir(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    const cierre = await withTenant(pool(), actor.tenantId, (c) =>
+      cierrePorId(c, { tenantId: actor.tenantId, cierreId: id }),
+    );
+    if (!cierre) {
+      throw new NotFoundException({
+        code: 'CALENDAR_TIME_OFF_NOT_FOUND',
+        message: 'Ese cierre no existe en este negocio.',
+      });
+    }
+    // Reabrir lo que cerró otra persona —o lo que cerró el negocio— pide el
+    // mismo permiso que haberlo cerrado.
+    if (cierre.ownerId !== actor.userId) {
+      const permisos = await withTenant(pool(), actor.tenantId, (c) => permisosDelActor(c, actor));
+      if (!permisos.has('calendar.manage_team')) {
+        throw new ForbiddenException({
+          code: 'PERMISSION_DENIED',
+          message: 'Solo puedes reabrir los días que cerraste tú.',
+        });
+      }
+    }
+    await withTenant(pool(), actor.tenantId, (c) =>
+      abrirDias(c, {
+        tenantId: actor.tenantId,
+        cierreId: id,
+        actor: actor.userId,
+        actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+        requestId: (request as { requestId?: string }).requestId,
+      }),
+    );
+    return { ok: true };
   }
 }

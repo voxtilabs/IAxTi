@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { comoAdmin } from './como-admin';
 import type { Franja } from '../components/horarios-de-atencion';
+import type { Cierre } from '../components/dias-cerrados';
 import type { RetencionDto } from '../components/retencion-del-negocio';
 import type { ConfigDto } from '../components/recordatorios-de-cita';
 import type { CorridaDto } from '../components/evaluaciones';
@@ -80,6 +81,15 @@ const FRANJAS: Franja[] = [1, 2, 3, 4, 5].map((weekday) => ({
   duracion: 30, respiro: 10, anticipacion: 60,
 }));
 
+/**
+ * Un feriado del negocio y una semana de vacaciones: los dos casos que
+ * existen, y lo que una pyme tiene cargado en cualquier mes (#1281).
+ */
+const CIERRES: Cierre[] = [
+  { id: 'c1', ownerId: null, desde: '2030-09-18', hasta: '2030-09-19', motivo: 'Fiestas Patrias' },
+  { id: 'c2', ownerId: '00000000-0000-4000-8000-00000000b001', desde: '2030-02-03', hasta: '2030-02-09', motivo: 'vacaciones' },
+];
+
 const RETENCION: RetencionDto = { months: 24, cutoff: '2024-10-14', deferredUntil: null };
 
 const RECORDATORIOS: ConfigDto = {
@@ -142,6 +152,7 @@ const PANELES: Array<{
   { titulo: 'Cuánto se guardan las conversaciones', pantalla: '/ajustes/bandeja', ruta: '**/v1/settings/retencion', cuerpo: RETENCION },
   { titulo: 'Horario de atención', pantalla: '/agenda', ruta: '**/v1/agenda/disponibilidad', cuerpo: FRANJAS },
   { titulo: 'Recordatorios de cita', pantalla: '/agenda', ruta: '**/v1/agenda/recordatorios', cuerpo: RECORDATORIOS },
+  { titulo: 'Días que no abro', pantalla: '/agenda', ruta: '**/v1/agenda/cierres*', cuerpo: CIERRES },
   { titulo: 'Evaluaciones del asistente', pantalla: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/evals', cuerpo: CORRIDAS,
     previas: [{ ruta: '**/v1/agents', cuerpo: ASISTENTES }] },
   { titulo: 'Logro del objetivo', pantalla: '/ajustes/ia/detalle', ruta: '**/v1/agents/*/objetivo', cuerpo: TASA,
