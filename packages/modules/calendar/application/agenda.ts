@@ -169,6 +169,17 @@ export async function huecosDelDia(
      * Sin esto, se comporta como antes: solo nuestras citas.
      */
     ocupadoExterno?: Ocupado[];
+    /**
+     * La cita que se está moviendo no se bloquea a sí misma (#1251).
+     *
+     * Al mover hay que preguntar si el horario nuevo existe en la
+     * disponibilidad, y la cita que se mueve ocupa su propio hueco: sin
+     * excluirla se rechazan movimientos legítimos —dejarla a la misma hora
+     * con otra duración, o correrla al bloque de al lado cuando hay
+     * respiro—. Solo lo pasa `reagendarCita`; para todo lo demás una cita
+     * ocupa su hora, que es lo que tiene que pasar.
+     */
+    ignorarCitaId?: string;
   },
 ): Promise<HuecoOfrecido[]> {
   const zona = await zonaDelTenant(client, input.tenantId);
@@ -200,8 +211,9 @@ export async function huecosDelDia(
        FROM appointments
       WHERE tenant_id = $1 AND owner_id = $2
         AND (starts_at AT TIME ZONE $4)::date = $3::date
-        AND status IN ('proposed','confirmed','reminded')`,
-    [input.tenantId, input.ownerId, input.dia, zona],
+        AND status IN ('proposed','confirmed','reminded')
+        AND ($5::uuid IS NULL OR id <> $5)`,
+    [input.tenantId, input.ownerId, input.dia, zona, input.ignorarCitaId ?? null],
   );
   const ocupados: Ocupado[] = [
     ...citas.rows.map((c) => ({ inicio: c.inicio, fin: c.fin })),
@@ -311,6 +323,61 @@ function aCita(row: Record<string, unknown>): Cita {
  * ofrecieron hace un minuto — entre que la IA ofrece tres horarios y la
  * persona elige uno, alguien más pudo tomar el mismo.
  */
+/**
+ * El horario tiene que ser uno de los que el sistema ofrece (ADR-0029, #1251).
+ *
+ * Se llama DENTRO del cerrojo, nunca antes: hecha afuera, dos clientes que
+ * eligen el mismo hueco a la vez lo ven libre los dos.
+ *
+ * Mira el inicio **y la duración**. Validar solo el inicio dejaba pasar una
+ * cita de tres horas que empieza en un bloque de treinta minutos: el inicio
+ * era legítimo, el fin no lo miraba nadie, y la cita bloqueaba la mañana
+ * entera sin chocar con nada porque no había nada con qué chocar. El prompt ya
+ * le pide al agente copiar el horario tal cual se lo devolvió
+ * `calendar.get_slots`; esto es lo que lo hace cierto.
+ *
+ * Los dos mensajes son distintos a propósito: quien recibe el error es un
+ * modelo que tiene que corregirse solo, y «no está disponible» cuando el
+ * problema es la duración lo manda a buscar otro horario en vez de arreglar
+ * el que ya tenía bien.
+ */
+async function exigirQueElHuecoExista(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    ownerId: string;
+    inicio: Date;
+    fin: Date;
+    /** La cita que se mueve, para que no se bloquee a sí misma. */
+    ignorarCitaId?: string;
+  },
+): Promise<void> {
+  const dia = diaEn(await zonaDelTenant(client, input.tenantId), input.inicio);
+  const huecos = await huecosDelDia(client, {
+    tenantId: input.tenantId,
+    ownerId: input.ownerId,
+    dia,
+    ignorarCitaId: input.ignorarCitaId,
+  });
+  const empieza = huecos.find((h) => new Date(h.inicio).getTime() === input.inicio.getTime());
+  if (!empieza) {
+    throw new Error(
+      'Ese horario ya no está disponible. Vuelve a mirar los horarios libres y ofrece otro.',
+    );
+  }
+  if (new Date(empieza.fin).getTime() !== input.fin.getTime()) {
+    throw new Error(
+      `Ese horario dura ${minutosEntre(empieza.inicio, empieza.fin)} minutos, no ` +
+        `${minutosEntre(input.inicio, input.fin)}. Copia el horario tal cual te lo dimos.`,
+    );
+  }
+}
+
+/** Los minutos de un tramo, para decirle al agente cuánto dura el bloque. */
+function minutosEntre(inicio: Date | string, fin: Date | string): number {
+  return Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / 60_000);
+}
+
 export async function agendar(
   client: PoolClient,
   input: {
@@ -360,18 +427,12 @@ export async function agendar(
     // El mismo cálculo que ofreció los horarios, rehecho con el cerrojo
     // puesto: entre que se ofrecieron y que el cliente eligió pudo entrar
     // otra cita, cambiar la disponibilidad o pasar la anticipación mínima.
-    const dia = diaEn(await zonaDelTenant(client, input.tenantId), input.inicio);
-    const huecos = await huecosDelDia(client, {
+    await exigirQueElHuecoExista(client, {
       tenantId: input.tenantId,
       ownerId: input.ownerId,
-      dia,
+      inicio: input.inicio,
+      fin: input.fin,
     });
-    const existe = huecos.some((h) => new Date(h.inicio).getTime() === input.inicio.getTime());
-    if (!existe) {
-      throw new Error(
-        'Ese horario ya no está disponible. Vuelve a mirar los horarios libres y ofrece otro.',
-      );
-    }
   }
   const choca = await client.query(
     `SELECT id FROM appointments
@@ -603,6 +664,18 @@ export async function reagendarCita(
     actor?: string;
     actorKind?: ActorKind;
     requestId?: string;
+    /**
+     * Exigir que el horario nuevo sea un hueco REAL (#1251).
+     *
+     * Lo mismo que en `agendar`, y por el mismo motivo: una persona del
+     * equipo puede mover una hora fuera del horario publicado y eso es
+     * legítimo; el modelo no tiene cómo saber que es legítimo.
+     *
+     * Sin esto, la garantía del ADR-0029 se esquivaba moviendo: el agente
+     * tomaba un hueco válido y después lo movía a las tres de la mañana de
+     * un domingo. Validar al tomar y no al mover es no validar.
+     */
+    exigirHuecoDisponible?: boolean;
   },
   deps: AgendaDeps = {},
 ): Promise<Cita> {
@@ -637,6 +710,15 @@ export async function reagendarCita(
        'calendar:agenda:' || $1::uuid::text || ':' || $2::uuid::text, 0))`,
     [input.tenantId, antes.ownerId],
   );
+  if (input.exigirHuecoDisponible) {
+    await exigirQueElHuecoExista(client, {
+      tenantId: input.tenantId,
+      ownerId: antes.ownerId,
+      inicio: input.inicio,
+      fin: input.fin,
+      ignorarCitaId: input.appointmentId,
+    });
+  }
   const choca = await client.query(
     `SELECT id FROM appointments
       WHERE tenant_id = $1 AND owner_id = $2 AND id <> $3
