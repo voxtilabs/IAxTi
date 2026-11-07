@@ -363,6 +363,20 @@ export async function deliverOutbound(
     to: data.to,
     type: data.type ?? 'texto',
     body: data.body,
+    /**
+     * NUESTRO id, para que el adaptador pida idempotencia al proveedor (#585).
+     *
+     * Faltaba, y el campo salía undefined del POST. Lo que eso significa lo
+     * dice el comentario de `zavu.ts`: si Zavu acepta el mensaje y la
+     * respuesta se pierde —un timeout, la red—, BullMQ reintenta y el
+     * cliente recibe el mismo mensaje dos veces. Se paga dos veces y se
+     * gastan dos del tope diario.
+     *
+     * El tipo lo declara desde que alguien notó que llegaba «de casualidad»
+     * porque `deliverOutbound` esparcía el job entero; al pasar a construir
+     * el objeto campo por campo, este se quedó afuera.
+     */
+    messageId: data.messageId,
     ...(data.attachments?.length ? { attachments: data.attachments } : {}),
     // La plantilla aprobada, si el mensaje sale con una (#44). El adaptador
     // decide cómo la manda; acá solo viaja.
