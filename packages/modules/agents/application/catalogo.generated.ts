@@ -786,6 +786,25 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
               "type": "string",
               "maxLength": 500
             },
+            "firma_en_cada_mensaje": {
+              "type": "boolean"
+            },
+            "firma": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "actua_como_user_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "pulso": {
               "type": "object",
               "properties": {
@@ -1260,6 +1279,25 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
             "escalation_notice": {
               "type": "string",
               "maxLength": 500
+            },
+            "firma_en_cada_mensaje": {
+              "type": "boolean"
+            },
+            "firma": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "actua_como_user_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "pulso": {
               "type": "object",

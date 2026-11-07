@@ -261,6 +261,32 @@ const LimitesDelAsistente = objetoCerrado(
       .string({ error: 'El aviso de escalada va en texto.' })
       .max(500, 'El aviso de escalada es un mensaje, no una carta: hasta 500 caracteres.')
       .optional(),
+    /*
+     * Las tres que llegaron después del #1232 y este esquema no conocía.
+     *
+     * Las cazó su propia guarda al rebasar sobre `staging` cuatro días
+     * después, que es para lo que la guarda existe: una llave que el producto
+     * LEE y el esquema no declara no se puede guardar, y el síntoma que llega
+     * es «no me deja guardar» en una función recién construida.
+     */
+    firma_en_cada_mensaje: z
+      .boolean({ error: 'Firmar en cada mensaje es sí o no.' })
+      .optional(),
+    // Sin tope mínimo y sin recortar: la cadena VACÍA significa «sin firma»,
+    // y así lo lee `guardrailLimits`. Lo único que no es configuración es que
+    // no sea texto.
+    firma: z
+      .string({ error: 'La firma va en texto.' })
+      .max(200, 'La firma va al final de cada mensaje: hasta 200 caracteres.')
+      .optional(),
+    // La identidad con la que actúa el asistente (#1235). No la edita esta
+    // pantalla, pero tiene que poder viajar: si el esquema la rechaza, el
+    // primer guardado del modo autónomo la borra y el agente vuelve a quedarse
+    // sin herramientas que escriban.
+    actua_como_user_id: z
+      .uuid('La identidad con la que actúa el asistente es un id de tu equipo.')
+      .nullable()
+      .optional(),
     pulso: PulsoDelEvento.optional(),
   },
   'los límites del asistente',

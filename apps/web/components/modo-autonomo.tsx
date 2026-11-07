@@ -62,6 +62,9 @@ interface LimitesDto {
   escalation_notice?: string;
   handoff_user_id?: string;
   firma_en_cada_mensaje?: boolean;
+  firma?: string;
+  /* No la edita esta pantalla, pero viaja para no borrarse (#1235). */
+  actua_como_user_id?: string | null;
   pulso?: PulsoDto;
 }
 
@@ -85,6 +88,8 @@ const LLAVES_DE_LIMITS = [
   'handoff_user_id',
   'escalation_notice',
   'firma_en_cada_mensaje',
+  'firma',
+  'actua_como_user_id',
   'pulso',
 ] as const satisfies readonly (keyof LimitesDto)[];
 
