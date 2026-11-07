@@ -102,6 +102,7 @@ export const TABLAS_EXPORTADAS = [
   'products',
   'activities',
   'availability',
+  'time_off',
   'calendar_connections',
   'appointments',
   'saved_filters',
