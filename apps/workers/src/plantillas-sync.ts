@@ -5,6 +5,7 @@ import type { ChannelAccountRef, PuertoDePlantillas } from '@iaxti/module-channe
 import {
   aplicarEstadoDelProveedor,
   ESTADOS_PLANTILLA,
+  transicionPermitida,
   listTemplates,
   sincronizarConZavu,
 } from '@iaxti/module-whatsapp';
@@ -122,15 +123,37 @@ export async function sincronizarPlantillas(
         let n = 0;
         const nuestras = await listTemplates(c, tenantId);
         for (const nuestra of nuestras) {
-          if (nuestra.status !== 'pending') continue;
+          /**
+           * TODAS, no solo las `pending` (#1271).
+           *
+           * Acá había un `if (nuestra.status !== 'pending') continue`, y eso
+           * volvía `paused` y `disabled` inalcanzables: una plantilla que Meta
+           * pausó por calidad seguía marcada `approved`, `puedeEnviarse`
+           * devolvía true, y el producto la seguía mandando — que es
+           * exactamente lo que hunde la calidad de un número.
+           */
           revisadas += 1;
           const suya = porNombre.get(`${nuestra.name}::${nuestra.language}`);
+          if (!suya?.status || suya.status === nuestra.status) continue;
           // Un estado que no entendemos NO se aplica: mejor seguir
           // esperando que inventar una aprobación. El puerto devuelve el
           // estado como texto —cada proveedor tiene los suyos— y acá se
           // comprueba contra los nuestros antes de escribir nada.
-          if (!suya?.status || suya.status === 'pending') continue;
           if (!(ESTADOS_PLANTILLA as readonly string[]).includes(suya.status)) continue;
+          /**
+           * Y que la transición sea ALCANZABLE desde donde está, no solo que
+           * el estado exista. Pertenecer al enum y poder llegar ahí son dos
+           * cosas distintas, y confundirlas era lo que hacía lanzar a
+           * `assertTransicionPlantilla` dentro de esta transacción, llevándose
+           * las aprobaciones de las plantillas anteriores del mismo bucle.
+           */
+          if (!transicionPermitida(nuestra.status, suya.status as EstadoPlantilla)) {
+            console.warn(
+              `plantillas.sync: ${tenantId} · "${nuestra.name}" está en ${nuestra.status} y el ` +
+                `proveedor dice ${suya.status}; no se puede llegar de uno al otro, así que no se aplica.`,
+            );
+            continue;
+          }
           const r = await aplicarEstadoDelProveedor(c, {
             tenantId,
             name: nuestra.name,

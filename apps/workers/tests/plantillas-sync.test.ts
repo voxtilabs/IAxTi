@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { createTemplate, createZavuProvider, getTemplate, marcarEnviadaARevision } from '@iaxti/module-whatsapp';
+import { createTemplate, createZavuProvider, getTemplate, marcarEnviadaARevision, puedeEnviarse } from '@iaxti/module-whatsapp';
 import { getProvider, registerProvider } from '@iaxti/module-channels';
 import { sincronizarPlantillas } from '../src/plantillas-sync';
 
@@ -301,5 +301,61 @@ describe('reconciliación de plantillas', () => {
     expect(
       porElNumero(llamadas, SENDER_AJENO).map((u) => new URL(u).pathname),
     ).toEqual(['/v1/templates/sync', '/v1/templates']);
+  });
+});
+
+/**
+ * Una plantilla pausada no se lleva a las demás, y deja de enviarse (#1271).
+ *
+ * Dos defectos encadenados en el mismo bucle:
+ *
+ * 1. El filtro comprobaba pertenencia al enum completo de seis estados en vez
+ *    de alcanzabilidad desde el actual. Un `paused` que llega sobre una fila
+ *    `pending` pertenece al enum y NO es alcanzable, así que pasaba y hacía
+ *    lanzar a `assertTransicionPlantilla` DENTRO de la transacción del
+ *    barrido — que se revertía con las aprobaciones de las plantillas
+ *    anteriores adentro. Y el `catch` solo imprime, así que era silencioso y
+ *    se repetía en cada pasada.
+ * 2. El bucle solo miraba las `pending`, así que `paused` y `disabled` eran
+ *    inalcanzables: una plantilla que Meta pausó seguía marcada `approved`,
+ *    `puedeEnviarse` devolvía true, y el producto la seguía mandando.
+ */
+describe('la plantilla pausada (#1271)', () => {
+  it('no se lleva las aprobaciones de la misma pasada', async () => {
+    const pausada = await plantillaEnRevision('la_que_meta_pauso');
+    const aprobada = await plantillaEnRevision('la_que_si_se_aprobo');
+    zavuDice([
+      { id: 'tpl_prov', name: 'la_que_meta_pauso', language: base.language, status: 'paused' },
+      { id: 'tpl_prov2', name: 'la_que_si_se_aprobo', language: base.language, status: 'approved' },
+    ]);
+
+    await sincronizarPlantillas(admin);
+
+    // La que sí se podía aprobar, quedó aprobada. Antes se perdía con el
+    // rollback que provocaba la otra.
+    const buena = await withTenant(admin, tenant, (c) => getTemplate(c, tenant, aprobada));
+    expect(buena?.status).toBe('approved');
+    // Y la imposible se quedó donde estaba, sin reventar nada.
+    const mala = await withTenant(admin, tenant, (c) => getTemplate(c, tenant, pausada));
+    expect(mala?.status).toBe('pending');
+  });
+
+  /**
+   * El segundo defecto: antes el barrido ni siquiera miraba las aprobadas, así
+   * que una pausada por Meta seguía marcada `approved` y se seguía mandando.
+   */
+  it('una aprobada que Meta pausó queda pausada, y deja de poder enviarse', async () => {
+    const id = await plantillaEnRevision('aprobada_y_luego_pausada');
+    zavuDice([{ id: 'tpl_prov', name: 'aprobada_y_luego_pausada', language: base.language, status: 'approved' }]);
+    await sincronizarPlantillas(admin);
+    expect((await withTenant(admin, tenant, (c) => getTemplate(c, tenant, id)))?.status).toBe('approved');
+
+    // Meta la pausa por calidad.
+    zavuDice([{ id: 'tpl_prov', name: 'aprobada_y_luego_pausada', language: base.language, status: 'paused' }]);
+    await sincronizarPlantillas(admin);
+
+    const p = await withTenant(admin, tenant, (c) => getTemplate(c, tenant, id));
+    expect(p?.status).toBe('paused');
+    expect(puedeEnviarse(p!.status)).toBe(false);
   });
 });

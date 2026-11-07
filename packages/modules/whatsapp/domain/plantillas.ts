@@ -39,6 +39,23 @@ const TRANSICIONES: Record<EstadoPlantilla, EstadoPlantilla[]> = {
   disabled: [],
 };
 
+/**
+ * ¿Se puede ir de `from` a `to`? (#1271)
+ *
+ * Existe porque el sincronizador necesitaba preguntarlo ANTES de aplicar, y
+ * no tenía cómo: filtraba por pertenencia al enum completo de seis estados,
+ * que no es lo mismo. Un `paused` que llega sobre una fila `pending` pertenece
+ * al enum y NO es alcanzable, así que pasaba el filtro y hacía lanzar a
+ * `assertTransicionPlantilla` — dentro de la transacción del barrido, que se
+ * revertía con las aprobaciones de las demás plantillas adentro.
+ *
+ * Preguntar y lanzar son dos necesidades distintas y ahora hay una función
+ * para cada una, sobre la MISMA tabla.
+ */
+export function transicionPermitida(from: EstadoPlantilla, to: EstadoPlantilla): boolean {
+  return TRANSICIONES[from]?.includes(to) ?? false;
+}
+
 export function assertTransicionPlantilla(from: EstadoPlantilla, to: EstadoPlantilla): void {
   if (!TRANSICIONES[from]?.includes(to)) {
     throw new Error(`Transición de plantilla inválida: ${from} → ${to}`);
