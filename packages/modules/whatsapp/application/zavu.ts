@@ -121,7 +121,10 @@ const CANAL: Partial<Record<ChannelKind, string>> = {
   messenger: 'messenger',
 };
 
-const TIPOS: Record<string, string> = {
+// Exportada para que el eco (#1265) clasifique los tipos con la MISMA tabla
+// que el camino de entrada: si usara otra, un audio importado y uno recibido
+// se verían distintos en la bandeja sin que nada lo explique.
+export const TIPOS: Record<string, string> = {
   text: 'texto',
   image: 'imagen',
   video: 'video',

@@ -71,12 +71,22 @@ describe('estados por id del proveedor (#43)', () => {
         cost: { billable: true, category: 'service', pricing_model: 'CBP' },
       }),
     );
-    expect(actualizado?.deliveryStatus).toBe('delivered');
+    expect(actualizado).toMatchObject({ estado: 'aplicado' });
+    expect(actualizado.estado === 'aplicado' && actualizado.message.deliveryStatus).toBe('delivered');
     const meta = await admin.query('SELECT meta FROM messages WHERE id = $1', [mensaje]);
     expect(meta.rows[0].meta.costo).toMatchObject({ category: 'service' });
   });
 
-  it('la regresión y el wamid desconocido se ignoran sin llorar (Meta reenvía)', async () => {
+  /**
+   * Antes esta prueba afirmaba que los DOS devuelven `null`, y esa confusión
+   * era el defecto (#1265): «el estado no avanza» y «no es un mensaje
+   * nuestro» se trataban igual, y lo segundo resultó ser la puerta por la que
+   * se perdía todo lo que el dueño manda desde su teléfono.
+   *
+   * Siguen sin llorar los dos —Meta reenvía y nosotros no nos alteramos—,
+   * pero ahora se distinguen, y quien llama puede hacer algo con el segundo.
+   */
+  it('la regresión y el wamid desconocido no lloran, pero YA NO son lo mismo', async () => {
     const regresion = await withTenant(admin, tenant, (c) =>
       updateDeliveryStatusByProviderId(c, {
         tenantId: tenant,
@@ -84,7 +94,7 @@ describe('estados por id del proveedor (#43)', () => {
         status: 'sent', // ya está delivered: no retrocede
       }),
     );
-    expect(regresion).toBeNull();
+    expect(regresion).toEqual({ estado: 'no_avanzable', actual: 'delivered' });
     const desconocido = await withTenant(admin, tenant, (c) =>
       updateDeliveryStatusByProviderId(c, {
         tenantId: tenant,
@@ -92,6 +102,6 @@ describe('estados por id del proveedor (#43)', () => {
         status: 'read',
       }),
     );
-    expect(desconocido).toBeNull();
+    expect(desconocido).toEqual({ estado: 'desconocido' });
   });
 });

@@ -3,10 +3,12 @@ export const MODULE_ID = 'conversations' as const;
 export { OutboundRetryError, retryOutboundDelivery } from './application/delivery';
 export {
   receiveInbound,
+  tipoQueSePuedeGuardar,
   receiveInboundForContact,
   sendMessage,
   updateDeliveryStatus,
   updateDeliveryStatusByProviderId,
+  registrarSalienteDelCanal,
   getOutboundContext,
   getContext,
   updateSummary,
