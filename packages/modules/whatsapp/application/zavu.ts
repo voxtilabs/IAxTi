@@ -547,17 +547,67 @@ export function referralDe(payload: unknown): Record<string, unknown> | null {
   return EVENTOS_ENTRANTES.has(evento.type ?? '') ? (evento.data?.referral ?? null) : null;
 }
 
+/**
+ * Cuánto se espera y cuánto se acepta de un adjunto (#1275).
+ *
+ * Antes no había ninguno de los dos. Y los tres hechos juntos lo volvían un
+ * bloqueo del despliegue entero: la descarga va a memoria, ocurre DENTRO de
+ * la transacción del camino de entrada, y la cola de entrada corre de a uno.
+ * Mientras un archivo viajaba, no entraba nada: ni los mensajes de los otros
+ * negocios, ni los acuses, ni los avisos de pago. Y una conexión colgada no
+ * la cortaba nadie.
+ *
+ * El tope sale de `LIMITES_CONSERVADORES`, que el repo ya calculó en 8 MB con
+ * su razonamiento escrito. Pasarse no pierde el mensaje: el camino de entrada
+ * ya guarda el texto con la metadata original cuando el adjunto falla, y la
+ * bandeja lo dice en castellano.
+ */
+const PLAZO_DE_DESCARGA_MS = 20_000;
+const TOPE_DE_DESCARGA = 8 * 1024 * 1024;
+
 /** Los adjuntos de Zavu vienen por URL firmada y de vida corta: se bajan al llegar. */
 export async function fetchMediaBytes(
   url: string,
   apiKey: string,
-  config: ZavuConfig = {},
+  /**
+   * `maxBytes` y `timeoutMs` se pueden pasar para poder MEDIRLOS sin reservar
+   * ocho megas en una prueba. No es un adorno: la primera versión de estas
+   * pruebas fabricaba búfers del tamaño real y el reportero de vitest se
+   * ahogaba con `Timeout calling "onTaskUpdate"` — los tests corrían y sus
+   * resultados se perdían, que es peor que no tenerlos.
+   */
+  config: ZavuConfig & { maxBytes?: number; timeoutMs?: number } = {},
 ): Promise<{ bytes: ArrayBuffer; contentType: string }> {
+  const tope = config.maxBytes ?? TOPE_DE_DESCARGA;
+  const enMB = (n: number) => Math.round((n / 1024 / 1024) * 10) / 10;
   const fetchImpl = config.fetchImpl ?? fetch;
-  const bin = await fetchImpl(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+  const bin = await fetchImpl(url, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(config.timeoutMs ?? PLAZO_DE_DESCARGA_MS),
+  });
   if (!bin.ok) throw new Error(`No pudimos bajar el adjunto: HTTP ${bin.status}`);
+  // El tamaño declarado, cuando viene: ahorra bajar lo que de todas formas se
+  // va a descartar.
+  const declarado = Number(bin.headers.get('content-length') ?? NaN);
+  if (Number.isFinite(declarado) && declarado > tope) {
+    // Permanente: un archivo no se achica porque lo reintentemos. El mensaje
+    // entra igual con su metadata, que es lo que ya hace el camino de entrada.
+    throw new ErrorPermanente(
+      `Ese archivo pesa ${enMB(declarado)} MB y el máximo son ${enMB(tope)} MB. Pídeselo más liviano.`,
+      `content-length ${declarado} sobre el tope ${tope}.`,
+    );
+  }
+  const bytes = await bin.arrayBuffer();
+  // Y el real, porque `content-length` puede no venir o mentir. Acá ya se
+  // gastó la memoria, pero no se gasta el viaje a R2 ni la fila.
+  if (bytes.byteLength > tope) {
+    throw new ErrorPermanente(
+      `Ese archivo pesa ${enMB(bytes.byteLength)} MB y el máximo son ${enMB(tope)} MB. Pídeselo más liviano.`,
+      `${bytes.byteLength} bytes sobre el tope ${tope}; el proveedor no declaró content-length.`,
+    );
+  }
   return {
-    bytes: await bin.arrayBuffer(),
+    bytes,
     contentType: bin.headers.get('content-type') ?? 'application/octet-stream',
   };
 }

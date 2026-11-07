@@ -989,6 +989,15 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
       },
       redisConnection(),
     );
+    /**
+     * La entrada deja de correr de a uno (#1275).
+     *
+     * Sin declararla, BullMQ usa 1: un solo mensaje con adjunto bloqueaba la
+     * bandeja de TODOS los negocios mientras el archivo viajaba. Con tope y
+     * plazo en la descarga eso ya no puede durar para siempre, pero seguir de
+     * a uno hace que cada adjunto se pague en latencia de todos los demás.
+     */
+    inboundWorker.concurrency = enteroDeEntorno('WORKERS_INBOUND_CONCURRENCY', 5);
     trabajadores.push({ nombre: 'cola inbound', worker: inboundWorker });
     console.log('workers: worker de cola inbound activo');
 
