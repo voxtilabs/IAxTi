@@ -4418,7 +4418,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
             "cuota_ia",
             "calidad_numero",
             "pago_recibido",
-            "estado_cuenta"
+            "estado_cuenta",
+            "cupo_del_canal"
           ]
         },
         "campana": {

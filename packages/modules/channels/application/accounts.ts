@@ -234,3 +234,60 @@ export async function tenantDeCuenta(
   const r = await client.query('SELECT tenant_de_cuenta_de_canal($1) AS tenant', [accountId]);
   return (r.rows[0]?.tenant as string | null) ?? null;
 }
+
+/**
+ * Avisa del cupo del canal, UNA vez al día (#1248).
+ *
+ * El primer defecto del 3 de noviembre fue este: el cupo se gastó a lo largo
+ * de seis horas y el producto no dijo nada. El dueño se enteró cuando lo
+ * importante —el mensaje de cierre del stand— no salió.
+ *
+ * El cerrojo es un `UPDATE` condicional y no una comprobación: con el cupo
+ * agotado hay muchos jobs en la cola y cada uno que se difiere querría avisar.
+ * Cincuenta avisos iguales no son cincuenta veces más útiles que uno — son una
+ * campana que el dueño silencia, y entonces el aviso que importa tampoco
+ * llega. Leer-y-después-escribir dejaría pasar dos; esto no, y el evento va en
+ * la misma transacción que la marca.
+ *
+ * El día es el del CUPO, o sea UTC: el proveedor lo reinicia a medianoche UTC
+ * —medido el 3 de noviembre, cuando se renovó a las 21:00 de Chile—, así que
+ * el aviso se renueva con él. Se calcula en SQL para que no haya una fecha de
+ * JavaScript de la que dudar.
+ *
+ * Devuelve `true` si avisó, para que quien llama lo pueda registrar.
+ */
+export async function avisarDelCupoUnaVezAlDia(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    accountId: string;
+    cupo: { enviados: number; tope: number; quedan: number; reserva: number; topeAsumido: boolean };
+    requestId?: string;
+  },
+): Promise<boolean> {
+  const r = await client.query(
+    `UPDATE channel_accounts
+        SET config = jsonb_set(config, '{avisoDeCupo}',
+                               to_jsonb((now() AT TIME ZONE 'UTC')::date::text)),
+            updated_at = now()
+      WHERE tenant_id = $1 AND id = $2
+        AND config->>'avisoDeCupo' IS DISTINCT FROM (now() AT TIME ZONE 'UTC')::date::text
+      RETURNING id`,
+    [input.tenantId, input.accountId],
+  );
+  if (r.rowCount !== 1) return false;
+  await publishEvent(client, {
+    name: 'channel.quota_threshold',
+    tenantId: input.tenantId,
+    payload: {
+      channelAccountId: input.accountId,
+      enviados: input.cupo.enviados,
+      tope: input.cupo.tope,
+      quedan: input.cupo.quedan,
+      reservadosParaPersonas: input.cupo.reserva,
+      topeAsumido: input.cupo.topeAsumido,
+    },
+    ...(input.requestId ? { requestId: input.requestId } : {}),
+  });
+  return true;
+}
