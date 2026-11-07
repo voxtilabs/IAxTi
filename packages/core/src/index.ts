@@ -72,6 +72,13 @@ export {
   ES_DE_AUTOR,
 } from './columnas-sin-lector';
 export type { Columna } from './columnas-sin-lector';
+export {
+  esquemaVsCodigo,
+  valoresQueAceptaElEsquema,
+  valoresQueDeclaraElCodigo,
+  comoLinea,
+} from './esquema-vs-codigo';
+export type { Declaracion, Divergencia } from './esquema-vs-codigo';
 export { emisoresDeEventos, eventosSinEmisor } from './eventos-sin-emisor';
 export type { ArchivoFuente } from './eventos-sin-emisor';
 // Un solo lugar que sabe la forma del costo del proveedor (#795).
