@@ -355,6 +355,19 @@ const CAMPOS_DEL_ASISTENTE = {
     .string({ error: 'El prompt de respaldo va en texto.' })
     .max(20_000, 'El prompt de respaldo no puede pasar de 20.000 caracteres.')
     .optional(),
+  /*
+   * Acá va la FORMA y no la política.
+   *
+   * Que cada herramienta sirva PARA ESTE asistente —las cifras del negocio no
+   * son de uno que atiende clientes (#410, #1285)— se comprueba en el handler
+   * y no acá, porque depende del objetivo del agente que está en la base y del
+   * que puede venir cambiado en el mismo cuerpo. Un esquema no lo puede saber.
+   *
+   * Son dos capas a propósito, no una duplicación: esto rechaza un cuerpo mal
+   * formado antes de tocar la base, y el handler rechaza una combinación que
+   * no corresponde. Unificarlas obligaría a una de las dos a hacer el trabajo
+   * de la otra mal.
+   */
   allowedTools: z
     .array(z.string({ error: 'Cada herramienta va por su nombre, en texto.' }))
     .max(200, 'Son demasiadas herramientas para un asistente.')
