@@ -164,10 +164,10 @@ export function DiasCerrados() {
     <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <p className="flex items-center gap-2">
         <CalendarOff aria-hidden className="size-4 text-muted" />
-        <span className="rotulo">Feriados, vacaciones, el día que cierras</span>
+        <span className="rotulo">Feriados y vacaciones</span>
       </p>
       <p className="mt-1 max-w-prose text-sm text-body">
-        Un día cerrado no ofrece ninguna hora, ni el asistente tampoco.
+        Un día cerrado no ofrece horas, ni el asistente.
       </p>
 
       {aviso && <AvisoResultado tono={aviso.tono}>{aviso.texto}</AvisoResultado>}
@@ -242,7 +242,7 @@ export function DiasCerrados() {
           {ocupado === 'nuevo' ? 'Cerrando…' : 'Cerrar estos días'}
         </Button>
         <span className="w-full text-xs text-muted">
-          Cerrar no cancela las citas ya tomadas: te decimos cuántas quedaron adentro.
+          Cerrar no cancela las citas ya tomadas: te decimos cuántas.
         </span>
       </Formulario>
     </section>

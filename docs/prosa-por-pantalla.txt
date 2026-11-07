@@ -39,7 +39,7 @@
 
 /reportes 246
 /ajustes/ia/detalle 234
-/agenda 134
+/agenda 149
 /ajustes/canales 107
 /ajustes/conocimiento 66
 /ajustes/bandeja 65
