@@ -1,14 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type Server, type Socket } from 'node:net';
 import { consumerReadiness } from '../src/consumer-readiness';
+import { exigirVariables } from '../src/testing/servicios';
 
 const configured = { REDIS_URL: process.env.REDIS_URL, DATABASE_URL: process.env.DATABASE_URL };
 let blackhole: Server;
 let port: number;
 const sockets = new Set<Socket>();
 beforeAll(async () => {
-  expect(configured.REDIS_URL).toBeTruthy();
-  expect(configured.DATABASE_URL).toBeTruthy();
+  // Con el `expect(...).toBeTruthy()` que había acá, faltar una variable se
+  // leía como un número de línea: el archivo no cargaba y sus once pruebas
+  // quedaban contadas como `skipped`, que se lee igual que «no tenían nada que
+  // decir» (#1254).
+  exigirVariables(['REDIS_URL', 'DATABASE_URL']);
   blackhole = createServer(socket => {
     sockets.add(socket);
     socket.on('data', () => {});
@@ -19,6 +23,10 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   for (const socket of sockets) socket.destroy();
+  // Si el `beforeAll` no llegó a crear el servidor, cerrarlo revienta y el
+  // segundo error tapa al primero: lo que se ve son dos líneas crípticas en
+  // vez de «falta REDIS_URL».
+  if (!blackhole) return;
   await new Promise<void>(resolve => blackhole.close(() => resolve()));
 });
 
