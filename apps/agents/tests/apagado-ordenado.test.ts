@@ -1,9 +1,10 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { alApagar, apagarOrdenado } from '@iaxti/telemetry';
+import { exigirServicio } from '@iaxti/core/testing';
 
 /**
  * Al desplegar, la generación en vuelo se termina (#1216).
@@ -20,6 +21,18 @@ import { alApagar, apagarOrdenado } from '@iaxti/telemetry';
  */
 const URL_REDIS = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379/1';
 const COLA = `prueba-apagado-${process.pid}`;
+
+/*
+ * Que el rojo diga que falta Redis (#1254).
+ *
+ * Medido el 7 de noviembre: el contenedor estaba caído desde hacía trece horas
+ * y esta suite fallaba con «Test timed out in 20000ms», sin mencionar Redis en
+ * ninguna parte. Estuve a punto de atribuirlo a mi cambio y buscar una
+ * regresión que no existía.
+ */
+beforeAll(async () => {
+  await exigirServicio(URL_REDIS, 'Redis');
+});
 const conexiones: IORedis[] = [];
 const conexion = () => {
   const c = new IORedis(URL_REDIS, { maxRetriesPerRequest: null });

@@ -8,3 +8,5 @@
 export { fuenteLimpia } from './fuente-limpia';
 export { outboxAcotado } from './outbox-acotado';
 export { escrituraCaida, SUFIJO_INEXISTENTE } from './escritura-caida';
+// Un rojo que dice qué servicio falta, en vez de agotar el reloj (#1254).
+export { exigirServicio, exigirVariables } from './servicios';
