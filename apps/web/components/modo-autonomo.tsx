@@ -78,14 +78,28 @@ interface AgenteDto {
   limits: LimitesDto;
 }
 
-const LLAVES_DE_LIMITS: readonly (keyof LimitesDto)[] = [
+const LLAVES_DE_LIMITS = [
   'confidence_threshold',
   'max_agent_turns',
   'money_limit_clp',
   'handoff_user_id',
   'escalation_notice',
+  'firma_en_cada_mensaje',
   'pulso',
-];
+] as const satisfies readonly (keyof LimitesDto)[];
+
+/*
+ * Que la lista esté COMPLETA lo exige el compilador, no la memoria.
+ *
+ * Si `LimitesDto` gana una llave y nadie la agrega acá, esta línea no compila.
+ * Sin ella, el olvido no da error: la llave se borra en silencio en el próximo
+ * guardado. Pasó al rebasar esto sobre `staging`, que había agregado
+ * `firma_en_cada_mensaje` — y el comentario de abajo ya advertía del riesgo
+ * mientras la lista lo tenía.
+ */
+type FaltaDeclarar = Exclude<keyof LimitesDto, (typeof LLAVES_DE_LIMITS)[number]>;
+const _todasDeclaradas: FaltaDeclarar extends never ? true : FaltaDeclarar = true;
+void _todasDeclaradas;
 
 /**
  * Lo que vuelve al servidor: lo conocido, y nada más (#1232).
@@ -176,7 +190,14 @@ export function ModoAutonomo() {
     try {
       const actualizado = await apiFetch<AgenteDto>(config, session!, tenant, `/agents/${agente.id}`, {
         method: 'PUT',
-        body: JSON.stringify(cambios),
+        // El filtro va acá, en el borde, y no en `guardarLimites`: la guarda
+        // de #1230 exige que el único literal de `limits` arranque con
+        // `...limits` para que nadie olvide el spread, y envolverlo en una
+        // llamada lo escondía de esa comprobación. Acá es además el único
+        // punto por donde salen los límites al servidor.
+        body: JSON.stringify(
+          cambios.limits ? { ...cambios, limits: limitesConocidos(cambios.limits) } : cambios,
+        ),
       });
       reemplazar(actualizado);
       setGuardado(true);
@@ -196,8 +217,7 @@ export function ModoAutonomo() {
    * objeto a mano: todas pasan por acá, y la guarda de fuente comprueba que
    * siga siendo la única.
    */
-  const guardarLimites = (cambio: Partial<LimitesDto>) =>
-    guardar({ limits: limitesConocidos({ ...limits, ...cambio }) });
+  const guardarLimites = (cambio: Partial<LimitesDto>) => guardar({ limits: { ...limits, ...cambio } });
 
   /** Lo mismo un nivel más adentro: `pulso` también se reemplaza entero. */
   const guardarPulso = (cambio: Partial<PulsoDto>) => guardarLimites({ pulso: { ...pulso, ...cambio } });
