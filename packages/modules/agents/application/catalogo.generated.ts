@@ -109,6 +109,63 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgendaController_cerrar": {
+    "metodo": "POST",
+    "ruta": "/v1/agenda/cierres",
+    "resumen": "Cierra un día o un rango: feriado, vacaciones, el día que no se abre",
+    "permiso": "calendar.manage_availability",
+    "modulo": "calendar",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "desde": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "hasta": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "motivo": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "todoElNegocio": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "desde"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "AgendaController_cierres": {
+    "metodo": "GET",
+    "ruta": "/v1/agenda/cierres",
+    "resumen": "Los días cerrados de alguien del equipo y los del negocio",
+    "permiso": "calendar.manage_availability",
+    "modulo": "calendar",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        },
+        "incluirPasados": {
+          "type": "string",
+          "x-iaxti-en": "query"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "AgendaController_disponibilidad": {
     "metodo": "POST",
     "ruta": "/v1/agenda/disponibilidad",
@@ -286,6 +343,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "id",
         "inicio",
         "fin"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "AgendaController_reabrir": {
+    "metodo": "DELETE",
+    "ruta": "/v1/agenda/cierres/{id}",
+    "resumen": "Reabre un día cerrado",
+    "permiso": "calendar.manage_availability",
+    "modulo": "calendar",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
       ],
       "additionalProperties": false
     }

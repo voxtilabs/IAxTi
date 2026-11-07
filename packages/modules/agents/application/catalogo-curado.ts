@@ -24,6 +24,16 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PartnerInvitationsController_status: 'Invitación privada de WhatsApp: consentimiento humano, nunca tool de IA.',
   PartnerInvitationsController_start: 'Inicia autorización externa de Meta desde sesión humana.',
   PartnerInvitationsController_resume: 'Recuperación explícita de autorización externa por la persona.',
+  // Cerrar un día es configuración del negocio, no una gestión del agente
+  // (#1281). Y es la clase de configuración que el agente justamente NO debe
+  // poder tocar: su propio límite. Un asistente que puede cerrar días puede
+  // cerrarse la agenda para no tener que agendar, y uno que puede reabrirlos
+  // puede deshacer el feriado que el dueño declaró. El agente ya respeta los
+  // cierres porque `calendar.get_slots` no ofrece nada en un día cerrado.
+  AgendaController_cerrar: 'Declarar un feriado o unas vacaciones lo decide el dueño en su pantalla; el agente solo respeta el resultado vía calendar.get_slots (#1281).',
+  AgendaController_reabrir: 'Reabrir un día cerrado deshace una decisión del dueño; el agente no la revierte (#1281).',
+  AgendaController_cierres: 'La lista de días cerrados es para la pantalla de configuración; al agente le alcanza con que no se le ofrezcan horas (#1281).',
+
   GoogleCalendarController_estado: 'Estado de la conexión OAuth personal para su pantalla; el agente usa agenda.huecos, no credenciales (#57).',
   GoogleCalendarController_iniciar: 'Consentimiento del navegador con state, nonce y PKCE; solo lo inicia la persona (#57).',
   GoogleCalendarController_completar: 'Canje de código OAuth y verifier de una pestaña; nunca son argumentos de una herramienta de IA (#57).',
