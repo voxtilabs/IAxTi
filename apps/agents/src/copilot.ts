@@ -139,10 +139,10 @@ export async function processSuggest(
   colas: { registry?: ModuleRegistry } = {},
 ): Promise<{
   suggestionId?: string;
-  autoReplied?: string;
+  autoReplied?: string | null;
   escalated?: string;
   /** El id del aviso de cortesía que recibió el cliente al escalar (#1019). */
-  avisado?: string;
+  avisado?: string | null;
   skipped?: string;
   transcribed?: boolean;
 }> {
@@ -169,15 +169,39 @@ export async function processSuggest(
      * uno paralelo. La prueba no distingue los dos, y está bien que no lo
      * haga: no hay defecto que atajar ahí.
      */
-    const masNuevo = await client.query(
-      `SELECT 1 FROM messages m
-        WHERE m.tenant_id = $1 AND m.conversation_id = $2 AND m.direction = 'in'
-          AND m.seq > (SELECT seq FROM messages WHERE tenant_id = $1 AND id = $3)
-        LIMIT 1`,
-      [data.tenantId, data.conversationId, data.messageId],
-    );
-    if (masNuevo.rowCount) {
-      return { skipped: 'llegó otro mensaje después: contesta el job de ese' };
+    /**
+     * ¿Pasó algo después del mensaje que este job contesta? (#1245)
+     *
+     * Antes esto miraba solo los ENTRANTES, y eso dejaba fuera el caso caro:
+     * el dueño contesta desde su teléfono mientras el bot genera. La
+     * generación tarda unos 20 s —medido— y el eco de ese mensaje llega
+     * durante esa ventana (#1265), así que el cliente recibía DOS respuestas
+     * distintas: la de la persona y la del bot encima.
+     *
+     * Ahora cuenta cualquier mensaje posterior, entre o salga. Sin filtrar
+     * por autoría, y eso cubre dos cosas con una condición:
+     *
+     * - un SALIENTE posterior es una persona que ya contestó —por la bandeja
+     *   o por su teléfono—, y el bot se calla;
+     * - un saliente posterior del propio AGENTE solo puede ser este job
+     *   reintentado después de haber entregado, que es la doble entrega que
+     *   este issue nombra.
+     *
+     * Las respuestas anteriores del agente no estorban: tienen `seq` menor
+     * que el entrante que este job contesta.
+     */
+    const huboAlgoDespues = async (): Promise<boolean> => {
+      const r = await client.query(
+        `SELECT 1 FROM messages m
+          WHERE m.tenant_id = $1 AND m.conversation_id = $2
+            AND m.seq > (SELECT seq FROM messages WHERE tenant_id = $1 AND id = $3)
+          LIMIT 1`,
+        [data.tenantId, data.conversationId, data.messageId],
+      );
+      return r.rowCount !== 0;
+    };
+    if (await huboAlgoDespues()) {
+      return { skipped: 'pasó algo después de ese mensaje: no corresponde contestarlo' };
     }
     let transcribed = false;
     // El audio primero (#48): transcrito, entra solo al contexto.
@@ -321,7 +345,26 @@ export async function processSuggest(
     // Lo que sale firmado al cliente — la respuesta autónoma o el aviso de
     // escalada (#1019) — se entrega igual: es respuesta a su entrante, así
     // que la ventana de 24 h está abierta y el horario de silencio no aplica.
-    const entregar = async (body: string): Promise<string> => {
+    /**
+     * La segunda pregunta, y es la que atrapa el caso real (#1245).
+     *
+     * Entre la primera comprobación y este punto pasaron unos 20 segundos de
+     * generación —medido—, y esa ventana es exactamente donde cabe que el
+     * dueño conteste desde su teléfono. Preguntar solo al arrancar deja el
+     * problema intacto: el bot ya decidió que le tocaba cuando todavía era
+     * cierto.
+     *
+     * Devuelve `null` en vez de lanzar: no es un error, es que ya no
+     * corresponde hablar. El job termina bien y no se reintenta.
+     */
+    const entregar = async (body: string): Promise<string | null> => {
+      if (await huboAlgoDespues()) {
+        console.warn(
+          `[${data.requestId}] copiloto: alguien contestó mientras se generaba la respuesta ` +
+            `de ${data.conversationId}; no se entrega para no hablar encima.`,
+        );
+        return null;
+      }
       const message = await sendMessage(client, {
         tenantId: data.tenantId,
         conversationId: data.conversationId,
