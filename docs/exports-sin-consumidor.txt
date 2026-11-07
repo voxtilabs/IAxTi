@@ -113,7 +113,6 @@ crm/IMPORT_FIELDS
 crm/ORIGENES_DE_CANAL
 crm/ROLES_DE_ETIQUETA
 crm/TIPOS_DE_CAMPO
-crm/ensureContactByPhone
 crm/getPipelineStages
 crm/guessMapping
 crm/isOptOutMessage
