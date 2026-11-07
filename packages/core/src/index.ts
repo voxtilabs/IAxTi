@@ -123,3 +123,10 @@ export type {
   ModuloQueConsulta,
   TablaConsultada,
 } from './consultas-entre-modulos';
+// Cada ADR que el código cita existe como página (#1292).
+export {
+  adrsCitadasSinPagina,
+  adrsQueExisten,
+  adrsConNumeroRepetido,
+} from './adr-citada-existe';
+export type { CitaDeAdr } from './adr-citada-existe';
