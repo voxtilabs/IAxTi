@@ -128,6 +128,38 @@ function faqsDe(content: string | null | undefined): Array<{ q?: string; a?: str
   return faqs;
 }
 
+/**
+ * El catálogo se valida contra el dominio REAL de la columna (#1268).
+ *
+ * Antes alcanzaba con `Number.isFinite`, y eso deja pasar dos cosas que la
+ * base rechaza: un decimal en `stock`, que es `int`, y un número más grande de
+ * lo que cabe en `numeric(14,2)`.
+ *
+ * Lo caro no era el rechazo: era que la excepción de Postgres aborta la
+ * transacción, el `catch` que guarda el motivo muere con 25P02, y el rollback
+ * se lleva hasta la fila de `sources`. El dueño subía su lista de precios y no
+ * quedaba ni el archivo ni la explicación.
+ *
+ * Un decimal en la cantidad no es un error raro: lo produce cualquier producto
+ * que se venda por kilo, metro o litro.
+ */
+function stockQueCabe(n: number): number | null {
+  if (!Number.isFinite(n)) return null;
+  // Se redondea en vez de rechazar la fila: «2,5 kilos» es un stock real, y
+  // perder el producto entero por el decimal sería peor que guardar 3.
+  if (!Number.isInteger(n)) return Math.round(n);
+  // El `int` de Postgres, que es de 32 bits. Más que eso no es un stock.
+  if (n > 2_147_483_647 || n < -2_147_483_648) return null;
+  return n;
+}
+
+/** `numeric(14,2)`: doce dígitos antes de la coma y dos después. */
+function precioQueCabe(n: number): number | null {
+  if (!Number.isFinite(n)) return null;
+  if (Math.abs(n) >= 1_000_000_000_000) return null;
+  return Math.round(n * 100) / 100;
+}
+
 export async function addSource(client: PoolClient, input: AddSourceInput): Promise<Source> {
   if (!input.name?.trim()) throw new Error('La fuente necesita un nombre.');
   if (input.kind === 'url' && !input.url?.trim()) throw new Error('Falta la URL.');
@@ -215,8 +247,8 @@ export function parseCatalog(csv: string): CatalogRow[] {
       return {
         sku: iSku === -1 ? null : f[iSku]?.trim() || null,
         name: f[iNombre].trim(),
-        price: Number.isFinite(precio) ? precio : null,
-        stock: Number.isFinite(stock) ? stock : null,
+        price: precioQueCabe(precio),
+        stock: stockQueCabe(stock),
         description: iDesc === -1 ? null : f[iDesc]?.trim() || null,
       };
     });
@@ -270,6 +302,9 @@ export async function processSource(
   await client.query('DELETE FROM knowledge_query_cache WHERE tenant_id = $1', [input.tenantId]);
 
   try {
+    // El punto de guardado: lo que siga puede reventar y el `catch` tiene que
+    // poder escribir el motivo sobre una transacción viva (#1268).
+    await client.query('SAVEPOINT procesar_fuente');
     let piezas: Array<{ content: string; question?: string }> = [];
     if (source.kind === 'texto') {
       piezas = splitIntoChunks(source.content ?? '').map((content) => ({ content }));
@@ -379,13 +414,43 @@ export async function processSource(
       actor: 'system',
       requestId: input.requestId,
     });
+    await client.query('RELEASE SAVEPOINT procesar_fuente');
     return rowToSource(listo.rows[0]);
   } catch (err) {
-    const fallo = await client.query(
-      `UPDATE sources SET status = 'failed', error = $3, updated_at = now()
-        WHERE tenant_id = $1 AND id = $2 RETURNING *`,
-      [input.tenantId, input.sourceId, (err as Error).message],
-    );
+    /**
+     * Guardar el motivo, y volver al punto de guardado SOLO si hace falta
+     * (#1268).
+     *
+     * Los fallos de acá son de dos clases y no se tratan igual:
+     *
+     * - **De JavaScript** —el proveedor de embeddings sin credencial, una URL
+     *   que no responde—: la transacción está SANA. Este `UPDATE` funciona y
+     *   lo que se alcanzó a escribir sigue ahí. Es lo que pasaba antes y está
+     *   bien.
+     * - **De Postgres** —un decimal en una columna `int`, un valor que no
+     *   cabe—: la transacción está ABORTADA. Este mismo `UPDATE` moría con
+     *   25P02, la excepción escapaba, y el rollback del llamador se llevaba
+     *   hasta la fila de `sources`: el dueño perdía su archivo y la
+     *   explicación.
+     *
+     * Por eso se intenta primero y se retrocede después. Un `ROLLBACK`
+     * incondicional desharía también lo que la primera clase alcanzó a
+     * guardar, que hoy funciona.
+     */
+    const guardarElMotivo = () =>
+      client.query(
+        `UPDATE sources SET status = 'failed', error = $3, updated_at = now()
+          WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+        [input.tenantId, input.sourceId, (err as Error).message],
+      );
+    let fallo;
+    try {
+      fallo = await guardarElMotivo();
+    } catch {
+      await client.query('ROLLBACK TO SAVEPOINT procesar_fuente');
+      fallo = await guardarElMotivo();
+    }
+    await client.query('RELEASE SAVEPOINT procesar_fuente');
     return rowToSource(fallo.rows[0]);
   }
 }

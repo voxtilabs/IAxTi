@@ -399,3 +399,117 @@ describe('fusión e identidades de canal', () => {
     expect(entra.contact.id).toBe(principal.contact.id);
   });
 });
+
+/**
+ * Las dos fichas con su oportunidad abierta (#1269).
+ *
+ * Es el caso CENTRAL de la fusión, no uno raro: la misma persona escribió
+ * desde dos números y cada ficha abrió la suya en el embudo por omisión — que
+ * es justo lo que hace el bot desde #1243.
+ *
+ * `deals_one_open_per_contact_pipeline` permite una sola abierta por contacto
+ * y embudo, así que el `UPDATE deals SET contact_id` chocaba con 23505 y se
+ * revertía la fusión ENTERA: identidades, `merged_into`, el evento que
+ * re-apunta las conversaciones, y la absorción del `opted_out_at`. Alguien que
+ * pidió que no le escriban quedaba sin esa marca en la ficha que sí se usa.
+ */
+describe('fusión con oportunidad abierta en los dos (#1269)', () => {
+  it('la fusión se completa, queda UNA abierta y el opt-out se absorbe', async () => {
+    const principal = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955551101', name: 'Principal' }),
+    );
+    const duplicado = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955551102', name: 'Duplicada' }),
+    );
+    // El duplicado pidió que no le escriban: eso es lo que NO se puede perder.
+    await admin.query(`UPDATE contacts SET opted_out_at = now() - interval '2 days' WHERE id = $1`, [
+      duplicado.id,
+    ]);
+    const pipe = await withTenant(app, tenant, (c) =>
+      createPipeline(c, {
+        tenantId: tenant,
+        name: 'Choque',
+        stages: [
+          { name: 'Nuevo', type: 'open' },
+          { name: 'Ganado', type: 'won' },
+          { name: 'Perdido', type: 'lost' },
+        ],
+      }),
+    );
+    // Una abierta en CADA ficha, en el MISMO embudo: el choque.
+    for (const contactId of [principal.id, duplicado.id]) {
+      await withTenant(app, tenant, (c) =>
+        createDeal(c, { tenantId: tenant, contactId, pipelineId: pipe.pipeline.id, title: `De ${contactId.slice(0, 4)}` }),
+      );
+    }
+
+    await withTenant(app, tenant, (c) =>
+      mergeContacts(c, { tenantId: tenant, primaryId: principal.id, duplicateId: duplicado.id, actor: 'prueba' }),
+    );
+
+    // 1. La fusión OCURRIÓ. Antes se revertía entera.
+    const dup = await admin.query('SELECT merged_into, merged_at FROM contacts WHERE id = $1', [duplicado.id]);
+    expect(dup.rows[0].merged_into).toBe(principal.id);
+    expect(dup.rows[0].merged_at).not.toBeNull();
+
+    // 2. El opt-out se absorbió. Esto es lo más caro de perder.
+    const prin = await admin.query('SELECT opted_out_at FROM contacts WHERE id = $1', [principal.id]);
+    expect(prin.rows[0].opted_out_at).not.toBeNull();
+
+    // 3. Sigue habiendo UNA sola abierta en ese embudo, que es lo que el
+    //    índice único promete.
+    const abiertas = await admin.query(
+      `SELECT count(*)::int n FROM deals
+        WHERE tenant_id = $1 AND contact_id = $2 AND pipeline_id = $3 AND status = 'open'`,
+      [tenant, principal.id, pipe.pipeline.id],
+    );
+    expect(abiertas.rows[0].n).toBe(1);
+
+    // 4. Y la del duplicado no se borró: se quedó donde estaba, con su rastro
+    //    en la auditoría, para que una persona decida.
+    const quedo = await admin.query(
+      `SELECT count(*)::int n FROM deals WHERE tenant_id = $1 AND contact_id = $2`,
+      [tenant, duplicado.id],
+    );
+    expect(quedo.rows[0].n).toBe(1);
+    const audit = await admin.query(
+      `SELECT metadata FROM audit_log WHERE tenant_id = $1 AND action = 'contacts.merge'
+        AND resource_id = $2 ORDER BY id DESC LIMIT 1`,
+      [tenant, principal.id],
+    );
+    expect(audit.rows[0].metadata.dealsLeftOnDuplicate).toHaveLength(1);
+  });
+
+  /** Lo que NO se puede romper: en embudos distintos no hay choque y se mueven las dos. */
+  it('en embudos distintos se mueven las dos', async () => {
+    const principal = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955551201', name: 'P2' }),
+    );
+    const duplicado = await withTenant(app, tenant, (c) =>
+      createContact(c, { tenantId: tenant, phone: '+56955551202', name: 'D2' }),
+    );
+    const etapas = [
+      { name: 'Nuevo', type: 'open' as const },
+      { name: 'Ganado', type: 'won' as const },
+      { name: 'Perdido', type: 'lost' as const },
+    ];
+    const a = await withTenant(app, tenant, (c) => createPipeline(c, { tenantId: tenant, name: 'Uno', stages: etapas }));
+    const b = await withTenant(app, tenant, (c) => createPipeline(c, { tenantId: tenant, name: 'Dos', stages: etapas }));
+    await withTenant(app, tenant, (c) =>
+      createDeal(c, { tenantId: tenant, contactId: principal.id, pipelineId: a.pipeline.id, title: 'En uno' }),
+    );
+    await withTenant(app, tenant, (c) =>
+      createDeal(c, { tenantId: tenant, contactId: duplicado.id, pipelineId: b.pipeline.id, title: 'En dos' }),
+    );
+
+    await withTenant(app, tenant, (c) =>
+      mergeContacts(c, { tenantId: tenant, primaryId: principal.id, duplicateId: duplicado.id, actor: 'prueba' }),
+    );
+
+    const delPrincipal = await admin.query(
+      `SELECT count(*)::int n FROM deals WHERE tenant_id = $1 AND contact_id = $2`,
+      [tenant, principal.id],
+    );
+    expect(delPrincipal.rows[0].n).toBe(2);
+  });
+});
