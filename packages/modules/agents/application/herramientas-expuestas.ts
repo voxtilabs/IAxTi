@@ -125,11 +125,26 @@ export const ESQUEMAS: Record<string, { description: string; parameters: Record<
   },
   'calendar.get_slots': {
     description:
-      'Los horarios libres de un día. Devuelve tres como máximo. Ofrecer horarios se puede; tomarlos no: para agendar, pasa con una persona.',
+      'Los horarios libres de un día. Devuelve tres como máximo. Cuando la persona elija uno, tómalo con calendar.book usando la hora TAL CUAL te la devolví acá.',
     parameters: {
       type: 'object',
       properties: { dia: { type: 'string', description: 'El día, como AAAA-MM-DD.' } },
       required: ['dia'],
+      additionalProperties: false,
+    },
+  },
+  'calendar.book': {
+    description:
+      'Toma una de las horas que te devolvió calendar.get_slots para el cliente de esta conversación. Usa el horario EXACTO que te di, sin reescribirlo. Si la persona no eligió una hora concreta, no la llames.',
+    parameters: {
+      type: 'object',
+      properties: {
+        inicio: {
+          type: 'string',
+          description: 'El inicio del horario, copiado tal cual de calendar.get_slots.',
+        },
+      },
+      required: ['inicio'],
       additionalProperties: false,
     },
   },

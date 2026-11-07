@@ -76,12 +76,20 @@ describe('las herramientas existen de verdad', () => {
   });
 
   it('el objetivo no le pide al modelo lo que ADR-0017 le prohíbe', () => {
-    // La primera versión de `agendar` decía "cierra confirmando día y hora",
-    // y tomar la hora es justo lo que la IA no puede hacer (SPEC §16: la IA
-    // OFRECE máximo tres horarios). Un prompt que pide lo prohibido no falla:
-    // consigue que el modelo lo prometa igual, sin tool que lo respalde.
-    expect(DEFINICIONES.agendar.tools).not.toContain('calendar.book');
-    expect(DEFINICIONES.agendar.instruccion).toContain('no tomas la hora');
+    // La lección original sigue valiendo: un prompt que pide lo prohibido no
+    // falla, consigue que el modelo lo prometa igual sin tool que lo respalde.
+    // Lo que cambió es de qué lado está la prohibición. Al revés desde ADR-0029: el objetivo «agendar» DEBE pedir la
+    // herramienta que toma la hora. Antes su `eventoDeExito` era
+    // `appointment.created`, un evento que su propio prompt le prohibía
+    // causar: el objetivo se medía con algo imposible.
+    expect(DEFINICIONES.agendar.tools).toContain('calendar.book');
+    expect(DEFINICIONES.agendar.tools).not.toContain('calendar.cancel');
+    // Y el prompt tiene que pedirle que la tome, con la hora EXACTA: el
+    // riesgo que queda no es inventar una hora libre —el sistema la valida—
+    // sino agendarle a quien solo preguntaba.
+    expect(DEFINICIONES.agendar.instruccion).toContain('TÓMALO');
+    expect(DEFINICIONES.agendar.instruccion).toContain('tal cual');
+    expect(DEFINICIONES.agendar.instruccion).toContain('solo está preguntando');
     expect(DEFINICIONES.cobrar.tools).not.toContain('payments.create_link');
     expect(DEFINICIONES.cobrar.instruccion).toContain('no mandas links de pago');
   });
