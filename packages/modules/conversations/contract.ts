@@ -99,3 +99,6 @@ export type { Prioridad } from './domain/prioridad';
 
 // Supresión legal coordinada por CRM en una única transacción (#903).
 export { datosParaSuprimirTitular, exportarDatosDelTitular, suprimirDatosDelTitular } from './application/titular';
+
+// Cuánto cupo diario del canal se gastó hoy (#1248).
+export { salientesDelDia } from './application/conversations';

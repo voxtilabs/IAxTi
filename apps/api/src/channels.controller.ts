@@ -18,7 +18,9 @@ import {
   findAccountById,
   listChannelAccounts,
   EmisorCompartidoError,
+  cupoDelDia,
 } from '@iaxti/module-channels';
+import { salientesDelDia } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
 import {
   clienteZavu,
@@ -147,9 +149,48 @@ export class ChannelsController {
           },
         ),
       ]);
+      /*
+       * El cupo diario del canal, para que se vea venir (#1248).
+       *
+       * El 3 de noviembre el pulso del evento gastó 182 mensajes sobre 91
+       * entrantes y al cerrar el stand los 31 de despedida fallaron todos. El
+       * cupo se consumió a lo largo de seis horas y el producto no lo dijo en
+       * ningún momento: el dueño se enteró cuando lo importante no salió.
+       *
+       * En SERIE y no en `Promise.all`: todas estas consultas comparten un
+       * solo `PoolClient`, y meter varias en paralelo sobre el mismo cliente
+       * fue exactamente lo que dejó invisible el aviso de retención en #1078.
+       *
+       * Y degradado como los números: si el conteo falla, el canal se muestra
+       * igual sin él. Saber el cupo es útil; no saberlo no puede impedir ver
+       * si el canal está conectado.
+       */
+      const cupos = new Map<string, unknown>();
+      for (const a of accounts) {
+        if (a.kind !== 'whatsapp') continue;
+        try {
+          cupos.set(
+            a.id,
+            cupoDelDia({
+              enviados: await salientesDelDia(c, {
+                tenantId: actor.tenantId,
+                channelAccountId: a.id,
+              }),
+              config: a.config as Record<string, unknown>,
+            }),
+          );
+        } catch (error) {
+          console.warn(
+            `channels: no se pudo contar el cupo del día de ${a.id}; el canal sale sin él. ` +
+              `Causa: ${(error as Error).message}`,
+          );
+        }
+      }
+
       return accounts.map((a) => ({
         ...a,
         numbers: numbers.filter((n) => n.channelAccountId === a.id),
+        ...(cupos.has(a.id) ? { cupoDelDia: cupos.get(a.id) } : {}),
       }));
     });
   }

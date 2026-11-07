@@ -1484,3 +1484,43 @@ export async function conversacionesParaRetomar(
     pulsosEnviados: Number(f.pulsos ?? 0),
   }));
 }
+
+/**
+ * Cuántos salientes aceptó el proveedor en el día del cupo (#1248).
+ *
+ * El tope diario de WhatsApp es **del canal entero**, no por conversación ni
+ * por contacto: medido el 3 de noviembre, con el cupo gastado no pasaba ni un
+ * mensaje de servicio dentro de la ventana de 24 h.
+ *
+ * El día es **UTC** y no el local del negocio, y eso está medido, no supuesto:
+ * el cupo se reinició a las 21:00 de Chile, que es medianoche UTC. Contar por
+ * día local dejaría el contador desfasado tres o cuatro horas — en Chile, cada
+ * noche entre las 21:00 y la medianoche el contador diría «ayer» mientras el
+ * proveedor ya empezó a contar «hoy», y los automatismos se diferirían con el
+ * cupo recién renovado.
+ *
+ * Cuenta los que tienen `provider_message_id`, o sea los que el proveedor
+ * ACEPTÓ, y no todas las filas salientes. Un mensaje que falló o que todavía
+ * está en la cola no gastó cupo, y contarlo haría diferir automatismos por un
+ * cupo que nadie usó.
+ */
+export async function salientesDelDia(
+  client: PoolClient,
+  input: { tenantId: string; channelAccountId: string; ahora?: Date },
+): Promise<number> {
+  const r = await client.query(
+    // El canal es de la CONVERSACIÓN y no del mensaje: `messages` no tiene
+    // `channel_account_id`. Las dos tablas son de este módulo, así que el
+    // cruce se hace acá y no por el contrato de otro.
+    `SELECT count(*)::int AS n
+       FROM messages m
+       JOIN conversations c ON c.tenant_id = m.tenant_id AND c.id = m.conversation_id
+      WHERE m.tenant_id = $1
+        AND c.channel_account_id = $2
+        AND m.direction = 'out'
+        AND m.provider_message_id IS NOT NULL
+        AND m.created_at >= date_trunc('day', $3::timestamptz AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`,
+    [input.tenantId, input.channelAccountId, input.ahora ?? new Date()],
+  );
+  return r.rows[0].n as number;
+}

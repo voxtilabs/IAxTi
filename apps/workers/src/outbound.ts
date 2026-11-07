@@ -9,10 +9,16 @@ import {
   getOutboundContext,
   isWithinWindow,
   msHastaFinDeSilencio,
+  salientesDelDia,
   updateDeliveryStatus,
 } from '@iaxti/module-conversations';
 import { getTenant, getTenantSettings, puedeEnviar } from '@iaxti/module-organizations';
-import { findAccountById } from '@iaxti/module-channels';
+import {
+  cupoDelDia,
+  findAccountById,
+  hayMargenParaUnAutomatismo,
+  msHastaElReinicioDelCupo,
+} from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import {
   RateLimitedError,
@@ -141,6 +147,43 @@ export async function processOutbound(
       if (pausa) {
         return rechazar(pausa);
       }
+      /*
+       * El cupo del día, con margen reservado para las personas (#1248).
+       *
+       * Medido el 3 de noviembre: el pulso del evento gastó 182 mensajes
+       * sobre 91 entrantes y al cerrar el stand los 31 de despedida fallaron
+       * todos. El tope es del canal entero —ni un mensaje de servicio dentro
+       * de la ventana de 24 h pasa—, así que lo que escribe solo le quitó el
+       * espacio al mensaje que una persona quería mandar.
+       *
+       * Va ACÁ, junto al silencio, porque este es el único lugar por donde
+       * pasa todo lo que sale, y con la misma herramienta: se difiere, no se
+       * rechaza. Un automatismo diferido sale al día siguiente, que es
+       * exactamente lo que el mensaje del pulso podía esperar y el de
+       * despedida no.
+       *
+       * Lo transaccional NO exime esto, al revés que el silencio: el tope lo
+       * pone el proveedor y no nos lo salta ningún criterio nuestro. Lo que
+       * cambia es que acá todavía queda cupo —el reservado— y el comprobante
+       * de un pago lo manda el cliente al actuar, así que entra por el camino
+       * de las personas. Un automatismo que no es transaccional espera.
+       */
+      const cupo = cupoDelDia({
+        enviados: await salientesDelDia(client, {
+          tenantId: data.tenantId,
+          channelAccountId: ctx.channelAccountId,
+        }),
+        config: account.config as Record<string, unknown>,
+      });
+      if (!data.transaccional && !hayMargenParaUnAutomatismo(cupo)) {
+        console.warn(
+          `[${data.requestId ?? 'sin-request'}] cupo del canal: ${cupo.enviados}/${cupo.tope} ` +
+            `usados${cupo.topeAsumido ? ' (tope asumido)' : ''}; quedan ${cupo.quedan} y ` +
+            `${cupo.reserva} están reservados para lo que mande una persona. Se difiere a mañana.`,
+        );
+        throw new DelayUntilError(msHastaElReinicioDelCupo());
+      }
+
       // El horario de silencio SÍ lo exime un mensaje transaccional
       // (ADR-0016): lo dispara el cliente al actuar —pagar— y es la
       // constancia de eso. Quien acaba de pagar está despierto, y un

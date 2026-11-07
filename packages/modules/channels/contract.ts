@@ -48,3 +48,16 @@ export {
 export type { ClaseDeAdjunto, LimiteDeAdjunto, RevisionDeAdjunto } from './domain/adjuntos';
 
 export { copyChannelWebhookSecret, setChannelWebhookSecret, isChannelSecretRef, webhookSecretResourcePrefix } from './application/webhook-secret';
+
+// El cupo diario del canal y la parte reservada a las personas (#1248).
+//
+// `TOPE_SI_NO_SE_SABE` y `RESERVA_PARA_PERSONAS` NO se publican: fuera de este
+// módulo nadie decide con ellas —las aplica `cupoDelDia`, que es lo que sí
+// viaja— y su prueba las importa del dominio. Un contrato que expone lo que
+// nadie abre deja de ser una decisión (#664).
+export {
+  cupoDelDia,
+  hayMargenParaUnAutomatismo,
+  msHastaElReinicioDelCupo,
+} from './domain/cupo-del-dia';
+export type { CupoDelDia, CupoConfigurado } from './domain/cupo-del-dia';
