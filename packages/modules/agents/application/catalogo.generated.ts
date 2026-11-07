@@ -259,7 +259,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
   "AgendaController_mover": {
     "metodo": "POST",
     "ruta": "/v1/agenda/{id}/mover",
-    "resumen": "Mueve una cita a otra hora, con su hueco comprobado",
+    "resumen": "Mueve una cita a otra hora; por llave de API, contra el horario publicado",
     "permiso": "calendar.book",
     "modulo": "calendar",
     "soloSesion": false,
