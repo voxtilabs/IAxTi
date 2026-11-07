@@ -889,3 +889,35 @@ export async function citasDesincronizadasConGoogle(
     problema: f.google_sync_error as string,
   }));
 }
+
+/**
+ * Las citas futuras de un contacto (#1283).
+ *
+ * Existe para que mover una hora desde el chat NO reciba un id de cita. El
+ * riesgo que la ADR-0017 nombró para `calendar.reschedule` es mover la hora de
+ * alguien que no lo pidió, y un prompt que dice «mueve solo la cita de quien
+ * te escribe» se incumple el día que el modelo alucina un UUID. Si la
+ * herramienta no acepta un id, no hay UUID que alucinar: la cita la elige el
+ * sistema a partir de quién está escribiendo.
+ *
+ * Devuelve la LISTA y no la primera a propósito. Quien llama necesita
+ * distinguir tres casos, y los tres se contestan distinto: ninguna («no tienes
+ * una hora tomada»), una (se mueve) y varias (no se adivina: escala a una
+ * persona).
+ *
+ * `ahora` se inyecta para que una prueba no dependa del reloj de la máquina.
+ */
+export async function citasFuturasDelContacto(
+  client: PoolClient,
+  input: { tenantId: string; contactId: string; ahora?: Date },
+): Promise<Cita[]> {
+  const r = await client.query(
+    `SELECT * FROM appointments
+      WHERE tenant_id = $1 AND contact_id = $2
+        AND status IN ('proposed','confirmed','reminded')
+        AND starts_at > $3
+      ORDER BY starts_at`,
+    [input.tenantId, input.contactId, input.ahora ?? new Date()],
+  );
+  return r.rows.map(aCita);
+}

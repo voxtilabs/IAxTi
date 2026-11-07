@@ -87,9 +87,18 @@ export const DEFINICIONES: Record<Objetivo, DefinicionObjetivo> = {
       'confirmado con la agenda y nunca inventes disponibilidad. Cuando la persona elija uno, TÓMALO ' +
       'con calendar.book, copiando el horario tal cual te lo devolvió calendar.get_slots: no lo ' +
       'reescribas ni lo redondees. Si solo está preguntando qué horas hay, no tomes ninguna. ' +
+      'Si ya tiene una hora y quiere cambiarla, muévela con calendar.reschedule al horario nuevo ' +
+      'que elija: no tomes una segunda. ' +
       'Si no puedes ver la agenda o no logras tomarla, dilo y pasa la conversación a una persona.',
     requiere: ['calendar'],
-    tools: ['calendar.get_slots', 'calendar.book', 'conversations.get_context'],
+    tools: [
+      'calendar.get_slots',
+      'calendar.book',
+      // Mover sí, cancelar no (ADR-0030): mover deja a la persona con otra
+      // hora, cancelar la deja sin ninguna.
+      'calendar.reschedule',
+      'conversations.get_context',
+    ],
     eventoDeExito: ['appointment.created'],
     datosMinimos: ['el horario que prefiere', 'nombre'],
     detallePorDefecto: 'una hora',

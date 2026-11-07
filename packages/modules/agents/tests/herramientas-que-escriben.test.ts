@@ -85,11 +85,14 @@ describe('lo que la IA NO puede hacer', () => {
     // renombre. Si alguien saca una de acá, este test lo dice.
     expect([...HERRAMIENTAS_QUE_ESCRIBEN].sort()).toEqual(
       [
-        // `calendar.book` salió en ADR-0029, y esta prueba es la que obligó a
-        // escribir ese ADR en vez de cambiar una constante: hizo exactamente
-        // lo que su comentario promete. Las otras seis siguen acá.
+        // `calendar.book` salió en ADR-0029 y `calendar.reschedule` en
+        // ADR-0030, y esta prueba es la que obligó a escribir los dos en vez
+        // de cambiar una constante: hizo exactamente lo que su comentario
+        // promete, las dos veces. Las otras cinco siguen acá.
+        //
+        // `calendar.cancel` se queda, y la asimetría con mover es el motivo:
+        // mover deja a la persona con otra hora, cancelar la deja sin ninguna.
         'calendar.cancel',
-        'calendar.reschedule',
         'conversations.send_reply',
         'conversations.set_state',
         'crm.update_deal',
@@ -98,12 +101,17 @@ describe('lo que la IA NO puede hacer', () => {
     );
   });
 
-  it('las que escriben son las que se deshacen, y ahora son tres', () => {
+  it('las que escriben son las que se deshacen, y ahora son cuatro', () => {
     // El criterio de ADR-0017 no cambió —se deshacen— y por eso `calendar.book`
     // entra: una cita se cancela, libera el hueco y avisa. Lo que ADR-0029
     // agrega es que la hora la elige el SISTEMA y no el modelo.
+    //
+    // `calendar.reschedule` entra con la misma garantía y una propia
+    // (ADR-0030): no recibe id de cita, así que no puede nombrar la hora de
+    // otra persona ni alucinando un UUID.
     expect(Object.keys(HERRAMIENTAS_QUE_ESCRIBEN_HABILITADAS).sort()).toEqual([
       'calendar.book',
+      'calendar.reschedule',
       'crm.create_activity',
       'crm.create_deal',
     ]);
