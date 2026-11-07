@@ -674,6 +674,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "AgentsController_herramientas": {
+    "metodo": "GET",
+    "ruta": "/v1/agents/{id}/herramientas",
+    "resumen": "Qué puede hacer este asistente, y qué más podría",
+    "permiso": "agents.configure",
+    "modulo": "agents",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "AgentsController_intentosDelObjetivo": {
     "metodo": "GET",
     "ruta": "/v1/agents/{id}/objetivo/intentos",
