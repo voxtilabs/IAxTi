@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { TZ_POR_DEFECTO, diaEn, textoDeEntorno, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
-import { withTenant } from '@iaxti/db';
+import { porCadaTenant } from '@iaxti/db';
 import { montoDelCosto } from '../domain/metrics';
 import { TOTAL_OWNER, type Metric } from '../domain/metrics';
 
@@ -136,14 +136,27 @@ export async function sweepResponseSamples(pool: Pool): Promise<number> {
   // abajo. Si una cambia, la otra tiene que cambiar con ella: acá no hay margen
   // como en recordatorios, donde la función filtra amplio y los minutos exactos
   // los decide `AVISOS`.
-  let total = 0;
   const conMuestras = (
     await pool.query<{ tenant_id: string }>(
       'SELECT tenant_id FROM tenants_con_muestras_por_tomar()',
     )
   ).rows.map((f) => f.tenant_id);
-  for (const tenantId of conMuestras) {
-    total += await withTenant(pool, tenantId, async (client) => {
+  /*
+   * De a varios, y no de a uno (#1290).
+   *
+   * Lo que este comentario medía arriba —4,5 ms por tenant, 1.113 tenants,
+   * ~5,8 s el barrido, veinticuatro veces al día— era el costo de pagar esos
+   * ciclos EN SERIE. `porCadaTenant` los reparte según lo que quepa en el
+   * pool dejando dos conexiones libres; medido en 654 tenants, 1.927 ms en
+   * serie contra 412 ms con cuatro a la vez.
+   *
+   * El `INSERT … ON CONFLICT DO NOTHING` ya era seguro con barridos que se
+   * solapan (#748, y la 0004 que saca la única redundante), así que esto no
+   * agrega una carrera nueva: la que había ya estaba resuelta.
+   */
+  const porTenant = await porCadaTenant(
+    pool,
+    async (client, tenantId) => {
       const r = await client.query(
         // El día del NEGOCIO, igual que en daily_metrics: `::date` a secas
         // usa la zona de la SESIÓN (UTC en el servidor) y a las 22:00 en
@@ -172,7 +185,8 @@ export async function sweepResponseSamples(pool: Pool): Promise<number> {
         [tenantId, TZ_POR_DEFECTO],
       );
       return r.rowCount ?? 0;
-    });
-  }
-  return total;
+    },
+    { ids: conMuestras },
+  );
+  return porTenant.reduce((a, b) => a + b, 0);
 }

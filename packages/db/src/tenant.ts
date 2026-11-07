@@ -72,6 +72,25 @@ export async function idsDeTenants(
  * el primer tenant deja a todos los demás sin servicio y solo se nota
  * mirando logs.
  */
+/**
+ * Cuántos tenants a la vez, derivado del pool y no de un número a dedo (#1290).
+ *
+ * El pool por omisión es de 6 conexiones (`DB_POOL_MAX`), y cada tenant
+ * visitado toma una mientras dura su transacción. Un número fijo se come el
+ * pool en el despliegue que lo tenga chico: con `DB_POOL_MAX=2`, una
+ * concurrencia de 4 deja al barrido esperándose a sí mismo.
+ *
+ * Reserva dos: el proceso que corre el barrido también atiende otras cosas, y
+ * un barrido que se queda con todas las conexiones es un barrido que tira lo
+ * demás. Con un pool de 2 o menos vuelve a ser de a uno, que es el
+ * comportamiento de siempre.
+ */
+function cuantosALaVez(pool: Pool, pedido?: number): number {
+  if (pedido !== undefined) return Math.max(1, Math.floor(pedido));
+  const delPool = (pool as unknown as { options?: { max?: number } }).options?.max ?? 6;
+  return Math.max(1, Math.min(4, delPool - 2));
+}
+
 export async function porCadaTenant<T>(
   pool: Pool,
   fn: (client: PoolClient, tenantId: string) => Promise<T>,
@@ -80,20 +99,97 @@ export async function porCadaTenant<T>(
     /** A quiénes visitar. Sin esto, a todos los vivos (#580). */
     ids?: readonly string[];
     alFallar?: (tenantId: string, err: Error) => void;
+    /**
+     * Cuántos tenants a la vez. Sin esto, lo que quepa en el pool dejando dos
+     * conexiones libres (#1290).
+     *
+     * Ponelo en 1 si el barrido necesita orden: con más de uno, los tenants se
+     * terminan en el orden en que contesta la base, no en el de la lista. Lo
+     * que SÍ se conserva es el orden del valor devuelto.
+     */
+    concurrencia?: number;
   } = {},
 ): Promise<T[]> {
-  const salida: T[] = [];
-  for (const tenantId of await idsDeTenants(pool, opts)) {
-    try {
-      salida.push(await withTenant(pool, tenantId, (c) => fn(c, tenantId)));
-    } catch (err) {
-      (opts.alFallar ?? ((t, e) => console.error(`barrido: ${t} falló — ${e.message}`)))(
-        tenantId,
-        err as Error,
-      );
-    }
-  }
-  return salida;
+  const ids = await idsDeTenants(pool, opts);
+  const alFallar =
+    opts.alFallar ?? ((t: string, e: Error) => console.error(`barrido: ${t} falló — ${e.message}`));
+
+  /*
+   * De a varios, y no de a uno (#1290).
+   *
+   * Medido: `maintainPartnerInvitations` visitaba 782 tenants en más de 5 s y
+   * `sweepResponseSamples` 1.113 en ~5 s, veinticuatro veces al día. La
+   * consulta que arma la lista tarda 13–16 ms; lo que costaba eran los ciclos
+   * de abrir, fijar el tenant y cerrar —unos 4,5 ms cada uno (#743)—, pagados
+   * en serie.
+   *
+   * Cada tenant abre su propia transacción y no comparte nada con los otros,
+   * así que esto es paralelizable sin tocar lo que hace `fn`. Lo que NO se
+   * hizo —y se consideró— es un tope de tenants por vuelta: un barrido diario
+   * con mil pendientes tardaría cinco días en drenar, y el trabajo que queda
+   * sin hacer no lo ve nadie.
+   */
+  return enParalelo(ids, (t) => withTenant(pool, t, (c) => fn(c, t)), {
+    concurrencia: cuantosALaVez(pool, opts.concurrencia),
+    alFallar,
+  });
+}
+
+/**
+ * Recorre una lista de tenants de a varios, sin abrir ninguna transacción
+ * (#1290).
+ *
+ * Existe aparte de `porCadaTenant` por una razón concreta, y no por gusto de
+ * generalizar: hay barridos cuyo cuerpo **ya abre sus propias transacciones**
+ * —`maintainPartnerInvitations` hace un `withTenant` adentro y además llama a
+ * funciones que reciben el `Pool`—. Envolverlos con `porCadaTenant` les pondría
+ * una transacción de más por tenant, así que con concurrencia 4 sobre un pool
+ * de 6 el barrido se bloquearía esperándose a sí mismo.
+ *
+ * Así que la regla es: si el cuerpo quiere un `PoolClient`, `porCadaTenant`; si
+ * se las arregla solo, esto.
+ *
+ * Devuelve lo que salió bien, EN EL ORDEN de la lista, aunque terminen
+ * desordenados. Un tenant que falla se anota y no detiene a los demás: el
+ * barrido que se cae en el primero deja a todos los demás sin servicio y solo
+ * se nota mirando logs.
+ */
+export async function enParalelo<T>(
+  tenantIds: readonly string[],
+  fn: (tenantId: string) => Promise<T>,
+  opts: { concurrencia: number; alFallar?: (tenantId: string, err: Error) => void },
+): Promise<T[]> {
+  const alFallar =
+    opts.alFallar ?? ((t: string, e: Error) => console.error(`barrido: ${t} falló — ${e.message}`));
+  const resultados: Array<{ ok: true; valor: T } | { ok: false }> = tenantIds.map(() => ({
+    ok: false,
+  }));
+  let siguiente = 0;
+  const hilos = Array.from(
+    { length: Math.max(1, Math.min(opts.concurrencia, tenantIds.length)) },
+    async () => {
+      // `siguiente++` no se interrumpe a mitad en un solo hilo de JavaScript,
+      // así que dos de estos nunca toman el mismo índice.
+      for (let i = siguiente++; i < tenantIds.length; i = siguiente++) {
+        try {
+          resultados[i] = { ok: true, valor: await fn(tenantIds[i]) };
+        } catch (err) {
+          alFallar(tenantIds[i], err as Error);
+        }
+      }
+    },
+  );
+  await Promise.all(hilos);
+  // Solo los que salieron bien, y en el orden de la lista: es el contrato que
+  // había cuando esto era un `push` dentro de un `for`.
+  return resultados.filter((r): r is { ok: true; valor: T } => r.ok).map((r) => r.valor);
+}
+
+/** Cuántos tenants a la vez para un barrido que se abre sus propias
+ *  transacciones. Mismo cálculo que `porCadaTenant`, expuesto para los que no
+ *  pueden usarlo (#1290). */
+export function tenantsALaVez(pool: Pool, pedido?: number): number {
+  return cuantosALaVez(pool, pedido);
 }
 
 /** Descubrir los negocios ANTES de elegir uno (#902).
