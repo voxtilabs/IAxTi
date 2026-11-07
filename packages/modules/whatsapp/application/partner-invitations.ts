@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
-import { withTenant } from '@iaxti/db';
+import { withTenant, enParalelo, tenantsALaVez} from '@iaxti/db';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { getTenant } from '@iaxti/module-organizations';
 import { getChannelAccount, setChannelState, setChannelWebhookSecret, webhookSecretResourcePrefix } from '@iaxti/module-channels';
@@ -374,15 +374,30 @@ async function retireUrl(c:PoolClient,r:Row) {
   await c.query('UPDATE whatsapp_partner_invitations SET url_ref=NULL WHERE tenant_id=$1 AND id=$2',[r.tenant_id,r.id]);
   await c.query("UPDATE whatsapp_partner_secrets SET destroy_pending=true WHERE tenant_id=$1 AND invitation_id=$2 AND purpose='url'",[r.tenant_id,r.id]);
 }
+/**
+ * El barrido visita a los tenants de a varios (#1290).
+ *
+ * Medido: 782 tenants con algo pendiente y más de 5 s de barrido, cuando la
+ * consulta que arma la lista tarda 16 ms. El costo eran los ciclos de abrir,
+ * fijar el tenant y cerrar, pagados uno tras otro.
+ *
+ * Usa `enParalelo` y NO `porCadaTenant`, y eso no es un descuido: este cuerpo
+ * ya abre sus propias transacciones —el `withTenant` de abajo, y
+ * `processPartnerInvitation` y `cleanupPartnerSecrets` reciben el `Pool`—.
+ * Envolverlo con `porCadaTenant` le pondría una transacción de más por tenant,
+ * y con cuatro a la vez sobre un pool de seis el barrido se bloquearía
+ * esperándose a sí mismo.
+ */
 export async function maintainPartnerInvitations(pool:Pool,ports:PartnerPorts) {
-  const tenants=(await pool.query<{whatsapp_partner_pending_tenants:string}>('SELECT * FROM whatsapp_partner_pending_tenants()')).rows;
-  for(const {whatsapp_partner_pending_tenants:t} of tenants) {
+  const tenants=(await pool.query<{whatsapp_partner_pending_tenants:string}>('SELECT * FROM whatsapp_partner_pending_tenants()')).rows
+    .map(r=>r.whatsapp_partner_pending_tenants);
+  await enParalelo(tenants, async (t) => {
     if(ports.enabled()) {
       const ids=await withTenant(pool,t,async c=>(await c.query<{id:string}>(`SELECT id FROM whatsapp_partner_invitations i WHERE tenant_id=$1 AND (phase IN ('creating','provisioning') OR (phase='pending' AND provider_status='pending' AND expires_at<=now()) OR EXISTS (SELECT 1 FROM whatsapp_partner_events e WHERE e.tenant_id=i.tenant_id AND e.invitation_id=i.id AND e.processed_at IS NULL)) ORDER BY updated_at LIMIT 20`,[t])).rows);
       for(const {id} of ids)try{await processPartnerInvitation(pool,t,id,ports);}catch{await withTenant(pool,t,async c=>{await c.query("UPDATE whatsapp_partner_invitations SET error_code='PARTNER_PROVIDER_FAILED',updated_at=now() WHERE tenant_id=$1 AND id=$2",[t,id]);await audit(c,{tenant_id:t,id},'whatsapp.invitation.refresh_failed','error');});}
     }
     await cleanupPartnerSecrets(pool,t,ports);
-  }
+  }, { concurrencia: tenantsALaVez(pool) });
 }
 export async function cleanupPartnerSecrets(pool:Pool,t:string,ports:PartnerPorts) {
   await withTenant(pool,t,async c=>{

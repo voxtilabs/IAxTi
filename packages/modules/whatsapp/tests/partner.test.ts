@@ -260,11 +260,31 @@ it('fallo audit tras activar remoto revierte active/refs/outbox; retry exige rec
  const r=await row(x.tenant);expect(r.phase).toBe('recovery_required');expect((await owner.query('SELECT state,webhook_secret_ref FROM channel_accounts WHERE id=$1',[r.account_id])).rows[0]).toEqual({state:'connecting',webhook_secret_ref:'ZAVU_PARTNER_PENDING'});
  expect((await owner.query("SELECT * FROM outbox WHERE tenant_id=$1 AND name='channel.connected'",[x.tenant])).rows).toHaveLength(0);
 });
+/**
+ * El tope largo no es decoración, y el número está medido (#1254, #1290).
+ *
+ * Esta es la única prueba del archivo que llama a `maintainPartnerInvitations`,
+ * que es un barrido GLOBAL: visita a todos los tenants con algo pendiente, no
+ * solo al de esta prueba. Las otras 25 del archivo tardan 110–220 ms; esta se
+ * pasaba del tope de 5.000 ms que vitest pone de fábrica.
+ *
+ * Medido en la base de pruebas de hoy: 18.102 tenants, de los cuales
+ * `whatsapp_partner_pending_tenants()` devuelve 654 —la función tarda 20 ms—,
+ * acumulados por las corridas anteriores de esta misma suite. Con el barrido
+ * visitándolos de a uno eran más de 5 s; con #1290 repartiéndolos según el
+ * pool, 4.338 ms. Sigue cerca del tope corto porque lo que queda es el tamaño
+ * de la base, no el barrido.
+ *
+ * En CI la base nace limpia y son uno o dos, así que allá corre en
+ * milisegundos: el rojo aparece solo donde la base ya vivió. El tope largo es
+ * para que la prueba mida lo que dice medir —que el barrido no repite
+ * escrituras remotas— y no el tamaño de la base.
+ */
 it('crash durable previo a create/provision pasa a estado incierto; el barrido no repite escrituras remotas',async()=>{
  const x=await begin();await owner.query("UPDATE whatsapp_partner_invitations SET phase='creating',updated_at=now()-interval '3 minutes' WHERE tenant_id=$1",[x.tenant]);
  const before=calls.filter(x=>x.method==='POST'&&x.path==='/v1/invitations').length;
  await maintainPartnerInvitations(safe,ports);expect((await row(x.tenant)).phase).toBe('ambiguous');expect(calls.filter(x=>x.method==='POST'&&x.path==='/v1/invitations')).toHaveLength(before);
-});
+},30_000);
 it('cleanup entre intención URL y custodia impide put huérfano; revisar recupera el mismo enlace',async()=>{
  const tenant=await withTenant(owner,randomUUID(),c=>createTenant(c,{name:'Carrera de custodia ficticia'}));
  const actor={tenantId:tenant.id,actor:randomUUID(),actorKind:'user' as const,key:randomUUID()};

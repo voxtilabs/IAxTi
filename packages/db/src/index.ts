@@ -1,5 +1,13 @@
 export { createPool } from './client';
-export { withTenant, withAuthenticatedUser, idsDeTenants, porCadaTenant } from './tenant';
+export {
+  withTenant,
+  withAuthenticatedUser,
+  idsDeTenants,
+  porCadaTenant,
+  // Para los barridos que se abren sus propias transacciones (#1290).
+  enParalelo,
+  tenantsALaVez,
+} from './tenant';
 // Una lectura opcional que falla no puede dejar abortada la transacción ajena (#962).
 export { degradarSinRomper } from './degradar-sin-romper';
 // Limpiar en las pruebas sin apagar un trigger para TODA la base (#803).
