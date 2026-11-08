@@ -71,8 +71,33 @@ Los mismos cinco colores medidos del producto: tinta `#0C1933`, acción
 - **El de contraseña dice que, si no lo pediste, la tuya sigue siendo la
   misma.** Es lo que la persona necesita saber en ese segundo.
 
+## El código de 6 dígitos no era un extra: era un bloqueo
+
+`magic-link.html` manda `{{ .Token }}` —el código— **arriba** del enlace, y eso
+no es una preferencia de diseño.
+
+`LoginCard` ya pedía el código: tiene `verifyOtp`, el campo de seis dígitos con
+`autoComplete="one-time-code"` y todo. Lo que no llegaba era el código. Y en el
+**panel de plataforma** (`apps/admin`, con `recibeLosRedirects={false}`) el
+código es el **único** camino, porque GoTrue fuerza el redirect al `site_url` y
+el enlace aterriza en la app de clientes (#113). Su propia pantalla lo dice:
+«Acá se entra con el código, no con el enlace».
+
+Así que mientras la plantilla no mandara el `{{ .Token }}`, **al panel de
+plataforma no se podía entrar por correo**. No era una mejora pendiente: era un
+camino cortado.
+
+Por eso el código va primero y el enlace después: el código funciona en las dos
+apps, el enlace en una. Lo que sirve siempre va arriba.
+
+La plantilla de **invitación** queda solo con enlace a propósito: el flujo de
+invitar a alguien del equipo es propio (`createInvitation` / `acceptInvitation`),
+no el `invite` de Supabase, así que ese correo solo se usa si alguien invita
+desde el panel de Supabase a mano.
+
 ## Variables
 
 Son las de Supabase y hay que dejarlas tal cual: `{{ .ConfirmationURL }}` en
-los cinco y `{{ .NewEmail }}` en el de cambio de correo. Cambiarlas por una URL
+los cinco, `{{ .Token }}` en el de entrar —el código de 6 dígitos— y
+`{{ .NewEmail }}` en el de cambio de correo. Cambiarlas por una URL
 escrita a mano deja el correo bonito y el enlace muerto.

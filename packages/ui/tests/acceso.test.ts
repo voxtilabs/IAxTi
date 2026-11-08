@@ -37,8 +37,21 @@ describe('acceso al panel de plataforma (#113)', () => {
   it('la tarjeta ofrece las dos instrucciones, no una sola para todos', () => {
     // Un texto fijo es lo que había: decía "abre el enlace" también donde el
     // enlace lleva a otra aplicación.
-    expect(TARJETA).toContain('Abre el enlace desde este mismo dispositivo');
+    expect(TARJETA).toContain('o abre el enlace desde este mismo dispositivo');
     expect(TARJETA).toContain('Acá se entra con el código, no con el enlace');
+  });
+
+  it('el código no se ofrece como algo que PUEDE venir', () => {
+    // Decía «escribe aquí el código de 6 dígitos SI VIENE en el correo»,
+    // porque la plantilla de Supabase Auth no mandaba `{{ .Token }}` — así que
+    // la pantalla pedía algo que el correo no traía. Ahora lo manda
+    // (docs/correos-de-auth), y en el panel de plataforma el código es el
+    // ÚNICO camino: dejarlo en duda mandaba a buscar algo que parecía
+    // opcional.
+    expect(TARJETA).not.toContain('si viene en el correo');
+    // Y en los dos dominios se nombra el código, no solo en uno.
+    const veces = [...TARJETA.matchAll(/código de 6 dígitos del correo/g)].length;
+    expect(veces, 'las dos instrucciones piden el código').toBe(2);
   });
 
   it('el botón de Google y la instrucción del enlace cuelgan de la MISMA pregunta', () => {
