@@ -54,5 +54,13 @@
 /ajustes/embudos 21
 /ajustes/equipo 20
 /contactos 12
-/oportunidades 16
+# oportunidades subió de 16 a 24 en #1303, y conviene saber por qué el número
+# tiene tanta holgura: la lectura del embudo pone «N de M se perdieron acá» en
+# la cabecera de CADA etapa abierta que tenga pérdidas, y cada una es una
+# cadena distinta. La fixture del e2e tiene una sola etapa abierta y mide 19;
+# un embudo de cuatro etapas con pérdidas en tres mediría doce palabras más
+# sin que nadie haya escrito un párrafo. Las dos frases que se agregaron son
+# aclaración del dato —sobre cuántas se mide, y el denominador de cada
+# pérdida—, que es lo que este archivo dice que SE QUEDA.
+/oportunidades 24
 /ajustes/integraciones 12
