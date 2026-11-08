@@ -1,11 +1,52 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fuenteLimpia } from '@iaxti/core/testing';
 import { MODE_INIT_SCRIPT } from '../src/mode';
 
 const UI = resolve(__dirname, '..');
 const REPO = resolve(UI, '../..');
 const tokensCss = readFileSync(join(UI, 'pulso-tokens.css'), 'utf8');
+
+/**
+ * Los dos escáneres de las guardas que recorren el árbol (#1304).
+ *
+ * Viven acá afuera y no dentro de su `it` por una razón concreta: así la
+ * prueba que los mide les pasa un texto a mano y ejercita EL MISMO código
+ * que recorre el repo. Metidos adentro, lo único que se podría probar es una
+ * copia, y una copia que se comporta distinto es peor que no probar nada.
+ *
+ * Los dos limpian la fuente, que es lo que pide la regla de testing del repo
+ * para toda guarda que escanee código: un carácter prohibido dentro del
+ * comentario que lo EXPLICA no es ese carácter en la interfaz.
+ */
+const EMOJI = /[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+
+/** La primera línea con un emoji, o -1. Base 1, como la cuenta un editor. */
+export function lineaConEmoji(contenido: string): number {
+  // `fuenteLimpia` reemplaza por espacios y CONSERVA los saltos, así que el
+  // número que sale de acá sigue siendo el de la línea de verdad.
+  const i = fuenteLimpia(contenido).split('\n').findIndex((l) => EMOJI.test(l));
+  return i < 0 ? -1 : i + 1;
+}
+
+/**
+ * Los hex sueltos del texto, sin el `#`.
+ *
+ * El límite de 8 deja fuera ids y hashes largos. Un `#` seguido de SOLO
+ * DÍGITOS no se marca: es una referencia a un issue. Limpiar la fuente NO
+ * alcanzó para soltar ese filtro —lo intenté en #1304— porque las
+ * referencias no viven solo en comentarios, viven en TÍTULOS DE PRUEBAS
+ * (`describe('… (#1216)')`), que son cadenas y `fuenteLimpia` las conserva a
+ * propósito. El precio es que un color de tres cifras sin letras (`#123`)
+ * pasa: nadie lo escribe, pero queda dicho que es un agujero conocido.
+ */
+export function hexSueltos(contenido: string): string[] {
+  return [...fuenteLimpia(contenido).matchAll(/#([0-9a-fA-F]{3,8})\b(?![\w-])/g)]
+    .map((m) => m[1])
+    .filter((h) => [3, 4, 6, 8].includes(h.length))
+    .filter((h) => /[a-fA-F]/.test(h));
+}
 
 function varsOf(block: string): Set<string> {
   return new Set([...block.matchAll(/--[\w-]+(?=\s*:)/g)].map((m) => m[0]));
@@ -181,6 +222,36 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
     expect(dia).not.toContain('--action:#24D0E7');
   });
 
+  /**
+   * Los escáneres distinguen el comentario del código (#1304).
+   *
+   * Las dos guardas que recorren el árbol leían la fuente CRUDA, contra la
+   * regla de testing del repo. Lo que eso costaba:
+   *
+   *  - La de emoji puso roja la rama de #1301 por un `✕` dentro del
+   *    comentario que EXPLICA cómo se cierra un panel. El botón de verdad usa
+   *    un icono dibujado; lo prohibido estaba en la explicación.
+   *  - La de hex ya documentaba haber sido mordida por lo mismo tres veces, y
+   *    lo había resuelto angostando la expresión en vez de limpiar la fuente
+   *    — el camino que #569 dice que no se tome.
+   *
+   * Esto le pasa texto a mano a las MISMAS funciones que recorren el repo, no
+   * a una copia: una copia que se comporta distinto es peor que no probar.
+   */
+  it('lo prohibido en un comentario no cuenta; en el código sí', () => {
+    expect(lineaConEmoji('const x = 1; // se cierra con la ✕\n')).toBe(-1);
+    expect(lineaConEmoji('const cerrar = "✕";\n')).toBe(1);
+    // Y el número de línea sobrevive a la limpieza, que es de lo que depende
+    // que el mensaje de la guarda mande al lugar correcto.
+    expect(lineaConEmoji('uno\n// dos ✕\ntres\nconst c = "✕";\n')).toBe(4);
+
+    expect(hexSueltos('// el token era #AABBCC antes de Pulso')).toEqual([]);
+    expect(hexSueltos("const c = '#AABBCC';")).toEqual(['AABBCC']);
+    // Una referencia a un issue no es un color, viva donde viva: en los
+    // títulos de prueba son cadenas y la limpieza no las toca.
+    expect(hexSueltos("describe('el apagado espera (#1216)', () => {})")).toEqual([]);
+  });
+
   it('NINGÚN hex suelto fuera de pulso-tokens.css (apps y packages)', () => {
     const conHex: string[] = [];
     for (const base of [join(REPO, 'apps'), join(REPO, 'packages')]) {
@@ -205,19 +276,7 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
          */
         if (file.endsWith('public/webchat.js')) continue;
         if (file.endsWith('notifications/application/email.ts')) continue;
-        const content = readFileSync(file, 'utf8');
-        // Hex de color CSS/JSX; el límite de 8 deja fuera ids y hashes largos.
-        //
-        // Un `#` seguido de SOLO DÍGITOS no se marca: es una referencia a un
-        // issue (`#183`), no un color. Esta regla nos mordió tres veces —y
-        // siempre tarde, porque turbo cachea este test y el fallo aparece en
-        // el PR siguiente—. El precio es dejar pasar un color de tres cifras
-        // sin letras (`#123`), que nadie escribe: los tokens de Pulso son de
-        // seis y con letras.
-        const hex = [...content.matchAll(/#([0-9a-fA-F]{3,8})\b(?![\w-])/g)]
-          .map((m) => m[1])
-          .filter((h) => [3, 4, 6, 8].includes(h.length))
-          .filter((h) => /[a-fA-F]/.test(h));
+        const hex = hexSueltos(readFileSync(file, 'utf8'));
         if (hex.length > 0) {
           conHex.push(`${file.replace(REPO + '/', '')} → #${hex[0]}`);
         }
@@ -243,17 +302,13 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
     // Un emoji se dibuja con la fuente del sistema: se ve distinto en cada
     // máquina, no hereda el color del texto, no tiene estados y no escala
     // con la tipografía.
-    const EMOJI =
-      /[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
     const conEmoji: string[] = [];
     for (const base of [join(REPO, 'apps'), join(REPO, 'packages')]) {
       for (const file of walk(base)) {
         if (!/\.tsx$/.test(file)) continue;
         if (file.endsWith('pulso.test.ts')) continue;
-        const linea = readFileSync(file, 'utf8')
-          .split('\n')
-          .findIndex((l) => EMOJI.test(l));
-        if (linea >= 0) conEmoji.push(`${file.replace(REPO + '/', '')}:${linea + 1}`);
+        const linea = lineaConEmoji(readFileSync(file, 'utf8'));
+        if (linea > 0) conEmoji.push(`${file.replace(REPO + '/', '')}:${linea}`);
       }
     }
     expect(
