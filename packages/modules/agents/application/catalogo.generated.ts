@@ -3571,6 +3571,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "DealsController_ficha": {
+    "metodo": "GET",
+    "ruta": "/v1/deals/{id}",
+    "resumen": "Una oportunidad con su historia, sus pendientes y lo que hizo el asistente",
+    "permiso": "crm.deals.read",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "DealsController_filters": {
     "metodo": "GET",
     "ruta": "/v1/saved-filters",

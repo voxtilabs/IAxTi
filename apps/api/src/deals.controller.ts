@@ -35,8 +35,10 @@ import {
   reorderStages,
   saveFilter,
   updateStage,
+  getDealFicha,
 } from '@iaxti/module-crm';
 import type { DealFilters } from '@iaxti/module-crm';
+import { searchAudit } from '@iaxti/module-audit';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
@@ -350,6 +352,65 @@ export class DealsController {
   }
 
   /** La historia de etapas de una oportunidad, para la ficha (#32/#695). */
+  /**
+   * La ficha de una oportunidad (#1301).
+   *
+   * No se podía entrar a una oportunidad: había `GET deals`,
+   * `POST deals/:id/stage` y `GET deals/:id/etapas`, pero ninguna que
+   * devolviera UNA. El tablero mostraba tarjetas que no llevaban a ningún
+   * lado.
+   *
+   * La parte del ASISTENTE se compone acá y no en el módulo: el rastro vive en
+   * `audit_log`, que es de `audit`, y un `SELECT` desde CRM sería justo lo que
+   * la guarda de #784 impide. Acá cruzar los dos módulos es el trabajo de la
+   * ruta.
+   *
+   * Y se separa de lo que hizo una persona a propósito. «Lo movió Ana» y «lo
+   * movió el asistente» son dos hechos distintos para quien abre la ficha: el
+   * segundo es el que nadie podía ver, y el que contesta la pregunta de si la
+   * IA está gestionando el embudo o no.
+   */
+  @Get('deals/:id')
+  @RequirePermission('crm.deals.read')
+  @ApiOperation({ summary: 'Una oportunidad con su historia, sus pendientes y lo que hizo el asistente' })
+  async ficha(@Req() request: WithUser, @Param('id') dealId: string) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, async (c) => {
+        const ficha = await getDealFicha(c, actor.tenantId, dealId);
+        /*
+         * Degradado a propósito: si la auditoría no se puede leer, la ficha
+         * sale sin el rastro en vez de no salir. Lo que alguien vino a ver es
+         * la oportunidad; saber qué hizo el asistente es valioso y no es
+         * condición para abrirla.
+         */
+        let delAsistente: unknown[] = [];
+        try {
+          // Sin `tenantId`: `searchAudit` acota por el tenant de la CONEXIÓN,
+          // que es el que `withTenant` fijó. Pasarlo a mano sería una segunda
+          // fuente de verdad sobre de quién son estos datos.
+          delAsistente = await searchAudit(c, {
+            resourceId: dealId,
+            actorKind: 'agent',
+            limit: 50,
+          });
+        } catch (error) {
+          console.warn(
+            `deals: no se pudo leer el rastro del asistente de ${dealId}; la ficha sale sin él. ` +
+              `Causa: ${(error as Error).message}`,
+          );
+        }
+        return { ...ficha, delAsistente };
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      if (/No encontramos/.test(message)) {
+        throw new NotFoundException({ code: 'DEAL_NOT_FOUND', message });
+      }
+      throw new BadRequestException({ code: 'DEAL_INVALID', message });
+    }
+  }
+
   @Get('deals/:id/etapas')
   @RequirePermission('crm.deals.read')
   @ApiOperation({ summary: 'Cada movimiento de etapa con su motivo y si fue hacia atrás' })

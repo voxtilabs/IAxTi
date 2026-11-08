@@ -287,3 +287,84 @@ export async function getContactFicha(
   const activities = await listActivitiesByContact(client, tenantId, contactId);
   return { contact: contacto.rows[0], deals: deals.rows, activities };
 }
+
+/**
+ * La ficha de una oportunidad (#1301).
+ *
+ * No existía, y por eso no se podía «entrar» a una oportunidad: la API tenía
+ * `GET deals`, `POST deals/:id/stage` y `GET deals/:id/etapas`, pero ninguna
+ * que devolviera UNA. El tablero mostraba tarjetas que no llevaban a ninguna
+ * parte.
+ *
+ * Trae tres cosas, y cada una contesta una pregunta distinta de quien la abre:
+ *
+ *  - **el deal**, con la etapa y el contacto resueltos por nombre: qué es y de
+ *    quién;
+ *  - **la historia de etapas**, que ya se escribía en `deal_stage_history` y
+ *    nadie mostraba: cómo llegó hasta acá y cuánto llevaba en cada paso;
+ *  - **sus actividades**: qué quedó pendiente.
+ *
+ * Lo que el asistente hizo en ella NO sale de acá: vive en `audit_log`, que es
+ * de otro módulo, así que lo compone quien puede cruzar los dos (la ruta). Un
+ * `SELECT` a `audit_log` desde CRM sería justo lo que la guarda de #784
+ * impide, y con razón.
+ */
+export async function getDealFicha(
+  client: PoolClient,
+  tenantId: string,
+  dealId: string,
+): Promise<{
+  deal: Record<string, unknown>;
+  historia: Array<Record<string, unknown>>;
+  activities: Activity[];
+}> {
+  const deal = await client.query(
+    `SELECT d.id, d.title, d.status, d.value, d.currency, d.value_clp, d.uf_rate,
+            d.owner_id, d.expected_close_date, d.stage_entered_at, d.stalled,
+            d.created_at, d.won_at, d.lost_at, d.custom, d.source_conversation_id,
+            d.stage_id, d.pipeline_id,
+            s.name AS stage_name, s.type AS stage_type,
+            p.name AS pipeline_name,
+            c.id AS contact_id, c.name AS contact_name, c.phone AS contact_phone,
+            r.label AS lost_reason
+       FROM deals d
+       JOIN stages s ON s.id = d.stage_id
+       JOIN pipelines p ON p.id = d.pipeline_id
+       JOIN contacts c ON c.id = d.contact_id AND c.tenant_id = d.tenant_id
+       LEFT JOIN loss_reasons r ON r.id = d.lost_reason_id AND r.tenant_id = d.tenant_id
+      WHERE d.tenant_id = $1 AND d.id = $2`,
+    [tenantId, dealId],
+  );
+  if (deal.rowCount === 0) {
+    throw new Error('No encontramos esa oportunidad. Puede que se haya eliminado.');
+  }
+
+  // La historia en orden de ocurrencia, con los nombres resueltos: una lista
+  // de uuids no le dice nada a nadie. `from_stage_id` es nulo en el primer
+  // paso —cuando la oportunidad nace— y eso se muestra como «creada», no
+  // como un movimiento desde la nada.
+  const historia = await client.query(
+    `SELECT h.id, h.created_at, h.actor, h.from_stage_id, h.to_stage_id,
+            origen.name AS from_stage_name, destino.name AS to_stage_name,
+            destino.type AS to_stage_type
+       FROM deal_stage_history h
+       LEFT JOIN stages origen ON origen.id = h.from_stage_id
+       JOIN stages destino ON destino.id = h.to_stage_id
+      WHERE h.tenant_id = $1 AND h.deal_id = $2
+      ORDER BY h.created_at`,
+    [tenantId, dealId],
+  );
+
+  const actividades = await client.query(
+    `SELECT * FROM activities
+      WHERE tenant_id = $1 AND deal_id = $2
+      ORDER BY done_at IS NOT NULL, COALESCE(due_at, created_at)`,
+    [tenantId, dealId],
+  );
+
+  return {
+    deal: deal.rows[0],
+    historia: historia.rows,
+    activities: actividades.rows.map(rowToActivity),
+  };
+}

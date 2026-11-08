@@ -24,6 +24,13 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   PartnerInvitationsController_status: 'Invitación privada de WhatsApp: consentimiento humano, nunca tool de IA.',
   PartnerInvitationsController_start: 'Inicia autorización externa de Meta desde sesión humana.',
   PartnerInvitationsController_resume: 'Recuperación explícita de autorización externa por la persona.',
+  // La ficha de una oportunidad es para la pantalla (#1301). El agente tiene
+  // `crm.find_contact` y `crm.get_history` para lo que necesita saber de una
+  // relación; esta devuelve además el rastro del PROPIO asistente, y darle a
+  // un agente la lista de lo que hizo invita a razonar sobre su historia en
+  // vez de sobre lo que el cliente está pidiendo.
+  DealsController_ficha: 'La ficha completa de una oportunidad es para la pantalla; el agente consulta lo que necesita con crm.find_contact y crm.get_history (#1301).',
+
   // El catálogo de herramientas es para la pantalla que configura al
   // asistente (#1285). No se le ofrece al Agente General: lo que un asistente
   // puede hacer ya viaja en su propio `tools/list`, y darle esta ruta sería
