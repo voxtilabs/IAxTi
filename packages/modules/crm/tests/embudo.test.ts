@@ -134,12 +134,68 @@ describe('el embudo sale de la historia, no de un contador (#695)', () => {
     expect(e.oportunidades).toBe(3);
     // Las tres entraron a Nuevo al nacer; dos siguieron.
     expect(de(e, 'Nuevo')).toMatchObject({ entraron: 3, avanzaron: 2, conversion: 0.667 });
-    expect(de(e, 'Cotizado')).toMatchObject({ entraron: 2, avanzaron: 2 });
+    /*
+     * Cotizado: entran A y B, y avanza UNA (#1310).
+     *
+     * Esta aserción decía `avanzaron: 2` y se contradecía con la de dos
+     * líneas más abajo, que afirma —en la misma prueba— que B se CAE en
+     * Cotizado. B no puede haber avanzado desde Cotizado y haberse perdido
+     * en Cotizado a la vez.
+     *
+     * El motivo era que el tope de cada oportunidad tomaba la posición más
+     * alta que tocó, incluida la del cierre perdido, y en este embudo
+     * «Perdido» está en la posición 4, después de «Ganado». Perder contaba
+     * como avanzar.
+     *
+     * No era un detalle de una prueba: con esa regla, un embudo donde se
+     * pierde TODO marcaba 100 % de conversión en su primera etapa, y eso se
+     * mostraba en Reportes con etiqueta verde.
+     */
+    expect(de(e, 'Cotizado')).toMatchObject({ entraron: 2, avanzaron: 1, conversion: 0.5 });
     expect(de(e, 'Cierre')).toMatchObject({ entraron: 1, avanzaron: 0, conversion: 0 });
     // B salió de Cotizado al cierre perdido: ahí se cae.
     expect(de(e, 'Cotizado').perdidas).toBe(1);
     expect(e.seCaeEn).toMatchObject({ name: 'Cotizado', perdidas: 1 });
     void c;
+  });
+
+  it('un embudo donde se pierde TODO no convierte el 100 % (#1310)', async () => {
+    // El caso que la regla vieja no podía expresar. Tres oportunidades que
+    // nacen y se pierden sin moverse de Nuevo: ninguna avanzó.
+    //
+    // Con el tope contando el cierre perdido, las tres marcaban «avanzaron»
+    // desde Nuevo —«Perdido» está en la posición 4— y la primera etapa de un
+    // embudo que no vendió nada salía en verde.
+    const antes = await embudo();
+    for (const titulo of ['X: se pierde al toque', 'Y: igual', 'Z: igual']) {
+      const d = await oportunidad(titulo);
+      await mover(d, 'Perdido', { lostReasonId: perdidaId });
+    }
+
+    const e = await embudo();
+    const nuevo = de(e, 'Nuevo');
+    expect(nuevo.entraron).toBe(de(antes, 'Nuevo').entraron + 3);
+    expect(nuevo.avanzaron, 'perderse no es avanzar').toBe(de(antes, 'Nuevo').avanzaron);
+    expect(nuevo.perdidas).toBe(de(antes, 'Nuevo').perdidas + 3);
+  });
+
+  it('una perdida conserva el avance que SÍ hizo antes de perderse (#1310)', async () => {
+    // La otra mitad, y la que impide «arreglarlo» descontando toda la
+    // historia de una perdida: esta avanzó de verdad a Cotizado y después se
+    // cayó ahí. Nuevo tiene que contar ese avance; Cotizado, la pérdida.
+    const antes = await embudo();
+    const d = await oportunidad('W: avanza y después se pierde');
+    await mover(d, 'Cotizado');
+    await mover(d, 'Perdido', { lostReasonId: perdidaId });
+
+    const e = await embudo();
+    expect(de(e, 'Nuevo').avanzaron, 'avanzó de Nuevo a Cotizado').toBe(
+      de(antes, 'Nuevo').avanzaron + 1,
+    );
+    expect(de(e, 'Cotizado').avanzaron, 'de Cotizado no pasó').toBe(
+      de(antes, 'Cotizado').avanzaron,
+    );
+    expect(de(e, 'Cotizado').perdidas).toBe(de(antes, 'Cotizado').perdidas + 1);
   });
 
   it('retroceder de etapa no descuenta un avance que sí pasó', async () => {
