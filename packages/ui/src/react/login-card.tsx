@@ -58,6 +58,12 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
       <form onSubmit={entrarConCodigo} className="flex flex-col gap-4">
         {/* La instrucción cambia según el dominio (#113).
 
+            El condicional se fue: la plantilla manda `{{ .Token }}` desde que
+            se arreglaron las de Supabase Auth (docs/correos-de-auth), así que
+            el código SIEMPRE llega. Ofrecerlo como algo que PODÍA no venir
+            mandaba a buscar un código que parecía opcional — y en el panel de
+            plataforma es el único camino.
+
             Donde el enlace del correo SÍ aterriza —la app de clientes, que
             vive en el site_url— se ofrecen los dos caminos. Donde NO, decirle
             "abre el enlace" es mandarlo a la aplicación equivocada y dejarlo
@@ -66,7 +72,7 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
         <p className="rounded-campo border border-action-soft-br bg-action-soft px-5 py-4 text-sm text-action-text">
           <span className="font-medium">Revisa tu correo ({email}).</span>{' '}
           {recibeLosRedirects
-            ? 'Abre el enlace desde este mismo dispositivo, o escribe aquí el código de 6 dígitos si viene en el correo.'
+            ? 'Escribe acá el código de 6 dígitos del correo, o abre el enlace desde este mismo dispositivo.'
             : 'Escribe aquí el código de 6 dígitos del correo. Acá se entra con el código, no con el enlace.'}
         </p>
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
