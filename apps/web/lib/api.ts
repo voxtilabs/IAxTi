@@ -532,6 +532,21 @@ export interface DealCardDto {
   contactId: string;
   contactName: string | null;
   contactPhone: string | null;
+  /**
+   * Lo próximo que hay que hacer (#1302). `null` = nada agendado, que es un
+   * estado con significado y no un dato que falte: es la tarjeta de la que
+   * nadie se está haciendo cargo.
+   *
+   * `estado` y `dias` los calcula el SERVIDOR, en la zona del negocio: el
+   * navegador no conoce `tenants.timezone` (ver `lib/reportes.ts`) y «vence
+   * hoy» sin zona se corre un día cada noche.
+   */
+  proximaActividad: {
+    title: string;
+    dueAt: string | null;
+    estado: 'atrasada' | 'hoy' | 'proxima' | 'sin_fecha';
+    dias: number | null;
+  } | null;
 }
 
 /** El embudo leído (#695): conversión por etapa, ciclo de venta y dónde se cae. */

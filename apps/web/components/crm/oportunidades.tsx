@@ -93,10 +93,76 @@ function TarjetaDeal({
         >
           {deal.contactName ?? deal.contactPhone}
         </a>
-        {deal.stalled && deal.status === 'open' && <Badge role="warn">Estancada</Badge>}
+        <QueHayQueHacer deal={deal} />
       </p>
     </article>
   );
+}
+
+/**
+ * Lo próximo que hay que hacer con esta oportunidad (#1302).
+ *
+ * Esto es lo que separa un tablero que se LEE de uno con el que se TRABAJA, y
+ * era la queja del dueño: «las tarjetas dicen poco», «no se puede trabajar
+ * desde ahí». El dato estaba en `activities` desde la migración 0003 y no lo
+ * leía nadie.
+ *
+ * ## Una sola ranura, y por qué
+ *
+ * #1155 midió que una tercera línea sube la tarjeta a 105 px y deja seis por
+ * ventana de 900: el tablero es justamente la pantalla donde querés ver
+ * muchas de una. Así que esto comparte la segunda línea con el contacto, que
+ * trunca.
+ *
+ * Eso obliga a elegir cuando hay dos cosas que decir —atrasada Y estancada—,
+ * y se elige la accionable: «atrasada» nombra algo que alguien dejó pasar
+ * ayer; «estancada» nombra que hace rato que no se mueve. Lo que la ranura
+ * no alcanza a mostrar va entero en la ficha de la oportunidad (#1301).
+ *
+ * ## Texto, no solo color
+ *
+ * SPEC §29 lo pide para «Estancada» y vale igual acá: el color no puede ser
+ * el único portador de significado. Cada estado dice su palabra.
+ *
+ * ## El estado viene calculado del servidor
+ *
+ * `estado` y `dias` NO se calculan acá. El navegador no conoce
+ * `tenants.timezone` —está medido en `lib/reportes.ts`— así que no puede
+ * contestar «¿vence hoy?» sin inventarse una zona, y entre las 21:00 y la
+ * medianoche chilenas UTC ya es mañana: una tarea de hoy se vería atrasada
+ * todas las noches.
+ */
+export function QueHayQueHacer({ deal }: { deal: DealCardDto }) {
+  // Una cerrada no tiene «próximo paso»: lo que le quedara pendiente dejó de
+  // ser una pendiente el día que se ganó o se perdió.
+  if (deal.status !== 'open') return null;
+
+  const prox = deal.proximaActividad;
+  if (prox?.estado === 'atrasada') {
+    return (
+      <Badge role="bad">
+        Atrasada {prox.dias} {prox.dias === 1 ? 'día' : 'días'}
+      </Badge>
+    );
+  }
+  if (prox?.estado === 'hoy') return <Badge role="warn">Vence hoy</Badge>;
+  if (deal.stalled) return <Badge role="warn">Estancada</Badge>;
+  if (prox?.estado === 'proxima') {
+    return (
+      <span className="shrink-0 text-xs text-muted">
+        En <span className="dato">{prox.dias}</span> {prox.dias === 1 ? 'día' : 'días'}
+      </span>
+    );
+  }
+  if (prox?.estado === 'sin_fecha') {
+    return <span className="shrink-0 text-xs text-muted">Sin fecha</span>;
+  }
+  /* Sin nada agendado: el estado más común al empezar y el que más importa.
+     Es la tarjeta de la que nadie se está haciendo cargo, y es literalmente
+     lo que el tablero no sabía decir. En apagado y no en etiqueta: si el
+     negocio recién arranca lo dirían todas, y una pantalla entera de
+     etiquetas no señala nada. */
+  return <span className="shrink-0 text-xs text-muted">Sin agendar</span>;
 }
 
 // Radix no admite `value=""` en un item: la cadena vacía es su "sin
