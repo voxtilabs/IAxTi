@@ -14,7 +14,7 @@ import { porQueNoCorrer } from './build-coherente.mjs';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { createCustomRole } from '@iaxti/module-authorization';
-import { createContact, createDeal, createPipeline, createTag } from '@iaxti/module-crm';
+import { createActivity, createContact, createDeal, createPipeline, createTag } from '@iaxti/module-crm';
 import { receiveInbound } from '@iaxti/module-conversations';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
@@ -143,7 +143,22 @@ async function main() {
   const tableTag = await withTenant(pool, tableTenant, (c) => createTag(c, { tenantId: tableTenant, name: 'Seguimiento' }));
   for (let i = 1; i <= 30; i++) {
     const persona = await withTenant(pool, tableTenant, (c) => createContact(c, { tenantId: tableTenant, phone: `+56972${String(i).padStart(6, '0')}`, name: `Persona ${String(i).padStart(2, '0')}` }));
-    await withTenant(pool, tableTenant, (c) => createDeal(c, { tenantId: tableTenant, contactId: persona.id, pipelineId: pipe.pipeline.id, title: `Venta ${String(i).padStart(2, '0')}`, value: i * 1000 }));
+    const deal = await withTenant(pool, tableTenant, (c) => createDeal(c, { tenantId: tableTenant, contactId: persona.id, pipelineId: pipe.pipeline.id, title: `Venta ${String(i).padStart(2, '0')}`, value: i * 1000 }));
+    // Lo que hay que hacer con cada una (#1302). Las primeras cuatro cubren
+    // los cuatro estados que la tarjeta sabe decir; el resto queda «sin
+    // agendar», que es el estado más común de un negocio que arranca y el que
+    // el tablero no sabía nombrar.
+    //
+    // Las fechas se arman contra el reloj de la corrida a propósito: esto es
+    // una fixture, no una aserción, y lo que importa es que «atrasada» esté
+    // atrasada cuando la pantalla se dibuje.
+    const enDias = (n) => new Date(Date.now() + n * 86_400_000);
+    // En las ÚLTIMAS y no en las primeras: la columna trae 20 por página en
+    // orden descendente, así que `Venta 01` ni siquiera llega al DOM.
+    const pendiente = { 30: { t: 'Llamar para cerrar', d: enDias(-3) }, 29: { t: 'Mandar la propuesta', d: new Date() }, 28: { t: 'Reunión de cierre', d: enDias(4) }, 27: { t: 'Revisar la carpeta', d: undefined } }[i];
+    if (pendiente) {
+      await withTenant(pool, tableTenant, (c) => createActivity(c, { tenantId: tableTenant, contactId: persona.id, dealId: deal.id, type: 'tarea', title: pendiente.t, dueAt: pendiente.d }));
+    }
   }
   // Campañas (#348): negocio y datos sintéticos separados de la bandeja.
   //

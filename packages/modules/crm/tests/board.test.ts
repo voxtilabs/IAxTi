@@ -35,6 +35,11 @@ beforeAll(async () => {
   await admin.query(
     'GRANT SELECT, INSERT, UPDATE ON contacts, contact_identities, pipelines, stages, deals, loss_reasons, deal_stage_history, tags, contact_tags TO iaxti_app',
   );
+  // `activities` entra acá desde #1302: `listDeals` trae la próxima pendiente
+  // de cada tarjeta. Sin este GRANT la prueba pasaba igual en local —otra
+  // prueba del módulo ya se lo había dado al rol y los GRANT se quedan en la
+  // base— y habría dependido del ORDEN en una base limpia.
+  await admin.query('GRANT SELECT ON activities TO iaxti_app');
   await admin.query('GRANT SELECT, INSERT, UPDATE, DELETE ON saved_filters TO iaxti_app');
   await admin.query('GRANT INSERT ON outbox TO iaxti_app');
   app = createPool(ADMIN_URL.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));

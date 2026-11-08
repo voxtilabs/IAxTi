@@ -1,4 +1,6 @@
 import type { PoolClient } from 'pg';
+import { diaEn } from '@iaxti/core';
+import { zonaDelTenant } from '@iaxti/module-organizations';
 import { listCursor } from './list-cursor';
 import type { Deal, Pipeline, Stage } from './deals';
 
@@ -11,6 +13,32 @@ export interface DealCard extends Deal {
   contactName: string | null;
   contactPhone: string;
   stageName: string;
+  /**
+   * Lo próximo que hay que hacer con esta oportunidad (#1302).
+   *
+   * `null` cuando no hay ninguna pendiente, que NO es lo mismo que no
+   * saberlo: una oportunidad sin actividad agendada es justamente la que se
+   * queda sin que nadie la toque, y el tablero lo tiene que poder decir.
+   *
+   * **`estado` y `dias` los calcula el SERVIDOR, y no es por comodidad.** El
+   * navegador no conoce `tenants.timezone` —no viaja en `publicConfig()` ni
+   * en la sesión, está medido en `apps/web/lib/reportes.ts`— así que no puede
+   * contestar «¿vence hoy?» sin inventarse una zona. Entre las 21:00 y la
+   * medianoche chilenas, UTC ya es mañana: una tarea de hoy se mostraría
+   * atrasada todas las noches. Es el mismo defecto de #1072/#1074/#1076 con
+   * otra cara.
+   *
+   * `dueAt` puede ser nulo con la actividad existiendo: `activities.due_at`
+   * admite nulo y una tarea sin fecha es una tarea igual. Ese es el estado
+   * `sin_fecha`, distinto de no tener ninguna actividad.
+   */
+  proximaActividad: {
+    title: string;
+    dueAt: Date | null;
+    estado: 'atrasada' | 'hoy' | 'proxima' | 'sin_fecha';
+    /** Días de atraso (`atrasada`) o que faltan (`proxima`); nulo en el resto. */
+    dias: number | null;
+  } | null;
 }
 
 export interface DealFilters {
@@ -35,7 +63,37 @@ export interface DealFilters {
   limit?: number;
 }
 
-function rowToCard(row: Record<string, unknown>): DealCard {
+/**
+ * En qué estado está la próxima actividad, contado en DÍAS DEL NEGOCIO.
+ *
+ * Días y no milisegundos: «vence hoy» es una pregunta de calendario, no de
+ * reloj. Una tarea para hoy a las 09:00 mirada a las 18:00 no está atrasada
+ * un día, está atrasada hoy — y con la resta de instantes daría `1` y se
+ * mostraría «Atrasada 1 día», que es falso.
+ *
+ * Los dos días se arman con `diaEn(zona, …)` sobre el MISMO `ahora`, que es
+ * lo que evita que la comparación se haga entre dos relojes distintos.
+ */
+function estadoDeLaActividad(
+  dueAt: Date | null,
+  zona: string,
+  ahora: Date,
+): Pick<NonNullable<DealCard['proximaActividad']>, 'estado' | 'dias'> {
+  if (!dueAt) return { estado: 'sin_fecha', dias: null };
+  const hoy = diaEn(zona, ahora);
+  const vence = diaEn(zona, dueAt);
+  if (vence === hoy) return { estado: 'hoy', dias: null };
+  // Mediodía UTC: recorrer días como texto `AAAA-MM-DD` con `new Date` los
+  // corre medio día para un lado u otro según la zona, y a las 00:00 eso
+  // cambia el resultado. Al mediodía ningún desfase del planeta lo mueve.
+  const aDias = (dia: string) => Math.round(new Date(`${dia}T12:00:00Z`).getTime() / 86_400_000);
+  const diferencia = aDias(vence) - aDias(hoy);
+  return diferencia < 0
+    ? { estado: 'atrasada', dias: -diferencia }
+    : { estado: 'proxima', dias: diferencia };
+}
+
+function rowToCard(row: Record<string, unknown>, zona: string, ahora: Date): DealCard {
   return {
     id: row.id as string,
     createdAt: row.created_at as Date,
@@ -61,13 +119,26 @@ function rowToCard(row: Record<string, unknown>): DealCard {
     contactName: (row.contact_name as string) ?? null,
     contactPhone: row.contact_phone as string,
     stageName: row.stage_name as string,
+    proximaActividad: row.proxima_titulo
+      ? {
+          title: row.proxima_titulo as string,
+          dueAt: (row.proxima_due_at as Date) ?? null,
+          ...estadoDeLaActividad((row.proxima_due_at as Date) ?? null, zona, ahora),
+        }
+      : null,
   };
 }
 
+/**
+ * `ahora` inyectable para las pruebas (#1302): «vence hoy» depende del día, y
+ * una prueba que mida el reloj de la máquina pasa o falla según la hora a la
+ * que se corra — que es lo que le pasó a la del cupo en #1305.
+ */
 export async function listDeals(
   client: PoolClient,
   tenantId: string,
   filters: DealFilters = {},
+  ahora: Date = new Date(),
 ): Promise<{ items: DealCard[]; nextCursor: string | null }> {
   const params: unknown[] = [tenantId];
   const where: string[] = ['d.tenant_id = $1'];
@@ -110,11 +181,38 @@ export async function listDeals(
   if (pagination.where) where.push(pagination.where);
 
   params.push(limit + 1);
+  /*
+   * Una sola vez para todo el lote, y ANTES de la consulta: `zonaDelTenant`
+   * cachea cinco minutos y degrada con savepoints, que no admiten dos en
+   * vuelo sobre el mismo cliente (#991). Acá es secuencial y no corre dentro
+   * de ningún `Promise.all`, que es donde eso se vuelve un defecto callado.
+   */
+  const zona = await zonaDelTenant(client, tenantId);
   const r = await client.query(
-    `SELECT d.*, ${pagination.selectValue}, k.name AS contact_name, k.phone AS contact_phone, s.name AS stage_name
+    /*
+     * El LATERAL y no una segunda consulta por tarjeta (#1302).
+     *
+     * Son veinte tarjetas por columna y cuatro o cinco columnas: pedir la
+     * próxima actividad una por una son cien viajes a la base para dibujar
+     * una pantalla. El LATERAL la trae en el mismo barrido, apoyado en
+     * `activities_proxima_del_deal_idx` (migración 0011).
+     *
+     * `NULLS LAST`: una tarea sin fecha es menos urgente que una con fecha,
+     * aunque se haya creado antes. Sin eso, una tarea vieja sin plazo tapaba
+     * la que vence hoy.
+     */
+    `SELECT d.*, ${pagination.selectValue}, k.name AS contact_name, k.phone AS contact_phone, s.name AS stage_name,
+            prox.title AS proxima_titulo, prox.due_at AS proxima_due_at
        FROM deals d
        JOIN contacts k ON k.id = d.contact_id
        JOIN stages s ON s.id = d.stage_id
+       LEFT JOIN LATERAL (
+         SELECT a.title, a.due_at
+           FROM activities a
+          WHERE a.tenant_id = d.tenant_id AND a.deal_id = d.id AND a.done_at IS NULL
+          ORDER BY a.due_at ASC NULLS LAST, a.created_at ASC
+          LIMIT 1
+       ) prox ON true
       WHERE ${where.join(' AND ')}
       ORDER BY ${pagination.orderBy}
       LIMIT $${params.length}`,
@@ -124,7 +222,7 @@ export async function listDeals(
   const rows = hasMore ? r.rows.slice(0, limit) : r.rows;
   const last = rows.at(-1);
   return {
-    items: rows.map(rowToCard),
+    items: rows.map((row) => rowToCard(row, zona, ahora)),
     nextCursor: hasMore && last ? pagination.encode(last) : null,
   };
 }
