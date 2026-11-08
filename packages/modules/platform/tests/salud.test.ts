@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
 import {
@@ -178,6 +178,42 @@ describe('eventos abandonados (#71)', () => {
   });
 });
 
+/**
+ * Las lecturas de adentro ven UNA sola foto de la base (#1308).
+ *
+ * Varias pruebas de seguridad comparan el snapshot contra un conteo propio
+ * para no medir la implementación contra sí misma (#734). El problema es que
+ * son lecturas GLOBALES —el snapshot es de plataforma y cruza todos los
+ * negocios a propósito— tomadas en instantes distintos sobre una base que
+ * las demás suites están escribiendo. Caían con «expected 1430 to be 1429»,
+ * siempre por uno, y solas pasaban: la firma de una carrera.
+ *
+ * Y no era solo el conteo contra el snapshot: `securitySnapshot` hace SEIS
+ * lecturas y tampoco es consistente consigo mismo.
+ *
+ * Lo que NO servía, y queda escrito para que no se reintente:
+ *  - Acotar por tenant: cambiaría lo que se mide, porque el snapshot es de
+ *    plataforma por diseño.
+ *  - Un bracket (contar antes y después): varias suites BORRAN `audit_log`
+ *    en su `afterAll`, así que el conteo también baja.
+ *
+ * `REPEATABLE READ` lo resuelve de raíz: la transacción fija su foto en el
+ * primer SELECT y todo lo que venga después la ve igual, pase lo que pase
+ * afuera. Medido con un escritor metiendo ~800 filas/s: en READ COMMITTED
+ * falla 3 de 3; así, pasa.
+ */
+async function enUnaFoto<T>(pool: Pool, fn: (c: PoolClient) => Promise<T>): Promise<T> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    return await fn(c);
+  } finally {
+    // Solo lee: deshacer es lo correcto y además suelta la foto.
+    await c.query('ROLLBACK');
+    c.release();
+  }
+}
+
 describe('seguridad (#71)', () => {
   it('cuenta los permisos denegados desde el libro de auditoría, con su IP', async () => {
     // Las denegaciones se buscan en la base y no en las veinte filas que el
@@ -264,27 +300,29 @@ describe('seguridad (#71)', () => {
     }, 60_000);
 
     it('la lista viene cortada y lo DICE, con el total contado en la base', async () => {
-      const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
-      const lista = snap.permisosDenegados;
+      await enUnaFoto(admin, async (c) => {
+        const snap = await securitySnapshot(c, { redis: null, dias: 7 });
+        const lista = snap.permisosDenegados;
 
-      // Cortada de verdad: éste es el estado que antes no se alcanzaba nunca.
-      expect(lista.filas).toHaveLength(20);
-      expect(lista.truncado).toBe(true);
+        // Cortada de verdad: éste es el estado que antes no se alcanzaba nunca.
+        expect(lista.filas).toHaveLength(20);
+        expect(lista.truncado).toBe(true);
 
-      // El total se compara contra un conteo INDEPENDIENTE, no contra la
-      // fórmula de la implementación: cuántos grupos hay en la base.
-      const grupos = (
-        await admin.query(
-          `SELECT count(*)::int AS n FROM (
-             SELECT 1 FROM audit_log
-              WHERE action = 'permission.denied' AND occurred_at >= $1
-              GROUP BY tenant_id, actor, host(ip)
-           ) g`,
-          [snap.desde],
-        )
-      ).rows[0].n as number;
-      expect(lista.total).toBe(grupos);
-      expect(grupos).toBeGreaterThanOrEqual(ACTORES);
+        // El total se compara contra un conteo INDEPENDIENTE, no contra la
+        // fórmula de la implementación: cuántos grupos hay en la base.
+        const grupos = (
+          await c.query(
+            `SELECT count(*)::int AS n FROM (
+               SELECT 1 FROM audit_log
+                WHERE action = 'permission.denied' AND occurred_at >= $1
+                GROUP BY tenant_id, actor, host(ip)
+             ) g`,
+            [snap.desde],
+          )
+        ).rows[0].n as number;
+        expect(lista.total).toBe(grupos);
+        expect(grupos).toBeGreaterThanOrEqual(ACTORES);
+      });
     });
 
     it('una lista que NO está cortada dice que no lo está', async () => {
@@ -297,10 +335,14 @@ describe('seguridad (#71)', () => {
       }
     });
 
+    // Misma foto que la de arriba, y por el mismo motivo (#1308): compara el
+    // snapshot contra un conteo propio, los dos globales. Esta era la que
+    // seguía roja después de arreglar la primera.
     it('el total de intentos NO se calcula sumando las filas que se muestran (#734)', async () => {
-      const snap = await securitySnapshot(admin, { redis: null, dias: 7 });
+      await enUnaFoto(admin, async (c) => {
+      const snap = await securitySnapshot(c, { redis: null, dias: 7 });
       const enLaBase = (
-        await admin.query(
+        await c.query(
           `SELECT count(*)::int AS n FROM audit_log
             WHERE action = 'permission.denied' AND occurred_at >= $1`,
           [snap.desde],
@@ -316,6 +358,7 @@ describe('seguridad (#71)', () => {
       expect(snap.permisosDenegados.truncado).toBe(true);
       const sumaDeLasFilas = snap.permisosDenegados.filas.reduce((t, f) => t + f.n, 0);
       expect(snap.intentosDenegados).toBeGreaterThan(sumaDeLasFilas);
+      });
     });
   });
 

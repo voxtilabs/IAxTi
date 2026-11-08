@@ -371,8 +371,23 @@ function cortada<T>(filas: T[], total: number): Cortada<T> {
 const DENEGADOS_ATENCION = 20;
 const AUTH_ATENCION = 50;
 
+/**
+ * `Pick<Pool, 'query'>` y no `Pool` (#1308).
+ *
+ * Esta función hace SEIS lecturas, y entre una y otra la base sigue
+ * cambiando: no es consistente consigo misma. En producción da igual —es un
+ * panel de salud, y que el total y las filas se lleven una fila de
+ * diferencia no cambia ninguna decisión—, pero vuelve imposible compararla
+ * contra un conteo independiente, que es justamente lo que su prueba hace
+ * para no comparar la implementación contra sí misma (#734).
+ *
+ * Aceptando cualquier cosa que sepa consultar, la prueba le pasa un cliente
+ * dentro de una transacción REPEATABLE READ y las seis lecturas —más la suya—
+ * ven la MISMA foto. No cambia el comportamiento de nadie: los llamadores de
+ * producción siguen pasando el pool.
+ */
 export async function securitySnapshot(
-  pool: Pool,
+  pool: Pick<Pool, 'query'>,
   input: SeguridadInput = {},
 ): Promise<Seguridad> {
   const dias = input.dias ?? 7;
