@@ -1,6 +1,7 @@
 'use client';
 
 import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
+import { FichaOportunidad } from './ficha-oportunidad';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Badge, Button, DataTable, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EstadoVacio, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsList, TabsTrigger, type ColumnDef, type RowSelectionState, type SortingState, useSession } from '@iaxti/ui/react';
@@ -36,12 +37,30 @@ interface MovimientoPendiente {
   hasta: StageDto;
 }
 
-function TarjetaDeal({ deal, onDragStart }: { deal: DealCardDto; onDragStart: (e: DragEvent) => void }) {
+function TarjetaDeal({
+  deal,
+  onDragStart,
+  onAbrir,
+  abierta,
+}: {
+  deal: DealCardDto;
+  onDragStart: (e: DragEvent) => void;
+  onAbrir: () => void;
+  abierta: boolean;
+}) {
   return (
     <article
       draggable
       onDragStart={onDragStart}
-      className="cursor-grab rounded-campo border border-line bg-bg p-3 active:cursor-grabbing"
+      /* Toda la tarjeta abre la ficha, y el TÍTULO es un botón de verdad
+         (#1301). Un `onClick` en el `article` no llega por teclado, y una
+         tarjeta a la que solo se entra con el ratón deja el tablero sin la
+         mitad de sus usuarios. El navegador no dispara `click` después de un
+         arrastre real, así que las dos cosas conviven. */
+      onClick={onAbrir}
+      className={`cursor-grab rounded-campo border bg-bg p-3 active:cursor-grabbing ${
+        abierta ? 'border-action' : 'border-line hover:border-line-strong'
+      }`}
     >
       {/* Dos líneas y no tres (#1155): el monto sube al lado del título. Con
           tres, una tarjeta medía 105 px y en una ventana de 900 entraban seis;
@@ -49,13 +68,29 @@ function TarjetaDeal({ deal, onDragStart }: { deal: DealCardDto; onDragStart: (e
           El monto queda a la derecha y en mono, que es donde el ojo lo busca
           cuando baja por una columna. */}
       <p className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-medium text-ink">{deal.title}</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAbrir();
+          }}
+          className="truncate text-left text-sm font-medium text-ink"
+        >
+          {deal.title}
+        </button>
         <span className="dato shrink-0 text-xs text-ink">
           {deal.currency === 'UF' && deal.value !== null ? `UF ${deal.value}` : fmtClp(deal.valueClp)}
         </span>
       </p>
       <p className="mt-1 flex items-center justify-between gap-2">
-        <a href={`/contactos/${deal.contactId}`} className="truncate text-xs text-action-text">
+        {/* Para en seco la propagación: este enlace lleva a OTRA pantalla, y
+            abrir la ficha al mismo tiempo dejaría un panel que nadie pidió
+            sobre una página que ya cambió. */}
+        <a
+          href={`/contactos/${deal.contactId}`}
+          onClick={(e) => e.stopPropagation()}
+          className="truncate text-xs text-action-text"
+        >
           {deal.contactName ?? deal.contactPhone}
         </a>
         {deal.stalled && deal.status === 'open' && <Badge role="warn">Estancada</Badge>}
@@ -93,6 +128,8 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   const [columnas, setColumnas] = useState<Record<string, Columna>>({});
   const [motivos, setMotivos] = useState<LossReasonDto[]>([]);
   const [pendiente, setPendiente] = useState<MovimientoPendiente | null>(null);
+  /** Qué oportunidad está abierta en la ficha de al lado (#1301). */
+  const [abierta, setAbierta] = useState<string | null>(null);
   const [motivo, setMotivo] = useState('');
   const [motivoPerdidaId, setMotivoPerdidaId] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
@@ -257,8 +294,18 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     /* La pantalla NO scrollea: el alto lo fija la ventana (`sinMargen` en la
        página) y adentro scrollea cada columna. Así la cabecera de la etapa
        sigue a la vista mientras mirás sus tarjetas, que es la mitad de para
-       qué sirve un tablero (#1155). */
-    <div className="flex h-full min-h-0 flex-col">
+       qué sirve un tablero (#1155).
+
+       Y el tablero y la ficha son hermanos en una fila (#1301): la ficha se
+       lleva su ancho y las columnas se comprimen, en vez de taparlas. Mirar
+       una oportunidad sin perder de vista en qué etapa estaba es justamente
+       para lo que sirve un panel y no una página. */
+    <div className="flex h-full min-h-0">
+    {/* `min-w-0` y no solo `flex-1`: un hijo de flex no baja de su ancho de
+        contenido salvo que se le diga, así que el tablero —que scrollea de
+        lado a propósito— empujaba la PÁGINA. Medido a 360 px: 936 px de
+        `scrollWidth` contra 360 de ventana. */}
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-4 px-6 pt-3">
         <EncabezadoDePagina titulo="Oportunidades" className="mb-0" />
         {pipelines.length > 1 && (
@@ -349,6 +396,8 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
                       <TarjetaDeal
                         key={deal.id}
                         deal={deal}
+                        abierta={abierta === deal.id}
+                        onAbrir={() => setAbierta(deal.id)}
                         onDragStart={(e) => e.dataTransfer.setData('text/deal', deal.id)}
                       />
                     ))
@@ -535,6 +584,10 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+    {abierta && (
+      <FichaOportunidad key={abierta} dealId={abierta} onCerrar={() => setAbierta(null)} />
+    )}
     </div>
   );
 }

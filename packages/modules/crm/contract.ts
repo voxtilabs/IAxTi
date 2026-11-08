@@ -57,6 +57,8 @@ export {
   listActivitiesByContact,
   markDueActivities,
   getContactFicha,
+  // La ficha de una oportunidad: qué es, cómo llegó y qué quedó pendiente (#1301).
+  getDealFicha,
 } from './application/activities';
 export type { Activity, ActivityType } from './application/activities';
 export {

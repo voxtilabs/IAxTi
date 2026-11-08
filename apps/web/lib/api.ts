@@ -465,6 +465,55 @@ export interface PipelineDto {
   stages: StageDto[];
 }
 
+/**
+ * La ficha de una oportunidad (#1301).
+ *
+ * Exportada para que la prueba del panel TIPE su simulacro: si la ruta cambia
+ * de forma, la prueba deja de compilar en vez de medir una forma que ya no
+ * existe.
+ */
+export interface FichaDealDto {
+  deal: {
+    id: string;
+    title: string;
+    status: 'open' | 'won' | 'lost';
+    value: string | number | null;
+    currency: 'CLP' | 'UF' | 'USD';
+    value_clp: string | number | null;
+    stage_name: string;
+    stage_type: string;
+    pipeline_name: string;
+    contact_id: string;
+    contact_name: string | null;
+    contact_phone: string | null;
+    stage_entered_at: string;
+    stalled: boolean;
+    created_at: string;
+    won_at: string | null;
+    lost_at: string | null;
+    lost_reason: string | null;
+    expected_close_date: string | null;
+  };
+  historia: Array<{
+    id: string;
+    created_at: string;
+    actor: string | null;
+    from_stage_id: string | null;
+    from_stage_name: string | null;
+    to_stage_name: string;
+    to_stage_type: string;
+  }>;
+  activities: Array<{
+    id: string;
+    type: string;
+    title: string;
+    dueAt: string | null;
+    doneAt: string | null;
+  }>;
+  /** Lo que hizo el asistente en ESTA oportunidad, del libro de auditoría. */
+  delAsistente: Array<{ id: string | number; action: string; occurredAt?: string; occurred_at?: string }>;
+}
+
 export interface DealCardDto {
   id: string;
   createdAt: string;

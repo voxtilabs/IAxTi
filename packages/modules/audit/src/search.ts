@@ -6,6 +6,20 @@ export interface AuditFilter {
   actorKind?: ActorKind;
   action?: string;
   resource?: string;
+  /**
+   * Qué le pasó a UN registro: la pregunta más común de una auditoría, y la
+   * única que este filtro no podía hacer.
+   *
+   * `resource_id` se escribe desde el primer día y no había forma de filtrar
+   * por él: se podía pedir «todo lo que pasó con oportunidades» pero no «todo
+   * lo que pasó con ESTA oportunidad». La ficha de una oportunidad (#1301) la
+   * necesita para mostrar quién la movió y qué hizo el asistente en ella.
+   *
+   * Va junto a `resource` en la práctica —un id sin su tipo es ambiguo entre
+   * tablas— pero no se exige: dos tablas con el mismo uuid no pasa, y pedirlo
+   * obligaría a quien ya tiene el id a adivinar su tipo.
+   */
+  resourceId?: string;
   /** Desde dónde se hizo: es la mitad de las preguntas de un auditor. */
   ip?: string;
   result?: string;
@@ -98,6 +112,7 @@ function armarFiltro(
   if (filter.actorKind) add('actor_kind = ?', filter.actorKind);
   if (filter.action) add('action = ?', filter.action);
   if (filter.resource) add('resource = ?', filter.resource);
+  if (filter.resourceId) add('resource_id = ?', filter.resourceId);
   if (filter.ip) add('host(ip) = ?', filter.ip);
   if (filter.result) add('result = ?', filter.result);
   if (filter.from) add('occurred_at >= ?', filter.from);
