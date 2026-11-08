@@ -64,7 +64,7 @@ export const DEFINICIONES_EMBUDO: Record<string, string> = {
   entraron:
     'Oportunidades distintas que pasaron por la etapa alguna vez. Volver a una etapa anterior es normal y cuenta una sola vez.',
   avanzaron:
-    'De las que entraron, las que después llegaron a una etapa posterior. Una que retrocedió y volvió a avanzar cuenta como avanzada.',
+    'De las que entraron, las que después llegaron a una etapa posterior SIN contar el cierre perdido. Una que retrocedió y volvió a avanzar cuenta como avanzada; una que se perdió conserva el avance que hizo antes de perderse.',
   conversion: 'avanzaron ÷ entraron. Sin nadie que haya entrado, no hay porcentaje: queda vacío.',
   perdidas: 'Oportunidades que pasaron de esta etapa directo al cierre perdido.',
   ciclo:
@@ -131,7 +131,20 @@ export async function getEmbudo(client: PoolClient, input: EmbudoInput): Promise
      ), tope AS (
        -- Hasta dónde llegó cada oportunidad. Con esto, retroceder de etapa no
        -- descuenta un avance que de verdad pasó.
-       SELECT deal_id, max(to_pos) AS pos FROM pasos GROUP BY deal_id
+       --
+       -- El FILTER y no un max(to_pos) a secas (#1310):
+       -- el tope se usa para decidir si la oportunidad AVANZÓ desde cada etapa,
+       -- y en un embudo normal «Perdido» está después de «Ganado» por posición.
+       -- Sin el filtro, perder contaba como avanzar desde todas las etapas
+       -- anteriores, y un embudo donde se pierde TODO marcaba 100 % de
+       -- conversión. Medido en el tenant de prueba: 30 creadas, 5 ganadas y 3
+       -- perdidas daban «8 avanzaron» desde la primera etapa.
+       --
+       -- Una perdida sigue contando el avance que SÍ hizo antes de perderse:
+       -- Nuevo → Contactado → Perdido avanzó desde Nuevo y se cayó en
+       -- Contactado, que es exactamente lo que pasó.
+       SELECT deal_id, max(to_pos) FILTER (WHERE to_type <> 'lost') AS pos
+         FROM pasos GROUP BY deal_id
      ), perdidas AS (
        SELECT from_stage_id AS stage_id, count(*)::int AS n
          FROM pasos WHERE to_type = 'lost' AND from_stage_id IS NOT NULL
