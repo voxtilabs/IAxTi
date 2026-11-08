@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 import type IORedis from 'ioredis';
 import type { OutboundJobData } from '@iaxti/module-whatsapp';
@@ -94,6 +94,43 @@ async function yaSeGastaron(n: number): Promise<void> {
   );
 }
 
+/**
+ * Un instante de DÍA, hoy (#1305).
+ *
+ * La tercera prueba llega hasta la guarda del horario de silencio, que lee
+ * el reloj: corrida entre las 21:00 y las 08:00 de Santiago fallaba con
+ * «Reprogramado 380 min (horario de silencio)». No era un flake —fallaba
+ * todas las noches y pasaba todos los días—, y estaba anotada como tal.
+ *
+ * Tiene que ser HOY y no una fecha fija: el cupo cuenta los salientes del
+ * día y las filas de `yaSeGastaron` se insertan con el reloj real. Con una
+ * fecha de hace un mes el congelado y las filas caen en días distintos y la
+ * prueba pasaría a medir otra cosa.
+ *
+ * Mediodía de Santiago, calculado del desfase vigente ese día: queda lejos
+ * del silencio con −03 y con −04, así que aguanta el cambio de horario.
+ */
+function hoyEnSantiagoALas(hora: number): Date {
+  const fmt = (opciones: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Santiago', ...opciones });
+  const hoy = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  // Se parte de esa hora en UTC y se corrige por el desfase REAL de Santiago
+  // ese día. Nada de `toLocaleString` + `new Date(...)`: eso reparsea en la
+  // zona del HOST, así que daba el instante correcto en CI (UTC) y uno tres
+  // horas corrido en una máquina chilena. La primera versión de este arreglo
+  // tenía justamente ese defecto y lo encontró la mordida, no la corrida.
+  const tentativa = new Date(`${hoy}T${String(hora).padStart(2, '0')}:00:00Z`);
+  const alla = Number(fmt({ hour: '2-digit', hour12: false }).format(tentativa));
+  return new Date(tentativa.getTime() - (alla - hora) * 3_600_000);
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
   redis = redisConnection();
@@ -184,6 +221,11 @@ describe('el cupo del canal no se lo come el automatismo (#1248)', () => {
       [tenant, account],
     );
     const id = await nuevoSaliente();
+    // Esta es la única de las cuatro que llega a la guarda del silencio: las
+    // otras tres la esquivan por su contenido —dos responden al cliente y una
+    // es transaccional—. Por eso el reloj se congela acá y no en el `beforeAll`.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(hoyEnSantiagoALas(12));
     const res = await processOutbound(admin, redis, jobPara(id, { initiatedByBusiness: true }));
     expect(res.providerMessageId).toMatch(/^wamid\./);
   });
