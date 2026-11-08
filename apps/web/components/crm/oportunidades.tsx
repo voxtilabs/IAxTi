@@ -12,6 +12,7 @@ import {
   type DealCardDto,
   type LossReasonDto,
   type PipelineDto,
+  type EmbudoDto,
   type SavedFilterDto,
   type StageDto,
   mensajeDeError,
@@ -165,6 +166,87 @@ export function QueHayQueHacer({ deal }: { deal: DealCardDto }) {
   return <span className="shrink-0 text-xs text-muted">Sin agendar</span>;
 }
 
+/**
+ * Sobre cuántas está midiendo el embudo (#1303).
+ *
+ * Una sola frase, y es la que las cabeceras no pueden decir solas: que las
+ * pérdidas de cada columna se cuentan sobre TODO el historial y no sobre lo
+ * que hay en pantalla. Sin eso, el «de 30» de la cabecera se confunde con el
+ * conteo de la columna, que está tres líneas más arriba y dice otra cosa.
+ *
+ * ## Lo que esta frase decía de más
+ *
+ * Decía también en qué etapa se cae más —«Se cae más en Nuevo: 3 perdidas»—
+ * y era repetir lo que la cabecera de esa misma columna ya muestra. Con un
+ * solo embudo abierto es literalmente la misma frase dos veces en la misma
+ * pantalla; con varios, es el mismo dato que el lector tiene delante.
+ *
+ * Lo cazó el techo de prosa (#1157): la pantalla llegó a 26 palabras con un
+ * techo de 16. La guarda tenía razón por el motivo correcto — no era que
+ * sobrara texto, era que sobraba un dato repetido.
+ *
+ * Se calla entera sin oportunidades: sin datos no hay embudo, y una línea
+ * que diga «sobre 0» es ruido que ocupa alto.
+ */
+function LecturaDelEmbudo({ embudo }: { embudo: EmbudoDto | null }) {
+  if (!embudo || embudo.oportunidades === 0) return null;
+  return (
+    <p className="shrink-0 px-6 pb-3 text-xs text-muted">
+      Sobre <span className="dato">{embudo.oportunidades}</span>, desde que empezaste.
+    </p>
+  );
+}
+
+/**
+ * Cuántas se pierden EN esta etapa (#1303).
+ *
+ * La queja era «no se entiende el embudo». Un tablero contesta «qué hay
+ * ahora»; un embudo contesta «por dónde se cae la gente». Son preguntas
+ * distintas, y la segunda no se puede deducir mirando las columnas: una etapa
+ * con 30 y la siguiente con 0 se ve igual en un embudo que no convierte y en
+ * uno que recién arrancó.
+ *
+ * El dato viene de `GET /pipelines/:id/embudo` (#695), que lo mide del
+ * historial real (`deal_stage_history`) y no dividiendo el conteo de una
+ * columna por el de la anterior, que es la versión falsa.
+ *
+ * ## Por qué las PÉRDIDAS y no la conversión
+ *
+ * Dos motivos, y conviene separarlos porque uno ya caducó.
+ *
+ * El que lo destapó: al poner la conversión acá se vio que estaba rota
+ * —`avanzaron` contaba las perdidas como avanzadas, porque «Perdido» está
+ * después de «Ganado» por posición, y un embudo donde se pierde todo marcaba
+ * 100 %—. Eso **ya está arreglado** (#1310), así que no es el motivo por el
+ * que esta cabecera sigue mostrando pérdidas. Queda escrito para que nadie
+ * lo busque y no lo encuentre.
+ *
+ * El motivo que se mantiene:
+ *
+ *  - **Un conteo se lee sin traducir y un porcentaje con volúmenes chicos
+ *    miente por omisión.** La primera versión de esta cabecera decía «0 %
+ *    avanzó desde acá» sobre 30 oportunidades creadas el mismo día: cierto y
+ *    engañoso, porque se lee «tu embudo no convierte» cuando dice «recién
+ *    empezaste». Un negocio que arranca es exactamente el caso de IAxTi.
+ *  - **Las pérdidas son la pregunta.** Lo que se pidió fue entender por
+ *    dónde se cae la gente, no cuánto convierte cada etapa. La conversión
+ *    completa, con su ciclo de venta y su comparación entre períodos, está
+ *    en Reportes, que es donde se mira una vez por semana.
+ *
+ * Sin pérdidas no dice nada: una etapa por la que no se cae nadie no necesita
+ * una línea que lo repita en cada columna, y en el tablero el alto es lo caro.
+ * Solo en etapas ABIERTAS: «cuántas se pierden en Ganado» no es una pregunta.
+ */
+function DondeSePierde({ etapa }: { etapa: EmbudoDto['etapas'][number] | undefined }) {
+  if (!etapa || etapa.type !== 'open' || etapa.perdidas === 0) return null;
+  return (
+    <p className="mt-0.5 text-xs text-muted">
+      <span className="dato">{etapa.perdidas}</span> de <span className="dato">{etapa.entraron}</span>{' '}
+      {etapa.perdidas === 1 ? 'se perdió acá' : 'se perdieron acá'}
+    </p>
+  );
+}
+
 // Radix no admite `value=""` en un item: la cadena vacía es su "sin
 // selección". Los filtros "todas" y "según mi visibilidad" son opciones
 // elegibles, así que van con centinela y se traducen al salir.
@@ -204,6 +286,24 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   // es el dinero de la etapa. Viene del servidor en una consulta para todo el
   // tablero.
   const [resumen, setResumen] = useState<Record<string, { cuantas: number; totalClp: number }>>({});
+  /**
+   * El embudo leído, en el tablero (#1303).
+   *
+   * La medición ya existía (#695) y se dibujaba SOLO dentro de Reportes, que
+   * se vende con el plan Equipo. El endpoint, en cambio, es de `crm` y pide
+   * `crm.deals.read`: el mismo módulo y el mismo permiso que este tablero.
+   * O sea que quien mira estas columnas ya tenía derecho a esta lectura y no
+   * tenía dónde verla. Lo que se vende con el plan es la PANTALLA de
+   * reportes, no el dato.
+   *
+   * Sin `from` ni `to` a propósito: el endpoint toma entonces todo el
+   * historial, y el tablero no tiene que calcular «hace 90 días» en el
+   * navegador —que no conoce la zona del negocio y de noche se corre un día—.
+   * El alcance se dice en pantalla con todas sus letras.
+   *
+   * `null` es «no se pudo» y se calla; no se inventa un 0 %.
+   */
+  const [embudo, setEmbudo] = useState<EmbudoDto | null>(null);
 
   // Lista
   const [lista, setLista] = useState<DealCardDto[]>([]);
@@ -274,11 +374,24 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     }
   }, [api, pipelineId]);
 
+  const cargarEmbudo = useCallback(async () => {
+    if (!pipelineId) return;
+    try {
+      setEmbudo(await api<EmbudoDto>(`/pipelines/${pipelineId}/embudo`));
+    } catch {
+      // Degrada en silencio: el tablero es para trabajar y la lectura del
+      // embudo es un extra. Un aviso rojo arriba por algo que nadie pidió
+      // sería peor que no mostrarlo.
+      setEmbudo(null);
+    }
+  }, [api, pipelineId]);
+
   useEffect(() => {
     if (!pipeline) return;
     for (const stage of pipeline.stages) void cargarColumna(stage);
     void cargarResumen();
-  }, [pipeline, cargarColumna, cargarResumen]);
+    void cargarEmbudo();
+  }, [pipeline, cargarColumna, cargarResumen, cargarEmbudo]);
 
   const cargarLista = useCallback(async () => {
     if (!client) return;
@@ -421,6 +534,8 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
              cargar el tablero se desplazaba 24 px solo y la primera columna
              quedaba pegada al borde izquierdo. Se vio en la captura de
              celular. */
+        <>
+          <LecturaDelEmbudo embudo={embudo} />
           <div className="flex min-h-0 flex-1 snap-x scroll-px-6 gap-3 overflow-x-auto px-6 pb-6">
           {pipeline.stages.map((stage) => {
             const col = columnas[stage.id];
@@ -446,6 +561,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
                   {total && total.cuantas > 0 && (
                     <p className="dato mt-0.5 text-xs text-body">{fmtClp(total.totalClp)}</p>
                   )}
+                  <DondeSePierde etapa={embudo?.etapas.find((e) => e.stageId === stage.id)} />
                 </header>
                 <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
                   {col?.cargando && !col.items.length ? (
@@ -477,7 +593,8 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
               </section>
             );
           })}
-        </div>
+          </div>
+        </>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
           {/* Filtros + guardados por usuario. */}

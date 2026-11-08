@@ -14,7 +14,7 @@ import { porQueNoCorrer } from './build-coherente.mjs';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { createCustomRole } from '@iaxti/module-authorization';
-import { createActivity, createContact, createDeal, createPipeline, createTag } from '@iaxti/module-crm';
+import { createActivity, createContact, createDeal, createPipeline, createTag, ensureDefaultLossReasons, listLossReasons, moveDealStage } from '@iaxti/module-crm';
 import { receiveInbound } from '@iaxti/module-conversations';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
@@ -141,6 +141,7 @@ async function main() {
   await withTenant(pool, tableTenant, (c) => acceptInvitation(c, { token: tableInvitation.token, userId: supervisora }));
   const pipe = await withTenant(pool, tableTenant, (c) => createPipeline(c, { tenantId: tableTenant, name: 'Ventas de prueba', stages: [{ name: 'Nuevo', type: 'open' }, { name: 'Ganado', type: 'won' }, { name: 'Perdido', type: 'lost' }] }));
   const tableTag = await withTenant(pool, tableTenant, (c) => createTag(c, { tenantId: tableTenant, name: 'Seguimiento' }));
+  const creadas = [];
   for (let i = 1; i <= 30; i++) {
     const persona = await withTenant(pool, tableTenant, (c) => createContact(c, { tenantId: tableTenant, phone: `+56972${String(i).padStart(6, '0')}`, name: `Persona ${String(i).padStart(2, '0')}` }));
     const deal = await withTenant(pool, tableTenant, (c) => createDeal(c, { tenantId: tableTenant, contactId: persona.id, pipelineId: pipe.pipeline.id, title: `Venta ${String(i).padStart(2, '0')}`, value: i * 1000 }));
@@ -159,6 +160,23 @@ async function main() {
     if (pendiente) {
       await withTenant(pool, tableTenant, (c) => createActivity(c, { tenantId: tableTenant, contactId: persona.id, dealId: deal.id, type: 'tarea', title: pendiente.t, dueAt: pendiente.d }));
     }
+    creadas.push(deal);
+  }
+  // Y un embudo con FORMA (#1303). Sin esto el historial no tiene un solo
+  // movimiento y la lectura del embudo solo puede decir cero: se ve que
+  // renderiza, no que mide.
+  //
+  // Se mueven las PRIMERAS y las pendientes de arriba van en las ÚLTIMAS, a
+  // propósito: así ninguna de las dos fixtures le pisa el caso a la otra.
+  const ganado = pipe.stages.find((e) => e.type === 'won');
+  const perdido = pipe.stages.find((e) => e.type === 'lost');
+  await withTenant(pool, tableTenant, (c) => ensureDefaultLossReasons(c, tableTenant));
+  const motivos = await withTenant(pool, tableTenant, (c) => listLossReasons(c, tableTenant));
+  for (const d of creadas.slice(0, 5)) {
+    await withTenant(pool, tableTenant, (c) => moveDealStage(c, { tenantId: tableTenant, dealId: d.id, stageId: ganado.id }));
+  }
+  for (const d of creadas.slice(5, 8)) {
+    await withTenant(pool, tableTenant, (c) => moveDealStage(c, { tenantId: tableTenant, dealId: d.id, stageId: perdido.id, lostReasonId: motivos[0]?.id }));
   }
   // Campañas (#348): negocio y datos sintéticos separados de la bandeja.
   //
