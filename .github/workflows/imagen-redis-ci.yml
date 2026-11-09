@@ -67,7 +67,7 @@ jobs:
       # silenciada y su motivo en #758: pinear una sola mientras el resto sigue
       # móvil compra una convención partida en dos, no seguridad.
       # nosemgrep: yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
