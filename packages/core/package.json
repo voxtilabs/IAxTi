@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@iaxti/db": "workspace:*",
-    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api": "^1.10.0",
     "@opentelemetry/sdk-trace-node": "^1.30.0",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.0",
