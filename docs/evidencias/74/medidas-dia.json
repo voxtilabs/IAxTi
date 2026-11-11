@@ -2,21 +2,21 @@
   "viewport": 360,
   "carga": {
     "x": 16,
-    "y": 236.5,
+    "y": 238.15625,
     "width": 328,
-    "height": 384
+    "height": 356
   },
   "lista": {
     "x": 16,
-    "y": 236.5,
+    "y": 238.15625,
     "width": 328,
-    "height": 384
+    "height": 356
   },
   "vacio": {
     "x": 16,
-    "y": 33.5,
+    "y": 238.15625,
     "width": 328,
-    "height": 384
+    "height": 356
   },
   "foco": {
     "outline": "solid",
