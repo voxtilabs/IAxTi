@@ -33,6 +33,9 @@ export {
   // El arranque no levanta si una cuenta declara un proveedor sin adaptador (ADR-0032).
   proveedoresSinAdaptador,
 } from './application/accounts';
+// El hilo de cada conversación del proveedor (ADR-0033, #1334).
+export { hiloDe, olvidarHilo, recordarHilo, tomarCandadoDelHilo } from './application/hilos';
+export type { ClaveDelHilo } from './application/hilos';
 export { simuladorProvider, firmarWebhook } from './application/simulador';
 // El rastro de los webhooks y por qué no llegan los mensajes (#434).
 export { anotarWebhook, rastroDeWebhook } from './application/rastro';

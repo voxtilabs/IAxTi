@@ -19,6 +19,10 @@ import {
   hayMargenParaUnAutomatismo,
   avisarDelCupoUnaVezAlDia,
   msHastaElReinicioDelCupo,
+  hiloDe,
+  olvidarHilo,
+  recordarHilo,
+  tomarCandadoDelHilo,
 } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import {
@@ -236,9 +240,20 @@ export async function processOutbound(
       return rechazar('No pudimos preparar el adjunto para enviarlo. Revisa el almacenamiento.');
     }
 
-    let res: { providerMessageId: string };
-    try {
-      res = await deliverOutbound(
+    /*
+     * El hilo del proveedor (ADR-0033, #1334). Para Zernio es la conversación
+     * dentro de la que se manda; Zavu lo ignora.
+     *
+     * El candado va ANTES de leer el hilo y se suelta con la transacción, que
+     * es después de recordar el nuevo: crear una conversación en Zernio no
+     * acepta Idempotency-Key, y dos envíos simultáneos al mismo contacto sin
+     * hilo conocido crearían dos y le mandarían la plantilla dos veces.
+     */
+    const claveDelHilo = { tenantId: data.tenantId, cuentaId: account.id, peer: ctx.phone };
+    await tomarCandadoDelHilo(client, claveDelHilo);
+    const hiloConocido = await hiloDe(client, claveDelHilo);
+    const enviar = (hilo: string | null) =>
+      deliverOutbound(
         account,
         {
           ...data,
@@ -249,9 +264,31 @@ export async function processOutbound(
           // La plantilla viaja con el MENSAJE, no con el job: así un
           // reintento de la cola manda exactamente la misma (#44).
           extra: ctx.extra ?? undefined,
+          ...(hilo ? { providerThreadId: hilo } : {}),
         },
         redis,
       );
+
+    let res: { providerMessageId: string; providerThreadId?: string };
+    try {
+      try {
+        res = await enviar(hiloConocido);
+      } catch (err) {
+        // El proveedor ya no tiene ese hilo (404 → `hilo_vencido`): se olvida
+        // y se reintenta UNA vez, sin hilo. Una sola: si vuelve a fallar es
+        // otra cosa, y tiene que verse en vez de quedar dando vueltas.
+        if (hiloConocido && esPermanente(err) && err.detalle?.startsWith('hilo_vencido')) {
+          await olvidarHilo(client, claveDelHilo);
+          res = await enviar(null);
+        } else {
+          throw err;
+        }
+      }
+      // Si el adaptador tuvo que abrir la conversación, se recuerda acá,
+      // todavía bajo el candado.
+      if (res.providerThreadId && res.providerThreadId !== hiloConocido) {
+        await recordarHilo(client, { ...claveDelHilo, hilo: res.providerThreadId });
+      }
     } catch (err) {
       // Lo que no se arregla reintentando se rechaza YA (#556). Antes todo lo
       // que no fuera rate limit se reencolaba, así que una credencial ausente

@@ -202,6 +202,11 @@ describe('reglas vigentes al consumir la cola (#372)', () => {
     await pool.query('GRANT SELECT ON messages, conversations, contacts, contact_identities, tenants, channel_accounts TO iaxti_outbound_test');
     await pool.query('GRANT UPDATE ON messages TO iaxti_outbound_test');
     await pool.query('GRANT INSERT ON outbox TO iaxti_outbound_test');
+    // El despacho lee el hilo del proveedor antes de CADA envío (ADR-0033,
+    // #1334): sin SELECT acá, `processOutbound` revienta con «permission
+    // denied for table channel_threads» en la primera entrega. Es el
+    // permiso nuevo que ese camino trajo, y este rol lo enumera a mano.
+    await pool.query('GRANT SELECT ON channel_threads TO iaxti_outbound_test');
     const app = createPool(process.env.DATABASE_URL!.replace(/\/\/[^@]+@/, '//iaxti_outbound_test:iaxti_outbound_test@'));
     try {
       expect((await app.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user')).rows[0])

@@ -5,7 +5,7 @@ import { autoAssignNew, receiveInbound } from '@iaxti/module-conversations';
 import type { Channel, MessageType } from '@iaxti/module-conversations';
 import { handleInboundForConsent } from '@iaxti/module-crm';
 import type { Contact } from '@iaxti/module-crm';
-import { findAccountById } from '@iaxti/module-channels';
+import { findAccountById, recordarHilo } from '@iaxti/module-channels';
 import {
   baseDeZernio,
   downloadAttachmentsToR2,
@@ -29,6 +29,8 @@ export interface InboundJob {
   body?: string;
   attachments?: unknown[];
   providerMessageId?: string;
+  /** El id de la conversación del lado del proveedor (ADR-0033). */
+  providerThreadId?: string;
   requestId?: string;
 }
 
@@ -199,6 +201,17 @@ export async function processInbound(
       providerMessageId: data.providerMessageId,
       requestId: data.requestId,
     });
+    // El hilo del proveedor se aprende de lo que entra (ADR-0033): así la
+    // respuesta sale dentro de la misma conversación, sin pedirle a Zernio que
+    // abra otra. En la misma transacción que el mensaje.
+    if (data.providerThreadId && data.channelAccountId) {
+      await recordarHilo(client, {
+        tenantId: data.tenantId,
+        cuentaId: data.channelAccountId,
+        peer: data.phone,
+        hilo: data.providerThreadId,
+      });
+    }
     // El canal pasa cada texto por el consentimiento (SPEC §8): "BASTA" marca
     // opt-out en la misma transacción que el mensaje.
     let optedOut = false;
