@@ -24,6 +24,9 @@ export {
 } from './application/outbound';
 export type { OutboundJobData } from './application/outbound';
 export type { ZavuConfig } from './application/zavu';
+// Zernio (#1317) se publica en este contrato recién cuando se registra en la API
+// y los workers: un export sin consumidor es lo que la guarda de la puerta
+// pública impide, y registrarlo espera a #1335 (la llave del proveedor).
 export {
   connectWhatsAppNumber,
   reapuntarEmisor,

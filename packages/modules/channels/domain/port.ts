@@ -72,6 +72,17 @@ export interface OutboundMessage {
   attachments?: Array<{ url: string; filename?: string; contentType?: string }>;
   /** Datos propios del canal (plantilla, botones, …). */
   extra?: Record<string, unknown>;
+  /**
+   * El hilo de ESTE proveedor para este destinatario (ADR-0033): el id de la
+   * conversación del lado del proveedor, cuando el proveedor manda por hilo
+   * y no por destinatario — Zernio hoy. Lo pone el worker antes de `send`,
+   * leyéndolo de la tabla `channel_threads`; el adaptador no lo busca solo.
+   *
+   * Opcional a propósito: Zavu y webchat no conocen el concepto, y un envío
+   * sin hilo conocido es válido (el adaptador crea la conversación, hoy
+   * obligado a ir con plantilla).
+   */
+  providerThreadId?: string;
 }
 
 /** Mensaje entrante ya normalizado: la forma que entiende la cola inbound. */
@@ -82,6 +93,16 @@ export interface NormalizedInbound {
   attachments?: unknown[];
   providerMessageId: string;
   timestamp?: string;
+  /**
+   * El hilo del proveedor por donde llegó (ADR-0033): cada webhook de Zernio
+   * trae el `conversationId` de su lado, así que la correspondencia se aprende
+   * sola en cada mensaje del cliente. Lo recuerda el camino de entrada; el
+   * adaptador solo lo reporta.
+   *
+   * Opcional: los proveedores que mandan por destinatario (Zavu) no tienen
+   * nada que decir acá.
+   */
+  providerThreadId?: string;
 }
 
 /**
@@ -153,7 +174,13 @@ export interface ChannelProvider {
    * levantó primero, y eso no se puede depurar.
    */
   proveedor?: string;
-  send(account: ChannelAccountRef, message: OutboundMessage): Promise<{ providerMessageId: string }>;
+  /**
+   * ADR-0033: si el proveedor manda por hilo y el envío tuvo que CREAR uno,
+   * lo devuelve en `providerThreadId` para que el worker lo recuerde. Los
+   * proveedores que mandan por destinatario no lo traen, y eso también está
+   * bien: solo existe cuando el adaptador sabe algo nuevo.
+   */
+  send(account: ChannelAccountRef, message: OutboundMessage): Promise<{ providerMessageId: string; providerThreadId?: string }>;
   verifyWebhook(headers: Record<string, string | string[] | undefined>, rawBody: string, secret: string): boolean;
   normalize(payload: unknown): NormalizedInbound[];
   /** Solo los canales que tienen plantillas (hoy WhatsApp). */
