@@ -268,6 +268,9 @@ export class WebhooksController {
           body: m.body,
           attachments: m.attachments,
           providerMessageId: m.providerMessageId,
+          // El hilo del proveedor (ADR-0033): el worker de entrada lo recuerda
+          // para que la respuesta salga dentro de esa conversación.
+          ...(m.providerThreadId ? { providerThreadId: m.providerThreadId } : {}),
           requestId: request.requestId,
         },
         { jobId: `in-${account.id}-${m.providerMessageId}` },

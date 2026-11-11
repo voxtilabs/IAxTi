@@ -302,6 +302,13 @@ export interface OutboundJobData {
   tenantId: string;
   messageId: string;
   channelAccountId: string;
+  /**
+   * El hilo del proveedor (ADR-0033). NO viaja en el job de la cola: lo pone
+   * el worker al despachar, leído de `channel_threads` bajo el candado del
+   * destinatario. Un hilo guardado en Redis se quedaría viejo entre
+   * reintentos.
+   */
+  providerThreadId?: string;
   to: string;
   body?: string;
   type?: string;
@@ -347,7 +354,7 @@ export async function deliverOutbound(
   account: ChannelAccountRef,
   data: OutboundJobData,
   redis: IORedis,
-): Promise<{ providerMessageId: string }> {
+): Promise<{ providerMessageId: string; providerThreadId?: string }> {
   // El de la CUENTA, no el del canal (ADR-0032): dos cuentas de WhatsApp
   // pueden ir por proveedores distintos.
   const provider = proveedorDe(account);
@@ -383,5 +390,7 @@ export async function deliverOutbound(
     // La plantilla aprobada, si el mensaje sale con una (#44). El adaptador
     // decide cómo la manda; acá solo viaja.
     ...(data.extra ? { extra: data.extra } : {}),
+    // El hilo del proveedor, si el worker lo conoce (ADR-0033). Zavu lo ignora.
+    ...(data.providerThreadId ? { providerThreadId: data.providerThreadId } : {}),
   });
 }
