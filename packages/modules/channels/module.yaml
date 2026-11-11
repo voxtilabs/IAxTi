@@ -26,7 +26,7 @@ events:
   consumes: []
 tools: []
 nav:
-  - { label: Canales, path: /ajustes/canales, permission: channels.manage, grupo: Configuración, seccion: Canales }
+  - { label: Canales, path: /ajustes/canales, permission: channels.manage, grupo: Ajustes, seccion: Canales }
 widgets: []
 plan_min: base
 flag: module.channels
