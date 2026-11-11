@@ -13,7 +13,7 @@ import { join } from 'node:path';
  * descubre tres meses después.
  *
  * El shell tiene una salida por si acaso (sin `grupo` cae en
- * Configuración), justamente para que un manifiesto a medio migrar no deje
+ * Ajustes), justamente para que un manifiesto a medio migrar no deje
  * a nadie sin menú. Este test existe para que esa salida no se convierta en
  * el camino normal.
  */
@@ -25,6 +25,13 @@ const SHELL = join(__dirname, '..', 'components', 'app-shell.tsx');
 function gruposDelShell(): string[] {
   const m = /const ORDEN = \[([^\]]+)\]/.exec(readFileSync(SHELL, 'utf8'));
   if (!m) throw new Error('no encontré la constante ORDEN en app-shell.tsx');
+  return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+}
+
+/** Los grupos que el shell muestra POR SECCIÓN, leídos de su constante. */
+function gruposPorSeccionDelShell(): string[] {
+  const m = /const POR_SECCION = new Set\(\[([^\]]+)\]\)/.exec(readFileSync(SHELL, 'utf8'));
+  if (!m) throw new Error('no encontré la constante POR_SECCION en app-shell.tsx');
   return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
 }
 
@@ -67,7 +74,7 @@ describe('el menú tiene grupos', () => {
     const sin = todos.filter((d) => !d.grupo);
     expect(
       sin,
-      'Estos destinos no dicen a qué grupo van y caerían en Configuración:\n' +
+      'Estos destinos no dicen a qué grupo van y caerían en Ajustes:\n' +
         sin.map((d) => `  ${d.label} (${d.modulo})`).join('\n'),
     ).toEqual([]);
   });
@@ -91,39 +98,39 @@ describe('el menú tiene grupos', () => {
 });
 
 /**
- * Y lo mismo para las secciones de ajustes (#387).
+ * Y lo mismo para las secciones de los grupos que se muestran por sección
+ * (#387, #1324).
  *
- * Dieciséis destinos sueltos en el menú eran dieciséis decisiones para
- * alguien que solo quería cambiar una cosa. Ahora van en cinco secciones, y
- * la pertenencia la declara cada `module.yaml` por el mismo motivo que el
- * `grupo`: una tabla paralela en el frontend se desincroniza al primer
- * módulo nuevo, y el síntoma es una pantalla suelta al final que nadie
- * nota.
+ * Ajustes agrupaba dieciséis destinos sueltos; el grupo Asistente junta su
+ * chat, su conocimiento y sus automatizaciones. La pertenencia la declara
+ * cada `module.yaml` por el mismo motivo que el `grupo`: una tabla paralela
+ * en el frontend se desincroniza al primer módulo nuevo, y el síntoma es
+ * una pantalla suelta al final que nadie nota.
  */
-describe('los ajustes declaran su sección', () => {
-  const ajustes = destinos().filter((d) => d.grupo === 'Configuración');
+describe('los grupos por sección declaran su sección', () => {
+  const porSeccion = destinos().filter((d) => gruposPorSeccionDelShell().includes(d.grupo!));
   const conocidas = (() => {
     const m = /const ORDEN_SECCIONES = \[([^\]]+)\]/.exec(readFileSync(SHELL, 'utf8'));
     if (!m) throw new Error('no encontré ORDEN_SECCIONES en app-shell.tsx');
     return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
   })();
 
-  it('hay ajustes que mirar', () => {
-    expect(ajustes.length).toBeGreaterThanOrEqual(10);
+  it('hay pantallas que mirar', () => {
+    expect(porSeccion.length).toBeGreaterThanOrEqual(10);
     expect(conocidas.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('cada pantalla de ajustes dice a qué sección va', () => {
-    const sin = ajustes.filter((d) => !d.seccion);
+  it('cada pantalla de un grupo por sección dice a cuál va', () => {
+    const sin = porSeccion.filter((d) => !d.seccion);
     expect(
       sin,
-      'Estas pantallas de ajustes no declaran sección y caerían en Cuenta:\n' +
+      'Estas pantallas no declaran sección y caerían en Cuenta:\n' +
         sin.map((d) => `  ${d.label} (${d.modulo})`).join('\n'),
     ).toEqual([]);
   });
 
   it('las secciones usadas son de las que el shell ordena', () => {
-    const raras = [...new Set(ajustes.map((d) => d.seccion!))].filter((s) => !conocidas.includes(s));
+    const raras = [...new Set(porSeccion.map((d) => d.seccion!))].filter((s) => !conocidas.includes(s));
     expect(
       raras,
       `Secciones que el shell no sabe dónde poner: ${raras.join(', ')}.\n` +
@@ -133,7 +140,7 @@ describe('los ajustes declaran su sección', () => {
 
   it('ninguna sección se anuncia vacía, y ninguna queda con una sola', () => {
     const usadas = new Map<string, number>();
-    for (const d of ajustes) usadas.set(d.seccion!, (usadas.get(d.seccion!) ?? 0) + 1);
+    for (const d of porSeccion) usadas.set(d.seccion!, (usadas.get(d.seccion!) ?? 0) + 1);
     const vacias = conocidas.filter((s) => !usadas.has(s));
     expect(vacias, `secciones anunciadas y sin una sola pantalla: ${vacias.join(', ')}`).toEqual([]);
     // Una sección de una pantalla es una pestaña sola: ruido con forma de

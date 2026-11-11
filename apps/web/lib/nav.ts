@@ -185,7 +185,7 @@ export function queBarraMostrar(entrada: {
  * Entonces un USER —el rol más común— veía las 25 entradas, y quince de ellas
  * exigen un permiso que no tiene: Auditoría, API, Roles, Automatizaciones,
  * Campañas, Facturación, Agenda, Canales, Campos, Embudos, Etiquetas, Equipo,
- * Webhooks, Conocimiento, Pagos, Plantillas, Ajustes. La página carga —ninguna
+ * Webhooks, Conocimiento, Pagos, Plantillas, Ajustes de la bandeja. La página carga —ninguna
  * `page.tsx` comprueba nada— y todas sus llamadas vuelven 403. No es una fuga:
  * la API sí exige. Es un menú donde más de la mitad son callejones sin salida.
  *

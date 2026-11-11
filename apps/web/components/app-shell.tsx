@@ -34,6 +34,7 @@ import {
   FileText,
   Inbox,
   KeyRound,
+  ListTodo,
   Lock,
   LogOut,
   Megaphone,
@@ -112,57 +113,82 @@ interface ShellProps {
 }
 
 /**
- * El orden de los grupos.
+ * El orden de los grupos (#1324).
  *
  * El `grupo` lo declara cada `module.yaml` —con 23 destinos, una tabla
  * paralela acá se desincroniza y el destino nuevo aparece suelto abajo sin
- * que nadie lo note— pero el ORDEN sí es decisión de la interfaz: primero
- * el asistente, después lo que se hace todos los días, después los datos, y
- * la configuración al final y plegada.
+ * que nadie lo note— pero el ORDEN sí es decisión de la interfaz: primero lo
+ * que se hace todos los días, después con quién se hace, después el
+ * asistente, después los números, y los ajustes aparte, al final.
  *
- * El asistente va primero porque es el producto. Estaba en
- * «Configuración → Inteligencia», rotulado «IA», o sea el protagonista
- * archivado entre los ajustes: la arquitectura de un CRM que además tiene una
- * IA, y no la de un asistente que además lleva el CRM. IAxTi se llama así por
- * lo segundo.
+ * El asistente ya no abre la barra: su grupo es UNA entrada, y lo que tiene
+ * adentro —chat, conocimiento, automatizaciones— viaja en pestañas. Antes el
+ * asistente abría y su configuración vivía en «Configuración →
+ * Inteligencia»: dos casas para lo mismo, y la queja del dueño —«no sé si la
+ * IA lo gestiona»— salía de ahí.
  *
  * Un grupo que llegue sin estar en esta lista se dibuja igual, al final:
  * quedarse fuera del menú por no haber tocado este archivo sería
  * exactamente el problema que el `grupo` en el manifiesto viene a evitar.
  */
-const ORDEN = ['Asistente', 'Trabajo', 'Clientes', 'Configuración'];
+const ORDEN = ['Trabajo', 'Clientes', 'Asistente', 'Resultados', 'Ajustes'];
+
+/**
+ * Qué grupos van ABAJO, separados del resto por un filete (#1324).
+ *
+ * «Ajustes» es lo que se toca una vez y se deja: va después de un borde, como
+ * «Cerrar sesión», para que el trabajo del día y lo que se configura a las
+ * tres de la mañana no pesen igual a la vista. El resto de los grupos queda
+ * arriba, sin filete.
+ */
+const AL_FINAL = new Set(['Ajustes']);
 
 /**
  * Qué grupos se PUEDEN plegar. Ojo: se pueden, no arrancan plegados (#635).
  *
- * Configuración arrancaba plegada desde #387, y el motivo era bueno: «dieciséis
+ * Ajustes arrancaba plegado desde #387, y el motivo era bueno: «dieciséis
  * destinos sueltos en el menú, dieciséis decisiones para alguien que solo quería
  * cambiar una cosa». Pero ese problema ya lo resolvió el agrupado por sección —
  * de 16 entradas quedaron 5— y el plegado se quedó encima de un arreglo que ya
- * funcionaba. Con el grupo abierto la barra tiene 13 entradas, que es una barra
- * lateral normal.
+ * funcionaba.
  *
- * Lo que costaba tenerlo plegado: las 17 pantallas de configuración quedaban
+ * Lo que costaba tenerlo plegado: las 17 pantallas de ajustes quedaban
  * detrás de un rótulo idéntico a «TRABAJO» y «CLIENTES», que no se pueden tocar.
  * Ahí viven conectar WhatsApp y prender la IA, o sea lo primero que alguien
  * necesita hacer. Reportado tal cual: «no veo los botones en la izquierda».
+ *
+ * El grupo Asistente NO está: tiene una entrada y esconderla sería esconder
+ * el producto entero (#1324).
  */
-const PLEGABLES = new Set(['Configuración']);
+const PLEGABLES = new Set(['Ajustes']);
 
 /**
- * Las secciones de ajustes, en orden (#387).
+ * Qué grupos se muestran POR SECCIÓN: una entrada por sección y no una por
+ * pantalla (#387, #1324).
  *
- * Dieciséis destinos sueltos en el menú eran dieciséis decisiones para
- * alguien que solo quería cambiar una cosa. Se agrupan en cinco, y cada
- * pantalla lleva arriba las pestañas de su sección.
+ * Ajustes lo necesitaba —dieciséis pantallas sueltas eran dieciséis
+ * decisiones— y el asistente lo necesita por el motivo contrario: sus tres
+ * pantallas son UNA cosa con tres vistas, y verlas como tres entradas era
+ * lo que partía «dónde configuro la IA» en dos respuestas. La misma
+ * maquinaria para los dos, porque el día que se escriba dos veces es el día
+ * que arreglan distinto.
+ */
+const POR_SECCION = new Set(['Asistente', 'Ajustes']);
+
+/**
+ * Las secciones de los grupos «por sección», en orden (#387, #1324).
+ *
+ * La de Ajustes agrupaba dieciséis destinos sueltos; la del Asistente junta
+ * su chat, su conocimiento y sus automatizaciones. Cada pantalla lleva
+ * arriba las pestañas de su sección.
  *
  * El orden es de acá; la pertenencia la declara cada `module.yaml`. Una
  * sección que llegue sin estar en esta lista se dibuja igual, al final.
  */
-const ORDEN_SECCIONES = ['Inteligencia', 'Canales', 'Tu negocio', 'Integraciones', 'Cuenta'];
+const ORDEN_SECCIONES = ['Asistente', 'Canales', 'Tu negocio', 'Integraciones', 'Cuenta'];
 
 const ICONO_SECCION: Record<string, LucideIcon> = {
-  Inteligencia: Bot,
+  Asistente: Bot,
   Canales: Plug,
   'Tu negocio': SlidersHorizontal,
   Integraciones: Webhook,
@@ -196,6 +222,7 @@ const ICONOS: Record<string, LucideIcon> = {
   '/contactos': Users,
   '/empresas': Building2,
   '/oportunidades': Target,
+  '/pendientes': ListTodo,
   '/ajustes/bandeja': SlidersHorizontal,
   '/ajustes/canales': Plug,
   '/ajustes/plantillas': FileText,
@@ -213,6 +240,38 @@ const ICONOS: Record<string, LucideIcon> = {
   '/ajustes/pagos': CreditCard,
   '/ajustes/auditoria': ScrollText,
 };
+
+/**
+ * El orden preferido de las pantallas, por `path` (#1324).
+ *
+ * Dentro de un grupo, el orden con que llegan los módulos del catálogo es el
+ * orden del `readdir` que los carga: «Agenda, Bandeja, Oportunidades,
+ * Pendientes», o sea el orden de quién lo trajo y no el de cómo se usa. Lo
+ * que se hace al empezar el día tiene su propio orden, y es una sugerencia
+ * desde acá por el mismo motivo que `ORDEN`: lo que no esté en la lista no
+ * se esconde ni se rompe, llega después y en su orden de llegada.
+ *
+ * `/ajustes/ia` está por el Asistente: su sección se muestra como UNA
+ * entrada, y el destino de esa entrada es su primera pantalla.
+ */
+const ORDEN_POR_PATH = [
+  '/bandeja',
+  '/oportunidades',
+  '/agenda',
+  '/pendientes',
+  '/ajustes/ia',
+];
+
+/** Las pantallas de un grupo, con las conocidas primero y en su orden. */
+function ordenarPorPath(items: NavItem[]): NavItem[] {
+  return [...items].sort((a, b) => {
+    const pa = ORDEN_POR_PATH.indexOf(a.path);
+    const pb = ORDEN_POR_PATH.indexOf(b.path);
+    // Las desconocidas van después de las conocidas, en su orden de llegada:
+    // `sort` es estable, así que comparar igual las deja donde estaban.
+    return (pa < 0 ? ORDEN_POR_PATH.length : pa) - (pb < 0 ? ORDEN_POR_PATH.length : pb);
+  });
+}
 
 /**
  * El menú dice la verdad sobre el plan (issue 215).
@@ -267,6 +326,9 @@ function Grupo({
   // menú no sabría decir dónde estás.
   const contieneActiva = items.some((i) => i.path === activa);
   const plegable = PLEGABLES.has(titulo);
+  // Se muestra por sección o pantalla por pantalla: lo decide el grupo, no
+  // este archivo por cada uno (#1324).
+  const porSecciones = POR_SECCION.has(titulo);
   // Abierto salvo que ESTA persona lo haya plegado. Antes era `useState` a
   // secas, así que volvía a plegarse en cada navegación: abrirlo no servía de
   // nada dos clics después. Se lee en un efecto y no en el inicializador porque
@@ -297,7 +359,7 @@ function Grupo({
     });
   };
   return (
-    <SidebarGroup>
+    <SidebarGroup className={AL_FINAL.has(titulo) ? 'mt-2 border-t border-line pt-2' : undefined}>
       {plegable ? (
         <SidebarGroupLabel asChild>
           {/* Con flecha, y que gira con el estado: sin eso se ve IGUAL que
@@ -314,7 +376,9 @@ function Grupo({
               className={`size-3.5 shrink-0 transition-transform ${abierto ? '' : '-rotate-90'}`}
               aria-hidden
             />
-            {titulo} ({titulo === 'Configuración' ? porSeccion(items).length : items.length})
+            {/* Por sección, se cuenta SECCIONES y no pantallas: es la cantidad
+                de entradas que la persona va a ver. */}
+            {titulo} ({porSecciones ? porSeccion(items).length : items.length})
           </button>
         </SidebarGroupLabel>
       ) : (
@@ -323,23 +387,32 @@ function Grupo({
       {abierto && (
         <SidebarGroupContent>
           <SidebarMenu>
-            {/* Configuración se muestra por SECCIÓN y no por pantalla: eran
-                dieciséis entradas para alguien que solo quería cambiar una
-                cosa. Cada sección lleva a su primera pantalla, y ahí arriba
-                están las pestañas del resto (#387). */}
-            {titulo === 'Configuración'
+            {/* Los grupos de POR_SECCION se muestran por SECCIÓN y no por
+                pantalla. Ajustes: eran dieciséis entradas para alguien que
+                solo quería cambiar una cosa (#387). Asistente: sus tres
+                pantallas son una, y el menú las cuenta como una (#1324).
+                Cada sección lleva a su primera pantalla, y ahí arriba están
+                las pestañas del resto. */}
+            {porSecciones
               ? porSeccion(items).map(([seccion, dentro]) => {
+                  const destino = ordenarPorPath(dentro)[0];
                   const Icono = ICONO_SECCION[seccion] ?? Settings;
                   const aqui = dentro.some((i) => i.path === activa);
                   // Con candado solo si TODAS las de la sección lo tienen:
                   // una sección con algo usable no se marca como cerrada.
                   const cerrada = dentro.every((i) => candados.has(i.path));
+                  /* Una sección que se llama como su grupo no puede repetir
+                     el nombre: el rótulo de arriba ya lo dijo, y una entrada
+                     que dice lo mismo que su grupo no dice a dónde va. Se
+                     rotula con el nombre de su primera pantalla — «Tu
+                     asistente» dentro de ASISTENTE (#1324). */
+                  const nombre = seccion === titulo ? destino.label : seccion;
                   return (
                     <SidebarMenuItem key={seccion}>
-                      <SidebarMenuButton asChild isActive={aqui} tooltip={seccion}>
-                        <Link href={dentro[0].path} prefetch={false}>
+                      <SidebarMenuButton asChild isActive={aqui} tooltip={nombre}>
+                        <Link href={destino.path} prefetch={false}>
                           <Icono />
-                          <span>{seccion}</span>
+                          <span>{nombre}</span>
                           {cerrada && (
                             <Lock
                               className="ml-auto size-3.5 shrink-0 text-muted"
@@ -351,7 +424,7 @@ function Grupo({
                     </SidebarMenuItem>
                   );
                 })
-              : items.map((item) => {
+              : ordenarPorPath(items).map((item) => {
               const conCandado = candados.has(item.path);
               const Icono = ICONOS[item.path] ?? Settings;
               return (
@@ -407,7 +480,10 @@ function Barra({ nav, candados }: { nav: NavItem[]; candados: Set<string> }) {
   const grupos = useMemo(() => {
     const por = new Map<string, NavItem[]>();
     for (const item of nav) {
-      const g = item.grupo ?? 'Configuración';
+      // Sin grupo declarado, a ajustes: es la salida por si acaso de
+      // `el-menu-tiene-grupos.test.ts`, y «lo que no dije dónde va» es un
+      // ajuste antes que una tarea.
+      const g = item.grupo ?? 'Ajustes';
       por.set(g, [...(por.get(g) ?? []), item]);
     }
     const conocidos = ORDEN.filter((g) => por.has(g));

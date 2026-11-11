@@ -43,8 +43,8 @@ test('y el módulo sigue encendido: automatizaciones abre', async ({ page }) => 
   // justamente lo que hay que impedir.
   //
   // Se comprueba por la PANTALLA y no por un link del menú: Automatizaciones
-  // no es una entrada de la barra, es una pestaña dentro de los ajustes de
-  // IA (`seccion: Inteligencia` en el manifiesto). Lo escribí mal primero y
+  // no es una entrada de la barra, es una pestaña dentro del grupo Asistente
+  // (`seccion: Asistente` en el manifiesto, #1324). Lo escribí mal primero y
   // la prueba se puso roja buscando un link que nunca existió.
   await page.goto('/ajustes/automatizaciones', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText(/consentimiento ni en horario de silencio/)).toBeVisible({ timeout: 15_000 });

@@ -49,11 +49,11 @@ nav:
   - { label: Contactos, path: /contactos, permission: crm.contacts.read, grupo: Clientes }
   # Los campos propios estaban en la API desde #34 sin pantalla, y la ficha
   # ya recibía sus valores sin dibujarlos.
-  - { label: Campos, path: /ajustes/campos, permission: crm.fields.manage, grupo: Configuración, seccion: Tu negocio }
-  - { label: Embudos, path: /ajustes/embudos, permission: crm.pipelines.manage, grupo: Configuración, seccion: Tu negocio }
+  - { label: Campos, path: /ajustes/campos, permission: crm.fields.manage, grupo: Ajustes, seccion: Tu negocio }
+  - { label: Embudos, path: /ajustes/embudos, permission: crm.pipelines.manage, grupo: Ajustes, seccion: Tu negocio }
   - { label: Empresas, path: /empresas, permission: crm.companies.read, grupo: Clientes }
-  - { label: Etiquetas, path: /ajustes/etiquetas, permission: crm.tags.manage, grupo: Configuración, seccion: Tu negocio }
-  - { label: Oportunidades, path: /oportunidades, permission: crm.deals.read, grupo: Clientes }
+  - { label: Etiquetas, path: /ajustes/etiquetas, permission: crm.tags.manage, grupo: Ajustes, seccion: Tu negocio }
+  - { label: Oportunidades, path: /oportunidades, permission: crm.deals.read, grupo: Trabajo }
   # Las actividades se creaban —también las crea el asistente— y solo se
   # veían abriendo la ficha del contacto exacto (#454). Va en Trabajo: es lo
   # que alguien mira al empezar el día, no configuración.

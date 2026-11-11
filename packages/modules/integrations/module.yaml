@@ -34,7 +34,7 @@ events:
   consumes: ['*']
 tools: []
 nav:
-  - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Configuración, seccion: Integraciones }
+  - { label: Webhooks, path: /ajustes/webhooks, permission: webhooks.manage, grupo: Ajustes, seccion: Integraciones }
 widgets: []
 # Se vende desde el plan Crece (`plan_limits`): decía `base` (#834).
 plan_min: crece

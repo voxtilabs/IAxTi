@@ -86,31 +86,30 @@ test.describe('la barra lateral tiene destinos', () => {
         'llamada falló, o el registro no trae módulos activos.',
     ).toBeGreaterThan(3);
 
-    // El asistente es lo primero de la barra (#1102): si vuelve a quedar
-    // archivado en Configuración, esto se pone rojo. Va antes que la
-    // comprobación de las secciones porque es el orden que importa.
+    // Lo primero de la barra es lo que se hace al empezar el día (#1324): la
+    // bandeja. El asistente dejó de abrir la barra — su grupo es UNA entrada
+    // que se mira más abajo, en `la-navegacion-dice-la-verdad.spec.ts`.
     const primero = items[0];
     expect(
       primero,
-      'El asistente dejó de ser el primer destino de la barra. IAxTi se llama ' +
-        'así por la facilidad de configurarlo, no solo porque atiende: si el ' +
-        'agente vuelve a estar bajo Configuración, la interfaz cuenta otra cosa.',
-    ).toBe('Tu asistente');
+      'La bandeja dejó de ser el primer destino de la barra. El orden de #1324 es ' +
+        'Trabajo · Clientes · Asistente · Resultados · Ajustes: si la bandeja no abre, ' +
+        'la barra volvió a contar otra cosa.',
+    ).toBe('Bandeja');
 
-    // Lo que motivó el #635: las 17 pantallas de configuración quedaban detrás
+    // Lo que motivó el #635: las pantallas de ajustes quedaban detrás
     // de un rótulo idéntico a los que NO se pueden tocar, y ahí viven conectar
     // WhatsApp y prender la IA. Se cuenta lo que se VE, no lo que trae la API.
     //
-    // «Inteligencia» salió de esta lista en #1102, y no porque se escondiera:
-    // el asistente era su única entrada visible para esta supervisora, y ahora
-    // vive arriba. Las otras dos de esa sección —Conocimiento y
-    // Automatizaciones— piden permisos que este usuario no tiene, así que la
-    // sección no tiene nada que ofrecerle y no aparecer es lo correcto.
+    // La sección «Inteligencia» ya no existe (#1324): Conocimiento y
+    // Automatizaciones viven en el grupo Asistente, como pestañas de «Tu
+    // asistente», y para esta supervisora ni siquiera aparecen — piden
+    // permisos que no tiene, así que no aparecer es lo correcto.
     for (const seccion of ['Canales', 'Tu negocio', 'Cuenta']) {
       await expect(
         page.getByRole('link', { name: seccion, exact: true }),
-        `"${seccion}" no está a la vista en la barra: la configuración volvió a ` +
-          'quedar escondida detrás de un rótulo.',
+        `"${seccion}" no está a la vista en la barra: los ajustes volvieron a ` +
+          'quedar escondidos detrás de un rótulo.',
       ).toBeVisible();
     }
   });
@@ -125,19 +124,17 @@ test.describe('la barra lateral tiene destinos', () => {
      * alguien agregue una entrada de navegación».
      *
      * Nadie agregó nada. El caso peor YA EXISTÍA: con el negocio donde la
-     * usuaria es ADMIN son catorce entradas y cinco secciones de
-     * configuración, necesita 762 px y ve 702. Dos quedaban fuera en
-     * silencio. La guarda estaba midiendo el tenant cómodo, y una guarda que
-     * mide el caso cómodo no mide.
+     * usuaria es ADMIN, el menú no cabe. La guarda estaba midiendo el tenant
+     * cómodo, y una guarda que mide el caso cómodo no mide.
      *
-     * Por eso ahora la afirmación es otra, y es la que de verdad importa:
-     * catorce entradas de 42 px NO caben, y eso es normal en cualquier CRM.
+     * Por eso la afirmación es otra, y es la que de verdad importa: un menú
+     * cargado de 42 px por entrada NO cabe, y eso es normal en cualquier CRM.
      * Lo que no puede pasar es que se corte sin decirlo.
      */
     await page.setViewportSize({ width: 1440, height: 900 });
     await comoAdmin(page, auth);
     await page.goto('/');
-    await expect(page.getByRole('button', { name: /^Configuración \(/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Ajustes \(/ })).toBeVisible();
 
     const barra = await page.evaluate(() => {
       const c = document.querySelector('[data-sidebar="content"]') as HTMLElement;
@@ -151,8 +148,10 @@ test.describe('la barra lateral tiene destinos', () => {
       };
     });
 
-    // Que de verdad estamos en el caso peor y no en otro tenant.
-    expect(barra.entradas, 'este negocio tendría que ser el de más entradas').toBeGreaterThanOrEqual(13);
+    // Que de verdad estamos en el caso peor y no en otro tenant. Con el orden
+    // de #1324 son doce entradas: cuatro de Trabajo, dos de Clientes, una del
+    // asistente, una de resultados y las cuatro secciones de Ajustes.
+    expect(barra.entradas, 'este negocio tendría que ser el de más entradas').toBeGreaterThanOrEqual(12);
 
     if (barra.desborda) {
       expect(barra.marcada, 'la barra desborda y no quedó marcada: se corta en silencio').toBe(true);
@@ -169,7 +168,7 @@ test.describe('la barra lateral tiene destinos', () => {
     // «marcar cuando desborda» podría ser «marcar siempre» y nadie lo notaría.
     await page.setViewportSize({ width: 1440, height: 1400 });
     await page.goto('/');
-    await expect(page.getByRole('button', { name: /^Configuración \(/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Ajustes \(/ })).toBeVisible();
     const m = await page.evaluate(() => {
       const c = document.querySelector('[data-sidebar="content"]') as HTMLElement;
       return { desborda: c.scrollHeight > c.clientHeight + 1, marcada: c.dataset.desborda === 'true' };
@@ -181,7 +180,7 @@ test.describe('la barra lateral tiene destinos', () => {
   test('el grupo que se pliega SE VE que se pliega, y se recuerda', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    const boton = page.getByRole('button', { name: /^Configuración \(/ });
+    const boton = page.getByRole('button', { name: /^Ajustes \(/ });
     // Es un control, no un rótulo: tiene rol de botón y dice si está abierto.
     await expect(boton).toHaveAttribute('aria-expanded', 'true');
     await expect(boton.locator('svg')).toBeVisible();
@@ -193,7 +192,7 @@ test.describe('la barra lateral tiene destinos', () => {
     // Y se recuerda: antes era useState a secas y se volvía a plegar en cada
     // navegación, así que abrirlo no servía de nada dos clics después.
     await page.goto('/contactos');
-    await expect(page.getByRole('button', { name: /^Configuración \(/ })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: /^Ajustes \(/ })).toHaveAttribute(
       'aria-expanded',
       'false',
     );

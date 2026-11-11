@@ -28,7 +28,7 @@ tools:
   - analytics.comparar
   - analytics.catalogo
 nav:
-  - { label: Reportes, path: /reportes, permission: analytics.read, grupo: Trabajo }
+  - { label: Reportes, path: /reportes, permission: analytics.read, grupo: Resultados }
 widgets: []
 # Se vende desde el plan Equipo (`plan_limits`): decía `base` y analítica no viene en el plan más barato (#834).
 plan_min: equipo
