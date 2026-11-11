@@ -569,6 +569,40 @@ const PLAZO_DE_DESCARGA_MS = 20_000;
 const TOPE_DE_DESCARGA = 8 * 1024 * 1024;
 
 /** Los adjuntos de Zavu vienen por URL firmada y de vida corta: se bajan al llegar. */
+/**
+ * Si la llave del proveedor puede ir a esta URL (#1335).
+ *
+ * Solo por HTTPS y solo a un host del dominio del proveedor: el del API o un
+ * subdominio suyo (`api.zavu.dev`, `cdn.zavu.dev`). No se sabe desde el código
+ * en qué host sirve Zavu sus adjuntos —las fixtures traen tanto el del API como
+ * un `cdn.`—, así que se admite el dominio entero en vez de adivinar uno.
+ *
+ * Por NOMBRE DE HOST y con límite de punto, nunca `startsWith` sobre el texto:
+ * `https://api.zavu.dev.atacante.com` empieza igual, y `malozavu.dev` termina
+ * igual sin el punto.
+ *
+ * El dominio es el host del API sin su primera etiqueta cuando tiene tres o
+ * más (`api.zavu.dev` → `zavu.dev`), y el host tal cual cuando tiene dos
+ * (`zernio.com`), para no terminar confiando en `com`. No contempla sufijos
+ * públicos de dos niveles (`.co.uk`): ningún proveedor nuestro los usa, y si
+ * uno los usara esto confiaría de menos, no de más.
+ */
+export function llevaCredencial(url: string, apiBase: string): boolean {
+  let destino: URL;
+  let api: URL;
+  try {
+    destino = new URL(url);
+    api = new URL(apiBase);
+  } catch {
+    return false;
+  }
+  if (destino.protocol !== 'https:') return false;
+  const etiquetas = api.hostname.split('.');
+  const dominio = etiquetas.length >= 3 ? etiquetas.slice(1).join('.') : api.hostname;
+  const host = destino.hostname;
+  return host === dominio || host.endsWith(`.${dominio}`);
+}
+
 export async function fetchMediaBytes(
   url: string,
   apiKey: string,
@@ -584,8 +618,14 @@ export async function fetchMediaBytes(
   const tope = config.maxBytes ?? TOPE_DE_DESCARGA;
   const enMB = (n: number) => Math.round((n / 1024 / 1024) * 10) / 10;
   const fetchImpl = config.fetchImpl ?? fetch;
+  // La llave de la cuenta viaja SOLO al dominio del proveedor (#1335). La URL
+  // sale del payload del webhook: la firma prueba que el payload es del
+  // proveedor, no que cada URL de adentro apunte a él. Un adjunto de
+  // Instagram trae la CDN de Meta, y con la cabecera de siempre nuestra llave
+  // terminaba ahí en cada foto.
+  const conLlave = llevaCredencial(url, baseDeZavu(config.apiBase));
   const bin = await fetchImpl(url, {
-    headers: { Authorization: `Bearer ${apiKey}` },
+    ...(conLlave ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
     signal: AbortSignal.timeout(config.timeoutMs ?? PLAZO_DE_DESCARGA_MS),
   });
   if (!bin.ok) throw new Error(`No pudimos bajar el adjunto: HTTP ${bin.status}`);
