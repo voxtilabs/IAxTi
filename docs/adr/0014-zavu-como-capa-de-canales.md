@@ -1,6 +1,6 @@
 # ADR 0014 · Zavu como capa de canales; proveedor propio mucho después
 
-**Estado:** aceptada · 2026-09-14 · supersede la [ADR-0005](0005-kapso-ahora-tech-provider-despues.md)
+**Estado:** aceptada · 2026-09-14 · supersede la [ADR-0005](0005-kapso-ahora-tech-provider-despues.md) · **premisa fallida, ver la enmienda del 11-11 y la [ADR-0032](0032-un-proveedor-por-cuenta-y-la-puerta-a-zernio.md)**
 
 ## Contexto
 La ADR-0005 eligió Kapso como BSP de WhatsApp y dejó el vocabulario de la Cloud
@@ -70,3 +70,25 @@ secreto generado por el emisor en Secret Manager (#57). Una respuesta perdida
 no inventa idempotencia de Zavu. La cuenta permanece `connecting` hasta verificar
 webhook y custodia; recuperación explícita antes de volver a rotar. Las pruebas
 HTTP locales no acreditan conexión, mensaje ni permisos de una cuenta real.
+
+## Enmienda · 11-11-2026 · la premisa no se cumplió
+
+Esta ADR eligió Zavu sobre Kapso por una razón explícita: **«el diferenciador
+comercial es omnicanal»** — Instagram y Messenger con un solo envelope.
+
+**Zavu no entrega Instagram.** No es una sospecha: se pagó el plan (20 USD) y el
+canal no apareció (#1327). La razón por la que se eligió Zavu nunca se cumplió.
+
+Mientras tanto se construyó encima de la promesa: el registro de adaptadores da
+de alta `instagram` y `messenger` con Zavu, hay una pantalla con un botón
+«Conectar Instagram» (#1328) y pruebas que lo dan por hecho. Es el defecto más
+repetido de este repo —declarado en un lado, aplicado en ninguno— con lo no
+aplicado del lado del proveedor.
+
+Lo que cambia: el destino de los canales es Zernio (ADR-0032). Lo que **no**
+cambia todavía: Zavu sigue atendiendo los números de WhatsApp actuales, que sí
+funcionan, hasta que Zernio esté probado con una cuenta nuestra.
+
+La lección que deja, y que vale para la próxima elección de proveedor: **una
+capacidad que decide la elección se verifica por el puerto del producto antes
+de decidir** (#870), no después de construir encima.

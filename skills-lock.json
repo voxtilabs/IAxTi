@@ -42,6 +42,20 @@
       "sourceType": "github",
       "skillPath": "plugins/developer-kit-typescript/skills/tailwind-design-system/SKILL.md",
       "computedHash": "fccc3f5d3e026ddc6a4dd41d57808ba5c9636ecff6eff0368fa4619aa89993c6"
+    },
+    "whatsapp-meta-app-review": {
+      "source": "kevinrivm/vocero-crm",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/whatsapp-meta-app-review/SKILL.md",
+      "computedHash": "db7ba216b6f194b00656b047e57c1009595867dc383d9186db0585524914e4ba",
+      "license": "MIT · Copyright (c) 2026 Kevin Belier"
+    },
+    "whatsapp-saas-meta-infra": {
+      "source": "kevinrivm/vocero-crm",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/whatsapp-saas-meta-infra/SKILL.md",
+      "computedHash": "993ab6e9c67ed1318840db462dacc20e6cb3bcc3751479328fc0e2770876d7a5",
+      "license": "MIT · Copyright (c) 2026 Kevin Belier"
     }
   }
 }
