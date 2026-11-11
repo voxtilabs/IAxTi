@@ -7,6 +7,7 @@ import { handleInboundForConsent } from '@iaxti/module-crm';
 import type { Contact } from '@iaxti/module-crm';
 import { findAccountById } from '@iaxti/module-channels';
 import {
+  baseDeZernio,
   downloadAttachmentsToR2,
   identidadDePerfil,
   type AdjuntoEntrante,
@@ -175,6 +176,12 @@ export async function processInbound(
             attachments: attachments ?? [],
             apiKey,
             storage,
+          }, {
+            // La llave solo viaja al dominio del proveedor de ESTA cuenta
+            // (#1335). Sin esto, una cuenta de Zernio pediría sus adjuntos a
+            // zernio.com SIN llave —el dominio por omisión es el de Zavu— y no
+            // entraría ninguno. Falla segura, pero falla.
+            ...(account.provider === 'zernio' ? { apiBase: baseDeZernio() } : {}),
           });
         }
       } catch (err) {

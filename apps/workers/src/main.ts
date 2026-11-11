@@ -87,8 +87,8 @@ import {
   sweepDueActivities,
 } from './sweeps';
 import { sincronizarPlantillas } from './plantillas-sync';
-import { createZavuProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
-import { getProvider, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
+import { createZavuProvider, createZernioProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
+import { getProvider, proveedorDe, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
   expireSources,
@@ -149,6 +149,10 @@ function start(): void {
   if (!getProvider('simulador')) registerProvider(simuladorProvider);
   for (const kind of ['whatsapp', 'instagram', 'messenger'] as const) {
     if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
+    // Zernio al lado, no en lugar (ADR-0032): una cuenta llega acá solo si
+    // declara `provider = 'zernio'`. Zavu sigue siendo el por omisión, así
+    // que ninguna cuenta existente cambia de camino.
+    if (!proveedorDe({ kind, provider: 'zernio' })) registerProvider(createZernioProvider(kind));
   }
   const registry = new ModuleRegistry().load();
   const pool = createPool();

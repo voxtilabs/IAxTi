@@ -24,9 +24,11 @@ export {
 } from './application/outbound';
 export type { OutboundJobData } from './application/outbound';
 export type { ZavuConfig } from './application/zavu';
-// Zernio (#1317) se publica en este contrato recién cuando se registra en la API
-// y los workers: un export sin consumidor es lo que la guarda de la puerta
-// pública impide, y registrarlo espera a #1335 (la llave del proveedor).
+// Zernio (#1317, ADR-0032): se registra en la API y los workers al lado de Zavu.
+// `baseDeZernio` lo usa el worker de entrada para que la llave de una cuenta de
+// Zernio pueda ir a SU dominio al bajar adjuntos (#1335).
+export { createZernioProvider } from './application/zernio';
+export { baseDeZernio } from './application/zernio-base';
 export {
   connectWhatsAppNumber,
   reapuntarEmisor,
