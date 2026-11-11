@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { exigirNombreDeVariable, publishEvent } from '@iaxti/core';
-import { assertChannelTransition } from '../domain/port';
+import { assertChannelTransition, PROVEEDOR_POR_OMISION, proveedoresRegistrados } from '../domain/port';
 import type { ChannelAccountRef, ChannelKind, ChannelState } from '../domain/port';
 
 function rowToAccount(row: Record<string, unknown>): ChannelAccountRef {
@@ -11,6 +11,10 @@ function rowToAccount(row: Record<string, unknown>): ChannelAccountRef {
     name: row.name as string,
     state: row.state as ChannelState,
     credentialRef: (row.credential_ref as string) ?? null,
+    // `?? PROVEEDOR_POR_OMISION` y no `as string` a secas: una fila leída por
+    // un SELECT que no pidió la columna vendría `undefined`, y eso tiene que
+    // resolver a lo de siempre y no a `undefined:whatsapp`.
+    provider: (row.provider as string) ?? PROVEEDOR_POR_OMISION,
     config: (row.config as Record<string, unknown>) ?? {},
   };
 }
@@ -290,4 +294,30 @@ export async function avisarDelCupoUnaVezAlDia(
     ...(input.requestId ? { requestId: input.requestId } : {}),
   });
   return true;
+}
+
+/**
+ * Los proveedores que alguna cuenta declara y nadie registró (ADR-0032).
+ *
+ * Se llama al arrancar, DESPUÉS de registrar los adaptadores. Si devuelve algo,
+ * el proceso no debe levantar: una cuenta con un proveedor sin adaptador no
+ * tiene por dónde mandar, y la alternativa —caer al adaptador por omisión—
+ * mandaría los mensajes de un cliente por un proveedor que no es el suyo.
+ *
+ * Una base sin la migración 0006 todavía no tiene la función; eso no es un
+ * error del arranque sino un despliegue a medio camino, y se reporta vacío.
+ */
+export async function proveedoresSinAdaptador(
+  client: Pick<PoolClient, 'query'>,
+): Promise<string[]> {
+  let declarados: string[];
+  try {
+    const r = await client.query<{ p: string }>('SELECT proveedores_de_cuentas() AS p');
+    declarados = r.rows.map((f) => f.p);
+  } catch (err) {
+    if ((err as { code?: string }).code === '42883') return [];
+    throw err;
+  }
+  const registrados = new Set(proveedoresRegistrados());
+  return declarados.filter((p) => !registrados.has(p));
 }

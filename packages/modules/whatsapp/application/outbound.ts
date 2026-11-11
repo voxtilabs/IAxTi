@@ -1,5 +1,5 @@
 import type IORedis from 'ioredis';
-import { getProvider } from '@iaxti/module-channels';
+import { proveedorDe } from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
 import { enteroDeEntorno } from '@iaxti/core';
 
@@ -348,7 +348,9 @@ export async function deliverOutbound(
   data: OutboundJobData,
   redis: IORedis,
 ): Promise<{ providerMessageId: string }> {
-  const provider = getProvider(account.kind);
+  // El de la CUENTA, no el del canal (ADR-0032): dos cuentas de WhatsApp
+  // pueden ir por proveedores distintos.
+  const provider = proveedorDe(account);
   if (!provider) {
     // Un canal sin adaptador es un bug de configuración del módulo, no un
     // temporal: reintentarlo cinco veces solo retrasa la noticia.

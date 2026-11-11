@@ -4,7 +4,7 @@ const f=vi.hoisted(()=>({resolve:vi.fn(),verify:vi.fn(),normalize:vi.fn(),add:vi
 vi.mock('../src/db',()=>({apiPool:()=>({})}));
 vi.mock('@iaxti/db',async original=>({...await original<object>(),withTenant:async(_p:unknown,_t:unknown,fn:(c:object)=>unknown)=>fn({})}));
 vi.mock('@iaxti/module-whatsapp',async original=>({...await original<object>(),resolveChannelWebhookSecret:f.resolve}));
-vi.mock('@iaxti/module-channels',async original=>({...await original<object>(),tenantDeCuenta:async()=> 'tenant',findAccountById:async()=>({id:'account',tenantId:'tenant',kind:'whatsapp',state:f.state,webhookSecretRef:'sm:synthetic'}),getProvider:()=>({verifyWebhook:f.verify,normalize:f.normalize})}));
+vi.mock('@iaxti/module-channels',async original=>({...await original<object>(),tenantDeCuenta:async()=> 'tenant',findAccountById:async()=>({id:'account',tenantId:'tenant',kind:'whatsapp',state:f.state,webhookSecretRef:'sm:synthetic'}),getProvider:()=>({verifyWebhook:f.verify,normalize:f.normalize}),proveedorDe:()=>({verifyWebhook:f.verify,normalize:f.normalize})}));
 vi.mock('@iaxti/core',async original=>({...await original<object>(),createQueue:()=>({add:f.add})}));
 import {createApp} from '../src/main';
 let app:INestApplication,base:string;

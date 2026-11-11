@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { withTenant } from '@iaxti/db';
-import { getProvider, listChannelAccounts } from '@iaxti/module-channels';
+import { listChannelAccounts, proveedorDe } from '@iaxti/module-channels';
 import type { ChannelAccountRef, PuertoDePlantillas } from '@iaxti/module-channels';
 import {
   aplicarEstadoDelProveedor,
@@ -40,7 +40,7 @@ async function cuentaConPlantillas(
   if (!cuenta?.credentialRef || !process.env[cuenta.credentialRef]) return null;
   const senderId = cuenta.config.senderId as string | undefined;
   if (!senderId) return null;
-  const plantillas = getProvider(cuenta.kind)?.plantillas;
+  const plantillas = proveedorDe(cuenta)?.plantillas;
   if (!plantillas) return null;
   return { cuenta, senderId, plantillas };
 }

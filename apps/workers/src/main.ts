@@ -88,7 +88,7 @@ import {
 } from './sweeps';
 import { sincronizarPlantillas } from './plantillas-sync';
 import { createZavuProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
-import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
+import { getProvider, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
   expireSources,
@@ -159,6 +159,16 @@ function start(): void {
   void exigeRolQueRespetaRls(pool).catch((err) => {
     console.error(`workers: ${(err as Error).message}`);
   });
+  // Lo mismo para los proveedores (ADR-0032): una cuenta con un proveedor sin
+  // adaptador no puede mandar. Se grita y no se muere, como arriba (#227);
+  // los envíos de esas cuentas fallan con causa legible en `deliverOutbound`.
+  void proveedoresSinAdaptador(pool)
+    .then((huerfanos) => {
+      if (huerfanos.length > 0) {
+        console.error(`workers: cuentas con proveedor sin adaptador: ${huerfanos.join(', ')}`);
+      }
+    })
+    .catch((err) => console.error(`workers: ${(err as Error).message}`));
 
   // El motor de reglas (#62): consumidores de eventos + barrido de tiempo.
 /**
