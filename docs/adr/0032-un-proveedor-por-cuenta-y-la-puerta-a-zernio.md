@@ -1,7 +1,13 @@
 # ADR 0032 · Un proveedor por CUENTA, y con eso la puerta a Zernio
 
-**Estado:** propuesta · 2026-11-09 · revisa parcialmente la
-[ADR-0014](0014-zavu-como-capa-de-canales.md)
+**Estado:** aceptada · 2026-11-11 · revisa la
+[ADR-0014](0014-zavu-como-capa-de-canales.md), cuya premisa no se cumplió
+
+> **Decidido por Lino el 11-11:** Zernio es el destino de los canales. Zavu se
+> queda atendiendo los números actuales **hasta que Zernio mande y reciba de
+> verdad** con una cuenta nuestra; recién ahí se mueven cuentas, una a una.
+> El motivo es verificado y no supuesto: se pagó el plan de Zavu y no entrega
+> Instagram (#1327).
 
 ## Contexto
 
