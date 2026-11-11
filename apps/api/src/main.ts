@@ -27,8 +27,8 @@ import { IdempotenciaInterceptor } from './idempotencia.interceptor';
 import { AislamientoGuard } from './aislamiento';
 import { requestIdMiddleware } from './request-id';
 import { cabecerasMiddleware } from './cabeceras';
-import { getProvider, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
-import { createZavuProvider } from '@iaxti/module-whatsapp';
+import { getProvider, proveedorDe, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
+import { createZavuProvider, createZernioProvider } from '@iaxti/module-whatsapp';
 import { webchatProvider } from '@iaxti/module-webchat';
 
 export interface CreateAppOptions {
@@ -72,6 +72,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   if (!getProvider('simulador')) registerProvider(simuladorProvider);
   for (const kind of ['whatsapp', 'instagram', 'messenger'] as const) {
     if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
+    // Zernio al lado, no en lugar (ADR-0032): una cuenta llega acá solo si
+    // declara `provider = 'zernio'`. Zavu sigue siendo el por omisión, así
+    // que ninguna cuenta existente cambia de camino.
+    if (!proveedorDe({ kind, provider: 'zernio' })) registerProvider(createZernioProvider(kind));
   }
   if (!getProvider('webchat')) registerProvider(webchatProvider);
   app.use(cabecerasMiddleware);
