@@ -14,7 +14,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { withTenant } from '@iaxti/db';
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
-import { getProvider, listChannelAccounts } from '@iaxti/module-channels';
+import { listChannelAccounts, proveedorDe } from '@iaxti/module-channels';
 import type { ChannelAccountRef, PuertoDePlantillas } from '@iaxti/module-channels';
 import {
   createTemplate,
@@ -79,7 +79,7 @@ async function cuentaDeWhatsApp(
     );
   }
   if (!cuenta.config.senderId) throw new Error('La cuenta de WhatsApp no tiene senderId configurado.');
-  const plantillas = getProvider(cuenta.kind)?.plantillas;
+  const plantillas = proveedorDe(cuenta)?.plantillas;
   if (!plantillas) {
     throw new Error('El proveedor de este canal no maneja plantillas.');
   }

@@ -16,7 +16,7 @@ import { withTenant } from '@iaxti/db';
 import {
   anotarWebhook,
   findAccountById,
-  getProvider,
+  proveedorDe,
   tenantDeCuenta,
   type ResultadoDeWebhook,
 } from '@iaxti/module-channels';
@@ -134,7 +134,9 @@ export class WebhooksController {
       throw new ServiceUnavailableException({code:'WEBHOOK_NOT_READY',message:'La conexión aún se está confirmando. Reintenta la entrega.'});
     }
     const primaria = account;
-    const provider = getProvider(account.kind);
+    // El de la cuenta que recibe (ADR-0032): la firma se verifica con el
+    // proveedor que la atiende, no con el que esté registrado para el canal.
+    const provider = proveedorDe(account);
     if (!provider) {
       await anotar(account.tenantId, account.id, 'sin_proveedor');
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
@@ -171,7 +173,7 @@ export class WebhooksController {
     account = { ...destino, webhookSecretRef: primaria.webhookSecretRef };
     await anotar(account.tenantId, account.id, 'aceptado');
 
-    const mensajes = (getProvider(account.kind) ?? provider).normalize(
+    const mensajes = (proveedorDe(account) ?? provider).normalize(
       (request as unknown as { body: unknown }).body,
     );
     const queue = inboundQueue();

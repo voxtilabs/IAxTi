@@ -30,6 +30,18 @@ export interface ChannelAccountRef {
   state: ChannelState;
   /** Nombre de la variable/secreto donde vive la credencial — jamás en claro. */
   credentialRef: string | null;
+  /**
+   * Quién atiende esta cuenta: `zavu`, `zernio`, … (ADR-0032).
+   *
+   * Las cuentas anteriores a la migración `0006` lo traen en
+   * `PROVEEDOR_POR_OMISION`, que es el mismo valor que puso el `DEFAULT`.
+   *
+   * Opcional en el TIPO, a propósito: decenas de pruebas arman la cuenta a
+   * mano, y una cuenta sin proveedor resuelve a `zavu`, que es exactamente lo
+   * que pasaba antes de la ADR-0032. Lo que sale de la base siempre lo trae:
+   * `rowToAccount` lo completa.
+   */
+  provider?: string;
   config: Record<string, unknown>;
 }
 
@@ -130,6 +142,17 @@ export interface PuertoDePlantillas {
 
 export interface ChannelProvider {
   kind: ChannelKind;
+  /**
+   * Quién atiende, no por dónde (ADR-0032). `kind` es el canal —whatsapp,
+   * instagram— y esto es la empresa que lo sirve: `zavu`, `zernio`, `webchat`.
+   *
+   * Opcional por los adaptadores que ya existen: sin esto, `zavu` queda `zavu`
+   * y el simulador y el webchat se nombran solos. Que el valor por omisión sea
+   * EL_DE_SIEMPRE y no «el primero que registre» es a propósito: un registro
+   * que se resuelve por orden de arranque se comporta distinto según quién
+   * levantó primero, y eso no se puede depurar.
+   */
+  proveedor?: string;
   send(account: ChannelAccountRef, message: OutboundMessage): Promise<{ providerMessageId: string }>;
   verifyWebhook(headers: Record<string, string | string[] | undefined>, rawBody: string, secret: string): boolean;
   normalize(payload: unknown): NormalizedInbound[];
@@ -137,19 +160,66 @@ export interface ChannelProvider {
   plantillas?: PuertoDePlantillas;
 }
 
-// Registro de adaptadores: Zavu (#42) —que sirve whatsapp, instagram y
-// messenger con el mismo código— y webchat (#46) se enchufan aquí.
-const providers = new Map<ChannelKind, ChannelProvider>();
+/**
+ * El proveedor de las cuentas que nacieron antes de la ADR-0032.
+ *
+ * Es el mismo valor que pone la migración `0006` como `DEFAULT`, y están
+ * atados: si acá dijera otra cosa, una cuenta vieja resolvería a un adaptador
+ * distinto del que la atendió siempre.
+ */
+export const PROVEEDOR_POR_OMISION = 'zavu';
 
-export function registerProvider(provider: ChannelProvider): void {
-  if (providers.has(provider.kind)) {
-    throw new Error(`Ya hay un adaptador registrado para "${provider.kind}".`);
-  }
-  providers.set(provider.kind, provider);
+/** `zavu:whatsapp`. Que la clave sea legible importa cuando falla el arranque. */
+const clave = (proveedor: string, kind: ChannelKind) => `${proveedor}:${kind}`;
+
+function nombreDe(provider: ChannelProvider): string {
+  return provider.proveedor ?? PROVEEDOR_POR_OMISION;
 }
 
+// Registro de adaptadores: Zavu (#42) —que sirve whatsapp, instagram y
+// messenger con el mismo código— y webchat (#46) se enchufan aquí.
+//
+// La clave es (proveedor, canal) desde la ADR-0032. Antes era solo el canal, y
+// eso hacía que `registerProvider` fuera un cerrojo global: no se podía
+// registrar un segundo adaptador de WhatsApp ni para probarlo, así que elegir
+// proveedor era una decisión del despliegue entero.
+const providers = new Map<string, ChannelProvider>();
+
+export function registerProvider(provider: ChannelProvider): void {
+  const k = clave(nombreDe(provider), provider.kind);
+  // Rechaza el duplicado EXACTO, no cualquier segundo adaptador del canal.
+  if (providers.has(k)) {
+    throw new Error(`Ya hay un adaptador registrado para «${k}».`);
+  }
+  providers.set(k, provider);
+}
+
+/**
+ * El adaptador que atiende a esta cuenta.
+ *
+ * Recibe la cuenta y no el canal porque el proveedor es de la cuenta. En cinco
+ * de los siete llamadores la cuenta ya estaba a mano y solo se le pasaba
+ * `.kind`; esto usa lo que ya tenían.
+ */
+export function proveedorDe(cuenta: Pick<ChannelAccountRef, 'kind'> & { provider?: string | null }): ChannelProvider | null {
+  return providers.get(clave(cuenta.provider ?? PROVEEDOR_POR_OMISION, cuenta.kind)) ?? null;
+}
+
+/**
+ * El adaptador POR OMISIÓN de un canal, para los dos llamadores que no tienen
+ * una cuenta a mano: el aviso de transportistas y el respaldo del webhook.
+ *
+ * Resuelve al proveedor por omisión declarado, NO a «el único que hay». La
+ * diferencia aparece el día que haya dos: la versión vieja devolvía
+ * silenciosamente el que estuviera, que podía ser el de prueba.
+ */
 export function getProvider(kind: ChannelKind): ChannelProvider | null {
-  return providers.get(kind) ?? null;
+  return providers.get(clave(PROVEEDOR_POR_OMISION, kind)) ?? null;
+}
+
+/** Qué hay registrado, para la verificación del arranque. */
+export function proveedoresRegistrados(): string[] {
+  return [...new Set([...providers.values()].map(nombreDe))].sort();
 }
 
 /** Solo para tests: el registro es estado de proceso. */

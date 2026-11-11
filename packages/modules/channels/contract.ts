@@ -6,6 +6,7 @@ export {
   assertChannelTransition,
   registerProvider,
   getProvider,
+  proveedorDe,
   resetProviders,
 } from './domain/port';
 export type {
@@ -29,6 +30,8 @@ export {
   listChannelAccounts,
   // Un aviso de cupo por día y por canal (#1248).
   avisarDelCupoUnaVezAlDia,
+  // El arranque no levanta si una cuenta declara un proveedor sin adaptador (ADR-0032).
+  proveedoresSinAdaptador,
 } from './application/accounts';
 export { simuladorProvider, firmarWebhook } from './application/simulador';
 // El rastro de los webhooks y por qué no llegan los mensajes (#434).

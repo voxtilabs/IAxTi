@@ -27,7 +27,7 @@ import { IdempotenciaInterceptor } from './idempotencia.interceptor';
 import { AislamientoGuard } from './aislamiento';
 import { requestIdMiddleware } from './request-id';
 import { cabecerasMiddleware } from './cabeceras';
-import { getProvider, registerProvider, simuladorProvider } from '@iaxti/module-channels';
+import { getProvider, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { createZavuProvider } from '@iaxti/module-whatsapp';
 import { webchatProvider } from '@iaxti/module-webchat';
 
@@ -143,6 +143,19 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   // mano: el guard lo consulta sin volver a preguntarle a la base.
   let aislamiento: EstadoRls | null = null;
   if (pool) aislamiento = await exigeRolQueRespetaRls(pool);
+  // Una cuenta que declara un proveedor sin adaptador no tiene por dónde
+  // mandar, y la alternativa —caer al adaptador por omisión— mandaría los
+  // mensajes de un cliente por un proveedor que no es el suyo (ADR-0032).
+  // Mismo criterio que el aislamiento: no se arranca.
+  if (pool) {
+    const huerfanos = await proveedoresSinAdaptador(pool);
+    if (huerfanos.length > 0) {
+      throw new Error(
+        `Hay cuentas de canal con proveedor sin adaptador registrado: ${huerfanos.join(', ')}. ` +
+          'Registra el adaptador o devuelve esas cuentas a un proveedor existente antes de arrancar.',
+      );
+    }
+  }
 
   // Flags de módulos SIN desplegar (#69): al arrancar y cada 60 s.
   if (pool) {
