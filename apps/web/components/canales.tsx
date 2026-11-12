@@ -114,7 +114,7 @@ function ProbarSinNumero() {
 
   return (
     <section className="mt-8 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
-      <h2 className="text-lg font-bold text-ink">Probar sin número real</h2>
+      <h2 className="text-lg font-semibold text-ink">Probar sin número real</h2>
       <p className="mt-2 max-w-prose text-sm text-body">
         Entra por el mismo camino que un WhatsApp de verdad: la misma cola, el mismo copiloto.
       </p>
@@ -566,7 +566,7 @@ function CanalesDelNegocio() {
               <li key={canal.id} className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
                 <div className="flex items-center gap-3">
                   <span className="min-w-0 flex-1">
-                    <span className="block font-display font-bold text-ink">{canal.name}</span>
+                    <span className="block font-display font-semibold text-ink">{canal.name}</span>
                     <span className="text-sm text-muted">{canal.kind}</span>
                   </span>
                   <Badge role={estado.role}>{estado.label}</Badge>
@@ -647,7 +647,7 @@ function CanalesDelNegocio() {
       {/* Webchat (#46): el widget propio y su snippet de instalación. */}
       <section className="mt-10">
         <p className="rotulo">Chat del sitio</p>
-        <h2 className="mt-1 text-lg font-bold text-ink">Webchat</h2>
+        <h2 className="mt-1 text-lg font-semibold text-ink">Webchat</h2>
         <p className="mt-1 max-w-prose text-sm text-body">
           Un chat en tu página que cae en la misma bandeja. Sin número.
         </p>

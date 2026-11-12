@@ -439,7 +439,7 @@ export function Chat({
             // de #548 — el mismo patrón que usa el velo del diálogo.
             className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-bloque border-2 border-dashed border-action bg-[color-mix(in_srgb,var(--bg)_88%,transparent)]"
           >
-            <p className="font-display text-seccion font-bold text-action-text">
+            <p className="font-display text-seccion font-semibold text-action-text">
               Suéltalo acá para adjuntarlo
             </p>
           </div>
@@ -449,7 +449,7 @@ export function Chat({
           <IconoVolver className="h-4 w-4" />
         </Button>
         <div className="pulso-chat-contact min-w-0 flex-1">
-          <p className="truncate font-display font-bold text-ink">
+          <p className="truncate font-display font-semibold text-ink">
             {nombreVisible({ name: detalle.contactName, phone: detalle.contactPhone, channel: detalle.channel })}
           </p>
           {/* Solo si dice algo que el título no diga ya (#1120). Un contacto
@@ -912,7 +912,7 @@ export function Chat({
           </label>}
           <Textarea
             aria-label="Mensaje"
-            placeholder="Escribe tu respuesta…"
+            placeholder="Escribe tu respuesta"
             rows={1}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}

@@ -661,7 +661,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           <Input
             type="search"
             aria-label="Buscar en mensajes y notas"
-            placeholder="Buscar en mensajes y notas…"
+            placeholder="Buscar en mensajes y notas"
             className="mt-3 h-9 text-sm"
             value={busqueda}
             onChange={(e) => {

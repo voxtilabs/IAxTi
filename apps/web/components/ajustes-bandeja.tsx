@@ -104,7 +104,7 @@ export function AjustesBandeja() {
   return (
     <form onSubmit={guardar} className="max-w-xl">
       <p className="rotulo">Bandeja</p>
-      <h2 className="mt-2 text-xl font-bold text-ink">Asignación y tiempos de respuesta</h2>
+      <h2 className="mt-2 text-xl font-semibold text-ink">Asignación y tiempos de respuesta</h2>
 
       <div className="mt-8 flex flex-col gap-8">
         <label className="block">

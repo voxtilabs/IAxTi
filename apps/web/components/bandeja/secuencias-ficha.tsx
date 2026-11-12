@@ -135,7 +135,7 @@ export function SecuenciasFicha({
             <li key={i.id} className="text-sm">
               <span className="flex items-center gap-2">
                 <Badge role={ESTADO[i.status].role}>{ESTADO[i.status].label}</Badge>
-                <span className="truncate font-bold text-ink">{i.sequenceName}</span>
+                <span className="truncate font-semibold text-ink">{i.sequenceName}</span>
                 <span className="dato text-muted">
                   paso {Math.min(i.currentStep + (i.status === 'running' ? 1 : 0), i.totalSteps ?? 0)}/{i.totalSteps}
                 </span>
@@ -172,7 +172,7 @@ export function SecuenciasFicha({
         <div className="mt-3 flex items-center gap-2">
           <Select value={elegida} onValueChange={setElegida}>
             <SelectTrigger aria-label="Secuencia" className="min-w-0 flex-1">
-              <SelectValue placeholder="Iniciar seguimiento…" />
+              <SelectValue placeholder="Iniciar seguimiento" />
             </SelectTrigger>
             <SelectContent>
               {secuencias.map((s) => (

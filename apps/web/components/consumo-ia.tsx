@@ -98,7 +98,7 @@ export function ConsumoIA() {
           hace primitiva. Las dos `Seccion` de abajo son las que llevan marco. */}
       <header className="mt-8">
         <p className="rotulo">IA</p>
-        <h2 className="font-display text-seccion font-bold text-ink">Consumo del asistente</h2>
+        <h2 className="font-display text-seccion font-semibold text-ink">Consumo del asistente</h2>
       </header>
 
       <Seccion>
@@ -112,7 +112,7 @@ export function ConsumoIA() {
             <Badge role="warn">Al {pct} %</Badge>
           ) : null}
         </div>
-        <p className="dato mt-2 text-3xl font-bold text-ink">
+        <p className="dato mt-2 text-3xl font-semibold text-ink">
           {uso.used}
           {uso.limit !== null && <span className="text-lg text-muted"> / {uso.limit}</span>}
         </p>
@@ -133,7 +133,7 @@ export function ConsumoIA() {
       {uso.costClpMonth !== undefined && (
         <Seccion>
           <span className="rotulo">Costo estimado del mes</span>
-          <p className="dato mt-2 text-3xl font-bold text-ink">{fmtClp(uso.costClpMonth)}</p>
+          <p className="dato mt-2 text-3xl font-semibold text-ink">{fmtClp(uso.costClpMonth)}</p>
           <p className="dato mt-1 text-sm text-muted">
             USD {uso.costUsdMonth?.toFixed(4)} · tipo de cambio {uso.usdClpRate}
           </p>

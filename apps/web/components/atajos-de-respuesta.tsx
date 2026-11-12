@@ -82,7 +82,7 @@ export function AtajosDeRespuesta() {
 
   return (
     <section className="mt-10 border-t border-line pt-8">
-      <h2 className="text-base font-bold text-ink">Atajos de respuesta</h2>
+      <h2 className="text-base font-semibold text-ink">Atajos de respuesta</h2>
       <p className="mt-1 max-w-prose text-sm text-muted">
         En la bandeja aparecen en el botón «/». Los del negocio los ve todo el equipo.
       </p>

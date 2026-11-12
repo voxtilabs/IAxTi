@@ -129,7 +129,7 @@ export function RetencionDelNegocio() {
      */
     return (
       <section aria-label={titulo} className={marco}>
-        <h2 className="text-base font-bold text-ink">{titulo}</h2>
+        <h2 className="text-base font-semibold text-ink">{titulo}</h2>
         <div className="mt-2">
           <AvisoDeCarga carga={carga} onReintentar={reintentar} />
         </div>
@@ -141,7 +141,7 @@ export function RetencionDelNegocio() {
     <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <p className="flex items-center gap-2">
         <Archive aria-hidden className="size-4 text-muted" />
-        <h2 className="text-base font-bold text-ink">{titulo}</h2>
+        <h2 className="text-base font-semibold text-ink">{titulo}</h2>
       </p>
       <p className="mt-1 max-w-prose text-sm text-muted">
         Tu plan guarda {datos.months === null ? 'sin límite' : `${datos.months} meses`}. Puedes

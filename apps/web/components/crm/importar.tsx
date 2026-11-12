@@ -139,7 +139,7 @@ export function Importar() {
 
       {preview && (
         <div className="mt-8">
-          <h2 className="text-lg font-bold text-ink">Vista previa</h2>
+          <h2 className="text-lg font-semibold text-ink">Vista previa</h2>
           <p className="mt-1 text-sm text-muted">
             Ajusta a qué campo va cada columna si adivinamos mal. Nada se guarda todavía.
           </p>

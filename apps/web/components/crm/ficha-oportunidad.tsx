@@ -163,7 +163,7 @@ export function FichaOportunidad({ dealId, onCerrar }: { dealId: string; onCerra
     return (
       <aside aria-label="Oportunidad" className={marco}>
         <div className="flex items-start justify-between gap-3 px-5 py-4">
-          <h2 className="text-base font-bold text-ink">Oportunidad</h2>
+          <h2 className="text-base font-semibold text-ink">Oportunidad</h2>
           {cerrar}
         </div>
         <div className="px-5 pb-5">
@@ -190,7 +190,7 @@ export function FichaOportunidad({ dealId, onCerrar }: { dealId: string; onCerra
     <aside aria-label={`Oportunidad ${deal.title}`} className={marco}>
       <div className="flex items-start justify-between gap-3 px-5 py-4">
         <div className="min-w-0">
-          <h2 className="text-base font-bold leading-tight text-ink">{deal.title}</h2>
+          <h2 className="text-base font-semibold leading-tight text-ink">{deal.title}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm">
             <span className="dato text-ink">{monto}</span>
             <span aria-hidden className="text-faint">

@@ -126,7 +126,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 768, height: 768 
     await documentoAjustado(page);
     await expect(respuesta).toBeInViewport();
     await page.setViewportSize(viewport);
-    await page.getByRole('button', { name: 'Buscar o ir a…', exact: true }).click();
+    await page.getByRole('button', { name: 'Buscar o ir a', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.keyboard.press('Escape');
     await documentoAjustado(page);

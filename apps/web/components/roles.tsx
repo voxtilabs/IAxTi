@@ -147,7 +147,7 @@ export function Roles() {
             {roles.map((r) => (
               <li key={r.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-ink">{r.name}</p>
+                  <p className="text-sm font-semibold text-ink">{r.name}</p>
                   <p className="dato text-muted">
                     {r.base ? 'Rol base — inmutable' : `Personalizado (desde ${r.clonedFrom}) · ${r.permissions.length} permisos`}
                   </p>

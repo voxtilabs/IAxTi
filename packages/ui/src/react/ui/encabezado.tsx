@@ -8,7 +8,7 @@ import { cn } from './cn';
  *
  * Antes cada una lo resolvía por su cuenta y ninguna igual que otra:
  * `font-display text-titulo text-ink` en campañas, `text-titulo
- * font-extrabold text-ink` en empresas —dos formas de decir lo mismo— y el
+ * font-semibold text-ink` en empresas —dos formas de decir lo mismo— y el
  * asistente abriendo con `<h2>`. Y la acción principal quedaba a miles de
  * caracteres del título: enterrada abajo, no donde el ojo va primero.
  *

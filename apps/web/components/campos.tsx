@@ -156,7 +156,7 @@ export function Campos() {
       )}
 
       <Formulario onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
-        <h2 className="text-base font-bold text-ink">Agregar un campo</h2>
+        <h2 className="text-base font-semibold text-ink">Agregar un campo</h2>
 
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
@@ -241,7 +241,7 @@ export function Campos() {
 
       {campos.length === 0 ? (
         <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-8 text-center">
-          <h2 className="text-lg font-bold text-ink">Todavía no hay campos propios</h2>
+          <h2 className="text-lg font-semibold text-ink">Todavía no hay campos propios</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-body">
             El CRM ya guarda nombre, teléfono, correo y RUT.
           </p>

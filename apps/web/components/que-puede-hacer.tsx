@@ -107,7 +107,7 @@ function DelAsistente({
   if (carga.estado !== 'ok') {
     return (
       <section aria-label={titulo} className={marco}>
-        <h2 className="text-base font-bold text-ink">{titulo}</h2>
+        <h2 className="text-base font-semibold text-ink">{titulo}</h2>
         <div className="mt-2">
           <AvisoDeCarga
             carga={carga}

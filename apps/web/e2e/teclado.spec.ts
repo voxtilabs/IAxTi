@@ -17,21 +17,21 @@ test.beforeEach(async ({ page }) => {
 
 test('Ctrl+K navega a una pantalla y busca contactos y conversaciones en la API', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Buscar o ir a…' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Buscar o ir a' })).toBeVisible();
   await page.keyboard.press('Control+k');
   const input = page.getByRole('combobox', { name: 'Buscar pantallas, contactos o conversaciones' });
   await expect(input).toBeFocused();
   await input.fill('Contactos');
   await page.getByRole('option', { name: 'Contactos', exact: true }).click();
   await expect(page).toHaveURL(/\/contactos$/);
-  await expect(page.getByRole('button', { name: 'Buscar o ir a…' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Buscar o ir a' })).toBeVisible();
   await page.keyboard.press('Control+k');
   await input.fill('Ana Teclado');
   const contacto = page.getByRole('option', { name: /Ana Teclado.*73000000/ });
   await expect(contacto).toBeVisible();
   await contacto.click();
   await expect(page).toHaveURL(new RegExp(`/contactos/${auth.keyConversations[0].contactId}$`));
-  await expect(page.getByRole('button', { name: 'Buscar o ir a…' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Buscar o ir a' })).toBeVisible();
   await page.keyboard.press('Control+k');
   await input.fill('Cotización');
   await page.getByRole('option', { name: /Abrir conversación/ }).first().click();
@@ -97,7 +97,7 @@ for (const modo of ['dia', 'noche']) {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript((modo) => localStorage.setItem('pulso-mode', modo), modo);
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Buscar o ir a…' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Buscar o ir a' })).toBeVisible();
     await page.keyboard.press('Control+k');
     const dialog = page.getByRole('dialog');
     const input = page.getByRole('combobox', { name: 'Buscar pantallas, contactos o conversaciones' });
@@ -143,7 +143,7 @@ for (const modo of ['dia', 'noche']) {
 test('sin preferencia reducida, el diálogo entra en 150 ms', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Buscar o ir a…' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Buscar o ir a' })).toBeVisible();
   await page.keyboard.press('Control+k');
   await expect(page.getByRole('dialog')).toBeVisible();
   expect(await page.getByRole('dialog').evaluate((el) => getComputedStyle(el).animationDuration)).toBe('0.15s');

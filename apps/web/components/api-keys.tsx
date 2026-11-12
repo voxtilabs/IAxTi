@@ -184,7 +184,7 @@ export function ApiKeys() {
             {keys.map((k) => (
               <li key={k.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-ink">{k.name}</p>
+                  <p className="truncate text-sm font-semibold text-ink">{k.name}</p>
                   <p className="dato text-muted">
                     {k.scopes.length} permisos
                     {k.lastUsedAt
@@ -218,7 +218,7 @@ export function ApiKeys() {
               <Badge role={consumo.pct >= 100 ? 'bad' : 'warn'}>Al {consumo.pct} %</Badge>
             )}
           </div>
-          <p className="dato mt-2 text-3xl font-bold text-ink">
+          <p className="dato mt-2 text-3xl font-semibold text-ink">
             {consumo.used.toLocaleString('es-CL')}
             {consumo.limit !== null && (
               <span className="text-lg text-muted"> / {consumo.limit.toLocaleString('es-CL')}</span>

@@ -87,6 +87,7 @@ function Conexiones({ onConectado }: { onConectado: (cuenta: Cuenta) => void }) 
         el contenido AUMENTA el hueco en vez de reducirlo. */}
     {carga.estado === 'ok' && (carga.dato.length === 0 ? <EstadoVacio
       compacto
+      sinMarco
       titulo="No hay conexiones pendientes"
       descripcion="Primero conecta tu cuenta en Zavu y pide a quien administra el servicio que la habilite para tu negocio. Después vuelve a comprobar."
       accion={{ etiqueta: 'Volver a comprobar', onClick: reintentar }}

@@ -34,7 +34,7 @@ export function Avatar({ nombre, size = 'normal', className, ...props }: AvatarP
       aria-hidden
       className={cn(
         'pulso-avatar flex shrink-0 select-none items-center justify-center rounded-boton',
-        'font-display font-bold',
+        'font-display font-semibold',
         letras
           ? 'border border-action-soft-br bg-action-soft text-action-text'
           : 'border border-line bg-rest text-muted',

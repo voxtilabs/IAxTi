@@ -495,7 +495,7 @@ export function Automatizaciones() {
               <li key={r.id} className="border-t border-line py-3 first:border-t-0">
                 <div className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-ink">{r.name}</p>
+                    <p className="truncate text-sm font-semibold text-ink">{r.name}</p>
                     <p className="dato text-muted">
                       {cuando(r)} → {r.actions.map((a) => ACCION_LABEL[a.kind] ?? a.kind).join(' + ')}
                     </p>

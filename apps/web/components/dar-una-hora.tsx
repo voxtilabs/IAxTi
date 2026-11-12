@@ -116,7 +116,7 @@ export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
   return (
     <section className="rounded-tarjeta border border-line bg-raised p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-bold text-ink">Dar una hora</h2>
+        <h2 className="text-base font-semibold text-ink">Dar una hora</h2>
         <Button variant="fantasma" size="chico" onClick={() => setAbierto(false)}>Cerrar</Button>
       </div>
 

@@ -131,7 +131,7 @@ export function Reportes() {
 
       <section className="pulso-panel mt-4 rounded-tarjeta border border-line bg-raised p-4 sm:p-6" aria-label="Evolución de conversaciones">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div><h2 className="font-display text-seccion font-bold text-ink">El ritmo de tus conversaciones</h2>
+          <div><h2 className="font-display text-seccion font-semibold text-ink">El ritmo de tus conversaciones</h2>
             <p className="mt-1 text-sm text-muted">Las dos líneas comparten escala.</p></div>
           <Badge role="neutral">{fechaReporte(rango.from)} – {fechaReporte(rango.to)}</Badge>
         </div>
@@ -154,20 +154,20 @@ export function Reportes() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className="pulso-panel rounded-tarjeta border border-line bg-raised p-5" aria-label="Resultados comerciales">
-          <h2 className="font-display text-seccion font-bold text-ink">De oportunidad a resultado</h2>
+          <h2 className="font-display text-seccion font-semibold text-ink">De oportunidad a resultado</h2>
           <p className="mt-1 text-sm text-muted" title={d.tasa_cierre}>Ganadas sobre las oportunidades cerradas del período.</p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-5">
             <GraficoCierre ganadas={m.ganadas ?? 0} perdidas={m.perdidas ?? 0} tasa={datos.tasaCierre} />
             <dl className="min-w-0 flex-1 space-y-3 text-sm">
-              <div className="flex justify-between gap-3"><dt>Ganadas</dt><dd className="font-mono font-bold">{numero.format(m.ganadas ?? 0)}</dd></div>
+              <div className="flex justify-between gap-3"><dt>Ganadas</dt><dd className="font-mono font-semibold">{numero.format(m.ganadas ?? 0)}</dd></div>
               <div className="flex justify-between gap-3"><dt>Perdidas</dt><dd className="font-mono">{numero.format(m.perdidas ?? 0)}</dd></div>
-              <div className="border-t border-line pt-3"><dt className="text-muted">Valor ganado</dt><dd className="mt-1 break-words font-mono text-xl font-bold" title={d.valor_ganado_clp}>{fmtClp(m.valor_ganado_clp)}</dd></div>
+              <div className="border-t border-line pt-3"><dt className="text-muted">Valor ganado</dt><dd className="mt-1 break-words font-mono text-xl font-semibold" title={d.valor_ganado_clp}>{fmtClp(m.valor_ganado_clp)}</dd></div>
             </dl>
           </div>
           <p className="mt-4 text-xs text-muted">Las resueltas y ganadas pueden haberse iniciado antes del rango. No representan un embudo de las conversaciones nuevas.</p>
         </section>
         <section className="pulso-panel rounded-tarjeta border border-line bg-raised p-5" aria-label="Oportunidades creadas">
-          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-seccion font-bold text-ink">Oportunidades que llegan</h2><strong className="font-mono text-xl" title={d.oportunidades_creadas}>{numero.format(m.oportunidades_creadas)}</strong></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-seccion font-semibold text-ink">Oportunidades que llegan</h2><strong className="font-mono text-xl" title={d.oportunidades_creadas}>{numero.format(m.oportunidades_creadas)}</strong></div>
           <p className="mt-1 text-sm text-muted">Oportunidades creadas en cada día del período.</p>
           <GraficoSeries key={`${tenant}/${dias}`} titulo="Oportunidades creadas por día" etiquetas={etiquetas}
             series={[{ nombre: 'Oportunidades', valores: serie.map((x) => x.oportunidades), tono: 'warn' }]} />
@@ -176,7 +176,7 @@ export function Reportes() {
 
       <EmbudoDeVentas from={rango.from} to={rango.to} />
 
-      <h2 className="mt-7 font-display text-seccion font-bold text-ink">Recursos y actividad</h2>
+      <h2 className="mt-7 font-display text-seccion font-semibold text-ink">Recursos y actividad</h2>
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Cifra rotulo="Mensajes enviados" valor={numero.format(m.mensajes_enviados)} definicion={d.mensajes_enviados} />
         <Cifra rotulo="Uso de IA" valor={numero.format(m.ia_ejecuciones)}

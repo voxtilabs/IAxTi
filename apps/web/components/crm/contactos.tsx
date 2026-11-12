@@ -121,7 +121,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
 
   const columns: ColumnDef<ContactoItem, unknown>[] = [
     { id: 'name', accessorKey: 'name', header: 'Contacto', enableHiding: false, cell: ({ row }) => <div>
-      <a className="block min-h-control break-words text-action-text" href={`/contactos/${row.original.id}`}><span className="block font-medium">{row.original.name ?? 'Sin nombre aún'}</span>
+      <a className="block min-h-control break-words text-ink hover:text-action-text hover:underline" href={`/contactos/${row.original.id}`}><span className="block font-medium">{row.original.name ?? 'Sin nombre aún'}</span>
       <span className="block break-all font-mono text-muted">{row.original.phone}</span></a>
       {row.original.optedOutAt && <Badge role="bad">No contactar</Badge>}
     </div> },
@@ -181,7 +181,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       <Input
         type="search"
         aria-label="Buscar contactos"
-        placeholder="Buscar por nombre o teléfono…"
+        placeholder="Buscar por nombre o teléfono"
         className="mt-4 w-full max-w-xs"
         value={q}
         onChange={(e) => { setQ(e.target.value); firstPage(); }}

@@ -18,7 +18,7 @@ type Accion = { etiqueta: string; href: string; onClick?: never } | { etiqueta: 
  * este componente vive en `packages/ui` y no puede saber de la app. Mismo
  * patrón que `iaxti-tenant-changed`.
  */
-export function EstadoVacio({ titulo, descripcion, accion, pideleAIAxTi, documentacion, compacto = false, className }: {
+export function EstadoVacio({ titulo, descripcion, accion, pideleAIAxTi, documentacion, compacto = false, sinMarco = false, className }: {
   titulo: string;
   descripcion: string;
   accion: Accion;
@@ -26,9 +26,16 @@ export function EstadoVacio({ titulo, descripcion, accion, pideleAIAxTi, documen
   pideleAIAxTi?: string;
   documentacion?: { etiqueta: string; href: string };
   compacto?: boolean;
+  /**
+   * Va DENTRO de otra tarjeta (#1344): sin borde, fondo, sombra ni radio
+   * propios, porque una tarjeta adentro de otra se lee como un panel roto.
+   * Tampoco lleva relleno: el de la tarjeta de afuera ya lo da, y sumar los
+   * dos lo corría hacia adentro. Solo el vacío que ES la pantalla lleva marco.
+   */
+  sinMarco?: boolean;
   className?: string;
 }) {
-  return <section aria-label={titulo} data-compact={compacto} className={cn('pulso-empty pulso-panel rounded-tarjeta border border-line bg-raised', compacto ? 'p-4' : 'p-6', className)}>
+  return <section aria-label={titulo} data-compact={compacto} data-sin-marco={sinMarco || undefined} className={cn('pulso-empty', sinMarco ? undefined : 'pulso-panel rounded-tarjeta border border-line bg-raised', compacto ? 'p-4' : 'p-6', className)}>
     {/* El isotipo solo cuando el vacío ES la pantalla (#1159).
 
         `compacto` ya quiere decir «esto es un panel, no la pantalla», así que
@@ -45,7 +52,9 @@ export function EstadoVacio({ titulo, descripcion, accion, pideleAIAxTi, documen
         queda. */}
     {!compacto && <MarcaJelly />}
     <div className="min-w-0">
-    <h2 className="font-display text-seccion font-bold text-ink">{titulo}</h2>
+    {/* Sin marco va bajo el título de otra tarjeta: con su misma letra se leían
+        dos títulos seguidos (#1344), así que baja a letra de texto. */}
+    <h2 className={sinMarco ? 'text-cuerpo font-medium text-ink' : 'font-display text-seccion font-semibold text-ink'}>{titulo}</h2>
     <p className="mt-2 max-w-prose text-dato text-body">{descripcion}</p>
     <div className="mt-4 flex flex-wrap items-center gap-3">
       {accion.href !== undefined ? <a href={accion.href} className="inline-flex min-h-control items-center rounded-boton border border-line-strong px-4 text-dato font-medium text-ink transition-colors hover:bg-rest">{accion.etiqueta}</a> :

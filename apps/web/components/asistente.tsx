@@ -203,13 +203,13 @@ export function Asistente() {
            envolverlo agregaría un marco dentro de otro marco. */
         <Formulario onSubmit={crear} className="flex w-full max-w-seccion flex-col gap-5 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
           <div>
-            <h3 className="text-sm font-bold text-ink">¿Qué tiene que lograr?</h3>
+            <h3 className="text-sm font-semibold text-ink">¿Qué tiene que lograr?</h3>
           </div>
 
           {porDestinatario.map((grupo) => (
             <div key={grupo.clave} className="flex flex-col gap-2">
               <div>
-                <h4 className="text-sm font-bold text-ink">{grupo.titulo}</h4>
+                <h4 className="text-sm font-semibold text-ink">{grupo.titulo}</h4>
                 <p className="text-xs text-muted">{grupo.ayuda}</p>
               </div>
             {grupo.items.map((o) => {

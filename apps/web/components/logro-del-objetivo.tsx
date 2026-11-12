@@ -145,7 +145,7 @@ export function LogroDelObjetivo() {
     <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <div className="flex flex-wrap items-center gap-2">
         <Target aria-hidden className="size-4 text-action-text" />
-        <h2 className="font-display text-seccion font-bold text-ink">¿Está logrando lo suyo?</h2>
+        <h2 className="font-display text-seccion font-semibold text-ink">¿Está logrando lo suyo?</h2>
         <span className="ml-auto">
           <SelectorDeAsistente asistentes={asistentes ?? []} elegidoId={agente.id} onElegir={elegir} />
         </span>
@@ -167,19 +167,19 @@ export function LogroDelObjetivo() {
           <dl className="mt-4 flex flex-wrap gap-x-10 gap-y-3">
             <div>
               <dt className="rotulo">Lo logró solo</dt>
-              <dd className="dato text-2xl font-bold text-ink">{pct(tasa.tasaDelAgente ?? 0)}</dd>
+              <dd className="dato text-2xl font-semibold text-ink">{pct(tasa.tasaDelAgente ?? 0)}</dd>
               <dd className="text-rotulo text-muted">{tasa.porElAgente} de {tasa.cerrados}</dd>
             </div>
             <div>
               <dt className="rotulo">Con ayuda del equipo</dt>
-              <dd className="dato text-2xl font-bold text-ink">{pct(tasa.tasaConAsistencia ?? 0)}</dd>
+              <dd className="dato text-2xl font-semibold text-ink">{pct(tasa.tasaConAsistencia ?? 0)}</dd>
               <dd className="text-rotulo text-muted">
                 {tasa.asistidos} {tasa.asistidos === 1 ? 'conversación' : 'conversaciones'} las terminó alguien
               </dd>
             </div>
             <div>
               <dt className="rotulo">No se logró</dt>
-              <dd className="dato text-2xl font-bold text-ink">{tasa.perdidos}</dd>
+              <dd className="dato text-2xl font-semibold text-ink">{tasa.perdidos}</dd>
               <dd className="text-rotulo text-muted">de {tasa.cerrados} terminadas</dd>
             </div>
           </dl>
@@ -189,7 +189,7 @@ export function LogroDelObjetivo() {
           {tasa.horasHastaElLogro !== null && (
             <p className="mt-3 text-sm text-body">
               Cuando lo logra, tarda{' '}
-              <span className="dato font-bold text-ink">
+              <span className="dato font-semibold text-ink">
                 {tasa.horasHastaElLogro < 1
                   ? 'menos de una hora'
                   : `${tasa.horasHastaElLogro} ${tasa.horasHastaElLogro === 1 ? 'hora' : 'horas'}`}

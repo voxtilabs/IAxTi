@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Sparkles } from 'lucide-react';
 import {
   AvisoResultado,
   Badge,
@@ -111,8 +110,7 @@ export function PreguntaALosNumeros() {
       className="pulso-panel rounded-tarjeta border border-line bg-raised p-4"
     >
       <div className="flex items-center gap-2">
-        <Sparkles aria-hidden className="size-4 text-action-text" />
-        <h3 className="font-display text-seccion font-bold text-ink">Pregúntale a tus números</h3>
+        <h3 className="font-display text-seccion font-semibold text-ink">Pregúntale a tus números</h3>
         <Badge>{agente.name}</Badge>
       </div>
       <p className="mt-1 text-dato text-muted">
