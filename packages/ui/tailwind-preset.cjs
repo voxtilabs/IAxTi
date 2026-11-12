@@ -100,8 +100,11 @@ module.exports = {
         'fila-gap': 'var(--fila-gap)',
       },
       fontSize: {
-        titulo: ['clamp(1.75rem, 2.6vw, 2.4rem)', { lineHeight: '1.2', fontWeight: '800' }],
-        seccion: ['1.125rem', { lineHeight: '1.4', fontWeight: '700' }],
+        // El tracking va con el TAMAÑO y no con la etiqueta (#1344): un <h2> de
+        // 18 px heredaba el -0,02 em del h2 de 34 px y Outfit se comía el
+        // espacio entre palabras.
+        titulo: ['clamp(1.75rem, 2.6vw, 2.4rem)', { lineHeight: '1.2', fontWeight: '600', letterSpacing: '-0.03em' }],
+        seccion: ['1.125rem', { lineHeight: '1.4', fontWeight: '600', letterSpacing: '0' }],
         cuerpo: ['1rem', { lineHeight: '1.6' }],
         dato: ['0.875rem', { lineHeight: '1.4' }],
         rotulo: ['0.75rem', { lineHeight: '1.4' }],

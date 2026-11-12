@@ -134,7 +134,7 @@ export function RecordatoriosDeCita() {
     <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <div className="flex items-center gap-2">
         <BellRing aria-hidden className="size-4 text-action-text" />
-        <h2 className="font-display text-seccion font-bold text-ink">Recordatorios de cita</h2>
+        <h2 className="font-display text-seccion font-semibold text-ink">Recordatorios de cita</h2>
       </div>
       <p className="mt-1 max-w-prose text-dato text-body">
         Salen por plantilla aprobada: a esa altura la conversación casi siempre está fuera de la

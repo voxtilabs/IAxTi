@@ -44,7 +44,7 @@ function Propuesta({
   return (
     <div className="mt-2 flex flex-col gap-3 rounded-tarjeta border border-warn-soft-br bg-warn-soft p-4">
       <p className="flex flex-wrap items-center gap-2">
-        <strong className="font-display text-dato font-bold text-ink">
+        <strong className="font-display text-dato font-semibold text-ink">
           {resuelta === 'aplicada'
             ? 'Hecho'
             : resuelta === 'descartada'
@@ -162,12 +162,19 @@ export function Conversacion({ alto }: { alto?: string }) {
                   reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.
                 </p>
                 {/* Mismo largo y alineadas a la izquierda (#1169): con el
-                    ancho del texto, tres pastillas de largo distinto en
-                    columna se leen como una lista rota. */}
+                    ancho del texto, tres de largo distinto en columna se leen
+                    como una lista rota. Campo y no pastilla, con `h-auto`
+                    para que una sugerencia larga crezca en alto (#1344) en
+                    vez de partirse en dos líneas centradas. */}
                 <ul className="grid gap-2 sm:grid-cols-2">
                   {(sugerencias ?? []).map((e) => (
                     <li key={e}>
-                      <Button variant="secundario" size="chico" onClick={() => void preguntar(e)}>
+                      <Button
+                        variant="secundario"
+                        size="chico"
+                        className="h-auto justify-start rounded-campo py-2 text-left"
+                        onClick={() => void preguntar(e)}
+                      >
                         {e}
                       </Button>
                     </li>

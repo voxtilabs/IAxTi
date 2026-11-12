@@ -121,7 +121,7 @@ export function Facturacion() {
                     medidor; acá se lee como mes, que es lo que significa. */}
                 <span className="dato text-body">{c.periodo.slice(0, 7)}</span>
                 <span className="min-w-0 flex-1 text-right">
-                  <span className="dato font-bold text-ink">{c.conversaciones}</span>
+                  <span className="dato font-semibold text-ink">{c.conversaciones}</span>
                   {c.tope !== null && c.tope > 0 && (
                     <span className="text-muted"> de {c.tope} del plan {c.plan}</span>
                   )}
@@ -156,7 +156,7 @@ export function Facturacion() {
                 </ul>
                 <div className="mt-2 flex items-baseline justify-between border-t border-line pt-2">
                   <span className="rotulo">Total</span>
-                  <span className="dato font-bold text-ink">{fmtClp(f.totalClp)}</span>
+                  <span className="dato font-semibold text-ink">{fmtClp(f.totalClp)}</span>
                 </div>
               </li>
             ))}

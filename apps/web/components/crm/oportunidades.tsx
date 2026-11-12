@@ -552,7 +552,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
                     el `overflow-y` en el cuerpo. */}
                 <header className="shrink-0 border-b border-line px-4 py-3">
                   <div className="flex items-baseline justify-between gap-2">
-                    <h2 className="truncate text-sm font-bold text-ink">{stage.name}</h2>
+                    <h2 className="truncate text-sm font-semibold text-ink">{stage.name}</h2>
                     <span className="dato shrink-0 text-muted">{total?.cuantas ?? col?.items.length ?? 0}</span>
                   </div>
                   {/* El dinero de la etapa, no el de lo cargado. Sin resumen no
@@ -679,7 +679,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
               </Badge>
             ))}
             <Input
-              placeholder="Guardar filtro como…"
+              placeholder="Guardar filtro como"
               className="h-9 w-44 text-sm"
               value={nombreFiltro}
               onChange={(e) => setNombreFiltro(e.target.value)}

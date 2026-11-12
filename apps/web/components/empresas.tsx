@@ -300,7 +300,7 @@ export function Empresas() {
                     <ul className="mt-2 flex flex-col gap-1">
                       {abierta.contactos.map((c) => (
                         <li key={c.id}>
-                          <a href={`/contactos/${c.id}`} className="text-sm text-action-text">
+                          <a href={`/contactos/${c.id}`} className="text-sm text-ink hover:text-action-text hover:underline">
                             {c.name ?? <span className="dato">{c.phone}</span>}
                           </a>
                         </li>

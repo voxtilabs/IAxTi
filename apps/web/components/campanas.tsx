@@ -306,7 +306,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
               ? { etiqueta: 'Ver qué incluye mi plan', href: '/ajustes/facturacion' }
               : { etiqueta: 'Armar la primera', onClick: () => void nueva() }}
           /> : <ul className="space-y-3">{lista.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised p-4">
-            <div className="min-w-0 flex-1"><h2 className="break-words text-lg font-bold text-ink">{c.name}</h2>
+            <div className="min-w-0 flex-1"><h2 className="break-words text-lg font-semibold text-ink">{c.name}</h2>
               <time dateTime={c.createdAt} className="font-mono text-xs text-muted">{new Date(c.createdAt).toLocaleString('es-CL')}</time>
               {/* Quién la lanzó (#697): `created_by` se escribía desde el primer
                   envío y esta lista no lo mostraba. «¿Quién mandó esto a 650
@@ -374,7 +374,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
         {plantilla && <blockquote className="whitespace-pre-wrap break-words rounded-campo border border-line bg-raised p-4 text-body">{plantilla.body}</blockquote>}
         {valores.map((v, i) => <label key={i} className="block text-sm font-medium">Valor de la variable <span className="font-mono">{i + 1}</span><Input required className="mt-1" value={v} onChange={(e) => setValores((vs) => vs.map((anterior, n) => n === i ? e.target.value : anterior))} /></label>)}
         {!!valores.length && <p className="text-sm text-muted">Puedes usar {'{contacto.nombre}'} o {'{contacto.telefono}'} para personalizar cada mensaje.</p>}
-        <fieldset className="space-y-4 rounded-tarjeta border border-line p-4"><legend className="px-2 font-bold text-ink">Destinatarios</legend>
+        <fieldset className="space-y-4 rounded-tarjeta border border-line p-4"><legend className="px-2 font-semibold text-ink">Destinatarios</legend>
           {!!segmentos.length && <label className="block text-sm">Partir de un segmento guardado<Select onValueChange={(valor) => setFiltros(segmentos.find((s) => s.id === valor)?.filters ?? {})}>
             <SelectTrigger className="mt-1 w-full" aria-label="Partir de un segmento guardado"><SelectValue placeholder="Todos los contactos con consentimiento" /></SelectTrigger>
             <SelectContent>{segmentos.map((s) => <SelectItem key={s.id} value={s.id}>
@@ -446,11 +446,11 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
       </Formulario>}
 
       {vista === 'previa' && campana && <section className="space-y-5" aria-label="Vista previa de la campaña">
-        <h2 className="break-words text-xl font-bold text-ink">{campana.name}</h2>
+        <h2 className="break-words text-xl font-semibold text-ink">{campana.name}</h2>
         {previa ? <><p><strong className="font-mono text-xl text-ink">{previa.total}</strong> destinatarios en este momento</p>
-          <h3 className="font-bold text-ink">Muestra de destinatarios</h3><ul className="space-y-2">{previa.muestra.map((p) => <li key={p.id} className="flex flex-wrap gap-x-3 border-b border-line py-2"><span>{p.name ?? 'Contacto sin nombre'}</span><span className="font-mono text-sm text-muted">{p.phone}</span></li>)}</ul></> : <p role="status">Cargando el conteo y la muestra…</p>}
+          <h3 className="font-semibold text-ink">Muestra de destinatarios</h3><ul className="space-y-2">{previa.muestra.map((p) => <li key={p.id} className="flex flex-wrap gap-x-3 border-b border-line py-2"><span>{p.name ?? 'Contacto sin nombre'}</span><span className="font-mono text-sm text-muted">{p.phone}</span></li>)}</ul></> : <p role="status">Cargando el conteo y la muestra…</p>}
         <section aria-label="Calidad del número" className="pulso-panel rounded-tarjeta border border-line bg-raised p-4">
-          <h3 className="font-bold text-ink">Calidad del número antes de enviar</h3>
+          <h3 className="font-semibold text-ink">Calidad del número antes de enviar</h3>
           {canales ? canales.filter((c) => c.kind === 'whatsapp').flatMap((c) => c.numbers).map((n) => <div key={n.id} className="mt-3 flex flex-wrap items-center gap-3"><span className={n.displayPhone ? "font-mono text-sm" : "text-sm"}>{n.displayPhone ?? 'Número sin teléfono visible'}</span><Badge role={CALIDAD[n.quality ?? 'desconocida'].rol}>{CALIDAD[n.quality ?? 'desconocida'].nombre}</Badge></div>) : <p className="mt-2 text-sm text-muted">Calidad pendiente de comprobar.</p>}
         </section>
         {impedimento && <p id="motivo-campana" className="text-sm text-warn-text">{impedimento}</p>}
@@ -460,10 +460,10 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
       </section>}
 
       {vista === 'resultados' && <section className="space-y-4" aria-label="Resultados de la campaña">
-        <h2 className="text-xl font-bold text-ink">Resultados de {resultados?.campana.name ?? campana?.name}</h2>
+        <h2 className="text-xl font-semibold text-ink">Resultados de {resultados?.campana.name ?? campana?.name}</h2>
         {resultados ? <><div className="flex flex-wrap gap-6">{[['Encolados', resultados.porEstado.queued ?? 0], ['Omitidos', resultados.porEstado.skipped ?? 0], ['Fallidos', resultados.porEstado.failed ?? 0]].map(([label, n]) => <p key={label}><span className="block text-sm text-muted">{label}</span><strong className="font-mono text-2xl text-ink">{n}</strong></p>)}</div>
-          <h3 className="font-bold text-ink">Por qué no salieron</h3>{resultados.motivos.length ? <ul className="space-y-2">{resultados.motivos.map((m) => <li key={m.motivo} className="rounded-campo border border-line p-3"><span className="font-mono">{m.n}</span> · {m.motivo}</li>)}</ul> : <p className="text-sm text-muted">No se registran destinatarios omitidos ni fallidos.</p>}
-          <h3 className="font-bold text-ink">Entrega confirmada por el proveedor</h3><dl className="space-y-2">{Object.entries(resultados.entrega).map(([estado, n]) => <div key={estado} className="flex gap-3"><dt>{({ queued: 'En cola', sent: 'Enviados', delivered: 'Entregados', read: 'Leídos', failed: 'Fallidos' } as Record<string, string>)[estado] ?? estado}</dt><dd className="font-mono">{n}</dd></div>)}</dl>
+          <h3 className="font-semibold text-ink">Por qué no salieron</h3>{resultados.motivos.length ? <ul className="space-y-2">{resultados.motivos.map((m) => <li key={m.motivo} className="rounded-campo border border-line p-3"><span className="font-mono">{m.n}</span> · {m.motivo}</li>)}</ul> : <p className="text-sm text-muted">No se registran destinatarios omitidos ni fallidos.</p>}
+          <h3 className="font-semibold text-ink">Entrega confirmada por el proveedor</h3><dl className="space-y-2">{Object.entries(resultados.entrega).map(([estado, n]) => <div key={estado} className="flex gap-3"><dt>{({ queued: 'En cola', sent: 'Enviados', delivered: 'Entregados', read: 'Leídos', failed: 'Fallidos' } as Record<string, string>)[estado] ?? estado}</dt><dd className="font-mono">{n}</dd></div>)}</dl>
           {(() => {
             // En pesos con el dólar de cada día, como reportes (#990/#796).
             // costoMostrable ya sabe decir «sin cambio ese día» y «faltan N

@@ -48,7 +48,7 @@ export const DialogTitle = forwardRef<
   ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(function DialogTitle({ className, ...props }, ref) {
   return (
-    <DialogPrimitive.Title ref={ref} className={cn('font-display text-xl font-bold text-ink', className)} {...props} />
+    <DialogPrimitive.Title ref={ref} className={cn('font-display text-xl font-semibold text-ink', className)} {...props} />
   );
 });
 

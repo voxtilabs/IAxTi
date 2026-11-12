@@ -44,9 +44,19 @@ h1, h2, h3, h4 {
   color: var(--text);
   margin: 0;
 }
-h1 { font-weight: 800; letter-spacing: -0.045em; }
-h2 { font-weight: 700; font-size: 34px; letter-spacing: -0.035em; }
-h3 { font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+/* Pesos y tracking (#1344): la jerarquía la da el tamaño, no el grosor, así
+   que ningún título pasa de 600. El tracking negativo es solo para letra
+   grande; en un h3 de 17 px Outfit se come el espacio entre palabras y se
+   leía «Instagramy Messenger». */
+h1 { font-weight: 600; letter-spacing: -0.03em; }
+/* h2 en 0 y no negativo: casi todos los h2 de la app llevan `text-seccion`
+   (18 px), y esta regla le gana a la de la clase. */
+h2 { font-weight: 600; font-size: 34px; letter-spacing: 0; }
+h3 { font-weight: 600; font-size: 17px; letter-spacing: 0; }
+/* El espacio entre palabras de Outfit es angosto: con tracking 0 «Instagram y
+   Messenger» seguía leyéndose «Instagramy». Solo los títulos chicos lo piden;
+   en el h1 grande el espacio ya se ve. */
+h2, h3, h4 { word-spacing: 0.08em; }
 
 /* La mono es obligatoria en montos, UF, RUT, fechas, plazos e ids (§3). */
 .dato, code, .mono {

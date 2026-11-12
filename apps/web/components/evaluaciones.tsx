@@ -157,7 +157,7 @@ function EvaluacionesDelAsistente({ tenant, asistentes, agente, elegir }: {
     <section aria-label={titulo} aria-busy={recargando} className={marco}>
       <div className="flex flex-wrap items-center gap-2">
         <FlaskConical aria-hidden className="size-4 text-action-text" />
-        <h2 className="font-display text-seccion font-bold text-ink">¿Mejoró o empeoró?</h2>
+        <h2 className="font-display text-seccion font-semibold text-ink">¿Mejoró o empeoró?</h2>
         <span className="ml-auto">
           <SelectorDeAsistente asistentes={asistentes ?? []} elegidoId={agente.id} onElegir={elegir} />
         </span>

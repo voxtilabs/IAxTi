@@ -301,7 +301,7 @@ export function Pagos() {
             {proveedores.map((p) => (
               <li key={p.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-ink">{p.name}</p>
+                  <p className="truncate text-sm font-semibold text-ink">{p.name}</p>
                   <p className="dato text-muted">{p.kind} · {p.credentialRef}</p>
                 </div>
                 <Badge role={p.mode === 'test' ? 'warn' : 'good'}>{p.mode === 'test' ? 'Modo test' : 'Producción'}</Badge>
@@ -328,7 +328,7 @@ export function Pagos() {
                       obligar a abrir Auditoría. */}
                   {l.creadoPor && <QuienLoHizo accion="Generado" quien={l.creadoPor} />}
                 </div>
-                <span className="dato font-bold text-ink">{fmtClp(l.amountClp)}</span>
+                <span className="dato font-semibold text-ink">{fmtClp(l.amountClp)}</span>
                 <Badge role={ESTADO_LINK[l.status].role}>{ESTADO_LINK[l.status].label}</Badge>
                 {/* Cancelar un link emitido (#460). `POST /payments/links/:id/cancel`
                     existe desde #60 y no la llamaba nadie: un link con el

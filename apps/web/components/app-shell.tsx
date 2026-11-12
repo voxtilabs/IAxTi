@@ -26,6 +26,7 @@ import {
   type PublicConfig,
 } from '@iaxti/ui/react';
 import {
+  BookOpen,
   Bot,
   Building2,
   CalendarDays,
@@ -43,7 +44,6 @@ import {
   ScrollText,
   Settings,
   SlidersHorizontal,
-  Sparkles,
   Tag,
   Target,
   Users,
@@ -228,7 +228,7 @@ const ICONOS: Record<string, LucideIcon> = {
   '/ajustes/plantillas': FileText,
   '/ajustes/automatizaciones': Workflow,
   '/ajustes/ia': Bot,
-  '/ajustes/conocimiento': Sparkles,
+  '/ajustes/conocimiento': BookOpen,
   '/ajustes/equipo': Users,
   '/ajustes/roles': KeyRound,
   '/ajustes/api': KeyRound,

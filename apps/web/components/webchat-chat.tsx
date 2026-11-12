@@ -158,7 +158,7 @@ export function WebchatChat({
       <header className="flex items-center gap-3 border-b border-line bg-raised px-4 py-3">
         <MarcaJelly className="!w-10" />
         <div>
-        <p className="font-display font-bold text-ink">Conversemos</p>
+        <p className="font-display font-semibold text-ink">Conversemos</p>
         <p className="text-xs text-muted">Te respondemos por aquí</p>
         </div>
       </header>
@@ -209,7 +209,7 @@ export function WebchatChat({
       <form onSubmit={enviar} className="flex items-end gap-2 border-t border-line p-3">
         <Textarea
           aria-label="Tu mensaje"
-          placeholder="Escribe aquí…"
+          placeholder="Escribe aquí"
           rows={1}
           className="max-h-28 text-sm"
           value={texto}

@@ -335,7 +335,7 @@ export function FichaContacto({
       {!compacta && (
         <>
           <p className="rotulo">Contacto</p>
-          <h2 className="mt-1 text-2xl font-bold text-ink">{contact.name ?? 'Sin nombre aún'}</h2>
+          <h2 className="mt-1 text-2xl font-semibold text-ink">{contact.name ?? 'Sin nombre aún'}</h2>
         </>
       )}
 
@@ -632,7 +632,7 @@ export function FichaContacto({
           </Select>
           <Input
             aria-label="Título de la actividad"
-            placeholder="Nueva actividad…"
+            placeholder="Nueva actividad"
             className="h-9 min-w-40 flex-1 text-sm"
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}

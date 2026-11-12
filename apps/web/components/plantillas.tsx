@@ -139,7 +139,7 @@ export function Plantillas() {
       )}
 
       <Formulario id="nueva-plantilla" onSubmit={crear} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
-        <h2 className="text-base font-bold text-ink">
+        <h2 className="text-base font-semibold text-ink">
           {editando ? 'Corregir la plantilla' : 'Nueva plantilla'}
         </h2>
 

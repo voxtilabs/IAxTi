@@ -102,7 +102,7 @@ export function Ficha({
       <div className="flex items-center gap-3">
         <Avatar nombre={detalle.contactName} />
         <div className="min-w-0">
-          <p className="truncate font-display font-bold text-ink">
+          <p className="truncate font-display font-semibold text-ink">
             {nombreVisible({ name: detalle.contactName, phone: detalle.contactPhone, channel: detalle.channel })}
           </p>
           {/* Igual que la cabecera del chat (#1120), y por la misma regla, que
@@ -201,7 +201,7 @@ export function Ficha({
         >
           <Textarea
             aria-label="Nota interna"
-            placeholder="Nota para el equipo (con @menciones)…"
+            placeholder="Nota para el equipo (con @menciones)"
             rows={2}
             value={nota}
             onChange={(e) => setNota(e.target.value)}

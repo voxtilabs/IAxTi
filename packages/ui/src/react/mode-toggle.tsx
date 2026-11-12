@@ -30,7 +30,7 @@ export function ModeToggle() {
        * Era el único control de la barra que no se acortaba, así que a 360 px
        * «Modo noche» se partía en dos líneas — lo único de esa pantalla que
        * envolvía, y encima el texto más largo de la barra. Mismo patrón que
-       * «Buscar o ir a…», que ya se acorta a «Buscar».
+       * «Buscar o ir a», que ya se acorta a «Buscar».
        *
        * El `aria-label` del botón NO cambia: un icono sin nombre es peor que
        * un texto largo, y acá quien usa lector de pantalla oye lo mismo en

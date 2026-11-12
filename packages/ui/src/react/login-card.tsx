@@ -94,7 +94,7 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
         <button
           type="submit"
           disabled={codigo.length !== 6 || verificando}
-          className="h-control rounded-boton bg-action px-8 font-display text-base font-bold text-white hover:bg-action-hover disabled:opacity-50"
+          className="h-control rounded-boton bg-action px-8 font-display text-base font-semibold text-white hover:bg-action-hover disabled:opacity-50"
         >
           {verificando ? 'Entrando…' : 'Entrar'}
         </button>
@@ -135,7 +135,7 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
 
       <button
         type="submit"
-        className="h-control rounded-boton bg-action px-8 font-display text-base font-bold text-white hover:bg-action-hover"
+        className="h-control rounded-boton bg-action px-8 font-display text-base font-semibold text-white hover:bg-action-hover"
       >
         Enviarme el acceso
       </button>

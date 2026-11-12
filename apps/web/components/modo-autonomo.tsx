@@ -357,7 +357,7 @@ export function ModoAutonomo() {
                   key={d}
                   type="button"
                   aria-pressed={dias.includes(i)}
-                  className={`h-8 w-8 rounded-boton border text-xs font-bold ${
+                  className={`h-8 w-8 rounded-boton border text-xs font-semibold ${
                     dias.includes(i)
                       ? 'border-action bg-action-soft text-action-text'
                       : 'border-line bg-bg text-faint'

@@ -62,7 +62,7 @@ describe('el borrador no se pierde (#560)', () => {
     const onResponder = vi.fn(async () => false);
     render(<Chat {...props(onResponder)} />);
 
-    const campo = screen.getByPlaceholderText('Escribe tu respuesta…');
+    const campo = screen.getByPlaceholderText('Escribe tu respuesta');
     await usuario.type(campo, 'Hola Rosa, te confirmo la hora');
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }));
 
@@ -75,7 +75,7 @@ describe('el borrador no se pierde (#560)', () => {
     const usuario = userEvent.setup();
     render(<Chat {...props(vi.fn(async () => true))} />);
 
-    const campo = screen.getByPlaceholderText('Escribe tu respuesta…');
+    const campo = screen.getByPlaceholderText('Escribe tu respuesta');
     await usuario.type(campo, 'Listo, te espero');
     await usuario.click(screen.getByRole('button', { name: 'Enviar' }));
 
@@ -90,7 +90,7 @@ describe('el borrador no se pierde (#560)', () => {
     const onResponder = vi.fn(() => new Promise<boolean>((r) => { resolver = r; }));
     render(<Chat {...props(onResponder)} />);
 
-    const campo = screen.getByPlaceholderText('Escribe tu respuesta…');
+    const campo = screen.getByPlaceholderText('Escribe tu respuesta');
     const enviar = screen.getByRole('button', { name: 'Enviar' });
     await usuario.type(campo, 'lo primero');
     await usuario.click(enviar);

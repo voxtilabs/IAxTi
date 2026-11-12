@@ -153,7 +153,7 @@ export function WebhooksSalientes() {
               <li key={w.id} className="border-t border-line py-3 first:border-t-0">
                 <div className="flex items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="dato truncate text-sm font-bold text-ink">{w.url}</p>
+                    <p className="dato truncate text-sm font-semibold text-ink">{w.url}</p>
                     <p className="dato text-muted">{w.events.join(' · ')}</p>
                     <p className="dato mt-1 break-all text-xs text-faint">firma: {w.secret}</p>
                     {w.disabledReason && (

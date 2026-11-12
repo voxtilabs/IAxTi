@@ -39,7 +39,7 @@ test('en escritorio abre con la primera conversación puesta', async ({ page }) 
   // El hilo de verdad, no solo el resaltado en la lista.
   await expect(page.getByText(/me pueden ayudar con una/).nth(1)).toBeVisible({ timeout: 15_000 });
   // Y el compositor, que es lo que dice «acá se contesta».
-  await expect(page.getByPlaceholder('Escribe tu respuesta…')).toBeVisible();
+  await expect(page.getByPlaceholder('Escribe tu respuesta')).toBeVisible();
 });
 
 test('en celular NO: ahí la lista es la pantalla', async ({ page }) => {
@@ -48,8 +48,8 @@ test('en celular NO: ahí la lista es la pantalla', async ({ page }) => {
   // Si abriera sola, el compositor estaría puesto y la lista escondida: quien
   // entra quedaría adentro de una conversación que no pidió, con el botón de
   // volver como única salida.
-  await expect(page.getByPlaceholder('Escribe tu respuesta…')).toHaveCount(0);
-  await expect(page.getByPlaceholder('Buscar en mensajes y notas…')).toBeVisible();
+  await expect(page.getByPlaceholder('Escribe tu respuesta')).toHaveCount(0);
+  await expect(page.getByPlaceholder('Buscar en mensajes y notas')).toBeVisible();
 });
 
 test('el panel vacío no enseña atajos de teclado', async ({ page }) => {

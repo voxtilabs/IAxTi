@@ -193,7 +193,7 @@ export function Equipo() {
       )}
 
       <Formulario onSubmit={invitar} className="flex flex-col gap-4 pulso-panel rounded-tarjeta border border-line bg-raised p-5">
-        <h2 className="text-base font-bold text-ink">Invitar a alguien</h2>
+        <h2 className="text-base font-semibold text-ink">Invitar a alguien</h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm font-medium text-ink">
             Su correo
@@ -227,7 +227,7 @@ export function Equipo() {
       </Formulario>
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-base font-bold text-ink">Con acceso ({datos.miembros.length})</h2>
+        <h2 className="text-base font-semibold text-ink">Con acceso ({datos.miembros.length})</h2>
         <ul className="flex flex-col gap-2">
           {datos.miembros.map((m) => (
             <li
@@ -280,7 +280,7 @@ export function Equipo() {
 
       {datos.invitaciones.length > 0 && (
         <div className="flex flex-col gap-3">
-          <h2 className="text-base font-bold text-ink">Invitaciones sin usar</h2>
+          <h2 className="text-base font-semibold text-ink">Invitaciones sin usar</h2>
           <ul className="flex flex-col gap-2">
             {datos.invitaciones.map((i) => (
               <li

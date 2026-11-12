@@ -245,7 +245,7 @@ function ConfiguradorDelNegocio({ tenant }: { tenant: string }) {
                       <Badge role={item.accion === 'crear' ? 'good' : item.accion === 'proponer' ? 'action' : 'neutral'}>
                         {item.accion === 'crear' ? 'Nuevo' : item.accion === 'proponer' ? 'Para aprobar' : 'Ya lo tienes'}
                       </Badge>
-                      <span className="font-bold text-ink">{TIPO_LABEL[item.tipo] ?? item.tipo}: {item.nombre}</span>
+                      <span className="font-semibold text-ink">{TIPO_LABEL[item.tipo] ?? item.tipo}: {item.nombre}</span>
                     </span>
                     <span className="mt-0.5 block text-muted">{item.detalle}</span>
                   </li>

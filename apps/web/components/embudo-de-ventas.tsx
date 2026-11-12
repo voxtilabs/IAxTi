@@ -76,7 +76,7 @@ export function EmbudoDeVentas({ from, to }: { from: string; to: string }) {
     aria-label="Embudo de ventas">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="font-display text-seccion font-bold text-ink">Dónde se queda la gente</h2>
+        <h2 className="font-display text-seccion font-semibold text-ink">Dónde se queda la gente</h2>
         <p className="mt-1 max-w-prose text-sm text-muted">
           {datos?.definiciones.cohorte ??
             'Sigue a las oportunidades creadas en el período hasta hoy, etapa por etapa.'}

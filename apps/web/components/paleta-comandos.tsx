@@ -57,12 +57,12 @@ export function PaletaComandos({ nav }: { nav: Array<{ path: string; label: stri
   const go = (path: string) => { setOpen(false); router.push(path); };
   const normal = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return <Dialog open={open} onOpenChange={setOpen}>
-    <DialogTrigger asChild><Button variant="fantasma" aria-label="Buscar o ir a…" aria-keyshortcuts="Control+k Meta+k"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar o ir a…</span></Button></DialogTrigger>
+    <DialogTrigger asChild><Button variant="fantasma" aria-label="Buscar o ir a" aria-keyshortcuts="Control+k Meta+k"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar o ir a</span></Button></DialogTrigger>
     <DialogContent className="pulso-entrada">
       <DialogTitle>Buscar o ir a una pantalla</DialogTitle>
       <DialogDescription>Ctrl+K o ⌘K abre la paleta. Usa las flechas para elegir y Enter para abrir.</DialogDescription>
       <Command shouldFilter={false} label="Buscar pantallas, contactos o conversaciones" loop>
-        <CommandInput aria-label="Buscar pantallas, contactos o conversaciones" placeholder="Nombre, teléfono o texto de un mensaje…" value={q} onValueChange={setQ} />
+        <CommandInput aria-label="Buscar pantallas, contactos o conversaciones" placeholder="Nombre, teléfono o texto de un mensaje" value={q} onValueChange={setQ} />
         <CommandList aria-label="Destinos y resultados">
           {loading && <p role="status" className="p-3 text-dato text-muted">Buscando…</p>}
           {error && <AvisoResultado persistente>{error}</AvisoResultado>}

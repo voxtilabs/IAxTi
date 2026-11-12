@@ -409,7 +409,7 @@ export function Conocimiento() {
               return (
               <li key={f.id} className="flex items-center gap-3 border-t border-line py-2.5 first:border-t-0">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-ink">{f.name}</p>
+                  <p className="truncate text-sm font-semibold text-ink">{f.name}</p>
                   <p className="dato text-muted">
                     {KIND_LABEL[f.kind]}
                     {f.chunkCount !== undefined && f.chunkCount > 0 && ` · ${f.chunkCount} pasajes`}
@@ -495,7 +495,7 @@ export function Conocimiento() {
               {productos.map((p) => (
                 <li key={`${p.sku ?? p.name}`} className="rounded-campo border border-line bg-bg p-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-sm font-bold text-ink">{p.name}</span>
+                    <span className="text-sm font-semibold text-ink">{p.name}</span>
                     <span className="dato text-ink">
                       {p.price === null ? 'sin precio' : fmtClp(p.price)}
                     </span>

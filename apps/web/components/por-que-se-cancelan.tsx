@@ -47,7 +47,7 @@ export function PorQueSeCancelan() {
     aria-label="Por qué se cancelan las horas"
     className="pulso-panel rounded-tarjeta border border-line bg-raised p-5"
   >
-    <h2 className="font-display text-seccion font-bold text-ink">Por qué se caen las horas</h2>
+    <h2 className="font-display text-seccion font-semibold text-ink">Por qué se caen las horas</h2>
     <p className="mt-1 max-w-prose text-sm text-muted">
       De las <span className="dato">{datos.total}</span>{' '}
       {datos.total === 1 ? 'hora cancelada' : 'horas canceladas'} en los últimos 90 días.
