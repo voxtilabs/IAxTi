@@ -105,7 +105,8 @@ describe('API base', () => {
     // se afirma es que el ARCHIVO real viajó (su encabezado y sus variables),
     // no sus valores.
     expect(html).toContain('--scalar-background-1: var(--bg)');
-    expect(html).toContain('Tokens del sistema Pulso');
+    // El encabezado del archivo de tokens (Mesón desde ADR-0034).
+    expect(html).toContain('Tokens de IAxTi');
     expect(html).toContain('--bg:');
     // Sin internet se DICE, con la salida a mano: el contrato sigue en json.
     expect(html).toContain('/docs-json');
