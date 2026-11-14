@@ -78,7 +78,7 @@ function Conexiones({ onConectado }: { onConectado: (cuenta: Cuenta) => void }) 
   // #1343—, el vacío envuelve en 3 líneas y mide 249,97. Con un piso de 256
   // los cuatro estados quedan iguales por construcción, envuelva lo que
   // envuelva, y el aire de más en escritorio son 16 px.
-  return <section className="mt-6 min-h-[22.25rem] rounded-tarjeta border border-line bg-raised p-4 sm:min-h-60 md:min-h-64" aria-label="Conectar Instagram y Messenger" aria-busy={enCurso !== null || carga.estado === 'cargando'}>
+  return <section className="mt-6 min-h-[22.25rem] rounded-tarjeta border border-line bg-raised p-4 sm:min-h-60 md:min-h-[15.75rem]" aria-label="Conectar Instagram y Messenger" aria-busy={enCurso !== null || carga.estado === 'cargando'}>
     <h2 className="text-lg font-semibold text-ink">Instagram y Messenger</h2>
     {carga.estado === 'cargando' || carga.estado === 'nada-que-pedir' ? <div className="mt-4 space-y-3" role="status" aria-label="Buscando conexiones"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-20 w-full" /></div> : null}
     <AvisoDeCarga carga={carga} onReintentar={reintentar} sinPermiso="Necesitas permiso para administrar canales y activar estas conexiones." />

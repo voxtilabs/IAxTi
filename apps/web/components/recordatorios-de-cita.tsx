@@ -88,7 +88,7 @@ export function RecordatoriosDeCita() {
   if (carga.estado === 'cargando') {
     // 431 px MEDIDOS (el panel con una plantilla elegida mide 505). A ojo:
     // 152. Las tres barras son los dos Select y su explicación.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={411} filas={3} />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={380} filas={3} />;
   }
   if (carga.estado !== 'ok' || datos === null) {
     /**

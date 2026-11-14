@@ -143,7 +143,7 @@ export function DiasCerrados() {
      * volver a medir — a ojo le había puesto 332 la primera vez, casi 400 px
      * de salto, que en un celular es media pantalla moviéndose de golpe.
      */
-    return <PanelCargando etiqueta={titulo} className={marco} alto={691} filas={2} superficie="raised" />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={630} filas={2} superficie="raised" />;
   }
   if (carga.estado !== 'ok') {
     return (

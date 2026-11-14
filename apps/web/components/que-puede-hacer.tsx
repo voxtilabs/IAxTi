@@ -102,7 +102,7 @@ function DelAsistente({
      * está dentro de la tolerancia de 16 px en los dos entornos. Perseguir la
      * medida local deja CI rojo.
      */
-    return <PanelCargando etiqueta={titulo} className={marco} alto={646} filas={6} superficie="raised" />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={554} filas={6} superficie="raised" />;
   }
   if (carga.estado !== 'ok') {
     return (

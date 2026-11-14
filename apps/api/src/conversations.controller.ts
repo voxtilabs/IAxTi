@@ -293,7 +293,7 @@ export class ConversationsController {
     // respuesta y ofrecía plantillas, para un canal donde no hay plantillas.
     //
     // `cierraA` va aparte del booleano porque la etiqueta de «menos de 2 h»
-    // (ui-pulso.md) tiene que salir del MISMO dato y no de una tercera cuenta.
+    // (ui-meson.md) tiene que salir del MISMO dato y no de una tercera cuenta.
     return {
       ...detail,
       ventanaAbierta: isWithinWindow(detail.channel, detail.lastInboundAt),

@@ -87,14 +87,15 @@ module.exports = {
       },
       // Radios de Pulso (§4): botón 999 · campo 14 · tarjeta 22 · bloque 28.
       borderRadius: {
-        boton: '999px',
-        campo: '14px',
-        tarjeta: '22px',
-        bloque: '28px',
+        // Mesón (ADR-0034): control 8, tarjeta 12, panel 16. Nada es píldora.
+        boton: '8px',
+        campo: '8px',
+        tarjeta: '12px',
+        bloque: '16px',
       },
       // Escala de espaciado (§4): 8 · 16 · 24 · 32 · 48 · 64 · 96.
       spacing: {
-        control: '46px', // alto mínimo de control
+        control: '40px', // alto mínimo de control (Mesón; 44 en el celular, ver pulso-base)
         'fila-x': 'var(--fila-x)',
         'fila-y': 'var(--fila-y)',
         'fila-gap': 'var(--fila-gap)',
@@ -103,15 +104,15 @@ module.exports = {
         // El tracking va con el TAMAÑO y no con la etiqueta (#1344): un <h2> de
         // 18 px heredaba el -0,02 em del h2 de 34 px y Outfit se comía el
         // espacio entre palabras.
-        titulo: ['clamp(1.75rem, 2.6vw, 2.4rem)', { lineHeight: '1.2', fontWeight: '600', letterSpacing: '-0.03em' }],
-        seccion: ['1.125rem', { lineHeight: '1.4', fontWeight: '600', letterSpacing: '0' }],
-        cuerpo: ['1rem', { lineHeight: '1.6' }],
-        dato: ['0.875rem', { lineHeight: '1.4' }],
+        titulo: ['clamp(1.5rem, 2vw, 1.75rem)', { lineHeight: '1.2', fontWeight: '500', letterSpacing: '-0.01em' }],
+        seccion: ['1rem', { lineHeight: '1.4', fontWeight: '500', letterSpacing: '0' }],
+        cuerpo: ['0.9375rem', { lineHeight: '1.55' }],
+        dato: ['0.8125rem', { lineHeight: '1.45' }],
         rotulo: ['0.75rem', { lineHeight: '1.4' }],
       },
       fontFamily: {
-        display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Instrument Sans', 'system-ui', 'sans-serif'],
+        sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       maxWidth: {

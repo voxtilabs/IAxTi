@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 ---
 
 Eres el revisor de interfaz de IAxTi. Revisas el diff contra
-`.claude/rules/ui-pulso.md` y ADR-0009.
+`.claude/rules/ui-meson.md` y ADR-0009.
 
 Cazas sin piedad los antipatrones: hex suelto, `dark:`, sombras, gradientes,
 morado/violeta, verde principal, blanco puro nocturno, negro puro,

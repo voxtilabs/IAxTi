@@ -1,224 +1,171 @@
 /*
- * Tokens del sistema Pulso de VoxTi Labs (v1.1) y su evolución Pulso Vivo
- * para IAxTi (ADR-0021/0022, #404/#408). Este es el ÚNICO archivo
- * del repo donde puede existir un hex; un test lo hace cumplir.
- * Ningún componente sabe en qué modo está: pide tokens, el modo decide.
+ * Tokens de IAxTi — dirección «Mesón» (ADR-0034, reemplaza a Pulso Vivo de
+ * ADR-0021). Este sigue siendo el ÚNICO archivo del repo donde puede existir
+ * un hex; un test lo hace cumplir. Ningún componente sabe en qué modo está.
  *
- * ---------------------------------------------------------------------------
- * La paleta es Pulso 1.1 LITERAL (#706)
- * ---------------------------------------------------------------------------
- * Los valores del sistema —superficies, texto, acción, estados— son los del
- * README canónico de `voxtilabs/branding`, y los mismos que corren en VOXIA 2.
- * Antes eran una paleta cian/hielo propia, y no era una decisión de marca: era
- * una desviación.
+ * El mundo es el mesón de una pyme: la libreta de pedidos, las boletas, el
+ * celular al lado y el lápiz pasta azul con que se anota todo. De ahí salen
+ * tres cosas:
  *
- * Lo que la delata no es el gusto. Los archivos de marca de IAxTi —en
- * `voxtilabs/IAxTi-Branding`— YA estaban dibujados contra los valores
- * canónicos: `iaxti-tokens.svg` pide `var(--text, #12141C)`,
- * `var(--text-muted, #6E7488)` y `var(--action, #3D5AFE)` como respaldo. El
- * lockup va inline y toma los tokens de la página, así que con la paleta
- * anterior se dibujaba con colores que su propio archivo no esperaba — y eso
- * no se ve como un bug, se ve como un logo mal puesto.
+ *  - El MARCO es gris casi neutro con un toque cálido apenas visible. La gente
+ *    mira estas superficies horas; el color lo pone el contenido.
+ *  - El ACENTO es el azul de VoxTi, `#3D5AFE`, el del isotipo, igual en los dos
+ *    modos (decisión de Lino, 14-11-2026: «debes usar los colores de
+ *    voxtilabs»). Marca el botón principal, la selección y lo que importa; no
+ *    decora. Como tinta se oscurece de día (`#3349E8`) y se aclara de noche.
+ *  - El PAPEL (`--paper*`) es la superficie de la boleta del asistente: el
+ *    único momento cálido de la pantalla.
  *
- * Tres decisiones que tomé acá, para que no queden implícitas:
+ * Los nombres viejos se quedan porque los piden las pantallas; lo que cambia es
+ * el valor. Lo que Pulso Vivo pintaba —ambiente degradado, relieves, sombras
+ * azules del botón— queda TRANSPARENTE o en una sombra neutra chica, así que
+ * desaparece sin tocar cada componente. Retirar esos nombres es un cambio
+ * mecánico aparte.
  *
- * 1. `--canvas`, `--panel`, `--chrome` y `--hero-surface` COLAPSAN sobre las
- *    tres superficies del sistema. Pulso dice que hay tres —`--bg`,
- *    `--bg-raised`, `--bg-rest`— y que una cuarta significa que se está
- *    anidando de más; acá había seis. Los nombres se quedan porque los piden 62
- *    pantallas, pero ya no aportan un color nuevo: son alias, y sacarlos es un
- *    cambio mecánico aparte.
+ * Superficies: `--bg` página, `--bg-raised` tarjeta (más clara de día, un
+ * escalón más de noche), `--bg-rest` fila activa/campo/burbuja propia,
+ * `--chrome` la barra lateral (un escalón hundido). Todos los pares de texto,
+ * foco y borde de campo los mide `tests/contraste.test.ts`.
  *
- * 2. Los `--jelly-*` y `--brand-warm` SE QUEDAN, intactos. Son los colores del
- *    isotipo, que es jelly y translúcido, y pertenecen a la marca y no a la
- *    interfaz. Es justamente la distinción que Pulso hace: el isotipo es la
- *    única excepción a «el azul no decora».
- *
- * 3. `--focus` sigue siendo su propio token (ADR-0022) y no un alias de
- *    `--action`. La razón de ADR-0022 no cambió con la paleta: el relleno de
- *    acción y el anillo de foco tienen trabajos distintos. Lo que cambió es su
- *    valor, ahora derivado de la paleta canónica.
- *
- * Los tintes de sombra y de ambiente estaban derivados de la tinta azul
- * anterior (`rgb(25 49 98)`) y del cian de marca. Ahora salen de la tinta del
- * sistema (`#12141C`) y del azul de acción, como en VOXIA 2.
- *
- * El ambiente queda en UN SOLO TONO. Antes eran dos —cian y ámbar— y era la
- * diferencia más visible contra VOXIA 2, que usa el azul de acción muy abierto
- * y nada más. Los tokens `--ambient-warm*` siguen existiendo porque las
- * pantallas los piden, pero ya no traen un segundo tono: una sola luz se lee
- * como profundidad, dos se leen como un degradado decorativo, que es
- * justamente lo que la sección 10 no quiere.
- *
- * ---------------------------------------------------------------------------
- * Dos valores que NO son los canónicos, y por qué
- * ---------------------------------------------------------------------------
- * «Literal» se respeta hasta donde no rompa AA, que no es negociable —lo dice
- * la sección 9 de Pulso y lo exige ADR-0022—. Medido, no estimado:
- *
- *   --text-muted  #6E7488  sobre --bg        4,65  pasa
- *                          sobre --bg-raised 4,38  NO pasa
- *                          sobre --bg-rest   3,83  NO pasa
- *   blanco sobre  --bad    #E23D5C           4,15  NO pasa
- *
- * La tabla de contrastes de Pulso 1.1 dice «texto secundario sobre fondo
- * 5,3:1», y es cierta: mide sobre el FONDO DE PÁGINA. Sobre la tarjeta y sobre
- * la zona de descanso —donde vive la mayor parte del texto secundario de este
- * producto, porque la bandeja y las tablas son superficies elevadas— cae bajo
- * 4,5.
- *
- * Y lo mismo pasa en otros cinco. Todas las correcciones, con su medida antes y
- * después, mismo tono y misma saturación en cada caso:
- *
- *   DÍA
- *   --text-muted    #6E7488 → #63687A   raised 4,38 → 5,22 · rest 3,83 → 4,56
- *   --bad           #E23D5C → #D9304F   blanco encima 4,15 → 4,68
- *   --border-strong #CBD0DE → #838FB0   sobre el campo 1,54 → 3,22
- *   --text-faint    #A3A9BC → #6B7593   placeholder 2,34 → 4,57
- *
- *   NOCHE
- *   --border-strong #333A52 → #58648E   sobre el campo 1,66 → 3,22
- *   --text-faint    #5A6178 → #777F99   placeholder 3,03 → 4,68
- *   --action-hover  #5570FF → #4663FF   blanco encima 4,08 → 4,68
- *
- * El borde de campo y el placeholder son el caso más claro de por qué existe
- * ADR-0022. Un borde a 1,54 sobre su fondo no es un borde tenue: es un campo que
- * no se ve, y WCAG 1.4.11 pide 3:1 para el límite de un control. No es una
- * preferencia estética que se pueda ceder por parecerse más.
- *
- * `#D9304F` no es un invento: es el valor que la PROPIA especificación usa en
- * modo noche, con el comentario «bajado para que el blanco encima pase AA». La
- * corrección es usarlo también de día.
- *
- * Todo lo demás es idéntico al canónico. Si mañana Pulso 1.1 corrige estos dos,
- * este bloque se borra y los valores vuelven solos.
+ * Hecho con la skill unslop de Damir Sokolovsky (@heydamir), CC BY 4.0.
  */
 
 /* Modo día */
 :root, [data-mode="dia"] {
-  --bg:#FFFFFF;            /* fondo de página */
-  --bg-raised:#F7F8FD;     /* tarjetas, tablas, superficies elevadas */
-  --bg-rest:#E6E9F2;       /* zona de descanso, cifras, estado "antes" */
-  --border:#E6E9F2;        /* filete estándar */
-  --border-strong:#838FB0; /* borde legible de campo y botón secundario — ver nota */
+  --bg:#FAF9F7;            /* fondo de página */
+  --bg-raised:#FFFFFF;     /* tarjetas, tablas */
+  --bg-rest:#F2F0EC;       /* fila activa, campo apagado, burbuja propia */
+  --border:#E7E4DF;        /* filete: el texto al 8 % */
+  --border-strong:#8E877D; /* límite de campo y botón secundario (3:1) */
 
-  --text:#12141C;          /* titulares y datos */
-  --text-body:#414759;     /* texto corrido */
-  --text-muted:#63687A;    /* secundario, metadatos, rótulos — ver nota de contraste */
-  --text-faint:#6B7593;    /* deshabilitado, placeholder — ver nota */
+  --text:#1C1A17;
+  --text-body:#4F4A43;
+  --text-muted:#6B655D;
+  --text-faint:#6E685F;    /* placeholder */
 
-  --focus:#3D5AFE;        /* foco: contraste independiente del relleno */
-  --action:#3D5AFE;        /* relleno de botón primario */
-  --action-hover:#2739D6;
-  --action-text:#2739D6;   /* enlaces y texto azul */
-  --action-soft:#EEF1FF;   /* fondo de aviso y etiqueta */
-  --action-soft-br:#DDE2FF;
+  --focus:#3349E8;
+  --action:#3D5AFE;        /* azul VoxTi: relleno del botón principal */
+  --action-hover:#3349E8;
+  --action-text:#3349E8;   /* el mismo azul como tinta */
+  --action-soft:#ECEFFF;
+  --action-soft-br:#D9DFFF;
 
-  --warn:#FFA51F;          /* ámbar de energía y atención */
-  --warn-text:#96560A;
-  --warn-soft:#FFF6E6;
-  --warn-soft-br:#FFDFA8;
+  --warn:#E89B2C;
+  --warn-text:#93530A;
+  --warn-soft:#FBF0DC;
+  --warn-soft-br:#F2DDB4;
 
-  --good-text:#0F7A52;
-  --good-soft:#E7FAF3;
-  --good-soft-br:#C6F0DF;
+  --good-text:#1D7342;
+  --good-soft:#E6F5EC;
+  --good-soft-br:#C5E6D2;
 
-  --bad:#D9304F;           /* relleno destructivo con texto blanco AA */
-  --bad-text:#A6203C;
-  --bad-soft:#FFEEF1;
-  --bad-soft-br:#FCD6DE;
+  --bad:#C42B2B;
+  --bad-text:#B42323;
+  --bad-soft:#FCEBEA;
+  --bad-soft-br:#F4CFCC;
 
   --field-bg:#FFFFFF;
 
-  /* Pulso Vivo: material, profundidad y ambiente; nunca colores locales. */
-  --canvas:#FFFFFF;
-  --panel:#F7F8FD;
-  --chrome:#FFFFFF;
-  --hero-surface:#F7F8FD;
+  --paper:#FBF5EA;         /* la boleta del asistente */
+  --paper-ink:#2A241C;
+  --paper-muted:#6E6455;
+
+  /* Alias que piden las pantallas; ya no traen color propio. */
+  --canvas:#FAF9F7;
+  --panel:#FFFFFF;
+  --chrome:#F5F3EF;
+  --hero-surface:#FFFFFF;
   --on-action:#FFFFFF;
-  --overlay:rgb(11 13 20 / .45);  /* fondo de diálogo (Pulso 1.1) */
-  --shade:#DCE0EE;               /* relieve: la cara en sombra */
-  --highlight:#FFFFFF;           /* relieve: la cara iluminada */
+  --overlay:rgb(28 26 23 / .40);
+  --shade:#E7E4DF;
+  --highlight:#FFFFFF;
+  /* Isotipo jelly: es de la MARCA, se queda intacto. */
   --brand-warm:#FFAB5E;
   --jelly-ice:#C4FAFF;
   --jelly-sky:#24D0E7;
   --jelly-deep:#1C60E8;
   --jelly-shadow:#1549A3;
   --jelly-glint:#F2FEFF;
-  --surface-glint:rgb(255 255 255 / .95);
-  --ambient-cool:rgb(61 90 254 / .12);
-  --ambient-warm:rgb(61 90 254 / .05);
-  --ambient-cool-strong:rgb(61 90 254 / .20);
-  --ambient-warm-strong:rgb(61 90 254 / .09);
-  --elevacion-panel:0 3px 5px -3px rgb(18 20 28 / .04), 0 14px 38px -24px rgb(18 20 28 / .18);
-  --elevacion-acceso:0 2px 2px rgb(18 20 28 / .02), 0 24px 70px -30px rgb(18 20 28 / .25), inset 0 1px 0 var(--surface-glint);
-  --relieve-suave:0 2px 4px rgb(18 20 28 / .05), inset 0 1px 0 var(--surface-glint);
-  --relieve-marca:5px 5px 14px rgb(18 20 28 / .13), -5px -5px 14px var(--surface-glint);
-  --campo-interior:inset 0 2px 3px rgb(18 20 28 / .025);
-  --elevacion-accion:0 5px 12px -5px rgb(61 90 254 / .38), inset 0 1px 0 rgb(255 255 255 / .18);
-  --elevacion-accion-hover:0 7px 18px -5px rgb(61 90 254 / .46), inset 0 1px 0 rgb(255 255 255 / .18);
+  --surface-glint:rgb(255 255 255 / 0);
+  /* El ambiente de Pulso Vivo se apaga: transparente. */
+  --ambient-cool:rgb(0 0 0 / 0);
+  --ambient-warm:rgb(0 0 0 / 0);
+  --ambient-cool-strong:rgb(0 0 0 / 0);
+  --ambient-warm-strong:rgb(0 0 0 / 0);
+  /* Profundidad neutra y chica; nada de sombras de color. */
+  --elevacion-panel:0 1px 2px rgb(28 26 23 / .06);
+  --elevacion-acceso:0 8px 24px rgb(28 26 23 / .08);
+  --relieve-suave:0 1px 2px rgb(28 26 23 / .06);
+  --relieve-marca:none;
+  --campo-interior:none;
+  --elevacion-accion:none;
+  --elevacion-accion-hover:none;
 }
 
 /* Modo noche */
 [data-mode="noche"] {
-  --bg:#0B0D14;
-  --bg-raised:#141826;
-  --bg-rest:#1D2233;
-  --border:#262C40;
-  --border-strong:#58648E;
+  --bg:#161513;
+  --bg-raised:#1C1A18;
+  --bg-rest:#262421;
+  --border:#2B2926;
+  --border-strong:#6F695F;
 
-  --text:#EDEFF7;          /* nunca blanco puro: produce halo */
-  --text-body:#B9C0D4;
-  --text-muted:#8189A0;
-  --text-faint:#777F99;
+  --text:#EFE9DE;          /* nunca blanco puro: produce halo */
+  --text-body:#B5AEA3;
+  --text-muted:#958F85;
+  --text-faint:#958F85;
 
-  --focus:#93A2FF;        /* foco: contraste independiente del relleno */
+  --focus:#8C9BFF;
   --action:#3D5AFE;        /* idéntico al día */
-  --action-hover:#4663FF;
-  --action-text:#93A2FF;   /* recalibrado para leerse sobre oscuro */
-  --action-soft:#171E3D;
-  --action-soft-br:#2A3566;
+  --action-hover:#3550F0;
+  --action-text:#8C9BFF;   /* el azul aclarado para leerse sobre oscuro */
+  --action-soft:#1A1D33;
+  --action-soft-br:#2C3366;
 
-  --warn:#FFB84D;          /* subido para contraste */
-  --warn-text:#FFB84D;
-  --warn-soft:#2A2012;
+  --warn:#F0B357;
+  --warn-text:#F0B357;
+  --warn-soft:#2A2214;
   --warn-soft-br:#4A3A1C;
 
-  --good-text:#4FD9A0;
-  --good-soft:#10281F;
-  --good-soft-br:#1E4536;
+  --good-text:#5CC48D;
+  --good-soft:#13241A;
+  --good-soft-br:#1E3D2A;
 
-  --bad:#D9304F;           /* bajado para que el blanco encima pase AA */
-  --bad-text:#FF8098;
-  --bad-soft:#2A141B;
-  --bad-soft-br:#4D2130;
+  --bad:#C42B2B;
+  --bad-text:#F07171;
+  --bad-soft:#2A1515;
+  --bad-soft-br:#4D2323;
 
-  --field-bg:#0F1220;      /* más oscuro que la tarjeta, no igual */
+  --field-bg:#12110F;      /* más hondo que la tarjeta, no igual */
 
-  --canvas:#0B0D14;
-  --panel:#141826;
-  --chrome:#0B0D14;
-  --hero-surface:#141826;
+  --paper:#24201A;
+  --paper-ink:#EDE3D2;
+  --paper-muted:#A69B88;
+
+  --canvas:#161513;
+  --panel:#1C1A18;
+  --chrome:#12110F;
+  --hero-surface:#1C1A18;
   --on-action:#FFFFFF;
-  --overlay:rgb(11 13 20 / .45);
-  --shade:#090B12;
-  --highlight:#20263A;
+  --overlay:rgb(0 0 0 / .55);
+  --shade:#0F0E0C;
+  --highlight:#262421;
   --brand-warm:#FFB66F;
   --jelly-ice:#C4FAFF;
   --jelly-sky:#24D0E7;
   --jelly-deep:#1C60E8;
   --jelly-shadow:#1549A3;
   --jelly-glint:#F2FEFF;
-  --surface-glint:rgb(237 239 247 / .10);
-  --ambient-cool:rgb(61 90 254 / .10);
-  --ambient-warm:rgb(61 90 254 / .04);
-  --ambient-cool-strong:rgb(61 90 254 / .16);
-  --ambient-warm-strong:rgb(61 90 254 / .06);
-  --elevacion-panel:0 3px 5px -3px rgb(0 12 28 / .12), 0 16px 40px -24px rgb(0 12 28 / .34);
-  --elevacion-acceso:0 2px 2px rgb(0 12 28 / .10), 0 24px 70px -30px rgb(0 12 28 / .48), inset 0 1px 0 var(--surface-glint);
-  --relieve-suave:0 2px 4px rgb(0 12 28 / .15), inset 0 1px 0 var(--surface-glint);
-  --relieve-marca:5px 5px 14px rgb(0 12 28 / .32), -5px -5px 14px rgb(237 239 247 / .05);
-  --campo-interior:inset 0 2px 3px rgb(0 12 28 / .10);
-  --elevacion-accion:0 5px 14px -5px rgb(40 83 235 / .36), inset 0 1px 0 rgb(255 255 255 / .18);
-  --elevacion-accion-hover:0 7px 20px -5px rgb(40 83 235 / .46), inset 0 1px 0 rgb(255 255 255 / .18);
+  --surface-glint:rgb(255 255 255 / 0);
+  --ambient-cool:rgb(0 0 0 / 0);
+  --ambient-warm:rgb(0 0 0 / 0);
+  --ambient-cool-strong:rgb(0 0 0 / 0);
+  --ambient-warm-strong:rgb(0 0 0 / 0);
+  --elevacion-panel:none;
+  --elevacion-acceso:0 8px 24px rgb(0 0 0 / .35);
+  --relieve-suave:none;
+  --relieve-marca:none;
+  --campo-interior:none;
+  --elevacion-accion:none;
+  --elevacion-accion-hover:none;
 }

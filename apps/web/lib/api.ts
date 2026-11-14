@@ -283,7 +283,7 @@ export function ventanaAbierta(detalle: {
 }
 
 /**
- * La etiqueta de la ventana de 24 h (#1085), que `ui-pulso.md` pide así:
+ * La etiqueta de la ventana de 24 h (#1085), que `ui-meson.md` pide así:
  * «etiqueta `warn` a < 2 h y `bad` cerrada».
  *
  * La regla estaba declarada, la API calculaba `cierraA` PARA ESTO —su

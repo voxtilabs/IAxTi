@@ -129,7 +129,7 @@ export function HorariosDeAtencion() {
     // existe para que la página NO salte cuando llega el contenido, así que
     // su alto es una medición, no una preferencia — `esqueletos-medidos`
     // compara los dos y falla si se separan más de 16 px.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={820} filas={5} superficie="raised" />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={780} filas={5} superficie="raised" />;
   }
   if (carga.estado !== 'ok') {
     // El 403 lleva frase acá, y es el único de los cinco paneles que la lleva:

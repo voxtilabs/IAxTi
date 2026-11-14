@@ -1217,7 +1217,7 @@ No escribas código de producto.
 7. ¿Toda tool nueva pasa por el guard con la identidad del usuario y no borra?
 8. ¿Respeta ventana de 24 h, horario de silencio y consentimiento?
 9. ¿La IA puede inventar precio, stock, plazo o compromiso con este cambio?
-10. ¿Algún hex suelto, efecto fuera de Pulso Vivo (ADR-0021) o emoji en la interfaz?
+10. ¿Algún hex suelto, sombra/degradado propio, segundo acento o emoji en la interfaz (ADR-0034)?
 11. ¿Se ve bien en día y noche, a 360 px, con el foco visible, montos en mono?
 12. ¿Algún secret, token o URL interna en el diff?
 13. ¿El ADR existe si la decisión es importante? ¿La matriz de compliance está al día?
