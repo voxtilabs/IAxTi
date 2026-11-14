@@ -37,8 +37,69 @@ test.beforeEach(async ({ page }) => {
     },
     ['sb-127-auth-token', JSON.stringify(sesion)] as const,
   );
-  await comoAdmin(page, auth);
   mkdirSync(evidencias, { recursive: true });
+});
+
+/**
+ * La bandeja CON una conversación abierta (fase 2 de #1346).
+ *
+ * Va en el negocio de la bandeja (`tenantId`), que es el que tiene
+ * conversaciones; el de tablas abre vacío y la captura no mostraría ni las
+ * filas, ni las burbujas, ni la boleta. La lectura de la IA no viene en el
+ * seed, así que se le agrega a la respuesta REAL de `/arranque/ficha` —todo lo
+ * demás pasa tal cual—: lo que se prueba es cómo la pinta la ficha.
+ */
+for (const modo of ['dia', 'noche'] as const) {
+  test(`la bandeja con una conversación abierta, modo ${modo}: filas, burbujas y la boleta`, async ({ page }) => {
+    await page.addInitScript((m) => localStorage.setItem('pulso-mode', m), modo);
+    await page.route('**/v1/conversations/*/arranque/ficha', async (route) => {
+      const real = await route.fetch();
+      const cuerpo = await real.json();
+      const hace = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+      cuerpo.analisis = {
+        estado: 'ok',
+        dato: {
+          mode: 'autonomous',
+          summary: 'Pregunta por stock en talla 40 y quiere pasar a retirar el viernes.',
+          intent: 'compra',
+          leadScore: 'caliente',
+          suggestDeal: false,
+          marcaManual: null,
+          acciones: [
+            { at: hace(9), que: 'Respondió stock', estado: 'enviada', feedback: null },
+            { at: hace(6), que: 'Agendó la visita', estado: 'confirmada', feedback: 'up' },
+            { at: hace(5), que: 'Envió link de pago', estado: 'enviada', feedback: null },
+          ],
+        },
+      };
+      await route.fulfill({ response: real, json: cuerpo });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/bandeja');
+    await page.waitForLoadState('networkidle');
+    await page.locator('.pulso-conversation').first().click();
+    const boleta = page.getByRole('group', { name: 'Lo que hizo el asistente' });
+    await expect(boleta).toBeVisible();
+    await expect(boleta.locator('li')).toHaveCount(3);
+    await expect(boleta.getByText('Piloto automático')).toBeVisible();
+    // La boleta es papel, no tarjeta: su fondo es el token `--paper`.
+    const papel = await boleta.evaluate((n) => ({
+      fondo: getComputedStyle(n).backgroundColor,
+      token: getComputedStyle(document.documentElement).getPropertyValue('--paper').trim(),
+    }));
+    expect(papel.token, 'falta el token --paper').not.toBe('');
+    // La activa no se pinta de azul (ADR-0034).
+    const activa = await page.locator('.pulso-conversation[aria-current="true"]').evaluate((n) => getComputedStyle(n).backgroundColor);
+    expect(activa).not.toBe('rgb(61, 90, 254)');
+    // La boleta vive abajo en la ficha: se trae a la vista para la captura.
+    await boleta.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(evidencias, `bandeja-abierta-${modo}.png`) });
+  });
+}
+
+test.describe('las pantallas de trabajo', () => {
+test.beforeEach(async ({ page }) => {
+  await comoAdmin(page, auth);
 });
 
 for (const modo of ['dia', 'noche'] as const) {
@@ -99,3 +160,4 @@ for (const modo of ['dia', 'noche'] as const) {
     await page.screenshot({ path: join(evidencias, `bandeja-celular-${modo}.png`) });
   });
 }
+});

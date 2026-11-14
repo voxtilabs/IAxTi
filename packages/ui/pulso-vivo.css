@@ -197,8 +197,10 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-inbox-list h1 { font-size: 28px; }
 .pulso-inbox-list [role="tab"] { padding-inline: 10px; }
 .pulso-inbox-list ul { gap: 4px; padding: 6px; }
-.pulso-conversation { border-radius: 15px; border: 1px solid transparent; padding-block: calc(var(--fila-y) - 1px); }
-.pulso-conversation[aria-current="true"] { background: var(--action-soft); border-color: var(--action-soft-br); box-shadow: inset 3px 0 0 var(--action); }
+.pulso-conversation { border-radius: 10px; border: 1px solid transparent; padding-block: calc(var(--fila-y) - 1px); }
+/* La activa es la tarjeta con su filete, sin azul (Mesón, #1346): el azul
+   queda para lo no leído y la acción. */
+.pulso-conversation[aria-current="true"] { background: var(--bg-raised); border-color: var(--border); box-shadow: var(--elevacion-panel); }
 .pulso-chat { background: var(--bg); }
 .pulso-chat header { background: var(--panel); }
 .pulso-chat-contact { flex-basis: 140px; }
@@ -388,3 +390,11 @@ body { background: var(--canvas); font-size: 15px; }
 /* Vacío dentro de otra tarjeta (#1344): el relleno lo da la de afuera. Va al
    final para ganarle a los 32/24 px de `.pulso-empty`, incluido el del móvil. */
 .pulso-empty[data-sin-marco="true"] { padding: 0; margin-top: 8px; }
+
+/* La boleta del asistente (Mesón, #1346): papel con el borde de abajo dentado,
+   como una boleta cortada. Es una MÁSCARA, no un dibujo: no agrega color. */
+.boleta {
+  padding-bottom: 26px;
+  -webkit-mask: radial-gradient(6px at 50% 100%, transparent 98%, black) 50% 100% / 12px 100% repeat-x;
+          mask: radial-gradient(6px at 50% 100%, transparent 98%, black) 50% 100% / 12px 100% repeat-x;
+}
