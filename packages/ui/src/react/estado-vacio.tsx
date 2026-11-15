@@ -2,7 +2,6 @@
 
 import { Button } from './ui/button';
 import { cn } from './ui/cn';
-import { MarcaJelly } from './marca-jelly';
 
 type Accion = { etiqueta: string; href: string; onClick?: never } | { etiqueta: string; onClick: () => void; href?: never };
 
@@ -36,21 +35,12 @@ export function EstadoVacio({ titulo, descripcion, accion, pideleAIAxTi, documen
   className?: string;
 }) {
   return <section aria-label={titulo} data-compact={compacto} data-sin-marco={sinMarco || undefined} className={cn('pulso-empty', sinMarco ? undefined : 'pulso-panel rounded-tarjeta border border-line bg-raised', compacto ? 'p-4' : 'p-6', className)}>
-    {/* El isotipo solo cuando el vacío ES la pantalla (#1159).
-
-        `compacto` ya quiere decir «esto es un panel, no la pantalla», así que
-        la regla no necesita una prop nueva: necesita usar la que hay.
-
-        Lo que lo hizo evidente fue `/ajustes/canales`, donde el isotipo
-        aparecía TRES veces en un scroll —dos a 82 px y uno a 45— porque la
-        pantalla tiene tres paneles que pueden estar vacíos a la vez. La misma
-        marca repetida en la misma pantalla, y en dos tamaños, se lee como
-        relleno; y una pantalla con tres paneles no está vacía.
-
-        Cuando sí lo está —`/empresas`, `/campanas`, `/ajustes/etiquetas`— el
-        isotipo es lo único que hay y le da identidad a un callejón. Ahí se
-        queda. */}
-    {!compacto && <MarcaJelly />}
+    {/* Sin isotipo (Mesón, ADR-0034, #1346). Antes iba cuando el vacío ERA
+        la pantalla (#1159): el jelly girado a 82 px le daba identidad a un
+        callejón. En Mesón el jelly es lo único brillante del MARCO —la barra,
+        el acceso, la portada— y adentro del trabajo se leía como adorno: lo
+        que le da salida a un vacío es decir qué va a aparecer y la acción,
+        y eso ya está abajo. */}
     <div className="min-w-0">
     {/* Sin marco va bajo el título de otra tarjeta: con su misma letra se leían
         dos títulos seguidos (#1344), así que baja a letra de texto. */}

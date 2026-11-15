@@ -14,6 +14,10 @@ import { join } from 'node:path';
  * pantalla, no para un panel vacío dentro de una pantalla con contenido. Eso
  * ya tenía nombre —`compacto`— y lo que faltaba era usarlo.
  *
+ * Mesón (ADR-0034, #1346) fue un paso más: el jelly es del MARCO —barra,
+ * acceso, portada— y ningún vacío lo trae. En estas rutas el contenido tiene
+ * CERO isotipos; si vuelve uno, volvió el adorno.
+ *
  * Se cuenta sobre la pantalla renderizada y no leyendo el código porque el
  * defecto no está en ningún archivo: está en que tres componentes correctos
  * coinciden en una ruta. Ninguna guarda de fuente lo ve.
@@ -24,7 +28,7 @@ const RUTAS = ['/ajustes/canales', '/ajustes/ia/detalle', '/ajustes/conocimiento
   '/campanas', '/empresas', '/contactos', '/oportunidades', '/pendientes', '/reportes',
   '/ajustes/etiquetas', '/ajustes/campos', '/ajustes/plantillas', '/ajustes/automatizaciones'];
 
-test('ninguna pantalla muestra el isotipo más de una vez', async ({ page }) => {
+test('ninguna pantalla de trabajo muestra el isotipo en el contenido', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.addInitScript((a) => {
     localStorage.setItem('iaxti-tenant', a.tableTenantId);
@@ -43,13 +47,12 @@ test('ninguna pantalla muestra el isotipo más de una vez', async ({ page }) => 
     // Solo el contenido: el isotipo de la barra lateral es la identidad del
     // producto y está en todas las pantallas a propósito.
     const cuantos = await page.locator('main .pulso-jelly').count();
-    if (cuantos > 1) repetidas.push(`${ruta}: ${cuantos} veces`);
+    if (cuantos > 0) repetidas.push(`${ruta}: ${cuantos} veces`);
   }
 
   expect(
     repetidas,
-    'El isotipo se repite. Un estado vacío que es un PANEL dentro de una ' +
-      'pantalla con contenido va con `compacto`, y así no lo trae; el isotipo ' +
-      'es para cuando el vacío es la pantalla entera.',
+    'El isotipo apareció dentro del contenido. En Mesón es del marco (barra, ' +
+      'acceso, portada); un estado vacío dice qué va a aparecer y la acción.',
   ).toEqual([]);
 });

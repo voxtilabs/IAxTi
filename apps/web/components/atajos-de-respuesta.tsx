@@ -139,7 +139,9 @@ export function AtajosDeRespuesta() {
           </span>
         </label>
         <span>
-          <Button type="submit" disabled={creando}>
+          {/* Secundario: va bajo «Guardar» de la bandeja, que es el primario de
+              /ajustes/bandeja (Mesón, #1346). */}
+          <Button type="submit" variant="secundario" disabled={creando}>
             {creando ? 'Guardando…' : 'Guardar atajo'}
           </Button>
         </span>

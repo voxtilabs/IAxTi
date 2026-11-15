@@ -173,7 +173,8 @@ export function RetencionDelNegocio() {
             En blanco vuelve a lo que da el plan.
           </span>
         </label>
-        <Button type="submit" disabled={guardando}>
+        {/* Secundario por lo mismo que los atajos (Mesón, #1346). */}
+        <Button type="submit" variant="secundario" disabled={guardando}>
           {guardando ? 'Guardando…' : 'Guardar'}
         </Button>
       </form>

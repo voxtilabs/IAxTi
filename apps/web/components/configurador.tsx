@@ -204,7 +204,7 @@ function ConfiguradorDelNegocio({ tenant }: { tenant: string }) {
             aria-label="Descripción del negocio"
             className="mt-3"
             rows={3}
-            placeholder="Ej: Somos una barbería en Ñuñoa, 3 barberos, atendemos con y sin reserva…"
+            placeholder="Ej: Somos una barbería en Ñuñoa, 3 barberos, atendemos con y sin reserva"
             value={descripcion}
             onChange={(e) => { editado.current = true; setDescripcion(e.target.value); }}
           />
