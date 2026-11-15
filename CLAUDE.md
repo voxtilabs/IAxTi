@@ -45,12 +45,13 @@ async update(@Tenant() tenant, @Actor() actor, @Param('id') id, dto) { ... }
 
 ## Interfaz
 
-Sistema Pulso (`.claude/rules/ui-pulso.md`): tokens en `packages/ui`, modo
-día/noche por `data-mode`, sin `dark:`, sin hex suelto ni emoji. Pulso Vivo (ADR-0021) permite material jelly,
-relieves y gradientes ambientales solo desde tokens y la capa compartida; mono para montos/RUT/fechas/ids, un primario por vista,
-360 px, foco visible. Verificar con `/ui-check`.
+Dirección **Mesón** (`.claude/rules/ui-meson.md`, ADR-0034; reemplaza a
+Pulso/Pulso Vivo): tokens en `packages/ui`, modo día/noche por `data-mode`, sin
+`dark:`, sin hex suelto ni emoji. Marco gris quieto, un acento (el azul de
+VoxTi), Instrument Sans + JetBrains Mono para montos/RUT/fechas/ids, un
+primario por vista, 360 px, foco visible. Verificar con `/ui-check`.
 
-Pulso son TOKENS; shadcn son los COMPONENTES, y leen variables CSS: no
+Los tokens son TOKENS; shadcn son los COMPONENTES, y leen variables CSS: no
 compiten, se enchufan. Antes de tocar una pantalla, las skills del repo:
 `iaxti-pulso` (cómo se aplica acá), `shadcn-ui` (traer y configurar
 componentes) y `tailwind-design-system` (el nivel de sistema). Las dos

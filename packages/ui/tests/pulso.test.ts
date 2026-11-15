@@ -143,7 +143,7 @@ describe('lo que la guarda ignora sale de .gitignore (#1087)', () => {
   });
 });
 
-describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', () => {
+describe('sistema de tokens de IAxTi (Mesón, ADR-0034; foco de ADR-0022)', () => {
   const [dia, noche] = tokensCss.split('[data-mode="noche"]');
 
   it('día y noche definen exactamente el mismo set de tokens', () => {
@@ -166,19 +166,21 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
    * La referencia vive en `voxtilabs/IAxTi-Branding/pulso/tokens.css`, y es la
    * misma que corre en VOXIA 2.
    */
-  it('aplica la paleta canónica de Pulso 1.1', () => {
-    // El azul de acción es idéntico en los dos modos (§1).
+  it('aplica la paleta Mesón con el azul de VoxTi (ADR-0034)', () => {
+    // El acento es el azul del isotipo de VoxTi, idéntico en los dos modos:
+    // decisión de marca de Lino (14-11-2026), no un gusto del sistema.
     expect([...tokensCss.matchAll(/--action:#3D5AFE/g)]).toHaveLength(2);
-    // Las superficies del sistema, literales.
-    expect(dia).toContain('--bg:#FFFFFF');
-    expect(dia).toContain('--bg-raised:#F7F8FD');
-    expect(dia).toContain('--text:#12141C');
-    expect(noche).toContain('--bg:#0B0D14');
-    expect(noche).toContain('--bg-raised:#141826');
-    // action-text se recalibra por modo (§1): un azul oscuro sobre fondo negro
-    // no se lee, y uno saturado como texto vibra.
-    expect(dia).toContain('--action-text:#2739D6');
-    expect(noche).toContain('--action-text:#93A2FF');
+    // Las superficies del mesón, literales: grises casi neutros con un toque
+    // cálido. Si alguien vuelve a teñirlas de azul, esto se cae.
+    expect(dia).toContain('--bg:#FAF9F7');
+    expect(dia).toContain('--bg-raised:#FFFFFF');
+    expect(dia).toContain('--text:#1C1A17');
+    expect(noche).toContain('--bg:#161513');
+    expect(noche).toContain('--bg-raised:#1C1A18');
+    // El azul como TINTA se recalibra por modo: más hondo de día, más claro de
+    // noche, para leerse sin vibrar.
+    expect(dia).toContain('--action-text:#3349E8');
+    expect(noche).toContain('--action-text:#8C9BFF');
     // Ni blanco puro de texto nocturno ni negro puro de fondo (§10).
     expect(noche).not.toMatch(/--text:#FFFFFF/i);
     expect(noche).not.toMatch(/--bg:#000000/i);
@@ -194,12 +196,14 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
    * color nuevo. Si alguien vuelve a darles uno propio, esto se cae.
    */
   it('las superficies de más no inventan un color nuevo', () => {
-    for (const [bloque, nombre, base, elevada] of [
-      [dia, 'día', '#FFFFFF', '#F7F8FD'],
-      [noche, 'noche', '#0B0D14', '#141826'],
+    // `--chrome` es la única que se separa, y a propósito: en Mesón la barra
+    // lateral es un escalón hundido respecto de la página (ADR-0034).
+    for (const [bloque, nombre, base, elevada, hundida] of [
+      [dia, 'día', '#FAF9F7', '#FFFFFF', '#F5F3EF'],
+      [noche, 'noche', '#161513', '#1C1A18', '#12110F'],
     ] as const) {
       expect(bloque, `${nombre}: --canvas`).toContain(`--canvas:${base}`);
-      expect(bloque, `${nombre}: --chrome`).toContain(`--chrome:${base}`);
+      expect(bloque, `${nombre}: --chrome`).toContain(`--chrome:${hundida}`);
       expect(bloque, `${nombre}: --panel`).toContain(`--panel:${elevada}`);
       expect(bloque, `${nombre}: --hero-surface`).toContain(`--hero-surface:${elevada}`);
     }
@@ -369,7 +373,8 @@ describe('sistema Pulso (branding v1.1 y evolución de IAxTi, ADR-0021/0022)', (
       expect(colors, `falta el color "${key}" del documento §11`).toHaveProperty(key);
     }
     expect(preset.theme.extend.borderRadius).toEqual({
-      boton: '999px', campo: '14px', tarjeta: '22px', bloque: '28px',
+      // Mesón (ADR-0034): control 8, tarjeta 12, panel 16. Nada es píldora.
+      boton: '8px', campo: '8px', tarjeta: '12px', bloque: '16px',
     });
   });
 });

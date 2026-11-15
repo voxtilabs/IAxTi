@@ -123,7 +123,7 @@ function EvaluacionesDelAsistente({ tenant, asistentes, agente, elegir }: {
   if (asistentes === null || carga.estado === 'cargando') {
     // 336 px MEDIDOS (el panel con dos corridas mide 410). A ojo: 168, la
     // mitad.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={336} filas={3} />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={241} filas={3} />;
   }
   // Sin asistente no hay evaluaciones de nadie, y eso no es un error.
   if (carga.estado === 'nada-que-pedir' || !agente) return null;

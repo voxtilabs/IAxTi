@@ -1,6 +1,6 @@
 # ADR 0021 · Pulso Vivo: identidad y profundidad para IAxTi
 
-**Estado:** aceptada por instrucción del usuario · 2026-09-21 · #404
+**Estado:** reemplazada por [ADR-0034](0034-meson-la-interfaz-de-trabajo.md) · 2026-11-14 · decisión original aceptada por instrucción del usuario · 2026-09-21 · #404
 
 ## Contexto
 

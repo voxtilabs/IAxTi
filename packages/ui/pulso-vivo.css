@@ -34,7 +34,8 @@ body { background: var(--canvas); font-size: 15px; }
 
 /* Barra existente de shadcn: mismos estados, accesos y comportamiento móvil. */
 [data-sidebar="sidebar"] { background: var(--chrome); border-color: var(--border); }
-.pulso-workspace [data-variant="floating"] [data-sidebar="sidebar"] { border-radius: 24px; box-shadow: var(--elevacion-panel); }
+/* Mesón: la barra va pegada al borde, un escalón hundido, sin flotar. */
+.pulso-workspace [data-variant="sidebar"] [data-sidebar="sidebar"] { border-right: 1px solid var(--border); }
 /* El presupuesto vertical de la barra (#1108).
    Medido a 1440x900 con cinco grupos y once entradas: el contenido pedia 729 px
    y veia 567, asi que «CONFIGURACION (3)» quedaba cortado por la mitad contra
@@ -74,17 +75,22 @@ body { background: var(--canvas); font-size: 15px; }
    «AJUSTES (4)» a 10 px, así que el presupuesto de #1108 no empeora. */
 [data-sidebar="group-label"] { height: 26px; padding-inline: 12px; font-size: 12px; font-weight: 500; color: var(--text-muted); }
 [data-sidebar="menu"] { gap: 4px; }
-[data-sidebar="menu-button"] { min-height: 42px; border-radius: 13px; padding-inline: 12px; color: var(--text-body); font-size: 13px; transition: background-color 160ms, color 160ms; }
-[data-sidebar="menu-button"] > svg { width: 18px; height: 18px; stroke-width: 1.7; }
+[data-sidebar="menu-button"] { min-height: 36px; border-radius: 8px; padding-inline: 12px; color: var(--text-body); font-size: 13px; transition: background-color 160ms, color 160ms; }
+[data-sidebar="menu-button"] > svg { width: 16px; height: 16px; stroke-width: 1.5; color: var(--text-muted); }
 /* Activo = fondo suave y texto de acción, nada más (#1344). Antes lo marcaban
    cuatro cosas a la vez —fondo, raya, relieve y peso— y el hover usaba el
    mismo fondo, así que pasar el mouse parecía elegir. */
-[data-sidebar="menu-button"]:hover { background: var(--bg-raised); color: var(--text); }
-[data-sidebar="menu-button"][data-active="true"] { color: var(--action-text); background: var(--action-soft); }
+/* Activo = la tarjeta sobre la barra hundida, con su filete; el icono lleva
+   el azul. El texto queda en tinta: el acento marca, no pinta (ADR-0034). */
+[data-sidebar="menu-button"]:hover { background: var(--bg-rest); color: var(--text); }
+[data-sidebar="menu-button"][data-active="true"] { color: var(--text); background: var(--bg-raised); box-shadow: inset 0 0 0 1px var(--border), var(--elevacion-panel); }
+[data-sidebar="menu-button"][data-active="true"] > svg { color: var(--action-text); }
+/* En celular la barra es una hoja que se toca con el dedo. */
+@media (max-width: 767px) { [data-sidebar="menu-button"] { min-height: 44px; } }
 [data-sidebar="footer"] { padding: 10px 14px; gap: 8px; }
 .pulso-brand { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; }
-.pulso-brand .pulso-jelly { width: 43px; }
-.pulso-brand-name { font: 800 31px/1 'Outfit', sans-serif; letter-spacing: -.055em; }
+.pulso-brand .pulso-jelly { width: 30px; }
+.pulso-brand-name { font: 600 17px/1 'Instrument Sans', sans-serif; letter-spacing: -.01em; }
 .pulso-brand-caption { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
 .marca-pie svg { height: 21px; width: auto; max-width: 100%; }
 .group[data-collapsible="icon"] [data-sidebar="header"] { padding: 16px 8px; }

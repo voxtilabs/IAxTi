@@ -6,9 +6,11 @@
 body {
   background: var(--bg);
   color: var(--text-body);
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 16px;
-  line-height: 1.65;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  /* Mesón: 14/21 es la letra de una app de trabajo, no la de un folleto. */
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
   margin: 0;
 }
 
@@ -27,7 +29,7 @@ body {
   --elevacion-flotante: 0 10px 28px -6px rgb(0 0 0 / 0.55);
 }
 
-/* Densidad de filas (#297). Los controles mantienen un mínimo de 46 px. */
+/* Densidad de filas (#297). Los controles: 40 px de escritorio, 44 en celular. */
 :root, [data-densidad="comoda"] {
   --fila-x: 1rem;
   --fila-y: 0.875rem;
@@ -40,23 +42,16 @@ body {
 }
 
 h1, h2, h3, h4 {
-  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
   color: var(--text);
   margin: 0;
 }
-/* Pesos y tracking (#1344): la jerarquía la da el tamaño, no el grosor, así
-   que ningún título pasa de 600. El tracking negativo es solo para letra
-   grande; en un h3 de 17 px Outfit se come el espacio entre palabras y se
-   leía «Instagramy Messenger». */
-h1 { font-weight: 600; letter-spacing: -0.03em; }
-/* h2 en 0 y no negativo: casi todos los h2 de la app llevan `text-seccion`
-   (18 px), y esta regla le gana a la de la clase. */
-h2 { font-weight: 600; font-size: 34px; letter-spacing: 0; }
-h3 { font-weight: 600; font-size: 17px; letter-spacing: 0; }
-/* El espacio entre palabras de Outfit es angosto: con tracking 0 «Instagram y
-   Messenger» seguía leyéndose «Instagramy». Solo los títulos chicos lo piden;
-   en el h1 grande el espacio ya se ve. */
-h2, h3, h4 { word-spacing: 0.08em; }
+/* Mesón (ADR-0034): una sola familia, Instrument Sans, y la jerarquía por
+   tamaño y color. Los títulos van en 500; el tracking negativo solo en letra
+   grande (#1344). */
+h1 { font-weight: 500; letter-spacing: -0.01em; }
+h2 { font-weight: 500; font-size: 28px; letter-spacing: 0; }
+h3 { font-weight: 500; font-size: 16px; letter-spacing: 0; }
 
 /* La mono es obligatoria en montos, UF, RUT, fechas, plazos e ids (§3). */
 .dato, code, .mono {

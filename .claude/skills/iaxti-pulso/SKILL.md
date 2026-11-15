@@ -5,7 +5,7 @@ description: Aplicar el sistema de diseño Pulso en IAxTi. Usar al crear o modif
 
 # Pulso en IAxTi
 
-Regla completa en `.claude/rules/ui-pulso.md` y ADR-0009. Esta skill es el
+Regla completa en `.claude/rules/ui-meson.md` y ADR-0009. Esta skill es el
 "cómo se hace".
 
 ## Setup (ya decidido, no reabrir)

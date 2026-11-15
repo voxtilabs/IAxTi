@@ -521,7 +521,7 @@ function Barra({ nav, candados }: { nav: NavItem[]; candados: Set<string> }) {
   });
 
   return (
-    <Sidebar collapsible="icon" variant="floating">
+    <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
         {/* Plegada, conserva el isotipo como acceso al inicio y oculta
             el nombre y el selector para no desbordar los iconos. */}

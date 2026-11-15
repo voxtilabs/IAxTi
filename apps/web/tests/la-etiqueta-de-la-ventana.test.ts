@@ -4,7 +4,7 @@ import { etiquetaDeLaVentana } from '../lib/api';
 /**
  * La etiqueta de la ventana de 24 h (#1085).
  *
- * `ui-pulso.md` la declaraba —«etiqueta `warn` a < 2 h y `bad` cerrada»—, la
+ * `ui-meson.md` la declaraba —«etiqueta `warn` a < 2 h y `bad` cerrada»—, la
  * API calculaba `cierraA` PARA ELLA (su comentario lo dice) y ningún
  * componente leía el campo. El operador veía dos estados, «puedo escribir» y
  * «no puedo», y nunca cuánto le quedaba.

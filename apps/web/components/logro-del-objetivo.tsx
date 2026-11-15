@@ -127,7 +127,7 @@ export function LogroDelObjetivo() {
     // 522 px MEDIDOS (el panel con objetivo y tasas mide 596). A ojo le había
     // puesto 136: un cuarto. Las cuatro barras son el porcentaje, las dos
     // tasas y el detalle plegado.
-    return <PanelCargando etiqueta={titulo} className={marco} alto={522} filas={4} />;
+    return <PanelCargando etiqueta={titulo} className={marco} alto={438} filas={4} />;
   }
   if (carga.estado === 'nada-que-pedir' || !agente) return null;
   if (carga.estado !== 'ok' || tasa === null) {
