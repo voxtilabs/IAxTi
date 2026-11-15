@@ -222,7 +222,7 @@ function CifrasDelEmbudo({
     <div className="hidden shrink-0 gap-3 px-6 pb-4 sm:grid sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <section aria-label="En juego" className="rounded-tarjeta border border-line bg-raised p-4">
         <p className="text-dato text-muted">En juego</p>
-        <p className="mt-2 font-mono text-[28px] leading-none tabular-nums text-ink">{fmtClp(enJuego)}</p>
+        <p className="mt-2 font-mono text-titulo leading-none tabular-nums text-ink">{fmtClp(enJuego)}</p>
         {enJuego > 0 && (
           <div className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded" aria-hidden>
             {abiertas.filter((e) => resumen[e.id].totalClp > 0).map((e, i) => (
@@ -238,7 +238,7 @@ function CifrasDelEmbudo({
       </section>
       <section aria-label="Ganado" className="rounded-tarjeta border border-line bg-raised p-4">
         <p className="text-dato text-muted">Ganado</p>
-        <p className="mt-2 font-mono text-[28px] leading-none tabular-nums text-good-text">{fmtClp(ganado)}</p>
+        <p className="mt-2 font-mono text-titulo leading-none tabular-nums text-good-text">{fmtClp(ganado)}</p>
       </section>
     </div>
   );
