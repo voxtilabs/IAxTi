@@ -154,13 +154,15 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
             ya ofrece como acción. Exportar queda detrás, en secundario:
             Excel primero, que es lo que la gente quiere cuando dice
             «exportar», y el CSV al lado para quien lo lleva a otro sistema. */}
-        <div className="ml-auto flex items-center gap-2">
+        {/* A 360 px los tres con ícono suman 380 px y no caben en 328: el
+            ícono es de escritorio y la fila puede bajar a dos líneas (#1346). */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <Button
             variant="secundario"
             disabled={exportando || items?.length === 0}
             onClick={() => void exportarXlsx()}
           >
-            <Download className="size-4" aria-hidden />{exportando ? 'Armando el archivo…' : 'Exportar Excel'}
+            <Download className="hidden size-4 sm:block" aria-hidden />{exportando ? 'Armando el archivo…' : 'Exportar Excel'}
           </Button>
           {/* «Exportar CSV» y no «CSV» (#1118). El peso fantasma es la
               decisión de #1106 y se queda —es la exportación menos usada—,
@@ -179,7 +181,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
             href="/contactos/importar"
             className="inline-flex min-h-control items-center gap-2 rounded-boton bg-action px-4 text-sm font-medium text-white transition-colors hover:bg-action-hover"
           >
-            <Upload className="size-4" aria-hidden />Importar CSV
+            <Upload className="hidden size-4 sm:block" aria-hidden />Importar CSV
           </a>
         </div>
       </div>
