@@ -113,6 +113,22 @@ for (const modo of ['dia', 'noche'] as const) {
     ['empresas', '/empresas'],
     ['ajustes-ia', '/ajustes/ia'],
     ['ajustes-equipo', '/ajustes/equipo'],
+    ['reportes', '/reportes'],
+    ['campanas', '/campanas'],
+    ['ajustes-plantillas', '/ajustes/plantillas'],
+    ['ajustes-embudos', '/ajustes/embudos'],
+    ['ajustes-etiquetas', '/ajustes/etiquetas'],
+    ['ajustes-pagos', '/ajustes/pagos'],
+    ['ajustes-facturacion', '/ajustes/facturacion'],
+    ['ajustes-campos', '/ajustes/campos'],
+    ['ajustes-roles', '/ajustes/roles'],
+    ['ajustes-notificaciones', '/ajustes/notificaciones'],
+    ['ajustes-webhooks', '/ajustes/webhooks'],
+    ['ajustes-api', '/ajustes/api'],
+    ['ajustes-auditoria', '/ajustes/auditoria'],
+    ['ajustes-automatizaciones', '/ajustes/automatizaciones'],
+    ['ajustes-conocimiento', '/ajustes/conocimiento'],
+    ['ajustes-bandeja', '/ajustes/bandeja'],
   ] as const) {
     test(`${ruta}, modo ${modo}: Mesón pintado`, async ({ page }) => {
       await page.addInitScript((m) => localStorage.setItem('pulso-mode', m), modo);

@@ -141,9 +141,7 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-step-heading { display: flex; gap: 14px; align-items: flex-start; min-width: 0; }
 .pulso-step-number { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-raised); color: var(--action-text); font: 12px 'JetBrains Mono', monospace; box-shadow: var(--relieve-suave); }
 .pulso-empty { position: relative; overflow: hidden; }
-.pulso-empty:not([data-compact="true"]) { display: grid; grid-template-columns: 82px 1fr; align-items: center; gap: 22px; padding: 32px; }
-.pulso-empty .pulso-jelly { width: 82px; transform: rotate(-8deg); }
-.pulso-empty[data-compact="true"] .pulso-jelly { width: 45px; margin-bottom: 12px; }
+.pulso-empty:not([data-compact="true"]) { padding: 32px; }
 
 /* Acceso: identidad IAxTi y el formulario OTP existente, sin cambiar auth. */
 .pulso-access { min-height: 100svh; padding: 20px; background: var(--canvas); }
@@ -229,8 +227,7 @@ body { background: var(--canvas); font-size: 15px; }
   .pulso-hero { gap: 12px; padding: 24px 20px; border-radius: 16px; }
   .pulso-hero .pulso-jelly { width: 76px; align-self: flex-start; }
   .pulso-hero h1 { font-size: 28px; }
-  .pulso-empty:not([data-compact="true"]) { grid-template-columns: 1fr; gap: 16px; padding: 24px; }
-  .pulso-empty .pulso-jelly { width: 62px; }
+  .pulso-empty:not([data-compact="true"]) { padding: 24px; }
   .pulso-access { padding: 10px; }
   .pulso-access-stage { min-height: calc(100svh - 20px); border-radius: 16px; }
   .pulso-access-header { padding: 16px 20px; gap: 12px; }

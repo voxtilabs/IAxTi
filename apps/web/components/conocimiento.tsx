@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, EncabezadoDePagina, EstadoVacio , ElegirArchivo } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, EstadoVacio, ElegirArchivo, cn } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -97,7 +97,7 @@ function fmtUso(f: FuenteDto): { texto: string; role: 'good' | 'warn' | 'neutral
 }
 
 const PLACEHOLDER: Record<string, string> = {
-  texto: 'Pega aquí lo que la IA debe saber: horarios, políticas, cómo trabajar…',
+  texto: 'Pega aquí lo que la IA debe saber: horarios, políticas, cómo trabajar',
   faq: 'Una pregunta y respuesta por línea, separadas por "|". Ej:\n¿Hacen despacho? | Sí, a todo Chile en 3-5 días.',
   catalogo: 'Pega el CSV con cabeceras: nombre, precio, stock, descripcion',
   url: '',
@@ -316,7 +316,10 @@ export function Conocimiento() {
         ) : (
           <Textarea
             aria-label="Contenido"
-            className="mt-3 font-mono text-sm"
+            // Mono solo para el CSV del catálogo, donde las columnas importan;
+            // un texto o unas preguntas son prosa y van en la letra de la
+            // interfaz (Mesón: la mono nunca en prosa, #1346).
+            className={cn('mt-3 text-sm', kind === 'catalogo' && 'font-mono')}
             rows={5}
             placeholder={PLACEHOLDER[kind]}
             value={contenido}

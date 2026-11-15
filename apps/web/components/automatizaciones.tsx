@@ -474,7 +474,9 @@ export function Automatizaciones() {
           >
             Agregar un paso
           </Button>
-          <Button type="submit" disabled={creandoSec || !secuencia.name.trim()}>
+          {/* Secundario: el primario de la pantalla es «Crear la regla» (Mesón,
+              un primario por vista, #1346). */}
+          <Button type="submit" variant="secundario" disabled={creandoSec || !secuencia.name.trim()}>
             {creandoSec ? 'Creando…' : 'Crear la secuencia'}
           </Button>
         </span>

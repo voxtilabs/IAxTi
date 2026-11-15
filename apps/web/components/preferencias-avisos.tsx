@@ -32,6 +32,10 @@ const NOMBRES: Record<string, string> = {
   cuota_ia: 'Cuota de IA por agotarse',
   calidad_numero: 'Calidad del número de WhatsApp',
   pago_recibido: 'Pago recibido',
+  // Los mismos textos que `TIPOS_LEGIBLES` del módulo: sin ellos la tabla
+  // mostraba la llave cruda («estado_cuenta») como nombre (#1346).
+  estado_cuenta: 'El estado de tu cuenta cambió',
+  cupo_del_canal: 'Cupo diario del canal por agotarse',
 };
 
 /**
