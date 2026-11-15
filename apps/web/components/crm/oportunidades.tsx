@@ -188,6 +188,62 @@ export function QueHayQueHacer({ deal }: { deal: DealCardDto }) {
  * Se calla entera sin oportunidades: sin datos no hay embudo, y una línea
  * que diga «sobre 0» es ruido que ocupa alto.
  */
+/**
+ * Las cifras de arriba del tablero (Mesón, #1346).
+ *
+ * El prototipo traía tres; acá van las dos que el producto SABE: lo que está
+ * en juego —la suma de las etapas abiertas, con su barra en el mismo orden que
+ * las columnas— y lo ganado. Salen de `/deals/resumen`, el mismo que pone el
+ * dinero en cada cabecera, y sin resumen no se dibujan: una cifra que miente es
+ * peor que ninguna. «Cerró el asistente solo» y «vs el mes anterior» no se
+ * muestran porque ese dato no existe todavía.
+ *
+ * El azul va en la etapa abierta más avanzada —la que está por cerrarse—; las
+ * demás en grises del marco. Pocas palabras: la pantalla tiene techo de prosa.
+ */
+function CifrasDelEmbudo({
+  etapas,
+  resumen,
+}: {
+  etapas: StageDto[];
+  resumen: Record<string, { cuantas: number; totalClp: number }>;
+}) {
+  const abiertas = etapas.filter((e) => e.type === 'open' && resumen[e.id]);
+  const ganadas = etapas.filter((e) => e.type === 'won' && resumen[e.id]);
+  const enJuego = abiertas.reduce((s, e) => s + resumen[e.id].totalClp, 0);
+  const ganado = ganadas.reduce((s, e) => s + resumen[e.id].totalClp, 0);
+  if (enJuego === 0 && ganado === 0) return null;
+  const ultimaConDinero = [...abiertas].reverse().find((e) => resumen[e.id].totalClp > 0)?.id;
+  // Tres grises del marco, de claro a hondo; el azul lo lleva una sola.
+  const tonos = ['bg-line', 'bg-line-strong', 'bg-faint'];
+  return (
+    // Solo desde 640 px: en el celular el tablero necesita el alto
+    // (el-embudo-en-el-tablero pide > 400 px) y cada cabecera ya trae su total.
+    <div className="hidden shrink-0 gap-3 px-6 pb-4 sm:grid sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <section aria-label="En juego" className="rounded-tarjeta border border-line bg-raised p-4">
+        <p className="text-dato text-muted">En juego</p>
+        <p className="mt-2 font-mono text-titulo leading-none tabular-nums text-ink">{fmtClp(enJuego)}</p>
+        {enJuego > 0 && (
+          <div className="mt-3 flex h-3 gap-0.5 overflow-hidden rounded" aria-hidden>
+            {abiertas.filter((e) => resumen[e.id].totalClp > 0).map((e, i) => (
+              <span
+                key={e.id}
+                title={`${e.name}: ${fmtClp(resumen[e.id].totalClp)}`}
+                style={{ flexGrow: resumen[e.id].totalClp }}
+                className={e.id === ultimaConDinero ? 'bg-action' : tonos[i % tonos.length]}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+      <section aria-label="Ganado" className="rounded-tarjeta border border-line bg-raised p-4">
+        <p className="text-dato text-muted">Ganado</p>
+        <p className="mt-2 font-mono text-titulo leading-none tabular-nums text-good-text">{fmtClp(ganado)}</p>
+      </section>
+    </div>
+  );
+}
+
 function LecturaDelEmbudo({ embudo }: { embudo: EmbudoDto | null }) {
   if (!embudo || embudo.oportunidades === 0) return null;
   return (
@@ -535,6 +591,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
              quedaba pegada al borde izquierdo. Se vio en la captura de
              celular. */
         <>
+          <CifrasDelEmbudo etapas={pipeline.stages} resumen={resumen} />
           <LecturaDelEmbudo embudo={embudo} />
           <div className="flex min-h-0 flex-1 snap-x scroll-px-6 gap-3 overflow-x-auto px-6 pb-6">
           {pipeline.stages.map((stage) => {

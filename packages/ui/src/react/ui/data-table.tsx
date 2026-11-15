@@ -11,12 +11,14 @@ export type { ColumnDef, SortingState, RowSelectionState } from '@tanstack/react
 
 /** El servidor entrega una página ya ordenada/filtrada; aquí no se vuelve a ordenar. */
 export function DataTable<T extends { id: string }>({ label, columns, rows, sorting, onSort, selection, onSelection,
-  nextCursor, onNext, onPrevious, canPrevious, loading = false, mobileColumns, children,
+  nextCursor, onNext, onPrevious, canPrevious, loading = false, mobileColumns, children, herramientas,
 }: {
   label: string; columns: ColumnDef<T, unknown>[]; rows: T[]; sorting: SortingState;
   onSort: (value: SortingState) => void; selection: RowSelectionState; onSelection: (value: RowSelectionState) => void;
   nextCursor: string | null; onNext: () => void; onPrevious: () => void; canPrevious: boolean;
   loading?: boolean; mobileColumns: string[]; children?: ReactNode;
+  /** Lo que va a la izquierda de «Columnas», en la misma fila: el buscador de la pantalla. */
+  herramientas?: ReactNode;
 }) {
   const [small, setSmall] = useState(false);
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
@@ -39,12 +41,15 @@ export function DataTable<T extends { id: string }>({ label, columns, rows, sort
   const hayPaginas = canPrevious || !!nextCursor;
   return <div data-densidad="densa" className="mt-4 min-w-0 space-y-3" aria-busy={loading}>
     <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Mesón (#1346): el buscador de la pantalla va en la MISMA fila que
+          «Columnas», a la izquierda; antes eran dos filas para dos controles. */}
+      {herramientas}
       {/* «Columnas» ES un control y tenía que verse como uno (#1118): era un
           `summary` en azul de acción y nada más, flotando sobre la tabla, con
           el aspecto de texto que alguien se olvidó de estilar. Sigue siendo
           `details`/`summary` —funciona sin JavaScript— con la piel del botón
           secundario del sistema. */}
-      <details className="text-dato"><summary className="inline-flex cursor-pointer items-center gap-2 rounded-boton border border-line-strong bg-raised px-4 py-2 text-cuerpo text-body transition-colors hover:border-line-strong hover:text-ink [&::-webkit-details-marker]:hidden">
+      <details className="ml-auto text-dato"><summary className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-boton px-3 text-dato text-body transition-colors hover:bg-rest hover:text-ink [&::-webkit-details-marker]:hidden">
         <IconoColumnas className="h-4 w-4" aria-hidden />Columnas</summary>
         <div className="flex flex-wrap gap-3">{table.getAllLeafColumns().filter((c) => c.getCanHide()).map((c) => <label key={c.id} className="inline-flex min-h-control items-center gap-2">
           {/* El Checkbox de Pulso y no un `<input type="checkbox">`: el
