@@ -462,7 +462,10 @@ export function Chat({
         </div>
         {modo !== null && modo !== 'off' && (
           <Button
-            variant={modo === 'autonomous' ? 'primario' : 'secundario'}
+            // Un interruptor, no la acción de la vista (Mesón): encendido se
+            // marca con el suave del acento, y el azul lleno queda para Enviar.
+            variant="secundario"
+            className={modo === 'autonomous' ? 'border-action-soft-br bg-action-soft text-action-text hover:bg-action-soft' : undefined}
             size="chico"
             data-testid="piloto-automatico"
             aria-pressed={modo === 'autonomous'}
@@ -485,7 +488,8 @@ export function Chat({
         {ventana && (
           <Badge role={ventana.rol} title={ventana.titulo}>
             <IconoReloj className="mr-1 inline h-3 w-3" aria-hidden />
-            {ventana.texto}
+            {/* La firma de Mesón: el reloj de la ventana va en mono. */}
+            <span className="font-mono">{ventana.texto}</span>
           </Badge>
         )}
         {/* La prioridad, solo si NO es normal (#550): una lista donde todo
@@ -596,14 +600,18 @@ export function Chat({
             >
               <div
                 className={cn(
-                  'max-w-[85%] rounded-tarjeta px-4 py-2.5',
+                  // Mesón: lo que entra es una tarjeta con filete; lo que sale,
+                  // un escalón de gris. El azul no pinta conversaciones.
+                  'max-w-[85%] rounded-[14px] px-3.5 py-2.5 sm:max-w-[72%]',
                   m.direction === 'out'
-                    ? 'rounded-br-campo border border-action-soft-br bg-action-soft'
-                    : 'rounded-bl-campo border border-line bg-raised',
+                    ? 'rounded-br-[4px] bg-rest'
+                    : 'rounded-bl-[4px] border border-line bg-raised',
                 )}
               >
                 {m.authorKind === 'agent' && (
-                  <p className="rotulo mb-1">Respondió el asistente</p>
+                  <p className="rotulo mb-1 flex items-center gap-1">
+                    <Bot className="size-3.5" aria-hidden />Respondió el asistente
+                  </p>
                 )}
                 <p className="whitespace-pre-wrap text-cuerpo text-ink">{m.body}</p>
                 {/* Abrir lo que mandó el cliente (#460). Se guardan en R2

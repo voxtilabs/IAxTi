@@ -29,6 +29,7 @@ import { SecuenciasFicha } from './secuencias-ficha';
 import { RetencionAviso } from './retencion-aviso';
 import { QuienLoHizo } from '../quien-lo-hizo';
 import { Reasignaciones } from './reasignaciones';
+import { BoletaDelAsistente } from './boleta-del-asistente';
 
 function Fila({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
@@ -229,11 +230,14 @@ export function Ficha({
 
       {/* La lectura de la IA (#48): resumen, intención y calificación. */}
       {analisis && (analisis.summary || analisis.intent || analisis.acciones.length > 0) && (
-        <div className="mt-6 rounded-campo border border-line bg-rest p-4">
-          <p className="rotulo">Lectura de la IA</p>
+        <div className="mt-6">
+          {/* Mesón (#1346): el resumen y la intención son texto; lo que el
+              asistente HIZO va en su boleta, abajo. */}
+          <h3 className="text-sm font-medium text-ink">Lo que hizo el asistente</h3>
           {analisis.summary && <p className="mt-2 text-sm text-body">{analisis.summary}</p>}
           <p className="mt-2 flex flex-wrap gap-2">
-            {analisis.mode === 'autonomous' && <Badge role="warn"><Bot className="mr-1 inline-block size-3 align-[-0.1em]" aria-hidden />Piloto automático</Badge>}
+            {/* Con boleta, el timbre ya lo dice: la insignia sería la misma frase dos veces. */}
+            {analisis.mode === 'autonomous' && analisis.acciones.length === 0 && <Badge role="warn"><Bot className="mr-1 inline-block size-3 align-[-0.1em]" aria-hidden />Piloto automático</Badge>}
             {analisis.intent && <Badge role="action">{analisis.intent}</Badge>}
             {analisis.leadScore && (
               <Badge role={analisis.leadScore === 'caliente' ? 'good' : analisis.leadScore === 'tibio' ? 'warn' : 'neutral'}>
@@ -255,16 +259,9 @@ export function Ficha({
               />
             </p>
           )}
-          {analisis.acciones.length > 0 && (
-            <ul className="mt-3 flex flex-col gap-1">
-              {analisis.acciones.slice(0, 5).map((a, i) => (
-                <li key={i} className="text-xs text-muted">
-                  <span className="dato">{new Date(a.at).toLocaleString('es-CL')}</span> · {a.que}
-                  {' '}({a.estado}{a.feedback ? `, ${a.feedback === 'up' ? 'sirvió' : 'no sirvió'}` : ''})
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="mt-3">
+            <BoletaDelAsistente acciones={analisis.acciones} modo={analisis.mode} />
+          </div>
         </div>
       )}
 

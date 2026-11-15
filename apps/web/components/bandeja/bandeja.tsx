@@ -27,6 +27,7 @@ import { ListaDeAtajos } from './atajos-de-la-bandeja';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
   apiFetch,
+  etiquetaDeLaVentana,
   type BusquedaHit,
   type ConversacionDetalle,
   type ConversacionItem,
@@ -44,6 +45,21 @@ import {
 import { Chat, type LimitesDeAdjunto } from './chat';
 import { Ficha } from './ficha';
 import { ESTADOS, fmtEspera, insigniaDePrioridad } from './estado';
+
+/**
+ * La hora del último mensaje, corta (Mesón, #1346): «14:06» si fue hoy y
+ * «13-11» si no. Una lista de trabajo se lee por recencia, y la fecha larga
+ * se comía el ancho del nombre.
+ */
+function horaCorta(iso: string | null, ahora: Date = new Date()): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const mismoDia = d.toDateString() === ahora.toDateString();
+  return mismoDia
+    ? d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    : d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' });
+}
 
 // La bandeja de tres paneles (SPEC §11/§29, #37): lista sobre --bg-raised,
 // chat sobre --bg, ficha sobre --bg-raised. En celular, tres pantallas
@@ -733,7 +749,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
             descripcion={vista === 'todas' ? 'Cuando conectes WhatsApp, los mensajes de tus clientes llegan aquí con su historia.' : 'Las conversaciones que necesiten tu atención aparecerán aquí. Puedes revisar las demás colas.'}
             accion={vista === 'todas' ? { etiqueta: 'Conectar WhatsApp', href: '/ajustes/canales' } : { etiqueta: 'Ver todas las conversaciones', onClick: () => setVista('todas') }} />
         ) : (
-          <ul className="flex flex-col">
+          <ul className="flex flex-col gap-0.5 p-2">
             {items.map((c) => (
               <li key={c.id}>
                 <button
@@ -741,8 +757,10 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                   aria-current={seleccion === c.id ? 'true' : undefined}
                   onClick={() => { setSeleccion(c.id); setPane('chat'); }}
                   className={cn(
-                    'pulso-conversation flex w-full items-center gap-fila-gap border-b border-line px-fila-x py-fila-y text-dato text-left transition-colors hover:bg-rest',
-                    seleccion === c.id && 'bg-rest',
+                    // Mesón: filas sueltas con radio, no una tabla con filetes.
+                    // La activa es la tarjeta con su filete; el azul no la pinta.
+                    'pulso-conversation flex w-full items-center gap-fila-gap rounded-[10px] px-3 py-fila-y text-dato text-left transition-colors hover:bg-rest',
+                    seleccion === c.id && 'hover:bg-raised',
                   )}
                 >
                   {/* Dos líneas con el avatar al LADO, no encima: arriba quién
@@ -770,7 +788,21 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                         identity: c.contactIdentity,
                       })}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1.5">
+                    {horaCorta(c.lastMessageAt) && (
+                      <span className="shrink-0 font-mono text-rotulo text-muted">{horaCorta(c.lastMessageAt)}</span>
+                    )}
+                    </span>
+                  {/* De dónde viene y qué dijo. El canal importa antes de
+                      abrir —con tres, cambia cómo se responde— y la frase se
+                      lleva el resto del ancho. Sin texto —una imagen, un
+                      audio— cae al identificador, que es lo que había. */}
+                    <span className="flex w-full items-center gap-1.5 leading-tight text-rotulo text-muted">
+                      <CanalChip canal={c.channel} soloIcono />
+                      <span className="min-w-0 flex-1 truncate">
+                        {c.lastMessagePreview
+                          ?? c.contactPhone ?? c.contactIdentity ?? nombreCanal(c.channel)}
+                      </span>
+                    <span className="flex shrink-0 items-center gap-1.5 [&_*]:leading-none">
                     <Badge role={ESTADOS[c.state].role}>{ESTADOS[c.state].label}</Badge>
                     {/* La prioridad en la lista (#550): es ahí donde sirve,
                         porque es la lista la que ahora viene ordenada por
@@ -787,17 +819,20 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                         </span>
                       )}
                     </span>
-                    </span>
-                  {/* De dónde viene y qué dijo. El canal importa antes de
-                      abrir —con tres, cambia cómo se responde— y la frase se
-                      lleva el resto del ancho. Sin texto —una imagen, un
-                      audio— cae al identificador, que es lo que había. */}
-                    <span className="flex w-full items-center gap-1.5 leading-tight text-rotulo text-muted">
-                      <CanalChip canal={c.channel} soloIcono />
-                      <span className="min-w-0 flex-1 truncate">
-                        {c.lastMessagePreview
-                          ?? c.contactPhone ?? c.contactIdentity ?? nombreCanal(c.channel)}
-                      </span>
+                      {/* La firma: el reloj de la ventana, solo cuando dice algo
+                          (< 2 h). Cerrada va en gris en la lista: es el estado
+                          normal de una conversación vieja, y el rojo queda para
+                          el chat, donde sí impide escribir (ADR-0034). */}
+                      {(() => {
+                        const v = etiquetaDeLaVentana(c);
+                        if (!v) return null;
+                        return (
+                          <span title={v.titulo} className={cn('flex shrink-0 items-center gap-1 font-mono', v.rol === 'warn' ? 'text-warn-text' : 'text-muted')}>
+                            {v.rol === 'warn' && <IconoReloj className="h-3 w-3" aria-hidden />}
+                            {v.rol === 'warn' ? v.texto : 'ventana cerrada'}
+                          </span>
+                        );
+                      })()}
                     </span>
                   </span>
                 </button>
