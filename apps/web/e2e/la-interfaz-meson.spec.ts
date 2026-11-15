@@ -108,6 +108,11 @@ for (const modo of ['dia', 'noche'] as const) {
     ['contactos', '/contactos'],
     ['oportunidades', '/oportunidades'],
     ['canales', '/ajustes/canales'],
+    ['agenda', '/agenda'],
+    ['pendientes', '/pendientes'],
+    ['empresas', '/empresas'],
+    ['ajustes-ia', '/ajustes/ia'],
+    ['ajustes-equipo', '/ajustes/equipo'],
   ] as const) {
     test(`${ruta}, modo ${modo}: Mesón pintado`, async ({ page }) => {
       await page.addInitScript((m) => localStorage.setItem('pulso-mode', m), modo);

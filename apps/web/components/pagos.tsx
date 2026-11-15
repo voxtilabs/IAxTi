@@ -209,7 +209,7 @@ export function Pagos() {
   return (
     <div className="max-w-2xl">
       <EncabezadoDePagina
-        rotulo="PAGOS"
+        rotulo="Pagos"
         titulo="Cobra con links desde el chat"
       />
       <p className="mt-2 text-sm text-muted">

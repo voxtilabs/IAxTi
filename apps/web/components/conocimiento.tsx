@@ -260,7 +260,7 @@ export function Conocimiento() {
   return (
     <div className="max-w-2xl">
       <EncabezadoDePagina
-        rotulo="CONOCIMIENTO"
+        rotulo="Conocimiento"
         titulo="Lo que tu negocio dice"
       />
       <p className="mt-2 text-sm text-muted">

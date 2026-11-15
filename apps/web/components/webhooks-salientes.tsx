@@ -80,7 +80,7 @@ export function WebhooksSalientes() {
   return (
     <div className="max-w-2xl">
       <EncabezadoDePagina
-        rotulo="WEBHOOKS"
+        rotulo="Webhooks"
         titulo="Avísale a tus sistemas"
       />
       <p className="mt-2 text-sm text-muted">

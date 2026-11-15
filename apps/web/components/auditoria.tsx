@@ -34,7 +34,7 @@ export function Auditoria() {
   return (
     <div>
       <EncabezadoDePagina
-        rotulo="AUDITORÍA"
+        rotulo="Auditoría"
         titulo="El libro de tu cuenta"
       />
       <p className="mb-4 mt-2 max-w-2xl text-sm text-muted">

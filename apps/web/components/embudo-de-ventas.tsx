@@ -106,7 +106,7 @@ export function EmbudoDeVentas({ from, to }: { from: string; to: string }) {
     {datos && !vacio && <>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <article className="rounded-tarjeta border border-line p-4" title={datos.definiciones.ciclo}>
-          <h3 className="text-xs uppercase tracking-wide text-muted">Ciclo de venta</h3>
+          <h3 className="rotulo">Ciclo de venta</h3>
           <strong className="mt-1 block font-mono text-xl text-ink">{fmtDias(datos.ciclo.promedioDias)}</strong>
           <p className="mt-1 text-xs text-muted">
             {datos.ciclo.muestras === 0
@@ -115,7 +115,7 @@ export function EmbudoDeVentas({ from, to }: { from: string; to: string }) {
           </p>
         </article>
         <article className="rounded-tarjeta border border-line p-4">
-          <h3 className="text-xs uppercase tracking-wide text-muted">Se cae en</h3>
+          <h3 className="rotulo">Se cae en</h3>
           <strong className="mt-1 block text-xl text-ink">{datos.seCaeEn?.name ?? '—'}</strong>
           <p className="mt-1 text-xs text-muted">
             {datos.seCaeEn
@@ -124,7 +124,7 @@ export function EmbudoDeVentas({ from, to }: { from: string; to: string }) {
           </p>
         </article>
         <article className="rounded-tarjeta border border-line p-4">
-          <h3 className="text-xs uppercase tracking-wide text-muted">En el período</h3>
+          <h3 className="rotulo">En el período</h3>
           <strong className="mt-1 block font-mono text-xl text-ink">{datos.oportunidades}</strong>
           <p className="mt-1 text-xs text-muted">Oportunidades creadas, de este embudo.</p>
         </article>
@@ -133,7 +133,7 @@ export function EmbudoDeVentas({ from, to }: { from: string; to: string }) {
       <div className="mt-5 overflow-x-auto">
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Conversión etapa por etapa del embudo</caption>
-          <thead><tr className="text-xs uppercase tracking-wide text-muted">
+          <thead><tr className="text-xs text-muted">
             <th className="p-2" scope="col">Etapa</th>
             <th className="p-2" scope="col" title={datos.definiciones.entraron}>Entraron</th>
             <th className="p-2" scope="col" title={datos.definiciones.avanzaron}>Avanzaron</th>

@@ -268,7 +268,6 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
   return (
     <div className="min-w-0 space-y-6">
       <EncabezadoDePagina
-        rotulo="CAMPAÑAS"
         titulo="Campañas"
         apoyo="Una plantilla aprobada para un grupo de tus contactos."
         accion={

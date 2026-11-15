@@ -144,7 +144,7 @@ export function Campos() {
   return (
     <section className="flex flex-col gap-6">
       <EncabezadoDePagina
-        rotulo="TU NEGOCIO"
+        rotulo="Tu negocio"
         titulo="Campos propios de tu negocio"
         apoyo="Aparecen en la ficha de cada contacto."
       />

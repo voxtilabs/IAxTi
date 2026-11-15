@@ -135,7 +135,6 @@ export function Empresas() {
   return (
     <section className="flex flex-col gap-6">
       <EncabezadoDePagina
-        rotulo="EMPRESAS"
         titulo="Empresas"
         apoyo="Cada contacto puede colgar de una empresa desde su ficha."
       />

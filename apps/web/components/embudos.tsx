@@ -117,7 +117,7 @@ export function Embudos() {
   return (
     <section className="flex max-w-3xl flex-col gap-6">
       <EncabezadoDePagina
-        rotulo="CONFIGURACIÓN"
+        rotulo="Configuración"
         titulo="Embudos y etapas"
         apoyo="Las etapas de acá son las columnas del tablero."
       />
