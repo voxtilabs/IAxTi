@@ -21,6 +21,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
   SessionProvider,
   useSession,
   type PublicConfig,
@@ -95,6 +96,8 @@ interface ShellProps {
    * Por qué la bandeja sí la pliega: sus TRES paneles —lista, chat, ficha— no
    * caben de otra forma, y quien abre una conversación se queda ahí.
    */
+  /** Ya no pliega nada (Mesón, #1346): la barra arranca abierta en todas las
+   *  pantallas. Se acepta para no tocar las páginas que lo pasan. */
   barraPlegada?: boolean;
   /**
    * Pantallas que ocupan el alto, no el ancho (#1135): el asistente.
@@ -474,8 +477,19 @@ function CerrarSesion() {
   );
 }
 
+/**
+ * La barra superior solo existe en el celular (Mesón, #1346): ahí es la única
+ * forma de abrir el menú. En escritorio el título vive en la página y los
+ * controles en la barra lateral.
+ */
+function CabezaDelCelular({ children }: { children: React.ReactNode }) {
+  const { isMobile } = useSidebar();
+  return isMobile ? <>{children}</> : null;
+}
+
 function Barra({ nav, candados }: { nav: NavItem[]; candados: Set<string> }) {
   const activa = usePathname();
+  const { isMobile } = useSidebar();
 
   const grupos = useMemo(() => {
     const por = new Map<string, NavItem[]>();
@@ -544,6 +558,16 @@ function Barra({ nav, candados }: { nav: NavItem[]; candados: Set<string> }) {
         <div className="group-data-[collapsible=icon]:hidden">
           <TenantSwitcher />
         </div>
+        {/* Mesón (#1346): pedir y buscar viven en la barra, no en una barra
+            superior. Se dibujan en UN solo lugar —acá en escritorio, arriba en
+            el celular— porque cada uno registra su atajo de teclado y montarlo
+            dos veces lo dispararía dos veces. */}
+        {!isMobile && (
+          <div className="pulso-barra-acciones">
+            <AgenteGeneral enBarra />
+            <PaletaComandos nav={nav} enBarra />
+          </div>
+        )}
       </SidebarHeader>
 
       <SidebarContent ref={contenidoDeLaBarra}>
@@ -557,6 +581,13 @@ function Barra({ nav, candados }: { nav: NavItem[]; candados: Set<string> }) {
             borde del área que hace scroll, así que la línea era una tercera
             forma de decir lo mismo — y costaba altura en la barra que no
             llegaba a mostrar su último grupo. */}
+        {!isMobile && (
+          <div className="pulso-barra-pie">
+            <SidebarTrigger />
+            <Campana />
+            <ModeToggle compacto />
+          </div>
+        )}
         <SidebarMenu>
           <SidebarMenuItem>
             <CerrarSesion />
@@ -659,7 +690,7 @@ function useNavDeRespaldo(hace: boolean): {
   return { nav, fallo, reintentar: () => setIntento((n) => n + 1) };
 }
 
-function ContenidoShell({ nav: navDelServidor, sinMargen, barraPlegada, altoCompleto, children }: ShellProps) {
+function ContenidoShell({ nav: navDelServidor, sinMargen, altoCompleto, children }: ShellProps) {
   // Menú y pestañas comparten la misma lectura; no duplicar módulos/acceso.
   const candados = useModulosConCandado();
   const respaldo = useNavDeRespaldo(navDelServidor === null);
@@ -720,7 +751,10 @@ function ContenidoShell({ nav: navDelServidor, sinMargen, barraPlegada, altoComp
             pantalla de tres paneles, y ahí cada píxel de ancho es una
             columna que se ve. */}
         <SidebarProvider
-          defaultOpen={!barraPlegada}
+          // Mesón (#1346): la barra arranca abierta también en la bandeja,
+          // como en el prototipo. A 1440 caben barra, lista, chat y ficha; quien
+          // la pliega queda recordado por la cookie del componente.
+          defaultOpen
           className={
             sinMargen
               ? 'pulso-workspace pulso-workspace-inbox'
@@ -732,6 +766,10 @@ function ContenidoShell({ nav: navDelServidor, sinMargen, barraPlegada, altoComp
           <Barra nav={nav} candados={candados} />
           <SidebarInset>
             <SoporteAviso />
+            {/* Sin barra superior en escritorio (Mesón, #1346): el título vive en
+                la página y los controles en la barra lateral. En el celular sí,
+                porque es la única forma de abrir el menú. */}
+            <CabezaDelCelular>
             <header className="pulso-topbar flex items-center gap-3 border-b border-line px-6 py-3">
               <SidebarTrigger />
               <div className="pulso-context">
@@ -749,6 +787,7 @@ function ContenidoShell({ nav: navDelServidor, sinMargen, barraPlegada, altoComp
                 <ModeToggle />
               </div>
             </header>
+            </CabezaDelCelular>
             {/* Un menú vacío no puede ser el mensaje de error (#679). Antes
                 la barra desaparecía y la pantalla no decía nada: quien la miraba
                 concluía que el producto se rompió, que es lo que pasó el 27/09.

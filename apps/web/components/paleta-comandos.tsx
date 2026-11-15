@@ -1,5 +1,6 @@
 'use client';
 
+import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -9,7 +10,7 @@ import {
 import { apiFetch, ApiError, type BusquedaHit } from '../lib/api';
 import { selectedTenant } from './tenant-switcher';
 
-export function PaletaComandos({ nav }: { nav: Array<{ path: string; label: string }> }) {
+export function PaletaComandos({ nav, enBarra = false }: { nav: Array<{ path: string; label: string }>; enBarra?: boolean }) {
   const { session, config } = useSession();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -57,7 +58,10 @@ export function PaletaComandos({ nav }: { nav: Array<{ path: string; label: stri
   const go = (path: string) => { setOpen(false); router.push(path); };
   const normal = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   return <Dialog open={open} onOpenChange={setOpen}>
-    <DialogTrigger asChild><Button variant="fantasma" aria-label="Buscar o ir a" aria-keyshortcuts="Control+k Meta+k"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar o ir a</span></Button></DialogTrigger>
+    <DialogTrigger asChild>{enBarra
+      /* En la barra lateral (Mesón, #1346): una fila con su icono y la tecla. */
+      ? <Button variant="fantasma" className="pulso-fila-de-barra" aria-label="Buscar o ir a" aria-keyshortcuts="Control+k Meta+k"><Search aria-hidden /><span className="pulso-fila-texto">Buscar</span><kbd className="pulso-tecla">Ctrl K</kbd></Button>
+      : <Button variant="fantasma" aria-label="Buscar o ir a" aria-keyshortcuts="Control+k Meta+k"><span className="sm:hidden">Buscar</span><span className="hidden sm:inline">Buscar o ir a</span></Button>}</DialogTrigger>
     <DialogContent className="pulso-entrada">
       <DialogTitle>Buscar o ir a una pantalla</DialogTitle>
       <DialogDescription>Ctrl+K o ⌘K abre la paleta. Usa las flechas para elegir y Enter para abrir.</DialogDescription>
