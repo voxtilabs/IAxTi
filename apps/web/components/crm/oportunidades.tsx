@@ -201,18 +201,47 @@ export function QueHayQueHacer({ deal }: { deal: DealCardDto }) {
  * El azul va en la etapa abierta más avanzada —la que está por cerrarse—; las
  * demás en grises del marco. Pocas palabras: la pantalla tiene techo de prosa.
  */
+/** Lo de `GET /deals/resumen` → `ganado`: mes y día ya vienen en la zona del negocio. */
+interface GanadoDelMes {
+  esteMesClp: number;
+  mesAnteriorClp: number;
+  mes: number;
+  dia: number;
+  mesAnteriorCompleto: boolean;
+}
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/**
+ * «Ganado» es el del MES contra el mes anterior cortado en el mismo día
+ * (#1346). Antes sumaba todo lo ganado alguna vez: una cifra que solo crece
+ * no dice cómo vas. Se muestran los dos montos y no un porcentaje: contra un
+ * mes anterior en cero, «+∞ %» sería una métrica inventada.
+ */
+export function comparacionDelMes(g: GanadoDelMes): { titulo: string; contra: string } {
+  const anterior = MESES[(g.mes + 10) % 12]!;
+  const Anterior = anterior[0]!.toUpperCase() + anterior.slice(1);
+  return {
+    titulo: `Ganado en ${MESES[g.mes - 1]}`,
+    contra: g.mesAnteriorCompleto ? `${Anterior} completo` : `${Anterior}, del 1 al ${g.dia}`,
+  };
+}
+
 function CifrasDelEmbudo({
   etapas,
   resumen,
+  ganadoMes,
 }: {
   etapas: StageDto[];
   resumen: Record<string, { cuantas: number; totalClp: number }>;
+  ganadoMes: GanadoDelMes | null;
 }) {
   const abiertas = etapas.filter((e) => e.type === 'open' && resumen[e.id]);
   const ganadas = etapas.filter((e) => e.type === 'won' && resumen[e.id]);
   const enJuego = abiertas.reduce((s, e) => s + resumen[e.id].totalClp, 0);
   const ganado = ganadas.reduce((s, e) => s + resumen[e.id].totalClp, 0);
-  if (enJuego === 0 && ganado === 0) return null;
+  const hayMes = ganadoMes !== null && (ganadoMes.esteMesClp > 0 || ganadoMes.mesAnteriorClp > 0);
+  if (enJuego === 0 && ganado === 0 && !hayMes) return null;
   const ultimaConDinero = [...abiertas].reverse().find((e) => resumen[e.id].totalClp > 0)?.id;
   // Tres grises del marco, de claro a hondo; el azul lo lleva una sola.
   const tonos = ['bg-line', 'bg-line-strong', 'bg-faint'];
@@ -236,10 +265,22 @@ function CifrasDelEmbudo({
           </div>
         )}
       </section>
-      <section aria-label="Ganado" className="rounded-tarjeta border border-line bg-raised p-4">
-        <p className="text-dato text-muted">Ganado</p>
-        <p className="mt-2 font-mono text-titulo leading-none tabular-nums text-good-text">{fmtClp(ganado)}</p>
-      </section>
+      {ganadoMes ? (
+        <section aria-label="Ganado" className="rounded-tarjeta border border-line bg-raised p-4">
+          <p className="text-dato text-muted">{comparacionDelMes(ganadoMes).titulo}</p>
+          <p className="mt-2 font-mono text-titulo leading-none tabular-nums text-good-text">{fmtClp(ganadoMes.esteMesClp)}</p>
+          <p className="mt-3 text-dato text-muted">
+            {comparacionDelMes(ganadoMes).contra}: <span className="font-mono tabular-nums text-body">{fmtClp(ganadoMes.mesAnteriorClp)}</span>
+          </p>
+        </section>
+      ) : (
+        // Sin la cifra del mes (API vieja o error), lo que sí se sabe: el
+        // total de las etapas ganadas. Nunca un número inventado en su lugar.
+        <section aria-label="Ganado" className="rounded-tarjeta border border-line bg-raised p-4">
+          <p className="text-dato text-muted">Ganado</p>
+          <p className="mt-2 font-mono text-titulo leading-none tabular-nums text-good-text">{fmtClp(ganado)}</p>
+        </section>
+      )}
     </div>
   );
 }
@@ -342,6 +383,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   // es el dinero de la etapa. Viene del servidor en una consulta para todo el
   // tablero.
   const [resumen, setResumen] = useState<Record<string, { cuantas: number; totalClp: number }>>({});
+  const [ganadoMes, setGanadoMes] = useState<GanadoDelMes | null>(null);
   /**
    * El embudo leído, en el tablero (#1303).
    *
@@ -418,15 +460,17 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   const cargarResumen = useCallback(async () => {
     if (!pipelineId) return;
     try {
-      const res = await api<{ items: { stageId: string; cuantas: number; totalClp: number }[] }>(
+      const res = await api<{ items: { stageId: string; cuantas: number; totalClp: number }[]; ganado?: GanadoDelMes }>(
         `/deals/resumen?pipelineId=${pipelineId}`,
       );
       setResumen(Object.fromEntries(res.items.map((f) => [f.stageId, { cuantas: f.cuantas, totalClp: f.totalClp }])));
+      setGanadoMes(res.ganado ?? null);
     } catch {
       // El tablero funciona sin los totales: lo que no se puede es mostrar un
       // número inventado en su lugar. Sin resumen, la cabecera muestra lo que
       // tiene cargado y lo dice.
       setResumen({});
+      setGanadoMes(null);
     }
   }, [api, pipelineId]);
 
@@ -591,7 +635,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
              quedaba pegada al borde izquierdo. Se vio en la captura de
              celular. */
         <>
-          <CifrasDelEmbudo etapas={pipeline.stages} resumen={resumen} />
+          <CifrasDelEmbudo etapas={pipeline.stages} resumen={resumen} ganadoMes={ganadoMes} />
           <LecturaDelEmbudo embudo={embudo} />
           <div className="flex min-h-0 flex-1 snap-x scroll-px-6 gap-3 overflow-x-auto px-6 pb-6">
           {pipeline.stages.map((stage) => {

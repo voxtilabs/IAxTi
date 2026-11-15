@@ -62,5 +62,9 @@
 # sin que nadie haya escrito un párrafo. Las dos frases que se agregaron son
 # aclaración del dato —sobre cuántas se mide, y el denominador de cada
 # pérdida—, que es lo que este archivo dice que SE QUEDA.
-/oportunidades 24
+# Y subió de 24 a 30 en #1353: «Octubre, del 1 al 15: $…» bajo lo ganado del
+# mes dice contra qué se compara la cifra (el mes anterior cortado el mismo
+# día, no completo). Son seis palabras de aclaración del dato; la fixture pasó
+# de 19 a 25 y se mantiene la misma holgura de cinco para las pérdidas por etapa.
+/oportunidades 30
 /ajustes/integraciones 12

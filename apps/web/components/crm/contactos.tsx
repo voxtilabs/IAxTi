@@ -19,6 +19,22 @@ interface ContactoItem {
   email: string | null;
   origin: string;
   optedOutAt: string | null;
+  /** Calculado por la API con la misma regla que el envío (#1346). */
+  permiso?: 'baja' | 'opt_in' | 'escribio_primero' | 'sin_permiso';
+}
+
+/**
+ * Si se le puede escribir primero, y por qué (#1346). El texto lleva el
+ * significado; el color acompaña. «Se dio de baja» va en texto apagado porque
+ * el nombre ya trae el «No contactar» en rojo —que es lo que se ve en el
+ * celular, donde esta columna no está— y dos rojos para lo mismo gritan.
+ */
+function Permiso({ valor }: { valor: ContactoItem['permiso'] }) {
+  if (valor === 'opt_in') return <Badge role="good">Dio permiso</Badge>;
+  if (valor === 'escribio_primero') return <Badge role="good">Escribió primero</Badge>;
+  if (valor === 'baja') return <span className="text-muted">Se dio de baja</span>;
+  if (valor === 'sin_permiso') return <span className="text-muted">Sin permiso</span>;
+  return <span className="text-muted">—</span>;
 }
 
 /** /contactos (#34): búsqueda, cursor y la puerta a la importación. */
@@ -126,6 +142,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       <span className="block break-all font-mono text-muted">{row.original.phone}</span></a>
       {row.original.optedOutAt && <Badge role="bad">No contactar</Badge>}
     </div> },
+    { id: 'permiso', accessorKey: 'permiso', header: 'Permiso para escribirle', enableSorting: false, cell: ({ row }) => <Permiso valor={row.original.permiso} /> },
     { id: 'origin', accessorKey: 'origin', header: 'Origen' },
     { id: 'rut', accessorKey: 'rut', header: 'RUT', enableSorting: false, cell: ({ row }) => <span className="font-mono">{row.original.rut ?? '—'}</span> },
     { id: 'activity', accessorKey: 'lastActivityAt', header: 'Actividad', cell: ({ row }) => <time dateTime={row.original.lastActivityAt} className="font-mono">{new Date(row.original.lastActivityAt).toLocaleDateString('es-CL')}</time> },
