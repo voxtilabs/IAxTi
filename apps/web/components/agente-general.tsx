@@ -17,18 +17,21 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from '@
 import { Conversacion } from './agente/conversacion';
 import { useAgente } from './agente/estado';
 
-export function AgenteGeneral() {
+export function AgenteGeneral({ enBarra = false }: { enBarra?: boolean } = {}) {
   const { abierto, setAbierto } = useAgente();
   return (
     <Dialog open={abierto} onOpenChange={setAbierto}>
       <Button
         variant="fantasma"
+        className={enBarra ? 'pulso-fila-de-barra' : undefined}
         onClick={() => setAbierto(true)}
         aria-keyshortcuts="Control+i Meta+i"
         aria-label="Pedirle algo a IAxTi"
       >
         <Bot aria-hidden className="size-4" />
-        <span className="hidden sm:inline">Pídeselo a IAxTi</span>
+        {enBarra
+          ? <><span className="pulso-fila-texto">Pídeselo a IAxTi</span><kbd className="pulso-tecla">Ctrl I</kbd></>
+          : <span className="hidden sm:inline">Pídeselo a IAxTi</span>}
       </Button>
       <DialogContent className="pulso-entrada flex max-h-[min(78vh,640px)] w-[calc(100vw-24px)] max-w-2xl flex-col gap-0 p-0">
         <div className="flex flex-col gap-1 border-b border-line px-6 py-4">

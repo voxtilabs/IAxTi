@@ -398,3 +398,20 @@ body { background: var(--canvas); font-size: 15px; }
   -webkit-mask: radial-gradient(6px at 50% 100%, transparent 98%, black) 50% 100% / 12px 100% repeat-x;
           mask: radial-gradient(6px at 50% 100%, transparent 98%, black) 50% 100% / 12px 100% repeat-x;
 }
+/* Mesón (#1346): pedir y buscar como filas de la barra lateral, con su tecla. */
+.pulso-barra-acciones { display: flex; flex-direction: column; gap: 2px; }
+.pulso-fila-de-barra { width: 100%; height: 36px; min-height: 36px; justify-content: flex-start; gap: 10px; padding-inline: 10px; border-radius: 8px; color: var(--text-body); font-weight: 400; }
+.pulso-fila-de-barra > svg { width: 16px; height: 16px; color: var(--text-muted); }
+.pulso-fila-de-barra:hover { background: var(--bg-rest); color: var(--text); }
+.pulso-tecla { margin-left: auto; padding: 2px 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--text-muted); }
+.pulso-barra-pie { display: flex; align-items: center; gap: 4px; padding: 0 4px; }
+/* `!important` a propósito: estos botones traen `border` y `h-11 w-11` de
+   Tailwind, y las utilidades ganan por capa aunque este selector sea más
+   específico. Son tres controles, en un solo lugar. */
+.pulso-barra-pie button { min-height: 36px !important; min-width: 36px !important; height: 36px !important; width: 36px !important; padding: 0 !important; border-radius: 8px; border-color: transparent !important; background: transparent; box-shadow: none !important; color: var(--text-muted); }
+.pulso-barra-pie button:hover { background: var(--bg-rest); color: var(--text); }
+.pulso-barra-pie button svg { width: 16px !important; height: 16px !important; }
+.group[data-collapsible="icon"] .pulso-fila-texto,
+.group[data-collapsible="icon"] .pulso-tecla { display: none; }
+.group[data-collapsible="icon"] .pulso-fila-de-barra { justify-content: center; padding: 0; }
+.group[data-collapsible="icon"] .pulso-barra-pie { flex-direction: column; }

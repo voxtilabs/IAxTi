@@ -72,7 +72,8 @@ test('cambiar de negocio descarta la conversación sobre la que actúan los ataj
   await expect(page.getByRole('button', { name: /Ana Teclado/ })).toBeVisible();
   await page.keyboard.press('j');
   await expect(page.getByRole('textbox', { name: 'Mensaje', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Mostrar u ocultar el menú' }).click();
+  // Desde Mesón (#1346) la barra arranca abierta también en la bandeja: el
+  // selector de negocio ya está a la vista y abrirla sería cerrarla.
   await elegirPorValor(page, { nombre: 'Negocio', exacto: true }, auth.tableTenantId);
   await expect(page.getByRole('textbox', { name: 'Mensaje', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Ana Teclado/ })).toHaveCount(0);

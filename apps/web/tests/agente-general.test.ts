@@ -39,7 +39,12 @@ describe('está presente en toda la app', () => {
   });
 
   it('va antes de buscar: pedir es lo que se hace más seguido', () => {
-    expect(SHELL.indexOf('<AgenteGeneral />')).toBeLessThan(SHELL.indexOf('<PaletaComandos'));
+    // Desde Mesón (#1346) se dibujan en dos lugares —la barra lateral en
+    // escritorio, la cabecera en el celular— y en los dos va primero pedir.
+    const pedir = [...SHELL.matchAll(/<AgenteGeneral\b/g)].map((m) => m.index!);
+    const buscar = [...SHELL.matchAll(/<PaletaComandos\b/g)].map((m) => m.index!);
+    expect(pedir.length).toBe(buscar.length);
+    pedir.forEach((i, n) => expect(i).toBeLessThan(buscar[n]));
   });
 
   it('se abre con un atajo desde cualquier pantalla', () => {

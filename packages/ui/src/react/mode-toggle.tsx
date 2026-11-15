@@ -5,7 +5,7 @@ import { Moon as Luna, Sun as Sol } from 'lucide-react';
 import { getMode, toggleMode, type PulsoMode } from '../mode';
 
 /** Cambia día/noche y persiste la elección por usuario (Pulso §9/§11). */
-export function ModeToggle() {
+export function ModeToggle({ compacto = false }: { compacto?: boolean } = {}) {
   const [mode, setModeState] = useState<PulsoMode>('dia');
   useEffect(() => setModeState(getMode()), []);
   return (
@@ -36,10 +36,12 @@ export function ModeToggle() {
        * un texto largo, y acá quien usa lector de pantalla oye lo mismo en
        * las dos anchuras.
        */}
-      <span className="hidden sm:inline">{mode === 'dia' ? 'Modo noche' : 'Modo día'}</span>
+      {/* Compacto (Mesón, #1346): en el pie de la barra es solo el icono; el
+          nombre accesible ya dice qué hace. */}
+      {!compacto && <span className="hidden sm:inline">{mode === 'dia' ? 'Modo noche' : 'Modo día'}</span>}
       {mode === 'dia'
-        ? <Luna aria-hidden className="size-5 sm:hidden" />
-        : <Sol aria-hidden className="size-5 sm:hidden" />}
+        ? <Luna aria-hidden className={compacto ? 'size-4' : 'size-5 sm:hidden'} />
+        : <Sol aria-hidden className={compacto ? 'size-4' : 'size-5 sm:hidden'} />}
     </button>
   );
 }
