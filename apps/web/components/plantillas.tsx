@@ -127,7 +127,7 @@ export function Plantillas() {
   return (
     <section className="flex flex-col gap-6">
       <EncabezadoDePagina
-        rotulo="CANALES"
+        rotulo="Canales"
         titulo="Plantillas de WhatsApp"
         apoyo="Fuera de las 24 horas desde el último mensaje del cliente, WhatsApp solo deja escribir con una plantilla que Meta aprobó. Acá las creas y las mandas a revisión."
       />

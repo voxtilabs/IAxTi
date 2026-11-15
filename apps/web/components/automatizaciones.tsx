@@ -216,7 +216,7 @@ export function Automatizaciones() {
   return (
     <div className="max-w-2xl">
       <EncabezadoDePagina
-        rotulo="AUTOMATIZACIONES"
+        rotulo="Automatizaciones"
         titulo="El seguimiento que hoy no se hace"
       />
       <p className="mt-2 text-sm text-muted">

@@ -106,7 +106,7 @@ export function DarUnaHora({ onAgendada }: { onAgendada: () => void }) {
   if (!abierto) {
     return (
       <span>
-        <Button variant="secundario" onClick={() => setAbierto(true)}>
+        <Button onClick={() => setAbierto(true)}>
           <CalendarPlus aria-hidden className="size-4" /> Dar una hora
         </Button>
       </span>

@@ -89,7 +89,7 @@ export function Facturacion() {
   return (
     <div className="max-w-xl">
       <EncabezadoDePagina
-        rotulo="FACTURACIÓN"
+        rotulo="Facturación"
         titulo="Tu plan y tus facturas"
       />
 

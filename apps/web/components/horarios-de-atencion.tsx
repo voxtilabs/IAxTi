@@ -247,7 +247,9 @@ export function HorariosDeAtencion() {
             onChange={(e) => setForm({ ...form, respiro: Number(e.target.value) })}
           />
         </label>
-        <Button type="submit" disabled={ocupado === 'nueva'}>
+        {/* Secundario: la agenda tiene UN primario y es «Dar una hora», que es
+            el trabajo del día; esto es configuración (Mesón, #1346). */}
+        <Button type="submit" variant="secundario" disabled={ocupado === 'nueva'}>
           {ocupado === 'nueva' ? 'Agregando…' : 'Agregar horario'}
         </Button>
         <span className="w-full text-xs text-muted">

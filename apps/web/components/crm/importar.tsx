@@ -87,7 +87,7 @@ export function Importar() {
   return (
     <div className="max-w-3xl">
       <EncabezadoDePagina
-        rotulo="CONTACTOS"
+        rotulo="Contactos"
         titulo="Importar desde una planilla"
       />
       <p className="mt-2 max-w-prose text-body">

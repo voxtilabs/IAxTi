@@ -325,7 +325,7 @@ export function PreferenciasAvisos() {
   return (
     <div className="max-w-xl">
       <EncabezadoDePagina
-        rotulo="NOTIFICACIONES"
+        rotulo="Notificaciones"
         titulo="Qué avisos recibes"
       />
       <p className="mt-1 text-sm text-body">Elige por tipo y por canal. El correo llega cuando el negocio tenga su remitente configurado.</p>

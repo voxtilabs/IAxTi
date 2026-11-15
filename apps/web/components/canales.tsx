@@ -531,7 +531,7 @@ function CanalesDelNegocio() {
   return (
     <div className="max-w-2xl">
       <EncabezadoDePagina
-        rotulo="CANALES"
+        rotulo="Canales"
         titulo="Tus canales conectados"
       />
       <ConectarCanalesMeta onConectado={(cuenta) => setCanales((actual) => [

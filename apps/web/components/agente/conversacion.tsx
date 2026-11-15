@@ -59,7 +59,7 @@ function Propuesta({
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-dato">
           {filas.map(([clave, valor]) => (
             <div key={clave} className="col-span-2 grid grid-cols-subgrid">
-              <dt className="dato text-rotulo uppercase tracking-wide text-warn-text">{clave}</dt>
+              <dt className="dato text-rotulo text-warn-text">{clave}</dt>
               <dd className="dato break-words text-ink">
                 {typeof valor === 'object' ? JSON.stringify(valor) : String(valor)}
               </dd>

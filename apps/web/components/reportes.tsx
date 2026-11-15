@@ -97,7 +97,7 @@ export function Reportes() {
 
   return <section className="mx-auto max-w-5xl" aria-label="Reportes del negocio">
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <EncabezadoDePagina rotulo="REPORTES" titulo="Cómo va el negocio" />
+      <EncabezadoDePagina rotulo="Reportes" titulo="Cómo va el negocio" />
       <Tabs value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
         <TabsList aria-label="Período del reporte">{RANGOS.map((r) => <TabsTrigger key={r} value={String(r)}>{r} días</TabsTrigger>)}</TabsList>
       </Tabs>

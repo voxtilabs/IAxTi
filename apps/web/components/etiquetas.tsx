@@ -114,7 +114,6 @@ export function Etiquetas() {
   return (
     <section className="flex flex-col gap-6">
       <EncabezadoDePagina
-        rotulo="ETIQUETAS"
         titulo="Etiquetas"
         apoyo="El nombre se ve siempre: el color no es lo único que distingue una de otra."
       />

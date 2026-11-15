@@ -240,7 +240,8 @@ export function DiasCerrados() {
           />
           Para todo el equipo
         </label>
-        <Button type="submit" disabled={ocupado === 'nuevo' || !form.desde}>
+        {/* Secundario por lo mismo que «Agregar horario» (Mesón, #1346). */}
+        <Button type="submit" variant="secundario" disabled={ocupado === 'nuevo' || !form.desde}>
           {ocupado === 'nuevo' ? 'Cerrando…' : 'Cerrar estos días'}
         </Button>
         <span className="w-full text-xs text-muted">

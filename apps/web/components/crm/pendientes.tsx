@@ -107,7 +107,7 @@ export function Pendientes() {
   return (
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <EncabezadoDePagina rotulo="PENDIENTES" titulo="Qué hay que hacer" />
+        <EncabezadoDePagina rotulo="Pendientes" titulo="Qué hay que hacer" />
         <Tabs value={ambito} onValueChange={(v) => setAmbito(v as 'mias' | 'equipo')}>
           <TabsList aria-label="De quién">
             <TabsTrigger value="mias">Mías</TabsTrigger>

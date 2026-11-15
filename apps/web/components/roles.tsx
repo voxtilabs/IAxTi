@@ -130,7 +130,7 @@ export function Roles() {
   return (
     <div className="max-w-2xl">
       <EncabezadoDePagina
-        rotulo="ROLES"
+        rotulo="Roles"
         titulo="Quién puede qué"
       />
       <p className="mt-2 text-sm text-muted">

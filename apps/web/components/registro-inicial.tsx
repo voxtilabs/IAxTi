@@ -53,7 +53,7 @@ function RegistroConSesion() {
   </section>;
 
   return <section aria-label="Registro del negocio" className="pulso-panel max-w-xl rounded-tarjeta border border-line bg-raised p-6">
-    <EncabezadoDePagina rotulo="PUESTA EN MARCHA" titulo="Pon tu negocio en marcha" apoyo="Cuéntanos quién eres y a qué te dedicas. Después revisarás lo que propone el configurador antes de aplicarlo." />
+    <EncabezadoDePagina rotulo="Puesta en marcha" titulo="Pon tu negocio en marcha" apoyo="Cuéntanos quién eres y a qué te dedicas. Después revisarás lo que propone el configurador antes de aplicarlo." />
     <p className="mt-2 text-sm text-muted">Prueba gratis de <span className="dato">14 días</span> con los módulos de Crece, sin tarjeta.</p>
     <Formulario className="mt-6 flex flex-col gap-4" aria-busy={saving} onSubmit={(event) => {
       event.preventDefault();
