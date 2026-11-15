@@ -405,8 +405,12 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-fila-de-barra:hover { background: var(--bg-rest); color: var(--text); }
 .pulso-tecla { margin-left: auto; padding: 2px 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace; color: var(--text-muted); }
 .pulso-barra-pie { display: flex; align-items: center; gap: 4px; padding: 0 4px; }
-.pulso-barra-pie button { min-height: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 8px; border-color: transparent; background: transparent; box-shadow: none; color: var(--text-muted); }
+/* `!important` a propósito: estos botones traen `border` y `h-11 w-11` de
+   Tailwind, y las utilidades ganan por capa aunque este selector sea más
+   específico. Son tres controles, en un solo lugar. */
+.pulso-barra-pie button { min-height: 36px !important; min-width: 36px !important; height: 36px !important; width: 36px !important; padding: 0 !important; border-radius: 8px; border-color: transparent !important; background: transparent; box-shadow: none !important; color: var(--text-muted); }
 .pulso-barra-pie button:hover { background: var(--bg-rest); color: var(--text); }
+.pulso-barra-pie button svg { width: 16px !important; height: 16px !important; }
 .group[data-collapsible="icon"] .pulso-fila-texto,
 .group[data-collapsible="icon"] .pulso-tecla { display: none; }
 .group[data-collapsible="icon"] .pulso-fila-de-barra { justify-content: center; padding: 0; }
