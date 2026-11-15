@@ -11,12 +11,6 @@ body { background: var(--canvas); font-size: 15px; }
 .pulso-content h1 { line-height: 1.12; letter-spacing: -.03em; }
 .pulso-content > :is(div, section) > :is(header, div):has(> h1) { margin-bottom: 24px; }
 
-/* El ambiente es estático y no interfiere con clics, lectura ni composición. */
-.pulso-workspace > main::before, .pulso-admin::before {
-  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(ellipse at 95% 0%, var(--ambient-cool), transparent 42%),
-    radial-gradient(ellipse at 35% 100%, var(--ambient-warm), transparent 48%);
-}
 /* Dos tamaños medidos, no un barrido (#1106).
    Sube lo que se LEE y estaba indefendible: el pie de la marca, que estaba en
    9 px, y las migas del topbar, en 10. Y el h1 de la bandeja de 27 a 28, que
@@ -115,7 +109,6 @@ body { background: var(--canvas); font-size: 15px; }
 :where(input, textarea, [role="combobox"]):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 [role="tablist"] { border: 1px solid var(--border); background: var(--bg-rest); padding: 4px; }
 [role="tab"][data-state="active"] { background: var(--panel); box-shadow: var(--relieve-suave); color: var(--action-text); }
-.pulso-avatar { box-shadow: inset 0 1px 0 var(--surface-glint); }
 .pulso-content :where(th) { background: var(--bg-raised); color: var(--text-muted); font-weight: 500; }
 .pulso-content :where(tbody tr) { transition: background-color 140ms; }
 .pulso-content :where(tbody tr:hover) { background: var(--bg-rest); }
@@ -128,7 +121,6 @@ body { background: var(--canvas); font-size: 15px; }
 /* Las piezas de marca son decorativas: nunca estados ni controles ficticios. */
 .pulso-jelly { display: block; width: 128px; height: auto; flex-shrink: 0; overflow: visible; }
 .pulso-hero { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; overflow: hidden; padding: 32px 36px; border: 1px solid var(--border); border-radius: 16px; background: var(--hero-surface); box-shadow: var(--elevacion-panel); }
-.pulso-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 100% 10%, var(--ambient-cool), transparent 60%), radial-gradient(ellipse at 0% 100%, var(--ambient-warm), transparent 60%); }
 .pulso-hero > * { position: relative; }
 .pulso-hero h1 { max-width: 18ch; font-size: clamp(28px, 3.2vw, 46px); }
 .pulso-hero .pulso-jelly { width: clamp(100px, 15vw, 190px); transform: rotate(-9deg); }
@@ -146,7 +138,6 @@ body { background: var(--canvas); font-size: 15px; }
 /* Acceso: identidad IAxTi y el formulario OTP existente, sin cambiar auth. */
 .pulso-access { min-height: 100svh; padding: 20px; background: var(--canvas); }
 .pulso-access-stage { min-height: calc(100svh - 40px); position: relative; isolation: isolate; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--hero-surface); }
-.pulso-access-stage::before { content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 15% 48%, var(--ambient-cool-strong), transparent 48%), radial-gradient(ellipse at 100% 90%, var(--ambient-warm-strong), transparent 52%); }
 .pulso-access-header, .pulso-access-footer { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 30px 42px; }
 .pulso-access-header .marca { min-width: 0; }
 .pulso-access-header .marca svg { height: 32px; max-width: 100%; }

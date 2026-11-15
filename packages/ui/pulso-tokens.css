@@ -86,12 +86,6 @@
   --jelly-deep:#1C60E8;
   --jelly-shadow:#1549A3;
   --jelly-glint:#F2FEFF;
-  --surface-glint:rgb(255 255 255 / 0);
-  /* El ambiente de Pulso Vivo se apaga: transparente. */
-  --ambient-cool:rgb(0 0 0 / 0);
-  --ambient-warm:rgb(0 0 0 / 0);
-  --ambient-cool-strong:rgb(0 0 0 / 0);
-  --ambient-warm-strong:rgb(0 0 0 / 0);
   /* Profundidad neutra y chica; nada de sombras de color. */
   --elevacion-panel:0 1px 2px rgb(28 26 23 / .06);
   --elevacion-acceso:0 8px 24px rgb(28 26 23 / .08);
@@ -156,11 +150,6 @@
   --jelly-deep:#1C60E8;
   --jelly-shadow:#1549A3;
   --jelly-glint:#F2FEFF;
-  --surface-glint:rgb(255 255 255 / 0);
-  --ambient-cool:rgb(0 0 0 / 0);
-  --ambient-warm:rgb(0 0 0 / 0);
-  --ambient-cool-strong:rgb(0 0 0 / 0);
-  --ambient-warm-strong:rgb(0 0 0 / 0);
   --elevacion-panel:none;
   --elevacion-acceso:0 8px 24px rgb(0 0 0 / .35);
   --relieve-suave:none;
