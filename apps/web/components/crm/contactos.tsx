@@ -3,6 +3,7 @@
 import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Upload } from 'lucide-react';
 import { Badge, Button, DataTable, EstadoVacio, Input, Skeleton, useSession, type ColumnDef, type SortingState, type RowSelectionState } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
 import { crmClient } from '@iaxti/sdk';
@@ -129,6 +130,16 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
     { id: 'rut', accessorKey: 'rut', header: 'RUT', enableSorting: false, cell: ({ row }) => <span className="font-mono">{row.original.rut ?? '—'}</span> },
     { id: 'activity', accessorKey: 'lastActivityAt', header: 'Actividad', cell: ({ row }) => <time dateTime={row.original.lastActivityAt} className="font-mono">{new Date(row.original.lastActivityAt).toLocaleDateString('es-CL')}</time> },
   ];
+  const buscador = (clase = '') => (
+    <Input
+      type="search"
+      aria-label="Buscar contactos"
+      placeholder="Buscar por nombre o teléfono"
+      className={`w-full max-w-xs ${clase}`}
+      value={q}
+      onChange={(e) => { setQ(e.target.value); firstPage(); }}
+    />
+  );
   return (
     <div className="max-w-5xl" data-densidad="densa">
       <div className="flex flex-wrap items-center gap-4">
@@ -149,7 +160,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
             disabled={exportando || items?.length === 0}
             onClick={() => void exportarXlsx()}
           >
-            {exportando ? 'Armando el archivo…' : 'Exportar Excel'}
+            <Download className="size-4" aria-hidden />{exportando ? 'Armando el archivo…' : 'Exportar Excel'}
           </Button>
           {/* «Exportar CSV» y no «CSV» (#1118). El peso fantasma es la
               decisión de #1106 y se queda —es la exportación menos usada—,
@@ -166,9 +177,9 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
           </Button>
           <a
             href="/contactos/importar"
-            className="inline-flex min-h-control items-center rounded-boton bg-action px-5 text-sm font-medium text-white transition-colors hover:bg-action-hover"
+            className="inline-flex min-h-control items-center gap-2 rounded-boton bg-action px-4 text-sm font-medium text-white transition-colors hover:bg-action-hover"
           >
-            Importar CSV
+            <Upload className="size-4" aria-hidden />Importar CSV
           </a>
         </div>
       </div>
@@ -178,14 +189,10 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
           `max-w-xs` y no un valor nuevo: es el que ya usa el buscador de
           Empresas, y tres anchos para la misma cosa en tres pantallas es
           exactamente lo que #1109 vino a sacar. */}
-      <Input
-        type="search"
-        aria-label="Buscar contactos"
-        placeholder="Buscar por nombre o teléfono"
-        className="mt-4 w-full max-w-xs"
-        value={q}
-        onChange={(e) => { setQ(e.target.value); firstPage(); }}
-      />
+      {/* Con tabla, el buscador va en la fila de «Columnas» (Mesón, #1346);
+          sin tabla —cargando o vacía— va solo, porque el vacío por búsqueda
+          necesita el campo para limpiarla. */}
+      {!(items && items.length > 0) && buscador('mt-4')}
       {aviso && (
         <AvisoResultado>
           {aviso}
@@ -203,6 +210,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
         <DataTable label="Contactos" columns={columns} rows={items} sorting={sorting}
           onSort={(sort) => { setSorting(sort); firstPage(); }} selection={selection} onSelection={setSelection}
           nextCursor={cursor} loading={loading} mobileColumns={['name']} canPrevious={history.length > 0}
+          herramientas={buscador()}
           onNext={() => { if (cursor) { setHistory((h) => [...h, currentCursor]); setCurrentCursor(cursor); setSelection({}); } }}
           onPrevious={() => { setCurrentCursor(history.at(-1)); setHistory((h) => h.slice(0, -1)); setSelection({}); }}>
           <EtiquetarSeleccion tenant={tenant} contactIds={items.filter((c) => selection[c.id]).map((c) => c.id)} onDone={() => setSelection({})} />
