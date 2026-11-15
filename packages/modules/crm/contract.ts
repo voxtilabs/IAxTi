@@ -62,7 +62,7 @@ export {
 } from './application/activities';
 export type { Activity, ActivityType } from './application/activities';
 export {
-  listDeals, resumenDelTablero,
+  listDeals, resumenDelTablero, ganadoDelMes,
   listPipelines,
   listSavedFilters,
   saveFilter,

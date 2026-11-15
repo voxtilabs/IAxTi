@@ -261,6 +261,74 @@ export async function resumenDelTablero(
   }));
 }
 
+/**
+ * Lo ganado este mes y lo ganado el mes anterior HASTA LA MISMA FECHA (#1346).
+ *
+ * La cifra «Ganado» del tablero sumaba todo lo que alguna vez se ganó, que
+ * crece para siempre y no contesta nada. La pregunta del dueño es «¿cómo voy
+ * este mes?», y la única comparación honesta a mitad de mes es contra el mes
+ * anterior cortado en el mismo punto: al 15 de noviembre, contra el 1–15 de
+ * octubre, no contra octubre entero.
+ *
+ * - Los bordes del mes son los del NEGOCIO (`tenants.timezone`), no UTC: en
+ *   Santiago el 1 de noviembre empieza a las 03:00 Z, y cortar en UTC metía
+ *   en noviembre las ventas de la noche del 31.
+ * - Si el mes anterior es más corto (31 de marzo contra febrero), el corte
+ *   se topa en su último instante: febrero entero.
+ * - `status = 'won'` además de `won_at`: una oportunidad que se ganó y se
+ *   reabrió conserva su `won_at` (updateDeal no lo borra) y ya no es venta.
+ * - `value_clp`, por lo mismo que en `resumenDelTablero`.
+ *
+ * `ahora` se inyecta: la prueba usa dos instantes fijos, nunca el reloj.
+ */
+export async function ganadoDelMes(
+  client: PoolClient,
+  tenantId: string,
+  pipelineId: string,
+  ahora: Date = new Date(),
+): Promise<{
+  esteMesClp: number;
+  mesAnteriorClp: number;
+  corteDelMesAnterior: Date;
+  /** Mes y día de HOY en la zona del negocio (1–12, 1–31): el navegador no la conoce. */
+  mes: number;
+  dia: number;
+  /** El corte se topó con el fin del mes anterior: se comparó contra el mes entero. */
+  mesAnteriorCompleto: boolean;
+}> {
+  const zona = await zonaDelTenant(client, tenantId);
+  const r = await client.query(
+    `WITH l AS (SELECT ($3::timestamptz AT TIME ZONE $4) AS ahora_l),
+          b AS (SELECT ahora_l, date_trunc('month', ahora_l) AS ini_l FROM l),
+          c AS (SELECT ini_l, ahora_l,
+                       ini_l - interval '1 month' AS ini_ant_l,
+                       LEAST(ini_l - interval '1 month' + (ahora_l - ini_l), ini_l) AS corte_ant_l
+                  FROM b)
+     SELECT COALESCE(sum(d.value_clp) FILTER (
+              WHERE d.won_at >= (c.ini_l AT TIME ZONE $4) AND d.won_at <= $3::timestamptz), 0)::bigint AS este,
+            COALESCE(sum(d.value_clp) FILTER (
+              WHERE d.won_at >= (c.ini_ant_l AT TIME ZONE $4) AND d.won_at < (c.corte_ant_l AT TIME ZONE $4)), 0)::bigint AS anterior,
+            (c.corte_ant_l AT TIME ZONE $4) AS corte,
+            extract(month FROM c.ahora_l)::int AS mes,
+            extract(day FROM c.ahora_l)::int AS dia,
+            (c.corte_ant_l = c.ini_l) AS completo
+       FROM c
+       LEFT JOIN deals d
+         ON d.tenant_id = $1 AND d.pipeline_id = $2 AND d.status = 'won' AND d.won_at IS NOT NULL
+      GROUP BY c.ini_l, c.ini_ant_l, c.corte_ant_l, c.ahora_l`,
+    [tenantId, pipelineId, ahora.toISOString(), zona],
+  );
+  const f = r.rows[0];
+  return {
+    esteMesClp: Number(f.este),
+    mesAnteriorClp: Number(f.anterior),
+    corteDelMesAnterior: f.corte as Date,
+    mes: Number(f.mes),
+    dia: Number(f.dia),
+    mesAnteriorCompleto: Boolean(f.completo),
+  };
+}
+
 /** Todos los pipelines del tenant con sus etapas ordenadas (para el tablero). */
 export async function listPipelines(
   client: PoolClient,

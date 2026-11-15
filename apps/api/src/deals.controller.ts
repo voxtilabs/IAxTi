@@ -26,6 +26,7 @@ import {
   InvalidListQuery,
   listDeals,
   resumenDelTablero,
+  ganadoDelMes,
   listLossReasons,
   listPipelines,
   listSavedFilters,
@@ -161,14 +162,17 @@ export class DealsController {
    */
   @Get('deals/resumen')
   @RequirePermission('crm.deals.read')
-  @ApiOperation({ summary: 'Cuántas oportunidades y cuánto dinero hay en cada etapa' })
+  @ApiOperation({
+    summary: 'Cuántas oportunidades y cuánto dinero hay en cada etapa, y lo ganado este mes contra el mes anterior a la misma fecha',
+  })
   @ApiQuery({ name: 'pipelineId', required: true, type: String })
   async resumen(@Req() request: WithUser, @Query('pipelineId') pipelineId: string) {
     const actor = actorOf(request);
-    const items = await withTenant(pool(), actor.tenantId, (c) =>
-      resumenDelTablero(c, actor.tenantId, pipelineId),
-    );
-    return { items };
+    // Las dos en la misma conexión: es el mismo tablero y la misma foto.
+    return withTenant(pool(), actor.tenantId, async (c) => ({
+      items: await resumenDelTablero(c, actor.tenantId, pipelineId),
+      ganado: await ganadoDelMes(c, actor.tenantId, pipelineId),
+    }));
   }
 
   @Get('deals')

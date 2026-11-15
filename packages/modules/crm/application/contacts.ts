@@ -587,6 +587,35 @@ export const ORIGENES_DE_CANAL: readonly ContactOrigin[] = [
   'messenger',
 ];
 
+/**
+ * Por qué se le puede —o no— escribir primero a un contacto (SPEC §8, #1346).
+ *
+ * Es LA regla de `canReceiveBusinessInitiated`, sacada a una función pura
+ * para que la lista de contactos muestre exactamente lo que el envío va a
+ * decidir. Dos copias de una regla de consentimiento terminan diciendo cosas
+ * distintas, y la que miente es la que se ve.
+ *
+ * Devuelve el MOTIVO y no un sí/no: «escribió primero» y «dio opt-in» son
+ * permisos distintos (el segundo trae canal y evidencia, #696), y «se dio de
+ * baja» no es lo mismo que «nunca dio permiso».
+ */
+export type PermisoParaEscribirle = 'baja' | 'opt_in' | 'escribio_primero' | 'sin_permiso';
+
+export function permisoParaEscribirle(c: {
+  optInAt: Date | string | null;
+  optedOutAt: Date | string | null;
+  origin: string;
+}): PermisoParaEscribirle {
+  if (c.optedOutAt) return 'baja';
+  if (c.optInAt) return 'opt_in';
+  // Escribió primero (origen de canal). Valen TODOS los canales: quien nos
+  // escribió por Instagram o Messenger (#74) inició la conversación igual que
+  // quien escribió por WhatsApp. Dejarlos fuera los trataba como sin opt-in y
+  // mataba en silencio toda automatización hacia ellos.
+  if (ORIGENES_DE_CANAL.includes(c.origin as ContactOrigin)) return 'escribio_primero';
+  return 'sin_permiso';
+}
+
 export async function canReceiveBusinessInitiated(
   client: PoolClient,
   tenantId: string,
@@ -598,13 +627,8 @@ export async function canReceiveBusinessInitiated(
   );
   if (result.rowCount === 0) return false;
   const { opt_in_at, opted_out_at, origin } = result.rows[0];
-  if (opted_out_at) return false;
-  // Escribió primero (origen de canal) o dio opt-in registrado. Los
-  // orígenes que valen son TODOS los canales: quien nos escribió por
-  // Instagram o Messenger (#74) inició la conversación igual que quien
-  // escribió por WhatsApp. Dejarlos fuera los trataba como sin opt-in y
-  // mataba en silencio toda automatización hacia ellos.
-  return Boolean(opt_in_at) || ORIGENES_DE_CANAL.includes(origin as ContactOrigin);
+  const permiso = permisoParaEscribirle({ optInAt: opt_in_at, optedOutAt: opted_out_at, origin });
+  return permiso === 'opt_in' || permiso === 'escribio_primero';
 }
 
 /** Lista para /contactos (#34): búsqueda por nombre o teléfono, cursor. */
@@ -612,7 +636,7 @@ export async function listContacts(
   client: PoolClient,
   tenantId: string,
   filters: { q?: string; cursor?: string; limit?: number; sort?: string; order?: string } = {},
-): Promise<{ items: Array<Contact & { lastActivityAt: Date }>; nextCursor: string | null }> {
+): Promise<{ items: Array<Contact & { lastActivityAt: Date; permiso: PermisoParaEscribirle }>; nextCursor: string | null }> {
   const params: unknown[] = [tenantId];
   const where = ['tenant_id = $1', 'merged_into IS NULL'];
   if (filters.q?.trim()) {
@@ -636,7 +660,10 @@ export async function listContacts(
   const rows = hasMore ? r.rows.slice(0, limit) : r.rows;
   const last = rows.at(-1);
   return {
-    items: rows.map((row) => ({ ...rowToContact(row), lastActivityAt: row.last_activity_at as Date })),
+    items: rows.map((row) => {
+      const contacto = rowToContact(row);
+      return { ...contacto, lastActivityAt: row.last_activity_at as Date, permiso: permisoParaEscribirle(contacto) };
+    }),
     nextCursor: hasMore && last
       ? pagination.encode(last)
       : null,

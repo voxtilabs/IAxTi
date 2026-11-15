@@ -3809,7 +3809,7 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
   "DealsController_resumen": {
     "metodo": "GET",
     "ruta": "/v1/deals/resumen",
-    "resumen": "Cuántas oportunidades y cuánto dinero hay en cada etapa",
+    "resumen": "Cuántas oportunidades y cuánto dinero hay en cada etapa, y lo ganado este mes contra el mes anterior a la misma fecha",
     "permiso": "crm.deals.read",
     "modulo": "crm",
     "soloSesion": false,
