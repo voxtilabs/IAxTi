@@ -27,7 +27,7 @@ export type { ZavuConfig } from './application/zavu';
 // Zernio (#1317, ADR-0032): se registra en la API y los workers al lado de Zavu.
 // `baseDeZernio` lo usa el worker de entrada para que la llave de una cuenta de
 // Zernio pueda ir a SU dominio al bajar adjuntos (#1335).
-export { createZernioProvider } from './application/zernio';
+export { createZernioProvider, entrantesSinTelefono } from './application/zernio';
 export { baseDeZernio } from './application/zernio-base';
 export {
   connectWhatsAppNumber,

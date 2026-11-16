@@ -339,8 +339,9 @@ export function createZernioProvider(
       if (!phone) {
         // #1331: Meta está migrando a BSUID y un mensaje puede llegar sin
         // teléfono. No se inventa (ni con `sender.id`, que a veces es el
-        // BSUID): un contacto falso es peor que un mensaje que no entra. El
-        // aviso visible de estos mensajes es de ese issue, no del adaptador.
+        // BSUID): un contacto falso es peor que un mensaje que no entra. Que
+        // no se pierda en silencio lo hace `entrantesSinTelefono`: el camino
+        // de entrada lo cuenta y el diagnóstico lo muestra.
         return [];
       }
       const providerMessageId = m.platformMessageId ?? m.id;
@@ -362,6 +363,22 @@ export function createZernioProvider(
       ];
     },
   };
+}
+
+/**
+ * Cuántos mensajes del cliente trae el evento SIN teléfono (#1331).
+ *
+ * `normalize` no los entrega —un contacto inventado es peor que un mensaje que
+ * no entra—, y sin esto se perdían en silencio. Con esto el camino de entrada
+ * los anota y el diagnóstico los muestra. Mismo criterio que `normalize` para
+ * decidir qué es un mensaje del cliente: `message.received` y `incoming`.
+ */
+export function entrantesSinTelefono(payload: unknown): number {
+  const evento = payload as EventoDeZernio | null;
+  if (!evento || evento.event !== 'message.received') return 0;
+  const m = evento.message;
+  if (!m || m.direction !== 'incoming') return 0;
+  return m.sender?.phoneNumber ? 0 : 1;
 }
 
 // Reexportado para el contrato: misma costumbre que Zavu con su base.

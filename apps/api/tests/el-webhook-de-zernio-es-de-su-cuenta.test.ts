@@ -127,6 +127,17 @@ describe('POST /webhooks/channels/:id con una cuenta de Zernio', () => {
     expect(await queue.getJob(`in-${cuenta}-wamid.cruce2`)).toBeUndefined();
   });
 
+  it('un mensaje sin teléfono no entra, pero queda contado (#1331)', async () => {
+    const sinNumero = evento({ id: 'sintel1' });
+    (sinNumero.message.sender as { phoneNumber: string | null }).phoneNumber = null;
+    const res = await disparar(sinNumero);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ received: 0, statuses: 0 });
+    expect(await queue.getJob(`in-${cuenta}-wamid.sintel1`)).toBeUndefined();
+    const fila = (await admin.query('SELECT inbound_sin_telefono FROM channel_accounts WHERE id = $1', [cuenta])).rows[0];
+    expect(fila.inbound_sin_telefono).toBe(1);
+  });
+
   it('la muestra de prueba de Zernio confirma el webhook sin encolar nada', async () => {
     const res = await disparar(evento({ id: 'muestra', test: true, accountId: 'inventada' }));
     expect(res.status).toBe(201);

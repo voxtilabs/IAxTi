@@ -38,7 +38,7 @@ export { hiloDe, olvidarHilo, recordarHilo, tomarCandadoDelHilo } from './applic
 export type { ClaveDelHilo } from './application/hilos';
 export { simuladorProvider, firmarWebhook } from './application/simulador';
 // El rastro de los webhooks y por qué no llegan los mensajes (#434).
-export { anotarWebhook, rastroDeWebhook } from './application/rastro';
+export { anotarWebhook, anotarEntrantesSinTelefono, rastroDeWebhook } from './application/rastro';
 export { reservarEmisor, emisorAcreditado, emisoresAcreditados, tenantDelEmisorDeCanal, cuentaDelEmisor } from './application/senders';
 export type { ResultadoDeWebhook, RastroDeWebhook } from './application/rastro';
 export { diagnosticarCanal } from './application/diagnostico';

@@ -14,6 +14,7 @@ import type { RawBodyRequest } from '@nestjs/common';
 import { createQueue, redisConnection } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import {
+  anotarEntrantesSinTelefono,
   anotarWebhook,
   findAccountById,
   proveedorDe,
@@ -21,7 +22,7 @@ import {
   type ResultadoDeWebhook,
 } from '@iaxti/module-channels';
 import type { Pool } from 'pg';
-import { eventoDeZernioEsDeLaCuenta, normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
+import { entrantesSinTelefono, eventoDeZernioEsDeLaCuenta, normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
 import { conReintentoDeConexion, esFalloDeConexion } from './lib/arranque-en-frio';
 import type { WithRequestId } from './request-id';
@@ -199,6 +200,19 @@ export class WebhooksController {
     }
     account = { ...destino, webhookSecretRef: primaria.webhookSecretRef };
     await anotar(account.tenantId, account.id, 'aceptado');
+    if (esZernio) {
+      // Un mensaje sin teléfono no entra a la bandeja (#1331), pero tampoco se
+      // pierde en silencio: se cuenta, y el diagnóstico lo dice. Se acepta el
+      // webhook igual — reintentarlo no le va a poner un número.
+      const sinTelefono = entrantesSinTelefono(request.body);
+      if (sinTelefono > 0) {
+        console.warn(`webhook: ${sinTelefono} mensaje(s) sin teléfono en la cuenta ${account.id}; no entran a la bandeja (#1331)`);
+        const { tenantId, id } = account;
+        await withTenant(pool, tenantId, (c) =>
+          anotarEntrantesSinTelefono(c, { tenantId, accountId: id, cuantos: sinTelefono }),
+        ).catch((error: Error) => console.warn(`webhook: no se pudo anotar el mensaje sin teléfono: ${error.message}`));
+      }
+    }
 
     const mensajes = (proveedorDe(account) ?? provider).normalize(
       (request as unknown as { body: unknown }).body,

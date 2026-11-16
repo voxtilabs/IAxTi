@@ -74,6 +74,30 @@ export interface RastroDeWebhook {
   ultimo: Date | null;
   resultado: ResultadoDeWebhook | null;
   ultimoBueno: Date | null;
+  /** Mensajes que llegaron sin teléfono y no pudieron entrar (#1331). */
+  sinTelefono: { cuantos: number; ultimo: Date | null };
+}
+
+/**
+ * Anota mensajes que llegaron sin teléfono (#1331).
+ *
+ * El webhook se acepta igual —reintentarlo no le va a poner un número—, pero el
+ * mensaje no entra a la bandeja: IAxTi identifica al contacto por teléfono. Se
+ * cuenta para que el diagnóstico lo diga y para saber si pasa de verdad, que es
+ * lo que decide cuándo hay que aprender a recibirlos.
+ */
+export async function anotarEntrantesSinTelefono(
+  client: Pick<Pool, 'query'> | PoolClient,
+  input: { tenantId: string; accountId: string; cuantos: number },
+): Promise<void> {
+  if (input.cuantos <= 0) return;
+  await client.query(
+    `UPDATE channel_accounts
+        SET inbound_sin_telefono = inbound_sin_telefono + $3,
+            inbound_sin_telefono_at = now()
+      WHERE tenant_id = $1 AND id = $2`,
+    [input.tenantId, input.accountId, input.cuantos],
+  );
 }
 
 export async function rastroDeWebhook(
@@ -82,7 +106,8 @@ export async function rastroDeWebhook(
   accountId: string,
 ): Promise<RastroDeWebhook> {
   const r = await client.query(
-    `SELECT last_webhook_at, last_webhook_result, last_webhook_ok_at
+    `SELECT last_webhook_at, last_webhook_result, last_webhook_ok_at,
+            inbound_sin_telefono, inbound_sin_telefono_at
        FROM channel_accounts WHERE tenant_id = $1 AND id = $2`,
     [tenantId, accountId],
   );
@@ -91,5 +116,9 @@ export async function rastroDeWebhook(
     ultimo: (fila.last_webhook_at as Date) ?? null,
     resultado: (fila.last_webhook_result as ResultadoDeWebhook) ?? null,
     ultimoBueno: (fila.last_webhook_ok_at as Date) ?? null,
+    sinTelefono: {
+      cuantos: Number(fila.inbound_sin_telefono ?? 0),
+      ultimo: (fila.inbound_sin_telefono_at as Date) ?? null,
+    },
   };
 }
