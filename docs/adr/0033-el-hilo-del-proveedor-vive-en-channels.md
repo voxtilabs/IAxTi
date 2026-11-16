@@ -168,3 +168,33 @@ pedía: impuesto por el código y no por la memoria.
 3. Un hilo borrado del lado de Zernio se recupera con un reintento y no con dos.
 4. Un entrante sin teléfono falla clasificado y queda visible.
 5. Zavu: las suites de canales y de salida, sin cambios.
+
+## Enmienda (#1321, 15-11-2026): cómo quedó el aislamiento por tenant
+
+Medido contra el OpenAPI de Zernio v1.615, no contra el recuerdo de ZernFlow.
+
+- **Un perfil por tenant**, con `externalId = tenant_id`. Zernio lo hace único
+  por dueño (409 `profile_external_id_conflict`), así que dos altas a la vez no
+  dejan dos perfiles: la segunda choca y lee el de la primera.
+- **El pisotón de cuentas ya no existe.** Un perfil admite varias cuentas de la
+  misma plataforma y conectar otra la agrega; para WhatsApp, un número que está
+  en otro perfil responde 409. Lo que vimos con `agenciapalena` era del modelo
+  anterior de Zernio.
+- **Una llave por tenant restringida a su perfil** (`scope: 'profiles'`, sin el
+  grupo `webhooks`). Antes de entregarla se comprueba con ella misma que ve un
+  solo perfil; si no, se borra. Con esto el aislamiento de la salida lo hace
+  cumplir Zernio aunque nuestro código se equivoque de id.
+- **Tres barreras en la entrada.** La suscripción del webhook está atada al
+  perfil y a la cuenta (`profileIds`, `accountIds`); la firma prueba que es de
+  Zernio; y `eventoDeZernioEsDeLaCuenta` exige que `account.accountId`,
+  `account.profileId` y `profiles[].externalId` sean los de la cuenta destino.
+  Lo que no calza se rechaza y queda anotado como `perfil_ajeno`.
+- **Entre tenants, la base.** El emisor de una cuenta de Zernio es
+  `zernio:<id>` en `channel_senders`, cuya clave primaria es global: la misma
+  cuenta de Zernio no puede quedar en dos negocios.
+- **Techo conocido: 50 webhooks por usuario de Zernio.** Una suscripción por
+  cuenta llega a 50 canales. Pasado eso, un webhook común que elige la cuenta
+  por `account.accountId`; la verificación por evento es la que lo permite.
+- El alta es `scripts/conectar-zernio.mjs` (mirar → perfil y enlace de conexión
+  → alta), mismo contrato que el de Zavu: la llave y el secreto se imprimen una
+  vez y viven en el entorno por nombre.

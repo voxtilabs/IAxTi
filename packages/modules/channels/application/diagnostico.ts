@@ -408,6 +408,19 @@ function pasoDelWebhook(rastro: RastroDeWebhook, ahora: Date): PasoDelDiagnostic
         'regenera el secreto DEL EMISOR (no el del proyecto) y guárdalo en la variable del despliegue.',
     };
   }
+  if (rastro.resultado === 'perfil_ajeno') {
+    // La firma está bien: cambiar el secreto no arregla nada. Lo que no calza
+    // es de QUIÉN es el evento (#1321).
+    return {
+      id: 'webhook',
+      titulo: 'Webhooks recibidos',
+      estado: 'mal',
+      detalle: `Llegó uno ${cuando} con la firma correcta, pero era de otra cuenta o de otro negocio, y lo rechazamos.`,
+      queHacer:
+        'La suscripción del proveedor manda a esta cuenta eventos que no son suyos. Vuelve a conectar el canal ' +
+        'para que el webhook quede atado a su cuenta y a su perfil.',
+    };
+  }
   return {
     id: 'webhook',
     titulo: 'Webhooks recibidos',

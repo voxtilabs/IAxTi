@@ -28,7 +28,10 @@ function fuentes(dir: string, acc: string[] = []): string[] {
     if (IGNORADOS.has(entrada)) continue;
     const ruta = join(dir, entrada);
     if (statSync(ruta).isDirectory()) fuentes(ruta, acc);
-    else if (/\.tsx?$/.test(entrada)) acc.push(ruta);
+    // `.mjs` por los scripts de operación (#1321): `conectar-zavu` y
+    // `conectar-zernio` son el camino real para conectar un canal, y lo que
+    // importan del contrato SÍ tiene consumidor aunque no esté en `apps/`.
+    else if (/\.(tsx?|mjs)$/.test(entrada)) acc.push(ruta);
   }
   return acc;
 }

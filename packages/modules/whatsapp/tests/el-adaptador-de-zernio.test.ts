@@ -256,7 +256,9 @@ describe('send: por hilo cuando lo hay, con plantilla cuando no', () => {
     const res = await provider.send(cuentaDe(1), mensajeBase({ providerThreadId: 'hilo-vivo' }));
 
     expect(peticiones).toHaveLength(1);
-    expect(peticiones[0].url).toContain('/v1/inbox/conversations/hilo-vivo/messages');
+    // La URL ENTERA y no un pedazo: con `toContain` pasaba también
+    // `/api/v1/v1/inbox/…`, que es a donde salía todo con la base vieja.
+    expect(peticiones[0].url).toBe('https://zernio.com/api/v1/inbox/conversations/hilo-vivo/messages');
     expect(peticiones[0].headers['idempotency-key']).toBe('nuestro-id-1');
     expect(peticiones[0].body.accountId).toBe('cuenta-de-zernio-1');
     expect(peticiones[0].body.message).toBe('Tu cotización está lista');
