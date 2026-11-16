@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { esPermanente, ErrorPermanente } from '../application/outbound';
-import { createZernioProvider } from '../application/zernio';
+import { createZernioProvider, entrantesSinTelefono } from '../application/zernio';
 import { verifyZernioSignature } from '../application/zernio-base';
 import type { ChannelAccountRef, OutboundMessage } from '@iaxti/module-channels';
 
@@ -464,3 +464,27 @@ describe('mandar dentro del hilo: el 5xx y la red sí se reintentan', () => {
     expect((error as Error).message).toBe('fetch failed');
   });
 });
+
+describe('los mensajes sin teléfono se cuentan, no se inventan (#1331)', () => {
+  const sobre = (sender: unknown, over: Record<string, unknown> = {}) => ({
+    event: 'message.received',
+    message: { id: 'm', conversationId: 'c', direction: 'incoming', text: 'hola', sender, ...over },
+  });
+
+  it('el que llega sin número: normalize no lo entrega y la cuenta lo nota', () => {
+    const p = sobre({ phoneNumber: null, businessScopedUserId: 'CL.123' });
+    expect(createZernioProvider('whatsapp').normalize(p)).toEqual([]);
+    expect(entrantesSinTelefono(p)).toBe(1);
+  });
+
+  it('el que trae número no cuenta como perdido', () => {
+    expect(entrantesSinTelefono(sobre({ phoneNumber: '+56911112222' }))).toBe(0);
+  });
+
+  it('lo que sale de nosotros u otro evento no es un mensaje del cliente perdido', () => {
+    expect(entrantesSinTelefono(sobre({ phoneNumber: null }, { direction: 'outgoing' }))).toBe(0);
+    expect(entrantesSinTelefono({ event: 'message.sent', message: { direction: 'incoming' } })).toBe(0);
+    expect(entrantesSinTelefono(null)).toBe(0);
+  });
+});
+

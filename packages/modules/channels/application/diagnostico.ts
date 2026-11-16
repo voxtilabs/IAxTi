@@ -96,6 +96,8 @@ export async function diagnosticarCanal(
   if (avisoReal) pasos.unshift(avisoReal);
   pasos.push(pasoDeLaCredencial(cuenta, deps.hayCredencial));
   pasos.push(pasoDelWebhook(rastro, ahora));
+  const sinTelefono = pasoDeLosSinTelefono(rastro, ahora);
+  if (sinTelefono) pasos.push(sinTelefono);
   // Después del webhook y no antes: el orden de este archivo va de afuera
   // hacia adentro, y si el webhook nunca llegó no hay conversación que
   // contestar — mandar a revisar el emisor sería el consejo equivocado.
@@ -429,3 +431,27 @@ function pasoDelWebhook(rastro: RastroDeWebhook, ahora: Date): PasoDelDiagnostic
     queHacer: 'Revisa el estado del canal más arriba.',
   };
 }
+
+/**
+ * Mensajes que llegaron y no entraron porque venían sin teléfono (#1331).
+ *
+ * Solo aparece si pasó. `atencion` y no `mal`: el canal funciona, y lo que
+ * falta no lo arregla quien mira el diagnóstico. Pero tiene que saberlo,
+ * porque del otro lado hay alguien que escribió y nadie le contestó.
+ */
+function pasoDeLosSinTelefono(rastro: RastroDeWebhook, ahora: Date): PasoDelDiagnostico | null {
+  const { cuantos, ultimo } = rastro.sinTelefono;
+  if (cuantos <= 0) return null;
+  return {
+    id: 'sin_telefono',
+    titulo: 'Mensajes sin número',
+    estado: 'atencion',
+    detalle:
+      (cuantos === 1 ? '1 mensaje llegó sin número de teléfono' : `${cuantos} mensajes llegaron sin número de teléfono`) +
+      (ultimo ? ` (el último ${haceCuanto(ultimo, ahora)})` : '') +
+      (cuantos === 1 ? ' y no entró a la bandeja.' : ' y no entraron a la bandeja.') +
+      ' WhatsApp está empezando a identificar a algunas personas sin mostrar su número.',
+    queHacer: 'Avísanos para revisarlos desde el proveedor y contarte quién escribió.',
+  };
+}
+

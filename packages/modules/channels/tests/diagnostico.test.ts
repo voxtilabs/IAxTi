@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool, PoolClient } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createChannelAccount, setChannelState } from '../application/accounts';
-import { anotarWebhook, rastroDeWebhook } from '../application/rastro';
+import { anotarEntrantesSinTelefono, anotarWebhook, rastroDeWebhook } from '../application/rastro';
 import { diagnosticarCanal } from '../application/diagnostico';
 import { resetProviders } from '../domain/port';
 
@@ -496,3 +496,32 @@ describe('«este canal manda de verdad» se avisa (#593)', () => {
     }
   });
 });
+
+describe('los mensajes que llegaron sin teléfono (#1331)', () => {
+  it('sin ninguno, el paso no aparece: un aviso que sale siempre no se lee', async () => {
+    const cuenta = await cuentaNueva('sin perdidos');
+    await en((c) => anotarWebhook(c, { tenantId: tenant, accountId: cuenta.id, resultado: 'aceptado' }));
+    const d = await en((c) => diagnosticarCanal(c, { tenantId: tenant, accountId: cuenta.id }, SIEMPRE));
+    expect(d.pasos.some((p) => p.id === 'sin_telefono')).toBe(false);
+  });
+
+  it('se cuentan, y el diagnóstico dice cuántos y que no entraron, sin culpar al canal', async () => {
+    const cuenta = await cuentaNueva('con perdidos');
+    await en((c) => anotarWebhook(c, { tenantId: tenant, accountId: cuenta.id, resultado: 'aceptado' }));
+    await en((c) => anotarEntrantesSinTelefono(c, { tenantId: tenant, accountId: cuenta.id, cuantos: 1 }));
+    await en((c) => anotarEntrantesSinTelefono(c, { tenantId: tenant, accountId: cuenta.id, cuantos: 2 }));
+    const r = await en((c) => rastroDeWebhook(c, tenant, cuenta.id));
+    expect(r.sinTelefono.cuantos).toBe(3);
+    expect(r.sinTelefono.ultimo).toBeInstanceOf(Date);
+
+    const d = await en((c) => diagnosticarCanal(c, { tenantId: tenant, accountId: cuenta.id }, SIEMPRE));
+    const paso = d.pasos.find((p) => p.id === 'sin_telefono')!;
+    expect(paso.estado).toBe('atencion');
+    expect(paso.detalle).toContain('3 mensajes llegaron sin número');
+    expect(paso.detalle).toContain('no entraron a la bandeja');
+    expect(paso.queHacer).toBeTruthy();
+    // El canal funciona: esto no lo vuelve «el problema» del diagnóstico.
+    expect(d.problema).not.toBe('sin_telefono');
+  });
+});
+
