@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { exigirNombreDeVariable, publishEvent } from '@iaxti/core';
-import { assertChannelTransition, PROVEEDOR_POR_OMISION, proveedoresRegistrados } from '../domain/port';
+import { assertChannelTransition, PROVEEDOR_POR_OMISION, proveedorDe, proveedoresRegistrados } from '../domain/port';
 import type { ChannelAccountRef, ChannelKind, ChannelState } from '../domain/port';
 
 function rowToAccount(row: Record<string, unknown>): ChannelAccountRef {
@@ -28,6 +28,14 @@ export async function createChannelAccount(
     credentialRef?: string;
     webhookSecretRef?: string;
     config?: Record<string, unknown>;
+    /**
+     * Quién transporta la cuenta (ADR-0032). Sin esto la fila toma el
+     * `DEFAULT 'zavu'` de la columna, y una cuenta de Zernio nacía declarando
+     * a Zavu: el envío y la firma del webhook irían al proveedor equivocado.
+     * Tiene que estar registrado en ESTE proceso — un nombre que nadie
+     * atiende no se guarda.
+     */
+    provider?: string;
   },
 ): Promise<ChannelAccountRef> {
   // Por referencia, nunca el valor (SPEC §17). Acá no se validaba nada: el
@@ -41,18 +49,30 @@ export async function createChannelAccount(
   const secretoDelWebhook = input.webhookSecretRef
     ? exigirNombreDeVariable(input.webhookSecretRef, 'la referencia del secreto del webhook')
     : null;
-  const r = await client.query(
-    `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref, webhook_secret_ref, config)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [
-      input.tenantId,
-      input.kind,
-      input.name,
-      credencial,
-      secretoDelWebhook,
-      JSON.stringify(input.config ?? {}),
-    ],
-  );
+  if (input.provider !== undefined && !proveedorDe({ kind: input.kind, provider: input.provider })) {
+    throw new Error(`El proveedor "${input.provider}" no atiende el canal ${input.kind} en este proceso.`);
+  }
+  // La columna se nombra SOLO si se declaró proveedor: sin él, el INSERT es
+  // el mismo de antes y la fila toma el `DEFAULT` de la columna.
+  const valores = [
+    input.tenantId,
+    input.kind,
+    input.name,
+    credencial,
+    secretoDelWebhook,
+    JSON.stringify(input.config ?? {}),
+  ];
+  const r = input.provider === undefined
+    ? await client.query(
+        `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref, webhook_secret_ref, config)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        valores,
+      )
+    : await client.query(
+        `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref, webhook_secret_ref, config, provider)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [...valores, input.provider],
+      );
   return rowToAccount(r.rows[0]);
 }
 

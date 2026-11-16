@@ -107,3 +107,21 @@ export { consultarMensajeDelCanal, type MensajeDelCanal, type ConsultaDelCanal }
 // La tabla de tipos del canal. Se exporta para que la guarda del camino de
 // entrada pueda cruzarla contra lo que la tabla acepta (#1266).
 export { TIPOS } from './application/zavu';
+// Un perfil de Zernio por tenant y la verificación por mensaje (#1321).
+export {
+  eventoDeZernioEsDeLaCuenta,
+  perfilDelTenant,
+  cuentaDelPerfil,
+  listarCuentasDelPerfil,
+  cuentaEnZernio,
+  llaveDelTenant,
+  suscribirWebhook,
+  enlaceParaConectar,
+  darDeAltaCuentaDeZernio,
+  cuentaDeZernioYaConectada,
+  asegurarAdaptadorDeZernio,
+  ErrorDelAlta,
+} from './application/zernio-perfil';
+export type { VeredictoDelEvento, PerfilDeZernio } from './application/zernio-perfil';
+export { llamarAZernio } from './application/zernio-base';
+export type { ConfigDeZernio } from './application/zernio-base';

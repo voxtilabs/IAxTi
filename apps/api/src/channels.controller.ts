@@ -1,6 +1,7 @@
 import { refParaMostrar } from '@iaxti/core';
 import {
   BadRequestException,
+  ConflictException,
   Body,
   Controller,
   Get,
@@ -27,6 +28,8 @@ import {
   desconectarNumero,
   elegirSender,
   emisorDelProveedor,
+  cuentaEnZernio,
+  baseDeZernio,
   emisoresDelProveedor,
   listTemplates,
   listWhatsAppNumbers,
@@ -86,6 +89,20 @@ const ConexionMeta = z.object({
   senderId: textoRequerido('Elige una conexión de tu negocio.'),
   kind: z.enum(['instagram', 'messenger']),
 });
+
+/**
+ * Elegir emisor es de Zavu (#1321). Una cuenta de Zernio queda atada a su
+ * cuenta y a su perfil al conectarla, y estas rutas le preguntan a Zavu con la
+ * llave del canal: con una de Zernio, la llave terminaba en Zavu. Se corta
+ * ANTES de leer la llave.
+ */
+function soloEmisoresDeZavu(cuenta: { provider?: string | null }): void {
+  if ((cuenta.provider ?? 'zavu') === 'zavu') return;
+  throw new ConflictException({
+    code: 'PROVIDER_FIXED_SENDER',
+    message: 'Este canal quedó atado a su cuenta del proveedor al conectarlo. Para cambiarla, vuelve a conectarlo.',
+  });
+}
 
 /** La pantalla de canales (#45): estado, calidad y la reactivación manual. */
 @ApiTags('channels')
@@ -242,6 +259,18 @@ export class ChannelsController {
                     ? process.env[cuenta.credentialRef]
                     : undefined;
                   if (typeof senderId !== 'string' || !senderId || !apiKey) return null;
+                  // Se le pregunta al proveedor DE LA CUENTA (#1321). Antes
+                  // esto llamaba siempre a Zavu, y con una cuenta de Zernio
+                  // abrir el diagnóstico le mandaba la llave de Zernio a Zavu.
+                  if (cuenta.provider === 'zernio') {
+                    const { zernioAccountId, zernioProfileId } = cuenta.config;
+                    if (typeof zernioAccountId !== 'string' || typeof zernioProfileId !== 'string') return null;
+                    return cuentaEnZernio(
+                      { apiKey, apiBase: baseDeZernio(), fetchImpl: (...a) => globalThis.fetch(...a) },
+                      { profileId: zernioProfileId, zernioAccountId },
+                    );
+                  }
+                  if (cuenta.provider !== 'zavu') return null;
                   return emisorDelProveedor(clienteZavu(apiKey), senderId);
                 },
               }
@@ -294,6 +323,7 @@ export class ChannelsController {
       }
       return encontrada;
     });
+    soloEmisoresDeZavu(cuenta);
     const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
     if (!apiKey) {
       throw new ServiceUnavailableException({
@@ -368,6 +398,7 @@ export class ChannelsController {
       }
       return encontrada;
     });
+    soloEmisoresDeZavu(cuenta);
     const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
     if (!apiKey) {
       throw new ServiceUnavailableException({

@@ -48,7 +48,7 @@ describe('la puerta pública de los módulos (#664)', () => {
   });
 
   it('no aparece ningún export nuevo sin consumidor', () => {
-    const ahora = exportsSinConsumidor([join(RAIZ, 'apps'), join(RAIZ, 'packages')]);
+    const ahora = exportsSinConsumidor([join(RAIZ, 'apps'), join(RAIZ, 'packages'), join(RAIZ, 'scripts')]);
     const nuevos = ahora.filter((x) => !base.includes(x));
     expect(
       nuevos,
@@ -66,7 +66,7 @@ describe('la puerta pública de los módulos (#664)', () => {
   });
 
   it('y si alguno consiguió consumidor, la marca BAJA', () => {
-    const ahora = exportsSinConsumidor([join(RAIZ, 'apps'), join(RAIZ, 'packages')]);
+    const ahora = exportsSinConsumidor([join(RAIZ, 'apps'), join(RAIZ, 'packages'), join(RAIZ, 'scripts')]);
     const resueltos = base.filter((x) => !ahora.includes(x));
     expect(
       resueltos,

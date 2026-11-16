@@ -21,7 +21,7 @@ const CABECERA = `# Exports de contrato sin un solo consumidor fuera de su módu
 # Se regenera con: node scripts/exports-sin-consumidor.mjs --escribir
 `;
 
-const ahora = exportsSinConsumidor(['apps', 'packages']);
+const ahora = exportsSinConsumidor(['apps', 'packages', 'scripts']);
 const antes = readFileSync(RUTA, 'utf8')
   .split('\n')
   .map((l) => l.trim())

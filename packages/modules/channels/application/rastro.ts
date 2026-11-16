@@ -28,7 +28,17 @@ export type ResultadoDeWebhook =
    * arreglos distintos — que es, textual, el motivo por el que esta tabla
    * existe (#434).
    */
-  | 'conexion_sin_confirmar';
+  | 'conexion_sin_confirmar'
+  /**
+   * Llegó firmado, y era de OTRA cuenta o de otro negocio (#1321).
+   *
+   * Con Zernio la firma prueba que el evento es de Zernio, no que sea de esta
+   * cuenta: el evento trae su cuenta, su perfil y el `externalId` del perfil,
+   * y si alguno no calza se rechaza. Que quede anotado aparte es lo que deja
+   * distinguir «se cruzó un evento» de «la firma está mal», que se arreglan en
+   * lugares distintos.
+   */
+  | 'perfil_ajeno';
 
 /**
  * Anota el resultado, sin convertir cada mensaje en una escritura.

@@ -21,7 +21,7 @@ import {
   type ResultadoDeWebhook,
 } from '@iaxti/module-channels';
 import type { Pool } from 'pg';
-import { normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
+import { eventoDeZernioEsDeLaCuenta, normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
 import { conReintentoDeConexion, esFalloDeConexion } from './lib/arranque-en-frio';
 import type { WithRequestId } from './request-id';
@@ -165,7 +165,34 @@ export class WebhooksController {
         message: 'La firma del webhook no calza.',
       });
     }
-    const destino = await withTenant(pool, primaria.tenantId, (c) => cuentaDeWebhookZavu(c, primaria, request.body));
+    const esZernio = primaria.provider === 'zernio';
+    if (esZernio) {
+      /**
+       * La firma prueba que el evento es de Zernio; esto, que es de ESTA
+       * cuenta y de ESTE negocio (#1321). Zernio ya entrega a esta URL solo
+       * lo de su perfil y su cuenta (la suscripción está atada a los dos),
+       * pero esa es SU barrera: esta es la nuestra, y se mira en cada evento.
+       * Un evento ajeno con la firma buena es un webhook mal atado, no un
+       * secreto malo, y se anota aparte para que el diagnóstico lo distinga.
+       */
+      const veredicto = eventoDeZernioEsDeLaCuenta(request.body, primaria);
+      if (!veredicto.ok && veredicto.prueba) {
+        // La muestra de `POST /v1/webhooks/test`: URL y secreto están bien, y
+        // es todo lo que dice. No trae un mensaje que encolar.
+        await anotar(primaria.tenantId, primaria.id, 'aceptado');
+        return { received: 0, statuses: 0 };
+      }
+      if (!veredicto.ok) {
+        console.warn(`webhook: evento de Zernio rechazado en la cuenta ${primaria.id}: ${veredicto.motivo}`);
+        await anotar(primaria.tenantId, primaria.id, 'perfil_ajeno');
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
+      }
+    }
+    // El sobre de Zavu puede elegir otro canal del mismo emisor; uno de
+    // Zernio no, porque su suscripción es de UNA cuenta.
+    const destino = esZernio
+      ? primaria
+      : await withTenant(pool, primaria.tenantId, (c) => cuentaDeWebhookZavu(c, primaria, request.body));
     if (!destino || destino.state === 'disconnected' || destino.state === 'connecting') {
       await anotar(primaria.tenantId, primaria.id, 'cuenta_desconectada');
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
@@ -203,7 +230,9 @@ export class WebhooksController {
     // Estados de entrega (#43): sent/delivered/read/failed del proveedor. Los
     // tres canales de Zavu comparten envelope, así que comparten estados.
     const CANALES_ZAVU = ['whatsapp', 'instagram', 'messenger'];
-    const statuses = CANALES_ZAVU.includes(account.kind)
+    // Solo del sobre de Zavu: el de Zernio tiene otra forma, y leerlo con
+    // este parser es inventar estados.
+    const statuses = !esZernio && CANALES_ZAVU.includes(account.kind)
       ? normalizeStatuses((request as unknown as { body: unknown }).body)
       : [];
     if (statuses.length > 0) {
@@ -232,7 +261,7 @@ export class WebhooksController {
     // calidad: hoy esta rama no dispara, y queda porque el día del proveedor
     // propio (#82) —o el día que Zavu lo publique— es el único lugar donde hay
     // que enchufarlo.
-    const quality = account.kind === 'whatsapp'
+    const quality = !esZernio && account.kind === 'whatsapp'
       ? normalizeQualityUpdates((request as unknown as { body: unknown }).body)
       : [];
     if (quality.length > 0) {

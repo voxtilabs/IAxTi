@@ -94,6 +94,13 @@ export async function connectWhatsAppNumber(
      * cualquiera que entre a preguntarse por qué un mensaje salió de staging.
      */
     enviosReales?: boolean;
+    /**
+     * Quién transporta el número (ADR-0032). Sin declarar es el de siempre;
+     * Zernio lo declara junto con su cuenta y su perfil en `config` (#1321).
+     */
+    provider?: string;
+    /** Ids públicos del proveedor que la cuenta guarda además del emisor. Nunca secretos. */
+    configDelProveedor?: Record<string, unknown>;
   },
 ): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
   await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`whatsapp-numbers:${input.tenantId}`]);
@@ -120,7 +127,11 @@ export async function connectWhatsAppNumber(
     name: input.name,
     credentialRef: input.credentialRef,
     webhookSecretRef: input.webhookSecretRef,
+    ...(input.provider ? { provider: input.provider } : {}),
     config: {
+      // Primero lo del proveedor, para que no pueda pisar el emisor ni la
+      // marca de envíos reales, que son de IAxTi.
+      ...(input.configDelProveedor ?? {}),
       senderId: input.senderId,
       phoneNumberId: input.phoneNumberId ?? null,
       wabaId: input.wabaId ?? null,

@@ -11,7 +11,14 @@ import { ErrorPermanente } from './outbound';
  * cuenta. Lo demás del adaptador es traducir formas.
  */
 
-export const ZERNIO_API_BASE_DEFAULT = 'https://zernio.com/api/v1';
+/**
+ * El servidor del spec (`servers[0].url`), SIN `/v1`: las rutas del spec ya
+ * empiezan por `/v1/…`. Decía `…/api/v1` y cada llamada salía a
+ * `/api/v1/v1/inbox/…`; el 404 de vuelta se clasificaba como «hilo vencido» y
+ * ningún envío por Zernio habría salido nunca (#1321). Las pruebas miraban la
+ * URL con `toContain` y por eso no lo vieron.
+ */
+export const ZERNIO_API_BASE_DEFAULT = 'https://zernio.com/api';
 
 export function baseDeZernio(apiBase?: string): string {
   // Mismo cuidado que `baseDeZavu` (#575): `ZERNIO_API_BASE=""` no puede ganar
