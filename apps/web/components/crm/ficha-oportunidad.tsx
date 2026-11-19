@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from 'react';
 import { Bot, X } from 'lucide-react';
-import { Badge, Skeleton, nombreVisible } from '@iaxti/ui/react';
+import { Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, nombreVisible } from '@iaxti/ui/react';
 import { AvisoDeCarga } from '../aviso-de-carga';
+import { useArranque } from '../arranque';
 import { useCarga } from '../use-carga';
-import type { FichaDealDto } from '../../lib/api';
+import type { FichaDealDto, StageDto } from '../../lib/api';
 
 /**
  * La ficha de una oportunidad, al lado del tablero (#1301).
@@ -102,16 +103,35 @@ function lineaDeTiempo(ficha: FichaDealDto): Paso[] {
     .sort((a, b) => new Date(b.cuando).getTime() - new Date(a.cuando).getTime());
 }
 
-export function FichaOportunidad({ dealId, onCerrar }: { dealId: string; onCerrar: () => void }) {
+export function FichaOportunidad({
+  dealId,
+  onCerrar,
+  stages = [],
+  stageIdActual = null,
+  onMover,
+}: {
+  dealId: string;
+  onCerrar: () => void;
+  /** Las etapas del embudo, para el selector (#1367). Sin `onMover` no se muestra. */
+  stages?: StageDto[];
+  /** La etapa donde el tablero tiene esta oportunidad: la API de la ficha no
+   *  devuelve el id de la etapa, y el tablero ya lo sabe por la columna. */
+  stageIdActual?: string | null;
+  onMover?: (hasta: StageDto) => void;
+}) {
   const { carga, reintentar } = useCarga<FichaDealDto>(dealId ? `/deals/${dealId}` : null);
+  const { arranque } = useArranque();
+  const puedeMover = Boolean(arranque?.permisos?.includes('crm.deals.update'));
   const cerrarRef = useRef<HTMLButtonElement>(null);
 
   // Escape cierra, y el foco entra al panel: abrir algo con el teclado y no
-  // poder cerrarlo con él deja a alguien atrapado en el tablero.
+  // poder cerrarlo con él deja a alguien atrapado en el tablero. Pero si hay
+  // un diálogo encima —el motivo de un retroceso, por ejemplo— el Escape es
+  // de él: cerrar también la ficha de abajo sería arrastrar de más.
   useEffect(() => {
     cerrarRef.current?.focus();
     const alTeclear = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCerrar();
+      if (e.key === 'Escape' && !document.querySelector('[role="dialog"]')) onCerrar();
     };
     window.addEventListener('keydown', alTeclear);
     return () => window.removeEventListener('keydown', alTeclear);
@@ -217,6 +237,28 @@ export function FichaOportunidad({ dealId, onCerrar }: { dealId: string; onCerra
             en {deal.pipeline_name} · entró {haceCuanto(deal.stage_entered_at)}
           </span>
         </p>
+        {/* El camino de teclado y el del que prefiere no arrastrar (#1367):
+            mover desde la ficha con el mismo dialog de motivos del tablero.
+            Sin permiso de mover no se muestra: un control que siempre falla
+            no es un control. */}
+        {deal.status === 'open' && onMover && puedeMover && stages.length > 0 && (
+          <Select
+            value={stageIdActual ?? undefined}
+            onValueChange={(id) => {
+              const hasta = stages.find((s) => s.id === id);
+              if (hasta && hasta.id !== stageIdActual) onMover(hasta);
+            }}
+          >
+            <SelectTrigger className="mt-3 h-9 w-full bg-field text-sm" aria-label="Cambiar de etapa">
+              <SelectValue placeholder="Mover a otra etapa" />
+            </SelectTrigger>
+            <SelectContent>
+              {stages.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {/* Las tres cosas que cambian qué hacer con ella, y solo cuando pasan. */}
         {deal.status === 'won' && deal.won_at && (
           <p className="mt-2">

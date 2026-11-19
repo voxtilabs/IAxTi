@@ -3,7 +3,20 @@
 import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { FichaOportunidad } from './ficha-oportunidad';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type Announcements,
+  type DragEndEvent,
+  type KeyboardCoordinateGetter,
+} from '@dnd-kit/core';
 import { Badge, Button, DataTable, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EstadoVacio, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsList, TabsTrigger, type ColumnDef, type RowSelectionState, type SortingState, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
@@ -38,39 +51,82 @@ interface MovimientoPendiente {
   hasta: StageDto;
 }
 
-function TarjetaDeal({
-  deal,
-  onDragStart,
-  onAbrir,
-  abierta,
-}: {
-  deal: DealCardDto;
-  onDragStart: (e: DragEvent) => void;
-  onAbrir: () => void;
-  abierta: boolean;
-}) {
+/**
+ * Lo que la tarjeta MUESTRA. Va aparte del arrastre porque el `DragOverlay`
+ * necesita el mismo cuerpo SIN oyentes: si la tarjeta que flota arrastrara a
+ * su vez, soltarla encima de sí misma no tendría sentido.
+ */
+function CuerpoTarjeta({ deal }: { deal: DealCardDto }) {
   return (
-    <article
-      draggable
-      onDragStart={onDragStart}
-      /* Toda la tarjeta abre la ficha, y el TÍTULO es un botón de verdad
-         (#1301). Un `onClick` en el `article` no llega por teclado, y una
-         tarjeta a la que solo se entra con el ratón deja el tablero sin la
-         mitad de sus usuarios. El navegador no dispara `click` después de un
-         arrastre real, así que las dos cosas conviven. */
-      onClick={onAbrir}
-      className={`cursor-grab rounded-campo border bg-bg p-3 active:cursor-grabbing ${
-        abierta ? 'border-action' : 'border-line hover:border-line-strong'
-      }`}
-    >
+    <>
       {/* Dos líneas y no tres (#1155): el monto sube al lado del título. Con
           tres, una tarjeta medía 105 px y en una ventana de 900 entraban seis;
           el tablero es justamente la pantalla donde querés ver muchas de una.
           El monto queda a la derecha y en mono, que es donde el ojo lo busca
           cuando baja por una columna. */}
       <p className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm font-medium text-ink">{deal.title}</span>
+        <span className="dato shrink-0 text-xs text-ink">
+          {deal.currency === 'UF' && deal.value !== null ? `UF ${deal.value}` : fmtClp(deal.valueClp)}
+        </span>
+      </p>
+      <p className="mt-1 flex items-center justify-between gap-2">
+        <span className="truncate text-xs text-action-text">
+          {deal.contactName ?? deal.contactPhone}
+        </span>
+        <QueHayQueHacer deal={deal} />
+      </p>
+    </>
+  );
+}
+
+/**
+ * La tarjeta arrastrable (#1367).
+ *
+ * El arrastre HTML5 nativo que había (#33) solo existía para el ratón: los
+ * eventos `dragstart`/`drop` no se disparan con un dedo, así que en el
+ * celular —desde donde se entra al tablero por diseño— mover una
+ * oportunidad era imposible, y sin foco en la tarjeta tampoco había
+ * teclado. dnd-kit trae el tactil y el teclado con MENOS código que el
+ * `dataTransfer` a mano (ADR-0035).
+ *
+ * Toda la tarjeta sigue abriendo la ficha con un clic, y el sensor de
+ * puntero pide 6 px de recorrido antes de arrastrar: un clic no se mueve,
+ * así que las dos cosas conviven sin que una le robe la otra al usuario.
+ */
+function TarjetaDeal({
+  deal,
+  onAbrir,
+  abierta,
+}: {
+  deal: DealCardDto;
+  onAbrir: () => void;
+  abierta: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id });
+  return (
+    <article
+      ref={setNodeRef}
+      {...attributes}
+      /* dnd-kit etiqueta la tarjeta como `button`, pero el título ADENTRO es
+         un botón y el contacto un enlace: un botón dentro de otro botón no
+         es HTML válido y el lector de pantalla lo anuncia dos veces. Sin el
+         rol queda un elemento enfocable y arrastrable —el `tabIndex` y el
+         `aria-roledescription` los pone `attributes`— sin duplicar la
+         interacción. */
+      role={undefined}
+      {...listeners}
+      /* El TÍTULO es un botón de verdad y el enlace del contacto lleva a
+         otra pantalla: ninguno de los dos puede empezar un arrastre. */
+      onClick={onAbrir}
+      className={`cursor-grab rounded-campo border bg-bg p-3 active:cursor-grabbing ${
+        abierta ? 'border-action' : 'border-line hover:border-line-strong'
+      } ${isDragging ? 'opacity-40' : ''}`}
+    >
+      <p className="flex items-baseline justify-between gap-2">
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onAbrir();
@@ -89,6 +145,7 @@ function TarjetaDeal({
             sobre una página que ya cambió. */}
         <a
           href={`/contactos/${deal.contactId}`}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           className="truncate text-xs text-action-text"
         >
@@ -344,11 +401,115 @@ function DondeSePierde({ etapa }: { etapa: EmbudoDto['etapas'][number] | undefin
   );
 }
 
+/**
+ * Una columna del tablero, que es también la zona de suelta de su etapa
+ * (#1367).
+ *
+ * Mientras una tarjeta flota encima, la columna se marca con el azul: es la
+ * señal de «acá cae» que el arrastre HTML5 no daba y que el dedo necesita
+ * todavía más, porque no arrastra un cursor visible al lado.
+ */
+function ColumnaEtapa({
+  stage,
+  col,
+  total,
+  etapa,
+  abierta,
+  onAbrir,
+  onCargarMas,
+}: {
+  stage: StageDto;
+  col: Columna | undefined;
+  total: { cuantas: number; totalClp: number } | undefined;
+  etapa: EmbudoDto['etapas'][number] | undefined;
+  abierta: string | null;
+  onAbrir: (id: string) => void;
+  onCargarMas: (cursor: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  return (
+    <section
+      ref={setNodeRef}
+      aria-label={`Etapa ${stage.name}`}
+      className="relative flex min-w-72 max-w-[30rem] grow basis-72 snap-start flex-col pulso-panel rounded-tarjeta border bg-raised border-line"
+    >
+      {/* La señal de «acá cae» va en un anillo hijo y no en el borde de la
+          sección: `pulso-panel` pinta su `border-color` fuera de las capas de
+          Tailwind y cualquier utilidad de borde del section pierde la cascada
+          — el azul quedaba en el DOM y el borde seguía gris (cazado en la
+          captura del arrastre). El anillo no lleva `pulso-panel`, pinta
+          encima con el mismo radio y 1 px, y va con `pointer-events-none`
+          para no comerse el gesto: el patrón de la bandeja de adjuntos. */}
+      {isOver && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-tarjeta border border-action"
+        />
+      )}
+      {/* La cabecera no scrollea con las tarjetas: `shrink-0` acá y
+          el `overflow-y` en el cuerpo. */}
+      <header className="shrink-0 border-b border-line px-4 py-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="truncate text-sm font-semibold text-ink">{stage.name}</h2>
+          <span className="dato shrink-0 text-muted">{total?.cuantas ?? col?.items.length ?? 0}</span>
+        </div>
+        {/* El dinero de la etapa, no el de lo cargado. Sin resumen no
+            se muestra nada: un total que miente es peor que ninguno,
+            porque nadie lo contrasta. */}
+        {total && total.cuantas > 0 && (
+          <p className="dato mt-0.5 text-xs text-body">{fmtClp(total.totalClp)}</p>
+        )}
+        <DondeSePierde etapa={etapa} />
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+        {col?.cargando && !col.items.length ? (
+          <Skeleton className="h-20" />
+        ) : col && !col.items.length ? (
+          /* Una etapa vacía es una columna de alto completo, porque
+             sigue siendo el destino de un arrastre. Lo que no puede
+             ser es un tubo gris sin una palabra: dice qué la llena. */
+          <p className="m-auto rounded-campo border border-dashed border-line px-3 py-2 text-center text-xs text-muted">
+            Arrastra una oportunidad acá
+          </p>
+        ) : (
+          col?.items.map((deal) => (
+            <TarjetaDeal key={deal.id} deal={deal} abierta={abierta === deal.id} onAbrir={() => onAbrir(deal.id)} />
+          ))
+        )}
+        {col?.cursor && (
+          <Button variant="fantasma" size="chico" onClick={() => onCargarMas(col.cursor!)}>
+            Cargar más
+          </Button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // Radix no admite `value=""` en un item: la cadena vacía es su "sin
 // selección". Los filtros "todas" y "según mi visibilidad" son opciones
 // elegibles, así que van con centinela y se traducen al salir.
 const TODAS = '__todas__';
 const VISIBILIDAD = '__visibilidad__';
+
+/**
+ * El salto del arrastre con teclado (#1367): una columna por pulsación.
+ *
+ * El que trae dnd-kit mueve 25 px, que con columnas de casi 300 son doce
+ * pulsaciones para cruzar una: un teclado que exige insistir no es un
+ * teclado. Un salto de columna entera hace que cada flecha diga «la de al
+ * lado», que es lo que una persona se proponía al apretarla.
+ */
+const saltoTeclado: KeyboardCoordinateGetter = (event, { currentCoordinates }) => {
+  const SALTO = 280;
+  switch (event.code) {
+    case 'ArrowRight': return { ...currentCoordinates, x: currentCoordinates.x + SALTO };
+    case 'ArrowLeft': return { ...currentCoordinates, x: currentCoordinates.x - SALTO };
+    case 'ArrowUp': return { ...currentCoordinates, y: currentCoordinates.y - SALTO };
+    case 'ArrowDown': return { ...currentCoordinates, y: currentCoordinates.y + SALTO };
+  }
+  return undefined;
+};
 
 export function Oportunidades() {
   const tenant = useSelectedTenant();
@@ -373,6 +534,15 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   const [columnas, setColumnas] = useState<Record<string, Columna>>({});
   const [motivos, setMotivos] = useState<LossReasonDto[]>([]);
   const [pendiente, setPendiente] = useState<MovimientoPendiente | null>(null);
+  /** La tarjeta que flota, para el `DragOverlay` (#1367). */
+  const [arrastrando, setArrastrando] = useState<DealCardDto | null>(null);
+  /**
+   * Se mueve cada vez que una oportunidad cambia de etapa. La ficha vive con
+   * `key={dealId}`; sin esto seguía mostrando la etapa VIEJA después de
+   * moverla — arrastrada o movida desde su selector — hasta que alguien la
+   * cerrara y la abriera de nuevo.
+   */
+  const [version, setVersion] = useState(0);
   /** Qué oportunidad está abierta en la ficha de al lado (#1301). */
   const [abierta, setAbierta] = useState<string | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -431,6 +601,25 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
   }, [api, session, tenant]);
 
   const pipeline = pipelines?.find((p) => p.id === pipelineId) ?? null;
+  /** Todas las tarjetas cargadas, para resolver un id al soltar o anunciar. */
+  const todas = useMemo(() => Object.values(columnas).flatMap((c) => c.items), [columnas]);
+  const etapaDe = useCallback(
+    (id: string | number | undefined) => pipeline?.stages.find((s) => s.id === id),
+    [pipeline],
+  );
+  const sensores = useSensors(
+    // 6 px de recorrido antes de arrastrar: un clic no se mueve, así que abrir
+    // la ficha y arrastrar no se pisan (#1367).
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: saltoTeclado }),
+  );
+  /** Lo que oye quien usa lector de pantalla, en la voz del producto. */
+  const anuncios: Announcements = {
+    onDragStart: ({ active }) => `Tomaste ${todas.find((d) => d.id === active.id)?.title ?? 'una oportunidad'}`,
+    onDragOver: ({ over }) => (over ? `Sobre ${etapaDe(over.id)?.name ?? 'otra etapa'}` : undefined),
+    onDragEnd: ({ over }) => (over ? `Soltada en ${etapaDe(over.id)?.name ?? 'otra etapa'}` : undefined),
+    onDragCancel: () => 'La devolviste a su etapa',
+  };
 
   const cargarColumna = useCallback(
     async (stage: StageDto, cursor?: string) => {
@@ -530,6 +719,7 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
         method: 'POST',
         body: JSON.stringify({ stageId: hasta.id, ...extra }),
       });
+      setVersion((v) => v + 1);
       const desde = pipeline?.stages.find((s) => s.id === deal.stageId);
       if (desde) void cargarColumna(desde);
       void cargarColumna(hasta);
@@ -539,13 +729,14 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
     }
   }
 
-  function soltar(e: DragEvent, hasta: StageDto) {
-    e.preventDefault();
-    const dealId = e.dataTransfer.getData('text/deal');
-    const todas = Object.values(columnas).flatMap((c) => c.items);
-    const deal = todas.find((d) => d.id === dealId);
-    const desde = pipeline?.stages.find((s) => s.id === deal?.stageId);
-    if (!deal || !desde || desde.id === hasta.id) return;
+  /**
+   * El momento de la decisión de un movimiento, sin evento de por medio
+   * (#1367): la da el arrastre o el selector de la ficha, que llegan con la
+   * misma pareja (oportunidad, etapa de destino).
+   */
+  function soltar(deal: DealCardDto, hasta: StageDto) {
+    const desde = pipeline?.stages.find((s) => s.id === deal.stageId);
+    if (!desde || desde.id === hasta.id) return;
     // Retroceder pide motivo; cerrar en perdido pide motivo de la lista (§10).
     if (hasta.type === 'lost' || (hasta.type === 'open' && hasta.position < desde.position)) {
       setMotivo('');
@@ -554,6 +745,14 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
       return;
     }
     void ejecutarMovimiento(deal, hasta);
+  }
+
+  function alSoltar({ active, over }: DragEndEvent) {
+    setArrastrando(null);
+    const hasta = over ? etapaDe(over.id) : undefined;
+    const deal = todas.find((d) => d.id === active.id);
+    if (!hasta || !deal) return;
+    soltar(deal, hasta);
   }
 
   if (!tenant) return <p className="p-6 text-muted">Elige un negocio en el selector.</p>;
@@ -634,68 +833,47 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
              cargar el tablero se desplazaba 24 px solo y la primera columna
              quedaba pegada al borde izquierdo. Se vio en la captura de
              celular. */
-        <>
+        <DndContext
+          sensors={sensores}
+          accessibility={{
+            announcements: anuncios,
+            /* La voz del producto, no la de la librería: lector de pantalla en
+               español de Chile, con el gesto y el Escape donde se esperan. */
+            screenReaderInstructions: {
+              draggable: 'Para mover una oportunidad, aprieta Espacio, muévete con las flechas izquierda o derecha y suelta con Espacio. Escape la devuelve a su etapa.',
+            },
+          }}
+          onDragStart={({ active }) => setArrastrando(todas.find((d) => d.id === active.id) ?? null)}
+          onDragEnd={alSoltar}
+          onDragCancel={() => setArrastrando(null)}
+        >
           <CifrasDelEmbudo etapas={pipeline.stages} resumen={resumen} ganadoMes={ganadoMes} />
           <LecturaDelEmbudo embudo={embudo} />
           <div className="flex min-h-0 flex-1 snap-x scroll-px-6 gap-3 overflow-x-auto px-6 pb-6">
-          {pipeline.stages.map((stage) => {
-            const col = columnas[stage.id];
-            const total = resumen[stage.id];
-            return (
-              <section
+            {pipeline.stages.map((stage) => (
+              <ColumnaEtapa
                 key={stage.id}
-                aria-label={`Etapa ${stage.name}`}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => soltar(e, stage)}
-                className="flex min-w-72 max-w-[30rem] grow basis-72 snap-start flex-col pulso-panel rounded-tarjeta border border-line bg-raised"
-              >
-                {/* La cabecera no scrollea con las tarjetas: `shrink-0` acá y
-                    el `overflow-y` en el cuerpo. */}
-                <header className="shrink-0 border-b border-line px-4 py-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <h2 className="truncate text-sm font-semibold text-ink">{stage.name}</h2>
-                    <span className="dato shrink-0 text-muted">{total?.cuantas ?? col?.items.length ?? 0}</span>
-                  </div>
-                  {/* El dinero de la etapa, no el de lo cargado. Sin resumen no
-                      se muestra nada: un total que miente es peor que ninguno,
-                      porque nadie lo contrasta. */}
-                  {total && total.cuantas > 0 && (
-                    <p className="dato mt-0.5 text-xs text-body">{fmtClp(total.totalClp)}</p>
-                  )}
-                  <DondeSePierde etapa={embudo?.etapas.find((e) => e.stageId === stage.id)} />
-                </header>
-                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
-                  {col?.cargando && !col.items.length ? (
-                    <Skeleton className="h-20" />
-                  ) : col && !col.items.length ? (
-                    /* Una etapa vacía es una columna de alto completo, porque
-                       sigue siendo el destino de un arrastre. Lo que no puede
-                       ser es un tubo gris sin una palabra: dice qué la llena. */
-                    <p className="m-auto rounded-campo border border-dashed border-line px-3 py-2 text-center text-xs text-muted">
-                      Arrastra una oportunidad acá
-                    </p>
-                  ) : (
-                    col?.items.map((deal) => (
-                      <TarjetaDeal
-                        key={deal.id}
-                        deal={deal}
-                        abierta={abierta === deal.id}
-                        onAbrir={() => setAbierta(deal.id)}
-                        onDragStart={(e) => e.dataTransfer.setData('text/deal', deal.id)}
-                      />
-                    ))
-                  )}
-                  {col?.cursor && (
-                    <Button variant="fantasma" size="chico" onClick={() => void cargarColumna(stage, col.cursor!)}>
-                      Cargar más
-                    </Button>
-                  )}
-                </div>
-              </section>
-            );
-          })}
+                stage={stage}
+                col={columnas[stage.id]}
+                total={resumen[stage.id]}
+                etapa={embudo?.etapas.find((e) => e.stageId === stage.id)}
+                abierta={abierta}
+                onAbrir={setAbierta}
+                onCargarMas={(cursor) => void cargarColumna(stage, cursor)}
+              />
+            ))}
           </div>
-        </>
+          {/* La tarjeta que flota: el mismo cuerpo sin oyentes, con el
+              filete de profundidad de lo que flota (ADR-0034) y apenas
+              girada, para que el ojo la siga por encima del tablero. */}
+          <DragOverlay>
+            {arrastrando ? (
+              <div className="w-72 rotate-1 rounded-campo border border-action bg-bg p-3 shadow-flotante">
+                <CuerpoTarjeta deal={arrastrando} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
           {/* Filtros + guardados por usuario. */}
@@ -870,7 +1048,19 @@ function OportunidadesDelNegocio({ tenant }: { tenant: string }) {
       </Dialog>
     </div>
     {abierta && (
-      <FichaOportunidad key={abierta} dealId={abierta} onCerrar={() => setAbierta(null)} />
+      <FichaOportunidad
+        /* `version` en la key: al mover, la ficha se re-pide y no sigue
+           mostrando la etapa de la que ya se fue (#1367). */
+        key={`${abierta}-${version}`}
+        dealId={abierta}
+        onCerrar={() => setAbierta(null)}
+        stages={pipeline?.stages ?? []}
+        stageIdActual={todas.find((d) => d.id === abierta)?.stageId ?? null}
+        onMover={(hasta) => {
+          const deal = todas.find((d) => d.id === abierta);
+          if (deal) soltar(deal, hasta);
+        }}
+      />
     )}
     </div>
   );
