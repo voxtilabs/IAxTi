@@ -32,8 +32,20 @@ CREATE ROLE :"rol" LOGIN PASSWORD :'clave' NOSUPERUSER NOBYPASSRLS NOCREATEDB NO
 \else
 -- Ya existía: se le quita lo que no debería tener nunca. Un rol que alguien
 -- creó a la rápida con SUPERUSER es exactamente el caso que este archivo
--- viene a arreglar.
+-- viene a arreglar. Pero quitar atributos exige ser superusuario, y en
+-- Supabase el rol dueño NO lo es (tiene BYPASSRLS, no SUPERUSER): si se
+-- corría este ALTER ahí, el archivo entero moría en la primera línea del
+-- else y "volver a correr después de cada migración" dejaba de ser posible.
+-- Entonces: si el que corre ES superusuario, se quitan los atributos; si no,
+-- se avisa y se sigue — un rol con atributos mal puestos en Supabase no se
+-- puede reparar con ALTER, hay que DROPEAR el rol y volver a correr este
+-- archivo, que lo crea bien.
+SELECT rolsuper AS el_que_corre_es_super FROM pg_roles WHERE rolname = current_user \gset
+\if :el_que_corre_es_super
 ALTER ROLE :"rol" NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+\else
+\echo AVISO: el que corre esto no es superusuario (Supabase), no se pueden quitar atributos con ALTER. Si :'rol' los tiene mal puestos, DROP ROLE y volver a correr este archivo.
+\endif
 ALTER ROLE :"rol" LOGIN PASSWORD :'clave';
 \endif
 

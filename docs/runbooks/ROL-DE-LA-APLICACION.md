@@ -199,3 +199,34 @@ gestor de secretos, `pnpm --filter @iaxti/db run permisos` como el rol,
 cambiar `DATABASE_URL` del runtime en Dokploy (la de migraciones NO se
 toca), redeploy, y mirar `/ready` + logs sin la advertencia. La reversión es
 devolver la variable anterior.
+
+## Staging, hecho (19-11-2026, #370)
+
+Lo mecánico de arriba ya corrió, y el swap quedó automatizado:
+
+- `infra/sql/rol-de-la-aplicacion.sql` aplicado como el dueño desde el
+  contenedor de Postgres local (la máquina no trae `psql`), con la clave
+  nacida en el gestor de secretos y sin pasar jamás por Git ni por un log.
+- `pnpm --filter @iaxti/db run permisos` conectado como el rol: «respeta
+  RLS … no le falta ningún permiso … LISTO», a través del pooler de Supabase.
+- El swap lo hace el deploy solo: `DATABASE_URL_APP_STAGING` (secreto del
+  environment "staging") se siembra como la línea `DATABASE_URL` del env de
+  Dokploy con `scripts/sembrar-url-app.sh`. Al revés que las llaves de IA,
+  acá manda el SECRETO y no el panel: con qué rol conecta la aplicación
+  decide si el aislamiento entre tenants existe, y una decisión así se revisa
+  en un PR. La reversión es poner la URL anterior en el secreto y volver a
+  desplegar; tocar el panel a mano no sirve, el próximo deploy lo pisa.
+- El paso «Permisos del rol de la aplicación» del workflow pasó de aviso a
+  verificación de verdad: con el secreto puesto, un deploy que deje al rol
+  sin permisos se frena ANTES de desplegar, con el nombre de la tabla.
+- Medido con dos tenants como el rol nuevo: lectura cruzada cero filas,
+  insert con `tenant_id` ajeno bajo contexto propio rechazado con 42501, sin
+  contexto cero filas, el libro append-only y los barridos (SECURITY
+  DEFINER del dueño) intactos.
+
+En Supabase hay una trampa más, encontrada al correrlo: el dueño (`postgres`)
+NO es superusuario, y quitar atributos con `ALTER ROLE` exige serlo — el
+else-branch del SQL moría ahí y «volver a correr tras cada migración» dejaba
+de ser posible. Desde #370 el archivo lo salta con aviso; un rol mal creado
+en Supabase se repara con `DROP ROLE` y volver a correr el archivo, no con
+`ALTER`.
