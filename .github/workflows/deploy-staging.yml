@@ -3,7 +3,8 @@
 # commit: `docker compose up` solo recrea cuando la referencia cambia, así
 # cada deploy es exactamente este commit (SPEC §37).
 # Secrets (environment "staging"): DATABASE_URL_STAGING (dueño, migra),
-#   DATABASE_URL_APP_STAGING (rol de la aplicación, #370), DOKPLOY_URL,
+#   DATABASE_URL_APP_STAGING (rol de la aplicación, #370; el deploy además la
+#   siembra como la línea DATABASE_URL que leen los contenedores), DOKPLOY_URL,
 # DOKPLOY_API_KEY, CF_ACCESS_CLIENT_ID/SECRET, DOKPLOY_COMPOSE_ID_STAGING,
 # STAGING_BASE_URL.
 name: deploy-staging
@@ -216,6 +217,10 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # La URL del rol de aplicación (#370): el paso «Permisos del rol de la
+          # aplicación» la verifica ANTES de desplegar, y el deploy además la
+          # siembra como la línea DATABASE_URL que leen los contenedores.
+          DATABASE_URL_APP: ${{ secrets.DATABASE_URL_APP_STAGING }}
           SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           # Para comprobar QUÉ imagen quedó viva antes de dar el deploy por bueno
           # (#652). El Smoke la usa por su cuenta; acá hace falta porque forzar la
@@ -355,6 +360,15 @@ jobs:
           # probar y este bloque decide si staging tiene IA o no.
           env_nuevo=$(printf '%s\n' "$env_nuevo" | scripts/sembrar-llaves.sh \
             GLM_API_KEY OPENAI_API_KEY GOOGLE_GENERATIVE_AI_API_KEY ANTHROPIC_API_KEY)
+          # La URL del rol de aplicación (#370). Al revés que las llaves de IA:
+          # manda el SECRETO y no el panel, porque CON QUÉ ROL CONECTA la
+          # aplicación decide si el aislamiento entre tenants existe, y una
+          # decisión así se revisa en un PR. Sin el secreto puesto esta línea no
+          # hace nada y el arranque sigue gritando SIN AISLAMIENTO cada media
+          # hora. La reversión es el mismo camino: cambiar el secreto y volver a
+          # desplegar; tocar el panel a mano no sirve, el próximo deploy lo pisa.
+          env_nuevo=$(printf '%s\n' "$env_nuevo" | scripts/sembrar-url-app.sh \
+            DATABASE_URL_APP DATABASE_URL)
           # Raw no toma los cambios del YAML versionado (#396). Completar solo
           # los checks ausentes, preservando la configuración del operador.
           # El documento puede contener secretos: archivo privado, nunca logs.
