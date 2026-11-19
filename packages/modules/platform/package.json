@@ -15,7 +15,7 @@
     "@iaxti/module-audit": "workspace:*",
     "@iaxti/module-identity": "workspace:*",
     "@iaxti/module-organizations": "workspace:*",
-    "ioredis": "^5.4.1",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.1"
   },
   "devDependencies": {
