@@ -270,15 +270,16 @@ describe('el webhook queda atado a su perfil y su cuenta', () => {
 
 describe('el enlace de conexión', () => {
   it('abre la página alojada en español; con modo api y número fijado, la petición los pide', async () => {
-    // El modo por omisión del popup es «coexistence», que es para números en
-    // la app WhatsApp Business del cliente. El que viene de OTRO proveedor
-    // (la mudanza desde Zavu) necesita `api`, y el número fijado evita que se
-    // conecte otro por error (spec v1.679, #1338).
+    // El modo por omisión del popup es «coexistence»: la app WhatsApp
+    // Business del teléfono compartiendo el número con la Cloud API. `api`
+    // es el caso aparte —un número que SOLO vive en la Cloud API de otro
+    // proveedor, sin la app encima— y el número fijado evita que se conecte
+    // otro por error (spec v1.679, #1338). Número de prueba, no el de nadie.
     const cfg = zernio({ 'GET /v1/connect/whatsapp': { body: { authUrl: 'https://zernio.com/conectar' } } });
     const enlace = await enlaceParaConectar(cfg, {
       profileId: 'prof_A',
       modo: 'api',
-      numeroEsperado: '+56922013949',
+      numeroEsperado: '+56911112222',
     });
     expect(enlace).toBe('https://zernio.com/conectar');
     const u = new URL(peticiones[0]!.url);
@@ -287,7 +288,7 @@ describe('el enlace de conexión', () => {
     expect(u.searchParams.get('signup')).toBe('hosted');
     expect(u.searchParams.get('language')).toBe('es');
     expect(u.searchParams.get('onboarding')).toBe('api');
-    expect(u.searchParams.get('expectedPhoneNumber')).toBe('+56922013949');
+    expect(u.searchParams.get('expectedPhoneNumber')).toBe('+56911112222');
   });
 
   it('sin modo ni número no manda nada extra: el defecto lo elige Zernio', async () => {

@@ -34,7 +34,9 @@ import {
   perfilDelTenant,
   suscribirWebhook,
 } from '@iaxti/module-whatsapp';
-// --modo api: para un número que ya está en la Cloud API con OTRO proveedor.
+// --modo business_app: coexistencia, la app WhatsApp Business del teléfono
+//   compartiendo el número con la Cloud API. Es el defecto de Zernio.
+// --modo api: un número que SOLO vive en la Cloud API de otro proveedor.
 // --numero: fija el número que se debe conectar (E.164, p. ej. +56922013949).
 
 function arg(nombre, pordefecto) {

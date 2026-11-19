@@ -378,9 +378,11 @@ export async function suscribirWebhook(
  * perfil del tenant y no en el que esté abierto en ese momento.
  *
  * `modo` (spec v1.679): sin él el popup abre en «coexistence», que es para
- * números que viven en la app WhatsApp Business del cliente. Para un número
- * que ya está en la Cloud API CON OTRO PROVEEDOR —la mudanza desde Zavu— hay
- * que pedir `api`, que muestra el selector de WABA y número de Meta.
+ * números que viven en la app WhatsApp Business del negocio —la app del
+ * teléfono comparte el número con la Cloud API—. `api` es el otro caso: un
+ * número que solo vive en la Cloud API de otro proveedor, sin la app encima,
+ * y muestra el selector de WABA y número de Meta. Declararlo a mano, en
+ * cualquier caso, deja el intento escrito en el enlace.
  *
  * `numeroEsperado` fija el número (E.164): si en el popup se elige otro, la
  * página termina con 409 `NUMBER_MISMATCH` y no se conecta nada. El tope vive
