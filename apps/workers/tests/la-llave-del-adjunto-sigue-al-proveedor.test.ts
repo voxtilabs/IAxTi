@@ -5,26 +5,26 @@ import { createChannelAccount } from '@iaxti/module-channels';
 import { processInbound, type InboundJob } from '../src/inbound';
 
 /**
- * La llave que baja un adjunto es del proveedor de la CUENTA (#1317, #1335).
+ * La llave que baja un adjunto solo viaja al dominio del proveedor (#1317,
+ * #1335).
  *
- * `processInbound` decide qué dominio puede recibir la llave según el
- * `provider` de la cuenta: a una cuenta de Zernio le pasa `apiBase:
- * baseDeZernio()` —y `llevaCredencial` deja viajar la llave solo a ese
- * dominio—, y a una de Zavu no le pasa nada, con lo que la cerradura es la de
- * Zavu. Sin esa línea, desde #1336 los adjuntos de una cuenta de Zernio se
- * pedían a zernio.com SIN llave —el dominio por omisión es el de Zavu— y no
- * entraba ninguno: falla segura, pero falla.
+ * `processInbound` le pasa a la descarga la base de Zernio —el único
+ * transporte de WhatsApp que queda desde #1339— y `llevaCredencial` deja
+ * viajar la llave solo a ese dominio o a un subdominio suyo. La URL sale del
+ * payload del webhook: la firma prueba que el SOBRE es del proveedor, no que
+ * cada URL de adentro apunte a él, así que la cerradura es por dominio.
  *
  * Entra por `processInbound` —el camino real del worker— con Postgres de
  * verdad y una cuenta de canal de verdad en la base; lo único falso es el
  * `fetch`, que se espía para leer la cabecera de la PETICIÓN que sale. Lo que
  * se cubre y lo que no:
  *
- *  · SÍ: la decisión de `inbound.ts` (qué `apiBase` se le pasa a la descarga
- *    según el `provider` de la cuenta) medida por el puerto, con las tres
- *    combinaciones que importan: zernio→zernio.com con llave, zavu→zernio.com
- *    sin llave, zavu→cdn.zavu.dev con llave.
- *  · SÍ: que la llave que viaja es la de SU cuenta y no la de la otra.
+ *  · SÍ: la decisión de `inbound.ts` (que la descarga va con la base de
+ *    Zernio) medida por el puerto, con las tres combinaciones que importan:
+ *    el API del proveedor con llave, un subdominio suyo con llave, y un
+ *    dominio ajeno SIN llave — el caso de la URL que alguien metió en el
+ *    payload.
+ *  · SÍ: que la llave que viaja es la de SU cuenta y no la de otra.
  *  · NO: `llevaCredencial` en sí —sus bordes (`startsWith`, `@`, `http:`) los
  *    prueba `la-llave-no-sale-del-proveedor.test.ts` en el módulo whatsapp.
  *  · NO: el envío SALIENTE ni la firma del webhook de Zernio —los prueba
@@ -35,14 +35,14 @@ import { processInbound, type InboundJob } from '../src/inbound';
 const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5433/iaxti_pruebas';
 
 const LLAVE_ZERNIO = 'LLAVE_DE_PRUEBA_1317_ZERNIO';
-const LLAVE_ZAVU = 'LLAVE_DE_PRUEBA_1317_ZAVU';
+const LLAVE_OTRA = 'LLAVE_DE_PRUEBA_1317_OTRA_CUENTA';
 const VALOR_ZERNIO = 'zr_llave_de_la_cuenta_de_zernio';
-const VALOR_ZAVU = 'zv_llave_de_la_cuenta_de_zavu';
+const VALOR_OTRA = 'zr_llave_de_otra_cuenta';
 
 let admin: Pool;
 let tenant: string;
 let cuentaZernio: string;
-let cuentaZavu: string;
+let cuentaOtra: string;
 
 /** Lo que salió por `fetch`: la URL y la cabecera de autorización, si viajó. */
 interface Pedido {
@@ -79,15 +79,9 @@ beforeAll(async () => {
   await runMigrations(admin);
   const t = await admin.query("INSERT INTO tenants (name) VALUES ('llave-adjunto-1317') RETURNING id");
   tenant = t.rows[0].id;
-  cuentaZavu = await withTenant(admin, tenant, async (client) => {
-    const account = await createChannelAccount(client, {
-      tenantId: tenant,
-      kind: 'whatsapp',
-      name: 'Cuenta de Zavu 1317',
-      credentialRef: LLAVE_ZAVU,
-    });
-    return account.id;
-  });
+  // Las dos cuentas nacen con el por omisión de whatsapp: Zernio desde la
+  // migración 0010 (#1339). Lo que las distingue es SU credencial, que es lo
+  // que esta prueba espía.
   cuentaZernio = await withTenant(admin, tenant, async (client) => {
     const account = await createChannelAccount(client, {
       tenantId: tenant,
@@ -95,27 +89,28 @@ beforeAll(async () => {
       name: 'Cuenta de Zernio 1317',
       credentialRef: LLAVE_ZERNIO,
     });
-    // `createChannelAccount` no declara proveedor: nace con el por omisión de
-    // la migración 0006. Pasar a Zernio es migrar la cuenta, y eso hoy es SQL
-    // —mismo camino que usa `el-proveedor-es-de-la-cuenta.test.ts`.
-    await client.query('UPDATE channel_accounts SET provider = $2 WHERE id = $1', [
-      account.id,
-      'zernio',
-    ]);
+    return account.id;
+  });
+  cuentaOtra = await withTenant(admin, tenant, async (client) => {
+    const account = await createChannelAccount(client, {
+      tenantId: tenant,
+      kind: 'whatsapp',
+      name: 'Otra cuenta de Zernio 1317',
+      credentialRef: LLAVE_OTRA,
+    });
     return account.id;
   });
   process.env[LLAVE_ZERNIO] = VALOR_ZERNIO;
-  process.env[LLAVE_ZAVU] = VALOR_ZAVU;
+  process.env[LLAVE_OTRA] = VALOR_OTRA;
   // R2 puesto: esta prueba mide la DESCARGA, y sin almacenamiento el camino se
   // salta entero y no sale ninguna petición que espiar.
   process.env.R2_ENDPOINT = 'https://cuenta-prueba.r2.cloudflarestorage.com';
   process.env.R2_ACCESS_KEY_ID = 'llave-de-prueba';
   process.env.R2_SECRET_ACCESS_KEY = 'secreto-de-prueba';
   process.env.R2_BUCKET_ADJUNTOS = 'adjuntos-prueba';
-  // Las bases se fijan a propósito y no se dejan al ambiente: `llevaCredencial`
+  // La base se fija a propósito y no se deja al ambiente: `llevaCredencial`
   // deriva el dominio de la cerradura de la base, y una ambiente con otra base
   // cambiaría qué hosts son «del proveedor» sin que esta prueba lo note.
-  process.env.ZAVU_API_BASE = 'https://api.zavu.dev/v1';
   process.env.ZERNIO_API_BASE = 'https://zernio.com/api/v1';
 }, 60_000);
 
@@ -144,12 +139,11 @@ afterEach(() => {
 
 afterAll(async () => {
   delete process.env[LLAVE_ZERNIO];
-  delete process.env[LLAVE_ZAVU];
+  delete process.env[LLAVE_OTRA];
   delete process.env.R2_ENDPOINT;
   delete process.env.R2_ACCESS_KEY_ID;
   delete process.env.R2_SECRET_ACCESS_KEY;
   delete process.env.R2_BUCKET_ADJUNTOS;
-  delete process.env.ZAVU_API_BASE;
   delete process.env.ZERNIO_API_BASE;
   if (tenant) {
     await admin.query('DELETE FROM assignments WHERE tenant_id = $1', [tenant]);
@@ -189,35 +183,48 @@ function laDescarga(pedidos: Pedido[], url: string): Pedido | undefined {
   return pedidos.find((p) => p.url === url && p.method !== 'PUT');
 }
 
-describe('la llave del adjunto sigue al proveedor de la cuenta (#1317)', () => {
-  it('una cuenta de Zernio baja su adjunto de zernio.com CON su llave', async () => {
+describe('la llave del adjunto solo viaja al dominio del proveedor (#1317)', () => {
+  it('una cuenta de Zernio baja su adjunto del API de Zernio CON su llave', async () => {
     const media = 'https://zernio.com/api/v1/whatsapp/media/abc';
     const salieron = await entraUnAdjunto(cuentaZernio, media, '+56955551311');
     const descarga = laDescarga(salieron, media);
     expect(descarga, `no se pidió el adjunto. Lo que salió:\n${JSON.stringify(salieron)}`).toBeTruthy();
-    // La llave de SU cuenta — la de Zavu no viaja por ser otra cuenta, y
-    // antes de #1336 ninguna viajaba por ser otro dominio.
+    // La llave de SU cuenta — la de la otra no viaja por ser otra cuenta.
     expect(descarga?.authorization).toBe(`Bearer ${VALOR_ZERNIO}`);
   });
 
-  it('una cuenta de Zavu NO manda su llave a zernio.com', async () => {
-    const media = 'https://zernio.com/api/v1/whatsapp/media/xyz';
-    const salieron = await entraUnAdjunto(cuentaZavu, media, '+56955551312');
+  it('la CDN del proveedor —un subdominio de zernio.com— también lleva la llave', async () => {
+    const media = 'https://cdn.zernio.com/m/1.jpg';
+    const salieron = await entraUnAdjunto(cuentaZernio, media, '+56955551312');
+    const descarga = laDescarga(salieron, media);
+    expect(descarga, `no se pidió el adjunto. Lo que salió:\n${JSON.stringify(salieron)}`).toBeTruthy();
+    // No se sabe desde el código en qué host sirve el proveedor sus adjuntos,
+    // así que se admite el dominio entero: la CDN propia es el caso real.
+    expect(descarga?.authorization).toBe(`Bearer ${VALOR_ZERNIO}`);
+  });
+
+  it('una URL de OTRO dominio se baja SIN llave', async () => {
+    // La URL sale del payload del webhook: la firma prueba el sobre, no cada
+    // enlace de adentro. Un dominio ajeno —el de un atacante, o el de un
+    // proveedor que venga— se consulta igual (el mensaje tiene que entrar
+    // con su metadata), pero con la llave de ESTA cuenta no.
+    const media = 'https://cdn.otronube.example/m/1.jpg';
+    const salieron = await entraUnAdjunto(cuentaZernio, media, '+56955551313');
     const descarga = laDescarga(salieron, media);
     expect(descarga, `no se pidió el adjunto. Lo que salió:\n${JSON.stringify(salieron)}`).toBeTruthy();
     // La cabecera tiene que faltar, no llegar vacía: una cabecera vacía es una
-    // cabecera que viaja igual, y esta es la llave de Zavu en el dominio de
-    // OTRO proveedor — exactamente lo que #1336 vino a cerrar.
+    // cabecera que viaja igual.
     expect(descarga?.authorization).toBeUndefined();
   });
 
-  it('una cuenta de Zavu sigue bajando de cdn.zavu.dev CON su llave', async () => {
-    const media = 'https://cdn.zavu.dev/m/1.jpg';
-    const salieron = await entraUnAdjunto(cuentaZavu, media, '+56955551313');
+  it('la llave de OTRA cuenta no viaja aunque el dominio sea el de Zernio', async () => {
+    // El caso cruzado que quedó de la coexistencia (#1317): dos cuentas,
+    // dos llaves. La que baja el adjunto es la de la cuenta que lo recibió.
+    const media = 'https://zernio.com/api/v1/whatsapp/media/xyz';
+    const salieron = await entraUnAdjunto(cuentaOtra, media, '+56955551314');
     const descarga = laDescarga(salieron, media);
     expect(descarga, `no se pidió el adjunto. Lo que salió:\n${JSON.stringify(salieron)}`).toBeTruthy();
-    // El comportamiento de siempre, que #1336 no podía romper al cerrar la
-    // puerta: la CDN propia del proveedor sigue llevando la llave.
-    expect(descarga?.authorization).toBe(`Bearer ${VALOR_ZAVU}`);
+    expect(descarga?.authorization).toBe(`Bearer ${VALOR_OTRA}`);
+    expect(descarga?.authorization).not.toBe(`Bearer ${VALOR_ZERNIO}`);
   });
 });

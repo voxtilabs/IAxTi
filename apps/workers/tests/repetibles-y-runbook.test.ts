@@ -52,12 +52,14 @@ describe('el runbook nombra TODAS las tareas repetibles (#807)', () => {
    * Anti-vacuidad: si el recorte del §4 o la expresión del nombre se rompen,
    * las dos de arriba quedan verdes con listas vacías. La lección de #790.
    */
-  it('la guarda está mirando algo: veinticuatro a cada lado', () => {
+  it('la guarda está mirando algo: veintidós a cada lado', () => {
     // Sube con cada tarea repetible nueva, a propósito: el número fijo es lo
     // que impide que la guarda pase en verde mirando dos listas vacías.
-    // La 23 es `agents.threads.purge` (#1131); la 24, `agents.pulso` (#1210).
-    expect(REPETIBLES).toHaveLength(24);
-    expect(tareasDelRunbook()).toHaveLength(24);
+    // La 21 es `agents.threads.purge` (#1131); la 22, `agents.pulso` (#1210).
+    // De 24 a 22: el mantenimiento de invitaciones de Zavu y la sincronización
+    // de plantillas contra Zavu se fueron con Zavu (#1339).
+    expect(REPETIBLES).toHaveLength(22);
+    expect(tareasDelRunbook()).toHaveLength(22);
   });
 
   it('ningún nombre repetido: dos entradas con el mismo nombre son una sola tarea', () => {

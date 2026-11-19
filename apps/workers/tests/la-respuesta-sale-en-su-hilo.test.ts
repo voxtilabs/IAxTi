@@ -46,7 +46,7 @@ let admin: Pool;
 let redis: IORedis;
 let tenant: string;
 let cuentaZernio: string;
-let cuentaZavu: string;
+let cuentaDestinatario: string;
 
 /** Lo que le llegó al adaptador, en orden. */
 const registros: Array<Parameters<ChannelProvider['send']>[1]> = [];
@@ -111,16 +111,19 @@ const zernioFalso: ChannelProvider = {
 };
 
 /**
- * El de Zavu: sin `proveedor`, así que cae al POR OMISIÓN — mismo registro al
- * que resuelve una cuenta que no declara proveedor. Y no devuelve ningún
- * hilo: Zavu manda por destinatario y no conoce el concepto.
+ * El que manda por destinatario: otro proveedor de mentira, con SU nombre en
+ * el registro, que no devuelve ningún hilo — así manda todo proveedor que no
+ * organize sus conversaciones como Zernio. La maquinaria de hilos tiene que
+ * convivir con él sin tocarlo: es el caso del simulador, del webchat y del
+ * proveedor que venga.
  */
-const zavuFalso: ChannelProvider = {
+const destinatarioFalso: ChannelProvider = {
   kind: 'whatsapp',
+  proveedor: 'destinatario',
   async send(_cuenta, message) {
     registros.push(structuredClone(message));
     n += 1;
-    return { providerMessageId: `wamid.zv-${n}` };
+    return { providerMessageId: `dest-${n}` };
   },
   verifyWebhook: () => true,
   normalize: () => [],
@@ -187,8 +190,10 @@ beforeAll(async () => {
 
   resetProviders();
   registerProvider(zernioFalso);
-  registerProvider(zavuFalso);
+  registerProvider(destinatarioFalso);
 
+  // La cuenta de Zernio nace con el por omisión de whatsapp, que desde la
+  // migración 0010 es `zernio` (#1339).
   cuentaZernio = (
     await withTenant(admin, tenant, (c) =>
       createChannelAccount(c, {
@@ -199,20 +204,14 @@ beforeAll(async () => {
       }),
     )
   ).id;
-  // `createChannelAccount` no declara proveedor: pasa a Zernio por SQL, que es
-  // el mismo camino que usa `el-proveedor-es-de-la-cuenta.test.ts` — migrar
-  // la cuenta es SQL hoy.
-  await admin.query('UPDATE channel_accounts SET provider = $2 WHERE id = $1', [
-    cuentaZernio,
-    'zernio',
-  ]);
-  cuentaZavu = (
+  cuentaDestinatario = (
     await withTenant(admin, tenant, (c) =>
       createChannelAccount(c, {
         tenantId: tenant,
         kind: 'whatsapp',
-        name: 'Zavu del hilo',
-        config: { phoneNumberId: 'pn-hilo-zavu' },
+        name: 'Proveedor por destinatario',
+        provider: 'destinatario',
+        config: { phoneNumberId: 'pn-hilo-destinatario' },
       }),
     )
   ).id;
@@ -220,7 +219,7 @@ beforeAll(async () => {
     setChannelState(c, { tenantId: tenant, accountId: cuentaZernio, state: 'active' }),
   );
   await withTenant(admin, tenant, (c) =>
-    setChannelState(c, { tenantId: tenant, accountId: cuentaZavu, state: 'active' }),
+    setChannelState(c, { tenantId: tenant, accountId: cuentaDestinatario, state: 'active' }),
   );
 }, 120_000);
 
@@ -269,8 +268,8 @@ describe('la respuesta sale en su hilo (#1334)', () => {
 
   it('un saliente sin hilo que abre conversación deja la nueva recordada', async () => {
     const PEER = '+56955551502';
-    // Este contacto escribió por una cuenta que no reporta hilos (Zavu):
-    // no hay nada en la tabla.
+    // Este contacto escribió sin que el sobre trajera hilo: no hay nada en
+    // la tabla para (cuenta, peer).
     const r = await entraUnMensaje(cuentaZernio, PEER);
     expect(await hiloGuardado(cuentaZernio, PEER)).toBeNull();
 
@@ -369,18 +368,21 @@ describe('la respuesta sale en su hilo (#1334)', () => {
     expect(await hiloGuardado(cuentaZernio, PEER)).toBe('hilo-unico');
   });
 
-  it('zavu, el proveedor por omisión, sigue mandando igual que antes', async () => {
+  it('un proveedor que manda por destinatario sigue mandando igual que antes', async () => {
     const PEER = '+56955551505';
-    // La cuenta no declara proveedor: resuelve al POR OMISIÓN, que es Zavu.
-    const r = await entraUnMensaje(cuentaZavu, PEER);
+    // La maquinaria de hilos no puede haber acoplado al resto: quien no
+    // conoce el concepto ni lo necesita sigue mandando por su cuenta. (Con
+    // Zavu este caso era el por omisión; hoy lo es cualquier proveedor que
+    // no organice por conversación.)
+    const r = await entraUnMensaje(cuentaDestinatario, PEER);
     const messageId = await saleUnaRespuesta(r.conversationId);
 
-    const res = await processOutbound(admin, redis, jobPara(messageId, cuentaZavu));
-    expect(res.providerMessageId).toMatch(/^wamid\.zv-/);
+    const res = await processOutbound(admin, redis, jobPara(messageId, cuentaDestinatario));
+    expect(res.providerMessageId).toMatch(/^dest-/);
     expect(registros).toHaveLength(1);
-    // Zavu manda por destinatario: ni lleva hilo ni abre conversación.
+    // Manda por destinatario: ni lleva hilo ni abre conversación.
     expect(registros[0].providerThreadId).toBeUndefined();
-    expect(await hiloGuardado(cuentaZavu, PEER)).toBeNull();
+    expect(await hiloGuardado(cuentaDestinatario, PEER)).toBeNull();
     const fila = await admin.query('SELECT delivery_status FROM messages WHERE id = $1', [messageId]);
     expect(fila.rows[0].delivery_status).toBe('sent');
   });
