@@ -40,7 +40,7 @@ servicios:
     recursos: { requests: { cpu: 100m, memory: 512Mi }, limits: { memory: 1Gi } }
 
 # Nombre del Secret que ya existe en el namespace, con DATABASE_URL,
-# REDIS_URL, SUPABASE_*, ZAVU_*, etc. El chart NO lo crea: un chart que crea
+# REDIS_URL, SUPABASE_*, ZERNIO_*, etc. El chart NO lo crea: un chart que crea
 # secretos termina con los secretos en git.
 secretoEnv: iaxti-env
 

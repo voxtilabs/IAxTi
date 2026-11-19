@@ -8,7 +8,7 @@
 #   1. Lee el env actual y reemplaza SOLO la línea IMAGE. La versión previa
 #      mandaba `env: "IMAGE=..."` a secas, y el campo `env` de Dokploy es el
 #      bloque COMPLETO: un rollback habría borrado DATABASE_URL, REDIS_*,
-#      SUPABASE_*, ZAVU_*… dejando la app sin configuración justo cuando se
+#      SUPABASE_*, ZERNIO_*… dejando la app sin configuración justo cuando se
 #      la necesitaba de vuelta.
 #   2. No se traga los errores. El `|| true` de antes hacía que un update
 #      fallido siguiera al deploy igual, en silencio.

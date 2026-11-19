@@ -4,7 +4,7 @@
 #   IMAGE, REDIS_PASSWORD, DATABASE_URL (pooler de Supabase staging),
 #   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWKS_URL, IAXTI_ENV,
 #   SENTRY_DSN, OTEL_EXPORTER_OTLP_* (Grafana Cloud, ADR-0006),
-#   ZAVU_API_KEY y ZAVU_WEBHOOK_SECRET (#42).
+#   ZERNIO_LLAVE_VOXTI y ZERNIO_WEBHOOK_SECRET_VOXTI (#1338).
 
 x-app: &app
   image: ${IMAGE}
@@ -60,18 +60,6 @@ x-env: &app-env
   API_URL_INTERNAL: http://api:3000
   API_URL_PUBLIC: ${API_URL_PUBLIC}
   CORS_ORIGINS: ${CORS_ORIGINS}
-  # Canales vía Zavu (#42, ADR-0014): WhatsApp, Instagram y Messenger con una
-  # sola credencial. La cuenta guarda el NOMBRE de la variable
-  # (credential_ref), nunca el valor. En staging, número de prueba.
-  ZAVU_API_KEY: ${ZAVU_API_KEY}
-  ZAVU_API_BASE: ${ZAVU_API_BASE:-https://api.zavu.dev/v1}
-  ZAVU_WEBHOOK_SECRET: ${ZAVU_WEBHOOK_SECRET}
-  # Invitación partner #56, apagada si falta configuración; nunca crea credenciales.
-  ZAVU_ENVIOS_REALES: ${ZAVU_ENVIOS_REALES:-0}
-  ZAVU_PARTNER_PROJECT_ID: ${ZAVU_PARTNER_PROJECT_ID:-}
-  ZAVU_PARTNER_CREDENTIAL_REF: ${ZAVU_PARTNER_CREDENTIAL_REF:-ZAVU_API_KEY}
-  ZAVU_PARTNER_API_URL: ${ZAVU_PARTNER_API_URL:-}
-  ZAVU_PARTNER_WEBHOOK_SECRET: ${ZAVU_PARTNER_WEBHOOK_SECRET:-}
   # Canales vía Zernio (#1338, ADR-0032/0033): la llave del NEGOCIO, restringida
   # en Zernio a su propio perfil, y el secreto del webhook de SU cuenta. Por
   # referencia como todo lo demás (SPEC §17); cada cuenta nueva trae sus nombres.
