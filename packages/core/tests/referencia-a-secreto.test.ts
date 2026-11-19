@@ -71,7 +71,7 @@ describe('una referencia a secreto es un nombre de variable (#801)', () => {
     expect(err).not.toBeNull();
     expect(err!.message).not.toContain(secreto);
     expect(err!.message).toContain('la referencia de la credencial');
-    expect(err!.message).toContain('ZAVU_API_KEY'); // dice cómo se ve uno bueno
+    expect(err!.message).toContain('ZERNIO_API_KEY'); // dice cómo se ve uno bueno
   });
 
   describe('mostrarla en un error', () => {

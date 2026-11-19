@@ -18,14 +18,15 @@
  * ## Por qué no basta con `:` y `=`
  *
  * Porque la llave que de verdad usamos no tiene ninguno de los dos. Una de
- * Zavu se ve así: `zv_live_ac73feebf3f29cd43fcd3222624272ecd2a854133b050eea`
+ * Zernio se ve así: `zrk_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`
  * — sin espacios, sin `:`, sin `=`. La guarda de la que presumía el runbook
- * tampoco la habría rechazado.
+ * tampoco la habría rechazado. (El ejemplo midió lo mismo con la de Zavu,
+ * `zv_live_…`, que tampoco tenía ninguno de los dos.)
  *
  * Lo que sí las separa es la FORMA de un nombre de variable: mayúsculas,
  * dígitos y `_`, empezando por letra, y corto. Todas las referencias del
- * repo la cumplen (`ZAVU_API_KEY`, `R2_BUCKET_ADJUNTOS`, `AUDIT_EXPORT_SECRET`)
- * y los secretos de los proveedores que usamos —`zv_live_…`, `nvapi-…`,
+ * repo la cumplen (`ZERNIO_API_KEY`, `R2_BUCKET_ADJUNTOS`, `AUDIT_EXPORT_SECRET`)
+ * y los secretos de los proveedores que usamos —`zrk_…`, `nvapi-…`,
  * `sk-…`, los JWT de Supabase— no, porque van en minúscula.
  *
  * No es una prueba criptográfica: alguien decidido puede pegar un secreto en
@@ -53,7 +54,7 @@ export function exigirNombreDeVariable(valor: string | null | undefined, campo: 
   if (!NOMBRE_DE_VARIABLE.test(limpio)) {
     throw new Error(
       `${campo} es el NOMBRE de la variable de entorno, jamás la credencial. Se escribe en ` +
-        'mayúsculas con guiones bajos, como ZAVU_API_KEY.',
+        'mayúsculas con guiones bajos, como ZERNIO_API_KEY.',
     );
   }
   return limpio;
@@ -63,7 +64,7 @@ export function exigirNombreDeVariable(valor: string | null | undefined, campo: 
  * La referencia, para mostrarla en un mensaje de error.
  *
  * El nombre de una variable no es un secreto y decirlo es media solución para
- * el operador: «falta ZAVU_API_KEY en este ambiente» es accionable. Pero
+ * el operador: «falta ZERNIO_API_KEY en este ambiente» es accionable. Pero
  * cinco lugares lo interpolaban sin mirar qué había guardado, así que una
  * cuenta vieja con un secreto pegado en ese campo lo re-publicaba en el
  * cuerpo de la respuesta de la API — a cualquier cliente que pegue ahí.

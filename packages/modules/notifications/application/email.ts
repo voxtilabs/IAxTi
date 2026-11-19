@@ -168,7 +168,7 @@ export function renderEmail(input: {
    * nada — le sirve saber de dónde salió este correo.
    */
   destinatario?: 'usuario' | 'invitado';
-  /** Enlace completo, para lo que no vive en la aplicación (el alta de Zavu). */
+  /** Enlace completo, para lo que no vive en la aplicación. */
   enlaceAbsoluto?: string;
 }): CorreoRenderizado {
   const base = input.appUrl ?? process.env.API_URL_PUBLIC?.replace('api', 'app') ?? '';

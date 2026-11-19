@@ -36,4 +36,13 @@ platform_support_sessions.started_at — lo que decide si la sesión de soporte 
 subscriptions.created_at — la suscripción se muestra por su estado y su período vigente; desde cuándo existe no aparece.
 teams.created_at — los equipos se listan por nombre.
 webhook_deliveries.event_id — la entrega guarda de qué evento del outbox salió y el panel muestra `event_name`: no se puede ir de una entrega fallida al evento que la produjo.
+whatsapp_partner_events.processed_at — marca de consumo del evento de invitación (#56); la cola que la movía se retiró con Zavu (#1339). La fila queda como registro.
+whatsapp_partner_invitations.created_at — la invitación se seguía por su fase, no por su edad; el flujo que la miraba se retiró (#1339).
+whatsapp_partner_invitations.invitation_id — el id del lado de Zavu del enlace pedido; sin proveedor que lo reconozca, es registro (#1339).
+whatsapp_partner_invitations.phase — la movía el webhook `invitation.status_changed`, que se fue con Zavu (#1339): la fila queda congelada en su última fase.
+whatsapp_partner_invitations.project_id — el proyecto de Zavu a nombre de quien se pedía el número; nadie lo vuelve a preguntar (#1339).
+whatsapp_partner_invitations.request_hash — deduplicaba el pedido de invitación; los pedidos nuevos no existen y el hash queda para la historia (#1339).
+whatsapp_partner_invitations.url_ref — el enlace que el negocio abría para conectar su número; la pantalla que lo usaba se retiró (#1339).
+whatsapp_partner_secrets.destroy_pending — bandera de destrucción programada del secreto del proyecto; el job que la atendía (`identity.partner.maintain`) se retiró (#1339).
+whatsapp_partner_secrets.purpose — distinguía el secreto del webhook del del proyecto; con el flujo entero retirado, es registro (#1339).
 whatsapp_templates.created_at — #552.

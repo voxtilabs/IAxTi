@@ -88,7 +88,7 @@ El alta inicial conserva una referencia operativa propia del equipo:
 | `source_links` | los `[[enlaces]]` entre fuentes de un markdown importado (#714) | no | negocio | sí | no aplica |
 | `channel_accounts`, `whatsapp_numbers`, `webchat_widgets` | canales conectados y **referencias** a credenciales | no | negocio | sí | no aplica |
 | `whatsapp_partner_invitations`, `whatsapp_partner_events`, `whatsapp_partner_secrets` | correlación proyecto/invitación/tenant, actor, estado e intenciones/referencias SM; sin enlace, token ni secreto en SQL | indirecta | equipo | no: custodia y correlación operativa | conserva trazabilidad local; enlaces retirados al completar/vencer y recursos huérfanos destruidos por barrido. Refs activas no se destruyen por reintento |
-| `channel_senders` | dueño del emisor Zavu y cuenta receptora del webhook compartido; ningún secreto | no | negocio | sí | no aplica: configuración del negocio; conserva la reserva al archivar y se elimina al borrar su cuenta receptora |
+| `channel_senders` | dueño del emisor del transporte (`zernio:<id>` en las cuentas de Zernio, ADR-0033; las filas de la época de Zavu conservan su historia) y cuenta receptora del webhook compartido; ningún secreto | no | negocio | sí | no aplica: configuración del negocio; conserva la reserva al archivar y se elimina al borrar su cuenta receptora |
 | `channel_threads` | el id de la conversación del lado del proveedor (Zernio), por cuenta y destinatario: por dónde contestar | indirecta | negocio | sí | no aplica: es del transporte; se va con su cuenta (ADR-0033) |
 | `webhook_endpoints` | a dónde avisar, **sin el secreto** | no | negocio | sí, sin el secreto | no aplica |
 | `payment_providers` | qué pasarela usa el negocio y la **referencia** a su credencial | no | negocio | sí | no aplica |
@@ -125,5 +125,5 @@ contenido es responsabilidad suya y la retención la fija su plan.
 | Postgres (Supabase) | todo lo de las tablas de arriba | declarada en el proyecto |
 | Cloudflare R2 | adjuntos de los mensajes, por tenant | global con URLs firmadas de vida corta |
 | Redis | colas y contadores de límite; **sin contenido de mensajes** | el del despliegue |
-| Proveedor de canales (Zavu) | el contenido de los mensajes pasa por él | ver ADR-0014 |
+| Proveedor de canales (Zernio) | el contenido de los mensajes pasa por él | ver ADR-0032 |
 | Proveedor de IA | lo que se le manda, con `redactPII` aplicado antes | ver ADR-0011 |

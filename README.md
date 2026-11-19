@@ -48,11 +48,10 @@ npx skills@latest add mattpocock/skills \
   --skill zoom-out --skill improve-codebase-architecture --skill tdd \
   --skill domain-model -y
 
-# Canales/Zavu: usar los skills de transporte (send-message, conversations,
-# channel-setup, whatsapp-templates, webhook-setup, contacts-management).
-# NO usar ai-agent, functions, memory ni broadcast-campaign: la lógica de
-# negocio y la IA no viven en el proveedor de canales (SPEC §12, ADR-0014).
-npx skills add zavudev/zavu-skills
+# Canales: el conocimiento del transporte (Zernio) vive en el repo, en la
+# skill `iaxti-channel-provider` — Claude Code la carga al trabajar en esa
+# área. NO hay pack de skills del proveedor ni hace falta: la lógica de
+# negocio y la IA no viven en el transporte (SPEC §12, ADR-0032/0033).
 ```
 
 Dentro de Claude Code (verifica nombres con `/plugin`):

@@ -10,7 +10,7 @@ flowchart TB
   subgraph internet[Internet]
     C[Cliente WhatsApp]
     U[Usuario del tenant<br/>navegador / celular]
-    K[Zavu<br/>capa de canales<br/>WhatsApp · Instagram · Messenger]
+    K[Zernio<br/>transporte de canales<br/>WhatsApp hoy · cuenta y perfil por negocio]
     L[Landing comercial<br/>iaxti.cl · www<br/>Vercel — NO es la app]
     G[Google<br/>Calendar · Drive · Gmail]
     P[Pasarela de pago]
@@ -110,7 +110,7 @@ que conversa (`on_behalf_of`). Las API keys, con `actor_kind = apikey`.
 ```mermaid
 sequenceDiagram
   participant Cliente
-  participant Zavu
+  participant Z as Zernio
   participant API as api /webhooks
   participant Q as cola inbound
   participant W as workers
@@ -118,13 +118,13 @@ sequenceDiagram
   participant AG as agents (copiloto)
   participant V as Vendedor (bandeja)
 
-  Cliente->>Zavu: mensaje
-  Zavu->>API: webhook (envelope Zavu, firmado t=,v2=)
-  API->>API: verifica firma HMAC
-  API->>Q: encola (idempotente por id de mensaje)
-  API-->>Zavu: 200 en < 1 s
+  Cliente->>Z: mensaje
+  Z->>API: webhook (evento de Zernio, firmado X-Zernio-Signature: HMAC-SHA256 hex del cuerpo crudo, sin timestamp)
+  API->>API: verifica firma + que el evento sea de ESTA cuenta y ESTE negocio (#1321)
+  API->>Q: encola (jobId con cuenta e id del mensaje del proveedor: idempotente)
+  API-->>Z: 200 en < 1 s (received n, statuses 0)
   Q->>W: procesa
-  W->>DB: contacto (crea si no existe) + conversación + mensaje
+  W->>DB: contacto (crea si no existe) + conversación + mensaje + hilo del proveedor (ADR-0033)
   W->>DB: outbox: message.received
   DB-->>V: Realtime broadcast → bandeja
   W->>AG: si módulo agents activo
@@ -133,10 +133,17 @@ sequenceDiagram
   DB-->>V: sugerencia en aviso action-soft
   V->>API: "Enviar sugerencia" (o edita)
   API->>Q: cola outbound (ventana 24h · silencio · rate limit por número)
-  Q->>Zavu: send
-  Zavu->>Cliente: mensaje
-  Zavu->>API: estados sent/delivered/read → bandeja
+  Q->>Z: send dentro de la conversación del proveedor (ADR-0033)
+  Z->>Cliente: mensaje
 ```
+
+La firma no lleva timestamp: la protección contra repetición es la
+deduplicación por id del evento, que ya hace el camino de entrada. El jobId
+de la cola es `in-<cuenta>-<id del mensaje del proveedor>`, que es la
+idempotencia. La respuesta al webhook es `{ received: n, statuses: 0 }` —
+Zernio todavía no publica estados de entrega ni calidad del número (#43),
+así que la bandeja se queda con el estado que dejó el envío; cuando los
+publique, entran por este mismo webhook y se encolan como estados.
 
 En modo autónomo (opt-in, por horario), el paso del vendedor lo hace el agente
 dentro de las reglas de escalamiento; el mensaje queda marcado "respondió el

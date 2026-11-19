@@ -7,8 +7,6 @@ export {
   receiveInboundForContact,
   sendMessage,
   updateDeliveryStatus,
-  updateDeliveryStatusByProviderId,
-  registrarSalienteDelCanal,
   getOutboundContext,
   getContext,
   updateSummary,

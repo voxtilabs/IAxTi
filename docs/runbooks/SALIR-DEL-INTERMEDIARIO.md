@@ -1,11 +1,44 @@
 # Salir del intermediario de canales
 
-Hoy los mensajes de WhatsApp, Instagram y Messenger pasan por **Zavu**
-(ADR-0014). Este documento dice qué costaría dejar de hacerlo — sea para ir
-directo a Meta (#158, #82) o para cambiar de intermediario— y qué hay hecho
-para que ese día no sea una reescritura.
+Esto ya ocurrió: Zavu salió del código el 19-11 (#1339) y Zernio es hoy el
+único transporte (ADR-0032 y 0033, epic #1338). Este documento empezó como la
+respuesta a «¿estamos atrapados?» cuando Zavu todavía estaba; queda como el
+registro de cómo se salió y como el playbook para la próxima vez que haya que
+cambiar de transporte.
 
-No es un plan para ejecutar ahora. Es la respuesta a «¿estamos atrapados?».
+## Cómo se salió
+
+La premisa de la ADR-0014 —omnicanal como diferenciador— no se cumplió: se
+pagó el plan de Zavu y no entregaba Instagram (#1327). La salida costó lo que
+este runbook predecía, ni más ni menos:
+
+1. **El adaptador nuevo** (#1317): `send`, `verifyWebhook`, `normalize` y el
+   núcleo de seguridad en `zernio-base`. El vocabulario de Zernio no cruza el
+   adaptador: hacia adentro solo salen las formas del puerto.
+2. **El archivo del envío**: `apps/workers/src/outbound.ts` llama a
+   `deliverOutbound` por su nombre. Se pasó por ahí, como estaba anotado.
+3. **Las credenciales**: por referencia desde el principio, así que fue
+   cambiar el nombre de la variable en cada cuenta, no migrar secretos.
+4. **Los webhooks**: cada cuenta ya tenía su URL propia
+   (`/webhooks/channels/<id>`) y su secreto por referencia. Nada global que
+   reapuntar.
+5. **La base**: el proveedor pasó a ser atributo de la cuenta (ADR-0032). Las
+   cuentas que pasaron por Zavu siguen declarando `provider = 'zavu'` —su
+   historia, no se les miente— y una que quede viva grita al arrancar en la
+   lista de proveedores sin adaptador.
+
+Lo que no hubo que tocar, como decía la versión anterior: **la bandeja, el
+copiloto, las automatizaciones, los reportes.** Ninguno sabe de quién viene
+un mensaje.
+
+Lo que el cambio se llevó y no ha vuelto: Zernio todavía no publica estados
+de entrega ni calidad del número (#43), y las plantillas aún no tienen puerto
+para Zernio — va en su propio issue, y mientras tanto una cuenta en Zernio no
+ofrece plantillas. `sincronizarConZavu` se fue con Zavu, como decía este
+documento: era una peculiaridad de Zavu —su copia se quedaba atrás de Meta— y
+no una operación que todo transporte tenga. Instagram y Messenger siguen sin
+validación con cuentas reales (#74): con Zavu nunca se hizo, y por Zernio
+tampoco hay ninguna hecha.
 
 ## Lo que está detrás del puerto
 
@@ -13,16 +46,16 @@ No es un plan para ejecutar ahora. Es la respuesta a «¿estamos atrapados?».
 
 | Operación | Quién la usa | Portable |
 |---|---|---|
-| `send` | cola `outbound` | **no todavía** — ver abajo |
+| `send` | cola `outbound`, vía `deliverOutbound` | sí, con el matiz de abajo |
 | `verifyWebhook` | webhook de entrada | sí |
 | `normalize` | webhook de entrada | sí |
-| `plantillas.crear` / `enviarARevision` / `listar` | API y barrido | sí (#159) |
+| `plantillas.crear` / `enviarARevision` / `listar` | API y barrido | sí (#159); el adaptador de Zernio todavía no las implementa |
 
 Las plantillas eran el agujero grande: la API y el worker llamaban a
-`crearEnZavu`, `enviarARevisionEnZavu` y `listarEnZavu` **por su nombre**.
-O sea que el plan de salida era «cambiar un adaptador» en la mitad del
-producto y una reescritura en la otra mitad — y eso no se ve hasta el día
-que hay que hacerlo. Hoy pasan por el puerto, y hay un test que lo prueba
+`crearEnZavu`, `enviarARevisionEnZavu` y `listarEnZavu` **por su nombre**. O
+sea que el plan de salida era «cambiar un adaptador» en la mitad del producto
+y una reescritura en la otra mitad — y eso no se ve hasta el día que hay que
+hacerlo. Hoy pasan por el puerto, y `puerto-de-plantillas.test.ts` lo prueba
 con un proveedor inventado que no tiene una línea de Zavu.
 
 ## Lo que todavía NO está detrás del puerto
@@ -34,39 +67,29 @@ las causas de Meta — cosas que no son «mandar un mensaje» sino «mandar un
 mensaje por WhatsApp». Meterlas en `send` le inventaría a los otros canales
 una obligación que no tienen.
 
-La consecuencia hay que decirla: **el proceso que de verdad envía es el que
-menos usa la abstracción.** Cambiar de proveedor obliga a tocar ese archivo.
+La consecuencia sigue siendo la misma: **el proceso que de verdad envía es
+el que menos usa la abstracción.** Cambiar de transporte obliga a tocar ese
+archivo.
 
-Un síntoma de eso apareció acá: los workers **no registraban ningún
-adaptador de canal**. La API lo hace desde #41 y los workers nunca, y nadie
-lo notó porque el envío no pasa por el registro. Ya quedó registrado.
+Los workers registran sus adaptadores desde #159; antes no registraban
+ninguno, y nadie lo notó porque el envío no pasaba por el registro.
 
-**La sincronización de plantillas con Meta.** `sincronizarConZavu` sigue
-siendo una llamada con nombre propio, a propósito: es una peculiaridad de
-Zavu —su copia se queda atrás de Meta y hay que pedirle que se ponga al
-día— y no una operación que todo proveedor tenga. El día que Zavu se vaya,
-esa línea se va con él.
+## El playbook para la próxima
 
-## Lo que costaría, hoy
+Lo que hizo barata esta salida, en orden:
 
-1. **Escribir el adaptador nuevo**: `send`, `verifyWebhook`, `normalize` y
-   el puerto de plantillas. Es el trabajo declarado y está acotado.
-2. **Tocar `outbound.ts`**: mientras la política de reintento y la calidad
-   del número vivan ahí, un proveedor nuevo obliga a pasar por ese archivo.
-3. **Las credenciales**: por referencia desde el principio, así que es
-   cambiar el nombre de la variable en cada cuenta de canal, no migrar
-   secretos.
-4. **Los webhooks**: cada cuenta ya tiene su URL propia
-   (`/webhooks/channels/<id>`) y su secreto por referencia. No hay nada
-   global que reapuntar.
-5. **Lo que NO se toca**: la bandeja, el copiloto, las automatizaciones,
-   los reportes. Ninguno sabe de quién viene un mensaje.
+1. **El puerto primero.** Las operaciones del canal por `ChannelProvider`, y
+   una prueba con un proveedor inventado que no tiene una línea del
+   transporte viejo: el plan de salida no puede ser «cambiar un adaptador»
+   en la mitad del producto y una reescritura en la otra.
+2. **Proveedor por cuenta, no por despliegue** (ADR-0032). Migrar una cuenta
+   a la vez y poder volver atrás con un `UPDATE`.
+3. **Credenciales y webhooks por cuenta.** Nada global que reapuntar.
+4. **Medir por el puerto del producto** (#870): el transporte nuevo está
+   «probado» cuando una cuenta real manda y recibe por el camino entero, no
+   cuando su documentación lo promete. Con Zavu quedó la diferencia a la
+   vista: prometía Instagram y no lo entregaba (#1327).
 
-## Lo que falta para poder decir «probado»
-
-Este documento describe el camino y el puerto está probado con un proveedor
-falso. Lo que no está probado es un proveedor REAL distinto: eso necesita
-credenciales de Meta como Tech Provider (#82) y es el contenido de #158.
-
-Hasta entonces, la respuesta honesta a «¿estamos atrapados?» es: **no, pero
-salir cuesta un adaptador y un archivo**, y el archivo es el del envío.
+Y la respuesta a la pregunta que abrió este documento, dicha con el caso
+trabajado: **no, no estamos atrapados — salir cuesta un adaptador y el
+archivo del envío.**

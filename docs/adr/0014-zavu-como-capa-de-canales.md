@@ -1,6 +1,6 @@
 # ADR 0014 · Zavu como capa de canales; proveedor propio mucho después
 
-**Estado:** aceptada · 2026-09-14 · supersede la [ADR-0005](0005-kapso-ahora-tech-provider-despues.md) · **premisa fallida, ver la enmienda del 11-11 y la [ADR-0032](0032-un-proveedor-por-cuenta-y-la-puerta-a-zernio.md)**
+**Estado:** retirada · 2026-11-19 · supersede la [ADR-0005](0005-kapso-ahora-tech-provider-despues.md) · **premisa fallida, ver la enmienda del 11-11 y la [ADR-0032](0032-un-proveedor-por-cuenta-y-la-puerta-a-zernio.md)** · El código de Zavu salió del despliegue (#1339): quedan esta ADR y las migraciones como registro
 
 ## Contexto
 La ADR-0005 eligió Kapso como BSP de WhatsApp y dejó el vocabulario de la Cloud

@@ -99,20 +99,26 @@ mediante merges explícitos sobre la implementación previa de #56 (`7d54fca`).
 
 ## Evidencia reproducible
 
-- `packages/modules/whatsapp/tests/partner.test.ts`: PostgreSQL con rol propio
-  sin BYPASSRLS y receptores HTTP locales; creación concurrente, HMAC/proyecto,
-  respuesta perdida, referencias cruzadas, cuenta Meta sustituida, expiración,
-  rollback de auditoría, custodia/rotación fallida y carrera de limpieza.
-- `apps/api/tests/partner-invitations.test.ts`: Nest HTTP, permisos, cuerpo
-  cerrado, actor, módulo off, rawbody, errores sin secretos, deadline y OpenAPI.
-  Sustituye los servicios de negocio; no sustituye las pruebas RLS anteriores.
-- `apps/web/tests/whatsapp-invitation.test.tsx`: carga, error con rastro, doble
-  clic, respuesta tardía de otra sesión/tenant, ambigüedad y recuperación.
-- `apps/web/e2e/run-partner.mjs`: JWT con JWKS local, API y RLS reales, cola y
-  worker BullMQ, módulo de conexión real y SDK Secret Manager contra HTTP
-  sintético. No intercepta endpoints de aplicación en Playwright. Solo cambia
-  los puertos del proveedor y ADC. Navegador a 360 px en día/noche, llegada con
-  Tab y activación con Enter, recarga sin duplicar invitación, callback firmado,
+Las cuatro piezas que esta evidencia nombraba —la suite de pruebas del
+adaptador partner, la del controller de invitaciones, la del componente en
+la web y el runner e2e— se retiraron con Zavu (#1339): el flujo de
+invitación ya no existe y sus archivos tampoco. Lo que queda abajo es el
+registro de qué medían, como se midió en su momento.
+
+- PostgreSQL con rol propio sin BYPASSRLS y receptores HTTP locales;
+  creación concurrente, HMAC/proyecto, respuesta perdida, referencias
+  cruzadas, cuenta Meta sustituida, expiración, rollback de auditoría,
+  custodia/rotación fallida y carrera de limpieza.
+- Nest HTTP, permisos, cuerpo cerrado, actor, módulo off, rawbody, errores
+  sin secretos, deadline y OpenAPI. Sustituye los servicios de negocio; no
+  sustituye las pruebas RLS anteriores.
+- Carga, error con rastro, doble clic, respuesta tardía de otra
+  sesión/tenant, ambigüedad y recuperación.
+- JWT con JWKS local, API y RLS reales, cola y worker BullMQ, módulo de
+  conexión real y SDK Secret Manager contra HTTP sintético. No intercepta
+  endpoints de aplicación en Playwright. Solo cambia los puertos del
+  proveedor y ADC. Navegador a 360 px en día/noche, llegada con Tab y
+  activación con Enter, recarga sin duplicar invitación, callback firmado,
   recuperación de rotación y confirmación de la puesta en marcha.
 
 ```sh

@@ -90,12 +90,10 @@ número, el que manda es el código:
 | `agents.pulso` | 1 min | el agente no retoma a nadie; con el pulso apagado no hace nada y eso es lo normal |
 | `knowledge.expire` | :30 | las fuentes vencidas siguen contestando con datos viejos |
 | `knowledge.borrados_pendientes` | :50 | una fuente que perdió su archivo se sigue citando: el PDF no se puede bajar |
-| `identity.partner.maintain` | Cada 1 min | Invitaciones sin procesar o enlaces vencidos; recupera el inbox y limpia intenciones huérfanas de Secret Manager. No repite creates/rotaciones ambiguos. Limpieza incluso con WhatsApp apagado; preparación en [evidencia #56](../evidencias/56-partner/README.md). |
 | `identity.google.cleanup` | Cada 15 min | Quedan versiones revocadas pendientes de destrucción en Secret Manager; el acceso local sigue bloqueado. Corre aunque Calendar esté apagado. |
 | `calendar.google.maintain` | Cada 15 min | Vencen las suscripciones push de Google; la agenda consulta disponibilidad viva y muestra las notificaciones pendientes. |
 | `calendar.reminders` | 15 min | **nadie recibe el recordatorio de su hora** |
 | `payments.expire` | :45 | los links de pago vencidos siguen cobrables |
-| `whatsapp.templates.sync` | 30 min | el estado de aprobación de Meta no se entera |
 | `webhooks.deliver` | 1 min | los webhooks salientes no salen |
 | `analytics.response_samples` | :15 | el tiempo de primera respuesta no se mide |
 

@@ -2,7 +2,6 @@
 export const MODULE_ID = 'crm' as const;
 export {
   createContact,
-  ensureContactByPhone,
   ensureContactByIdentity,
   identityFor,
   linkIdentity,
@@ -74,7 +73,6 @@ export {
   ensureWebContact,
   contactoPorTelefono,
   contactoPorIdentidad,
-  contactoPorId,
 } from './application/contacts';
 export { mergeContacts, previewImport, confirmImport } from './application/merge';
 export type { ImportPreview, ImportRowResult } from './application/merge';
