@@ -295,7 +295,12 @@ export async function llaveDelTenant(
   cfg: ConfigDeZernio,
   input: { tenantId: string; profileId: string },
 ): Promise<{ llave: string; id: string }> {
-  const r = await llamarAZernio<{ apiKey?: { id?: string; key?: string; scope?: string; profileIds?: string[] } }>(
+  // `profileIds` llega como objetos `{_id, …}` y no como strings — medido el
+  // 18-11 contra la API real: con la comparación a secas la llave nueva nunca
+  // pasaba la comprobación, se borraba a sí misma y el alta no terminaba.
+  const r = await llamarAZernio<{
+    apiKey?: { id?: string; key?: string; scope?: string; profileIds?: Array<string | { _id?: string }> };
+  }>(
     cfg,
     '/v1/api-keys',
     {
@@ -311,7 +316,10 @@ export async function llaveDelTenant(
   );
   const k = r.apiKey;
   if (!k?.key || !k.id) throw new ErrorDelAlta('Zernio no devolvió la llave nueva.');
-  const restringida = k.scope === 'profiles' && k.profileIds?.length === 1 && k.profileIds[0] === input.profileId;
+  const idsDePerfil = (k.profileIds ?? [])
+    .map((p) => (typeof p === 'string' ? p : p?._id))
+    .filter((x): x is string => Boolean(x));
+  const restringida = k.scope === 'profiles' && idsDePerfil.length === 1 && idsDePerfil[0] === input.profileId;
   const visto = restringida
     ? await llamarAZernio<{ profiles?: PerfilDeZernio[] }>({ ...cfg, apiKey: k.key }, '/v1/profiles').catch(() => null)
     : null;
@@ -376,16 +384,34 @@ export async function suscribirWebhook(
  * La página es de Zernio y abre el Embedded Signup de Meta. Conectar desde
  * acá y no desde el panel de Zernio es lo que asegura que el número cae en el
  * perfil del tenant y no en el que esté abierto en ese momento.
+ *
+ * `modo` (spec v1.679): sin él el popup abre en «coexistence», que es para
+ * números que viven en la app WhatsApp Business del negocio —la app del
+ * teléfono comparte el número con la Cloud API—. `api` es el otro caso: un
+ * número que solo vive en la Cloud API de otro proveedor, sin la app encima,
+ * y muestra el selector de WABA y número de Meta. Declararlo a mano, en
+ * cualquier caso, deja el intento escrito en el enlace.
+ *
+ * `numeroEsperado` fija el número (E.164): si en el popup se elige otro, la
+ * página termina con 409 `NUMBER_MISMATCH` y no se conecta nada. El tope vive
+ * en el token de conexión del lado de Zernio, no en la URL.
  */
 export async function enlaceParaConectar(
   cfg: ConfigDeZernio,
-  input: { profileId: string; redirectUrl?: string },
+  input: {
+    profileId: string;
+    redirectUrl?: string;
+    modo?: 'api' | 'business_app';
+    numeroEsperado?: string;
+  },
 ): Promise<string> {
   const q = new URLSearchParams({
     profileId: input.profileId,
     signup: 'hosted',
     language: 'es',
     brandName: 'IAxTi',
+    ...(input.modo ? { onboarding: input.modo } : {}),
+    ...(input.numeroEsperado ? { expectedPhoneNumber: input.numeroEsperado } : {}),
     ...(input.redirectUrl ? { redirect_url: input.redirectUrl } : {}),
   });
   const r = await llamarAZernio<{ authUrl?: string }>(cfg, `/v1/connect/whatsapp?${q.toString()}`);

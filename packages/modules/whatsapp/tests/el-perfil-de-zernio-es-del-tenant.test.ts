@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   cuentaDelPerfil,
   cuentaEnZernio,
+  enlaceParaConectar,
   ErrorDelAlta,
   eventoDeZernioEsDeLaCuenta,
   llaveDelTenant,
@@ -210,7 +211,10 @@ describe('la cuenta que se da de alta es del perfil del tenant', () => {
 describe('la llave del negocio solo ve su perfil', () => {
   it('se pide restringida al perfil y sin webhooks, y se comprueba con ella misma', async () => {
     const cfg = zernio({
-      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: ['prof_A'] } } },
+      // La forma REAL de la respuesta (medida 18-11): `profileIds` viene como
+      // objetos `{_id}`. Con strings en el mock, la prueba daba verde mientras
+      // el alta real borraba la llave sana.
+      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: [{ _id: 'prof_A', name: 'A' }] } } },
       'GET /v1/profiles': { body: { profiles: [{ _id: 'prof_A', name: 'A', externalId: TENANT_A }] } },
     });
     expect(await llaveDelTenant(cfg, { tenantId: TENANT_A, profileId: 'prof_A' })).toEqual({ llave: 'zrk_A', id: 'k1' });
@@ -224,12 +228,20 @@ describe('la llave del negocio solo ve su perfil', () => {
 
   it('si la llave ve otro perfil, se borra y no sale', async () => {
     const cfg = zernio({
-      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: ['prof_A'] } } },
+      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: [{ _id: 'prof_A', name: 'A' }] } } },
       'GET /v1/profiles': { body: { profiles: [{ _id: 'prof_A' }, { _id: 'prof_B' }] } },
       'DELETE /v1/api-keys/k1': { body: { success: true } },
     });
     await expect(llaveDelTenant(cfg, { tenantId: TENANT_A, profileId: 'prof_A' })).rejects.toThrow(/Se borró/);
     expect(peticiones.some((p) => p.method === 'DELETE' && p.url.endsWith('/v1/api-keys/k1'))).toBe(true);
+  });
+
+  it('acepta también profileIds como strings: la forma la decide Zernio, no esta prueba', async () => {
+    const cfg = zernio({
+      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: ['prof_A'] } } },
+      'GET /v1/profiles': { body: { profiles: [{ _id: 'prof_A', name: 'A', externalId: TENANT_A }] } },
+    });
+    expect(await llaveDelTenant(cfg, { tenantId: TENANT_A, profileId: 'prof_A' })).toEqual({ llave: 'zrk_A', id: 'k1' });
   });
 
   it('si Zernio la devuelve con alcance completo, se borra sin usarla', async () => {
@@ -266,3 +278,36 @@ describe('el webhook queda atado a su perfil y su cuenta', () => {
     expect(peticiones[1]!.body).toMatchObject({ webhookId: 'wh1', accountIds: ['acc_A'] });
   });
 });
+
+describe('el enlace de conexión', () => {
+  it('abre la página alojada en español; con modo api y número fijado, la petición los pide', async () => {
+    // El modo por omisión del popup es «coexistence»: la app WhatsApp
+    // Business del teléfono compartiendo el número con la Cloud API. `api`
+    // es el caso aparte —un número que SOLO vive en la Cloud API de otro
+    // proveedor, sin la app encima— y el número fijado evita que se conecte
+    // otro por error (spec v1.679, #1338). Número de prueba, no el de nadie.
+    const cfg = zernio({ 'GET /v1/connect/whatsapp': { body: { authUrl: 'https://zernio.com/conectar' } } });
+    const enlace = await enlaceParaConectar(cfg, {
+      profileId: 'prof_A',
+      modo: 'api',
+      numeroEsperado: '+56911112222',
+    });
+    expect(enlace).toBe('https://zernio.com/conectar');
+    const u = new URL(peticiones[0]!.url);
+    expect(u.pathname).toBe('/api/v1/connect/whatsapp');
+    expect(u.searchParams.get('profileId')).toBe('prof_A');
+    expect(u.searchParams.get('signup')).toBe('hosted');
+    expect(u.searchParams.get('language')).toBe('es');
+    expect(u.searchParams.get('onboarding')).toBe('api');
+    expect(u.searchParams.get('expectedPhoneNumber')).toBe('+56911112222');
+  });
+
+  it('sin modo ni número no manda nada extra: el defecto lo elige Zernio', async () => {
+    const cfg = zernio({ 'GET /v1/connect/whatsapp': { body: { authUrl: 'https://zernio.com/conectar' } } });
+    await enlaceParaConectar(cfg, { profileId: 'prof_A' });
+    const u = new URL(peticiones[0]!.url);
+    expect(u.searchParams.get('onboarding')).toBeNull();
+    expect(u.searchParams.get('expectedPhoneNumber')).toBeNull();
+  });
+});
+

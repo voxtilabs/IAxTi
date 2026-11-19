@@ -34,6 +34,10 @@ import {
   perfilDelTenant,
   suscribirWebhook,
 } from '@iaxti/module-whatsapp';
+// --modo business_app: coexistencia, la app WhatsApp Business del teléfono
+//   compartiendo el número con la Cloud API. Es el defecto de Zernio.
+// --modo api: un número que SOLO vive en la Cloud API de otro proveedor.
+// --numero: fija el número que se debe conectar (E.164, p. ej. +56922013949).
 
 function arg(nombre, pordefecto) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -54,6 +58,8 @@ const zernioAccountId = arg('cuenta');
 const baseUrl = arg('base-url', process.env.API_URL_PUBLIC);
 const credentialRef = arg('credential-ref');
 const webhookSecretRef = arg('webhook-secret-ref');
+const modo = arg('modo');
+const numero = arg('numero');
 
 try {
   if (!tenantId) {
@@ -78,7 +84,12 @@ try {
         console.log(`  --cuenta ${c._id}   ${c.displayName ?? c.username ?? ''}${c.needsReconnection ? '  (pide reconectar)' : ''}`);
       }
     }
-    const enlace = await enlaceParaConectar(cfg, { profileId: perfil._id });
+    const enlace = await enlaceParaConectar(cfg, {
+      profileId: perfil._id,
+      ...(modo ? { modo } : {}),
+      ...(numero ? { numeroEsperado: numero } : {}),
+    });
+    if (modo && modo !== 'api' && modo !== 'business_app') salir('--modo solo acepta api o business_app.');
     console.log('\nPara conectar un número EN el perfil de este negocio, abre:');
     console.log(`  ${enlace}`);
     console.log('\nOjo: si el número hoy está en otro proveedor, confirma con Zernio cómo se migra ANTES de soltarlo de allá.');
