@@ -1,7 +1,5 @@
-import { refParaMostrar } from '@iaxti/core';
 import {
   BadRequestException,
-  ConflictException,
   Body,
   Controller,
   Get,
@@ -18,24 +16,17 @@ import {
   diagnosticarCanal,
   findAccountById,
   listChannelAccounts,
-  EmisorCompartidoError,
   cupoDelDia,
 } from '@iaxti/module-channels';
 import { salientesDelDia } from '@iaxti/module-conversations';
 import { writeAudit } from '@iaxti/module-audit';
 import {
-  clienteZavu,
   desconectarNumero,
-  elegirSender,
-  emisorDelProveedor,
   cuentaEnZernio,
   baseDeZernio,
-  emisoresDelProveedor,
   listTemplates,
   listWhatsAppNumbers,
-  reapuntarEmisor,
   resumeBusinessSends,
-  tenantDelEmisor,
 } from '@iaxti/module-whatsapp';
 import { createWidget, listWidgets, setWidgetActive } from '@iaxti/module-webchat';
 import { z } from 'zod';
@@ -44,7 +35,6 @@ import { Cuerpo, textoRequerido } from './validar';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool, apiRedis } from './db';
 import { CUERPO_DE_PRUEBA, probarEnvio } from './probar-envio';
-import { conectarCanalMeta, conexionesDisponibles } from './conectar-canales-zavu';
 
 function pool() {
   const p = apiPool();
@@ -60,14 +50,6 @@ function pool() {
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
 
 /**
- * El cuerpo para reapuntar un canal (#600).
- *
- * `senderId` obligatorio y nada de «elige tú el único que sirva»: cuando hay
- * uno solo, `elegirSender` lo resolvería sin que nadie confirme, y apuntar el
- * canal de un negocio al emisor equivocado es de las cosas más caras de
- * deshacer. Que lo escriba quien decide.
- */
-/**
  * El cuerpo de la prueba de envío (#587).
  *
  * Solo el teléfono: el texto NO lo elige quien prueba. Es
@@ -80,51 +62,11 @@ const PruebaDeEnvio = z.object({
   telefono: textoRequerido('Dinos a qué número mandar la prueba, en formato +56912345678.'),
 });
 
-const OtroEmisor = z.object({
-  senderId: textoRequerido('Dinos a qué emisor apuntar este canal.'),
-  phoneNumberId: z.string().trim().optional(),
-  wabaId: z.string().trim().optional(),
-});
-const ConexionMeta = z.object({
-  senderId: textoRequerido('Elige una conexión de tu negocio.'),
-  kind: z.enum(['instagram', 'messenger']),
-});
-
-/**
- * Elegir emisor es de Zavu (#1321). Una cuenta de Zernio queda atada a su
- * cuenta y a su perfil al conectarla, y estas rutas le preguntan a Zavu con la
- * llave del canal: con una de Zernio, la llave terminaba en Zavu. Se corta
- * ANTES de leer la llave.
- */
-function soloEmisoresDeZavu(cuenta: { provider?: string | null }): void {
-  if ((cuenta.provider ?? 'zavu') === 'zavu') return;
-  throw new ConflictException({
-    code: 'PROVIDER_FIXED_SENDER',
-    message: 'Este canal quedó atado a su cuenta del proveedor al conectarlo. Para cambiarla, vuelve a conectarlo.',
-  });
-}
-
 /** La pantalla de canales (#45): estado, calidad y la reactivación manual. */
 @ApiTags('channels')
 @Controller()
 @RequireModule('channels')
 export class ChannelsController {
-  @Get('channels/conexiones-disponibles')
-  @RequireModule('whatsapp')
-  @RequirePermission('channels.manage')
-  @ApiOperation({ summary: 'Instagram y Messenger disponibles en emisores acreditados a este negocio' })
-  async disponibles(@Req() request: WithUser) {
-    return conexionesDisponibles(pool(), actorOf(request).tenantId);
-  }
-
-  @Post('channels/conectar')
-  @RequireModule('whatsapp')
-  @RequirePermission('channels.manage')
-  @ApiOperation({ summary: 'Conecta Instagram o Messenger acreditado y verifica su configuración en Zavu' })
-  async conectar(@Req() request: WithUser, @Cuerpo(ConexionMeta) body: z.infer<typeof ConexionMeta>) {
-    return conectarCanalMeta(pool(), { actor: actorOf(request), ...body, requestId: request.requestId });
-  }
-
   @Get('channels')
   // Mirar el estado de un número —calidad, pausa— es leer; configurarlo es
   // otra cosa. El permiso existía en el catálogo sin que ninguna ruta lo
@@ -262,16 +204,15 @@ export class ChannelsController {
                   // Se le pregunta al proveedor DE LA CUENTA (#1321). Antes
                   // esto llamaba siempre a Zavu, y con una cuenta de Zernio
                   // abrir el diagnóstico le mandaba la llave de Zernio a Zavu.
-                  if (cuenta.provider === 'zernio') {
-                    const { zernioAccountId, zernioProfileId } = cuenta.config;
-                    if (typeof zernioAccountId !== 'string' || typeof zernioProfileId !== 'string') return null;
-                    return cuentaEnZernio(
-                      { apiKey, apiBase: baseDeZernio(), fetchImpl: (...a) => globalThis.fetch(...a) },
-                      { profileId: zernioProfileId, zernioAccountId },
-                    );
-                  }
-                  if (cuenta.provider !== 'zavu') return null;
-                  return emisorDelProveedor(clienteZavu(apiKey), senderId);
+                  // Zavu se fue (#1339); la regla se queda: cada llave habla
+                  // con su propio proveedor, y el que venga hereda el chequeo.
+                  if (cuenta.provider !== 'zernio') return null;
+                  const { zernioAccountId, zernioProfileId } = cuenta.config;
+                  if (typeof zernioAccountId !== 'string' || typeof zernioProfileId !== 'string') return null;
+                  return cuentaEnZernio(
+                    { apiKey, apiBase: baseDeZernio(), fetchImpl: (...a) => globalThis.fetch(...a) },
+                    { profileId: zernioProfileId, zernioAccountId },
+                  );
                 },
               }
             : {}),
@@ -297,198 +238,6 @@ export class ChannelsController {
           },
         },
       );
-    });
-  }
-
-  /**
-   * Los emisores del proyecto de la llave ACTUAL de este canal (#600).
-   *
-   * Para elegir con información y no de memoria: el `senderId` se escribe una
-   * sola vez y el error se descubre cuando un cliente escribe y nadie le
-   * contesta. Viene el `channels` de cada uno y si sirve para ESTE canal, que es
-   * el chequeo que `elegirSender` hace al conectar y que acá no se relaja.
-   *
-   * La credencial se lee del ambiente y no sale de acá: lo que viaja al cliente
-   * son ids y nombres de emisores.
-   */
-  @Get('channels/:id/emisores')
-  @RequirePermission('channels.read')
-  @ApiOperation({ summary: 'Emisores disponibles en el proyecto de la llave de este canal' })
-  async emisores(@Req() request: WithUser, @Param('id') id: string) {
-    const actor = actorOf(request);
-    const cuenta = await withTenant(pool(), actor.tenantId, async (c) => {
-      const encontrada = await findAccountById(c, id);
-      if (!encontrada || encontrada.tenantId !== actor.tenantId) {
-        throw new NotFoundException({ code: 'NOT_FOUND', message: 'No encontramos ese canal.' });
-      }
-      return encontrada;
-    });
-    soloEmisoresDeZavu(cuenta);
-    const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
-    if (!apiKey) {
-      throw new ServiceUnavailableException({
-        code: 'CREDENTIAL_MISSING',
-        message:
-          `Este canal guarda su credencial como ${refParaMostrar(cuenta.credentialRef)} y esa ` +
-          'variable no está en este ambiente, así que no podemos preguntarle al proveedor qué ' +
-          'emisores tiene.',
-      });
-    }
-    const senders = await emisoresDelProveedor(clienteZavu(apiKey));
-    if (senders === null) {
-      throw new ServiceUnavailableException({
-        code: 'PROVIDER_UNAVAILABLE',
-        message: 'No pudimos preguntarle al proveedor qué emisores tiene. Intenta en unos minutos.',
-      });
-    }
-    // Los emisores de OTROS negocios no se muestran (#771).
-    //
-    // Todos los tenants comparten la llave del proyecto, así que esta lista
-    // traía los emisores de todos: el tenant A veía «snd_xxx · Ferretería El
-    // Sol». Ni el id ni el nombre: el nombre es el del negocio.
-    //
-    // La pregunta cruza tenants, así que va por `tenant_del_emisor`
-    // —SECURITY DEFINER, devuelve solo el tenant— y no por una consulta a
-    // `whatsapp_numbers`, donde RLS esconde justo la fila que hay que ver.
-    //
-    // `null` es «de nadie» y se muestra: es el caso normal de un onboarding.
-    const duenos = await Promise.all(
-      senders.map(async (s) => [s.id, await tenantDelEmisor(pool(), s.id)] as const),
-    );
-    const ajeno = new Set(
-      duenos.filter(([, t]) => t !== null && t !== actor.tenantId).map(([id]) => id),
-    );
-
-    // `sirve` y no filtrar: ver los que NO sirven explica por qué la lista
-    // está corta —un emisor existe pero sin este canal encendido— y eso se
-    // arregla en Zavu, no acá. Una lista vacía sin explicación manda a adivinar.
-    // Lo de otro tenant SÍ se filtra: ahí no hay nada que explicar que no sea
-    // contar de quién es.
-    return senders
-      .filter((s) => !ajeno.has(s.id))
-      .map((s) => ({
-        id: s.id,
-        name: s.name ?? null,
-        channels: s.channels ?? [],
-        sirve: (s.channels ?? []).includes(cuenta.kind),
-        actual: cuenta.config.senderId === s.id,
-      }));
-  }
-
-  /**
-   * Reapunta este canal a otro emisor (#600).
-   *
-   * No crea otra cuenta: cambia la de esta. Las conversaciones cuelgan de la
-   * cuenta, así que el historial se queda — es el mismo canal hablando por otra
-   * boca.
-   */
-  @Post('channels/:id/emisor')
-  @RequirePermission('channels.manage')
-  @ApiOperation({ summary: 'Apunta este canal a otro emisor del proveedor' })
-  async cambiarEmisor(
-    @Req() request: WithUser,
-    @Param('id') id: string,
-    @Cuerpo(OtroEmisor) body: z.infer<typeof OtroEmisor>,
-  ) {
-    const actor = actorOf(request);
-    const cuenta = await withTenant(pool(), actor.tenantId, async (c) => {
-      const encontrada = await findAccountById(c, id);
-      if (!encontrada || encontrada.tenantId !== actor.tenantId) {
-        throw new NotFoundException({ code: 'NOT_FOUND', message: 'No encontramos ese canal.' });
-      }
-      return encontrada;
-    });
-    soloEmisoresDeZavu(cuenta);
-    const apiKey = cuenta.credentialRef ? process.env[cuenta.credentialRef] : undefined;
-    if (!apiKey) {
-      throw new ServiceUnavailableException({
-        code: 'CREDENTIAL_MISSING',
-        message:
-          `Este canal guarda su credencial como ${refParaMostrar(cuenta.credentialRef)} y esa ` +
-          'variable no está en este ambiente.',
-      });
-    }
-    const senders = await emisoresDelProveedor(clienteZavu(apiKey));
-    if (senders === null) {
-      throw new ServiceUnavailableException({
-        code: 'PROVIDER_UNAVAILABLE',
-        message: 'No pudimos preguntarle al proveedor por sus emisores. Intenta en unos minutos.',
-      });
-    }
-    // El MISMO chequeo que al conectar, y por eso se reusa `elegirSender` en vez
-    // de escribirlo de nuevo: un emisor sin este canal encendido no manda nada,
-    // y la regla no tiene por qué relajarse después de conectar.
-    const elegido = elegirSender(senders, cuenta.kind, body.senderId);
-    if ('error' in elegido) {
-      throw new BadRequestException({
-        code: 'SENDER_INVALID',
-        message: elegido.error,
-        details: elegido.candidatos.map((s) => ({ id: s.id, channels: s.channels ?? [] })),
-      });
-    }
-    // Y que el emisor NO sea de otro negocio (#771).
-    //
-    // `elegirSender` solo mira si el emisor tiene el canal encendido: de quién
-    // es, no lo sabe. Sin esto, el ADMIN de A podía apuntar su canal a un emisor
-    // que otro negocio todavía no conectó —o que archivó— y quedar despachando
-    // WhatsApp desde el número de un tercero.
-    //
-    // El mensaje NO dice de quién es: eso sería la misma fuga por otra puerta.
-    const dueno = await tenantDelEmisor(pool(), elegido.sender.id);
-    if (dueno !== null && dueno !== actor.tenantId) {
-      throw new BadRequestException({
-        code: 'SENDER_DE_OTRO_NEGOCIO',
-        message:
-          'Ese emisor ya está conectado a otro negocio en IAxTi, así que no se puede usar acá. ' +
-          'Elige uno de la lista.',
-      });
-    }
-    return withTenant(pool(), actor.tenantId, async (c) => {
-      // El único de `sender_id` es GLOBAL, así que todavía puede chocar: entre
-      // que se preguntó de quién era y que se escribe, otro negocio pudo
-      // conectarlo. Sin este catch salía un 500 crudo (#771).
-      const { number, account } = await reapuntarEmisor(c, {
-        tenantId: actor.tenantId,
-        accountId: id,
-        senderId: elegido.sender.id,
-        actor: actor.userId,
-        actorKind: actor.kind === 'soporte' ? 'superadmin' : actor.kind ?? 'user',
-        requestId: request.requestId,
-        ...(body.phoneNumberId === undefined ? {} : { phoneNumberId: body.phoneNumberId }),
-        ...(body.wabaId === undefined ? {} : { wabaId: body.wabaId }),
-      });
-      // En la MISMA transacción: cambiar por dónde habla un canal es de las
-      // cosas que alguien va a querer reconstruir después, y el emisor viejo
-      // solo existe acá una vez que se sobrescribió.
-      await writeAudit(c, {
-        tenantId: actor.tenantId,
-        actor: actor.userId,
-        actorKind: actor.kind === 'soporte' ? 'superadmin' : actor.kind ?? 'user',
-        action: 'channel.sender.changed',
-        resource: 'channel_account',
-        resourceId: id,
-        result: 'ok',
-        metadata: {
-          kind: cuenta.kind,
-          desde: cuenta.config.senderId ?? null,
-          hacia: elegido.sender.id,
-        },
-        requestId: request.requestId,
-      });
-      return { number, account };
-    }).catch((err: unknown) => {
-      if (err instanceof EmisorCompartidoError) {
-        throw new BadRequestException({ code: 'SENDER_WEBHOOK_SHARED', message: err.message });
-      }
-      if ((err as { code?: string }).code === '23505') {
-        throw new BadRequestException({
-          code: 'SENDER_YA_CONECTADO',
-          message:
-            'Ese emisor acaba de quedar conectado a otro negocio. Vuelve a pedir la lista y elige ' +
-            'otro.',
-        });
-      }
-      throw err;
     });
   }
 

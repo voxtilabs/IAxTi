@@ -28,54 +28,72 @@ function sinIa() {
 }
 
 /**
- * Y con qué llave quedó el canal (#669).
+ * Y si el canal de este despliegue puede mandar (#669 — nació de preguntar por
+ * la llave, cuando la llave era una sola).
  *
- * Una `zv_test_` solo alcanza a los números del equipo en el proveedor, así que
- * el producto parece roto —«no llegó»— cuando el ambiente solo está en sandbox.
- * Antes no había forma de verlo: se cambiaba la variable, se desplegaba, y
- * después se adivinaba. La única señal era mandar un mensaje de verdad y ver si
- * fallaba.
+ * Una `zv_test_` solo alcanzaba a los números del equipo en el proveedor, así
+ * que el producto parecía roto —«no llegó»— cuando el ambiente solo estaba en
+ * sandbox. Antes no había forma de verlo: se cambiaba la variable, se
+ * desplegaba, y después se adivinaba. La única señal era mandar un mensaje de
+ * verdad y ver si fallaba.
  */
 describe('con qué llave quedó el canal (#669)', () => {
-  const canal = async () =>
-    (await checkReadiness(poolFalso, 'api')).dependencias.find((d) => d.nombre === 'canal')!;
+  const canalDe = async (pool: Pool | null) =>
+    (await checkReadiness(pool, 'api')).dependencias.find((d) => d.nombre === 'canal')!;
 
-  it('una llave de PRUEBA se dice, y se dice qué significa', async () => {
-    vi.stubEnv('ZAVU_API_KEY', 'zv_test_abc123');
-    const c = await canal();
-    expect(c.detalle).toContain('PRUEBA');
-    expect(c.detalle).toContain('números del equipo');
+  // La pregunta original de #669 —¿con qué clase de llave quedó el canal?— no
+  // se puede seguir contestando mirando una variable: con Zernio las llaves
+  // son POR CUENTA (#1338) y no hay una llave global del ambiente. Nombrar
+  // `ZERNIO_API_KEY` como si existiera hizo que /ready informara «sin
+  // credencial» para siempre en un ambiente con el canal andando (#1339).
+  // La verdad que /ready sí puede decir: si el despliegue tiene alguna cuenta
+  // viva. La de cada cuenta —su llave, su clase, si manda de verdad— sigue
+  // en su diagnóstico, con `probar-envio` y la marca `enviosReales` primero.
+  it('con una cuenta viva lo dice, y manda mirar el diagnóstico de cada canal', async () => {
+    const vivos = { query: async () => ({ rows: [{ p: 'zernio' }] }) } as unknown as Pool;
+    const c = await canalDe(vivos);
+    expect(c.ok).toBe(true);
+    expect(c.detalle).toContain('Hay canales de Zernio vivos');
+    expect(c.detalle).toContain('su diagnóstico');
   });
 
-  it('una de producción también', async () => {
-    vi.stubEnv('ZAVU_API_KEY', 'zv_live_abc123');
-    expect((await canal()).detalle).toBe('Credencial de producción.');
-  });
-
-  it('sin credencial lo dice: ese canal no puede enviar ni recibir', async () => {
-    vi.stubEnv('ZAVU_API_KEY', '');
-    const c = await canal();
+  it('sin cuentas vivas lo dice: ese canal no puede enviar ni recibir', async () => {
+    // `poolFalso` contesta, pero sin zernio: la honestidad es decir que no
+    // hay por dónde, no inventar una credencial que no existe.
+    const c = await canalDe(poolFalso);
     expect(c.ok).toBe(false);
-    expect(c.detalle).toContain('Sin credencial');
+    expect(c.detalle).toContain('Sin cuentas de canal');
   });
 
-  it('una forma desconocida NO se declara de producción', async () => {
-    // Decir «producción» de algo que no se reconoce es la clase de mentira que
-    // esto viene a evitar.
-    vi.stubEnv('ZAVU_API_KEY', 'algo-raro');
-    expect((await canal()).detalle).toContain('no reconocemos');
+  it('sin base no inventa una conclusión', async () => {
+    const c = await canalDe(null);
+    expect(c.ok).toBe(false);
+    expect(c.detalle).toContain('Sin base');
   });
 
-  it('no publica la llave, ni un pedazo, ni el nombre de la variable', async () => {
-    vi.stubEnv('ZAVU_API_KEY', 'zv_live_secretoquenodebesalir');
+  it('una base que no deja mirar se reporta, sin duplicar el fallo de postgres', async () => {
+    const rota = {
+      query: async () => {
+        throw new Error('connection refused');
+      },
+    } as unknown as Pool;
+    const c = await canalDe(rota);
+    expect(c.ok).toBe(false);
+    expect(c.detalle).toContain('No se pudo mirar');
+  });
+
+  it('no publica llave ni nombre de variable: nada de eso pasa por acá', async () => {
+    // La garantía de #669 sigue en pie: quien mire /ready no se lleva ni un
+    // pedazo de credencial. Con llaves por cuenta ni siquiera hay UNA que
+    // mirar — pero la garantía se prueba igual, porque el día que vuelva a
+    // haber algo sensible por acá cerca, es la que tiene que agarrarlo.
     const r = await checkReadiness(poolFalso, 'api');
     const texto = JSON.stringify(r);
-    expect(texto).not.toContain('secretoquenodebesalir');
-    expect(texto).not.toContain('ZAVU_API_KEY');
+    expect(texto).not.toContain('ZERNIO_API_KEY');
+    expect(texto).not.toContain('zrk_');
   });
 
-  it('y NO saca la instancia de rotación: una llave de prueba es legítima en pruebas', async () => {
-    vi.stubEnv('ZAVU_API_KEY', '');
+  it('y NO saca la instancia de rotación: el canal es cosa de las cuentas, no del servicio', async () => {
     const r = await checkReadiness(poolFalso, 'api');
     expect(r.status).toBe('ok');
     expect(r.dependencias.find((d) => d.nombre === 'canal')!.bloquea).toBe(false);

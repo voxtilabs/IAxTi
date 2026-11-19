@@ -2292,67 +2292,6 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
-  "ChannelsController_cambiarEmisor": {
-    "metodo": "POST",
-    "ruta": "/v1/channels/{id}/emisor",
-    "resumen": "Apunta este canal a otro emisor del proveedor",
-    "permiso": "channels.manage",
-    "modulo": "channels",
-    "soloSesion": false,
-    "argumentos": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "x-iaxti-en": "ruta"
-        },
-        "senderId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "phoneNumberId": {
-          "type": "string"
-        },
-        "wabaId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "senderId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  "ChannelsController_conectar": {
-    "metodo": "POST",
-    "ruta": "/v1/channels/conectar",
-    "resumen": "Conecta Instagram o Messenger acreditado y verifica su configuración en Zavu",
-    "permiso": "channels.manage",
-    "modulo": "whatsapp",
-    "soloSesion": false,
-    "argumentos": {
-      "type": "object",
-      "properties": {
-        "senderId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "instagram",
-            "messenger"
-          ]
-        }
-      },
-      "required": [
-        "senderId",
-        "kind"
-      ],
-      "additionalProperties": false
-    }
-  },
   "ChannelsController_desconectar": {
     "metodo": "POST",
     "ruta": "/v1/channels/{id}/desconectar",
@@ -2378,40 +2317,6 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "metodo": "GET",
     "ruta": "/v1/channels/{id}/diagnostico",
     "resumen": "Por qué este canal no está recibiendo, paso a paso",
-    "permiso": "channels.read",
-    "modulo": "channels",
-    "soloSesion": false,
-    "argumentos": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "x-iaxti-en": "ruta"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  "ChannelsController_disponibles": {
-    "metodo": "GET",
-    "ruta": "/v1/channels/conexiones-disponibles",
-    "resumen": "Instagram y Messenger disponibles en emisores acreditados a este negocio",
-    "permiso": "channels.manage",
-    "modulo": "whatsapp",
-    "soloSesion": false,
-    "argumentos": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  "ChannelsController_emisores": {
-    "metodo": "GET",
-    "ruta": "/v1/channels/{id}/emisores",
-    "resumen": "Emisores disponibles en el proyecto de la llave de este canal",
     "permiso": "channels.read",
     "modulo": "channels",
     "soloSesion": false,
@@ -4989,67 +4894,6 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "description",
         "vertical"
       ],
-      "additionalProperties": false
-    }
-  },
-  "PartnerInvitationsController_resume": {
-    "metodo": "POST",
-    "ruta": "/v1/onboarding/whatsapp/retomar",
-    "resumen": "Revisar una invitación conocida o recuperar explícitamente una conexión pendiente",
-    "permiso": "whatsapp.numbers.manage",
-    "modulo": "whatsapp",
-    "soloSesion": true,
-    "argumentos": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  "PartnerInvitationsController_start": {
-    "metodo": "POST",
-    "ruta": "/v1/onboarding/whatsapp",
-    "resumen": "Crear una invitación de WhatsApp y guardar su correlación antes de mostrarla",
-    "permiso": "whatsapp.numbers.manage",
-    "modulo": "whatsapp",
-    "soloSesion": true,
-    "argumentos": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  "PartnerInvitationsController_status": {
-    "metodo": "GET",
-    "ruta": "/v1/onboarding/whatsapp",
-    "resumen": "Estado y enlace privado de la invitación de WhatsApp de mi negocio",
-    "permiso": "whatsapp.numbers.manage",
-    "modulo": "whatsapp",
-    "soloSesion": true,
-    "argumentos": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  "PartnerWebhookController_receive": {
-    "metodo": "POST",
-    "ruta": "/webhooks/zavu/invitations",
-    "resumen": "Verificar callback del proyecto Zavu y encolar su invitación correlacionada",
-    "permiso": null,
-    "modulo": "whatsapp",
-    "soloSesion": false,
-    "argumentos": {
-      "type": "object",
-      "properties": {},
       "additionalProperties": false
     }
   },

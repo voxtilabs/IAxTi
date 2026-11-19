@@ -76,15 +76,19 @@ describe('salud (#71)', () => {
 
   it('los proveedores se informan por configuración, sin hacerles ping', async () => {
     const sinNada = await healthSnapshot(admin, { redis: null, env: {} });
-    const canales = sinNada.chequeos.find((c) => c.id === 'proveedor.canales')!;
-    expect(canales.estado).toBe('sin_fuente');
-    expect(canales.detalle).toMatch(/ZAVU_API_KEY/);
+    const ia = sinNada.chequeos.find((c) => c.id === 'proveedor.ia')!;
+    expect(ia.estado).toBe('sin_fuente');
+    expect(ia.detalle).toMatch(/GEMINI_API_KEY/);
 
     const configurado = await healthSnapshot(admin, {
       redis: null,
-      env: { ZAVU_API_KEY: 'zv_test_x' } as NodeJS.ProcessEnv,
+      env: { GEMINI_API_KEY: 'llave-de-prueba' } as NodeJS.ProcessEnv,
     });
-    expect(configurado.chequeos.find((c) => c.id === 'proveedor.canales')!.estado).toBe('bien');
+    expect(configurado.chequeos.find((c) => c.id === 'proveedor.ia')!.estado).toBe('bien');
+    // Canales no está en la lista a propósito (#1338): las llaves son por
+    // cuenta y no hay variable global; si volviera a entrar como fila de
+    // configuración, mentiría «sin configurar» en un despliegue andando.
+    expect(sinNada.chequeos.some((c) => c.id === 'proveedor.canales')).toBe(false);
   });
 
   it('el estado general resume el peor de los chequeos', async () => {

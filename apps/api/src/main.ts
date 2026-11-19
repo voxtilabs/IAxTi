@@ -27,8 +27,8 @@ import { IdempotenciaInterceptor } from './idempotencia.interceptor';
 import { AislamientoGuard } from './aislamiento';
 import { requestIdMiddleware } from './request-id';
 import { cabecerasMiddleware } from './cabeceras';
-import { getProvider, proveedorDe, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
-import { createZavuProvider, createZernioProvider } from '@iaxti/module-whatsapp';
+import { proveedorDe, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
+import { createZernioProvider } from '@iaxti/module-whatsapp';
 import { webchatProvider } from '@iaxti/module-webchat';
 
 export interface CreateAppOptions {
@@ -67,17 +67,18 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
   // El CSV de importación (#34) viaja en el body: 2 MB alcanzan para miles
   // de filas sin abrir la puerta a payloads absurdos.
   app.useBodyParser('json', { limit: '2mb' });
-  // Adaptadores de canal (#41): el simulador es el primero. Zavu (#42) es UN
-  // transporte para tres canales — mismo envelope, misma firma (ADR-0014).
-  if (!getProvider('simulador')) registerProvider(simuladorProvider);
+  // Adaptadores de canal (#41): el simulador es el primero. Zernio (#1317) es
+  // el transporte de WhatsApp — una cuenta llega a él por su `provider`
+  // (ADR-0032), que desde la migración 0010 de channels es el por omisión.
+  // Simulador y webchat registran bajo SU nombre (#1339); la comparación de
+  // «¿ya está?» se hace con el mismo par (proveedor, canal) con el que
+  // registra, no con el por omisión, o el chequeo de idempotencia mira otra
+  // llave que la que puso.
+  if (!proveedorDe({ kind: 'simulador', provider: 'simulador' })) registerProvider(simuladorProvider);
   for (const kind of ['whatsapp', 'instagram', 'messenger'] as const) {
-    if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
-    // Zernio al lado, no en lugar (ADR-0032): una cuenta llega acá solo si
-    // declara `provider = 'zernio'`. Zavu sigue siendo el por omisión, así
-    // que ninguna cuenta existente cambia de camino.
     if (!proveedorDe({ kind, provider: 'zernio' })) registerProvider(createZernioProvider(kind));
   }
-  if (!getProvider('webchat')) registerProvider(webchatProvider);
+  if (!proveedorDe({ kind: 'webchat', provider: 'webchat' })) registerProvider(webchatProvider);
   app.use(cabecerasMiddleware);
   app.use(requestIdMiddleware);
   // El navegador (web/admin) llama a la API desde otro origen: CORS explícito.
@@ -109,7 +110,6 @@ export async function createApp(options: CreateAppOptions = {}): Promise<INestAp
       'webhooks/channels/:accountId',
       'webhooks/payments/:providerId',
       'webhooks/google/calendar',
-      'webhooks/zavu/invitations',
       'webchat/:widgetId/config',
       'webchat/:widgetId/sessions',
       'webchat/:widgetId/messages',

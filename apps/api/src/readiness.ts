@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import { redisConnection } from '@iaxti/core';
 import { PROVIDERS, providerAvailable } from '@iaxti/module-agents';
+import { proveedoresDeCuentas } from '@iaxti/module-channels';
 
 // Readiness de verdad (#17). `/health` y `/ready` NO son lo mismo y
 // confundirlos es peor que no tener ninguno:
@@ -447,7 +448,7 @@ export async function checkReadiness(
   }
 
   dependencias.push(credencialesDeIa());
-  dependencias.push(credencialDelCanal());
+  dependencias.push(await credencialDelCanal(pool, topeMs));
   for (const borde of CAPACIDADES_POR_CONFIGURACION) dependencias.push(estadoDe(borde));
 
   return {
@@ -476,62 +477,72 @@ export async function checkReadiness(
  * `bloquea: false` a propósito: esto NO saca la instancia de rotación.
  */
 /**
- * ¿Con qué clase de llave quedó el canal? (#669)
+ * ¿Puede este despliegue mandar por el canal? (#669)
  *
- * Una llave `zv_test_` **solo alcanza a los números del equipo en el
- * proveedor**. Con ella el producto parece roto —«no llegó»— cuando lo único que
- * pasa es que el ambiente está en sandbox. Y no había forma de verlo: se cambiaba
- * la variable, se desplegaba, y después había que adivinar si entró. La única
- * señal era mandar un mensaje y ver si fallaba — gastar un intento contra un
- * cliente real para averiguar una cosa de configuración.
+ * La pregunta original —«¿con qué clase de llave quedó el canal?»— nació de
+ * una llave de sandbox que solo alcanzaba a los números del equipo: el
+ * producto parecía roto —«no llegó»— y la única forma de averiguarlo era
+ * gastar un envío contra alguien real. Dos veces en un día se perdieron horas
+ * exactamente ahí. El arreglo no faltaba: faltaba el LUGAR donde se vería.
  *
- * Dos veces en un día se perdieron horas exactamente ahí.
+ * Con Zernio esa pregunta no se contesta mirando una llave: las llaves son POR
+ * CUENTA (#1338) y no hay una variable global del ambiente que inspeccionar.
+ * Nombrar `ZERNIO_API_KEY` como si existiera hizo que /ready informara «sin
+ * credencial» para siempre en un ambiente con el canal andando (#1339). Lo que
+ * acá sí se puede saber, sin cruzar tenants a mano, es si hay ALGUNA cuenta
+ * viva (`proveedores_de_cuentas`, la misma SECURITY DEFINER de la guarda de
+ * arranque).
  *
- * Es la misma forma que #641: el arreglo no faltaba, faltaba el LUGAR donde se
- * vería.
+ * La verdad de cada cuenta —su llave, de qué clase es, si manda de verdad—
+ * vive en su diagnóstico, con sesión: `probar-envio` la ejercita y la marca
+ * `enviosReales` se muestra primero. Eso no se resume acá ni debe: sería
+ * afirmar de una llave que no está a la vista.
  *
- * No publica la llave, ni un pedazo, ni el nombre de la variable: solo de qué
- * clase es, que es lo único accionable. Y NO decide el estado — una llave de
- * prueba es una decisión legítima en un ambiente de pruebas.
+ * `bloquea: false` a propósito: esto NO saca la instancia de rotación.
  */
-function credencialDelCanal(): Dependencia {
-  const llave = (process.env.ZAVU_API_KEY ?? '').trim();
-  if (llave === '') {
+async function credencialDelCanal(pool: Pool | null, topeMs: number): Promise<Dependencia> {
+  if (!pool) {
     return {
       nombre: 'canal',
       ok: false,
       ms: 0,
       bloquea: false,
-      detalle:
-        'Sin credencial de canal en este ambiente: no se puede enviar ni recibir por ' +
-        'WhatsApp. El detalle está en el diagnóstico del canal, con sesión.',
+      detalle: 'Sin base no se puede saber si hay canales vivos en este despliegue.',
     };
   }
-  // Las de sandbox se distinguen por su prefijo, que es del proveedor y no un
-  // invento nuestro. Cualquier otra forma se informa como desconocida en vez de
-  // afirmar que es de producción: decir «producción» de algo que no se reconoce
-  // sería justamente la clase de mentira que esto viene a evitar.
-  if (llave.startsWith('zv_test_')) {
+  const inicio = performance.now();
+  // La carrera es la misma forma que `medir`: /ready nunca se cuelga por una
+  // dependencia que solo se reporta — y el catch va enganchado ANTES de la
+  // carrera, para que una consulta que pierda no quede sin manejo.
+  const consulta = proveedoresDeCuentas(pool).then((p) => p.includes('zernio'));
+  consulta.catch(() => {});
+  try {
+    const vivos = await Promise.race([
+      consulta,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`no respondió en ${topeMs} ms`)), topeMs).unref?.(),
+      ),
+    ]);
     return {
       nombre: 'canal',
-      ok: true,
-      ms: 0,
+      ok: vivos,
+      ms: Math.round(performance.now() - inicio),
       bloquea: false,
-      detalle:
-        'Credencial de PRUEBA. Solo alcanza a los números del equipo en el proveedor: ' +
-        'a cualquier otro número el envío falla y la bandeja lo muestra como «no llegó».',
+      detalle: vivos
+        ? 'Hay canales de Zernio vivos; la llave de cada uno se ve en su diagnóstico, con sesión.'
+        : 'Sin cuentas de canal que puedan mandar: no se envía ni recibe por WhatsApp.',
+    };
+  } catch {
+    // La base ya se reportó en su propia dependencia: acá se degrada, no se
+    // duplica el fallo ni se tumba /ready por preguntar dos veces.
+    return {
+      nombre: 'canal',
+      ok: false,
+      ms: Math.round(performance.now() - inicio),
+      bloquea: false,
+      detalle: 'No se pudo mirar las cuentas de canal: el detalle de la base está arriba.',
     };
   }
-  if (llave.startsWith('zv_live_')) {
-    return { nombre: 'canal', ok: true, ms: 0, bloquea: false, detalle: 'Credencial de producción.' };
-  }
-  return {
-    nombre: 'canal',
-    ok: true,
-    ms: 0,
-    bloquea: false,
-    detalle: 'Credencial de una forma que no reconocemos: ni de prueba ni de producción.',
-  };
 }
 
 function credencialesDeIa(): Dependencia {

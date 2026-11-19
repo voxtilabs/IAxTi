@@ -20,10 +20,6 @@
  * es una función que falte: es una puerta que no debe existir.
  */
 export const NO_SON_HERRAMIENTA: Record<string, string> = {
-  PartnerWebhookController_receive: 'Callback HMAC exclusivo de Zavu: un agente no puede fabricar una autorización externa ni completar invitaciones.',
-  PartnerInvitationsController_status: 'Invitación privada de WhatsApp: consentimiento humano, nunca tool de IA.',
-  PartnerInvitationsController_start: 'Inicia autorización externa de Meta desde sesión humana.',
-  PartnerInvitationsController_resume: 'Recuperación explícita de autorización externa por la persona.',
   // La ficha de una oportunidad es para la pantalla (#1301). El agente tiene
   // `crm.find_contact` y `crm.get_history` para lo que necesita saber de una
   // relación; esta devuelve además el rastro del PROPIO asistente, y darle a

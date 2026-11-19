@@ -1,4 +1,3 @@
-import { PartnerInvitationsController, PartnerWebhookController, PARTNER_HTTP, partnerHttp } from './partner-invitations.controller';
 import {
   Controller,
   Get,
@@ -1268,8 +1267,6 @@ const controllers = [
   ContactoEmpresaController,
   SettingsController,
   OnboardingController,
-  PartnerInvitationsController,
-  PartnerWebhookController,
   OnboardingRegistrationController,
   QuickRepliesController,
   EquipoController,
@@ -1304,5 +1301,5 @@ const controllers = [
   ...(esProduccion() ? [] : [SimuladorController]),
 ];
 
-@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }, {provide: PARTNER_HTTP, useValue: partnerHttp}] })
+@Module({ controllers, providers: [{ provide: GOOGLE_CALENDAR_HTTP, useValue: googleCalendarHttp }] })
 export class AppModule {}
