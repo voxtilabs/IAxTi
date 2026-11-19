@@ -5,7 +5,6 @@ export {
   CHANNEL_STATES,
   assertChannelTransition,
   registerProvider,
-  getProvider,
   proveedorDe,
   resetProviders,
 } from './domain/port';
@@ -21,17 +20,17 @@ export type {
 } from './domain/port';
 export {
   createChannelAccount,
-  getChannelAccount,
   findAccountById,
   tenantDeCuenta,
   setChannelState,
-  reapuntarEmisorDeLaCuenta,
-  EmisorCompartidoError,
   listChannelAccounts,
   // Un aviso de cupo por día y por canal (#1248).
   avisarDelCupoUnaVezAlDia,
   // El arranque no levanta si una cuenta declara un proveedor sin adaptador (ADR-0032).
   proveedoresSinAdaptador,
+  // Los proveedores con cuenta viva: la verdad de «este despliegue puede mandar»
+  // cuando las llaves son por cuenta (#1338) y no hay variable global que mirar.
+  proveedoresDeCuentas,
 } from './application/accounts';
 // El hilo de cada conversación del proveedor (ADR-0033, #1334).
 export { hiloDe, olvidarHilo, recordarHilo, tomarCandadoDelHilo } from './application/hilos';
@@ -39,7 +38,7 @@ export type { ClaveDelHilo } from './application/hilos';
 export { simuladorProvider, firmarWebhook } from './application/simulador';
 // El rastro de los webhooks y por qué no llegan los mensajes (#434).
 export { anotarWebhook, anotarEntrantesSinTelefono, rastroDeWebhook } from './application/rastro';
-export { reservarEmisor, emisorAcreditado, emisoresAcreditados, tenantDelEmisorDeCanal, cuentaDelEmisor } from './application/senders';
+export { reservarEmisor, tenantDelEmisorDeCanal } from './application/senders';
 export type { ResultadoDeWebhook, RastroDeWebhook } from './application/rastro';
 export { diagnosticarCanal } from './application/diagnostico';
 export type { Diagnostico, PasoDelDiagnostico, EstadoDelPaso } from './application/diagnostico';
@@ -55,7 +54,7 @@ export {
 } from './domain/adjuntos';
 export type { ClaseDeAdjunto, LimiteDeAdjunto, RevisionDeAdjunto } from './domain/adjuntos';
 
-export { copyChannelWebhookSecret, setChannelWebhookSecret, isChannelSecretRef, webhookSecretResourcePrefix } from './application/webhook-secret';
+export { isChannelSecretRef } from './application/webhook-secret';
 
 // El cupo diario del canal y la parte reservada a las personas (#1248).
 //

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPool, runMigrations, withTenant, sinTriggers } from '@iaxti/db';
 import { createChannelAccount, setChannelState } from '../application/accounts';
-import { reservarEmisor, emisorAcreditado, cuentaDelEmisor, tenantDelEmisorDeCanal } from '../application/senders';
+import { reservarEmisor, tenantDelEmisorDeCanal } from '../application/senders';
 
 const admin = createPool(process.env.DATABASE_URL);
 // Turbo/CI solo transmite DATABASE_URL; nunca sustituir el rol RLS por owner.
@@ -46,7 +46,6 @@ describe('reserva de emisor compartido (#74)', () => {
   it('RLS no devuelve la reserva ni sus referencias al otro tenant', async () => {
     const [a, b] = await Promise.all([tenant(), tenant()]); const sender = randomUUID();
     const { cuenta } = await alta(a, sender);
-    expect(await withTenant(app, b, (c) => emisorAcreditado(c, b, sender))).toBeNull();
     expect(await withTenant(app, b, (c) => c.query('SELECT * FROM channel_senders WHERE sender_id=$1', [sender])).then((r) => r.rowCount)).toBe(0);
     expect(await tenantDelEmisorDeCanal(app, sender)).toBe(a);
     // La FK compuesta protege también escrituras directas con un UUID conocido.
@@ -86,7 +85,10 @@ describe('reserva de emisor compartido (#74)', () => {
     expect(nueva.reserva.webhookAccountId).toBe(nueva.cuenta.id);
     expect(nueva.reserva.primeraConexion).toBe(true);
     // La reserva quedó apuntando al canal nuevo, no al desconectado.
-    expect((await withTenant(app, t, (c) => emisorAcreditado(c, t, sender)))?.id).toBe(nueva.cuenta.id);
+    const reservaNueva = await withTenant(app, t, (c) => c.query<{ webhook_account_id: string }>(
+      'SELECT webhook_account_id FROM channel_senders WHERE sender_id=$1', [sender],
+    ));
+    expect(reservaNueva.rows[0]!.webhook_account_id).toBe(nueva.cuenta.id);
     // Y el traspaso queda en la auditoría: quién recibe los webhooks de un
     // emisor no es un detalle que pueda cambiar sin rastro.
     const rastro = await admin.query(
@@ -109,14 +111,6 @@ describe('reserva de emisor compartido (#74)', () => {
     );
   });
 
-  it('el segundo canal conserva receptor primario y se resuelve por canal dentro del tenant', async () => {
-    const t = await tenant(); const sender = randomUUID();
-    const wa = await alta(t, sender, 'whatsapp'); const ig = await alta(t, sender);
-    expect(ig.reserva).toEqual({ webhookAccountId: wa.cuenta.id, primeraConexion: false });
-    const destino = await withTenant(app, t, (c) => cuentaDelEmisor(c, { tenantId: t, senderId: sender, webhookAccountId: wa.cuenta.id, kind: 'instagram' }));
-    expect(destino?.id).toBe(ig.cuenta.id);
-    expect(await withTenant(app, t, (c) => cuentaDelEmisor(c, { tenantId: t, senderId: randomUUID(), webhookAccountId: wa.cuenta.id, kind: 'instagram' }))).toBeNull();
-  });
   it('la carrera del mismo canal no crea dos destinos y un fallo posterior revierte también audit', async () => {
     const t = await tenant(); const sender = randomUUID();
     const r = await Promise.allSettled([alta(t, sender), alta(t, sender)]);

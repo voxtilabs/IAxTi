@@ -19,6 +19,20 @@ function rowToAccount(row: Record<string, unknown>): ChannelAccountRef {
   };
 }
 
+/**
+ * El proveedor con el que nace una cuenta que no declaró uno (#1339).
+ *
+ * El `DEFAULT` de la columna es UNO para todos los canales (migración 0010) y
+ * no puede saber el `kind`: una cuenta de webchat nacida con ese defecto
+ * declararía `zernio`, que no atiende webchat, y quedaría huérfana de
+ * adaptador al primer arranque. Los canales que son SU propio transporte
+ * —webchat, simulador— nacen declarándose a sí mismos; los demás, al por
+ * omisión del registro.
+ */
+function proveedorPorOmisionDelCanal(kind: ChannelKind): string {
+  return kind === 'webchat' || kind === 'simulador' ? kind : PROVEEDOR_POR_OMISION;
+}
+
 export async function createChannelAccount(
   client: PoolClient,
   input: {
@@ -29,11 +43,11 @@ export async function createChannelAccount(
     webhookSecretRef?: string;
     config?: Record<string, unknown>;
     /**
-     * Quién transporta la cuenta (ADR-0032). Sin esto la fila toma el
-     * `DEFAULT 'zavu'` de la columna, y una cuenta de Zernio nacía declarando
-     * a Zavu: el envío y la firma del webhook irían al proveedor equivocado.
-     * Tiene que estar registrado en ESTE proceso — un nombre que nadie
-     * atiende no se guarda.
+     * Quién transporta la cuenta (ADR-0032). Sin esto la fila nace con el por
+     * omisión de SU canal (ver `proveedorPorOmisionDelCanal`): `zernio` para
+     * whatsapp, y el canal mismo para webchat/simulador, que son su propio
+     * transporte. Declararlo a mano exige que esté registrado en ESTE
+     * proceso — un nombre que nadie atiende no se guarda.
      */
     provider?: string;
   },
@@ -52,27 +66,21 @@ export async function createChannelAccount(
   if (input.provider !== undefined && !proveedorDe({ kind: input.kind, provider: input.provider })) {
     throw new Error(`El proveedor "${input.provider}" no atiende el canal ${input.kind} en este proceso.`);
   }
-  // La columna se nombra SOLO si se declaró proveedor: sin él, el INSERT es
-  // el mismo de antes y la fila toma el `DEFAULT` de la columna.
-  const valores = [
-    input.tenantId,
-    input.kind,
-    input.name,
-    credencial,
-    secretoDelWebhook,
-    JSON.stringify(input.config ?? {}),
-  ];
-  const r = input.provider === undefined
-    ? await client.query(
-        `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref, webhook_secret_ref, config)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        valores,
-      )
-    : await client.query(
-        `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref, webhook_secret_ref, config, provider)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [...valores, input.provider],
-      );
+  // La columna se nombra SIEMPRE: el por omisión de canal (#1339) es decisión
+  // de este código y no del DEFAULT de la columna, que no puede saber el kind.
+  const r = await client.query(
+    `INSERT INTO channel_accounts (tenant_id, kind, name, credential_ref, webhook_secret_ref, config, provider)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [
+      input.tenantId,
+      input.kind,
+      input.name,
+      credencial,
+      secretoDelWebhook,
+      JSON.stringify(input.config ?? {}),
+      input.provider ?? proveedorPorOmisionDelCanal(input.kind),
+    ],
+  );
   return rowToAccount(r.rows[0]);
 }
 
@@ -143,74 +151,12 @@ export async function setChannelState(
 }
 
 /**
- * Cambia a qué EMISOR del proveedor apunta una cuenta ya conectada (#600).
- *
- * Existe porque faltaba la salida. Cambiar la llave de Zavu de un canal
- * conectado —de prueba a producción, por ejemplo— puede dejar el `senderId`
- * guardado apuntando a un emisor que en el proyecto de la llave nueva **no
- * existe**. Desde #591 el diagnóstico lo dice («el emisor guardado ya no existe
- * en el proveedor»), pero decirlo no era arreglarlo: `connectWhatsAppNumber` se
- * niega a correr de nuevo —«Ese número ya está conectado»— y no había ninguna
- * ruta para reapuntar ni para desconectar. El único camino era entrar a la base
- * a mano, para algo que un ADMIN tiene que poder hacer en su pantalla.
- *
- * ## Qué se conserva, y por qué importa
- *
- * El `config` se MEZCLA, no se reemplaza. Ahí vive `enviosReales` (#593), que es
- * la marca de que este canal manda mensajes de verdad fuera de producción.
- * Pisarla al reapuntar dejaría un canal mandando a clientes reales sin la marca
- * que lo declara, y esa marca es justamente lo que hace que el riesgo sea
- * visible. Lo mismo con cualquier cosa que un canal guarde ahí y esto no
- * conozca.
- *
- * Las conversaciones cuelgan de la CUENTA, no del emisor, así que reapuntar no
- * mueve historial: es el mismo canal hablando por otra boca.
+ * Cambiar a qué EMISOR apunta una cuenta ya conectada (#600) se retiró con
+ * Zavu (#1339): una cuenta de Zernio queda atada a su número al conectarla,
+ * y el emisor —con su webhook compartido entre canales de un mismo sender—
+ * era una cosa de Zavu. Si algún día vuelve a hacer falta, la historia
+ * completa vive en el git de #1339.
  */
-export class EmisorCompartidoError extends Error {}
-
-export async function reapuntarEmisorDeLaCuenta(
-  client: PoolClient,
-  input: {
-    tenantId: string;
-    accountId: string;
-    senderId: string;
-    phoneNumberId?: string | null;
-    wabaId?: string | null;
-  },
-): Promise<ChannelAccountRef> {
-  // Dos cambios simultáneos deben comprobar el sender vigente, no el que
-  // leyeron antes de esperar al primer cambio.
-  await client.query('SELECT id FROM channel_accounts WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [input.tenantId, input.accountId]);
-  const actual = await getChannelAccount(client, input.tenantId, input.accountId);
-  if (actual.config.senderId && actual.config.senderId !== input.senderId) {
-    // El receptor de un sender compartido no se puede mover por el cambio de
-    // número de WhatsApp: dejaría sin entrada a Instagram/Messenger. El mismo
-    // candado que usa la reserva serializa esta decisión con una nueva alta.
-    const reserva = await client.query<{ webhook_account_id: string | null }>(
-      'SELECT webhook_account_id FROM channel_senders WHERE tenant_id=$1 AND sender_id=$2 FOR UPDATE',
-      [input.tenantId, actual.config.senderId],
-    );
-    if (reserva.rows[0] && (reserva.rows[0].webhook_account_id === actual.id || reserva.rows[0].webhook_account_id === null)) {
-      const otras = await client.query(
-        "SELECT id FROM channel_accounts WHERE tenant_id=$1 AND config->>'senderId'=$2 AND id<>$3 LIMIT 1",
-        [input.tenantId, actual.config.senderId, actual.id],
-      );
-      if (otras.rowCount) throw new EmisorCompartidoError('Este emisor comparte su webhook con otros canales. Pide a quien configura el servicio que revise la conexión antes de cambiarlo.');
-    }
-  }
-  const config = {
-    ...actual.config,
-    senderId: input.senderId,
-    ...(input.phoneNumberId === undefined ? {} : { phoneNumberId: input.phoneNumberId }),
-    ...(input.wabaId === undefined ? {} : { wabaId: input.wabaId }),
-  };
-  const r = await client.query(
-    `UPDATE channel_accounts SET config = $3, updated_at = now()
-     WHERE tenant_id = $1 AND id = $2 RETURNING *`,
-    [input.tenantId, input.accountId, JSON.stringify(config)],
-  );
-  return rowToAccount(r.rows[0]);
-}
 
 /**
  * Los canales del negocio. Los archivados vienen, SALVO que se pidan sin (#1202).
@@ -340,4 +286,32 @@ export async function proveedoresSinAdaptador(
   }
   const registrados = new Set(proveedoresRegistrados());
   return declarados.filter((p) => !registrados.has(p));
+}
+
+/**
+ * Los proveedores que este despliegue tiene con cuenta viva (ADR-0032).
+ *
+ * Es la misma fuente que la guarda de arranque — `proveedores_de_cuentas()`,
+ * SECURITY DEFINER— y existe por el mismo motivo: con las llaves POR CUENTA de
+ * Zernio (#1338) no hay una llave global del ambiente que mirar para saber si
+ * acá se puede mandar. Lo que lo dice es si hay alguna cuenta que pueda, y
+ * cruzar tenants a mano no se puede: el rol de aplicación vive bajo RLS.
+ *
+ * Que la llave de una cuenta concreta esté de verdad en el ambiente lo
+ * comprueba el envío al usarla —y falla con su motivo a la vista—, no una
+ * verificación de configuración que no puede saberlo (#869).
+ *
+ * Una base sin la migración 0006 todavía no tiene la función: mismo trato que
+ * la guarda, se reporta vacío y no se inventa un fallo.
+ */
+export async function proveedoresDeCuentas(
+  client: Pick<PoolClient, 'query'>,
+): Promise<string[]> {
+  try {
+    const r = await client.query<{ p: string }>('SELECT proveedores_de_cuentas() AS p');
+    return r.rows.map((f) => f.p);
+  } catch (err) {
+    if ((err as { code?: string }).code === '42883') return [];
+    throw err;
+  }
 }

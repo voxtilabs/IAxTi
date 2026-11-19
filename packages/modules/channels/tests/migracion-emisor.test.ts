@@ -18,6 +18,11 @@ beforeAll(async () => {
   await admin.query(`CREATE DATABASE "${nombre}"`);
   await db.query('CREATE TABLE tenants(id uuid PRIMARY KEY)');
   await db.query(readFileSync(resolve(__dirname, '../migrations/0001_channels.sql'), 'utf8'));
+  // La columna `provider` (0006): `createChannelAccount` la nombra siempre
+  // desde #1339 — el por omisión es decisión del código y no del DEFAULT de
+  // la columna, que no sabe el kind. Sin esta migración el INSERT de abajo
+  // no tiene dónde escribirla.
+  await db.query(readFileSync(resolve(__dirname, '../migrations/0006_el_proveedor_es_de_la_cuenta.sql'), 'utf8'));
 });
 afterAll(async () => { await db.end(); await admin.query(`DROP DATABASE "${nombre}" WITH (FORCE)`); await admin.end(); });
 it('no inventa receptor para dos cuentas históricas del mismo sender y conserva ambas', async () => {

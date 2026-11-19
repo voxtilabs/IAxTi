@@ -93,8 +93,9 @@ export const LIMITES_CONSERVADORES: readonly LimiteDeAdjunto[] = LIMITES_WHATSAP
 const CON_TABLA_DE_WHATSAPP = new Set(['whatsapp']);
 
 export function limitesDelCanal(canal: string): readonly LimiteDeAdjunto[] {
-  // Transporte Zavu actual: messageType != text selecciona WhatsApp. No
-  // ofrecer subir un archivo que tendría que salir por otro canal (#74).
+  // Instagram y Messenger no tienen entrega validada (#74): no se promete
+  // subir un archivo que saldría por otro canal — con el transporte de
+  // entonces (Zavu), `messageType != text` seleccionaba WhatsApp.
   if (canal === 'instagram' || canal === 'messenger') return [];
   return CON_TABLA_DE_WHATSAPP.has(canal) ? LIMITES_WHATSAPP : LIMITES_CONSERVADORES;
 }

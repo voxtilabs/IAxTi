@@ -10,6 +10,12 @@ import { ensureWebContact } from '@iaxti/module-crm';
 
 export const webchatProvider: ChannelProvider = {
   kind: 'webchat',
+  // Su propio nombre, no el por omisión del registro (#1339): las filas de
+  // webchat llegaron a resolverse por la coincidencia de que el DEFAULT de la
+  // migración 0006 era el proveedor de Zavu, y cuando ese se fue la etiqueta
+  // heredada quedó apuntando a nadie. La migración `0011` de channels las
+  // repunta a este valor.
+  proveedor: 'webchat',
   // El visitante recibe por el sondeo del widget: entregado al escribirlo.
   async send(_account, message) {
     return { providerMessageId: `wc-out-${Buffer.from(JSON.stringify(message)).length}-${Math.abs(hash(JSON.stringify(message)))}` };

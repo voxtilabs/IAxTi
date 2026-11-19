@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { ChannelProvider, NormalizedInbound } from '../domain/port';
 
 // El PRIMER adaptador del puerto (#41): el simulador de Fase 2, ahora por el
-// mismo camino que usa Zavu (#42). Firma HMAC-SHA256 del cuerpo crudo en
+// mismo camino que usaba Zavu (#42). Firma HMAC-SHA256 del cuerpo crudo en
 // X-Iaxti-Signature — el mismo esquema que Meta usa en X-Hub-Signature-256.
 
 export function firmarWebhook(rawBody: string, secret: string): string {
@@ -21,6 +21,10 @@ interface PayloadSimulado {
 
 export const simuladorProvider: ChannelProvider = {
   kind: 'simulador',
+  // Su propio nombre, no el por omisión del registro (#1339) — mismo motivo
+  // que `webchatProvider`: la etiqueta heredada del DEFAULT de la 0006 era
+  // de Zavu, y Zavu se fue. La migración `0011` repunta las filas.
+  proveedor: 'simulador',
 
   // El simulador "entrega" al instante: no hay red de por medio.
   async send(_account, message) {
