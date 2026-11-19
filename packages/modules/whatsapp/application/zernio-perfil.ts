@@ -376,16 +376,32 @@ export async function suscribirWebhook(
  * La página es de Zernio y abre el Embedded Signup de Meta. Conectar desde
  * acá y no desde el panel de Zernio es lo que asegura que el número cae en el
  * perfil del tenant y no en el que esté abierto en ese momento.
+ *
+ * `modo` (spec v1.679): sin él el popup abre en «coexistence», que es para
+ * números que viven en la app WhatsApp Business del cliente. Para un número
+ * que ya está en la Cloud API CON OTRO PROVEEDOR —la mudanza desde Zavu— hay
+ * que pedir `api`, que muestra el selector de WABA y número de Meta.
+ *
+ * `numeroEsperado` fija el número (E.164): si en el popup se elige otro, la
+ * página termina con 409 `NUMBER_MISMATCH` y no se conecta nada. El tope vive
+ * en el token de conexión del lado de Zernio, no en la URL.
  */
 export async function enlaceParaConectar(
   cfg: ConfigDeZernio,
-  input: { profileId: string; redirectUrl?: string },
+  input: {
+    profileId: string;
+    redirectUrl?: string;
+    modo?: 'api' | 'business_app';
+    numeroEsperado?: string;
+  },
 ): Promise<string> {
   const q = new URLSearchParams({
     profileId: input.profileId,
     signup: 'hosted',
     language: 'es',
     brandName: 'IAxTi',
+    ...(input.modo ? { onboarding: input.modo } : {}),
+    ...(input.numeroEsperado ? { expectedPhoneNumber: input.numeroEsperado } : {}),
     ...(input.redirectUrl ? { redirect_url: input.redirectUrl } : {}),
   });
   const r = await llamarAZernio<{ authUrl?: string }>(cfg, `/v1/connect/whatsapp?${q.toString()}`);
