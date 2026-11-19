@@ -72,6 +72,11 @@ x-env: &app-env
   ZAVU_PARTNER_CREDENTIAL_REF: ${ZAVU_PARTNER_CREDENTIAL_REF:-ZAVU_API_KEY}
   ZAVU_PARTNER_API_URL: ${ZAVU_PARTNER_API_URL:-}
   ZAVU_PARTNER_WEBHOOK_SECRET: ${ZAVU_PARTNER_WEBHOOK_SECRET:-}
+  # Canales vía Zernio (#1338, ADR-0032/0033): la llave del NEGOCIO, restringida
+  # en Zernio a su propio perfil, y el secreto del webhook de SU cuenta. Por
+  # referencia como todo lo demás (SPEC §17); cada cuenta nueva trae sus nombres.
+  ZERNIO_LLAVE_VOXTI: ${ZERNIO_LLAVE_VOXTI:-}
+  ZERNIO_WEBHOOK_SECRET_VOXTI: ${ZERNIO_WEBHOOK_SECRET_VOXTI:-}
   GOOGLE_SECRET_PROJECT_ID: ${GOOGLE_SECRET_PROJECT_ID:-}
   GOOGLE_SECRET_LOCATION: ${GOOGLE_SECRET_LOCATION:-}
   # ADR-0028: en la v1 la custodia es el disco cifrado del VPS, y Secret
