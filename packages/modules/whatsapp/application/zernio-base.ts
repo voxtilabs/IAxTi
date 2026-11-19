@@ -21,8 +21,10 @@ import { ErrorPermanente } from './outbound';
 export const ZERNIO_API_BASE_DEFAULT = 'https://zernio.com/api';
 
 export function baseDeZernio(apiBase?: string): string {
-  // Mismo cuidado que `baseDeZavu` (#575): `ZERNIO_API_BASE=""` no puede ganar
-  // y dejar todas las llamadas contra la cadena vacía.
+  // Mismo cuidado que la base del adaptador anterior (`baseDeZavu` de
+  // entonces, retirado en #1339; el defecto medido es #575):
+  // `ZERNIO_API_BASE=""` no puede ganar y dejar todas las llamadas contra la
+  // cadena vacía.
   return apiBase?.trim() || textoDeEntorno('ZERNIO_API_BASE', ZERNIO_API_BASE_DEFAULT);
 }
 
@@ -139,7 +141,7 @@ export class ErrorDeZernio extends Error {
 
 /**
  * La llave de la cuenta, por referencia: la cuenta guarda el NOMBRE de la
- * variable, nunca el valor (mismo contrato que Zavu, SPEC §17).
+ * variable, nunca el valor (mismo contrato que seguía Zavu, SPEC §17).
  */
 export function llaveDeLaCuenta(credentialRef: string | null, cuentaId: string): string {
   const apiKey = credentialRef ? process.env[credentialRef] : undefined;

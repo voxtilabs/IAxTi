@@ -471,7 +471,7 @@ describe('«este canal manda de verdad» se avisa (#593)', () => {
     expect(p[0]!.id).toBe('envios_reales');
     expect(p[0]!.estado).toBe('atencion');
     expect(p[0]!.detalle).toContain('le llega de verdad');
-    expect(p[0]!.queHacer).toContain('ZAVU_ENVIOS_REALES');
+    expect(p[0]!.queHacer).toContain('al conectar el número');
   });
 
   it('sin la marca, no aparece: no se inventa un aviso', async () => {

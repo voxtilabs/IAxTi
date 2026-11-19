@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { fetchMediaBytes } from '../application/zavu';
+import { fetchMediaBytes } from '../application/media';
 
 /**
  * Un adjunto no puede congelar la bandeja de todos (#1275).
@@ -13,7 +13,12 @@ import { fetchMediaBytes } from '../application/zavu';
  * Lo que NO cambia y hay que cuidar: cuando el adjunto falla, el mensaje
  * **entra igual** con su metadata (`inbound.ts:179-181`). Perder el texto por
  * un adjunto sería peor, y eso ya estaba bien resuelto.
+ *
+ * La funcionalidad vive en `media.ts` (#1339 la movió de adaptador a caso de
+ * uso): la `apiBase` la trae quien llama desde la cuenta, y acá va la de
+ * Zernio porque es el proveedor que queda.
  */
+const API_BASE_DE_ZERNIO = 'https://zernio.com/api';
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
 
@@ -36,7 +41,12 @@ describe('la descarga de un adjunto está acotada (#1275)', () => {
         arrayBuffer: async () => new ArrayBuffer(0),
       }) as unknown as Response) as unknown as typeof fetch;
 
-    await expect(fetchMediaBytes('https://zavu.test/archivo', 'llave', { maxBytes: TOPE })).rejects.toThrow(/el máximo son/);
+    await expect(
+      fetchMediaBytes('https://zernio.com/api/v1/whatsapp/media/archivo', 'llave', {
+        maxBytes: TOPE,
+        apiBase: API_BASE_DE_ZERNIO,
+      }),
+    ).rejects.toThrow(/el máximo son/);
   });
 
   /**
@@ -53,7 +63,12 @@ describe('la descarga de un adjunto está acotada (#1275)', () => {
         arrayBuffer: async () => new ArrayBuffer(TOPE + 1),
       }) as unknown as Response) as unknown as typeof fetch;
 
-    await expect(fetchMediaBytes('https://zavu.test/plano.pdf', 'llave', { maxBytes: TOPE })).rejects.toThrow(/el máximo son/);
+    await expect(
+      fetchMediaBytes('https://zernio.com/api/v1/whatsapp/media/plano.pdf', 'llave', {
+        maxBytes: TOPE,
+        apiBase: API_BASE_DE_ZERNIO,
+      }),
+    ).rejects.toThrow(/el máximo son/);
   });
 
   /**
@@ -73,7 +88,9 @@ describe('la descarga de un adjunto está acotada (#1275)', () => {
       } as unknown as Response;
     }) as unknown as typeof fetch;
 
-    await fetchMediaBytes('https://zavu.test/foto.jpg', 'llave');
+    await fetchMediaBytes('https://zernio.com/api/v1/whatsapp/media/foto.jpg', 'llave', {
+      apiBase: API_BASE_DE_ZERNIO,
+    });
     expect(señal).toBeInstanceOf(AbortSignal);
     expect(señal?.aborted).toBe(false);
   });
@@ -87,7 +104,9 @@ describe('la descarga de un adjunto está acotada (#1275)', () => {
         arrayBuffer: async () => new ArrayBuffer(2048),
       }) as unknown as Response) as unknown as typeof fetch;
 
-    const r = await fetchMediaBytes('https://zavu.test/foto.jpg', 'llave');
+    const r = await fetchMediaBytes('https://zernio.com/api/v1/whatsapp/media/foto.jpg', 'llave', {
+      apiBase: API_BASE_DE_ZERNIO,
+    });
     expect(r.bytes.byteLength).toBe(2048);
     expect(r.contentType).toBe('image/jpeg');
   });

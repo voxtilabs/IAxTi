@@ -242,7 +242,8 @@ export async function processOutbound(
 
     /*
      * El hilo del proveedor (ADR-0033, #1334). Para Zernio es la conversación
-     * dentro de la que se manda; Zavu lo ignora.
+     * dentro de la que se manda; los proveedores que mandan por destinatario
+     * no conocen el concepto y lo ignoran.
      *
      * El candado va ANTES de leer el hilo y se suelta con la transacción, que
      * es después de recordar el nuevo: crear una conversación en Zernio no

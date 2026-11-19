@@ -11,6 +11,7 @@ import {
   aplicarEstadoDelProveedor,
   createTemplate,
   enviarPlantilla,
+  getTemplate,
   listTemplates,
   marcarEnviadaARevision,
   prepararEnvio,
@@ -294,4 +295,135 @@ describe('enviar una plantilla: se salta la ventana, nada más', () => {
       ),
     ).rejects.toThrow(/no se manda a revisión/);
   });
+
+  /**
+   * El enlace con el proveedor (#44).
+ *
+ * Nuestro uuid no le sirve a nadie: el proveedor conoce la plantilla por el id
+ * que él le dio al registrarla (`provider_id`), y ese es el único dato con el
+ * que se puede mandar. Dos cosas se rompían por no cuidar ese enlace:
+ *
+ *  1. el snapshot que queda pegado al mensaje no lo copiaba, así que el envío
+ *     reventaba con el mensaje ya en la cola y NINGUNA plantilla salía nunca;
+ *  2. corregir una rechazada conservaba el enlace viejo, y la revisión
+ *     siguiente hacía revisar otra vez el texto ya rechazado.
+ *
+ * Las dos son de la misma familia: quién es esta plantilla para el proveedor.
+ * El adaptador que traducía el snapshot al cuerpo del proveedor se fue con
+ * Zavu (#1339) — Zernio todavía no publica plantillas —, pero QUIÉN es la
+ * plantilla se decide acá, y se prueba acá.
+ */
+describe('el enlace con el proveedor (#44)', () => {
+  let mensajesCreados = 0;
+
+  const depsConContador = {
+    contactoDe: async () => contacto,
+    puedeIniciar: async () => true,
+    crearMensaje: async (m: Parameters<Parameters<typeof enviarPlantilla>[2]['crearMensaje']>[0]) => {
+      mensajesCreados += 1;
+      const r = await admin.query(
+        `INSERT INTO messages (tenant_id, conversation_id, direction, type, body, author_kind, meta)
+         VALUES ($1, $2, 'out', 'plantilla', $3, 'user', $4::jsonb) RETURNING id`,
+        [m.tenantId, m.conversationId, m.body, JSON.stringify({ plantilla: m.plantilla })],
+      );
+      return { id: r.rows[0].id as string };
+    },
+  };
+
+  const borradorBase = () => ({
+    tenantId: tenant,
+    language: 'es_CL',
+    category: 'utility' as const,
+    body: 'Hola {{1}}, te recordamos tu hora del {{2}}.',
+  });
+
+  /** Deja la plantilla aprobada y enlazada (o sin enlazar, si no se pasa id). */
+  async function aprobada(nombre: string, providerId?: string): Promise<string> {
+    const p = await en((c) => createTemplate(c, { ...borradorBase(), name: nombre }));
+    await en((c) => marcarEnviadaARevision(c, { tenantId: tenant, templateId: p.id, providerId }));
+    await en((c) =>
+      aplicarEstadoDelProveedor(c, { tenantId: tenant, name: p.name, language: p.language, status: 'approved' }),
+    );
+    return p.id;
+  }
+
+  /** Rechazada por el proveedor y enlazada: lista para corregir. */
+  async function rechazada(nombre: string, providerId: string): Promise<string> {
+    const p = await en((c) => createTemplate(c, { ...borradorBase(), name: nombre }));
+    await en((c) => marcarEnviadaARevision(c, { tenantId: tenant, templateId: p.id, providerId }));
+    await en((c) =>
+      aplicarEstadoDelProveedor(c, {
+        tenantId: tenant,
+        name: p.name,
+        language: p.language,
+        status: 'rejected',
+        reason: 'El pie parece promocional para una plantilla de utilidad.',
+      }),
+    );
+    return p.id;
+  }
+
+  it('el snapshot que queda pegado al mensaje lleva el id del proveedor', async () => {
+    const id = await aprobada('recordatorio con enlace', 'tpl_prov_9');
+    const res = await en((c) =>
+      enviarPlantilla(
+        c,
+        { tenantId: tenant, conversationId: conversacion, templateId: id, valores: ['Ana', 'martes'] },
+        depsConContador,
+      ),
+    );
+
+    const msg = await admin.query('SELECT meta FROM messages WHERE id = $1', [res.messageId]);
+    const snapshot = msg.rows[0].meta.plantilla as Record<string, unknown>;
+    // El adaptador que manda la plantilla necesita este campo: sin
+    // `providerId` el envío reventaba con el mensaje ya encolado.
+    expect(snapshot.providerId).toBe('tpl_prov_9');
+  });
+
+  it('una aprobada sin enlace no se encola: se rechaza diciendo qué hacer', async () => {
+    const id = await aprobada('recordatorio sin enlace');
+    const antes = mensajesCreados;
+    await expect(
+      en((c) =>
+        enviarPlantilla(
+          c,
+          { tenantId: tenant, conversationId: conversacion, templateId: id, valores: ['Ana', 'hoy'] },
+          depsConContador,
+        ),
+      ),
+    ).rejects.toThrow(/no quedó enlazada con el proveedor.*Mándala a revisión de nuevo/s);
+    // Y no deja un mensaje colgado en la cola para fallar cinco veces.
+    expect(mensajesCreados).toBe(antes);
+  });
+
+  it('corregir una rechazada suelta el enlace, para que la revisión mande el texto NUEVO', async () => {
+    const id = await rechazada('cotizacion mal escrita', 'tpl_prov_viejo');
+    const corregida = await en((c) =>
+      updateTemplate(c, {
+        tenantId: tenant,
+        templateId: id,
+        body: 'Hola {{1}}, tu cotización del {{2}} está lista. ¿La revisamos?',
+      }),
+    );
+
+    expect(corregida.status).toBe('draft');
+    // Con el enlace puesto, la revisión siguiente mandaría solo el id y el
+    // proveedor volvería a revisar el texto que ya rechazó. Sin enlace, la
+    // próxima revisión registra el texto corregido.
+    expect(corregida.providerId).toBeNull();
+    expect(await en((c) => getTemplate(c, tenant, id))).toMatchObject({ providerId: null });
+  });
+
+  it('pero cambiar solo la categoría lo conserva: esa sí viaja en cada revisión', async () => {
+    const id = await rechazada('aviso de categoria', 'tpl_prov_cat');
+    const corregida = await en((c) =>
+      updateTemplate(c, { tenantId: tenant, templateId: id, category: 'marketing' }),
+    );
+
+    expect(corregida.category).toBe('marketing');
+    // Soltar el enlace acá obligaría a registrar un duplicado con el mismo
+    // nombre e idioma en el proveedor, y eso el proveedor lo rechaza.
+    expect(corregida.providerId).toBe('tpl_prov_cat');
+  });
+});
 });

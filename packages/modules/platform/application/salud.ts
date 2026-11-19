@@ -118,9 +118,14 @@ async function chequeoColas(redis: Redis | null): Promise<Chequeo> {
  * Proveedores externos: se informa si están CONFIGURADOS, no se les hace
  * ping. Un tablero que golpea a terceros cada vez que alguien lo abre es
  * una cuenta que crece y una página que se cuelga cuando el tercero se cae.
+ *
+ * Canales NO está acá: con las llaves por cuenta de Zernio (#1338) no hay una
+ * variable del ambiente que mirar — la fila que miraba `ZAVU_API_KEY` se fue
+ * con Zavu, y su reemplazo de nombre habría informado «sin configurar» para
+ * siempre en un despliegue con el canal andando. La verdad de si el despliegue
+ * tiene canales vive en /ready (`canal`), y la de cada cuenta en su diagnóstico.
  */
 const PROVEEDORES: Array<{ id: string; titulo: string; vars: string[] }> = [
-  { id: 'canales', titulo: 'Proveedor de canales', vars: ['ZAVU_API_KEY'] },
   { id: 'ia', titulo: 'Proveedor de IA', vars: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'LLM_API_KEY'] },
   { id: 'google', titulo: 'Google (Calendar, Drive, Gmail)', vars: ['GOOGLE_CLIENT_ID'] },
   { id: 'pagos', titulo: 'Proveedor de pagos', vars: ['FLOW_API_KEY', 'FLOW_SANDBOX_CREDENTIALS'] },

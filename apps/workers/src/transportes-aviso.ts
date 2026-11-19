@@ -1,7 +1,7 @@
 import webpush from 'web-push';
 import type { Pool } from 'pg';
 import { withTenant } from '@iaxti/db';
-import { getProvider, listChannelAccounts } from '@iaxti/module-channels';
+import { listChannelAccounts, proveedorDe } from '@iaxti/module-channels';
 import {
   vapidFromEnv,
   type EnvioEquipo,
@@ -40,8 +40,10 @@ function whatsappEquipo(pool: Pool): EnvioEquipo {
     const cuentas = await withTenant(pool, tenantId, (c) => listChannelAccounts(c, tenantId));
     const cuenta = cuentas.find((a) => a.kind === 'whatsapp' && a.state === 'active');
     if (!cuenta) throw new Error('El negocio no tiene WhatsApp conectado.');
-    const provider = getProvider('whatsapp');
-    if (!provider) throw new Error('El canal de WhatsApp está apagado en este despliegue.');
+    // El adaptador lo elige lo que la cuenta DECLARA (ADR-0032): caer al
+    // por-omisión mandaría el aviso de esta cuenta por el proveedor de otra.
+    const provider = proveedorDe({ kind: 'whatsapp', provider: cuenta.provider });
+    if (!provider) throw new Error('El proveedor de este canal no está disponible en este despliegue.');
     await provider.send(cuenta, { to: phone, type: 'texto', body: texto });
   };
 }

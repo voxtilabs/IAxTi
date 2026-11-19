@@ -488,3 +488,95 @@ describe('los mensajes sin teléfono se cuentan, no se inventan (#1331)', () => 
   });
 });
 
+describe('mandar un archivo: la clase la decide la tabla del canal, no el nombre', () => {
+  // Un envío con adjunto dentro de un hilo. El `attachmentType` que Zernio
+  // espera sale de `claseDeAdjunto` — la MISMA tabla que decide qué archivo se
+  // puede subir (`channels/domain/adjuntos.ts`) —, así que no puede haber dos
+  // opiniones sobre qué es un webp. Lo que la tabla no reconoce cae a `file`,
+  // el único envío al que Zernio no le exige formato al archivo.
+
+  /** El cuerpo del POST al hilo, como lo armó el adaptador. */
+  async function cuerpoDe(adjuntos: OutboundMessage['attachments']): Promise<Record<string, unknown>> {
+    const provider = createZernioProvider('whatsapp');
+    interceptar(200, RESPUESTA_DE_ENVIO);
+    await provider.send(
+      cuentaDe(1),
+      mensajeBase({ providerThreadId: 'hilo-adjunto', attachments: adjuntos }),
+    );
+    return peticiones[0]!.body;
+  }
+
+  it('una imagen va como image, y SOLO la primera: WhatsApp manda un medio por mensaje', async () => {
+    const cuerpo = await cuerpoDe([
+      { url: 'https://r2.example/firmada.jpg', contentType: 'image/jpeg' },
+      { url: 'https://r2.example/segunda.jpg', contentType: 'image/jpeg' },
+    ]);
+    expect(cuerpo.attachmentType).toBe('image');
+    expect(cuerpo.attachmentUrl).toBe('https://r2.example/firmada.jpg');
+    // Pasar la segunda en silencio sería prometer que salió.
+    expect(cuerpo.attachmentUrl).not.toContain('segunda');
+  });
+
+  it('un PDF va como file y CON su nombre: en un documento el nombre es lo que el cliente ve', async () => {
+    const cuerpo = await cuerpoDe([
+      { url: 'https://r2.example/x.pdf', filename: 'cotizacion.pdf', contentType: 'application/pdf' },
+    ]);
+    expect(cuerpo.attachmentType).toBe('file');
+    expect(cuerpo.attachmentName).toBe('cotizacion.pdf');
+  });
+
+  it('el tipo sale del CONTENIDO, no de la extensión del nombre', async () => {
+    // Un `.jpg` renombrado a `.pdf` se manda como imagen igual: lo que el
+    // proveedor mira es el tipo del archivo. Y en una imagen el nombre no
+    // viaja — lo que se ve es el pie de foto.
+    const cuerpo = await cuerpoDe([
+      { url: 'https://r2.example/x.pdf', filename: 'foto.pdf', contentType: 'image/png' },
+    ]);
+    expect(cuerpo.attachmentType).toBe('image');
+    expect(cuerpo).not.toHaveProperty('attachmentName');
+  });
+
+  it('un webp va como sticker: la tabla del canal lo declara sticker, no imagen', async () => {
+    // La contradicción que esto evita era en casa: nuestra propia tabla declara
+    // la clase `sticker` con `tipos: ['image/webp']` y deja `imagen` en jpeg y
+    // png. Mandar el webp como imagen sube el archivo a R2 —que se paga— para
+    // que el proveedor lo rechace y al cliente no le llegue nada.
+    const cuerpo = await cuerpoDe([
+      { url: 'https://r2.example/carita.webp', contentType: 'image/webp' },
+    ]);
+    expect(cuerpo.attachmentType).toBe('sticker');
+  });
+
+  it('el Content-Type con parámetros igual se reconoce', async () => {
+    // Un `Content-Type` real suele venir con charset o comillas colgando.
+    const cuerpo = await cuerpoDe([
+      { url: 'https://r2.example/x.webp', contentType: 'IMAGE/WEBP; charset=binary' },
+    ]);
+    expect(cuerpo.attachmentType).toBe('sticker');
+  });
+
+  it('video y audio no se movieron', async () => {
+    expect((await cuerpoDe([{ url: 'https://r2.example/x', contentType: 'video/mp4' }])).attachmentType).toBe('video');
+    expect((await cuerpoDe([{ url: 'https://r2.example/x', contentType: 'audio/ogg' }])).attachmentType).toBe('audio');
+  });
+
+  it('un tipo que la tabla no conoce cae a file y sale igual', async () => {
+    // No debería llegar acá (revisarAdjunto corta antes de firmar la subida),
+    // pero si llega, el cliente recibe el archivo en vez de nada. Sin nombre:
+    // el nombre solo viaja cuando la tabla declaró que es un documento.
+    const cuerpo = await cuerpoDe([
+      { url: 'https://r2.example/x.zip', filename: 'planos.zip', contentType: 'application/zip' },
+    ]);
+    expect(cuerpo.attachmentType).toBe('file');
+    expect(cuerpo.attachmentUrl).toBe('https://r2.example/x.zip');
+    expect(cuerpo).not.toHaveProperty('attachmentName');
+  });
+
+  it('sin adjuntos el cuerpo no cambia en nada', async () => {
+    const cuerpo = await cuerpoDe(undefined);
+    expect(cuerpo).not.toHaveProperty('attachmentUrl');
+    expect(cuerpo).not.toHaveProperty('attachmentType');
+    expect(cuerpo.message).toBe('Tu cotización está lista');
+  });
+});
+

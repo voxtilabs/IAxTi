@@ -16,7 +16,7 @@ fecha aquí.
 
 Variables (los únicos que crecen con clientes, con tope por tenant y
 traspasados al plan): tokens de Gemini y conversaciones/mensajes de Meta vía
-Zavu.
+Zernio.
 
 ## Alertas de costo pendientes de incorporar
 
@@ -25,18 +25,23 @@ Zavu.
   a tarifa utility. El supuesto "conversaciones de servicio gratis" de la
   sección 40 queda obsoleto → verificar tarifas Chile al implementar #43 y
   recalcular topes por plan (#67).
-- **Zavu cobra por conexión provisionada** (una conexión = un canal conectado;
-  el plan gratis trae dos, una puede ser WhatsApp). El precio mensual por
-  conexión en plan pago **está pedido y no ha llegado**: es el número que decide
-  el margen por tenant, porque escala con cada cliente.
-- WhatsApp lo factura Meta directo, sin margen del intermediario. Las tarifas de
-  Meta para Chile siguen pendientes de confirmar.
-- SMS a Chile por Zavu, desde crédito prepago: **USD 0.067** ida y vuelta (desde
-  número propio, el cliente puede responder) y **USD 0.034** solo salida (ruta
-  compartida, sin respuestas — sirve para OTP y avisos, jamás para atención).
-  Email: USD 0.40/1k transaccional, USD 0.80/1k marketing.
-- Zavu **no separa la facturación por cliente final**: todo cae a nuestra cuenta
-  y se prorratea por tenant en `usage_meters`.
+- **Zernio cobra por cuenta conectada** (ADR-0032): el plan incluye 2 cuentas
+  y luego cobra 6/3/1 USD por cuenta según banda — cifras de la evaluación del
+  11-11: ≈ 77 USD/mes a 10 cuentas · 300k mensajes, ≈ 168 a 50. La
+  suscripción es del despliegue, así que esa tarifa escala con cada cliente y
+  es el número que decide el margen por tenant.
+- WhatsApp lo factura Meta **directo al cliente**: Zernio como Tech Provider
+  no tiene línea de crédito (ADR-0032). Las tarifas de Meta para Chile siguen
+  pendientes de confirmar.
+- SMS por Zernio: no aparece en su spec ni en la evaluación (ADR-0032) —
+  **no medido**;
+  si un caso lo necesita, pedirlo y verificarlo antes de prometerlo. Los
+  precios de SMS y email anotados antes (0,067/0,034 USD y 0,40/1k
+  transaccional) eran del crédito de Zavu y se fueron con él. El correo va
+  por Resend (#55): precio por verificar al contratar.
+- Zernio **sí separa por negocio**: cada tenant tiene su perfil y su llave
+  restringida a él (ADR-0033); lo que queda de nuestra cuenta es la tarifa
+  por cuenta del primer punto, no un prorrateo por mensaje.
 
 ## Reglas de eficiencia (SPEC §40)
 

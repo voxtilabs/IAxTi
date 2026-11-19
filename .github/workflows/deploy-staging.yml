@@ -584,3 +584,131 @@ jobs:
             echo "El despliegue quedó arriba pero no sano: los cuerpos de arriba dicen por qué."
             exit 1
           fi
+
+      # La copia del compose que Dokploy tiene guardada, igualada al repo
+      # (#1359).
+      #
+      # ## Lo que pasó, medido
+      #
+      # El deploy sincroniza el ENV con `compose.update` pero nunca el
+      # `composeFile`: con `sourceType: raw` Dokploy no relee el archivo
+      # versionado (#396), así que cada cambio a
+      # `infra/dokploy/docker-compose.staging.yml` quedaba sin efecto hasta que
+      # alguien lo pegaba a mano en el panel. #1358 lo pagó: las `ZERNIO_*`
+      # llegaron al compose del repo, el deploy de la imagen anduvo, y el
+      # webhook corrió «sin_secreto» porque el contenedor se levantó con el
+      # compose VIEJO. Verde arriba, rojo adentro.
+      #
+      # Corre DESPUÉS del Smoke y no en el medio: esto no recrea nada (con
+      # `sourceType: raw`, `compose.deploy` recarga variables sin tocar los
+      # contenedores), así que no hay motivo para retrasar la verificación del
+      # despliegue; y si acá falla, el verde del Smoke ya quedó escrito arriba
+      # para quien mira. Sin `if: always()` a propósito: sincronizar la copia
+      # de un despliegue que no pasó su smoke sería declarar buena una copia
+      # de algo que no se comprobó.
+      #
+      # ## Cuándo corre
+      #
+      # Cuando la copia DIFIERE del repo, no cuando el commit tocó el archivo.
+      # La compuerta natural «¿lo tocó este commit?» —`git diff
+      # origin/staging...HEAD`, la de `scripts/antes-de-empujar.sh`— no sirve
+      # acá: el deploy corre sobre el TIP de staging, o sea que ese diff está
+      # siempre vacío y el paso se saltaría en silencio; es el defecto exacto
+      # de #946, metido en el paso que viene a tapar uno igual. En su lugar se
+      # pregunta a Dokploy por su copia y se compara con la del repo: corre
+      # solo cuando hay algo que igualar, cubre también una copia editada a
+      # mano en el panel, y cuesta una lectura a una API con la que esta
+      # corrida ya habló una decena de veces.
+      - name: Sincronizar el compose con Dokploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID_STAGING }}
+        run: |
+          if [ -z "${DOKPLOY_URL}" ]; then echo "Sin Dokploy configurado aún; se salta"; exit 0; fi
+          auth=(-H "x-api-key: ${DOKPLOY_API_KEY}" -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}")
+          COMPOSE_REPO=infra/dokploy/docker-compose.staging.yml
+
+          # Fallo de curl dicho en palabras y no con «curl: (22)» (#598). El
+          # código sale del MISMO intento (`-w`), no de una segunda llamada
+          # con otro cuerpo que contestaría otro código. La versión que
+          # distingue Access de llave vive arriba, en el paso Deploy de esta
+          # misma corrida: acá alcanza el código y el puntero. Los mensajes
+          # van a stderr para no mezclarse con el cuerpo que esta función
+          # devuelve por stdout; el cuerpo de error no se imprime porque puede
+          # traer entorno.
+          llamar() {
+            local verbo="$1" ruta="$2" que="$3" datos="${4:-}" crudo codigo
+            local args=(-X "${verbo}" -m 60 "${auth[@]}")
+            if [ -n "${datos}" ]; then args+=(-H "Content-Type: application/json" -d "${datos}"); fi
+            crudo=$(curl -sS "${args[@]}" -w '\n%{http_code}' "${DOKPLOY_URL}/api/${ruta}" 2>/dev/null) || true
+            codigo=$(printf '%s' "${crudo}" | tail -1)
+            if [ "${codigo:-000}" != "200" ]; then
+              echo "No se pudo ${que} (HTTP ${codigo:-000})." >&2
+              echo "El stack que corre no se toca: este paso no recrea nada." >&2
+              echo "El paso Deploy de arriba habló con esta API hace un momento; su" >&2
+              echo "diagnóstico aplica igual (401/403 credenciales, 502/503/504 caída)." >&2
+              return 1
+            fi
+            printf '%s\n' "${crudo}" | sed '$d'
+          }
+
+          # La copia de Dokploy, FRESCA (#573): `compose.update` reemplaza el
+          # env ENTERO, así que el env del payload sale de acá y nunca de un
+          # snapshot — reconstruir desde uno viejo pisó el `IMAGE` y el deploy
+          # siguiente murió «No such image».
+          fresco=$(llamar GET "compose.one?composeId=${COMPOSE_ID}" "leer la copia del compose")
+
+          # ¿Hace falta? El script imprime QUÉ difiere (nombres, jamás
+          # valores: la copia de Dokploy puede traer secretos pegados a mano).
+          if printf '%s\n' "${fresco}" | node scripts/sincronizar-compose.mjs --verificar "${COMPOSE_REPO}"; then
+            echo "La copia de Dokploy ya coincide con el repo; no hay nada que sincronizar."
+            exit 0
+          fi
+
+          # El env completo viaja en el archivo de abajo y en el payload:
+          # archivo privado (umask 077 como en el paso Deploy), jamás al log.
+          umask 077
+          antes=$(mktemp)
+          trap 'rm -f "${antes}"' EXIT
+          printf '%s\n' "${fresco}" > "${antes}"
+
+          # composeFile + env en un SOLO compose.update (#1359): dos updates
+          # seguidos dejarían una ventana con la copia nueva y el env viejo.
+          # jq SIEMPRE `jq -n`: sin `-n` espera stdin y sale 0 con payload
+          # vacío.
+          cuerpo=$(printf '%s\n' "${fresco}" | node scripts/sincronizar-compose.mjs "${COMPOSE_REPO}")
+          # Vacío solo si el origen dejó de ser raw a mitad de corrida: el
+          # script lo dijo arriba y salió 0. Parar acá con palabras y no dejar
+          # que jq reviente con «Invalid JSON literal».
+          if [ -z "${cuerpo}" ]; then
+            echo "El script no armó payload (¿el compose dejó de ser raw?). No se envió nada."
+            exit 1
+          fi
+          llamar POST compose.update "actualizar la copia en Dokploy" \
+            "$(jq -n --arg id "${COMPOSE_ID}" --argjson cuerpo "${cuerpo}" '{composeId:$id} + $cuerpo')" >/dev/null
+
+          # Y que Dokploy la aplique. Con `sourceType: raw` esto no recrea los
+          # contenedores: recarga variables y dice done en segundos (#254).
+          llamar POST compose.deploy "aplicar la copia actualizada" \
+            "{\"composeId\": \"${COMPOSE_ID}\"}" >/dev/null
+
+          # La espera es la del deploy (#571), con presupuesto propio: este
+          # deploy no baja imágenes, pero releer la copia mientras Dokploy está
+          # a mitad de aplicar es leer a mitad de trabajo (#573). Un `error`
+          # reportado corta acá con su detalle; un timeout deja pasar, porque
+          # abajo la comparación mide sola.
+          ESPERA_DEPLOY_SEG=300 bash scripts/esperar-deploy.sh
+
+          # Verificación (#1359): la copia quedó igual al repo, y el env sin
+          # perder ni ganar NOMBRES de variables — nombres y no valores,
+          # porque los valores son secretos.
+          despues=$(llamar GET "compose.one?composeId=${COMPOSE_ID}" "releer la copia para verificarla")
+          if printf '%s\n' "${despues}" | node scripts/sincronizar-compose.mjs --verificar "${COMPOSE_REPO}" "${antes}"; then
+            echo "La copia de Dokploy quedó igual al repo (compose idéntico, mismas variables de entorno)."
+          else
+            echo "La sincronización no se pudo verificar: la copia de Dokploy sigue distinta al repo."
+            exit 1
+          fi

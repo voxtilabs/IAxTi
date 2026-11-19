@@ -121,18 +121,23 @@ const PENDIENTES: Record<string, string> = {
   // se declaran en el bloque `tools:` del manifiesto y no son permisos —
   // el registry las filtra por módulo activo. No van acá.
   //
-  // Salieron tres de acá y vale decir por qué, porque la lista sirve
+  // Salieron de acá y vale decir por qué, porque la lista sirve
   // justamente para no confundir «falta hacerlo» con «se nos olvidó»:
-  // `calendar.connect` lo exige `google-calendar.controller.ts` desde #57,
-  // y `tenant.billing` y `whatsapp.numbers.manage` los exigen
-  // `onboarding-registration.controller.ts` y
-  // `partner-invitations.controller.ts` desde #56. Ya no son pendientes.
+  // `calendar.connect` lo exige `google-calendar.controller.ts` desde #57, y
+  // `tenant.billing` lo exige `onboarding-registration.controller.ts` desde
+  // #56. Ya no son pendientes. `whatsapp.numbers.manage` también lo exigía
+  // el flujo de invitación de Zavu (#56) — y con Zavu se fue su único
+  // exigente (#1339), así que vuelve a esta lista con su motivo nuevo.
   // `crm.contacts.update` y `crm.deals.close` estaban acá y YA SE EXIGEN:
   // el primero en contacts.controller.ts:330 y empresas.controller.ts:177, el
   // segundo en deals.controller.ts:234 (`puedeCerrar`). Los sacó la prueba
   // nueva de «cada pendiente sigue sin verificarse»: la lista decía «falta» de
   // dos cosas hechas, y la siguiente persona la habría leído como un mapa
   // viejo.
+  'whatsapp.numbers.manage':
+    'Su único exigente era el flujo de invitación de Zavu (#56), que salió del ' +
+    'código con Zavu (#1339). Vuelve acá hasta que una ruta de números de WhatsApp ' +
+    'lo exija de verdad.',
   'teams.manage':
     'Los equipos no están construidos (#540): la tabla `teams` existe con RLS y sin un solo endpoint, ' +
     'y `conversations.team_id` tampoco se escribe nunca. Llevaba meses declarado y REPARTIDO a ' +

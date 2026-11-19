@@ -31,15 +31,14 @@ export interface ChannelAccountRef {
   /** Nombre de la variable/secreto donde vive la credencial — jamás en claro. */
   credentialRef: string | null;
   /**
-   * Quién atiende esta cuenta: `zavu`, `zernio`, … (ADR-0032).
+   * Quién atiende esta cuenta: `zernio`, … (ADR-0032).
    *
-   * Las cuentas anteriores a la migración `0006` lo traen en
-   * `PROVEEDOR_POR_OMISION`, que es el mismo valor que puso el `DEFAULT`.
+   * Las cuentas anteriores a la migración `0006` lo traen en el `DEFAULT` de
+   * esa migración; desde la `0010` el por omisión es `zernio` (#1339).
    *
    * Opcional en el TIPO, a propósito: decenas de pruebas arman la cuenta a
-   * mano, y una cuenta sin proveedor resuelve a `zavu`, que es exactamente lo
-   * que pasaba antes de la ADR-0032. Lo que sale de la base siempre lo trae:
-   * `rowToAccount` lo completa.
+   * mano, y una cuenta sin proveedor resuelve a `PROVEEDOR_POR_OMISION`. Lo
+   * que sale de la base siempre lo trae: `rowToAccount` lo completa.
    */
   provider?: string;
   config: Record<string, unknown>;
@@ -78,9 +77,10 @@ export interface OutboundMessage {
    * y no por destinatario — Zernio hoy. Lo pone el worker antes de `send`,
    * leyéndolo de la tabla `channel_threads`; el adaptador no lo busca solo.
    *
-   * Opcional a propósito: Zavu y webchat no conocen el concepto, y un envío
-   * sin hilo conocido es válido (el adaptador crea la conversación, hoy
-   * obligado a ir con plantilla).
+   * Opcional a propósito: el dominio no puede exigírselo a todos los canales
+   * —webchat no conoce el concepto— y un envío sin hilo conocido es válido
+   * (el adaptador de Zernio crea la conversación, hoy obligado a ir con
+   * plantilla).
    */
   providerThreadId?: string;
 }
@@ -99,8 +99,8 @@ export interface NormalizedInbound {
    * sola en cada mensaje del cliente. Lo recuerda el camino de entrada; el
    * adaptador solo lo reporta.
    *
-   * Opcional: los proveedores que mandan por destinatario (Zavu) no tienen
-   * nada que decir acá.
+   * Opcional: los proveedores que mandan por destinatario y no por hilo no
+   * tienen nada que decir acá.
    */
   providerThreadId?: string;
 }
@@ -134,13 +134,14 @@ export interface PlantillaDelProveedor {
  * Las plantillas, por el mismo puerto que los mensajes (#159).
  *
  * Los mensajes ya eran portables —`send`, `verifyWebhook`, `normalize`— y
- * las plantillas no: la API y el worker llamaban a `crearEnZavu`,
- * `enviarARevisionEnZavu` y `listarEnZavu` POR SU NOMBRE. O sea que salir
- * del intermediario era una línea en la mitad del producto y una reescritura
- * en la otra mitad, y eso no se ve hasta que hay que hacerlo.
+ * las plantillas no: la API y el worker llamaban a los clientes del
+ * proveedor POR SU NOMBRE. O sea que salir del intermediario era una línea
+ * en la mitad del producto y una reescritura en la otra mitad, y eso no se
+ * ve hasta que hay que hacerlo.
  *
  * Es opcional: el webchat y el simulador no tienen plantillas, y un canal
- * sin esto simplemente no las ofrece.
+ * sin esto simplemente no las ofrece. Zernio todavía no las implementa
+ * (grupo `publishing`, #1338).
  */
 export interface PuertoDePlantillas {
   crear(
@@ -165,10 +166,10 @@ export interface ChannelProvider {
   kind: ChannelKind;
   /**
    * Quién atiende, no por dónde (ADR-0032). `kind` es el canal —whatsapp,
-   * instagram— y esto es la empresa que lo sirve: `zavu`, `zernio`, `webchat`.
+   * instagram— y esto es la empresa que lo sirve: `zernio`, `webchat`.
    *
-   * Opcional por los adaptadores que ya existen: sin esto, `zavu` queda `zavu`
-   * y el simulador y el webchat se nombran solos. Que el valor por omisión sea
+   * Opcional por los adaptadores que ya existen: sin esto, cada adaptador
+   * resuelve a `PROVEEDOR_POR_OMISION`. Que el valor por omisión sea
    * EL_DE_SIEMPRE y no «el primero que registre» es a propósito: un registro
    * que se resuelve por orden de arranque se comporta distinto según quién
    * levantó primero, y eso no se puede depurar.
@@ -188,13 +189,16 @@ export interface ChannelProvider {
 }
 
 /**
- * El proveedor de las cuentas que nacieron antes de la ADR-0032.
+ * El proveedor de las cuentas que no declaran uno (ADR-0032, #1339).
  *
- * Es el mismo valor que pone la migración `0006` como `DEFAULT`, y están
- * atados: si acá dijera otra cosa, una cuenta vieja resolvería a un adaptador
- * distinto del que la atendió siempre.
+ * Es el mismo valor que pone la migración `0010` como `DEFAULT`, y están
+ * atados: si dijeran cosas distintas, una cuenta creada sin proveedor
+ * explícito y una cuenta leída sin la columna resolverían a adaptadores
+ * distintos. Es `zernio` porque es el único adaptador de WhatsApp que queda;
+ * las cuentas viejas de Zavu declaran `provider = 'zavu'` explícito y resuelven
+ * a «nadie», que es lo correcto para lo desconectado y sin adaptador.
  */
-export const PROVEEDOR_POR_OMISION = 'zavu';
+export const PROVEEDOR_POR_OMISION = 'zernio';
 
 /** `zavu:whatsapp`. Que la clave sea legible importa cuando falla el arranque. */
 const clave = (proveedor: string, kind: ChannelKind) => `${proveedor}:${kind}`;
@@ -203,8 +207,7 @@ function nombreDe(provider: ChannelProvider): string {
   return provider.proveedor ?? PROVEEDOR_POR_OMISION;
 }
 
-// Registro de adaptadores: Zavu (#42) —que sirve whatsapp, instagram y
-// messenger con el mismo código— y webchat (#46) se enchufan aquí.
+// Registro de adaptadores: Zernio (#1317) y webchat (#46) se enchufan aquí.
 //
 // La clave es (proveedor, canal) desde la ADR-0032. Antes era solo el canal, y
 // eso hacía que `registerProvider` fuera un cerrojo global: no se podía
@@ -233,16 +236,12 @@ export function proveedorDe(cuenta: Pick<ChannelAccountRef, 'kind'> & { provider
 }
 
 /**
- * El adaptador POR OMISIÓN de un canal, para los dos llamadores que no tienen
- * una cuenta a mano: el aviso de transportistas y el respaldo del webhook.
- *
- * Resuelve al proveedor por omisión declarado, NO a «el único que hay». La
- * diferencia aparece el día que haya dos: la versión vieja devolvía
- * silenciosamente el que estuviera, que podía ser el de prueba.
+ * El adaptador por omisión de un canal se retiró con Zavu (#1339): su único
+ * motivo de existencia era resolver sin la cuenta a mano, y eso es justo lo
+ * que ADR-0032 prohíbe — mandar los mensajes de una cuenta por el proveedor
+ * de otra. Quien no tenga la cuenta, que la busque: `proveedoresDeCuentas`
+ * dice si el despliegue tiene canales, y el resto pasa por `proveedorDe`.
  */
-export function getProvider(kind: ChannelKind): ChannelProvider | null {
-  return providers.get(clave(PROVEEDOR_POR_OMISION, kind)) ?? null;
-}
 
 /** Qué hay registrado, para la verificación del arranque. */
 export function proveedoresRegistrados(): string[] {

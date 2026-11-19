@@ -8,8 +8,9 @@ import { enteroDeEntorno } from '@iaxti/core';
 
 /**
  * Causas traducidas a voz Pulso. Los numéricos son de la Cloud API de Meta y
- * siguen llegando cuando el proveedor los pasa; los de texto son los que
- * inventa Zavu. Un "failed" sin explicación mata la confianza.
+ * siguen llegando cuando el proveedor los pasa; los de texto son vocabulario
+ * que los proveedores de WhatsApp han usado en sus rechazos. Un "failed" sin
+ * explicación mata la confianza.
  */
 /**
  * La frase exacta que queda guardada cuando el canal llegó a su tope.
@@ -40,9 +41,9 @@ export const CAUSAS_META: Record<number | string, string> = {
   /**
    * La llave de prueba solo alcanza a la gente del equipo (#596).
    *
-   * Zavu lo responde así, textual: «Sandbox mode: a test key only reaches the
+   * Zavu lo respondía así, textual: «Sandbox mode: a test key only reaches the
    * phone numbers of people on your team. Send to one of those, or use a live
-   * API key.» Va acá y no en la tabla por status porque es lo ÚNICO que
+   * API key.» Va acá y no en la tabla por status porque era lo ÚNICO que
    * distingue este 403 de un 403 por credencial mala, y los dos mandan a
    * arreglar cosas opuestas.
    */
@@ -164,9 +165,9 @@ export function rechazoPermanente(status: number): boolean {
  * escrito en español— llegaba al vendedor como
  * `{"error":{"code":"whatsapp_window_closed"}}`.
  *
- * Se leen las formas que Zavu y Meta usan, y si ninguna calza se busca
- * cualquier clave conocida dentro del texto: es un cuerpo de error, no un
- * contrato, y cambia sin avisar.
+ * Se leen las formas que Meta usa (y que Zavu usaba), y si ninguna calza se
+ * busca cualquier clave conocida dentro del texto: es un cuerpo de error, no
+ * un contrato, y cambia sin avisar.
  */
 export function codigoDelProveedor(cuerpo: string): number | string | undefined {
   if (!cuerpo) return undefined;
@@ -194,7 +195,7 @@ export function codigoDelProveedor(cuerpo: string): number | string | undefined 
  * ¿El proveedor dijo que el emisor está desactivado? (#1178)
  *
  * Vive aparte y mira el CUERPO por la misma razón que `esTopeDiario`: la
- * respuesta no depende del código HTTP. Zavu manda 403 para dos cosas que no
+ * respuesta no depende del código HTTP. Zavu mandaba 403 para dos cosas que no
  * se parecen —el emisor desactivado y el destino no permitido— y lo que las
  * distingue está en el texto.
  *
@@ -256,7 +257,7 @@ export function mensajeDeRechazo(status: number, cuerpo: string): string {
      */
     if (esEmisorDesactivado(cuerpo)) {
       return (
-        'Este emisor está desactivado en Zavu. Actívalo en la cuenta del proveedor ' +
+        'Este emisor está desactivado en el proveedor. Actívalo en su panel ' +
         'y vuelve a intentar: la credencial y el número están bien.'
       );
     }
@@ -375,11 +376,11 @@ export async function deliverOutbound(
     /**
      * NUESTRO id, para que el adaptador pida idempotencia al proveedor (#585).
      *
-     * Faltaba, y el campo salía undefined del POST. Lo que eso significa lo
-     * dice el comentario de `zavu.ts`: si Zavu acepta el mensaje y la
-     * respuesta se pierde —un timeout, la red—, BullMQ reintenta y el
-     * cliente recibe el mismo mensaje dos veces. Se paga dos veces y se
-     * gastan dos del tope diario.
+     * Faltaba, y el campo salía undefined del POST. Lo que eso significa: si
+     * el proveedor acepta el mensaje y la respuesta se pierde —un timeout, la
+     * red—, BullMQ reintenta y el cliente recibe el mismo mensaje dos veces.
+     * Se paga dos veces y se gastan dos del tope diario (#585, medido contra
+     * el proveedor de entonces).
      *
      * El tipo lo declara desde que alguien notó que llegaba «de casualidad»
      * porque `deliverOutbound` esparcía el job entero; al pasar a construir
@@ -390,7 +391,8 @@ export async function deliverOutbound(
     // La plantilla aprobada, si el mensaje sale con una (#44). El adaptador
     // decide cómo la manda; acá solo viaja.
     ...(data.extra ? { extra: data.extra } : {}),
-    // El hilo del proveedor, si el worker lo conoce (ADR-0033). Zavu lo ignora.
+    // El hilo del proveedor, si el worker lo conoce (ADR-0033): Zernio manda
+    // dentro de esa conversación; Zavu lo ignoraba.
     ...(data.providerThreadId ? { providerThreadId: data.providerThreadId } : {}),
   });
 }

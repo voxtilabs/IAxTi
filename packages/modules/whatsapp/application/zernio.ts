@@ -7,14 +7,16 @@ import type {
   OutboundMessage,
 } from '@iaxti/module-channels';
 
-// El adaptador Zernio (#1317, ADR-0032): el segundo proveedor de canales, el
-// que manda por CONVERSACIÓN y no por destinatario (ADR-0033). Mismo estilo
-// que Zavu — el vocabulario de Zernio no cruza este archivo: hacia adentro
-// solo salen las formas del puerto.
+// El adaptador Zernio (#1317, ADR-0032): el transporte de canales —entró
+// como segundo proveedor y desde #1339 es el único, porque Zavu salió del
+// código—. Manda por CONVERSACIÓN y no por destinatario (ADR-0033). El estilo
+// es el del adaptador anterior (Zavu, retirado en #1339): el vocabulario de
+// Zernio no cruza este archivo, hacia adentro solo salen las formas del
+// puerto.
 //
-// Lo que acá es distinto a Zavu, y por qué, está en los comentarios de cada
-// pieza; el núcleo de seguridad (firma del webhook y llave por llamada) vive
-// en `zernio-base` y no se duplica acá.
+// Lo que acá era distinto a ese adaptador, y por qué, está en los comentarios
+// de cada pieza; el núcleo de seguridad (firma del webhook y llave por
+// llamada) vive en `zernio-base` y no se duplica acá.
 
 import { ErrorPermanente } from './outbound';
 import {
@@ -38,8 +40,9 @@ export interface ZernioConfig {
  * De la clase de adjunto que declara el canal al `attachmentType` de Zernio.
  *
  * La tabla de clases vive en `channels` y es la que ya decide qué archivo se
- * puede subir; acá solo se traduce, por lo mismo que en `zavu.ts`: no puede
- * haber dos opiniones sobre qué es un webp. Lo que la tabla no reconoce cae
+ * puede subir; acá solo se traduce, por lo mismo que en el adaptador anterior
+ * (retirado en #1339): no puede haber dos opiniones sobre qué es un webp. Lo
+ * que la tabla no reconoce cae
  * a `file`, que es el único envío que Zernio no le exige un formato al
  * archivo (y su defecto, además).
  */
@@ -52,7 +55,7 @@ const ATTACHMENT_TYPE_POR_CLASE: Record<ClaseDeAdjunto, string> = {
 };
 
 /**
- * Del tipo de adjunto de Zernio al NUESTRO. Sus nombres no son los de Zavu
+ * Del tipo de adjunto de Zernio al NUESTRO. Sus nombres no eran los de Zavu
  * (`file` y no `document`), así que la traducción es propia del adaptador: el
  * puerto no tiene que saber que existen proveedores que dicen distinto.
  */
@@ -61,7 +64,7 @@ const TIPO_POR_ADJUNTO_DE_ZERNIO: Record<string, string> = {
   video: 'video',
   audio: 'audio',
   // Zernio no distingue el sticker como clase de mensaje: llega como adjunto.
-  // En la bandeja se ve como la imagen que es (mismo criterio que Zavu).
+  // En la bandeja se ve como la imagen que es (mismo criterio que seguía Zavu).
   sticker: 'imagen',
   file: 'documento',
   // Un post o reel compartido: no lo podemos mostrar, pero sí notar que llegó.
@@ -190,8 +193,9 @@ export function createZernioProvider(
   }
   const apiBase = baseDeZernio(config.apiBase);
   // El `fetch` se resuelve al LLAMAR, no al crear el adaptador, por lo mismo
-  // que en `zavu.ts`: capturado al crear, deja fuera cualquier reemplazo
-  // posterior y las pruebas dejan de ver la salida real.
+  // que en el adaptador anterior (retirado en #1339): capturado al crear,
+  // deja fuera cualquier reemplazo posterior y las pruebas dejan de ver la
+  // salida real.
   const fetchImpl: typeof fetch = (...args) => (config.fetchImpl ?? globalThis.fetch)(...args);
 
   return {
@@ -211,7 +215,7 @@ export function createZernioProvider(
       const apiKey = llaveDeLaCuenta(account.credentialRef, account.id);
       const cfg: ConfigDeZernio = { apiKey, apiBase, fetchImpl };
       // El `accountId` de Zernio, no el nuestro: es la cuenta conectada allá
-      // que responde por este número. Mismo papel que `senderId` en Zavu.
+      // que responde por este número. Mismo papel que tenía `senderId` en Zavu.
       const zernioAccountId = account.config.zernioAccountId as string | undefined;
       if (!zernioAccountId) {
         throw new ErrorPermanente(
@@ -243,8 +247,9 @@ export function createZernioProvider(
               body: {
                 accountId: zernioAccountId,
                 ...(message.body !== undefined ? { message: message.body } : {}),
-                // Uno por mensaje, como en Zavu: WhatsApp manda un medio por
-                // mensaje y mandar el segundo como si nada sería perderlo.
+                // Uno por mensaje, como lo hacía el adaptador de Zavu:
+                // WhatsApp manda un medio por mensaje y mandar el segundo
+                // como si nada sería perderlo.
                 ...(adjunto
                   ? {
                       attachmentUrl: adjunto.url,
@@ -381,5 +386,5 @@ export function entrantesSinTelefono(payload: unknown): number {
   return m.sender?.phoneNumber ? 0 : 1;
 }
 
-// Reexportado para el contrato: misma costumbre que Zavu con su base.
+// Reexportado para el contrato: misma costumbre que seguía Zavu con su base.
 export { ZERNIO_API_BASE_DEFAULT } from './zernio-base';

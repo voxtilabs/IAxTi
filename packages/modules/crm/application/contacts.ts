@@ -140,9 +140,12 @@ export async function linkIdentity(
  * Aceptarlo crea un contacto con una identidad que ningún envío va a poder usar,
  * y el problema se descubre el día que alguien le quiera contestar.
  *
- * La documentación de Zavu enumera las formas: «un E.164, un BSUID de WhatsApp
- * (`US.13491208655302741918`), un id numérico de chat, o un JID de grupo
- * (`...@g.us`)». Son tres formas concretas, no «lo que venga».
+ * Las formas las enumeró la documentación de Zavu, con el vocabulario de
+ * WhatsApp/Meta: un E.164, un BSUID (`US.13491208655302741918`), un id
+ * numérico de chat o un JID de grupo (`...@g.us`). Son formas concretas, no
+ * «lo que venga», y siguen siendo las de hoy: el spec de Zernio (v1.615)
+ * declara `sender.phoneNumber` nullable porque Meta está moviendo a BSUID
+ * (ADR-0033).
  *
  * Así que se aceptan esas y se rechaza el resto — que es lo que #606 pedía con
  * su `INBOUND_IDENTIDAD_NO_RESUELTA`: un mensaje que no se puede resolver no

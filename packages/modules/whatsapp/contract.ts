@@ -1,14 +1,12 @@
 // Única puerta pública del módulo whatsapp (SPEC §26).
 export const MODULE_ID = 'whatsapp' as const;
-export {
-  ZAVU_API_BASE_DEFAULT,
-  createZavuProvider,
-  verifyZavuSignature,
-  fetchMediaBytes,
-  normalizeStatuses,
-  referralDe,
-} from './application/zavu';
-export type { DeliveryStatusUpdate } from './application/zavu';
+// Zernio (#1317, ADR-0032): el adaptador de WhatsApp que queda. `baseDeZernio`
+// lo usa el worker de entrada para que la llave de una cuenta de Zernio pueda
+// ir a SU dominio al bajar adjuntos (#1335).
+export { createZernioProvider, entrantesSinTelefono } from './application/zernio';
+export { baseDeZernio } from './application/zernio-base';
+export { llamarAZernio } from './application/zernio-base';
+export type { ConfigDeZernio } from './application/zernio-base';
 export {
   deliverOutbound,
   checkNumberRateLimit,
@@ -23,46 +21,22 @@ export {
   CAUSAS_META,
 } from './application/outbound';
 export type { OutboundJobData } from './application/outbound';
-export type { ZavuConfig } from './application/zavu';
-// Zernio (#1317, ADR-0032): se registra en la API y los workers al lado de Zavu.
-// `baseDeZernio` lo usa el worker de entrada para que la llave de una cuenta de
-// Zernio pueda ir a SU dominio al bajar adjuntos (#1335).
-export { createZernioProvider, entrantesSinTelefono } from './application/zernio';
-export { baseDeZernio } from './application/zernio-base';
 export {
   connectWhatsAppNumber,
-  reapuntarEmisor,
   desconectarNumero,
-  tenantDelEmisor,
   listWhatsAppNumbers,
   findNumberBySenderId,
 } from './application/numbers';
 export type { WhatsAppNumber } from './application/numbers';
-export { nombreDePerfil, identidadDePerfil } from './application/perfil';
-export type { ConsultaDePerfil, IdentidadDePerfil } from './application/perfil';
-export { downloadAttachmentsToR2 } from './application/media';
-export type { AdjuntoEntrante, AdjuntoGuardado } from './application/media';
+export { fetchMediaBytes, downloadAttachmentsToR2 } from './application/media';
+export type { AdjuntoEntrante, AdjuntoGuardado, ConfigDeMedia } from './application/media';
 export {
   applyQualityUpdate,
-  normalizeQualityUpdates,
   isBusinessPaused,
   numeroEnRojo,
   resumeBusinessSends,
 } from './application/quality';
 export type { NumberQuality, QualityUpdate } from './application/quality';
-export {
-  clienteZavu,
-  consultarSender,
-  elegirSender,
-  quienSoy,
-  llaveSirveParaAmbiente,
-  emisorDelProveedor,
-  emisoresDelProveedor,
-  conectarSender,
-  urlWebhook,
-  EVENTOS_WEBHOOK,
-} from './application/conectar';
-export type { SenderZavu, LlamarZavu, ResultadoConexion, ProyectoZavu } from './application/conectar';
 export {
   listTemplates,
   createTemplate,
@@ -76,37 +50,14 @@ export {
 export type { Plantilla } from './application/plantillas';
 export {
   CATEGORIAS,
-  ESTADOS_PLANTILLA,
   validarPlantilla,
   renderizar,
   normalizarNombre,
   variablesDe,
   puedeEnviarse,
-  transicionPermitida,
 } from './domain/plantillas';
 export type { CategoriaPlantilla, EstadoPlantilla, PlantillaBorrador } from './domain/plantillas';
-export {
-  crearEnZavu,
-  listarEnZavu,
-  enviarARevisionEnZavu,
-  consultarEnZavu,
-  sincronizarConZavu,
-  envioDePlantilla,
-  categoriaParaZavu,
-  categoriaDeZavu,
-  estadoDeZavu,
-} from './application/zavu-plantillas';
-export type { ConfigZavu, PlantillaEnZavu } from './application/zavu-plantillas';
-export { partnerPorts, resolveChannelWebhookSecret, PartnerError } from './application/partner-provider';
-export type { PartnerPorts } from './application/partner-provider';
-export { partnerStatus, startPartnerInvitation, resumePartnerInvitation, receivePartnerWebhook, processPartnerInvitation, maintainPartnerInvitations } from './application/partner-invitations';
-export type { PartnerStatus } from './application/partner-invitations';
-
-export { consultarMensajeDelCanal, type MensajeDelCanal, type ConsultaDelCanal } from './application/mensaje-del-canal';
-
-// La tabla de tipos del canal. Se exporta para que la guarda del camino de
-// entrada pueda cruzarla contra lo que la tabla acepta (#1266).
-export { TIPOS } from './application/zavu';
+export { resolveChannelWebhookSecret } from './application/webhook-secret';
 // Un perfil de Zernio por tenant y la verificación por mensaje (#1321).
 export {
   eventoDeZernioEsDeLaCuenta,
@@ -123,5 +74,3 @@ export {
   ErrorDelAlta,
 } from './application/zernio-perfil';
 export type { VeredictoDelEvento, PerfilDeZernio } from './application/zernio-perfil';
-export { llamarAZernio } from './application/zernio-base';
-export type { ConfigDeZernio } from './application/zernio-base';

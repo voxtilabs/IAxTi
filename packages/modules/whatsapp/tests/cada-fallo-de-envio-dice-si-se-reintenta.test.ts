@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   CAUSAS_META,
   causaLegible,
@@ -8,7 +8,6 @@ import {
   mensajeDeRechazo,
   rechazoPermanente,
 } from '../application/outbound';
-import { createZavuProvider } from '../application/zavu';
 import { fuenteLimpia } from '@iaxti/core/testing';
 
 /**
@@ -22,9 +21,11 @@ import { fuenteLimpia } from '@iaxti/core/testing';
  *
  * Es la misma familia de siempre: declarado en un lado, aplicado en ninguno. La
  * clasificación vive en el adaptador porque solo él sabe qué significó ese 400,
- * así que la única forma de que no se olvide es pedirla acá, por escrito.
+ * así que la única forma de que no se olvide es pedirla acá, por escrito. Desde
+ * #1339 el adaptador es Zernio (`zernio.ts` + `zernio-base.ts`); Zavu se fue
+ * con su archivo y esta guarda apunta al que despacha de verdad.
  *
- * Un `throw new Error` crudo en este archivo o es transitorio Y está en la
+ * Un `throw new Error` crudo en estos archivos o es transitorio Y está en la
  * lista de abajo con su motivo, o falta clasificarlo.
  */
 
@@ -35,21 +36,17 @@ const RAIZ = join(__dirname, '..', 'application');
  * qué esperar ayuda — y si no puedes escribirlo, es permanente.
  */
 const TRANSITORIOS_CON_MOTIVO: Record<string, string> = {
-  'El canal no aceptó el envío: HTTP':
-    'Es la rama que queda DESPUÉS de rechazoPermanente(): 429 y 5xx. Esos sí se arreglan esperando.',
-  'El canal no devolvió el id del mensaje':
-    'Una respuesta 2xx sin id es un hipo del proveedor, no una configuración mala: el reintento puede salir bien. ' +
-    'Ojo: el mensaje pudo haber salido, y por eso el reintento se apoya en el bloqueo de fila de getOutboundContext.',
-  'Zavu no transporta el canal':
+  'Zernio no transporta el canal':
     'Se lanza al CONSTRUIR el adaptador, no al enviar: no llega nunca al catch del worker.',
-  'No pudimos bajar el adjunto: HTTP':
-    'Va en el camino de ENTRADA (normalizar un adjunto que llega), que no pasa por la cola outbound.',
+  'Zernio no devolvió el id del mensaje':
+    'Una respuesta 2xx sin id es un hipo del proveedor, no una configuración mala. ' +
+    'La ruta lleva Idempotency-Key y Zernio deduplica, así que el reintento de BullMQ ' +
+    'es seguro: el mensaje pudo haber salido, y por eso no se clasifica permanente.',
 };
-
 
 describe('cada fallo de envío dice si se reintenta (#556)', () => {
   it('ningún throw crudo sin clasificar en el adaptador', () => {
-    const fuente = fuenteLimpia(readFileSync(join(RAIZ, 'zavu.ts'), 'utf8'));
+    const fuente = fuenteLimpia(readFileSync(join(RAIZ, 'zernio.ts'), 'utf8'));
     const crudos = fuente
       .split('\n')
       .filter((l) => l.includes('throw new Error('))
@@ -63,18 +60,28 @@ describe('cada fallo de envío dice si se reintenta (#556)', () => {
       (l) => !Object.keys(TRANSITORIOS_CON_MOTIVO).some((k) => l.includes(k)),
     );
     expect(sinMotivo, `Clasifica estos fallos: o ErrorPermanente, o agrégalos con su motivo.\n${sinMotivo.join('\n')}`).toEqual([]);
+
+    // La base del adaptador ni siquiera tiene uno: su único fallo de
+    // configuración (la llave ausente) ya es ErrorPermanente. Que siga
+    // siéndolo es la mitad de esta guarda.
+    const base = fuenteLimpia(readFileSync(join(RAIZ, 'zernio-base.ts'), 'utf8'));
+    expect(base.split('\n').filter((l) => l.includes('throw new Error('))).toEqual([]);
   });
 
   it('lo que falta de configuración es permanente, no transitorio', () => {
-    const fuente = fuenteLimpia(readFileSync(join(RAIZ, 'zavu.ts'), 'utf8'));
-    // Las dos que causaban el síntoma que vio Lino: sin credencial y sin
-    // emisor. Ninguna aparece sola, así que ninguna puede ser transitoria.
-    for (const guardia of ['if (!apiKey)', 'if (!senderId)']) {
+    const fuente = fuenteLimpia(readFileSync(join(RAIZ, 'zernio.ts'), 'utf8'));
+    // Las dos que hoy causan el síntoma de #556: sin cuenta de Zernio
+    // asignada y sin la llave de idempotencia del mensaje. Ninguna se arregla
+    // esperando, así que ninguna puede ser transitoria.
+    for (const guardia of ['if (!zernioAccountId)', 'if (!message.messageId)']) {
       const ocurrencias = fuente.split(guardia).length - 1;
       expect(ocurrencias, `esperaba encontrar ${guardia} en el adaptador`).toBeGreaterThan(0);
     }
-    expect(fuente).not.toMatch(/if \(!apiKey\) throw new Error\(/);
-    expect(fuente).not.toMatch(/if \(!senderId\) throw new Error\(/);
+    expect(fuente).not.toMatch(/if \(!zernioAccountId\) throw new Error\(/);
+    expect(fuente).not.toMatch(/if \(!message\.messageId\) throw new Error\(/);
+    // Y la llave de la cuenta, que vive en el entorno (zernio-base), tampoco.
+    const base = fuenteLimpia(readFileSync(join(RAIZ, 'zernio-base.ts'), 'utf8'));
+    expect(base).not.toMatch(/if \(!apiKey\) throw new Error\(/);
   });
 
   it('el worker rechaza lo permanente antes de mirar si es el último intento', () => {
@@ -91,7 +98,7 @@ describe('cada fallo de envío dice si se reintenta (#556)', () => {
 });
 
 describe('el motivo del proveedor se traduce (#556)', () => {
-  it('saca el código de las formas que usan Zavu y Meta', () => {
+  it('saca el código de las formas que usan los proveedores', () => {
     expect(codigoDelProveedor('{"error":{"code":"whatsapp_window_closed"}}')).toBe(
       'whatsapp_window_closed',
     );
@@ -106,10 +113,18 @@ describe('el motivo del proveedor se traduce (#556)', () => {
   });
 
   it('un código que no conocemos no inventa una causa', () => {
-    expect(codigoDelProveedor('{"error":{"code":"algo_nuevo_de_zavu"}}')).toBeUndefined();
+    expect(codigoDelProveedor('{"error":{"code":"algo_nuevo_del_proveedor"}}')).toBeUndefined();
     expect(codigoDelProveedor('')).toBeUndefined();
     // Y entonces se cae al mensaje por status, que también dice qué hacer.
     expect(causaLegible(undefined, mensajeDeRechazo(401, ''))).toMatch(/reconectarlo en Canales/);
+  });
+
+  it('la tabla traduce también los códigos NUMÉRICOS de la Cloud API', () => {
+    // Los numéricos son de Meta y siguen llegando cuando el proveedor los
+    // pasa. Y el fallback se usa tal cual: no se ignora el detalle crudo.
+    expect(causaLegible(131026)).toBe('El número no tiene WhatsApp.');
+    expect(causaLegible(999999, 'detalle crudo')).toBe('detalle crudo');
+    expect(causaLegible(undefined)).toMatch(/Reintenta en unos minutos/);
   });
 
   it('cada causa de la tabla está en voz de Pulso: sin código, sin nombre de campo', () => {
@@ -120,135 +135,13 @@ describe('el motivo del proveedor se traduce (#556)', () => {
   });
 });
 
-describe('un reintento no manda el mensaje dos veces (#585)', () => {
-  /**
-   * El bloqueo de fila impide que dos consumidores manden el mismo mensaje. Lo que
-   * NO cubre es el caso que de verdad pasa: el primer intento llega al proveedor,
-   * el proveedor lo acepta, y la respuesta se pierde. Nosotros lanzamos, BullMQ
-   * reintenta, y el cliente recibe el mismo mensaje dos veces — la fila sigue en
-   * `queued` porque nunca nos llegó el id del proveedor.
-   *
-   * Zavu tiene `idempotencyKey` en su API y no lo estábamos usando. Lo comprobé en
-   * su OpenAPI, no en su blog: `docs.zavu.dev/openapi.json`.
-   */
-  it('el envío manda idempotencyKey con NUESTRO id del mensaje', async () => {
-    const llamadas: Array<{ url: string; body: Record<string, unknown> }> = [];
-    const fetchMock = vi.fn(async (url: string, init: { body: string }) => {
-      llamadas.push({ url: String(url), body: JSON.parse(init.body) });
-      return { ok: true, status: 200, json: async () => ({ id: 'wamid.1' }) };
-    });
-    process.env.ZAVU_KEY_IDEM = 'zv_test';
-    const p = createZavuProvider('whatsapp', {
-      apiBase: 'https://zavu.test/v1',
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    await p.send(
-      {
-        id: 'cuenta-1',
-        tenantId: 'tenant-1',
-        kind: 'whatsapp',
-        name: 'n',
-        state: 'active',
-        credentialRef: 'ZAVU_KEY_IDEM',
-        config: { senderId: 'snd_1' },
-      },
-      { to: '+56987654321', type: 'texto', body: 'Hola', messageId: 'msg-abc-123' },
-    );
-    delete process.env.ZAVU_KEY_IDEM;
-
-    expect(llamadas).toHaveLength(1);
-    // La llave es nuestro id: único, estable entre reintentos, y no cambia si el
-    // job se reencola. Cualquier otra cosa (un random, la hora) no serviría.
-    expect(llamadas[0]!.body.idempotencyKey).toBe('msg-abc-123');
-  });
-
-  it('el mismo mensaje reintentado manda la MISMA llave', async () => {
-    const llaves: unknown[] = [];
-    const fetchMock = vi.fn(async (_url: string, init: { body: string }) => {
-      llaves.push(JSON.parse(init.body).idempotencyKey);
-      return { ok: true, status: 200, json: async () => ({ id: 'wamid.1' }) };
-    });
-    process.env.ZAVU_KEY_IDEM2 = 'zv_test';
-    const p = createZavuProvider('whatsapp', {
-      apiBase: 'https://zavu.test/v1',
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    const cuenta = {
-      id: 'cuenta-1',
-      tenantId: 'tenant-1',
-      kind: 'whatsapp' as const,
-      name: 'n',
-      state: 'active' as const,
-      credentialRef: 'ZAVU_KEY_IDEM2',
-      config: { senderId: 'snd_1' },
-    };
-    const mensaje = { to: '+56987654321', type: 'texto', body: 'Hola', messageId: 'msg-xyz' };
-    await p.send(cuenta, mensaje);
-    await p.send(cuenta, mensaje);
-    delete process.env.ZAVU_KEY_IDEM2;
-    expect(llaves).toEqual(['msg-xyz', 'msg-xyz']);
-  });
-});
-
-describe('el proveedor no puede saltarse nuestras reglas (#589)', () => {
-  /**
-   * Zavu trae el fallback a SMS ENCENDIDO por defecto, y nunca lo apagamos. Eso
-   * dejaba sin efecto la ventana de 24 h, el consentimiento por canal y la
-   * plantilla aprobada: el worker rechaza lo libre fuera de la ventana, y el
-   * proveedor lo mandaba igual por otra vía.
-   *
-   * Lo encontré leyendo las REGLAS DE NEGOCIO de su documentación, no el esquema:
-   * el esquema solo dice que el campo existe.
-   */
-  async function cuerpoDeUnEnvio(): Promise<Record<string, unknown>> {
-    let cuerpo: Record<string, unknown> = {};
-    const fetchMock = vi.fn(async (_url: string, init: { body: string }) => {
-      cuerpo = JSON.parse(init.body);
-      return { ok: true, status: 200, json: async () => ({ id: 'wamid.1' }) };
-    });
-    process.env.ZAVU_KEY_FB = 'zv_test';
-    const p = createZavuProvider('whatsapp', {
-      apiBase: 'https://zavu.test/v1',
-      fetchImpl: fetchMock as unknown as typeof fetch,
-    });
-    await p.send(
-      {
-        id: 'cuenta-fb',
-        tenantId: 'tenant-fb',
-        kind: 'whatsapp',
-        name: 'n',
-        state: 'active',
-        credentialRef: 'ZAVU_KEY_FB',
-        config: { senderId: 'snd_fb' },
-      },
-      { to: '+56987654321', type: 'texto', body: 'Hola' },
-    );
-    delete process.env.ZAVU_KEY_FB;
-    return cuerpo;
-  }
-
-  it('todo envío pide explícitamente que NO caiga a SMS', async () => {
-    const cuerpo = await cuerpoDeUnEnvio();
-    // `undefined` no sirve: el defecto del proveedor es `true`. Tiene que ir el
-    // false explícito en el cuerpo.
-    expect(cuerpo.fallbackEnabled).toBe(false);
-  });
-
-  it('y va en el MISMO envío, no en una configuración de cuenta', async () => {
-    // Un ajuste en el panel del proveedor se puede cambiar desde afuera y nadie
-    // se enteraría. En el cuerpo de cada mensaje, no.
-    const cuerpo = await cuerpoDeUnEnvio();
-    expect(Object.keys(cuerpo)).toContain('fallbackEnabled');
-    expect(cuerpo.channel).toBe('whatsapp');
-  });
-});
-
 describe('un 403 no es una credencial mala (#596)', () => {
   /**
    * El cuerpo de abajo es TEXTUAL: lo que Zavu respondió cuando Lino intentó
    * escribirle a su propio número desde staging. Tres días buscando por qué no
    * se podían enviar mensajes, y el producto decía que había que reconectar el
-   * canal.
+   * canal. `CAUSAS_META` y `mensajeDeRechazo` siguen traduciéndolo igual
+   * (#1339 sacó al proveedor, no el vocabulario de sus rechazos).
    *
    * 401 y 403 estaban juntos en `mensajeDeRechazo`, y no son lo mismo:
    *   401 = «no sé quién eres» → la credencial está mala, hay que reconectar.
@@ -291,13 +184,13 @@ describe('un 403 no es una credencial mala (#596)', () => {
   });
 
   /**
-   * El OTRO 403 de Zavu (#1178). Textual, medido contra la API de producción el
+   * El OTRO 403 (#1178). Textual, medido contra la API de producción el
    * 02-11 mandando el mismo cuerpo al emisor `kd764401…`, que es uno de los dos
    * registros que quedaron del mismo número `+56 9 2201 3949`.
    *
    * Se prueba la composición COMPLETA —`causaLegible(codigoDelProveedor(…),
    * mensajeDeRechazo(…))`— y no `mensajeDeRechazo` sola, porque es lo que corre
-   * en `zavu.ts`. Si algún día una clave de `CAUSAS_META` resulta ser subcadena
+   * en el adaptador. Si algún día una clave de `CAUSAS_META` resulta ser subcadena
    * de este texto, `codigoDelProveedor` ganaría y el mensaje nuevo no se vería
    * nunca: probar la función aislada diría que está bien y el producto seguiría
    * mandando a revisar el número del contacto.
@@ -310,10 +203,10 @@ describe('un 403 no es una credencial mala (#596)', () => {
       'receive on this channel.',
   });
 
-  it('el emisor desactivado manda a Zavu, no a revisar el número', () => {
+  it('el emisor desactivado manda al panel del proveedor, no a revisar el número', () => {
     const frase = causaLegible(codigoDelProveedor(DESACTIVADO), mensajeDeRechazo(403, DESACTIVADO));
     expect(frase).toMatch(/desactivado/i);
-    expect(frase).toMatch(/Zavu/);
+    expect(frase).toMatch(/proveedor/);
     // Y NO manda a buscar donde no está: ni el destino, ni el permiso del
     // número, ni reconectar un canal que está sano.
     expect(frase).not.toMatch(/ese número/);
@@ -330,8 +223,9 @@ describe('un 403 no es una credencial mala (#596)', () => {
   });
 
   it('el marcador es el término del proveedor, no su frase entera', () => {
-    // Zavu reescribe su documentación sin avisar. Lo que no puede pasar es que
-    // un cambio de redacción devuelva en silencio al mensaje equivocado.
+    // Los proveedores reescriben su documentación sin avisar. Lo que no puede
+    // pasar es que un cambio de redacción devuelva en silencio al mensaje
+    // equivocado.
     const otraRedaccion = JSON.stringify({
       code: 'forbidden',
       message: 'Channel deactivated for this sender.',

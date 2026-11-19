@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { assertChannelTransition, getProvider, registerProvider, resetProviders } from '../domain/port';
+import {
+  assertChannelTransition,
+  proveedorDe,
+  registerProvider,
+  resetProviders,
+} from '../domain/port';
 import { firmarWebhook, simuladorProvider } from '../application/simulador';
 import {
   createChannelAccount,
@@ -52,12 +57,16 @@ describe('el puerto (dominio, #41)', () => {
     expect(() => assertChannelTransition('connecting', 'degraded')).toThrow(/inválida/);
   });
 
-  it('el registro de adaptadores rechaza duplicados por kind', () => {
+  it('el registro de adaptadores rechaza duplicados por (proveedor, canal)', () => {
     resetProviders();
     registerProvider(simuladorProvider);
-    expect(getProvider('simulador')?.kind).toBe('simulador');
+    // El simulador registra bajo SU nombre desde #1339; quien pregunte por
+    // él usa el mismo par con el que registró.
+    expect(proveedorDe({ kind: 'simulador', provider: 'simulador' })?.kind).toBe('simulador');
     expect(() => registerProvider(simuladorProvider)).toThrow(/Ya hay un adaptador/);
-    expect(getProvider('whatsapp')).toBeNull();
+    // Y su nombre propio no ocupa el par de nadie más.
+    expect(proveedorDe({ kind: 'simulador', provider: 'zernio' })).toBeNull();
+    expect(proveedorDe({ kind: 'whatsapp', provider: 'zernio' })).toBeNull();
     resetProviders();
   });
 

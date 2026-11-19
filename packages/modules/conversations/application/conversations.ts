@@ -920,8 +920,8 @@ export interface SalienteDelCanalInput {
  * Registra un saliente que el negocio mandó POR FUERA de IAxTi (#1265).
  *
  * El caso real: el dueño contesta desde la aplicación de WhatsApp de su
- * teléfono. Zavu lo guarda y nos avisa —como el estado de un mensaje que no
- * conocemos—, y hasta ahora lo descartábamos. El resultado era una bandeja
+ * teléfono. El proveedor lo guarda y avisa —como el estado de un mensaje que
+ * no conocemos—, y ese aviso se descartaba. El resultado era una bandeja
  * que muestra media conversación, y un bot que no sabe que ya le
  * contestaron.
  *

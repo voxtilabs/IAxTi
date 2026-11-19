@@ -222,9 +222,9 @@ Diez minutos, sin humanos de nuestro lado. Cada paso se puede saltar y retomar.
    etiquetas, respuestas rápidas y tres automatizaciones. Muestra el "antes" (cómo
    trabaja hoy, en sus palabras) y el "después" (el CRM propuesto). Un botón: "Armar
    mi CRM". Todo se puede editar después.
-3. **Conectar WhatsApp.** *Partner invitation* de Zavu: el cliente entra con Facebook y
-   conecta su número en 5 minutos. Si aún no tiene WhatsApp Business, el flujo lo
-   guía. Mientras tanto, el webchat ya funciona.
+3. **Conectar WhatsApp.** El alta es el Embedded Signup de Zernio (ADR-0032): el
+   enlace lo entrega el equipo de IAxTi y el cliente conecta su número en minutos.
+   Mientras tanto, el webchat ya funciona.
 4. **Conocimiento.** Sube un PDF, pega el catálogo o escribe sus tres preguntas más
    frecuentes con respuesta. Opcional, pero el copiloto lo pide cuando no sabe algo.
 5. **Equipo.** Invita por correo o WhatsApp con rol sugerido. Opcional.
@@ -482,7 +482,7 @@ la IA no sepan de dónde viene un mensaje.
 
 **Reglas de negocio**
 
-- WhatsApp conecta por *partner invitation* de Zavu; el número es del cliente. Un tenant
+- WhatsApp conecta por el alta de Zernio (ADR-0032); el número es del cliente. Un tenant
   tiene tantos números como su plan permita.
 - Webhooks verifican firma, se encolan en `inbound` y responden 200 en menos de
   un segundo. El procesamiento es idempotente por id de mensaje del proveedor.
@@ -809,7 +809,7 @@ auditado con `actor_kind = superadmin`.
 - **Seguridad:** logins fallidos, permisos denegados, IPs bloqueadas, abuso de API,
   webhooks fallidos, números en calidad baja.
 - **Audit:** explorador global con todos los filtros.
-- **Salud:** api, workers, agents, Postgres, Redis, colas, Zavu, Google, Gemini,
+- **Salud:** api, workers, agents, Postgres, Redis, colas, Zernio, Google, Gemini,
   proveedor de pagos.
 - **Permisos:** `platform.tenants`, `platform.plans`, `platform.modules`,
   `platform.ai`, `platform.security`, `platform.audit`, `platform.health`.
@@ -935,7 +935,7 @@ antes de implementar.
 | Datos | Supabase Cloud (región São Paulo): Postgres + pgvector, RLS, Auth (Google, MFA), Realtime, PITR | Postgres en el VPS vía Dokploy solo si el costo obliga; Cloud SQL o dedicado si un cliente exige residencia |
 | Cómputo | Docker → **VPS con Dokploy**: api, workers, agents desde una imagen construida en GitHub Actions y publicada en GHCR | Segundo VPS → Docker Swarm multi-nodo (Dokploy) → Cloud Run / GKE + Helm. Misma imagen en todas las etapas (sección 36) |
 | Colas | BullMQ sobre Redis (contenedor Dokploy con AOF) | Redis gestionado cuando haya más de un nodo |
-| Canales | Zavu detrás de `ChannelProvider`: WhatsApp, Instagram y Messenger con un envelope y una firma | Proveedor propio ante Meta en Fase 7, cuando el gatillo del #82 se cumpla |
+| Canales | Zernio detrás de `ChannelProvider` (ADR-0032, #1338): WhatsApp por cuenta y perfil propios | Proveedor propio ante Meta en Fase 7, cuando el gatillo del #82 se cumpla |
 | LLM | Gemini por la Developer API (tier pago) con `@ai-sdk/google` | Vertex AI por residencia o contrato; segundo proveedor por configuración del agente (sección 40) |
 | Observabilidad | Sentry + OpenTelemetry → Grafana Cloud + Langfuse Cloud | Langfuse self-hosted por contrato |
 | Borde | Cloudflare delante del VPS (proxy, WAF, rate limit) | — |
@@ -1434,8 +1434,9 @@ Reglas:
 - **Feature flags** para lo que llega a main sin estar listo: el flag del módulo
   (sección 26) o un flag de feature en `organizations`. Main siempre es
   desplegable.
-- **Webhooks externos en staging:** número de prueba de Zavu y proveedor de pagos en modo
-  test apuntan al dominio de staging. Nunca un número real en staging.
+- **Webhooks externos en staging:** apuntan al dominio de staging. El número de WhatsApp
+  es el REAL de VoxTi — decisión deliberada (#593): un WhatsApp de verdad se
+  prueba contra lo que va a pasar, y el riesgo aceptado está en seguridad.md.
 - **Semver:** `fix:` → patch, `feat:` → minor, `feat!:` o ADR que rompe contrato →
   major. El changelog se genera desde los títulos de PR.
 - **Hotfix:** rama `fix/<n>-…` desde main, mismo camino, sin atajos. Si main tiene
@@ -1579,7 +1580,7 @@ se verifican al contratar y se anotan en `docs/COSTS.md` con la fecha.
 | **Total** | | **~100–120 · ~130–150 desde fase 3** |
 
 Variables, con tope por tenant y traspasados al plan (sección 6): tokens de Gemini
-y conversaciones de Meta vía Zavu. Son los únicos costos que crecen con los
+y conversaciones de Meta vía Zernio. Son los únicos costos que crecen con los
 clientes; todo lo demás es plano hasta la etapa 2 del camino de escalado.
 
 Reglas:

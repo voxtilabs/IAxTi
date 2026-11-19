@@ -1,4 +1,3 @@
-import { partnerPorts, processPartnerInvitation, maintainPartnerInvitations } from '@iaxti/module-whatsapp';
 import './instrument';
 import { createServer } from 'node:http';
 import { createPool, degradarSinRomper, exigeRolQueRespetaRls, withTenant } from '@iaxti/db';
@@ -23,12 +22,6 @@ import {
 import { REPETIBLES } from './repetibles';
 import { sinSolaparse, candadoEnRedis } from './sin-solaparse';
 import { processInbound, type InboundJob } from './inbound';
-import {
-  idDelJobDePerfil,
-  marcaEnRedis,
-  resolverNombreDePerfil,
-  type PerfilJob,
-} from './perfil-de-whatsapp';
 
 /**
  * Baja un archivo del negocio por su llave, para reindexar un PDF (#522).
@@ -49,7 +42,6 @@ function bajarDelNegocio(tenantId: string) {
 }
 import { DelayUntilError, cerrarEnvioAbandonado, processOutbound } from './outbound';
 import { createOutboundPublisher, outboundRequestConsumers } from './outbound-dispatch';
-import { processDeliveryStatuses, type DeliveryStatusJob } from './delivery';
 import { processQualityUpdates, type QualityUpdateJob } from './quality';
 import { realtimeConsumers } from './realtime';
 import {
@@ -61,7 +53,7 @@ import {
   sendMessage,
   tenantsWithRetention,
 } from '@iaxti/module-conversations';
-import { detachSessionsFromConversations } from '@iaxti/module-webchat';
+import { detachSessionsFromConversations, webchatProvider } from '@iaxti/module-webchat';
 import { notificationConsumers } from '@iaxti/module-notifications';
 import {
   barrerRecordatorios,
@@ -86,9 +78,8 @@ import {
   sweepConversationAlerts,
   sweepDueActivities,
 } from './sweeps';
-import { sincronizarPlantillas } from './plantillas-sync';
-import { createZavuProvider, createZernioProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
-import { getProvider, proveedorDe, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
+import { createZernioProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
+import { proveedorDe, proveedoresDeCuentas, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
   expireSources,
@@ -146,14 +137,15 @@ function start(): void {
   // whatsapp por su nombre, saltándose el puerto entero. O sea que el
   // proceso que de verdad envía mensajes era el que menos usaba la
   // abstracción que nos deja cambiar de proveedor.
-  if (!getProvider('simulador')) registerProvider(simuladorProvider);
+  //
+  // Simulador y webchat bajo SU nombre y Zernio como transporte de WhatsApp
+  // (#1339): la comparación de «¿ya está?» usa el mismo par (proveedor,
+  // canal) con el que registra.
+  if (!proveedorDe({ kind: 'simulador', provider: 'simulador' })) registerProvider(simuladorProvider);
   for (const kind of ['whatsapp', 'instagram', 'messenger'] as const) {
-    if (!getProvider(kind)) registerProvider(createZavuProvider(kind));
-    // Zernio al lado, no en lugar (ADR-0032): una cuenta llega acá solo si
-    // declara `provider = 'zernio'`. Zavu sigue siendo el por omisión, así
-    // que ninguna cuenta existente cambia de camino.
     if (!proveedorDe({ kind, provider: 'zernio' })) registerProvider(createZernioProvider(kind));
   }
+  if (!proveedorDe({ kind: 'webchat', provider: 'webchat' })) registerProvider(webchatProvider);
   const registry = new ModuleRegistry().load();
   const pool = createPool();
   // Igual que la API (issue 211): un rol que se salta RLS no sirve. Los
@@ -387,13 +379,11 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
           if (n + pasos > 0) console.log(`scheduled: ${n} reglas y ${pasos} pasos de secuencia`);
           return { ran: n, steps: pasos, campanas: colgadas.length };
         }
-        // Plantillas colgadas (#44): si se perdió el webhook de Meta, la
-        // plantilla se queda "en revisión" para siempre. Se pregunta.
-        case 'whatsapp.templates.sync': {
-          const r = await sincronizarPlantillas(pool);
-          if (r.cambiadas > 0) console.log(`plantillas: ${r.cambiadas} resueltas de ${r.revisadas} en revisión`);
-          return r;
-        }
+        // Plantillas colgadas (#44): la sincronización contra el proveedor era
+        // un barrido a Zavu y se fue con Zavu (#1339). Zernio todavía no
+        // publica plantillas (grupo `publishing`, #1338): cuando las publique,
+        // el caso vuelve con su adaptador — el estado local "en revisión" es
+        // el mismo y la consulta es por el puerto de plantillas del canal.
         // Muestras de primera respuesta (#66): mediana/p90 sin barrer en vivo.
         case 'analytics.response_samples': {
           const n = await sweepResponseSamples(pool);
@@ -420,10 +410,6 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
         // motivo era cierto cuando se escribió —hacía falta la plantilla
         // aprobada (#44) y el número conectado— y dejó de serlo sin que
         // nadie volviera a mirar.
-        case 'identity.partner.maintain': {
-          if (!process.env.ZAVU_PARTNER_PROJECT_ID?.trim()) return;
-          return maintainPartnerInvitations(pool, partnerPorts(() => registry.isActive('whatsapp') && registry.isActive('channels')));
-        }
         case 'calendar.google.maintain': {
           return mantenerWatchesGoogle(pool);
         }
@@ -432,8 +418,11 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
         }
         case 'calendar.reminders': {
           const res = await barrerRecordatorios(pool, {
-            // Del AMBIENTE: sin llave del proveedor no sale nada de nada.
-            disponible: () => Boolean(process.env.ZAVU_API_KEY),
+            // Del AMBIENTE: con las llaves por cuenta de Zernio (#1338) no hay
+            // una llave global que mirar — lo que dice si ESTE despliegue puede
+            // mandar es si tiene alguna cuenta viva. La llave de cada cuenta se
+            // comprueba al enviar, y si falta queda su motivo a la vista.
+            disponible: () => proveedoresDeCuentas(pool).then((p) => p.includes('zernio')),
             // Del NEGOCIO: la plantilla del recordatorio es suya. Sin
             // ella, sus citas no se tocan — marcarlas `reminded` sin
             // mandar nada es peor que no marcarlas, porque `reminded` se
@@ -827,58 +816,23 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
       }
     })();
 
-    /**
-     * La cola `sync` (SPEC §28): lo que se le pregunta a un proveedor DESPUÉS
-     * de que el trabajo del negocio ya está hecho.
-     *
-     * Hoy la estrena el nombre de perfil de WhatsApp (#1170). Va acá y no en
-     * `inbound` por una razón medible: `inbound` corre de a uno —BullMQ nace
-     * con `concurrency: 1`— y por ella pasan los estados de entrega, los
-     * webhooks de pago y los avisos de Google Calendar. Una espera de hasta 4 s
-     * a un tercero en esa ranura atrasa TODO lo que viene detrás; acá no atrasa
-     * nada y además corre en paralelo.
-     *
-     * El mismo criterio por el que `scheduled` fija su concurrencia y
-     * `outbound` NO la fija: en `outbound` el paralelismo cambiaría el orden en
-     * que llegan los mensajes de una conversación. Acá no hay orden que
-     * respetar: son consultas independientes, una por contacto.
-     */
-    const redisPerfil = redisConnection();
-    const marcaDePerfil = marcaEnRedis(redisPerfil);
-    const syncQueue = createQueue('sync', redisConnection());
-    const syncWorker = createModuleWorker(
-      'sync',
-      registry,
-      async (job) => {
-        if (job.name === 'whatsapp.perfil') {
-          return resolverNombreDePerfil(pool, job.data as unknown as PerfilJob, {
-            marca: marcaDePerfil,
-          });
-        }
-        return { ignorado: job.name };
-      },
-      redisConnection(),
-    );
-    syncWorker.concurrency = enteroDeEntorno('WORKERS_SYNC_CONCURRENCY', 5);
-    trabajadores.push({ nombre: 'cola sync', worker: syncWorker });
-    console.log('workers: worker de cola sync activo');
-
     // El camino de entrada de mensajes (#35/#36): simulador y WhatsApp por
     // la misma cola. Los estados de entrega del webhook llegan aquí también.
+    //
+    // La cola `sync` —lo que se le pregunta a un proveedor DESPUÉS del
+    // trabajo del negocio— se fue con su único usuario, el nombre de perfil
+    // de WhatsApp (#1170), que era una consulta a Zavu (#1339). El patrón
+    // queda escrito acá para el próximo que lo necesite: va en su propia
+    // cola y no en `inbound`, porque `inbound` corre de a uno —BullMQ nace con
+    // `concurrency: 1`— y una espera a un tercero en esa ranura atrasa TODO
+    // lo que viene detrás.
     const agentsQueue = createQueue('agents', redisConnection());
     const inboundWorker = createModuleWorker(
       'inbound',
       registry,
       async (job) => {
-        if (job.name === 'whatsapp.partner') {
-          const data=job.data as unknown as {tenantId:string;invitationId:string};
-          return processPartnerInvitation(pool,data.tenantId,data.invitationId,partnerPorts(()=>registry.isActive('whatsapp')&&registry.isActive('channels')));
-        }
         if (job.name === 'google-calendar.push') {
           return procesarPushGoogle(pool, job.data as unknown as { tenantId: string; channelId: string; resourceId: string; messageNumber: string });
-        }
-        if (job.name === 'delivery-status') {
-          return processDeliveryStatuses(pool, job.data as unknown as DeliveryStatusJob);
         }
         if (job.name === 'quality-update') {
           return processQualityUpdates(pool, job.data as unknown as QualityUpdateJob);
@@ -888,17 +842,7 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
           return processPaymentWebhook(pool, job.data as unknown as PaymentWebhookJob);
         }
         const data = job.data as unknown as InboundJob;
-        /**
-         * El nombre de perfil se ENCOLA, no se espera (#1170).
-         *
-         * `jobId` por contacto y ventana: dos mensajes seguidos de la misma
-         * persona no encolan dos consultas. Es la misma idempotencia que ya usa
-         * el webhook con `in-${account.id}-${providerMessageId}`; el por qué de
-         * la ventana está en `idDelJobDePerfil`.
-         */
-        const res = await processInbound(pool, data, async (perfil) => {
-          await syncQueue.add('whatsapp.perfil', perfil, { jobId: idDelJobDePerfil(perfil) });
-        });
+        const res = await processInbound(pool, data);
 
         /**
          * Las reglas de entrada, ANTES de que el bot conteste (#720).

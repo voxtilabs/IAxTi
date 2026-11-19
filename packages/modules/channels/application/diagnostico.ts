@@ -180,8 +180,8 @@ function pasoDeEnviosReales(
       `El ambiente es "${ambiente ?? 'sin declarar'}" y este canal está conectado con una ` +
       'credencial de producción: lo que se escriba le llega de verdad a quien esté del otro lado.',
     queHacer:
-      'Es a propósito si alguien declaró ZAVU_ENVIOS_REALES. Si no lo esperabas, ' +
-      'desconecta el canal antes de que alguien responda una conversación.',
+      'Es a propósito si alguien marcó envíos reales al conectar el número. Si no lo ' +
+      'esperabas, desconecta el canal antes de que alguien responda una conversación.',
   };
 }
 

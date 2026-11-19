@@ -16,7 +16,6 @@ import {
 } from '@iaxti/module-channels';
 import type { ChannelProvider } from '@iaxti/module-channels';
 import { DelayUntilError, processOutbound } from '../src/outbound';
-import { processDeliveryStatuses } from '../src/delivery';
 import { applyQualityUpdate, connectWhatsAppNumber, createTemplate, marcarEnviadaARevision, aplicarEstadoDelProveedor, enviarPlantilla } from '@iaxti/module-whatsapp';
 
 // La salida completa (#43) con un adaptador falso detrás del puerto:
@@ -322,40 +321,13 @@ describe('pausa por calidad (#45)', () => {
   });
 });
 
-describe('estados del webhook (#43)', () => {
-  it('delivered y read con costo quedan en el mensaje; failed trae causa legible', async () => {
-    modo = 'ok';
-    const messageId = await nuevoSaliente();
-    const enviado = await processOutbound(admin, redis, jobPara(messageId, { initiatedByBusiness: false }));
-    const wamid = enviado.providerMessageId!;
-
-    const res = await processDeliveryStatuses(admin, {
-      tenantId: tenant,
-      statuses: [
-        { providerMessageId: wamid, status: 'delivered', cost: { category: 'service' } },
-        { providerMessageId: wamid, status: 'read' },
-        { providerMessageId: 'wamid.ajeno', status: 'read' },
-      ],
-    });
-    expect(res.applied).toBe(2);
-    const fila = await admin.query('SELECT delivery_status, meta FROM messages WHERE id = $1', [messageId]);
-    expect(fila.rows[0].delivery_status).toBe('read');
-    expect(fila.rows[0].meta.costo).toMatchObject({ category: 'service' });
-
-    // failed con código de Meta → causa en español para la bandeja.
-    const fallado = await nuevoSaliente();
-    const conWamid = await processOutbound(admin, redis, jobPara(fallado, { initiatedByBusiness: false }));
-    await processDeliveryStatuses(admin, {
-      tenantId: tenant,
-      statuses: [
-        { providerMessageId: conWamid.providerMessageId!, status: 'failed', errorCode: 131026 },
-      ],
-    });
-    const filaFallada = await admin.query('SELECT delivery_status, meta FROM messages WHERE id = $1', [fallado]);
-    expect(filaFallada.rows[0].delivery_status).toBe('failed');
-    expect(filaFallada.rows[0].meta.error).toBe('El número no tiene WhatsApp.');
-  });
-
+describe('el negocio apagado no habla, la persona sí', () => {
+  // El consumidor de estados del webhook se fue con Zavu (#1339): Zernio
+  // todavía no publica `message.delivered` ni sus hermanos, y sin productor
+  // un consumidor es la mitad de una prueba. El día que Zernio los publique,
+  // el describe de estados vuelve — la maquinaria (`updateDeliveryStatusByProviderId`
+  // en conversations) quedó adentro, y el punto de enchufe está nombrado en
+  // el webhook de la API.
   it('impago: en solo lectura salen las respuestas manuales, NO lo del negocio', async () => {
     // El estado se escribe a mano: la máquina de dominio ya está probada
     // en organizations, acá lo que importa es que alguien la OBEDEZCA.

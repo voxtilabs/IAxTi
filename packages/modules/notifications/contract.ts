@@ -13,7 +13,7 @@ export {
 export type { Notification, NotificationType, Preference } from './application/notifications';
 export { notificationConsumers, handleNotifiableEvent } from './application/consumers';
 export type { Transportes } from './application/consumers';
-export { renderEmail, resolveUserEmail, sendNotificationEmail, resetSmtp } from './application/email';
+export { renderEmail, sendNotificationEmail, resetSmtp } from './application/email';
 export {
   registerPushSubscription,
   // Archiva, no borra (#698): nada se borra desde la interfaz (SPEC §39).

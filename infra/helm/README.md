@@ -40,8 +40,8 @@ kubectl -n iaxti create secret generic iaxti-env \
   --from-literal=SUPABASE_URL='...' \
   --from-literal=SUPABASE_ANON_KEY='...' \
   --from-literal=SUPABASE_JWKS_URL='...' \
-  --from-literal=ZAVU_API_KEY='...' \
-  --from-literal=ZAVU_WEBHOOK_SECRET='...'
+  --from-literal=ZERNIO_LLAVE_<NEGOCIO>='...' \
+  --from-literal=ZERNIO_WEBHOOK_SECRET_<NEGOCIO>='...'
 ```
 
 ## 3. Ensayo antes del despliegue

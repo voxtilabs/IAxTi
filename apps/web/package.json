@@ -8,8 +8,7 @@
     "e2e": "node e2e/run-e2e.mjs",
     "start": "next start",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "e2e:partner": "node e2e/run-partner.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@iaxti/sdk": "workspace:*",

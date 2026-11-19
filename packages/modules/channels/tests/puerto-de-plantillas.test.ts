@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  getProvider,
+  proveedorDe,
   registerProvider,
   resetProviders,
   type ChannelProvider,
@@ -34,6 +34,7 @@ function proveedorInventado(): ChannelProvider & { plantillas: PuertoDePlantilla
   const creadas: PlantillaDelProveedor[] = [];
   return {
     kind: 'whatsapp',
+    proveedor: 'inventado',
     send: async () => ({ providerMessageId: 'x' }),
     verifyWebhook: () => true,
     normalize: () => [],
@@ -67,7 +68,10 @@ afterEach(() => resetProviders());
 describe('el puerto de plantillas', () => {
   it('un proveedor que no es Zavu cumple el ciclo entero', async () => {
     registerProvider(proveedorInventado());
-    const plantillas = getProvider('whatsapp')!.plantillas!;
+    // Se resuelve POR DECLARACION: la puerta del por-omision se retiro con
+    // getProvider (#1339); probar la salida del intermediario por esa puerta
+    // seria medir el camino que ya no existe.
+    const plantillas = proveedorDe({ kind: 'whatsapp', provider: 'inventado' })!.plantillas!;
 
     const creada = await plantillas.crear(CUENTA, {
       name: 'recordatorio_cita',
@@ -91,7 +95,7 @@ describe('el puerto de plantillas', () => {
     // dependencia por otra puerta: el que venga después tendría que
     // implementar la forma de Zavu para encajar.
     registerProvider(proveedorInventado());
-    const t = await getProvider('whatsapp')!.plantillas!.crear(CUENTA, {
+    const t = await proveedorDe({ kind: 'whatsapp', provider: 'inventado' })!.plantillas!.crear(CUENTA, {
       name: 'x',
       language: 'es',
       body: 'y',
@@ -108,10 +112,11 @@ describe('el puerto de plantillas', () => {
     // que permite que existan sin fingir una capacidad que no tienen.
     registerProvider({
       kind: 'webchat',
+      proveedor: 'webchat',
       send: async () => ({ providerMessageId: 'x' }),
       verifyWebhook: () => true,
       normalize: () => [],
     });
-    expect(getProvider('webchat')!.plantillas).toBeUndefined();
+    expect(proveedorDe({ kind: 'webchat', provider: 'webchat' })!.plantillas).toBeUndefined();
   });
 });

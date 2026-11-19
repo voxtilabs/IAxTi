@@ -22,12 +22,11 @@ import {
   type ResultadoDeWebhook,
 } from '@iaxti/module-channels';
 import type { Pool } from 'pg';
-import { entrantesSinTelefono, eventoDeZernioEsDeLaCuenta, normalizeQualityUpdates, normalizeStatuses } from '@iaxti/module-whatsapp';
+import { entrantesSinTelefono, eventoDeZernioEsDeLaCuenta } from '@iaxti/module-whatsapp';
 import { apiPool } from './db';
 import { conReintentoDeConexion, esFalloDeConexion } from './lib/arranque-en-frio';
 import type { WithRequestId } from './request-id';
 import type { Response } from 'express';
-import { cuentaDeWebhookZavu } from './cuenta-de-webhook-zavu';
 
 // El webhook base (#41, SPEC §12): verifica FIRMA sobre el cuerpo crudo,
 // encola en `inbound` y responde en menos de un segundo. La idempotencia
@@ -118,12 +117,12 @@ export class WebhooksController {
         message: 'No pudimos atender este webhook ahora. Reintenta en unos segundos.',
       });
     });
-    let account = cuenta;
+    const account = cuenta;
     // Cuenta inexistente y firma mala responden IGUAL: nada que sondear.
     if (!account) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
-    // Zavu puede entregar entre habilitar su webhook y confirmar active local.
+    // Zernio puede entregar entre habilitar su webhook y confirmar active local.
     // Todavía no existe una referencia visible/confirmada: no atribuirlo a
     // firma inválida (401 no promete reentrega), ni aceptar el mensaje.
     if(account.state==='connecting') {
@@ -134,7 +133,6 @@ export class WebhooksController {
       response.setHeader('Retry-After','5');
       throw new ServiceUnavailableException({code:'WEBHOOK_NOT_READY',message:'La conexión aún se está confirmando. Reintenta la entrega.'});
     }
-    const primaria = account;
     // El de la cuenta que recibe (ADR-0032): la firma se verifica con el
     // proveedor que la atiende, no con el que esté registrado para el canal.
     const provider = proveedorDe(account);
@@ -166,7 +164,7 @@ export class WebhooksController {
         message: 'La firma del webhook no calza.',
       });
     }
-    const esZernio = primaria.provider === 'zernio';
+    const esZernio = account.provider === 'zernio';
     if (esZernio) {
       /**
        * La firma prueba que el evento es de Zernio; esto, que es de ESTA
@@ -176,29 +174,26 @@ export class WebhooksController {
        * Un evento ajeno con la firma buena es un webhook mal atado, no un
        * secreto malo, y se anota aparte para que el diagnóstico lo distinga.
        */
-      const veredicto = eventoDeZernioEsDeLaCuenta(request.body, primaria);
+      const veredicto = eventoDeZernioEsDeLaCuenta(request.body, account);
       if (!veredicto.ok && veredicto.prueba) {
         // La muestra de `POST /v1/webhooks/test`: URL y secreto están bien, y
         // es todo lo que dice. No trae un mensaje que encolar.
-        await anotar(primaria.tenantId, primaria.id, 'aceptado');
+        await anotar(account.tenantId, account.id, 'aceptado');
         return { received: 0, statuses: 0 };
       }
       if (!veredicto.ok) {
-        console.warn(`webhook: evento de Zernio rechazado en la cuenta ${primaria.id}: ${veredicto.motivo}`);
-        await anotar(primaria.tenantId, primaria.id, 'perfil_ajeno');
+        console.warn(`webhook: evento de Zernio rechazado en la cuenta ${account.id}: ${veredicto.motivo}`);
+        await anotar(account.tenantId, account.id, 'perfil_ajeno');
         throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
       }
     }
-    // El sobre de Zavu puede elegir otro canal del mismo emisor; uno de
-    // Zernio no, porque su suscripción es de UNA cuenta.
-    const destino = esZernio
-      ? primaria
-      : await withTenant(pool, primaria.tenantId, (c) => cuentaDeWebhookZavu(c, primaria, request.body));
-    if (!destino || destino.state === 'disconnected' || destino.state === 'connecting') {
-      await anotar(primaria.tenantId, primaria.id, 'cuenta_desconectada');
+    // La suscripción de Zernio es de UNA cuenta: lo autenticado es lo
+    // recibido. (El sobre de Zavu podía elegir otro canal del mismo emisor;
+    // ese camino se fue con Zavu, #1339.)
+    if (account.state === 'disconnected') {
+      await anotar(account.tenantId, account.id, 'cuenta_desconectada');
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Nada por aquí.' });
     }
-    account = { ...destino, webhookSecretRef: primaria.webhookSecretRef };
     await anotar(account.tenantId, account.id, 'aceptado');
     if (esZernio) {
       // Un mensaje sin teléfono no entra a la bandeja (#1331), pero tampoco se
@@ -214,7 +209,7 @@ export class WebhooksController {
       }
     }
 
-    const mensajes = (proveedorDe(account) ?? provider).normalize(
+    const mensajes = provider.normalize(
       (request as unknown as { body: unknown }).body,
     );
     const queue = inboundQueue();
@@ -241,61 +236,11 @@ export class WebhooksController {
         });
       }
     };
-    // Estados de entrega (#43): sent/delivered/read/failed del proveedor. Los
-    // tres canales de Zavu comparten envelope, así que comparten estados.
-    const CANALES_ZAVU = ['whatsapp', 'instagram', 'messenger'];
-    // Solo del sobre de Zavu: el de Zernio tiene otra forma, y leerlo con
-    // este parser es inventar estados.
-    const statuses = !esZernio && CANALES_ZAVU.includes(account.kind)
-      ? normalizeStatuses((request as unknown as { body: unknown }).body)
-      : [];
-    if (statuses.length > 0) {
-      const primer = statuses[0];
-      await encolar(() => queue.add(
-        'delivery-status',
-        {
-          moduleId: 'conversations',
-          tenantId: account.tenantId,
-          statuses,
-          // Para resolver el eco (#1265): con qué credencial preguntarle a
-          // Zavu por un id desconocido, y a qué emisor pertenece el hilo.
-          channelAccountId: account.id,
-          requestId: request.requestId,
-        },
-        { jobId: `st-${account.id}-${primer.providerMessageId}-${primer.status}-${statuses.length}` },
-      ));
-    }
-    // Calidad del número (#45): rating y límite de Meta.
-    //
-    // Acá se le pasa el cuerpo TAL CUAL, y el módulo decide por forma si es el
-    // sobre de Zavu o el webhook crudo de Meta. Antes esto alimentaba un parser
-    // que solo entendía el formato de Meta, así que con Zavu en medio devolvía
-    // siempre vacío y el freno del #45 no se activaba nunca (ver el comentario
-    // largo en `normalizeQualityUpdates`). Zavu todavía no publica un evento de
-    // calidad: hoy esta rama no dispara, y queda porque el día del proveedor
-    // propio (#82) —o el día que Zavu lo publique— es el único lugar donde hay
-    // que enchufarlo.
-    const quality = !esZernio && account.kind === 'whatsapp'
-      ? normalizeQualityUpdates((request as unknown as { body: unknown }).body)
-      : [];
-    if (quality.length > 0) {
-      // La identidad del número manda en el jobId, y con Zavu es el senderId:
-      // interpolar solo `phoneNumberId` metía un "undefined" en la llave y dos
-      // avisos de números distintos colapsaban en el mismo job — BullMQ ignora
-      // el segundo y ese cambio de calidad se perdía sin dejar rastro.
-      const primer = quality[0];
-      const identidad = primer.senderId ?? primer.phoneNumberId;
-      await encolar(() => queue.add(
-        'quality-update',
-        {
-          moduleId: 'whatsapp',
-          tenantId: account.tenantId,
-          updates: quality,
-          requestId: request.requestId,
-        },
-        { jobId: `q-${account.id}-${identidad}-${primer.quality ?? primer.messagingLimit}` },
-      ));
-    }
+    // Estados de entrega (#43) y calidad del número (#45): Zernio todavía no
+    // publica ninguno de los dos eventos. Cuando los publique, es acá donde
+    // se encolan — el freno por calidad roja queda listo en
+    // `applyQualityUpdate` (módulo whatsapp) y el eco de estados en el worker
+    // de conversaciones.
     let queued = 0;
     for (const m of mensajes) {
       // jobId = idempotencia: BullMQ ignora un add con id repetido.
@@ -320,6 +265,6 @@ export class WebhooksController {
       ));
       queued++;
     }
-    return { received: queued, statuses: statuses.length };
+    return { received: queued, statuses: 0 };
   }
 }

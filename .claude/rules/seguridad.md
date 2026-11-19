@@ -30,15 +30,16 @@
   haya datos de prueba (ADR-0011, enmienda). OJO: staging está conectado al
   número real de VoxTi, así que ese "solo datos de prueba" es una condición
   aceptada a sabiendas y se revisa con el primer cliente real.
-- **Corrección (#593):** esta nota decía antes "porque Zavu no ofrece sandbox".
-  Es falso: Zavu tiene llaves `zv_test_` de sandbox y una pantalla de números
-  verificados. La decisión de usar el número real es DELIBERADA —un WhatsApp de
-  verdad se comporta distinto que un simulador, y el producto se prueba contra
-  lo que va a pasar—, no una limitación del proveedor. Se sostenía un riesgo
-  aceptado con un motivo equivocado, y un motivo equivocado no se puede revisar.
-- Mandar de verdad fuera de producción se declara con `ZAVU_ENVIOS_REALES=1`, y
-  NUNCA falseando `IAXTI_ENV`: esa variable la leen el aislamiento por tenant
-  (`rls.ts`), el `environment` de Sentry y los links de pago. El canal queda
-  marcado y el diagnóstico lo muestra primero.
+- **La decisión de usar el número real en staging es DELIBERADA (#593):** un
+  WhatsApp de verdad se comporta distinto que un simulador, y el producto se
+  prueba contra lo que va a pasar. Esta nota se sostuvo un tiempo con el
+  motivo equivocado de que el proveedor no ofrecía sandbox — falso, tenía
+  llaves de prueba— y un motivo equivocado no se puede revisar: se corrigió el
+  motivo y la decisión quedó parada sobre el suyo de verdad.
+- Mandar de verdad fuera de producción se declara al DAR DE ALTA el número
+  (`enviosReales`, que el script `conectar-zernio.mjs` prende con
+  `ZERNIO_ENVIOS_REALES=1`) y NUNCA falseando `IAXTI_ENV`: esa variable la
+  leen el aislamiento por tenant (`rls.ts`), el `environment` de Sentry y los
+  links de pago. El canal queda marcado y el diagnóstico lo muestra primero.
 - Si el PR toca auth, datos personales, tools o webhooks: `/security-review`
   antes de pedir merge, y actualizar la fila en COMPLIANCE_BASELINE.md.

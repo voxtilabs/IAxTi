@@ -80,8 +80,8 @@ beforeAll(async () => {
       senderId: 'snd_587',
       phoneNumberId: 'pn_587',
       displayPhone: '+56911110000',
-      credentialRef: 'ZAVU_API_KEY',
-      webhookSecretRef: 'ZAVU_WEBHOOK_SECRET',
+      credentialRef: 'ZERNIO_LLAVE_PRUEBAS',
+      webhookSecretRef: 'ZERNIO_WEBHOOK_PRUEBAS',
     }),
   );
   accountId = conectado.account.id;
