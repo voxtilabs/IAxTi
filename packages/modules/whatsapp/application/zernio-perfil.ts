@@ -44,6 +44,7 @@ import { ErrorDeZernio, llamarAZernio, type ConfigDeZernio } from './zernio-base
 /** Lo que trae cada evento de la bandeja de Zernio para saber de quién es. */
 interface SobreDeZernio {
   test?: boolean;
+  event?: string;
   account?: { id?: string; accountId?: string; profileId?: string };
   profiles?: Array<{ id?: string; externalId?: string | null }>;
 }
@@ -81,7 +82,16 @@ export function eventoDeZernioEsDeLaCuenta(payload: unknown, cuenta: CuentaDeZer
   // Solo una petición con la firma de Zernio llega hasta acá, así que `test`
   // lo puso Zernio. Las muestras traen ids inventados: se reconocen antes de
   // compararlas, porque sirven para comprobar el webhook y no deben crear nada.
-  if (sobre.test === true) return { ok: false, prueba: true };
+  // `POST /v1/webhooks/test` tiene dos modos y los dos son muestra: pedirlo
+  // CON `event` manda una muestra de ese evento marcada con `test: true`
+  // (spec v1.679, `WebhookPayloadMessage.test`), y pedirlo pelado manda el
+  // payload `webhook.test` — sin cuenta y sin perfiles, porque solo dice
+  // «URL y secreto andan» (`WebhookPayloadTest`). El pelado es el botón
+  // «Probar» a secas del panel, y como no trae cuenta caía a la comparación
+  // de abajo y respondíamos 404: la prueba del webhook quedaba fallida
+  // aunque el webhook anduviera (medido el 19-11 contra el número real,
+  // #1362).
+  if (sobre.test === true || sobre.event === 'webhook.test') return { ok: false, prueba: true };
 
   const esperadaCuenta = cuenta.config.zernioAccountId;
   const esperadoPerfil = cuenta.config.zernioProfileId;
