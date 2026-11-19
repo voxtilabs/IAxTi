@@ -12,119 +12,26 @@ export type NumberQuality = 'green' | 'yellow' | 'red';
 /**
  * Un cambio de calidad ya traducido a NUESTRO vocabulario.
  *
- * La identidad del número es el `senderId` de Zavu (ADR-0014): es lo único que
- * el proveedor nos da y lo único que `conectarSender` guarda. `phoneNumberId`
- * —el id de Meta— queda NULL en toda cuenta conectada por Zavu; solo aparece en
- * filas antiguas de Meta directo y el día del proveedor propio (#82).
+ * La identidad del número es el `senderId` del proveedor: es lo que la cuenta
+ * guarda al conectar. `phoneNumberId` —el id de Meta— es el respaldo de las
+ * filas antiguas y del proveedor propio del futuro (#82).
  *
  * Los dos son opcionales porque según de dónde venga el aviso llega uno o el
  * otro, pero tiene que venir UNO: sin identidad no hay número que actualizar.
  * Antes este campo era `phoneNumberId: string` obligatorio, y eso escondía el
  * problema: el tipo prometía una identidad que en la práctica era `undefined`.
+ *
+ * Cómo LLEGA un aviso hasta acá: el día que un proveedor publique eventos de
+ * calidad (#1339 dejó el enchufe listo en el webhook — la rama de producción
+ * se agrega cuando exista el evento), su adaptador traduce el sobre a esta
+ * forma y encola. Mientras tanto el freno se activa a mano con
+ * `applyQualityUpdate`.
  */
 export interface QualityUpdate {
   senderId?: string;
   phoneNumberId?: string;
   quality?: NumberQuality;
   messagingLimit?: string;
-}
-
-interface MetaQualityChange {
-  field?: string;
-  value?: {
-    metadata?: { phone_number_id?: string };
-    phone_number_id?: string;
-    display_phone_number?: string;
-    event?: string; // FLAGGED | WARNED | UNFLAGGED | UPGRADE | DOWNGRADE | …
-    current_limit?: string;
-    quality_score?: { score?: string };
-  };
-}
-
-const CALIDAD_POR_EVENTO: Record<string, NumberQuality> = {
-  FLAGGED: 'red',
-  RESTRICTED: 'red',
-  WARNED: 'yellow',
-  UNFLAGGED: 'green',
-  VERIFIED: 'green',
-};
-
-/**
- * El sobre de Zavu: `{id, type, timestamp, senderId, projectId, data}`. Lo
- * específico de cada evento vive en `data` y NUNCA en `entry[].changes[]`.
- */
-interface SobreZavu {
-  type?: string;
-  senderId?: string;
-  data?: Record<string, unknown>;
-}
-
-/**
- * ¿Es el sobre de Zavu y no el webhook crudo de la Cloud API de Meta?
- *
- * Se distingue por forma, que es lo único que tenemos en el momento de leer:
- * Meta manda `entry[]` y Zavu manda `type` + `data`. Un sobre de Zavu no tiene
- * `entry`, y por eso el parser de Meta devolvía [] sobre él sin quejarse.
- */
-function esSobreZavu(payload: unknown): payload is SobreZavu {
-  if (typeof payload !== 'object' || payload === null) return false;
-  const p = payload as Record<string, unknown>;
-  return !Array.isArray(p.entry) && (typeof p.type === 'string' || 'data' in p);
-}
-
-/**
- * Los cambios de calidad/límite que trae un webhook (#45).
- *
- * POR QUÉ ESTO NO ERA UNA FUNCIÓN SINO UN ADORNO: hasta este fix leía
- * `payload.entry[].changes[]` con `field === 'phone_number_quality_update'`,
- * que es el webhook CRUDO de la Cloud API de Meta. Pero lo que llega a
- * `/webhooks/channels/:accountId` desde #42 es el SOBRE DE ZAVU, que no tiene
- * `entry`: la función devolvía lista vacía SIEMPRE, sin error que lo delatara,
- * y todo el freno del #45 —«en rojo se pausa lo del negocio»— quedaba inerte
- * mientras Meta bajaba el número de la pyme a rojo.
- *
- * Ahora se decide por forma y cada rama dice la verdad sobre lo que puede leer.
- */
-export function normalizeQualityUpdates(payload: unknown): QualityUpdate[] {
-  if (esSobreZavu(payload)) {
-    // Zavu HOY no publica ningún evento de calidad de número: su catálogo
-    // (skill webhook-setup) va de `message.*` y `conversation.new` a
-    // `broadcast.status_changed`, `template.status_changed`,
-    // `invitation.status_changed` y `domain.*`, y nada sobre el rating del
-    // número. Es coherente con ADR-0014: el `phone_number_quality_update` de
-    // Meta llega a la app de Zavu, no a la nuestra.
-    //
-    // Así que acá no hay formato que leer, y adivinar los nombres de campo de
-    // un evento que no existe sería peor que no tenerlo: se vería probado y
-    // seguiría sin funcionar. La rama queda explícita —vacío A PROPÓSITO, no
-    // por descuido— y la pregunta (¿cómo nos enteramos de la calidad con Zavu
-    // en medio?) va al dueño del producto. Mientras no se responda, el freno
-    // se activa a mano: `applyQualityUpdate` ya ubica el número por `senderId`.
-    return [];
-  }
-  // Webhook crudo de la Cloud API de Meta: identidad por `phone_number_id`.
-  // No llega por ninguna cuenta de hoy (todas las de WhatsApp son de Zavu) y
-  // se conserva probado para el proveedor propio (#82) y para cualquier número
-  // de los antiguos, que sí tienen `phone_number_id` en la base.
-  const cuerpo = (payload ?? {}) as { entry?: Array<{ changes?: MetaQualityChange[] }> };
-  const out: QualityUpdate[] = [];
-  for (const entry of cuerpo.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      if (change.field !== 'phone_number_quality_update') continue;
-      const v = change.value ?? {};
-      const phoneNumberId = v.phone_number_id ?? v.metadata?.phone_number_id;
-      if (!phoneNumberId) continue;
-      const score = v.quality_score?.score?.toLowerCase();
-      const quality =
-        score === 'green' || score === 'yellow' || score === 'red'
-          ? (score as NumberQuality)
-          : v.event
-            ? CALIDAD_POR_EVENTO[v.event.toUpperCase()]
-            : undefined;
-      out.push({ phoneNumberId, quality, messagingLimit: v.current_limit });
-    }
-  }
-  return out;
 }
 
 /** Lo que este caso de uso necesita de la fila; el resto no se mira. */

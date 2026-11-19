@@ -1,151 +1,159 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { randomUUID } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Pool } from 'pg';
-import { createPool, runMigrations, withTenant } from '@iaxti/db';
-import { createTenant } from '@iaxti/module-organizations';
-import { createLocalSecretStore } from '@iaxti/google';
-import { partnerPorts } from '../application/partner-provider';
-import { startPartnerInvitation, partnerStatus } from '../application/partner-invitations';
+import { createLocalSecretStore, type GoogleSecretStore } from '@iaxti/google';
+import { isChannelSecretRef } from '@iaxti/module-channels';
+import { resolveChannelWebhookSecret, secretStoreDelCanal } from '../application/webhook-secret';
 
 /**
- * El enlace del alta, con la custodia que de VERDAD se usa (#1253).
+ * El secreto del canal, con la custodia que de VERDAD se usa (#1253, ADR-0028).
  *
- * Lo que pasaba, medido contra Zavu con un negocio creado desde cero: la
- * invitación se pedía bien, el enlace se guardaba bien —`link_ready` en ok— y
- * leerlo de vuelta fallaba —`link_accessed` en error—. El negocio recibía un
- * 503 que le decía «revisa la conexión», que es falso, y no podía conectar su
- * número nunca.
+ * Lo que pasaba, medido con un negocio creado desde cero: el flujo de invitación
+ * guardaba el enlace bien, y leerlo de vuelta fallaba. El negocio recibía un
+ * error que le decía «revisa la conexión», que era falso. La causa: el validador
+ * de referencias solo aceptaba la forma de Google Secret Manager
+ * (`projects/<p>/secrets/<n>/versions/<v>`), y la custodia de la v1 es el disco
+ * cifrado del VPS, que produce `custodia-local/secrets/<n>/versions/<v>`.
  *
- * La causa: `isLinkRef` solo aceptaba `projects/<p>/secrets/<n>/versions/<v>`,
- * la forma de Google Secret Manager. ADR-0028 dice que en v1 la custodia es el
- * disco cifrado del VPS, que produce `custodia-local/secrets/<n>/versions/<v>`.
+ * Ese flujo de invitaciones se fue con Zavu (#1339), pero la mitad que fallaba
+ * quedó: `webhook-secret.ts` es hoy la única traducción de la referencia de la
+ * cuenta a secreto, y el webhook la usa en CADA entrega. Acá se prueba con el
+ * almacén local, que es el del despliegue real — probarla con un Secret Manager
+ * de mentira sería medir el backend que producción NO usa, que es justo cómo el
+ * defecto original pasó inadvertido.
  *
- * Y por qué `partner.test.ts` no lo cazó: monta un Secret Manager falso, o
- * sea prueba el backend que producción NO usa. Esta corre el mismo flujo con
- * el almacén local, que es el del despliegue real.
+ * La otra forma que hoy puede tener la referencia: un NOMBRE DE VARIABLE. Es
+ * la que deja el alta de Zernio — `conectar-zernio.mjs` imprime
+ * `NOMBRE=secreto` para que quien configura la escriba en el entorno.
  */
-const URL_BASE = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
-let pool: Pool;
-let directorio: string;
-let ports: ReturnType<typeof partnerPorts>;
-let servidor: ReturnType<typeof crearZavuFalso>;
+const TENANT = '11111111-1111-4111-8111-111111111111';
 
-/** Un Zavu mínimo: lo único que hace falta es que devuelva una invitación. */
-function crearZavuFalso() {
-  const invitaciones = new Map<string, Record<string, unknown>>();
-  const original = globalThis.fetch;
-  globalThis.fetch = (async (entrada: unknown, init?: RequestInit) => {
-    const url = String(entrada);
-    // Lo primero que hace el flujo es comprobar el proyecto y el ambiente
-    // (`/me`). Sin esto todo cae con PARTNER_RESOURCE_GONE y la prueba
-    // parecería hablar del enlace cuando en realidad no llegó nunca ahí.
-    if (url.endsWith('/me')) {
-      return new Response(
-        JSON.stringify({ project: { id: 'proy_de_prueba', name: 'Prueba' }, isTestMode: true }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      );
-    }
-    if (url.endsWith('/invitations') && init?.method === 'POST') {
-      const id = `inv_${randomUUID().replaceAll('-', '')}`;
-      // La forma exacta que exige `invitationFrom`: envuelta en `invitation`
-      // y con `connectionType`. Sin eso el flujo queda en `ambiguous`, que es
-      // «no sé si se creó» — otro estado, otra prueba.
-      const cuerpo = {
-        invitation: {
-          id,
-          connectionType: 'whatsapp_waba',
-          status: 'pending',
-          url: `https://dashboard.zavu.dev/invite/${id}`,
-          expiresAt: new Date(Date.now() + 7 * 86400_000).toISOString(),
-        },
-      };
-      invitaciones.set(id, cuerpo);
-      return new Response(JSON.stringify(cuerpo), { status: 200, headers: { 'content-type': 'application/json' } });
-    }
-    const m = /\/invitations\/([^/?]+)$/.exec(url);
-    if (m && invitaciones.has(m[1]!)) {
-      return new Response(JSON.stringify(invitaciones.get(m[1]!)), { status: 200, headers: { 'content-type': 'application/json' } });
-    }
-    return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
-  }) as typeof fetch;
-  return { restaurar: () => { globalThis.fetch = original; } };
-}
+let directorio: string;
+const HABIA_DIR = process.env.GOOGLE_SECRET_DIR;
+const HABIA_KEY = process.env.GOOGLE_SECRET_KEY;
 
 beforeAll(async () => {
-  pool = createPool(URL_BASE);
-  await runMigrations(pool);
   directorio = await mkdtemp(join(tmpdir(), 'custodia-'));
-  for (const [k, v] of Object.entries({
-    ZAVU_PARTNER_PROJECT_ID: 'proy_de_prueba',
-    ZAVU_PARTNER_API_URL: 'https://api.example.test',
-    ZAVU_PARTNER_WEBHOOK_SECRET: 'firma_de_prueba',
-    ZAVU_API_KEY: 'llave_de_prueba',
-    ZAVU_API_BASE: 'https://zavu.example.test/v1',
-    // Las dos que eligen el disco cifrado: es la custodia de ADR-0028 en v1.
-    GOOGLE_SECRET_DIR: directorio,
-    GOOGLE_SECRET_KEY: Buffer.alloc(32, 7).toString('base64'),
-    IAXTI_ENV: 'test',
-  })) vi.stubEnv(k, v);
-  ports = partnerPorts(() => true);
-  // Explícito aunque `partnerPorts` ya la elija: si mañana cambia el defecto,
-  // esta prueba tiene que seguir midiendo la custodia local.
-  ports.secrets = createLocalSecretStore({ directorio, clave: Buffer.alloc(32, 7).toString('base64') });
-  servidor = crearZavuFalso();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  // La custodia se elige por entorno, y otras suites corren sobre el mismo
+  // proceso: sin esto, la que sigue leería una custodia prestada.
+  if (HABIA_DIR === undefined) delete process.env.GOOGLE_SECRET_DIR;
+  else process.env.GOOGLE_SECRET_DIR = HABIA_DIR;
+  if (HABIA_KEY === undefined) delete process.env.GOOGLE_SECRET_KEY;
+  else process.env.GOOGLE_SECRET_KEY = HABIA_KEY;
 });
 
 afterAll(async () => {
-  servidor?.restaurar();
-  await pool?.end();
   if (directorio) await rm(directorio, { recursive: true, force: true });
 });
 
-describe('el enlace del alta con la custodia del VPS (#1253)', () => {
-  it('se guarda y se puede volver a leer', async () => {
-    const tenant = await withTenant(pool, randomUUID(), (c) => createTenant(c, { name: 'Barbería de prueba' }));
-    const actor = { tenantId: tenant.id, actor: randomUUID(), actorKind: 'user' as const, key: randomUUID() };
+const CLAVE = Buffer.alloc(32, 7).toString('base64');
 
-    const inicio = await startPartnerInvitation(pool, actor, ports);
-    expect(inicio.phase).toBe('pending');
+describe('la custodia del canal es la del VPS (ADR-0028, #1253)', () => {
+  it('con GOOGLE_SECRET_DIR y GOOGLE_SECRET_KEY el almacén guarda y lee de vuelta', async () => {
+    vi.stubEnv('GOOGLE_SECRET_DIR', directorio);
+    vi.stubEnv('GOOGLE_SECRET_KEY', CLAVE);
 
-    // Lo que fallaba: `partnerStatus` lee el enlace de vuelta y lo rechazaba
-    // por malformado. Que `url` venga es la prueba entera.
-    const estado = await partnerStatus(pool, tenant.id, ports, actor);
-    expect(estado.url).toMatch(/^https:\/\/dashboard\.zavu\.dev\/invite\//);
+    const ref = await secretStoreDelCanal().put('iaxti-canal-prueba', 'secreto-del-webhook');
+    // La referencia es la del DISCO, no la de Google Cloud: si dejara de ser
+    // así, esta prueba estaría midiendo el otro backend otra vez sin que
+    // nadie lo note.
+    expect(ref).toMatch(/^custodia-local\/secrets\/iaxti-canal-prueba\/versions\/\d+$/);
+    expect(await secretStoreDelCanal().access(ref)).toBe('secreto-del-webhook');
+  });
 
-    // Y la referencia guardada es la del disco, no la de Secret Manager: si
-    // esto dejara de ser cierto, la prueba estaría midiendo el otro backend
-    // otra vez sin que nadie lo note.
-    const fila = await pool.query(
-      'SELECT url_ref FROM whatsapp_partner_invitations WHERE tenant_id=$1',
-      [tenant.id],
-    );
-    expect(fila.rows[0].url_ref).toMatch(/^custodia-local\/secrets\//);
+  it('explícita aunque ya la elige el entorno: la prueba mide el disco, no la selección', async () => {
+    vi.stubEnv('GOOGLE_SECRET_DIR', directorio);
+    vi.stubEnv('GOOGLE_SECRET_KEY', CLAVE);
+    const local = createLocalSecretStore({ directorio, clave: CLAVE });
+
+    const ref = await local.put('iaxti-canal-explicito', 'otro-secreto');
+    expect(await local.access(ref)).toBe('otro-secreto');
+  });
+
+  it('sin custodia configurada dice QUÉ falta: el webhook lo traduce en su 503', () => {
+    delete process.env.GOOGLE_SECRET_DIR;
+    delete process.env.GOOGLE_SECRET_KEY;
+    // Lanza sincrónico, antes de cualquier await: el camino real lo envuelve,
+    // acá se mira directo.
+    expect(() => secretStoreDelCanal()).toThrow(/GOOGLE_SECRET_DIR/);
+  });
+});
+
+describe('el secreto del webhook se resuelve por SU referencia (#1175)', () => {
+  const CUENTA = 'cuenta-1';
+  const cuenta = { tenantId: TENANT, id: CUENTA, webhookSecretRef: null as string | null };
+
+  it('un nombre de variable se lee del entorno: así deja el alta su secreto', async () => {
+    vi.stubEnv('ZERNIO_WEBHOOK_SECRET_PRUEBA', 'secreto-de-prueba');
+    const secreto = await resolveChannelWebhookSecret({
+      ...cuenta,
+      webhookSecretRef: 'ZERNIO_WEBHOOK_SECRET_PRUEBA',
+    });
+    expect(secreto).toBe('secreto-de-prueba');
   });
 
   /**
-   * Lo que el validador SÍ tiene que seguir rechazando. Aflojar el prefijo
-   * del backend no puede aflojar de quién es el secreto: el nombre lleva el
-   * id de la invitación, y es lo único que impide que un negocio lea el
-   * enlace de otro.
+   * La referencia `sm:` es la que generaba el servidor para ESTA cuenta: el
+   * nombre lleva el tenant y la cuenta, y es lo único que impide que un
+   * negocio lea el secreto de otro. La misma forma, apuntando a otra cuenta,
+   * no se toca.
    */
-  it('no acepta la referencia de OTRA invitación, aunque el formato sea válido', async () => {
-    const a = await withTenant(pool, randomUUID(), (c) => createTenant(c, { name: 'Negocio A' }));
-    const b = await withTenant(pool, randomUUID(), (c) => createTenant(c, { name: 'Negocio B' }));
-    const actorA = { tenantId: a.id, actor: randomUUID(), actorKind: 'user' as const, key: randomUUID() };
-    const actorB = { tenantId: b.id, actor: randomUUID(), actorKind: 'user' as const, key: randomUUID() };
-    await startPartnerInvitation(pool, actorA, ports);
-    await startPartnerInvitation(pool, actorB, ports);
+  const prefijoDe = (account: string) =>
+    `iaxti-zavu-${TENANT.replaceAll('-', '')}-${account.replaceAll('-', '')}-`;
+  const refDe = (account: string) =>
+    `sm:projects/proy-de-prueba/secrets/${prefijoDe(account)}${'a'.repeat(32)}/versions/1`;
 
-    const refA = (
-      await pool.query('SELECT url_ref FROM whatsapp_partner_invitations WHERE tenant_id=$1', [a.id])
-    ).rows[0].url_ref as string;
-    await pool.query('UPDATE whatsapp_partner_invitations SET url_ref=$2 WHERE tenant_id=$1', [b.id, refA]);
+  it('la forma es la válida solo para su cuenta: el validador lo dice primero', () => {
+    expect(isChannelSecretRef(refDe(CUENTA), TENANT, CUENTA)).toBe(true);
+    expect(isChannelSecretRef(refDe('cuenta-2'), TENANT, CUENTA)).toBe(false);
+  });
 
-    await expect(partnerStatus(pool, b.id, ports, actorB)).rejects.toMatchObject({
-      code: 'PARTNER_LINK_UNAVAILABLE',
-    });
+  it('la referencia de ESTA cuenta se abre con el almacén', async () => {
+    const accesos: string[] = [];
+    const tienda = {
+      access: async (ref: string) => {
+        accesos.push(ref);
+        return 'secreto-guardado';
+      },
+    } as unknown as GoogleSecretStore;
+
+    const ref = refDe(CUENTA);
+    const secreto = await resolveChannelWebhookSecret({ ...cuenta, webhookSecretRef: ref }, tienda);
+
+    expect(secreto).toBe('secreto-guardado');
+    // Al almacén llega la referencia SIN el prefijo `sm:`.
+    expect(accesos).toEqual([ref.slice(3)]);
+  });
+
+  it('no acepta la referencia de OTRA cuenta, aunque el formato sea válido', async () => {
+    const accesos: string[] = [];
+    const tienda = {
+      access: async (ref: string) => {
+        accesos.push(ref);
+        return 'secreto-ajeno';
+      },
+    } as unknown as GoogleSecretStore;
+
+    const secreto = await resolveChannelWebhookSecret(
+      { ...cuenta, webhookSecretRef: refDe('cuenta-2') },
+      tienda,
+    );
+
+    // Sin secreto y SIN tocar el almacén: pedir y descartar sería leer el
+    // secreto de otro negocio para botarlo.
+    expect(secreto).toBeUndefined();
+    expect(accesos).toEqual([]);
+  });
+
+  it('sin referencia no hay secreto, y no se inventa uno', async () => {
+    expect(await resolveChannelWebhookSecret({ ...cuenta, webhookSecretRef: null })).toBeUndefined();
+    expect(
+      await resolveChannelWebhookSecret({ ...cuenta, webhookSecretRef: 'una-cosa-cualquiera' }),
+    ).toBeUndefined();
   });
 });

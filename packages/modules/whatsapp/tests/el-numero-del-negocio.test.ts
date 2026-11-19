@@ -1,56 +1,49 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
-import { EVENTOS_WEBHOOK, conectarSender, type SenderZavu } from '../application/conectar';
+import { proveedorDe, registerProvider } from '@iaxti/module-channels';
+import { darDeAltaCuentaDeZernio } from '../application/zernio-perfil';
+import { createZernioProvider } from '../application/zernio';
 
 /**
- * Dónde queda el número del negocio, y qué eventos le pedimos a Zavu.
+ * Dónde queda el número del negocio.
  *
- * `conectarSender` guardaba `input.sender.name` en `display_phone`: el nombre
- * verificado del negocio («Ferretería El Sol») en una columna que se llama
- * teléfono y que la interfaz muestra en mono, donde mono significa «este es el
- * dato duro». Dos consecuencias: el dueño no podía ver desde qué número sale su
- * campaña —ese es el único lugar donde el número aparece— y lo que veía en su
- * lugar se leía como si lo fuera.
+ * `display_phone` es lo único donde la interfaz muestra desde qué número sale
+ * el WhatsApp del negocio — y en mono, que en esta casa significa «este es el
+ * dato duro». El defecto que esta prueba cuida es el de siempre: que caiga
+ * otra cosa en esa columna, como el nombre comercial del emisor, que se lee
+ * como si fuera el número y no lo es. El dato lo trae el alta: el operador
+ * conecta con `--numero` y `darDeAltaCuentaDeZernio` lo guarda tal cual.
  *
- * El dato SÍ venía: el emisor de Zavu trae su `phoneNumber` en E.164. Lo
- * ignorábamos y poníamos otro encima, que es peor que no tenerlo.
- *
- * Y de paso: la lista de eventos del `PATCH /senders/{id}` omitía
- * `message.unsupported`, el único evento de categoría Inbound que dejábamos
- * fuera. Lo que no está en esa lista no llega, así que el mensaje no se veía y
- * la ventana de 24 h no se renovaba.
+ * El alta es la de Zernio (#1321): la cuenta nace declarando su proveedor con
+ * `zernioAccountId` y `zernioProfileId` — eso lo prueba
+ * `la-cuenta-de-zernio-es-de-un-negocio.test.ts`; acá lo que importa es la
+ * columna del número.
  */
 const ADMIN_URL = process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti';
 
 let admin: Pool;
 let tenant: string;
 
-/** Un emisor como el que responde Zavu: nombre comercial Y teléfono. */
-const conNumero: SenderZavu = {
-  id: 'snd_numero',
-  name: 'Ferretería El Sol',
-  phoneNumber: '+56922013949',
-  channels: ['whatsapp'],
-};
-
-/** Y uno que no trae el teléfono: la columna queda vacía, no inventada. */
-const sinNumero: SenderZavu = {
-  id: 'snd_sin_numero',
-  name: 'Ferretería El Sol',
-  channels: ['whatsapp'],
-};
-
-function llamarZavu() {
-  return vi
-    .fn()
-    .mockResolvedValueOnce({}) // PATCH del sender
-    .mockResolvedValueOnce({ secret: 'whsec_secreto' }); // rotación
-}
+const alta = (senderId: string, displayPhone?: string) =>
+  withTenant(admin, tenant, (c) =>
+    darDeAltaCuentaDeZernio(c, {
+      tenantId: tenant,
+      nombre: 'WhatsApp del negocio',
+      zernioAccountId: senderId,
+      zernioProfileId: 'prof_numero_negocio',
+      ...(displayPhone ? { displayPhone } : {}),
+      credentialRef: 'ZERNIO_LLAVE_NEGOCIO',
+      webhookSecretRef: 'ZERNIO_WEBHOOK_SECRET_NEGOCIO',
+    }),
+  );
 
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
   await runMigrations(admin);
+  // `createChannelAccount` comprueba que el proveedor declarado tenga
+  // adaptador en ESTE proceso, como lo hace la API al arrancar.
+  if (!proveedorDe({ kind: 'whatsapp', provider: 'zernio' })) registerProvider(createZernioProvider('whatsapp'));
   const t = await admin.query(
     "INSERT INTO tenants (name, plan) VALUES ('numero-del-negocio', 'equipo') RETURNING id",
   );
@@ -58,80 +51,32 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await admin.query('DELETE FROM whatsapp_numbers WHERE tenant_id = $1', [tenant]);
-  await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [tenant]);
-  await admin.query('DELETE FROM outbox WHERE tenant_id = $1', [tenant]);
+  for (const tabla of ['whatsapp_numbers', 'channel_senders', 'channel_accounts', 'outbox']) {
+    await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
+  }
   await sinTriggers(admin, (c) => c.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]));
   await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });
 
 describe('en display_phone va el teléfono', () => {
-  it('guarda el número del emisor, no su nombre comercial', async () => {
-    const res = await withTenant(admin, tenant, (c) =>
-      conectarSender(c, {
-        tenantId: tenant,
-        nombre: 'WhatsApp Ferretería',
-        sender: conNumero,
-        baseUrl: 'https://api-staging.iaxti.cl',
-        credentialRef: 'ZAVU_API_KEY',
-        webhookSecretRef: 'ZAVU_WEBHOOK_SECRET',
-        llamar: llamarZavu(),
-      }),
-    );
+  it('guarda el número que trae el alta, tal cual', async () => {
+    const { account } = await alta('acc_con_numero', '+56922013949');
 
-    expect(res.number.displayPhone).toBe('+56922013949');
-    // Y no el nombre, que es lo que estaba quedando ahí.
-    expect(res.number.displayPhone).not.toBe('Ferretería El Sol');
-
-    // En la base también: es lo que la app lee para mostrar el número.
     const fila = await admin.query(
-      'SELECT display_phone FROM whatsapp_numbers WHERE tenant_id = $1 AND sender_id = $2',
-      [tenant, conNumero.id],
+      'SELECT display_phone FROM whatsapp_numbers WHERE tenant_id = $1 AND channel_account_id = $2',
+      [tenant, account.id],
     );
     expect(fila.rows[0].display_phone).toBe('+56922013949');
   });
 
   it('sin teléfono queda NULL: un nulo se ve, un nombre se cree', async () => {
-    const res = await withTenant(admin, tenant, (c) =>
-      conectarSender(c, {
-        tenantId: tenant,
-        nombre: 'WhatsApp Sucursal',
-        sender: sinNumero,
-        baseUrl: 'https://api-staging.iaxti.cl',
-        credentialRef: 'ZAVU_API_KEY',
-        webhookSecretRef: 'ZAVU_WEBHOOK_SECRET',
-        llamar: llamarZavu(),
-      }),
-    );
-    expect(res.number.displayPhone).toBeNull();
-  });
-});
+    const { account } = await alta('acc_sin_numero');
 
-describe('los eventos que se le piden al emisor', () => {
-  it('incluye message.unsupported: los tres eventos de entrada', () => {
-    // Lo que no está en esta lista no llega, y no enterarse de un mensaje no se
-    // descubre leyendo el código: se descubre cuando el cliente reclama.
-    for (const evento of ['message.inbound', 'conversation.new', 'message.unsupported']) {
-      expect(EVENTOS_WEBHOOK).toContain(evento);
-    }
-  });
-
-  it('y viaja en el PATCH que se le manda a Zavu al conectar', async () => {
-    const llamar = llamarZavu();
-    await withTenant(admin, tenant, (c) =>
-      conectarSender(c, {
-        tenantId: tenant,
-        nombre: 'WhatsApp Eventos',
-        sender: { ...conNumero, id: 'snd_eventos' },
-        baseUrl: 'https://api-staging.iaxti.cl',
-        credentialRef: 'ZAVU_API_KEY',
-        webhookSecretRef: 'ZAVU_WEBHOOK_SECRET',
-        llamar,
-      }),
+    const fila = await admin.query(
+      'SELECT display_phone FROM whatsapp_numbers WHERE tenant_id = $1 AND channel_account_id = $2',
+      [tenant, account.id],
     );
-    const [ruta, init] = llamar.mock.calls[0];
-    expect(ruta).toBe('/senders/snd_eventos');
-    expect(init.body.webhookEvents).toContain('message.unsupported');
+    expect(fila.rows[0].display_phone).toBeNull();
   });
 });

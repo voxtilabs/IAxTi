@@ -1,50 +1,64 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import IORedis from 'ioredis';
-import { registerProvider, getProvider } from '@iaxti/module-channels';
-import { createZavuProvider } from '../application/zavu';
-import { deliverOutbound } from '../application/outbound';
+import { registerProvider, resetProviders } from '@iaxti/module-channels';
+import { createZernioProvider } from '../application/zernio';
+import { deliverOutbound, esPermanente } from '../application/outbound';
+import type { OutboundJobData } from '../application/outbound';
 
 /**
- * La llave de idempotencia sale en el cuerpo HTTP (#1273).
+ * La llave de idempotencia sale en la petición HTTP (#1273, #585).
  *
  * `deliverOutbound` armaba el mensaje campo por campo y se saltaba
- * `messageId`, así que el POST a Zavu iba sin `idempotencyKey`. Lo que eso
- * cuesta lo dice el comentario de `zavu.ts` en quince líneas: si Zavu acepta
- * el mensaje y la respuesta se pierde —un timeout, la red—, BullMQ reintenta
- * y **el cliente recibe el mismo mensaje dos veces**. Se paga dos veces y se
- * gastan dos del tope diario.
+ * `messageId`, así que el envío iba sin `Idempotency-Key`. Lo que eso cuesta:
+ * si el proveedor acepta el mensaje y la respuesta se pierde —un timeout, la
+ * red—, BullMQ reintenta y **el cliente recibe el mismo mensaje dos veces**.
+ * Se paga dos veces y se gastan dos del tope diario.
  *
  * La prueba entra por `deliverOutbound` —el camino real del producto— y mira
- * el CUERPO de la petición HTTP.
+ * la CABECERA de la petición HTTP. Con Zernio la llave es una cabecera
+ * (`Idempotency-Key`) y no un campo del cuerpo, y la ruta del hilo la exige:
+ * sin ella el adaptador no manda nada.
  *
- * Las dos cosas hacen falta, y lo comprobé equivocándome primero: escribí
- * estas pruebas llamando a `provider.send` directo, con el `messageId` puesto
- * a mano, y **pasaban igual con el defecto**. Claro: el agujero no estaba en
- * `send`, estaba en quien lo llama. Medir el argumento que yo mismo paso no
+ * Las dos cosas hacen falta, y lo comprobó la versión original equivocándose
+ * primero: pruebas que llamaban a `provider.send` directo, con el `messageId`
+ * puesto a mano, pasaban igual con el defecto. Claro: el agujero no estaba en
+ * `send`, estaba en quien lo llama. Medir el argumento que uno mismo pasa no
  * prueba nada; es la versión de pruebas del `curl` que prohíbe
  * `.claude/rules/testing.md`.
  */
 const original = globalThis.fetch;
+beforeEach(() => {
+  // El registro es estado de proceso: cada caso arma el suyo desde cero, como
+  // lo hace el worker al arrancar, con el adaptador de Zernio registrado para
+  // el par (proveedor, canal) que declara la cuenta.
+  resetProviders();
+  registerProvider(createZernioProvider('whatsapp'));
+});
 afterEach(() => {
   globalThis.fetch = original;
   vi.unstubAllEnvs();
+  resetProviders();
 });
 
-/** Intercepta la salida y devuelve el cuerpo del POST a `/messages`. */
-function interceptar(): { cuerpos: Record<string, unknown>[] } {
-  const cuerpos: Record<string, unknown>[] = [];
+/** Intercepta la salida y guarda las cabeceras del POST a la ruta del hilo. */
+function interceptar(): { llaves: Array<string | undefined>; urls: string[] } {
+  const llaves: Array<string | undefined> = [];
+  const urls: string[] = [];
   globalThis.fetch = (async (entrada: unknown, init?: RequestInit) => {
-    if (String(entrada).endsWith('/messages') && init?.method === 'POST') {
-      cuerpos.push(JSON.parse(String(init.body)));
+    const url = String(entrada);
+    if (url.includes('/messages') && init?.method === 'POST') {
+      urls.push(url);
+      llaves.push(((init.headers ?? {}) as Record<string, string>)['idempotency-key']);
     }
     return {
       ok: true,
       status: 200,
-      json: async () => ({ message: { id: `zv_${randomUUID().replaceAll('-', '')}` } }),
+      text: async () =>
+        JSON.stringify({ success: true, data: { messageId: `wamid_${randomUUID()}`, conversationId: 'hilo' } }),
     } as unknown as Response;
   }) as unknown as typeof fetch;
-  return { cuerpos };
+  return { llaves, urls };
 }
 
 /** Lo mínimo que usa `checkNumberRateLimit`: contar y poner vencimiento. */
@@ -55,26 +69,34 @@ const cuenta = {
   id: randomUUID(),
   tenantId: randomUUID(),
   kind: 'whatsapp' as const,
-  credentialRef: 'ZAVU_LLAVE_DE_PRUEBA',
-  config: { senderId: 'snd_prueba' },
+  name: 'WhatsApp de prueba',
+  state: 'active' as const,
+  provider: 'zernio' as const,
+  credentialRef: 'ZERNIO_LLAVE_DE_PRUEBA',
+  config: { zernioAccountId: `cuenta_zernio_${randomUUID().slice(0, 8)}` },
 };
 
-if (!getProvider("whatsapp")) registerProvider(createZavuProvider());
-
 describe('la llave de idempotencia llega al proveedor (#1273)', () => {
-  it('el POST lleva idempotencyKey con NUESTRO id del mensaje', async () => {
-    vi.stubEnv('ZAVU_LLAVE_DE_PRUEBA', 'llave');
-    const { cuerpos } = interceptar();
+  it('el envío lleva Idempotency-Key con NUESTRO id del mensaje', async () => {
+    vi.stubEnv('ZERNIO_LLAVE_DE_PRUEBA', 'llave');
+    const { llaves, urls } = interceptar();
     const nuestroId = randomUUID();
 
-    await deliverOutbound(
-      cuenta as never,
-      { messageId: nuestroId, to: '+56911112222', type: 'texto', body: 'Tu cotización' } as never,
-      redisFalso(),
-    );
+    await deliverOutbound(cuenta, {
+      tenantId: cuenta.tenantId,
+      channelAccountId: cuenta.id,
+      messageId: nuestroId,
+      to: '+56911112222',
+      type: 'texto',
+      body: 'Tu cotización',
+      initiatedByBusiness: true,
+      providerThreadId: 'hilo-1',
+    }, redisFalso());
 
-    expect(cuerpos).toHaveLength(1);
-    expect(cuerpos[0].idempotencyKey).toBe(nuestroId);
+    expect(llaves).toHaveLength(1);
+    expect(llaves[0]).toBe(nuestroId);
+    // Y fue a la ruta del hilo, que es la que deduplica por esta llave.
+    expect(urls[0]).toContain('/v1/inbox/conversations/hilo-1/messages');
   });
 
   /**
@@ -83,33 +105,54 @@ describe('la llave de idempotencia llega al proveedor (#1273)', () => {
    * llave, y por eso el proveedor puede reconocerlos.
    */
   it('dos intentos del mismo mensaje llevan la misma llave', async () => {
-    vi.stubEnv('ZAVU_LLAVE_DE_PRUEBA', 'llave');
-    const { cuerpos } = interceptar();
+    vi.stubEnv('ZERNIO_LLAVE_DE_PRUEBA', 'llave');
+    const { llaves } = interceptar();
     const nuestroId = randomUUID();
-    const job = { messageId: nuestroId, to: '+56911112222', type: 'texto', body: 'Tu cotización' };
+    const job = {
+      tenantId: cuenta.tenantId,
+      channelAccountId: cuenta.id,
+      messageId: nuestroId,
+      to: '+56911112222',
+      type: 'texto',
+      body: 'Tu cotización',
+      initiatedByBusiness: true,
+      providerThreadId: 'hilo-1',
+    };
 
-    await deliverOutbound(cuenta as never, job as never, redisFalso());
-    await deliverOutbound(cuenta as never, job as never, redisFalso());
+    await deliverOutbound(cuenta, job, redisFalso());
+    await deliverOutbound(cuenta, job, redisFalso());
 
-    expect(cuerpos).toHaveLength(2);
-    expect(cuerpos[0].idempotencyKey).toBe(cuerpos[1].idempotencyKey);
-    expect(cuerpos[0].idempotencyKey).toBe(nuestroId);
+    expect(llaves).toHaveLength(2);
+    expect(llaves[0]).toBe(llaves[1]);
+    expect(llaves[0]).toBe(nuestroId);
   });
 
   /**
-   * Y sin id, el campo NO viaja vacío: mandar `idempotencyKey: undefined` o
-   * una cadena vacía es peor que no mandarlo, porque el proveedor podría
-   * tratarla como una llave real compartida por todos.
+   * Y sin id, NADA sale: mandar una llave inventada —un random, la hora, o
+   * una cadena vacía que el proveedor podría tratar como compartida— es peor
+   * que no mandar, porque un reintento con otra llave duplica el mensaje que
+   * la llave existía para evitar.
+   *
+   * El TIPO de `OutboundJobData` exige el `messageId`, y este casteo no lo
+   * invalida: los jobs llegan deserializados de Redis, donde el tipo es una
+   * promesa y no un chequeo. El que cuida la frontera en tiempo de ejecución
+   * es el adaptador, y esto comprueba que sigue ahí.
    */
-  it('sin id, el campo no viaja con un valor inventado', async () => {
-    vi.stubEnv('ZAVU_LLAVE_DE_PRUEBA', 'llave');
-    const { cuerpos } = interceptar();
-    await deliverOutbound(
-      cuenta as never,
-      { messageId: undefined, to: '+56911112222', type: 'texto', body: 'sin id' } as never,
-      redisFalso(),
-    );
-    const llave = cuerpos[0].idempotencyKey;
-    expect(llave === undefined || llave === null).toBe(true);
+  it('sin id, el envío no se hace: mejor no mandar que duplicar', async () => {
+    vi.stubEnv('ZERNIO_LLAVE_DE_PRUEBA', 'llave');
+    const { llaves } = interceptar();
+
+    const error = await deliverOutbound(cuenta, {
+      tenantId: cuenta.tenantId,
+      channelAccountId: cuenta.id,
+      to: '+56911112222',
+      type: 'texto',
+      body: 'sin id',
+      initiatedByBusiness: true,
+      providerThreadId: 'hilo-1',
+    } as OutboundJobData, redisFalso()).catch((e: unknown) => e);
+
+    expect(llaves).toHaveLength(0);
+    expect(esPermanente(error)).toBe(true);
   });
 });

@@ -4,7 +4,6 @@ import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
 import {
   applyQualityUpdate,
   isBusinessPaused,
-  normalizeQualityUpdates,
   numeroEnRojo,
   resumeBusinessSends,
 } from '../application/quality';
@@ -17,10 +16,12 @@ let admin: Pool;
 let tenant: string;
 let numero: string;
 let cuenta: string;
-// Un tenant aparte con un número EXACTAMENTE como lo deja Zavu: con sender_id
-// y con phone_number_id en NULL, que es lo que hacía inútil la búsqueda vieja.
-let tenantZavu: string;
-let cuentaZavu: string;
+// Un tenant aparte con un número EXACTAMENTE como lo deja el alta del
+// proveedor (Zernio): con sender_id y con phone_number_id en NULL, que es lo
+// que hacía inútil la búsqueda vieja. El parser de eventos de calidad se fue
+// con Zavu (#1339); el freno que aplica estos avisos sigue enchufado a mano.
+let tenantSinIdsDeMeta: string;
+let cuentaSinIdsDeMeta: string;
 
 async function eventos(nombre: string, deTenant = tenant): Promise<number> {
   const r = await admin.query(
@@ -52,26 +53,27 @@ beforeAll(async () => {
   cuenta = res.account.id;
 
   const t2 = await admin.query(
-    "INSERT INTO tenants (name) VALUES ('quality-test-zavu') RETURNING id",
+    "INSERT INTO tenants (name) VALUES ('quality-test-sin-meta') RETURNING id",
   );
-  tenantZavu = t2.rows[0].id;
-  await admin.query("UPDATE tenants SET plan = 'crece' WHERE id = $1", [tenantZavu]);
-  const zavu = await withTenant(admin, tenantZavu, (c) =>
+  tenantSinIdsDeMeta = t2.rows[0].id;
+  await admin.query("UPDATE tenants SET plan = 'crece' WHERE id = $1", [tenantSinIdsDeMeta]);
+  const sinMeta = await withTenant(admin, tenantSinIdsDeMeta, (c) =>
     connectWhatsAppNumber(c, {
-      tenantId: tenantZavu,
-      name: 'Calidad por Zavu',
-      // Sin phoneNumberId a propósito: es lo que `conectarSender` produce, y
-      // por eso la búsqueda por phone_number_id no encontraba nada.
-      senderId: 'snd_calidad_zavu',
+      tenantId: tenantSinIdsDeMeta,
+      name: 'Calidad sin ids de Meta',
+      // Sin phoneNumberId a propósito: es lo que produce el alta del proveedor
+      // (zernio-perfil.ts no lo llena), y por eso la búsqueda por
+      // phone_number_id no encontraba nada.
+      senderId: 'snd_calidad_sin_meta',
       credentialRef: 'X',
       webhookSecretRef: 'Y',
     }),
   );
-  cuentaZavu = zavu.account.id;
+  cuentaSinIdsDeMeta = sinMeta.account.id;
 });
 
 afterAll(async () => {
-  for (const t of [tenant, tenantZavu]) {
+  for (const t of [tenant, tenantSinIdsDeMeta]) {
     if (!t) continue;
     await admin.query('DELETE FROM whatsapp_numbers WHERE tenant_id = $1', [t]);
     await admin.query('DELETE FROM channel_accounts WHERE tenant_id = $1', [t]);
@@ -83,47 +85,9 @@ afterAll(async () => {
 });
 
 describe('calidad del número (#45)', () => {
-  it('normaliza phone_number_quality_update por score o por evento', () => {
-    const updates = normalizeQualityUpdates({
-      entry: [{ changes: [
-        {
-          field: 'phone_number_quality_update',
-          value: { phone_number_id: 'pn-1', event: 'FLAGGED', current_limit: 'TIER_250' },
-        },
-        {
-          field: 'phone_number_quality_update',
-          value: { phone_number_id: 'pn-2', quality_score: { score: 'GREEN' } },
-        },
-        { field: 'messages', value: {} },
-      ] }],
-    });
-    expect(updates).toEqual([
-      { phoneNumberId: 'pn-1', quality: 'red', messagingLimit: 'TIER_250' },
-      { phoneNumberId: 'pn-2', quality: 'green', messagingLimit: undefined },
-    ]);
-  });
-
-  it('el sobre de Zavu no se lee como webhook de Meta, y no se inventa el evento', () => {
-    // Esto es lo que de verdad llega hoy a /webhooks/channels/:accountId: el
-    // sobre de Zavu, sin `entry`. El parser de Meta devolvía [] sobre CUALQUIER
-    // evento de Zavu y nadie se enteraba. Zavu todavía no publica un evento de
-    // calidad de número, así que sigue siendo [] — pero ahora a propósito y por
-    // la rama correcta, no por accidente de formato.
-    const sobre = {
-      id: 'evt_1705312200000_abc123',
-      type: 'message.delivered',
-      timestamp: 1705312200000,
-      senderId: 'snd_calidad_zavu',
-      projectId: 'prj_xyz789',
-      data: { messageId: 'jd7x2k3m4n5p6q7r8s9t0', status: 'delivered' },
-    };
-    expect(normalizeQualityUpdates(sobre)).toEqual([]);
-    // Y un cuerpo raro no puede tumbar el webhook: antes `null` reventaba con
-    // "cannot read properties of null", y eso devolvía 500 al proveedor.
-    expect(normalizeQualityUpdates({})).toEqual([]);
-    expect(normalizeQualityUpdates(null)).toEqual([]);
-    expect(normalizeQualityUpdates(undefined)).toEqual([]);
-  });
+  // El parser de eventos de calidad (normalizeQualityUpdates) se fue con Zavu
+  // (#1339): Zernio todavía no publica el evento. Lo que sigue vivo es el
+  // freno: aplicar un aviso ya traducido, pausar en rojo y reactivar a mano.
 
   // Este número tiene los DOS identificadores, así que prueba el respaldo por
   // phone_number_id: filas antiguas de Meta directo y el proveedor propio (#82).
@@ -172,48 +136,49 @@ describe('calidad del número (#45)', () => {
   });
 });
 
-// La identidad del número en Zavu es el senderId (ADR-0014). Con Zavu en medio,
-// phone_number_id es NULL y la búsqueda vieja no encontraba fila NUNCA: el freno
-// del #45 salía en silencio con changed:false aunque el aviso llegara perfecto.
+// La identidad del número de WhatsApp es el senderId (ADR-0014, y el alta de
+// Zernio igual: no llena phone_number_id). Con esa forma de fila, la búsqueda
+// vieja por phone_number_id no encontraba fila NUNCA: el freno del #45 salía
+// en silencio con changed:false aunque el aviso llegara perfecto.
 describe('calidad del número: identidad por senderId (#45, ADR-0014)', () => {
-  it('la fila que crea Zavu NO tiene phone_number_id: esa es la premisa', async () => {
+  it('la fila que crea el alta NO tiene phone_number_id: esa es la premisa', async () => {
     const fila = await admin.query(
       'SELECT sender_id, phone_number_id FROM whatsapp_numbers WHERE tenant_id = $1',
-      [tenantZavu],
+      [tenantSinIdsDeMeta],
     );
-    expect(fila.rows[0].sender_id).toBe('snd_calidad_zavu');
+    expect(fila.rows[0].sender_id).toBe('snd_calidad_sin_meta');
     expect(fila.rows[0].phone_number_id).toBeNull();
   });
 
   it('en ROJO por senderId: pausa lo del negocio, degrada el canal y avisa', async () => {
-    const res = await withTenant(admin, tenantZavu, (c) =>
+    const res = await withTenant(admin, tenantSinIdsDeMeta, (c) =>
       applyQualityUpdate(c, {
-        tenantId: tenantZavu,
-        update: { senderId: 'snd_calidad_zavu', quality: 'red', messagingLimit: 'TIER_1K' },
+        tenantId: tenantSinIdsDeMeta,
+        update: { senderId: 'snd_calidad_sin_meta', quality: 'red', messagingLimit: 'TIER_1K' },
       }),
     );
     expect(res).toEqual({ changed: true, pausado: true });
-    expect(await eventos('number.quality_changed', tenantZavu)).toBe(1);
-    expect(await eventos('channel.degraded', tenantZavu)).toBe(1);
+    expect(await eventos('number.quality_changed', tenantSinIdsDeMeta)).toBe(1);
+    expect(await eventos('channel.degraded', tenantSinIdsDeMeta)).toBe(1);
 
-    const pausa = await withTenant(admin, tenantZavu, (c) =>
-      isBusinessPaused(c, tenantZavu, cuentaZavu),
+    const pausa = await withTenant(admin, tenantSinIdsDeMeta, (c) =>
+      isBusinessPaused(c, tenantSinIdsDeMeta, cuentaSinIdsDeMeta),
     );
     expect(pausa).toMatch(/pausamos los envíos/);
     const canal = await admin.query('SELECT state FROM channel_accounts WHERE id = $1', [
-      cuentaZavu,
+      cuentaSinIdsDeMeta,
     ]);
     expect(canal.rows[0].state).toBe('degraded');
     // Y la campaña (#75) ya lo ve: el número quedó en rojo de verdad, en la base.
-    expect(await withTenant(admin, tenantZavu, (c) => numeroEnRojo(c, tenantZavu))).toBe(true);
+    expect(await withTenant(admin, tenantSinIdsDeMeta, (c) => numeroEnRojo(c, tenantSinIdsDeMeta))).toBe(true);
   });
 
   it('el senderId de otro tenant no toca este número', async () => {
     // El aviso trae un sender que no es de este tenant: no hay nada que aplicar,
     // y sobre todo no se agarra la primera fila que aparezca.
-    const res = await withTenant(admin, tenantZavu, (c) =>
+    const res = await withTenant(admin, tenantSinIdsDeMeta, (c) =>
       applyQualityUpdate(c, {
-        tenantId: tenantZavu,
+        tenantId: tenantSinIdsDeMeta,
         update: { senderId: 'sender-quality-test', quality: 'green' },
       }),
     );
@@ -225,8 +190,8 @@ describe('calidad del número: identidad por senderId (#45, ADR-0014)', () => {
     // devolvía changed:false: un error de quien encola disfrazado de "no pasó
     // nada". Si no sabemos de qué número habla, se dice fuerte.
     await expect(
-      withTenant(admin, tenantZavu, (c) =>
-        applyQualityUpdate(c, { tenantId: tenantZavu, update: { quality: 'red' } }),
+      withTenant(admin, tenantSinIdsDeMeta, (c) =>
+        applyQualityUpdate(c, { tenantId: tenantSinIdsDeMeta, update: { quality: 'red' } }),
       ),
     ).rejects.toThrow(/no dice de qué número habla/);
   });
