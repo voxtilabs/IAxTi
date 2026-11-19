@@ -295,7 +295,12 @@ export async function llaveDelTenant(
   cfg: ConfigDeZernio,
   input: { tenantId: string; profileId: string },
 ): Promise<{ llave: string; id: string }> {
-  const r = await llamarAZernio<{ apiKey?: { id?: string; key?: string; scope?: string; profileIds?: string[] } }>(
+  // `profileIds` llega como objetos `{_id, …}` y no como strings — medido el
+  // 18-11 contra la API real: con la comparación a secas la llave nueva nunca
+  // pasaba la comprobación, se borraba a sí misma y el alta no terminaba.
+  const r = await llamarAZernio<{
+    apiKey?: { id?: string; key?: string; scope?: string; profileIds?: Array<string | { _id?: string }> };
+  }>(
     cfg,
     '/v1/api-keys',
     {
@@ -311,7 +316,10 @@ export async function llaveDelTenant(
   );
   const k = r.apiKey;
   if (!k?.key || !k.id) throw new ErrorDelAlta('Zernio no devolvió la llave nueva.');
-  const restringida = k.scope === 'profiles' && k.profileIds?.length === 1 && k.profileIds[0] === input.profileId;
+  const idsDePerfil = (k.profileIds ?? [])
+    .map((p) => (typeof p === 'string' ? p : p?._id))
+    .filter((x): x is string => Boolean(x));
+  const restringida = k.scope === 'profiles' && idsDePerfil.length === 1 && idsDePerfil[0] === input.profileId;
   const visto = restringida
     ? await llamarAZernio<{ profiles?: PerfilDeZernio[] }>({ ...cfg, apiKey: k.key }, '/v1/profiles').catch(() => null)
     : null;

@@ -211,7 +211,10 @@ describe('la cuenta que se da de alta es del perfil del tenant', () => {
 describe('la llave del negocio solo ve su perfil', () => {
   it('se pide restringida al perfil y sin webhooks, y se comprueba con ella misma', async () => {
     const cfg = zernio({
-      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: ['prof_A'] } } },
+      // La forma REAL de la respuesta (medida 18-11): `profileIds` viene como
+      // objetos `{_id}`. Con strings en el mock, la prueba daba verde mientras
+      // el alta real borraba la llave sana.
+      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: [{ _id: 'prof_A', name: 'A' }] } } },
       'GET /v1/profiles': { body: { profiles: [{ _id: 'prof_A', name: 'A', externalId: TENANT_A }] } },
     });
     expect(await llaveDelTenant(cfg, { tenantId: TENANT_A, profileId: 'prof_A' })).toEqual({ llave: 'zrk_A', id: 'k1' });
@@ -225,12 +228,20 @@ describe('la llave del negocio solo ve su perfil', () => {
 
   it('si la llave ve otro perfil, se borra y no sale', async () => {
     const cfg = zernio({
-      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: ['prof_A'] } } },
+      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: [{ _id: 'prof_A', name: 'A' }] } } },
       'GET /v1/profiles': { body: { profiles: [{ _id: 'prof_A' }, { _id: 'prof_B' }] } },
       'DELETE /v1/api-keys/k1': { body: { success: true } },
     });
     await expect(llaveDelTenant(cfg, { tenantId: TENANT_A, profileId: 'prof_A' })).rejects.toThrow(/Se borró/);
     expect(peticiones.some((p) => p.method === 'DELETE' && p.url.endsWith('/v1/api-keys/k1'))).toBe(true);
+  });
+
+  it('acepta también profileIds como strings: la forma la decide Zernio, no esta prueba', async () => {
+    const cfg = zernio({
+      'POST /v1/api-keys': { status: 201, body: { apiKey: { id: 'k1', key: 'zrk_A', scope: 'profiles', profileIds: ['prof_A'] } } },
+      'GET /v1/profiles': { body: { profiles: [{ _id: 'prof_A', name: 'A', externalId: TENANT_A }] } },
+    });
+    expect(await llaveDelTenant(cfg, { tenantId: TENANT_A, profileId: 'prof_A' })).toEqual({ llave: 'zrk_A', id: 'k1' });
   });
 
   it('si Zernio la devuelve con alcance completo, se borra sin usarla', async () => {
