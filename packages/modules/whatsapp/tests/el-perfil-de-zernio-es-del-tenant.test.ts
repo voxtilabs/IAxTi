@@ -75,6 +75,26 @@ describe('el evento es de la cuenta y del negocio', () => {
   it('la muestra de `POST /v1/webhooks/test` se reconoce como prueba, no como mensaje', () => {
     expect(eventoDeZernioEsDeLaCuenta(evento({ test: true, accountId: 'inventada' }), cuentaA)).toEqual({ ok: false, prueba: true });
   });
+
+  /**
+   * El otro modo del mismo botón (#1362). Sin `event` en el POST, Zernio manda
+   * el payload `webhook.test` pelado: `WebhookPayloadTest` (spec v1.679) no
+   * tiene NI cuenta NI perfiles, porque no dice de quién es — dice «URL y
+   * secreto andan». Medido contra el número real: ese payload llegaba firmado,
+   * caía a la comparación de cuenta y el botón «Probar» quedaba en rojo.
+   */
+  it('la muestra pelada (`event: "webhook.test"`, sin cuenta ni perfiles) también es prueba', () => {
+    const muestraPelada = {
+      id: 'evt_test_1',
+      event: 'webhook.test',
+      message: 'This is a test delivery from Zernio',
+      timestamp: '2026-11-19T13:48:45.000Z',
+    };
+    expect(eventoDeZernioEsDeLaCuenta(muestraPelada, cuentaA)).toEqual({ ok: false, prueba: true });
+    // Y no importa que una cuenta de verdad esté guardada: la muestra pelada
+    // no la nombra y no hay nada que comparar.
+    expect(eventoDeZernioEsDeLaCuenta(muestraPelada, { tenantId: TENANT_A, config: {} })).toEqual({ ok: false, prueba: true });
+  });
 });
 
 // --- El alta contra Zernio -------------------------------------------------
