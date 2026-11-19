@@ -53,7 +53,7 @@ export function urlSinConsulta(url: unknown): string {
  * sin la consulta.
  *
  * Se pisa el atributo en `requestHook` y no se desactiva la instrumentación:
- * saber que salió un `GET` a `api.zavu.dev/v1/contacts` y cuánto tardó es
+ * saber que salió un `GET` a `api.zernio.com/v1/contacts` y cuánto tardó es
  * justo lo que hace falta para diagnosticar; el número de teléfono no.
  */
 export const instrumentacionUndiciSinConsulta = {

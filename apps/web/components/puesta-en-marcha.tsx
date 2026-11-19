@@ -10,7 +10,6 @@ import { WidgetsDelInicio } from './inicio/widgets';
 import type { WidgetItem } from '../lib/nav';
 import { RegistroInicial } from './registro-inicial';
 import { OnboardingCostos } from './onboarding-costos';
-import { WhatsAppInvitation } from './whatsapp-invitation';
 
 // La puesta en marcha (#56, SPEC §7).
 //
@@ -203,8 +202,19 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
                 )}
               </div>
               </div>
-              {p.id === 'whatsapp_connected' && !p.hecho && !p.bloqueado && <WhatsAppInvitation tenant={tenant} primary={esSiguiente}/>}
-              {p.ruta && p.id !== 'whatsapp_connected' && !p.hecho && !p.bloqueado && (
+              {p.id === 'whatsapp_connected' && !p.hecho && !p.bloqueado && (
+                // El botón de invitación era el alta de Zavu y se fue con
+                // Zavu (#1339): con Zernio el número se conecta con un enlace
+                // de Meta que manda el equipo. El paso lleva a la pantalla de
+                // canales, que es donde se ve el estado; el enlace en sí no
+                // puede salir de acá, y prometer una acción que no existe es
+                // el vacío que #509 vino a cerrar, al revés.
+                <p className="max-w-prose text-xs text-muted">
+                  El enlace para conectar tu número lo manda el equipo de IAxTi: pídelo y este paso se
+                  marca solo al conectar.
+                </p>
+              )}
+              {p.ruta && !p.hecho && !p.bloqueado && (
                 <Link href={p.ruta}>
                   <Button variant={esSiguiente ? 'primario' : 'fantasma'} size="chico">
                     {esSiguiente ? 'Hacerlo ahora' : 'Ir'}

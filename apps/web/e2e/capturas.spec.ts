@@ -78,6 +78,25 @@ for (const modo of ['dia', 'noche'] as const) {
   });
 }
 
+// La puesta en marcha también es pantalla que cambia (#1339): el paso de
+// WhatsApp dice la verdad nueva y su enlace va a la pantalla de canales.
+// El checklist solo se ve en un negocio SIN terminar de configurar, y la seed
+// del e2e ya trae el suyo completo: el paso queda probado por su prueba de
+// comportamiento, y acá se captura la pantalla a la que lleva.
+for (const modo of ['dia', 'noche'] as const) {
+  test(`admin canales, modo ${modo} (#1339)`, async ({ page }) => {
+    await page.addInitScript(({ id, modo }) => {
+      localStorage.setItem('iaxti-tenant', id);
+      localStorage.setItem('pulso-mode', modo);
+    }, { id: auth.tableTenantId, modo });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/ajustes/canales', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading').first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: join(DESTINO, `adm-canales-${modo}.png`), fullPage: true });
+  });
+}
+
 for (const modo of ['dia', 'noche'] as const) {
   test(`la bandeja sin selección, modo ${modo} (#1111)`, async ({ page }) => {
     // El estado con el que se ENTRA al producto, que es el que tenía dos

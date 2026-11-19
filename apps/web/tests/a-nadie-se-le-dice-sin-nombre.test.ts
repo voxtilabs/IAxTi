@@ -30,9 +30,9 @@ const RAIZ = join(__dirname, '..');
  * nombre NO es un contacto: no tiene teléfono que mostrar en su lugar.
  */
 const CORRECTO: Record<string, string> = {
-  'components/canales.tsx':
-    'Es el nombre de un EMISOR de WhatsApp, no de una persona: lo que va debajo es su id, ' +
-    'no un teléfono al que escribirle. No hay nombre alternativo que mostrar.',
+  // `components/canales.tsx` salió de acá con la lista de emisores de Zavu
+  // (#1339): la única «Sin nombre» era la de un emisor sin nombre, y la ruta
+  // que la mostraba se fue con Zavu.
   'components/equipo.tsx':
     'Es alguien del equipo y ya cae antes a su correo (`nombre ?? email ?? ...`). ' +
     'Quien llega a «Sin nombre» no tiene ni nombre ni correo, que es el final de la cadena.',
