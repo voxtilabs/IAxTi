@@ -47,6 +47,7 @@ import { apiFetch } from '../lib/api';
 import { Chat } from '../components/bandeja/chat';
 import { Conversacion } from '../components/agente/conversacion';
 import { ProveedorAgente } from '../components/agente/estado';
+import { SenalDeLaIa } from '../components/agente/senal-de-la-ia';
 
 const pedir = vi.mocked(apiFetch);
 
@@ -145,9 +146,16 @@ describe('la bandeja vacía no pide elegir de una lista que no tiene nada (#1326
 describe('con la IA rota, el chat no invita a pedirle cosas (#1326)', () => {
   it('el campo no acepta texto y el botón está apagado', async () => {
     const usuario = userEvent.setup();
-    // El diagnóstico dice que hay problema: la IA no puede trabajar.
+    // El diagnóstico dice que hay problema: la IA no puede trabajar. El paso
+    // con ese id va incluido: el proveedor resuelve `problema` contra
+    // `pasos` y de ahí sale el `iaRota` que apaga el campo.
     pedir.mockImplementation(async (_c, _s, _t, path: string) => {
-      if (path === '/agents/diagnostico') return { problema: 'proveedores', pasos: [] };
+      if (path === '/agents/diagnostico') return {
+        problema: 'proveedores',
+        pasos: [
+          { id: 'proveedores', titulo: 'Proveedores', estado: 'mal', detalle: 'Falta la credencial.' },
+        ],
+      };
       return [];
     });
     // `useAgente` exige el proveedor; `PantallaDelAsistente` lo monta junto a
@@ -185,5 +193,35 @@ describe('con la IA rota, el chat no invita a pedirle cosas (#1326)', () => {
     await usuario.type(campo, '¿cómo va mi negocio?');
     expect(campo).toHaveValue('¿cómo va mi negocio?');
     expect(screen.getByRole('button', { name: 'Pedir' })).toBeEnabled();
+  });
+});
+
+describe('la señal explica el paso que falla, y lo pide una sola vez (#1326)', () => {
+  it('muestra el paso con problema y no el primero de la lista', async () => {
+    // El problema es 'modelo', que va SEGUNDO: si la señal leyera pasos[0]
+    // contaría el paso que está bien — un aviso rojo que explica lo que anda.
+    pedir.mockImplementation(async (_c, _s, _t, path: string) => {
+      if (path === '/agents/diagnostico') return {
+        problema: 'modelo',
+        pasos: [
+          { id: 'proveedores', titulo: 'Proveedores', estado: 'bien', detalle: 'Con credencial.' },
+          { id: 'modelo', titulo: 'Modelo', estado: 'mal', detalle: 'Sin modelo elegido.' },
+        ],
+      };
+      return [];
+    });
+    render(
+      <ProveedorAgente>
+        <SenalDeLaIa />
+      </ProveedorAgente>,
+    );
+    // Dice QUÉ paso falla, con sus palabras (titulo y detalle del paso).
+    expect(await screen.findByText('Modelo:')).toBeInTheDocument();
+    expect(screen.getByText('Sin modelo elegido.')).toBeInTheDocument();
+    // Y no el que está bien.
+    expect(screen.queryByText('Proveedores:')).not.toBeInTheDocument();
+    // El diagnóstico se pidió UNA sola vez: proveedor y señal comparten dato.
+    const diagnosticos = pedir.mock.calls.filter((c) => c[3] === '/agents/diagnostico');
+    expect(diagnosticos).toHaveLength(1);
   });
 });

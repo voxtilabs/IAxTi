@@ -72,6 +72,18 @@ interface Turno {
 
 export type { PasoDto, PropuestaDto, Turno };
 
+/**
+ * Un paso del diagnóstico de la IA (`GET /agents/diagnostico`): lo que la
+ * señal pinta cuando algo anda. `problema` en la respuesta es el `id` del
+ * paso que está `mal` — el texto humano está en el propio paso.
+ */
+export interface PasoDeDiagnostico {
+  id: string;
+  titulo: string;
+  estado: 'bien' | 'mal' | 'atencion' | 'desconocido';
+  detalle: string;
+}
+
 export interface HiloResumen {
   id: string;
   titulo: string;
@@ -112,8 +124,13 @@ interface Agente {
    * texto — una pantalla que arriba dice «la IA no puede nada» y abajo
    * invita a pedirle cosas se contradice sola, y enseña a no leer los
    * avisos que sí importan.
+   *
+   * `iaRota` se deriva de `pasoRoto`: el proveedor guarda el paso COMPLETO
+   * que falla —`problema` es su id y el texto humano vive en su `titulo` y
+   * `detalle`— para que la señal lo cuente sin volver a pedir el diagnóstico.
    */
   iaRota: boolean;
+  pasoRoto: PasoDeDiagnostico | null;
 }
 
 /**
@@ -184,8 +201,13 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
    * dos fetches del mismo endpoint en la misma pantalla es además un viaje
    * repetido. Solo se pregunta en las pantallas de conversación — el
    * diagnóstico no cambia porque entraras a ver contactos.
+   *
+   * Se guarda el paso que falla y no apenas un booleano porque la señal
+   * necesita su `titulo` y `detalle`: si el proveedor guardara solo «está
+   * rota», la señal volvería a pedir el diagnóstico para poder decir POR QUÉ,
+   * que es el fetch duplicado que esto vino a sacar.
    */
-  const [iaRota, setIaRota] = useState(false);
+  const [pasoRoto, setPasoRoto] = useState<PasoDeDiagnostico | null>(null);
   // La ruta decide si esta pantalla conversa con la IA (solo /ajustes/ia).
   // Va sobre `pantalla`, que se declara más abajo con la misma ruta: acá se
   // usa `ruta` directamente y abajo sigue siendo la misma.
@@ -197,14 +219,21 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
   useEffect(() => {
     const tenant = selectedTenant();
     if (!session || !tenant || !esPantallaDeConversar) {
-      setIaRota(false);
+      setPasoRoto(null);
       return;
     }
     let vigente = true;
-    void apiFetch<{ problema: string | null }>(
+    void apiFetch<{ problema: string | null; pasos: PasoDeDiagnostico[] }>(
       config, session, tenant, '/agents/diagnostico',
     )
-      .then((r) => { if (vigente) setIaRota(Boolean(r.problema)); })
+      .then((r) => {
+        // `problema` es el ID del paso que falla: el paso entero se resuelve
+        // UNA vez acá, para que la señal no tenga que volver a pedirlo.
+        if (!vigente) return;
+        setPasoRoto(
+          r.problema ? (r.pasos.find((p) => p.id === r.problema) ?? null) : null,
+        );
+      })
       // En silencio: no poder REVISAR el estado no es lo mismo que estar roto,
       // y avisar de la revisión encima de un chat que funciona enseña a
       // ignorar avisos — la misma lección de la señal.
@@ -508,10 +537,11 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
     () => ({
       turnos, texto, setTexto, pensando, aplicando, aviso, sugerencias,
       pedirSugerencias, preguntar, resolver, abierto, setAbierto, campo,
-      hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion, iaRota,
+      hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion,
+      iaRota: pasoRoto !== null, pasoRoto,
     }),
     [turnos, texto, pensando, aplicando, aviso, sugerencias, pedirSugerencias, preguntar, resolver,
-     abierto, hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion, iaRota],
+     abierto, hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion, pasoRoto],
   );
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }
