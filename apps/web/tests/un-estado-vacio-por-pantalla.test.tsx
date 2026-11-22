@@ -157,10 +157,14 @@ describe('con la IA rota, el chat no invita a pedirle cosas (#1326)', () => {
         <Conversacion />
       </ProveedorAgente>,
     );
-    const campo = await screen.findByPlaceholderText('Configura la IA para poder pedirle cosas');
+    // El campo muerto no lleva placeholder (#1326): el mensaje de qué hacer
+    // lo da la señal roja, no el campo. Lo que lo identifica acá es su aria-label.
+    const campo = await screen.findByLabelText('Pídele algo a IAxTi');
     // El texto NO entra (readOnly): lo que uno escriba no aparece.
     await usuario.type(campo, 'hola');
     expect(campo).toHaveValue('');
+    // Y no invita: sin placeholder mientras la IA no puede.
+    expect(campo).toHaveAttribute('placeholder', '');
     // El botón está apagado incluso si hubiera texto.
     expect(screen.getByRole('button', { name: 'Pedir' })).toBeDisabled();
   });

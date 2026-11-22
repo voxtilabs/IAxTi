@@ -302,10 +302,15 @@ export function Conversacion({ alto }: { alto?: string }) {
                   void preguntar(texto);
                 }
               }}
-              placeholder={iaRota ? 'Configura la IA para poder pedirle cosas' : 'Pídele lo que necesitas'}
+              placeholder={iaRota ? '' : 'Pídele lo que necesitas'}
               aria-label="Pídele algo a IAxTi"
               className="max-h-32"
             />
+            {/* Sin placeholder cuando está muerto (#1326): un campo que no
+                acepta texto no invita, y el mensaje de qué hacer ya lo da la
+                señal roja de arriba. Un placeholder largo además envolvería a
+                dos líneas en un rows=1 a 360 px y el campo «recortaría» su
+                propio contenido (lo mide densidad.spec). */}
             {/* Dice que está pidiendo (#1169). La respuesta tarda 10-30 s y
                 el botón se quedaba igual: la única señal de que algo pasaba
                 era un spinner de 14 px allá arriba. El patrón ya estaba en
