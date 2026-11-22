@@ -60,7 +60,12 @@ describe('rate limiting', () => {
     expect(body.code).toBe('RATE_LIMITED');
     expect(body.message).toMatch(/Espera un momento/);
     expect(body.requestId).toMatch(/^req_/);
-  });
+    // Su propio plazo (#1188): arrancando a ~55 s del minuto, la espera de
+    // `conLaVentanaFresca` sola consume los 5 s por omisión y la prueba moría
+    // por tiempo, no por el cupo. 20 y no 10: además hace LIMITE + 1
+    // peticiones HTTP reales, que en CI cargado no son gratis. El plazo global
+    // NO se sube: en las demás pruebas, cinco segundos es una señal útil.
+  }, 20_000);
 
   it('cada API key tiene su propio contador (claves separadas)', async () => {
     await conLaVentanaFresca();
