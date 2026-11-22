@@ -128,7 +128,7 @@ function Esperando() {
 export function Conversacion({ alto }: { alto?: string }) {
   const {
     turnos, texto, setTexto, pensando, aplicando, aviso, sugerencias,
-    pedirSugerencias, preguntar, resolver, campo,
+    pedirSugerencias, preguntar, resolver, campo, iaRota,
   } = useAgente();
 
   // Las de ESTA pantalla, al montarse. En el popup eso es al abrirlo; en la
@@ -294,6 +294,7 @@ export function Conversacion({ alto }: { alto?: string }) {
               ref={campo}
               rows={1}
               value={texto}
+              readOnly={iaRota}
               onChange={(e) => setTexto(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -301,15 +302,23 @@ export function Conversacion({ alto }: { alto?: string }) {
                   void preguntar(texto);
                 }
               }}
-              placeholder="Pídele lo que necesitas"
+              placeholder={iaRota ? '' : 'Pídele lo que necesitas'}
               aria-label="Pídele algo a IAxTi"
               className="max-h-32"
             />
+            {/* Sin placeholder cuando está muerto (#1326): un campo que no
+                acepta texto no invita, y el mensaje de qué hacer ya lo da la
+                señal roja de arriba. Un placeholder largo además envolvería a
+                dos líneas en un rows=1 a 360 px y el campo «recortaría» su
+                propio contenido (lo mide densidad.spec). */}
             {/* Dice que está pidiendo (#1169). La respuesta tarda 10-30 s y
                 el botón se quedaba igual: la única señal de que algo pasaba
                 era un spinner de 14 px allá arriba. El patrón ya estaba en
                 este archivo, en el botón de aplicar una propuesta. */}
-            <Button type="submit" disabled={pensando || !texto.trim()}>
+            {/* Con la IA rota el campo NO invita (#1326): el texto no entra,
+                el botón está apagado, y la señal de arriba lleva a configurar.
+                La misma regla de siempre: si no puede, no ofrece. */}
+            <Button type="submit" disabled={iaRota || pensando || !texto.trim()}>
               {pensando ? 'Pidiendo…' : 'Pedir'}
             </Button>
           </form>

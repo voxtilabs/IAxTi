@@ -72,7 +72,9 @@ test('la bandeja sin conversaciones deja UN panel vacío, y no enseña atajos', 
   await expect(page.getByRole('region', { name: 'Ficha del contacto' })).toHaveCount(0);
 
   const chat = page.getByRole('region', { name: 'Conversación', exact: true });
-  await expect(chat.getByText(/Elige una conversación/)).toBeVisible();
+  // El texto de la lista vacía (#1326): un estado, no dos que se desmientan.
+  await expect(chat.getByText('Cuando un cliente escriba, su conversación abre acá.')).toBeVisible();
+  await expect(chat.getByText(/Elige una conversación/)).toHaveCount(0);
   await expect(chat.getByText('Siguiente / anterior conversación')).toHaveCount(0);
 
   // El estado «abriendo» NO se prueba acá: contra localhost dura lo que dura
