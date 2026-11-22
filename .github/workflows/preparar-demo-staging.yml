@@ -1,0 +1,82 @@
+# Preparar el tenant de staging para una demo (#1219).
+#
+# Corre a mano, nunca solo. Y vive en un workflow y no en la máquina de nadie
+# por una razón concreta: el `DATABASE_URL` de staging se queda en los secretos
+# del repo. Pedirle a alguien que se lo pase por un chat para limpiar unos
+# contactos es cómo se pierde una credencial.
+#
+# Sin `limpiar` ni `sembrar` solo MIRA: imprime qué contactos hay, separando los
+# de prueba de los que se conservan, y no toca nada. Es la vista previa
+# obligatoria de #75 aplicada acá, porque el borrado no tiene vuelta.
+name: preparar-demo-staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant:
+        description: 'UUID del negocio. Vacío = lo elige si hay uno solo, o lista los que hay.'
+        type: string
+        required: false
+      limpiar:
+        description: >-
+          Borrar los contactos SINTÉTICOS (+5690000…, +5691111…) con sus
+          conversaciones. Los de personas reales no se tocan. No tiene vuelta.
+        type: boolean
+        default: false
+      sembrar:
+        description: >-
+          Poblar el CRM y la agenda con `sembrarDemo` (#432): contactos,
+          empresas, embudo con oportunidades, conversaciones y citas. Idempotente.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preparar-demo-staging
+  cancel-in-progress: false
+
+jobs:
+  preparar:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.1.0
+        with:
+          version: 12.4.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar
+        run: pnpm install --frozen-lockfile
+
+      # El script llama a `sembrarDemo`, que es TypeScript compilado: sin este
+      # paso falla con «Cannot find module @iaxti/seed/dist/demo.js».
+      - name: Compilar lo que el script necesita
+        run: pnpm turbo build --filter=@iaxti/seed
+
+      - name: Preparar
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
+          # Todo por `env:` y nada interpolado dentro del `run:` (#758).
+          TENANT: ${{ inputs.tenant }}
+          LIMPIAR: ${{ inputs.limpiar }}
+          SEMBRAR: ${{ inputs.sembrar }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::Sin DATABASE_URL_STAGING no hay nada que preparar."
+            exit 1
+          fi
+          args=()
+          [ -n "${TENANT}" ] && args+=(--tenant "${TENANT}")
+          # `true` y nada más: un booleano sin marcar llega como `false`, y
+          # tratarlo como «hay valor» borraría contactos sin que nadie lo pida.
+          [ "${LIMPIAR}" = "true" ] && args+=(--limpiar)
+          [ "${SEMBRAR}" = "true" ] && args+=(--sembrar)
+          node scripts/preparar-la-demo.mjs "${args[@]}"
