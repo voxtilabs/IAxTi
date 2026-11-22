@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useSession } from '@iaxti/ui/react';
 import { apiFetch } from '../../lib/api';
 import { useSelectedTenant } from '../tenant-switcher';
+import { useAgente } from './estado';
 
 interface PasoDto {
   id: string;
@@ -41,17 +42,21 @@ interface PasoDto {
 export function SenalDeLaIa() {
   const { config, session } = useSession();
   const tenant = useSelectedTenant();
-  const [roto, setRoto] = useState<PasoDto | null>(null);
+  const { iaRota } = useAgente();
+  const [pasos, setPasos] = useState<PasoDto[]>([]);
 
   useEffect(() => {
-    if (!session || !tenant) return;
+    if (!session || !tenant || !iaRota) {
+      setPasos([]);
+      return;
+    }
     let vigente = true;
     void apiFetch<{ problema: string | null; pasos: PasoDto[] }>(
       config, session, tenant, '/agents/diagnostico',
     )
       .then((r) => {
         if (!vigente) return;
-        setRoto(r.problema ? (r.pasos.find((p) => p.id === r.problema) ?? null) : null);
+        setPasos(r.pasos ?? []);
       })
       // En silencio: un aviso de que no pudimos revisar el estado, encima de
       // un chat que capaz funciona perfecto, enseña a ignorar los avisos.
@@ -59,15 +64,25 @@ export function SenalDeLaIa() {
     return () => {
       vigente = false;
     };
-  }, [config, session, tenant]);
+  }, [config, session, tenant, iaRota]);
 
-  if (!roto) return null;
+  // El «está rota» lo decide el PROVEEDOR (#1326): señal y campo leen el
+  // mismo dato en vez de dos fetches del mismo endpoint. Acá solo se busca
+  // el paso que explica el problema, para decirlo con palabras humanas.
+  if (!iaRota) return null;
+  const roto = pasos.length ? pasos[0] : null;
   return (
     <p
       role="status"
       className="shrink-0 rounded-campo border border-bad-soft-br bg-bad-soft px-4 py-3 text-dato text-bad-text"
     >
-      <strong className="font-semibold">{roto.titulo}:</strong> {roto.detalle}{' '}
+      {roto ? (
+        <>
+          <strong className="font-semibold">{roto.titulo}:</strong> {roto.detalle}{' '}
+        </>
+      ) : (
+        'La IA no puede contestar ahora. '
+      )}
       <Link href="/ajustes/ia/detalle" className="underline">
         Ver qué falta
       </Link>

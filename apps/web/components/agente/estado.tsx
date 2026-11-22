@@ -106,6 +106,14 @@ interface Agente {
   abierto: boolean;
   setAbierto: (v: boolean) => void;
   campo: React.RefObject<HTMLTextAreaElement | null>;
+  /**
+   * La IA no puede trabajar AHORA (#1326): el diagnóstico del proveedor
+   * devolvió un `problema`. La señal lo dice y el campo del chat no acepta
+   * texto — una pantalla que arriba dice «la IA no puede nada» y abajo
+   * invita a pedirle cosas se contradice sola, y enseña a no leer los
+   * avisos que sí importan.
+   */
+  iaRota: boolean;
 }
 
 /**
@@ -169,6 +177,40 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [hilos, setHilos] = useState<HiloResumen[] | null>(null);
   const campo = useRef<HTMLTextAreaElement>(null);
+  /**
+   * El diagnóstico que antes pedía `SenalDeLaIa` por su cuenta (#1326).
+   *
+   * Vive en el proveedor para que la SEÑAL y el CAMPO lean el mismo dato:
+   * dos fetches del mismo endpoint en la misma pantalla es además un viaje
+   * repetido. Solo se pregunta en las pantallas de conversación — el
+   * diagnóstico no cambia porque entraras a ver contactos.
+   */
+  const [iaRota, setIaRota] = useState(false);
+  // La ruta decide si esta pantalla conversa con la IA (solo /ajustes/ia).
+  // Va sobre `pantalla`, que se declara más abajo con la misma ruta: acá se
+  // usa `ruta` directamente y abajo sigue siendo la misma.
+  const ruta = usePathname() ?? '/';
+  const esPantallaDeConversar = useMemo(
+    () => pantallaDe(ruta).id === 'asistente',
+    [ruta],
+  );
+  useEffect(() => {
+    const tenant = selectedTenant();
+    if (!session || !tenant || !esPantallaDeConversar) {
+      setIaRota(false);
+      return;
+    }
+    let vigente = true;
+    void apiFetch<{ problema: string | null }>(
+      config, session, tenant, '/agents/diagnostico',
+    )
+      .then((r) => { if (vigente) setIaRota(Boolean(r.problema)); })
+      // En silencio: no poder REVISAR el estado no es lo mismo que estar roto,
+      // y avisar de la revisión encima de un chat que funciona enseña a
+      // ignorar avisos — la misma lección de la señal.
+      .catch(() => undefined);
+    return () => { vigente = false; };
+  }, [config, session, esPantallaDeConversar]);
 
   // El listener del evento se suscribe una vez y llama SIEMPRE a la última
   // versión de `preguntar`: sin este ref, la suscripción se quedaría con el
@@ -178,7 +220,7 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
 
   // Desde dónde se abrió (#509). Es la ruta y nada más: nada de lo que haya
   // EN la pantalla entra en el contexto por estar a la vista.
-  const ruta = usePathname() ?? '/';
+  // (La `ruta` se declaró arriba, para la señal de la IA rota.)
   const pantalla = useMemo(() => pantallaDe(ruta), [ruta]);
   /**
    * Las sugerencias salen del SERVIDOR, no de una lista en el navegador (#584).
@@ -466,10 +508,10 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
     () => ({
       turnos, texto, setTexto, pensando, aplicando, aviso, sugerencias,
       pedirSugerencias, preguntar, resolver, abierto, setAbierto, campo,
-      hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion,
+      hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion, iaRota,
     }),
     [turnos, texto, pensando, aplicando, aviso, sugerencias, pedirSugerencias, preguntar, resolver,
-     abierto, hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion],
+     abierto, hilos, pedirHilos, abrirHilo, olvidarHilo, nuevaConversacion, iaRota],
   );
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }

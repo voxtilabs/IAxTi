@@ -853,6 +853,7 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         <Chat
           detalle={detalle}
           abriendo={!!seleccion}
+          listaVacia={items !== null && items.length === 0 && !busqueda}
           mensajes={mensajes}
           hayAnteriores={hayAnteriores}
           trayendoAnteriores={trayendoAnteriores}

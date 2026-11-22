@@ -97,6 +97,16 @@ export interface ChatProps {
    * primera durante la segunda.
    */
   abriendo?: boolean;
+  /**
+   * La lista de la izquierda está VACÍA, no solo sin elegir (#1326).
+   *
+   * «Elige una conversación de la lista» es una instrucción imposible cuando
+   * la lista no tiene nada que elegir — y con la bandeja vacía los dos
+   * paneles quedaban diciéndose cosas distintas a la vez: izquierda «no te
+   * escribe nadie», derecha «elige de la lista». Una pantalla que se
+   * contradice enseña a no leerla.
+   */
+  listaVacia?: boolean;
   mensajes: Mensaje[] | null;
   atajos: QuickReplyDto[];
   sugerencia: SugerenciaDto | null;
@@ -229,7 +239,7 @@ function enCastellano(herramienta: string): string {
 }
 
 export function Chat({
-  detalle, abriendo, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
+  detalle, abriendo, listaVacia, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   hayAnteriores, trayendoAnteriores, onVerAnteriores,
   onReintentar, reintentando,
   onVolver, onVerFicha, onResponder, onAsignar, onEstado, onPrioridad, onSugerencia, onModo, onCobrar, onCrearOportunidad,
@@ -364,6 +374,14 @@ export function Chat({
   if (!detalle) {
     return abriendo ? (
       <PanelALaEspera rotulo="Abriendo">Estamos trayendo la conversación.</PanelALaEspera>
+    ) : listaVacia ? (
+      /* Lista vacía ≠ sin elegir (#1326): si no hay nada en la lista, mandar
+         a elegir de ella es dar una instrucción imposible, en la misma
+         pantalla que ya dice que no llegó nadie. El estado lo dice UNA vez,
+         con la acción que lo desatasca — el «Ver la lista» no sirve acá. */
+      <PanelALaEspera rotulo="Bandeja">
+        Cuando un cliente escriba, su conversación abre acá.
+      </PanelALaEspera>
     ) : (
       <PanelALaEspera
         rotulo="Bandeja"
