@@ -83,18 +83,21 @@ describe('la bandeja vacía no pide elegir de una lista que no tiene nada (#1326
         miId="yo"
         aviso={null}
         limitesDeAdjunto={null}
+        onReintentar={async () => {}}
+        reintentando={null}
+        plantillas={[]}
         onVolver={() => {}}
         onVerFicha={() => {}}
         onResponder={async () => true}
         onAsignar={async () => true}
         onEstado={async () => true}
         onPrioridad={async () => true}
-        onSugerencia={() => {}}
-        onModo={() => {}}
-        onCobrar={() => {}}
-        onCrearOportunidad={() => {}}
+        onSugerencia={async () => {}}
+        onModo={async () => {}}
+        onCobrar={async () => {}}
+        onCrearOportunidad={async () => {}}
         onCargarPlantillas={async () => {}}
-        onEnviarPlantilla={async () => true}
+        onEnviarPlantilla={async () => {}}
         onAbrirAdjunto={() => {}}
       />,
     );
@@ -117,18 +120,21 @@ describe('la bandeja vacía no pide elegir de una lista que no tiene nada (#1326
         miId="yo"
         aviso={null}
         limitesDeAdjunto={null}
+        onReintentar={async () => {}}
+        reintentando={null}
+        plantillas={[]}
         onVolver={() => {}}
         onVerFicha={() => {}}
         onResponder={async () => true}
         onAsignar={async () => true}
         onEstado={async () => true}
         onPrioridad={async () => true}
-        onSugerencia={() => {}}
-        onModo={() => {}}
-        onCobrar={() => {}}
-        onCrearOportunidad={() => {}}
+        onSugerencia={async () => {}}
+        onModo={async () => {}}
+        onCobrar={async () => {}}
+        onCrearOportunidad={async () => {}}
         onCargarPlantillas={async () => {}}
-        onEnviarPlantilla={async () => true}
+        onEnviarPlantilla={async () => {}}
         onAbrirAdjunto={() => {}}
       />,
     );
