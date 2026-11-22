@@ -3,7 +3,7 @@ import { diaEn, publishEvent } from '@iaxti/core';
 import { zonaDelTenant } from '@iaxti/module-organizations';
 import { bloquearGrantGoogle } from '@iaxti/module-identity';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
-import { assertTransicionCita, ocupaAgenda, type EstadoCita } from '../domain/estado';
+import { assertTransicionCita, ocupaAgenda, ESTADOS_QUE_OCUPAN, type EstadoCita } from '../domain/estado';
 import { huecosLibres, comoHora, type Ocupado } from '../domain/horarios';
 import { diaCerrado } from './cierres';
 
@@ -221,9 +221,9 @@ export async function huecosDelDia(
        FROM appointments
       WHERE tenant_id = $1 AND owner_id = $2
         AND (starts_at AT TIME ZONE $4)::date = $3::date
-        AND status IN ('proposed','confirmed','reminded')
+        AND status = ANY($6::text[])
         AND ($5::uuid IS NULL OR id <> $5)`,
-    [input.tenantId, input.ownerId, input.dia, zona, input.ignorarCitaId ?? null],
+    [input.tenantId, input.ownerId, input.dia, zona, input.ignorarCitaId ?? null, ESTADOS_QUE_OCUPAN],
   );
   const ocupados: Ocupado[] = [
     ...citas.rows.map((c) => ({ inicio: c.inicio, fin: c.fin })),
@@ -447,10 +447,10 @@ export async function agendar(
   const choca = await client.query(
     `SELECT id FROM appointments
       WHERE tenant_id = $1 AND owner_id = $2
-        AND status IN ('proposed','confirmed','reminded')
+        AND status = ANY($5::text[])
         AND starts_at < $4 AND ends_at > $3
       LIMIT 1`,
-    [input.tenantId, input.ownerId, input.inicio, input.fin],
+    [input.tenantId, input.ownerId, input.inicio, input.fin, ESTADOS_QUE_OCUPAN],
   );
   if ((choca.rowCount ?? 0) > 0) {
     throw new Error('Esa hora se acaba de tomar. Ofrécele otra.');
@@ -704,8 +704,9 @@ export async function reagendarCita(
   const antes = aCita(actual.rows[0]);
 
   // Una cita cancelada o que ya pasó no se mueve: se agenda otra. Mover una
-  // `attended` reescribiría cuándo ocurrió algo que ocurrió.
-  if (!['proposed', 'confirmed', 'reminded'].includes(antes.status)) {
+  // `attended` reescribiría cuándo ocurrió algo que ocurrió. Movible es lo
+  // mismo que ocupa agenda: la regla vive en `ocupaAgenda` y no se repite.
+  if (!ocupaAgenda(antes.status)) {
     throw new Error(
       `Una cita ${antes.status === 'cancelled' ? 'cancelada' : 'que ya pasó'} no se mueve: ` +
         'agenda una nueva.',
@@ -732,10 +733,10 @@ export async function reagendarCita(
   const choca = await client.query(
     `SELECT id FROM appointments
       WHERE tenant_id = $1 AND owner_id = $2 AND id <> $3
-        AND status IN ('proposed','confirmed','reminded')
+        AND status = ANY($6::text[])
         AND starts_at < $5 AND ends_at > $4
       LIMIT 1`,
-    [input.tenantId, antes.ownerId, input.appointmentId, input.inicio, input.fin],
+    [input.tenantId, antes.ownerId, input.appointmentId, input.inicio, input.fin, ESTADOS_QUE_OCUPAN],
   );
   if ((choca.rowCount ?? 0) > 0) {
     throw new Error('Esa hora se acaba de tomar. Ofrécele otra.');
@@ -924,10 +925,10 @@ export async function citasFuturasDelContacto(
   const r = await client.query(
     `SELECT * FROM appointments
       WHERE tenant_id = $1 AND contact_id = $2
-        AND status IN ('proposed','confirmed','reminded')
+        AND status = ANY($4::text[])
         AND starts_at > $3
       ORDER BY starts_at`,
-    [input.tenantId, input.contactId, input.ahora ?? new Date()],
+    [input.tenantId, input.contactId, input.ahora ?? new Date(), ESTADOS_QUE_OCUPAN],
   );
   return r.rows.map(aCita);
 }
@@ -948,10 +949,10 @@ export async function citasDentroDelCierre(
     `SELECT id, starts_at, contact_id FROM appointments
       WHERE tenant_id = $1
         AND ($2::uuid IS NULL OR owner_id = $2)
-        AND status IN ('proposed','confirmed','reminded')
+        AND status = ANY($6::text[])
         AND (starts_at AT TIME ZONE $5)::date BETWEEN $3::date AND $4::date
       ORDER BY starts_at`,
-    [input.tenantId, input.ownerId ?? null, input.desde, input.hasta, input.zona],
+    [input.tenantId, input.ownerId ?? null, input.desde, input.hasta, input.zona, ESTADOS_QUE_OCUPAN],
   );
   return r.rows.map((row) => ({
     id: row.id as string,

@@ -61,7 +61,20 @@ export function assertTransicionCita(from: EstadoCita, to: EstadoCita): void {
   }
 }
 
+/**
+ * Los estados que ocupan un lugar en la agenda: mientras una cita está en uno
+ * de ellos, su hora no se le ofrece a nadie más. Una cancelada libera su hora
+ * y las que ya pasaron tampoco cuentan.
+ *
+ * Es UNA lista y no un detalle de cada consulta a propósito (#1251): la regla
+ * estaba escrita a mano en cada SELECT de choque y además en `ocupaAgenda`,
+ * y dos copias de la misma regla dejan de decir lo mismo el día que alguien
+ * toca una sola. Las consultas la pasan como parámetro (`= ANY(...)`) para
+ * que la base y el dominio la lean del mismo lugar.
+ */
+export const ESTADOS_QUE_OCUPAN: readonly EstadoCita[] = ['proposed', 'confirmed', 'reminded'];
+
 /** Las que ocupan un lugar en la agenda. Una cancelada libera su hora. */
 export function ocupaAgenda(estado: EstadoCita): boolean {
-  return estado === 'proposed' || estado === 'confirmed' || estado === 'reminded';
+  return ESTADOS_QUE_OCUPAN.includes(estado);
 }

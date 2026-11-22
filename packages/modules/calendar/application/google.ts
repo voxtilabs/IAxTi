@@ -10,6 +10,7 @@ import {
 } from '@iaxti/module-identity';
 import { GOOGLE_CALENDAR_SCOPE, GoogleIntegrationError, type GoogleBusyInterval } from '@iaxti/google';
 import { huecosDelDia, listarDisponibilidad, type HuecoOfrecido } from './agenda';
+import type { Ocupado } from '../domain/horarios';
 import { calendarGoogleDesdeEntorno, type CalendarGoogleDeps } from './google-config';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -299,7 +300,11 @@ export async function procesarPushGoogle(pool: Pool, input: { tenantId: string; 
   });
 }
 
-/** Consulta la agenda real y aplica cada buffer en INSTANTES, incluso de noche/DST. */
+/**
+ * Consulta el free/busy real y lo entra a `huecosDelDia` como ocupado externo
+ * (#1251): el respiro lo aplica el ÚNICO lugar que sabe contarlo —
+ * `huecosLibres` — y este archivo deja de filtrar por su cuenta.
+ */
 export async function huecosConGoogle(pool: Pool | PoolClient, input: { tenantId: string; ownerId: string; dia: string; ahora?: Date; actorId?: string }, injected = calendarGoogleDesdeEntorno()): Promise<HuecoOfrecido[]> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dia)) throw new Error('El día va como AAAA-MM-DD.');
   const grant = await enTenant(pool,input.tenantId,c => grantGoogleDelUsuario(c,input.tenantId,input.ownerId));
@@ -312,15 +317,24 @@ export async function huecosConGoogle(pool: Pool | PoolClient, input: { tenantId
     const connection = r.rows[0];
     if (!connection) throw unavailable();
     const zona = await zonaDelTenant(c,input.tenantId);
+    // El margen de la consulta a Google sigue siendo el respiro MÁS grande del
+    // dueño: es lo que garantiza que el busy que llega alcance para tapar los
+    // huecos de cualquier ventana, vengan de antes de abrir o de después de
+    // cerrar.
     const windows = await listarDisponibilidad(c,{tenantId:input.tenantId,ownerId:input.ownerId});
     const padding = Math.max(0,...windows.map(w=>w.respiro));
     const bounds = await c.query(`SELECT ($1::date::timestamp AT TIME ZONE $2)-make_interval(mins=>$3) AS start,
       (($1::date+1)::timestamp AT TIME ZONE $2)+make_interval(mins=>$3) AS finish`,[input.dia,zona,padding]);
+    // Lo de afuera pesa igual que lo nuestro: entra por `ocupadoExterno`, que
+    // ya estaba y era un enchufe al que solo llegaban las pruebas. Filtrar
+    // acá con un respiro recalculado era la segunda implementación del mismo
+    // cálculo, y las dos podían dejar de decir lo mismo.
+    const huecos=async (busy:GoogleBusyInterval[])=>huecosDelDia(c,{...input,ocupadoExterno:await minutosDelDia(c,input.dia,zona,busy)});
     const cached = await c.query(`SELECT cache.busy FROM calendar_freebusy_cache cache
       WHERE cache.tenant_id=$1 AND connection_id=$2 AND day=$3 AND timezone=$4 AND revision=$5 AND cache.expires_at>$6
       AND EXISTS(SELECT 1 FROM calendar_google_watches w WHERE w.connection_id=$2 AND w.resource_id IS NOT NULL AND w.expires_at>$6)`,
     [input.tenantId,connection.id,input.dia,zona,connection.revision,now(deps)]);
-    if (cached.rowCount) return filtrar(c,cached.rows[0].busy as GoogleBusyInterval[]);
+    if (cached.rowCount) return huecos(cached.rows[0].busy as GoogleBusyInterval[]);
     const result = await deps.calendar.freebusy({accessToken:token,calendarIds:[connection.calendar_id],
       timeMin:bounds.rows[0].start.toISOString(),timeMax:bounds.rows[0].finish.toISOString(),timeZone:zona});
     const intervals = result[connection.calendar_id];
@@ -329,15 +343,38 @@ export async function huecosConGoogle(pool: Pool | PoolClient, input: { tenantId
       VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(tenant_id,connection_id,day) DO UPDATE
       SET timezone=EXCLUDED.timezone,revision=EXCLUDED.revision,busy=EXCLUDED.busy,expires_at=EXCLUDED.expires_at`,
     [input.tenantId,connection.id,input.dia,zona,connection.revision,JSON.stringify(intervals),new Date(now(deps).getTime()+60_000)]);
-    return filtrar(c,intervals);
+    return huecos(intervals);
   });
-  async function filtrar(c:PoolClient,busy:GoogleBusyInterval[]) {
-    const slots = await huecosDelDia(c,input);
-    const windows = await listarDisponibilidad(c,{tenantId:input.tenantId,ownerId:input.ownerId});
-    const weekday = Number((await c.query('SELECT EXTRACT(dow FROM $1::date) AS day',[input.dia])).rows[0].day);
-    return slots.filter(slot => {
-      const buffer = (windows.find(w => w.weekday===weekday && w.inicio<=slot.hora && w.fin>slot.hora)?.respiro ?? 0)*60_000;
-      return !busy.some(b => Date.parse(b.start)<slot.fin.getTime()+buffer && Date.parse(b.end)>slot.inicio.getTime()-buffer);
-    });
-  }
+}
+
+/**
+ * El busy de Google, en minutos locales del día que se consulta.
+ *
+ * `huecosDelDia` resta en minutos de reloj y el free/busy llega en instantes
+ * UTC, así que alguien tiene que convertir — y la conversión la resuelve
+ * Postgres con la zona del negocio, no JS a mano, por el mismo motivo que el
+ * resto de las horas de este módulo: el cambio de horario de verano.
+ *
+ * Se mide contra la MEDIANOCHE local del día y no con `EXTRACT(hour …)` a
+ * propósito: la consulta a Google abre con el respiro de margen, así que
+ * puede llegar una reunión que EMPEZÓ ayer, y a esa hay que verla como
+ * minutos negativos — la que termina 00:14 de hoy sigue tapando la madrugada
+ * de hoy. Es la misma resta de instantes que hacía el filtro que este cambio
+ * reemplaza; los segundos se truncan al minuto igual que en las citas que ya
+ * se leen adentro.
+ *
+ * La medianoche se escribe `::date::timestamp AT TIME ZONE` — igual que en
+ * `bounds`, dos líneas arriba — y no `::date AT TIME ZONE`: sin el
+ * `::timestamp` de por medio la resta termina resolviéndose en la zona de la
+ * SESIÓN, y la medianoche del negocio se corre las horas que esa zona tenga
+ * de diferencia.
+ */
+async function minutosDelDia(c: PoolClient, dia: string, zona: string, busy: GoogleBusyInterval[]): Promise<Ocupado[]> {
+  const r = await c.query(
+    `SELECT (EXTRACT(epoch FROM (x.s::timestamptz - ($1::date::timestamp AT TIME ZONE $2))) / 60)::int AS inicio,
+            (EXTRACT(epoch FROM (x.e::timestamptz - ($1::date::timestamp AT TIME ZONE $2))) / 60)::int AS fin
+       FROM unnest($3::text[], $4::text[]) AS x(s, e)`,
+    [dia, zona, busy.map((b) => b.start), busy.map((b) => b.end)],
+  );
+  return r.rows.map((f) => ({ inicio: f.inicio as number, fin: f.fin as number }));
 }

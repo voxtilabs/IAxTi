@@ -156,6 +156,19 @@ async function attempt(t=tenantId,u=userId){
 }
 async function connect(t=tenantId,u=userId,pool: Pool=app){return completarGoogleCalendar(pool,await attempt(t,u),deps);}
 async function availability(){await withTenant(app,tenantId,c=>definirDisponibilidad(c,{tenantId,ownerId:userId,weekday:1,inicioMin:540,finMin:720,duracion:30,respiro:15,anticipacionMin:0}));}
+/**
+ * Dos ventanas el mismo lunes, con respíos DISTINTOS: la mañana respira 15 y
+ * la tarde 0 (#1251).
+ *
+ * Con una sola ventana no se puede distinguir «el respiro de este hueco» de
+ * «el respiro de aquel hueco», y esa distinción es justo la que tiene que
+ * sobrevivir a que el busy entre por `ocupadoExterno`: un hueco de la tarde
+ * no puede salir filtrado con los 15 minutos de la mañana.
+ */
+async function dosVentanas(){
+  await withTenant(app,tenantId,c=>definirDisponibilidad(c,{tenantId,ownerId:userId,weekday:1,inicioMin:540,finMin:720,duracion:30,respiro:15,anticipacionMin:0}));
+  await withTenant(app,tenantId,c=>definirDisponibilidad(c,{tenantId,ownerId:userId,weekday:1,inicioMin:840,finMin:960,duracion:30,respiro:0,anticipacionMin:0}));
+}
 const slots=()=>huecosConGoogle(app,{tenantId,ownerId:userId,dia:'2027-03-01',ahora:instant},deps);
 
 describe('consentimiento personal y custodia',()=>{
@@ -310,6 +323,32 @@ describe('horarios de Google y notificaciones',()=>{
   it('una reunión del día anterior sigue ocupando la mañana',async()=>{
     await connect();await availability();vi.mocked(deps.calendar.freebusy).mockResolvedValue({primary:[{start:'2027-02-28T23:00:00Z',end:'2027-03-01T13:00:00Z'}]});
     expect((await slots()).map(s=>s.hora)).toEqual(['10:30','11:15']);
+  });
+  // Las tres de abajo fijan el comportamiento de los huecos con Google
+  // conectado y DOS respíos en juego, que es el caso donde dos
+  // implementaciones del respiro pueden dejar de decir lo mismo (#1251).
+  // Se escribieron ANTES de unificarlo: tienen que seguir diciendo esto.
+  it('cada hueco se filtra con el respiro de SU ventana y no con el de otra',async()=>{
+    await connect();await dosVentanas();
+    // 13:50 a 14:05 hora de Chile: fuera de toda ventana, pegado al inicio
+    // de la tarde. Con el respiro 0 de la tarde, las 14:00 caen; con los 15
+    // de la mañana no alcanza ni al último hueco de la mañana (11:45+15).
+    vi.mocked(deps.calendar.freebusy).mockResolvedValue({primary:[{start:'2027-03-01T16:50:00Z',end:'2027-03-01T17:05:00Z'}]});
+    expect((await slots()).map(s=>s.hora)).toEqual(['09:00','09:45','10:30','11:15','14:30','15:00','15:30']);
+  });
+  it('el respiro cuenta también hacia atrás, antes del primer hueco del día',async()=>{
+    await connect();await dosVentanas();
+    // 08:40 a 08:55: termina 5 minutos antes de abrir. Sin respiro las 09:00
+    // servirían; con los 15 de la mañana, no.
+    vi.mocked(deps.calendar.freebusy).mockResolvedValue({primary:[{start:'2027-03-01T11:40:00Z',end:'2027-03-01T11:55:00Z'}]});
+    expect((await slots()).map(s=>s.hora)).toEqual(['09:45','10:30','11:15','14:00','14:30','15:00','15:30']);
+  });
+  it('un busy que queda a cinco minutos del respiro no come el último hueco',async()=>{
+    await connect();await dosVentanas();
+    // 12:05 a 12:20: la ventana cierra a las 12:00 y el último hueco termina
+    // 11:45; con 15 de respiro el límite es 12:00, así que las 11:15 viven.
+    vi.mocked(deps.calendar.freebusy).mockResolvedValue({primary:[{start:'2027-03-01T15:05:00Z',end:'2027-03-01T15:20:00Z'}]});
+    expect((await slots()).map(s=>s.hora)).toEqual(['09:00','09:45','10:30','11:15','14:00','14:30','15:00','15:30']);
   });
   it('un fallo externo no se convierte en huecos libres y deja auditoría',async()=>{
     await connect();await availability();vi.mocked(deps.calendar.freebusy).mockRejectedValue(new GoogleIntegrationError('GOOGLE_FREEBUSY_UNAVAILABLE'));
