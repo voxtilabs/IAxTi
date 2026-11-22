@@ -59,7 +59,9 @@ test('el panel vacío no enseña atajos de teclado', async ({ page }) => {
   // lugar: seguía verde.
   await page.route('**/v1/conversations**', (r) => r.fulfill({ json: { items: [] } }));
   await entrar(page, 1440, 950);
-  await expect(page.getByText(/Elige una conversación/)).toBeVisible({ timeout: 15_000 });
+  // El texto nuevo de la lista vacía (#1326): «elige una conversación» era
+  // una instrucción imposible cuando no hay lista de donde elegir.
+  await expect(page.getByText('Cuando un cliente escriba, su conversación abre acá.')).toBeVisible({ timeout: 15_000 });
   // La chuleta sigue existiendo detrás del «?»; lo que no puede es estar en
   // el panel central, que es lo primero que mira quien no conoce la pantalla.
   await expect(page.getByText('Siguiente / anterior conversación')).toHaveCount(0);
