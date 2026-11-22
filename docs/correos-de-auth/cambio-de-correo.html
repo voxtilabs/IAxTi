@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="margin:0;padding:0;background:#F4F7FD;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F7FD;padding:24px 12px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border:1px solid #DFE8F7;border-radius:16px;">
+<tr><td style="padding:28px 28px 0;">
+<span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:19px;font-weight:700;color:#2F56FF;letter-spacing:-.02em;">IAxTi</span>
+</td></tr>
+<tr><td style="padding:18px 28px 0;">
+<h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:21px;line-height:1.3;font-weight:600;color:#0C1933;">Confirma tu correo nuevo</h1>
+</td></tr>
+<tr><td style="padding:12px 28px 0;">
+<p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#566C8F;">Pediste cambiar el correo de tu cuenta a <strong>{{ .NewEmail }}</strong>. Conf&iacute;rmalo desde ac&aacute; y el cambio queda hecho.</p>
+</td></tr>
+<tr><td style="padding:24px 28px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="background:#2F56FF;border-radius:999px;">
+<a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#FFFFFF;text-decoration:none;">Confirmar el cambio</a>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:14px 28px 0;">
+<p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#566C8F;">Si el bot&oacute;n no funciona, copia esta direcci&oacute;n:<br><span style="color:#0C1933;word-break:break-all;">{{ .ConfirmationURL }}</span></p>
+</td></tr>
+<tr><td style="padding:24px 28px 26px;">
+<p style="margin:0;padding-top:18px;border-top:1px solid #DFE8F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#566C8F;">Te lo manda IAxTi, el asistente de WhatsApp de tu negocio.</p>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>
