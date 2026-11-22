@@ -47,11 +47,12 @@ Antes de dar por bueno un cambio acá, correr esas preguntas.
 
 ## De dónde sale lo que dice
 
-De `voxtilabs/Web_Voxti_labs_spa`, archivos `PRODUCT.md` y
-`docs/product-platform.md`: son el contenido que el propio dueño confirmó para
-el sitio, con sus límites editoriales ya decididos. **No se scrapeó el sitio**:
-voxtilabs.cl está detrás del checkpoint de Vercel y devuelve 429 a curl y a
-cualquier fetch; además el repo tiene el texto completo y sin renderizar.
+Del repo externo voxtilabs/Web_Voxti_labs_spa (en GitHub, no en este
+monorepo): sus archivos PRODUCT.md y docs/product-platform.md. Son el
+contenido que el propio dueño confirmó para el sitio, con sus límites
+editoriales ya decididos. **No se scrapeó el sitio**: voxtilabs.cl está
+detrás del checkpoint de Vercel y devuelve 429 a curl y a cualquier fetch;
+además el repo tiene el texto completo y sin renderizar.
 
 ## Al cargarlas
 
