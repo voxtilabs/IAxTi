@@ -348,31 +348,36 @@ export async function huecosConGoogle(pool: Pool | PoolClient, input: { tenantId
 }
 
 /**
- * El busy de Google, en minutos locales del día que se consulta.
+ * El busy de Google, en minutos de RELOJ del día que se consulta.
  *
- * `huecosDelDia` resta en minutos de reloj y el free/busy llega en instantes
- * UTC, así que alguien tiene que convertir — y la conversión la resuelve
- * Postgres con la zona del negocio, no JS a mano, por el mismo motivo que el
- * resto de las horas de este módulo: el cambio de horario de verano.
+ * `huecosDelDia` resta en minutos de reloj: las citas se leen con
+ * `EXTRACT(hour … AT TIME ZONE zona)` y la rejilla vuelve a instante con
+ * `make_interval`. El free/busy llega en instantes UTC, así que alguien tiene
+ * que convertir — y la conversión la resuelve Postgres con la zona del
+ * negocio, no JS a mano.
  *
- * Se mide contra la MEDIANOCHE local del día y no con `EXTRACT(hour …)` a
- * propósito: la consulta a Google abre con el respiro de margen, así que
- * puede llegar una reunión que EMPEZÓ ayer, y a esa hay que verla como
- * minutos negativos — la que termina 00:14 de hoy sigue tapando la madrugada
- * de hoy. Es la misma resta de instantes que hacía el filtro que este cambio
- * reemplaza; los segundos se truncan al minuto igual que en las citas que ya
- * se leen adentro.
+ * Minutos de RELOJ y no minutos transcurridos, que era lo primero que se
+ * probó: en el día que el reloj salta (Chile adelanta a las 24:00 del
+ * sábado), de la medianoche a las 10:00 hay nueve horas físicas, y la
+ * rejilla igual pide las 10:00 — una reunión de las 10 aparecía corrida a las
+ * 9 y la agenda ofrecía la hora tomada. El mismo `EXTRACT` con el que se
+ * leen las citas no tiene ese problema porque pregunta la hora del reloj y
+ * no cuánto tiempo pasó.
  *
- * La medianoche se escribe `::date::timestamp AT TIME ZONE` — igual que en
- * `bounds`, dos líneas arriba — y no `::date AT TIME ZONE`: sin el
- * `::timestamp` de por medio la resta termina resolviéndose en la zona de la
- * SESIÓN, y la medianoche del negocio se corre las horas que esa zona tenga
- * de diferencia.
+ * El salto de DÍA se conserva como múltiplos de 1440 y no se descarta: la
+ * consulta a Google abre con el respiro de margen, así que puede llegar una
+ * reunión que EMPEZÓ ayer, y a esa hay que verla como minutos negativos —
+ * la que termina 00:14 de hoy sigue tapando la madrugada de hoy. Y una que
+ * se pasa de la medianoche llega mayor que 1440 por la misma razón.
  */
 async function minutosDelDia(c: PoolClient, dia: string, zona: string, busy: GoogleBusyInterval[]): Promise<Ocupado[]> {
   const r = await c.query(
-    `SELECT (EXTRACT(epoch FROM (x.s::timestamptz - ($1::date::timestamp AT TIME ZONE $2))) / 60)::int AS inicio,
-            (EXTRACT(epoch FROM (x.e::timestamptz - ($1::date::timestamp AT TIME ZONE $2))) / 60)::int AS fin
+    `SELECT (EXTRACT(hour FROM x.s::timestamptz AT TIME ZONE $2)*60
+            + EXTRACT(minute FROM x.s::timestamptz AT TIME ZONE $2)
+            + 1440*((x.s::timestamptz AT TIME ZONE $2)::date - $1::date))::int AS inicio,
+            (EXTRACT(hour FROM x.e::timestamptz AT TIME ZONE $2)*60
+            + EXTRACT(minute FROM x.e::timestamptz AT TIME ZONE $2)
+            + 1440*((x.e::timestamptz AT TIME ZONE $2)::date - $1::date))::int AS fin
        FROM unnest($3::text[], $4::text[]) AS x(s, e)`,
     [dia, zona, busy.map((b) => b.start), busy.map((b) => b.end)],
   );
