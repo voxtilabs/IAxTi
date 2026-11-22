@@ -123,4 +123,65 @@ describe('el bot no habla encima de una persona (#1245)', () => {
     expect(r.autoReplied).toBeTruthy();
     expect(await dijoElAgente(conversationId)).toBe(1);
   });
+
+  /**
+   * El caso que da nombre al issue: el job ENTREGÓ y murió antes de
+   * terminar (despliegue, OOM). BullMQ re-toma el mismo job al vencer su
+   * lock — la deduplicación por id no participa porque es EL MISMO job — y
+   * sin idempotencia volvería a generar y a entregar: el cliente recibe la
+   * respuesta DOS veces, con texto distinto.
+   *
+   * Acá el reintento es de verdad: una primera corrida entrega (la respuesta
+   * queda en la conversación como saliente del agente, `seq` mayor que el
+   * entrante), y el job SE VUELVE A CORRER con los mismos datos. El saliente
+   * posterior del propio agente es la señal de que ya contestó — la
+   * condición no filtra por autoría precisamente para que este caso entre.
+   */
+  it('el job reintentado después de haber entregado, no entrega DOS veces', async () => {
+    const { conversationId, messageId } = await conversacionConEntrante();
+    const job = { tenantId: tenant, conversationId, messageId };
+
+    // Primera corrida: entrega y «muere» antes de marcar nada más.
+    const primera = await processSuggest(pool, job);
+    expect(primera.autoReplied).toBeTruthy();
+    expect(await dijoElAgente(conversationId)).toBe(1);
+
+    // El mismo job, de nuevo, como lo retoma BullMQ. Tiene que contestar
+    // «ya está contestado» y NO agregar un segundo mensaje del agente.
+    const reintento = await processSuggest(pool, job);
+    expect(reintento.skipped).toMatch(/pasó algo después/);
+    expect(await dijoElAgente(conversationId)).toBe(1);
+  });
+
+  /** Dos entrantes seguidos: el segundo se contesta igual — la idempotencia
+      no puede quedarse con la pregunta nueva (eso se prueba, no se razona). */
+  it('dos entrantes seguidos, el segundo se contesta', async () => {
+    const { conversationId } = await conversacionConEntrante();
+    // receiveInbound abre por contacto: el mismo teléfono cae en la misma
+    // conversación, que es lo que este caso necesita. Se lee antes, porque
+    // un `await` dentro del objeto argumento no compila.
+    const telefono = (
+      await pool.query(
+        `SELECT c.phone FROM conversations cv JOIN contacts c ON c.id = cv.contact_id
+          WHERE cv.tenant_id = $1 AND cv.id = $2`,
+        [tenant, conversationId],
+      )
+    ).rows[0].phone;
+    const r = await withTenant(pool, tenant, (c) =>
+      receiveInbound(c, {
+        tenantId: tenant,
+        channel: 'whatsapp',
+        phone: telefono,
+        body: 'y el sábado?',
+        providerMessageId: `in-${randomUUID()}`,
+      }),
+    );
+    const segundo = await processSuggest(pool, {
+      tenantId: tenant,
+      conversationId,
+      messageId: r.message.id,
+    });
+    expect(segundo.skipped).toBeUndefined();
+    expect(segundo.autoReplied).toBeTruthy();
+  });
 });
