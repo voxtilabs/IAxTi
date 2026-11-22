@@ -505,7 +505,7 @@ export function Agenda() {
               <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-2">
                 <div aria-hidden className="grid grid-cols-7 gap-px pb-1">
                   {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d) => (
-                    <span key={d} className="text-center text-[11px] font-medium text-muted">
+                    <span key={d} className="rotulo text-center font-medium text-muted">
                       {d}
                     </span>
                   ))}
@@ -537,13 +537,13 @@ export function Agenda() {
                         {delDia.slice(0, 2).map((c) => (
                           <span
                             key={c.id}
-                            className={`w-full truncate rounded px-1 text-[10px] leading-4 ${PILSITA[ETIQUETA[c.status].rol]}`}
+                            className={`rotulo w-full truncate rounded px-1 ${PILSITA[ETIQUETA[c.status].rol]}`}
                           >
                             {hora(c.startsAt)}
                           </span>
                         ))}
                         {delDia.length > 2 && (
-                          <span className="text-[10px] text-muted">+{delDia.length - 2}</span>
+                          <span className="rotulo text-muted">+{delDia.length - 2}</span>
                         )}
                       </>
                     );
