@@ -31,6 +31,11 @@ for (const [nombre, ancho, alto] of [['escritorio', 1280, 900], ['celular', 390,
         user: { id: a.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' },
       }));
     }, auth);
+      // La IA configurada: en este mundo simulado el diagnóstico está sano, para
+    // que el campo del chat acepte texto (#1326) — sin esto, la señal rota
+    // apaga el campo y estos tests mueren esperando una respuesta que nunca
+    // parte.
+    await page.route('**/v1/agents/diagnostico', (r) => r.fulfill({ json: { problema: null, pasos: [] } }));
     await page.route('**/v1/agente-general', (r) =>
       r.fulfill({ json: {
         texto: 'Listo. ' + 'Una respuesta larga para que el hilo crezca de verdad. '.repeat(8),

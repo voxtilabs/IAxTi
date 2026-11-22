@@ -28,6 +28,11 @@ test.beforeEach(async ({ page }) => {
       user: { id: a.userId, aud: 'authenticated', email: 'supervisora@e2e.cl' },
     }));
   }, auth);
+  // La IA configurada: en este mundo simulado el diagnóstico está sano, para
+  // que el campo del chat acepte texto (#1326) — sin esto, la señal rota
+  // apaga el campo y estos tests mueren esperando una respuesta que nunca
+  // parte.
+  await page.route('**/v1/agents/diagnostico', (r) => r.fulfill({ json: { problema: null, pasos: [] } }));
   await page.route('**/v1/agente-general', (r) =>
     r.fulfill({ json: { texto: 'Lo dejé anotado.', pasos: [], propuesta: null, truncada: false } }));
 });
@@ -56,6 +61,11 @@ test('lo hablado sobrevive a RECARGAR y vuelve desde la lista', async ({ page })
 test('una propuesta vuelve CON su estado, no solo con su texto', async ({ page }) => {
   // El caso que justifica guardar: una propuesta sin resolver que desaparece
   // deja al dueño sin saber qué le habían ofrecido.
+  // La IA configurada: en este mundo simulado el diagnóstico está sano, para
+  // que el campo del chat acepte texto (#1326) — sin esto, la señal rota
+  // apaga el campo y estos tests mueren esperando una respuesta que nunca
+  // parte.
+  await page.route('**/v1/agents/diagnostico', (r) => r.fulfill({ json: { problema: null, pasos: [] } }));
   await page.route('**/v1/agente-general', (r) =>
     r.fulfill({ json: {
       texto: 'Te propongo esto.', pasos: [],
