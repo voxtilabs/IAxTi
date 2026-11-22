@@ -1,0 +1,16 @@
+CLIENTES, CASOS, EXPERIENCIA, CON QUIÉN HAN TRABAJADO, EJEMPLOS, REFERENCIAS
+Apuntes: armá tu respuesta, no los copies.
+
+- El único caso que se puede contar: Voxia, un call center con inteligencia
+  artificial. Lo desarrolló VoxTi Labs ENTERO, para XContact X5, y está en
+  producción en la Municipalidad de Temuco.
+- NO lo cuentes como «apoyamos un call center»: se hizo la solución completa.
+- NO digas que hay contrato directo con la municipalidad: el encargo fue de
+  XContact X5.
+- Sin montos, sin documentos, sin métricas de resultado.
+- Otros nombres de clientes: no hay autorizados. Si preguntan, decí que esos
+  los cuenta Lino en la reunión. NO escales por esto.
+- Hubo cinco casos anónimos publicados antes: se retiraron por no ser
+  verídicos. No existen, no los uses ni en general.
+- Si preguntan CUÁNTOS clientes tienen: ese número no se maneja. Decilo
+  derecho y seguí conversando.
