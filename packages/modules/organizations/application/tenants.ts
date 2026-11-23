@@ -1,4 +1,4 @@
-import { olvidarPlan } from './plan-modulos';
+import { olvidarPlan, PLAN_UNICO } from './plan-modulos';
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import {
@@ -51,11 +51,13 @@ export async function createTenant(
 ): Promise<Tenant> {
   const result = await client.query(
     `INSERT INTO tenants (name, rubro, plan, state, trial_ends_at, id, settings)
-     VALUES ($1, $2, 'crece', 'trial', now() + make_interval(days => $3),
+     VALUES ($1, $2, $6, 'trial', now() + make_interval(days => $3),
              COALESCE($4::uuid, gen_random_uuid()), $5::jsonb)
      RETURNING *`,
     [input.name, input.rubro ?? null, TRIAL_DAYS, input.id ?? null,
-      JSON.stringify(input.description ? { businessDescription: input.description } : {})],
+      JSON.stringify(input.description ? { businessDescription: input.description } : {}),
+      // Nace en el plan único (#1377): ya no hay prueba con «Crece regalado».
+      PLAN_UNICO],
   );
   const tenant = rowToTenant(result.rows[0]);
   // El manifiesto declara `tenant.created` desde el primer día y no lo

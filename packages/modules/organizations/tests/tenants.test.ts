@@ -51,14 +51,14 @@ afterAll(async () => {
 });
 
 describe('organizations', () => {
-  it('el tenant nace en trial con 14 días y el plan de prueba Crece', async () => {
+  it('el tenant nace en trial con 14 días y en el plan único (#1377)', async () => {
     const client = await admin.connect();
     try {
       const tenant = await createTenant(client, { name: 'Barbería Test', rubro: 'servicios' });
       creados.push(tenant.id);
       tenantId = tenant.id;
       expect(tenant.state).toBe('trial');
-      expect(tenant.plan).toBe('crece');
+      expect(tenant.plan).toBe('iaxti');
       expect(tenant.onboardingState).toBe('registered');
       const dias = (tenant.trialEndsAt!.getTime() - Date.now()) / 86_400_000;
       expect(dias).toBeGreaterThan(13.9);

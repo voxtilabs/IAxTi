@@ -65,7 +65,7 @@ it('valida cuerpo e idempotency-key: no acepta elegir identidad, tenant, rol ni 
   expect((await register(randomUUID(), body(), { 'Idempotency-Key': '' })).status).toBe(400);
 });
 
-it('ocho POST concurrentes dejan una alta con ADMIN, prueba Crece14d, perfil, auditoría y outbox', async () => {
+it('ocho POST concurrentes dejan una alta con ADMIN, prueba de 14 días en el plan único (#1377), perfil, auditoría y outbox', async () => {
   const user = randomUUID(); const input = body();
   const responses = await Promise.all(Array.from({ length: 8 }, () => register(user, input, { 'X-User-Id': randomUUID(), 'X-Tenant-Id': randomUUID(), 'X-Role': 'SUPERADMIN' })));
   expect(responses.map((r) => r.status)).toEqual(Array(8).fill(200));
@@ -73,7 +73,7 @@ it('ocho POST concurrentes dejan una alta con ADMIN, prueba Crece14d, perfil, au
   const tenant = memberships[0].tenantId;
   expect(memberships).toEqual(Array(8).fill({ tenantId: tenant, tenantName: input.name, roleName: 'ADMIN' }));
   const row = (await owner.query('SELECT *, trial_ends_at - created_at AS trial FROM tenants WHERE id=$1', [tenant])).rows[0];
-  expect(row).toMatchObject({ name: input.name, rubro: 'servicios', plan: 'crece', state: 'trial', onboarding_state: 'registered', settings: { businessDescription: input.description } });
+  expect(row).toMatchObject({ name: input.name, rubro: 'servicios', plan: 'iaxti', state: 'trial', onboarding_state: 'registered', settings: { businessDescription: input.description } });
   expect(row.trial.days).toBe(14);
   expect((await owner.query('SELECT name FROM user_profiles WHERE user_id=$1', [user])).rows[0].name).toBe('Ana');
   expect((await owner.query('SELECT * FROM user_roles WHERE tenant_id=$1', [tenant])).rows).toHaveLength(1);
@@ -83,7 +83,7 @@ it('ocho POST concurrentes dejan una alta con ADMIN, prueba Crece14d, perfil, au
   const me = await fetch(`${base}/v1/me`, { headers: { Authorization: `Bearer ${await token(user)}` } });
   expect((await me.json()).tenants).toEqual([memberships[0]]);
   const resume = await fetch(`${base}/v1/onboarding/negocio`, { headers: { Authorization: `Bearer ${await token(user)}`, 'X-Tenant-Id': tenant } });
-  expect(await resume.json()).toMatchObject({ name: input.name, description: input.description, vertical: input.vertical, plan: 'crece', state: 'trial' });
+  expect(await resume.json()).toMatchObject({ name: input.name, description: input.description, vertical: input.vertical, plan: 'iaxti', state: 'trial' });
 });
 
 it('referencia original estable tras otra membresía; no restaura acceso revocado', async () => {

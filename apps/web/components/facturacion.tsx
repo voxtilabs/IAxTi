@@ -90,17 +90,19 @@ export function Facturacion() {
     <div className="max-w-xl">
       <EncabezadoDePagina
         rotulo="Facturación"
-        titulo="Tu plan y tus facturas"
+        titulo="Tus facturas"
       />
 
       <div className="mt-6 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <div className="flex items-baseline justify-between gap-4">
-          <span className="rotulo">Plan {sub.plan}</span>
+          {/* Un solo plan con todo (#1377): el rótulo dice IAxTi, no un
+              nombre de plan que invite a buscar otro. */}
+          <span className="rotulo">IAxTi completo</span>
           <Badge role={ESTADO[sub.status]?.role ?? 'neutral'}>{ESTADO[sub.status]?.label ?? sub.status}</Badge>
         </div>
         <p className="mt-2 text-sm text-muted">
           Próximo cobro: <span className="dato text-body">{sub.nextChargeAt}</span>. La factura llega
-          con los tres costos separados: plan, exceso de WhatsApp y ampliación de IA. La boleta se
+          con los tres costos separados: la suscripción, el exceso de WhatsApp y la ampliación de IA. La boleta se
           emite con estos mismos datos.
         </p>
       </div>
@@ -123,7 +125,7 @@ export function Facturacion() {
                 <span className="min-w-0 flex-1 text-right">
                   <span className="dato font-semibold text-ink">{c.conversaciones}</span>
                   {c.tope !== null && c.tope > 0 && (
-                    <span className="text-muted"> de {c.tope} del plan {c.plan}</span>
+                    <span className="text-muted"> de {c.tope} del ciclo</span>
                   )}
                 </span>
               </li>

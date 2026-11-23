@@ -40,6 +40,10 @@ const SIN_CONSUMIDOR: Record<string, string> = {
   'GET /ready': 'Readiness: la llama el smoke del despliegue y Dokploy (#17).',
   'GET /health/modules': 'El grafo de módulos, para diagnosticar un arranque (#11).',
 
+  // La puerta de vuelta de una decisión, sin pantalla a propósito.
+  'POST /platform/tenants/:id/plan':
+    'Con un solo plan con todo (#1377, ADR-0036) el SuperAdmin ya no ofrece cambiar el plan, así que la pantalla la dejó de llamar. La ruta se queda: es como se revierte la decisión —volver a poner un negocio en otro plan— sin escribir SQL a mano, y pasa por el guard y la auditoría.',
+
   // Las llama alguien de afuera.
   'POST /webhooks/channels/:accountId': 'La llama el proveedor de canales cuando entra un mensaje (#41).',
   'POST /webhooks/google/calendar': 'La llama Google Calendar en los canales events.watch registrados (#57); valida token/recurso y encola la notificación. No es una ruta de pantalla ni herramienta IA.',

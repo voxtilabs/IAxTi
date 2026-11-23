@@ -42,7 +42,7 @@ export function PestanasAjustes({ items, candados }: { items: NavItem[]; candado
                 href={i.path}
                 prefetch={false}
                 aria-current={puesta ? 'page' : undefined}
-                title={conCandado ? 'Tu plan no incluye esta función: puedes mirar, no cambiar.' : undefined}
+                title={conCandado ? 'Por ahora puedes mirar esta función, no cambiarla.' : undefined}
                 className={[
                   'inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors',
                   puesta
@@ -52,7 +52,7 @@ export function PestanasAjustes({ items, candados }: { items: NavItem[]; candado
               >
                 {i.label}
                 {/* El candado se ve: bajar de plan nunca esconde (SPEC §6). */}
-                {conCandado && <Lock className="size-3 text-muted" aria-label="incluido en un plan superior" />}
+                {conCandado && <Lock className="size-3 text-muted" aria-label="solo lectura por ahora" />}
               </Link>
             </li>
           );

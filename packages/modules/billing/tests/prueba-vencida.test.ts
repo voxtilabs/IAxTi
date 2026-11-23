@@ -49,13 +49,15 @@ afterAll(async () => {
 });
 
 describe('la prueba de 14 días se acaba', () => {
-  it('vencida sin suscripción: queda en solo lectura y vuelve al plan base', async () => {
+  it('vencida sin suscripción: queda en solo lectura y NO cambia de plan', async () => {
     await sweepBilling(admin);
 
     const t = await withTenant(admin, vencido, (c) => getTenant(c, vencido));
+    // El solo lectura es por el ESTADO de pago, no por el plan.
     expect(t.state).toBe('read_only');
-    // Los módulos de Crece eran de la prueba, no del plan.
-    expect(t.plan).toBe('base');
+    // Antes bajaba a 'base' («los módulos de Crece eran de la prueba»). Con un
+    // solo plan con todo (#1377) no hay a qué bajar: conserva el que tenía.
+    expect(t.plan).toBe('crece');
   });
 
   it('vencida CON suscripción viva: pasa a activo y conserva su plan', async () => {
@@ -76,6 +78,6 @@ describe('la prueba de 14 días se acaba', () => {
     await sweepBilling(admin);
     const t = await withTenant(admin, vencido, (c) => getTenant(c, vencido));
     expect(t.state).toBe('read_only');
-    expect(t.plan).toBe('base');
+    expect(t.plan).toBe('crece');
   });
 });

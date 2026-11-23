@@ -8,6 +8,7 @@ import {
   createTenant,
   getTenant,
   getUsage,
+  PLAN_UNICO,
   type TenantState,
 } from '@iaxti/module-organizations';
 
@@ -100,7 +101,7 @@ export async function adminCreateTenant(
     tenantId: tenant.id,
     adminUser: input.adminUser,
     action: 'platform.tenant.create',
-    metadata: { name: input.name.trim(), plan: input.plan ?? 'crece' },
+    metadata: { name: input.name.trim(), plan: input.plan ?? PLAN_UNICO },
   });
   return { id: tenant.id };
 }

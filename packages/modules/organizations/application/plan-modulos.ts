@@ -86,6 +86,16 @@ export async function modulosDelPlan(
  * incluye un módulo activo, el módulo pasa a solo lectura, no se borra».
  * Bajar de plan nunca esconde lo que el cliente ya escribió.
  */
+/**
+ * El plan único (#1377, ADR-0036): IAxTi trae sus módulos y ya.
+ *
+ * Todo negocio nace y vive acá. Es UN nombre en UN lugar para que nadie vuelva
+ * a escribir `'crece'` o `'base'` a mano: esos planes siguen en la tabla
+ * —la migración es aditiva y volver a vender planes es cambiar el plan de los
+ * negocios— pero el código ya no los elige.
+ */
+export const PLAN_UNICO = 'iaxti';
+
 export type AccesoModulo = 'completo' | 'solo_lectura';
 
 export function accesoAlModulo(input: {
