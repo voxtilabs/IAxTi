@@ -81,7 +81,12 @@ for (const modo of ['dia', 'noche'] as const) {
           });
         return {
           grupos: estilo('[data-sidebar="group-label"]'),
-          contexto: estilo('.pulso-context span'),
+          // La miga `.pulso-context` ya no existe (#1323): en celular el
+          // título de la página es el que dice dónde estás, y medir un
+          // selector que nadie dibuja sería verde de más. Lo que la sustituye
+          // como antetítulo es el `rotulo` de `EncabezadoDePagina`, así que
+          // la medición va sobre él.
+          contexto: estilo('.rotulo'),
           titulos: estilo('h1, h2, h3, h4'),
         };
       });
@@ -89,6 +94,9 @@ for (const modo of ['dia', 'noche'] as const) {
       for (const g of [...medido.grupos, ...medido.contexto]) {
         expect(g.mayus, `«${g.texto}» sigue en versales`).toBe('none');
         expect(g.tracking, `«${g.texto}» sigue espaciado`).toBe(0);
+        // Y el tamaño: el piso del repo es 12 px (#1106), y el rótulo es de
+        // las pocas cosas que se leen en un celular.
+        expect(g.tamano, `«${g.texto}» quedó bajo el piso de letra`).toBeGreaterThanOrEqual(12);
       }
       for (const t of medido.titulos.filter((x) => x.visible)) {
         // El tracking negativo es para letra grande: bajo 24 px se come el

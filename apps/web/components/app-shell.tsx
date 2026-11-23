@@ -720,7 +720,6 @@ function ContenidoShell({ nav: navDelServidor, sinMargen, altoCompleto, children
     [todosLosDestinos, arranqueDelShell],
   );
   const ruta = usePathname();
-  const pagina = nav.find((item) => item.path === ruta || ruta?.startsWith(`${item.path}/`));
   /**
    * Y esta ruta, ¿se puede abrir? (#815)
    *
@@ -768,14 +767,14 @@ function ContenidoShell({ nav: navDelServidor, sinMargen, altoCompleto, children
             <SoporteAviso />
             {/* Sin barra superior en escritorio (Mesón, #1346): el título vive en
                 la página y los controles en la barra lateral. En el celular sí,
-                porque es la única forma de abrir el menú. */}
+                porque es la única forma de abrir el menú.
+                Sin la miga (#1323): en celular la página ya dice dónde estás
+                con su título, y las dos juntas eran el nombre dos veces arriba
+                del contenido. El título de la página gana; la barra se queda
+                con el menú y los controles. */}
             <CabezaDelCelular>
             <header className="pulso-topbar flex items-center gap-3 border-b border-line px-6 py-3">
               <SidebarTrigger />
-              <div className="pulso-context">
-                <span>{pagina?.grupo ?? 'Tu espacio de trabajo'}</span>
-                <strong>{pagina?.label ?? (ruta === '/' ? 'Puesta en marcha' : 'IAxTi')}</strong>
-              </div>
               <div className="ml-auto flex items-center gap-3">
                 {/* IAxTi va en la barra de TODA la app y no en una pantalla
                     suya: configurar conversando solo sirve si está donde

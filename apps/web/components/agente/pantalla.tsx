@@ -32,8 +32,10 @@ export function PantallaDelAsistente() {
           lateral resaltado, en la miga del topbar, en el rótulo y en el
           título. Y los 168 px que ocupaban rótulo y título son 168 px de no
           ver la conversación, en la pantalla cuyo pedido fue «que sea
-          literalmente como abrir chatgpt». La miga del topbar dice dónde
-          estás, igual que en todas las demás pantallas.
+          literalmente como abrir chatgpt».
+          Con #1323 la miga se fue y este `sr-only` quedó como el ÚNICO
+          título de la pantalla: la conversación no compite con ningún
+          encabezado visible, que es exactamente lo que el dueño pidió.
           El `h1` se queda porque la pantalla tiene que tener uno, y
           `densidad` lo sigue midiendo. */}
       <h1 className="sr-only">Tu asistente</h1>

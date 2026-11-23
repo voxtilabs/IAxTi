@@ -10,7 +10,8 @@ import { join } from 'node:path';
  * gordo, y quedó lo fino: el nombre de la pantalla aparecía CUATRO veces en
  * los primeros 300 px —en la barra lateral resaltado, en la miga del topbar,
  * en el rótulo y en el título— y entre el borde de arriba y el primer mensaje
- * había 430 px de cosas que no eran la conversación.
+ * había 430 px de cosas que no eran la conversación. La miga se fue con
+ * #1323 y el título visible también quedó fuera; lo que queda es el chat.
  *
  * Se mide el alto hasta el primer turno y no la apariencia: una captura con
  * un hilo largo se ve bien igual, porque lo que sobra queda arriba del
@@ -56,8 +57,9 @@ test('entre el borde de arriba y el primer mensaje hay menos de 200 px', async (
 test('sigue teniendo un solo h1 y sigue diciendo cómo se llama', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/ajustes/ia');
-  // El `h1` es `sr-only`: la pantalla tiene nombre para quien no la ve, y el
-  // nombre visible lo pone la miga del topbar, igual que en todas las demás.
+  // El `h1` es `sr-only`: la pantalla tiene nombre para quien no la ve.
+  // Con la miga fuera (#1323) no hay nombre visible a propósito (#1163):
+  // la conversación ocupa la pantalla entera, como abrir ChatGPT.
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tu asistente');
 });

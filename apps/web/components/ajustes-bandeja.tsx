@@ -1,6 +1,6 @@
 'use client';
 
-import { AvisoResultado, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
+import { AvisoResultado, EncabezadoDePagina, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
@@ -103,8 +103,13 @@ export function AjustesBandeja() {
 
   return (
     <form onSubmit={guardar} className="max-w-xl">
-      <p className="rotulo">Bandeja</p>
-      <h2 className="mt-2 text-xl font-semibold text-ink">Asignación y tiempos de respuesta</h2>
+      {/* La pantalla se presenta como todas (#1323): era la única de ajustes
+          sin título de página — su encabezado era un rótulo suelto seguido de
+          un `h2` más chico que el de cualquier vecina. */}
+      <EncabezadoDePagina
+        titulo="Ajustes de la bandeja"
+        apoyo="Cómo se reparten las conversaciones y en cuánto tiempo se responden."
+      />
 
       <div className="mt-8 flex flex-col gap-8">
         <label className="block">
