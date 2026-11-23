@@ -113,10 +113,14 @@ for (const modo of ['dia', 'noche']) {
   });
 }
 
-test('el plan de solo lectura conserva el listado y explica por qué no permite crear', async ({ page }) => {
+// El mecanismo de solo lectura sigue vivo aunque hoy nadie quede en él (#1377:
+// un solo plan con todo). Si vuelve a usarse, la pantalla conserva el listado y
+// no manda a mirar un plan que ya no existe.
+test('en solo lectura conserva el listado, no deja crear y no habla de planes', async ({ page }) => {
   await page.route('**/v1/me/modules/acceso', (route) => route.fulfill({ json: [{ id: 'automations', acceso: 'solo_lectura' }] }));
   await page.goto('/campanas');
   await expect(page.getByRole('button', { name: 'Crear campaña', exact: true })).toBeDisabled();
-  await expect(page.getByText('Tu plan permite consultar campañas, pero no crear ni enviar.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Revisar mi plan' })).toBeVisible();
+  await expect(page.getByText('Por ahora puedes consultar campañas, pero no crear ni enviar.')).toBeVisible();
+  // «plan» como palabra suelta: «plantilla» SÍ aparece en esta pantalla.
+  await expect(page.getByText(/\bplan\b/i)).toHaveCount(0);
 });

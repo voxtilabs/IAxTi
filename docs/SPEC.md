@@ -175,6 +175,13 @@ condición que lo activa.
 
 ## 6. Modelo comercial
 
+> **Hoy rige un solo plan con todo (ADR-0036, #1377).** Todo negocio está en el
+> plan `iaxti`, que trae los nueve módulos; los topes quedan como freno de
+> seguridad, no comercial. La tabla de abajo describe los tres planes que el
+> mecanismo sigue soportando y a los que se puede volver cambiando el plan de
+> los negocios. Mientras rija el plan único, lo que la tabla dice sobre módulos
+> fuera del plan y sobre «pasa a Base» al terminar la prueba **no aplica**.
+
 Un plan por negocio, usuarios ilimitados, nunca por lead ni por conversación. Los
 tres planes se diferencian por capacidad y módulos, no por asientos. Aquí no van
 precios: se definen fuera del código y el sistema los lee de la configuración de

@@ -39,7 +39,7 @@ describe('platform', () => {
       const t = await c.query("INSERT INTO tenants (name) VALUES ('plat-test') RETURNING id");
       const lista = await listTenants(c);
       const mio = lista.find((x) => x.id === t.rows[0].id);
-      expect(mio).toMatchObject({ name: 'plat-test', plan: 'base', state: 'trial' });
+      expect(mio).toMatchObject({ name: 'plat-test', plan: 'iaxti', state: 'trial' });
       expect(mio?.createdAt).toBeInstanceOf(Date);
       await c.query('DELETE FROM tenants WHERE id = $1', [t.rows[0].id]);
     } finally {

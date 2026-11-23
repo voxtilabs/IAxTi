@@ -419,7 +419,7 @@ function Grupo({
                           {cerrada && (
                             <Lock
                               className="ml-auto size-3.5 shrink-0 text-muted"
-                              aria-label="incluido en un plan superior"
+                              aria-label="solo lectura por ahora"
                             />
                           )}
                         </Link>
@@ -450,7 +450,7 @@ function Grupo({
                         // explicación en el tooltip.
                         <Lock
                           className="ml-auto size-3.5 shrink-0 text-muted"
-                          aria-label="incluido en un plan superior"
+                          aria-label="solo lectura por ahora"
                         />
                       )}
                     </Link>

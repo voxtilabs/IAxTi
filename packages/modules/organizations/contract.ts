@@ -33,6 +33,7 @@ export {
   accesoAlModulo,
   olvidarPlan,
   olvidarPlanes,
+  PLAN_UNICO,
 } from './application/plan-modulos';
 export type { AccesoModulo } from './application/plan-modulos';
 

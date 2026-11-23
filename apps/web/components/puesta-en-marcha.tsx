@@ -192,7 +192,7 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
                 </span>
                 <span className="max-w-prose text-sm text-body">
                   {p.bloqueado
-                    ? 'Este paso no aplica a tu plan: el módulo que lo resuelve está apagado.'
+                    ? 'Este paso no aplica por ahora: el módulo que lo resuelve está apagado.'
                     : p.ayuda}
                 </span>
                 {p.detalle && <span className="text-xs text-muted">{p.detalle}</span>}

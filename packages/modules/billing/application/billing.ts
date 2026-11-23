@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { publishEvent, type Consumer, type EventEnvelope } from '@iaxti/core';
 import { porCadaTenant } from '@iaxti/db';
 import { writeAudit } from '@iaxti/module-audit';
-import { changePlan, changeTenantState, getTenant, getTenantSettings } from '@iaxti/module-organizations';
+import { changeTenantState, getTenant, getTenantSettings, PLAN_UNICO } from '@iaxti/module-organizations';
 import { createPaymentLink, listProviders } from '@iaxti/module-payments';
 import { buildInvoiceLines, invoiceTotal, planPricing, usdClpRate, type InvoiceLine } from '../domain/pricing';
 
@@ -98,7 +98,7 @@ export async function ensureSubscription(client: PoolClient, tenantId: string): 
      VALUES ($1, $2, (date_trunc('month', now()) + interval '1 month')::date)
      ON CONFLICT (tenant_id) DO UPDATE SET plan = $2, updated_at = now()
      RETURNING *`,
-    [tenantId, tenant.plan ?? 'base'],
+    [tenantId, tenant.plan ?? PLAN_UNICO],
   );
   return rowToSubscription(r.rows[0]);
 }
@@ -487,10 +487,11 @@ export async function sweepBilling(
       ]);
       const eligio = sus.rows[0]?.status === 'active';
       await changeTenantState(client, tenantId, eligio ? 'active' : 'read_only');
-      if (!eligio) {
-        // La prueba traía los módulos de Crece regalados; se terminó.
-        await changePlan(client, tenantId, 'base');
-      }
+      // Antes acá la prueba vencida bajaba a 'base' («la prueba traía los
+      // módulos de Crece regalados»). Con el plan único (#1377) no hay a qué
+      // bajar: se queda con todo, en solo lectura por el ESTADO, no por el
+      // plan — y bajarlo además disparaba `tenant.plan_changed` con un corte
+      // de retención que ya no existe.
       await writeAudit(client, {
         tenantId,
         actor: 'system',

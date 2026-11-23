@@ -207,23 +207,10 @@ function TablaTenants() {
                       controles solo miraba apps/web, así que este sobrevivió
                       con la lista de excepciones vacía diciendo que no quedaba
                       ninguno (#537). */}
-                  <Select
-                    value={t.plan}
-                    onValueChange={(plan) =>
-                      void accion(`/platform/tenants/${t.id}/plan`, {
-                        body: JSON.stringify({ plan }),
-                      })
-                    }
-                  >
-                    <SelectTrigger aria-label={`Plan de ${t.name}`} className="h-8 w-28 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {['base', 'crece', 'equipo'].map((p) => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Sin selector de plan (#1377, ADR-0036): hay UN plan con
+                      todo, así que no hay qué elegir. Se muestra cuál tiene,
+                      por si un negocio quedó en uno viejo. */}
+                  <span className="rotulo text-muted" aria-label={`Plan de ${t.name}`}>{t.plan}</span>
                   {t.state === 'suspended' || t.state === 'read_only' || t.state === 'past_due' ? (
                     <button
                       type="button"

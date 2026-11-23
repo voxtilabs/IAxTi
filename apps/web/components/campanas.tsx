@@ -44,6 +44,8 @@ const CALIDAD: Record<string, { nombre: string; rol: BadgeRole }> = {
  */
 const TODOS = 'todos';
 
+const RUTA_MENSAJES_APROBADOS = '/ajustes/plantillas';
+
 export function Campanas() {
   // Esto eran ocho líneas que hacían EXACTAMENTE lo que `useSelectedTenant`:
   // leer el negocio, escuchar `storage` y `iaxti-tenant-changed`, y limpiar
@@ -284,7 +286,7 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
           )
         }
       />
-      {puedeEscribir === false && <p className="text-sm text-muted">Tu plan permite consultar campañas, pero no crear ni enviar. <a href="/ajustes/facturacion">Revisar mi plan</a>.</p>}
+      {puedeEscribir === false && <p className="text-sm text-muted">Por ahora puedes consultar campañas, pero no crear ni enviar.</p>}
       {error && <AvisoResultado tono="error">{error}</AvisoResultado>}
       {aviso && <AvisoResultado tono="success">{aviso}</AvisoResultado>}
 
@@ -297,12 +299,16 @@ function CampanasDelNegocio({ tenant }: { tenant: string }) {
             titulo="Todavía no has creado una campaña"
             descripcion="Acá vas a ver cada envío: a cuántos llegó, cuántos respondieron y cuánto costó. Antes de mandar nada revisas a quién le va a llegar."
             // Las etiquetas NO repiten las que ya hay en la pantalla: el
-            // encabezado tiene «Crear campaña» y el aviso del plan tiene
-            // «Revisar mi plan», y dos controles con el mismo nombre en una
-            // misma vista son ambiguos para quien usa lector de pantalla y
-            // para el e2e por igual — lo cazó Playwright en modo estricto.
+            // encabezado tiene «Crear campaña», y dos controles con el mismo
+            // nombre en una misma vista son ambiguos para quien usa lector de
+            // pantalla y para el e2e por igual — lo cazó Playwright en modo
+            // estricto. En solo lectura no se ofrece acción (#1377: ya no hay
+            // un plan al que mandar a mirar).
+            // En solo lectura la acción manda a lo que SÍ se puede hacer —revisar
+            // los mensajes aprobados por Meta con que saldría una campaña—, no a
+            // mirar un plan que ya no existe (#1377).
             accion={puedeEscribir === false
-              ? { etiqueta: 'Ver qué incluye mi plan', href: '/ajustes/facturacion' }
+              ? { etiqueta: 'Ver los mensajes aprobados', href: RUTA_MENSAJES_APROBADOS }
               : { etiqueta: 'Armar la primera', onClick: () => void nueva() }}
           /> : <ul className="space-y-3">{lista.map((c) => <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-campo border border-line bg-raised p-4">
             <div className="min-w-0 flex-1"><h2 className="break-words text-lg font-semibold text-ink">{c.name}</h2>
