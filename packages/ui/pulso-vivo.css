@@ -22,9 +22,6 @@ body { background: var(--canvas); font-size: 15px; }
    con que reportaba una herramienta, y aplicarlo a ciegas sobre pantallas que
    nadie miró cambia nueve cosas para arreglar dos. */
 .pulso-topbar { height: 73px; background: var(--chrome); border-color: var(--border); }
-.pulso-context { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.pulso-context span { color: var(--text-muted); font-size: 12px; }
-.pulso-context strong { color: var(--text); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Barra existente de shadcn: mismos estados, accesos y comportamiento móvil. */
 [data-sidebar="sidebar"] { background: var(--chrome); border-color: var(--border); }
@@ -211,8 +208,6 @@ body { background: var(--canvas); font-size: 15px; }
 @media (max-width: 767px) {
   [data-sidebar="menu-button"] { min-height: 46px; }
   .pulso-content { padding: 24px 16px 40px; }
-  .pulso-context span { display: none; }
-  .pulso-context strong { font-size: 12px; max-width: 16ch; }
   .pulso-topbar { gap: 6px; padding-inline: 12px; }
   .pulso-topbar > .ml-auto { gap: 6px; }
   .pulso-hero { gap: 12px; padding: 24px 20px; border-radius: 16px; }
@@ -309,7 +304,7 @@ body { background: var(--canvas); font-size: 15px; }
   .pulso-access-card form { margin-top: 12px; gap: 8px; }
   .pulso-access-footer { padding-block: 6px; }
 }
-@media (max-width: 420px) { .pulso-context { display: none; } .pulso-hero .pulso-jelly { width: 54px; } }
+@media (max-width: 420px) { .pulso-hero .pulso-jelly { width: 54px; } }
 @media (prefers-reduced-motion: reduce) {
   .pulso-button { transition: none; }
   .pulso-button:not(:disabled):active { transform: none; }

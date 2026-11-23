@@ -3,7 +3,7 @@
 import { mensajeDeError } from '../lib/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Badge, Button, MarcaJelly, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
+import { Badge, Button, EncabezadoDePagina, MarcaJelly, Skeleton, type BadgeRole, useSession } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { getOnboarding, type OnboardingProgress } from '@iaxti/sdk';
 import { WidgetsDelInicio } from './inicio/widgets';
@@ -57,18 +57,18 @@ function Bienvenida({ widgets = [] }: { widgets?: WidgetItem[] }) {
           bandeja. */}
       {/* `h1` y no `h2` (#1139): esta rama ES la portada para quien no puede
           leer el estado del negocio, y la pantalla se quedaba sin un solo
-          título de página. La otra rama ya abre con su `h1`. */}
-      <p className="rotulo">Tu día</p>
-      <h1 className="mt-2 font-display text-titulo text-ink">
-        Todo lo que llega, en un solo lugar
-      </h1>
-      <p className="mt-2 max-w-prose text-body">
-        Cada mensaje de tu negocio entra a la bandeja con su contacto y su historia, por el canal
-        que sea.
-      </p>
-      <Link href="/bandeja" className="mt-6 inline-block">
-        <Button variant="primario">Ir a la bandeja</Button>
-      </Link>
+          título de página. La otra rama ya abre con su `h1`.
+          El título sale de la envoltura (#1323): misma gramática que el
+          resto, dentro del hero para no perder el cintillo ni la marca. Y el
+          título de la página es el que dice dónde estás (#1323): la miga
+          del topbar ya no existe. */}
+      <EncabezadoDePagina
+        rotulo="Tu día"
+        titulo="Todo lo que llega, en un solo lugar"
+        apoyo="Cada mensaje de tu negocio entra a la bandeja con su contacto y su historia, por el canal que sea."
+        accion={<Link href="/bandeja"><Button variant="primario">Ir a la bandeja</Button></Link>}
+        className="mb-0"
+      />
       </div>
       <MarcaJelly />
     </div>
@@ -134,17 +134,24 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
     <section aria-label="Puesta en marcha de tu negocio" className="flex flex-col gap-6">
       <header className="pulso-hero">
         <div>
-        <span className="pulso-eyebrow">A tu ritmo, con todo conectado</span>
-        <h1 className="font-display text-titulo text-ink">
-          {estado.completo ? 'Tu negocio está en marcha' : 'Pon tu negocio en marcha'}
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-body">
-          {estado.completo
+      {/* El cintillo del hero: el filete cálido del eyebrow era el detalle
+          que distinguía la portada (#398), y la envoltura no lo trae. El
+          rótulo de la envoltura dice lo que el eyebrow decía. */}
+      <span className="pulso-eyebrow">A tu ritmo, con todo conectado</span>
+      {/* La miga y el título no coexisten (#1323) y el título sale de la
+          envoltura: el hero conserva su marca, la envoltura pone el `h1`
+          y la frase de apoyo. */}
+      <EncabezadoDePagina
+        titulo={estado.completo ? 'Tu negocio está en marcha' : 'Pon tu negocio en marcha'}
+        apoyo={
+          estado.completo
             ? 'Ya está todo lo necesario. Desde acá se atiende: las conversaciones llegan a la bandeja.'
             : faltan === 1
               ? 'Te falta un paso para empezar a atender.'
-              : `Te faltan ${faltan} pasos para empezar a atender.`}
-        </p>
+              : `Te faltan ${faltan} pasos para empezar a atender.`
+        }
+        className="mb-0"
+      />
         </div>
         <MarcaJelly />
       </header>
