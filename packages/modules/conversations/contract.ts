@@ -100,3 +100,18 @@ export { datosParaSuprimirTitular, exportarDatosDelTitular, suprimirDatosDelTitu
 
 // Cuánto cupo diario del canal se gastó hoy (#1248).
 export { salientesDelDia } from './application/conversations';
+
+// Escribirle de una vez a todos los que conversaron (#1247).
+export {
+  DifusionError,
+  previsualizarDifusion,
+  enviarDifusion,
+  resultadoDifusion,
+  reintentarDifusion,
+} from './application/difusion';
+export type {
+  MotivoDeExclusion,
+  FiltroDeDifusion,
+  PreviaDeDifusion,
+  DestinatarioDeDifusion,
+} from './application/difusion';

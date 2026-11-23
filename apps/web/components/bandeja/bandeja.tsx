@@ -21,8 +21,9 @@ import {
   nombreVisible,
 } from '@iaxti/ui/react';
 import { estaEscribiendo } from '../../lib/teclado';
-import { usePieza, type Pieza } from '../arranque';
+import { useArranque, usePieza, type Pieza } from '../arranque';
 import type { SecuenciaDto, InscripcionDto } from './secuencias-ficha';
+import { EscribirleAVarios } from './escribirle-a-varios';
 import { ListaDeAtajos } from './atajos-de-la-bandeja';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
@@ -181,6 +182,16 @@ export function Bandeja() {
 
 function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDesdeUrl: boolean }) {
   const { supabase, session, config } = useSession();
+  const { arranque } = useArranque();
+  const etiquetasDelArranque = usePieza('etiquetas');
+  const etiquetas = (etiquetasDelArranque.dato as Array<{ id: string; name: string }> | undefined) ?? [];
+  /**
+   * «Escribirle a varios» es del ADMIN (#1247): manda WhatsApp de verdad a
+   * mucha gente de una vez. Sin el permiso no se ofrece la acción — llegaría
+   * a un 403 después de escribir el texto.
+   */
+  const puedeDifundir = arranque?.permisos?.includes('conversations.broadcast') ?? false;
+  const [varios, setVarios] = useState(false);
   const ayudaTrigger = useRef<HTMLButtonElement>(null);
   const [ayuda, setAyuda] = useState(false);
   const atajoEnCurso = useRef(false);
@@ -651,6 +662,14 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         <DialogDescription>Funcionan cuando no estás escribiendo en un campo.</DialogDescription>
         <div className="mt-4"><ListaDeAtajos /></div>
       </DialogContent></Dialog>
+      {puedeDifundir && (
+        <EscribirleAVarios
+          abierto={varios}
+          onCerrar={() => setVarios(false)}
+          etiquetas={etiquetas}
+          onTermino={cargarLista}
+        />
+      )}
       {/* Panel 1 · Lista (--bg-raised) */}
       <section
         aria-label="Conversaciones"
@@ -661,7 +680,14 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         )}
       >
         <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-raised p-4">
-          <EncabezadoDePagina titulo="Bandeja" className="mb-0" accion={<Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button>} />
+          <EncabezadoDePagina titulo="Bandeja" className="mb-0" accion={
+            <>
+              {puedeDifundir && (
+                <Button variant="fantasma" size="chico" onClick={() => setVarios(true)}>Escribirle a varios</Button>
+              )}
+              <Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button>
+            </>
+          } />
           <Tabs value={vista} onValueChange={(v) => setVista(v as Vista)} className="mt-3">
             {/* Sin `flex-1` (#1111): repartir tercios iguales daba 96 px por
                 pestaña y «Sin responder» se partía en dos líneas, que es de

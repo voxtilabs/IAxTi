@@ -12,6 +12,10 @@ permissions:
   - conversations.assign
   - conversations.resolve
   - conversations.notes
+  # Escribirle de una vez a todos los que conversaron (#1247): manda WhatsApp
+  # de verdad a muchas personas, así que no es `reply` ampliado — lo configura
+  # quien configura campañas.
+  - conversations.broadcast
   - quickreplies.manage
 events:
   publishes:

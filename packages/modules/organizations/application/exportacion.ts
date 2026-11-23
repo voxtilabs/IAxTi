@@ -113,6 +113,10 @@ export const TABLAS_EXPORTADAS = [
   'segments',
   'campaigns',
   'campaign_recipients',
+  // El envío desde la bandeja a varios (#1247): es una campaña sin plantilla,
+  // y quien se lleva sus datos se lleva también a quién le escribió.
+  'difusiones',
+  'difusion_destinatarios',
   'sequences',
   'sequence_enrollments',
   'sources',

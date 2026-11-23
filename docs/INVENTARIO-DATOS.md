@@ -81,6 +81,8 @@ El alta inicial conserva una referencia operativa propia del equipo:
 | `segments` | los filtros de un segmento de la cartera, sin personas adentro | no | negocio | sí | no aplica |
 | `campaigns` | la campaña: plantilla, filtros congelados y estado | no | negocio | sí | queda |
 | `campaign_recipients` | **a quién se le mandó una campaña y qué pasó con cada uno** | indirecta | cliente final | sí | se van con el contacto |
+| `difusiones` | el envío desde la bandeja a varios (#1247): el texto exacto, el filtro y el resumen de quiénes quedaron fuera | no | negocio | sí | queda |
+| `difusion_destinatarios` | **a quién le llegó una difusión**, el mensaje que se le creó y por qué quedó fuera si no entró | indirecta | cliente final | sí | el mensaje se borra con la supresión y el destinatario queda sin él (`ON DELETE SET NULL`); la purga por retención lo borra con su conversación |
 | `agents`, `agent_conversation_modes` | configuración del copiloto | no | negocio | sí | no aplica |
 | `availability` | los horarios que atiende cada persona del equipo | no | negocio | sí | no aplica |
 | `whatsapp_templates` | las plantillas aprobadas por Meta y su texto | no¹ | negocio | sí | quedan: son del negocio, no de una persona |

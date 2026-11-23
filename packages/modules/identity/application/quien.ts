@@ -115,6 +115,34 @@ function idsLimpios(userIds: ReadonlyArray<string | null | undefined>): string[]
 }
 
 /**
+ * Los teléfonos del equipo de este negocio, tal como están en el perfil (#1247).
+ *
+ * Para el envío desde la bandeja a varios a la vez: quien está EN el equipo no
+ * es un destinatario, y la forma de saberlo es el teléfono — es lo único que
+ * comparten un `contacts` y un `user_profiles`. La normalización a E.164 la
+ * hace quien compara (conversations, que declara crm): acá se devuelven tal
+ * cual, porque este módulo no sabe de teléfonos de clientes y un valor que no
+ * se puede normalizar se descarta allá y no acá, donde no se sabría por qué.
+ *
+ * Mismo trato que `quienesSon` con el `PoolClient`: `user_roles` tiene RLS,
+ * así que esto solo es correcto dentro de un `withTenant`.
+ */
+export async function telefonosDelEquipo(
+  client: PoolClient,
+  tenantId: string,
+): Promise<string[]> {
+  const members = await teamMemberships(client, tenantId);
+  if (members.length === 0) return [];
+  const r = await client.query(
+    `SELECT p.phone
+       FROM user_profiles p
+      WHERE p.user_id = ANY($1::uuid[]) AND p.phone IS NOT NULL AND p.phone <> ''`,
+    [members.map((member) => member.userId)],
+  );
+  return r.rows.map((row) => row.phone as string);
+}
+
+/**
  * El relleno para un id que la consulta no devolvió.
  *
  * Que un id no esté en el mapa significa que no hay perfil ni pertenencia: se
