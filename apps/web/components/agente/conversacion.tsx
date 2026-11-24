@@ -12,6 +12,7 @@
  * la que se desincroniza es siempre la que nadie está mirando.
  */
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   AvisoResultado,
   Badge,
@@ -27,6 +28,15 @@ import {
   toast,
 } from '@iaxti/ui/react';
 import { useAgente, type PropuestaDto } from './estado';
+
+// La vista es la única parte del chat que arrastra JSON Render (~40 kB), y
+// este archivo lo importa el shell de TODAS las páginas a través del popup.
+// Puesta: la vista llega cuando el modelo mandó una — la prosa ya está en
+// pantalla y no hay nada que esperar. `ssr: false` porque el hilo es del
+// navegador: no hay nada que prerenderizar.
+const VistaDelAgente = dynamic(() => import('./vistas').then((m) => m.VistaDelAgente), {
+  ssr: false,
+});
 
 /** Lo que el dueño ve de una acción: sus datos, no la ruta. */
 function Propuesta({
@@ -203,6 +213,13 @@ export function Conversacion({ alto }: { alto?: string }) {
                   </ul>
                 )}
                 <MessageContent>{t.content}</MessageContent>
+                {/*
+                  El dibujo de la respuesta (#1380), bajo la prosa y encima de
+                  lo demás. Se dibuja SOLO si revalida contra el catálogo —el
+                  hilo guardado puede traer cualquier cosa— y «Copiar» sigue
+                  copiando la prosa: la vista es para mirar, no para pegar.
+                */}
+                <VistaDelAgente vista={t.vista} />
                 {/*
                   Copiar lo que redactó (#584).
                   

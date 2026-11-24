@@ -158,6 +158,11 @@ export type {
   DiagnosticoDelNegocio,
   LoQueFalta,
 } from './application/agente-general';
+// Nada de `application/vistas` sale por acá. El contract es un BARRIL: quien
+// lo importa se lleva runtime, proveedores y pg. La web necesita el catálogo y
+// su revalidación —que solo dependen de @json-render/core y zod— y los pide
+// por la entrada `./vistas` del package.json, que apunta a la hoja limpia
+// (#1380).
 
 // El catálogo de herramientas del Agente General (#492, ADR-0025). La
 // mitad generada del código, la mitad curada por una persona.
