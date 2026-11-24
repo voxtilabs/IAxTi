@@ -668,6 +668,110 @@ describe('todo fallo del Agente General deja rastro (#867)', () => {
   });
 });
 
+/**
+ * La vista que acompaña la respuesta (#1380).
+ *
+ * Lo que se prueba por acá es el cableado de punta a punta — el texto que el
+ * modelo devuelve pasa por `extraerVista`, la persona lee la prosa sin el
+ * bloque crudo y la vista llega validada — porque las reglas del catálogo ya
+ * tienen su suite (`vistas.test.ts`).
+ */
+describe('la vista acompaña la respuesta', () => {
+  const TABLA = {
+    root: 'v1',
+    elements: {
+      v1: {
+        type: 'Tabla',
+        props: {
+          columnas: ['Contacto', 'Ventana'],
+          filas: [
+            ['María Paz', '2 h'],
+            ['Jorge', '1 h 30'],
+          ],
+          mono: [false, true],
+        },
+      },
+    },
+  };
+
+  it('el bloque sale del texto y la vista llega entera', async () => {
+    const r = await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿quién me escribió hace poco?' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        modelo: modeloQuePide(
+          [],
+          [
+            'Te dejé la lista en la tabla:',
+            '',
+            '```vista',
+            JSON.stringify(TABLA),
+            '```',
+          ].join('\n'),
+        ),
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    // La persona no ve el bloque crudo — ni cuando la vista anda, ni cuando no.
+    expect(r.texto).toBe('Te dejé la lista en la tabla:');
+    expect(r.vista).toEqual(TABLA);
+  });
+
+  it('con un bloque que no valida, la respuesta queda como siempre: prosa', async () => {
+    const r = await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: '¿y mi agenda?' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        modelo: modeloQuePide([], ['Mañana tienes dos horas, y te las listo:', '', '```vista', '{"root":', '```'].join('\n')),
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    expect(r.texto).toBe('Mañana tienes dos horas, y te las listo:');
+    expect(r.vista).toBeNull();
+  });
+
+  it('la instrucción de la vista llega al system prompt, con su catálogo', async () => {
+    let system = '';
+    await conversarConElAgenteGeneral(
+      await conexion(),
+      {
+        tenantId: tenant,
+        turnos: [{ role: 'user', content: 'hola' }],
+        permisos: TODOS_LOS_PERMISOS,
+        modulosActivos: TODOS_LOS_MODULOS,
+      },
+      {
+        provider: 'glm',
+        model: 'z-ai/glm-5.3',
+        modelo: {
+          async generate(args) {
+            system = args.system ?? '';
+            return { text: 'Hola.', tokensIn: 1, tokensOut: 1 };
+          },
+        },
+        llamarApi: async () => ({ ok: true, estado: 200, datos: {} }),
+      },
+    );
+    expect(system).toContain('VISTAS (opcional)');
+    expect(system).toContain('Tabla');
+    expect(system).toContain('```vista');
+  });
+});
+
 /** Una conexión con el tenant puesto, como la deja `withTenant`. */
 async function conexion(quien = tenant) {
   let cliente!: Parameters<typeof conversarConElAgenteGeneral>[0];

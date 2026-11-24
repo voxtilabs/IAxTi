@@ -32,6 +32,9 @@ import {
 } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession } from '@iaxti/ui/react';
+// La entrada `./vistas` del módulo: la hoja que no arrastra nada de servidor,
+// porque un `import type` por el contract es hoy gratis y mañana un valor.
+import type { Vista } from '@iaxti/module-agents/vistas';
 import { apiFetch, avisoDe, type Aviso } from '../../lib/api';
 import { selectedTenant } from '../tenant-switcher';
 import { pantallaDe } from '../../lib/donde-estoy';
@@ -58,6 +61,8 @@ interface RespuestaDto {
   pasos: PasoDto[];
   propuesta: PropuestaDto | null;
   truncada: boolean;
+  /** El dibujo que acompaña la respuesta (#1380). `null` si no trajo vista. */
+  vista: Vista | null;
 }
 
 interface Turno {
@@ -65,6 +70,8 @@ interface Turno {
   content: string;
   pasos?: PasoDto[];
   propuesta?: PropuestaDto | null;
+  /** La vista del turno (#1380): se guarda con el hilo y se revalida al dibujar. */
+  vista?: Vista | null;
   /** La propuesta ya se aplicó o se descartó: el bloque queda como registro. */
   resuelta?: 'aplicada' | 'descartada';
 }
@@ -413,7 +420,15 @@ export function ProveedorAgente({ children }: { children: ReactNode }) {
         });
         const completo: Turno[] = [
           ...mios,
-          { role: 'assistant', content: r.texto, pasos: r.pasos, propuesta: r.propuesta },
+          {
+            role: 'assistant',
+            content: r.texto,
+            pasos: r.pasos,
+            propuesta: r.propuesta,
+            // La vista viene validada del servidor y se revalida al dibujar;
+            // que viaje en el turno la mantiene viva al reabrir el hilo.
+            vista: r.vista,
+          },
         ];
         fijarHilo(completo);
         // Guardar al terminar la vuelta y no al empezarla: si el proveedor

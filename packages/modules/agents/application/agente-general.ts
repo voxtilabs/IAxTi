@@ -19,6 +19,7 @@ import { motivoDelProveedor } from './motivo-del-proveedor';
 import { getVersionedPrompt, traceGeneration } from './langfuse';
 import { afterExecutionQuota, getQuota } from './quota';
 import { semillaCacheada } from './defecto-de-la-plataforma';
+import { INSTRUCCION_DE_VISTA, extraerVista, type Vista } from './vistas';
 
 /**
  * Cuántos viajes al proveedor da una vuelta de conversación, y cuánto se le
@@ -113,6 +114,12 @@ export interface RespuestaDelAgente {
   pasos: PasoDelAgente[];
   /** Lo que espera el visto bueno de la persona. `null` = nada que aplicar. */
   propuesta: PropuestaDelAgente | null;
+  /**
+   * La vista que acompaña la respuesta (#1380): una tabla, unas métricas,
+   * compuestas desde el catálogo cerrado. `null` = no venía o no validó — la
+   * respuesta queda como siempre, en prosa.
+   */
+  vista: Vista | null;
   tokensIn: number;
   tokensOut: number;
   truncada: boolean;
@@ -408,6 +415,8 @@ export async function conversarConElAgenteGeneral(
       texto: '',
       pasos: [],
       propuesta: null,
+      // Rechazada antes de llamar al proveedor: no hay vista (#1380).
+      vista: null,
       tokensIn: 0,
       tokensOut: 0,
       truncada: false,
@@ -576,16 +585,19 @@ export async function conversarConElAgenteGeneral(
   // La pantalla se suma al final para que no tape nada de la instrucción y
   // para que el prompt versionado en Langfuse siga siendo el que manda.
   const base = (await getVersionedPrompt(PROMPT_DEL_AGENTE_GENERAL).catch(() => null)) ?? INSTRUCCION;
+  // La vista (#1380) va después de la instrucción y antes de la pantalla:
+  // es parte del «cómo se responde», no del contexto de quién pregunta.
+  const conVista = [base, '', INSTRUCCION_DE_VISTA].join('\n');
   const system = input.pantalla
     ? [
-        base,
+        conVista,
         '',
         `La persona te está escribiendo desde ${input.pantalla}. Si lo que pide tiene que ver con`,
         'eso, empieza por ahí sin preguntarle dónde está. Si pide otra cosa, atiéndela igual: puedes',
         'todo desde cualquier pantalla. No le nombres la pantalla de vuelta ni le expliques que lo',
         'sabes.',
       ].join('\n')
-    : base;
+    : conVista;
 
   /**
    * El fallo del proveedor se atrapa ACÁ, con el cliente de la transacción
@@ -663,6 +675,8 @@ export async function conversarConElAgenteGeneral(
       texto: '',
       pasos,
       propuesta,
+      // Falló antes de contestar: no hay vista que mostrar (#1380).
+      vista: null,
       tokensIn: 0,
       tokensOut: 0,
       truncada: false,
@@ -673,12 +687,20 @@ export async function conversarConElAgenteGeneral(
     };
   }
 
+  /**
+   * La vista se separa del texto ANTES de registrar la corrida (#1380): lo que
+   * queda en `agent_executions` y lo que lee la persona es lo mismo — la
+   * prosa, sin el bloque ```vista crudo. Si el bloque no valida, se descarta
+   * la vista y la respuesta queda como siempre fue.
+   */
+  const { texto, vista } = extraerVista(res.text);
+
   const registro = await registrarCorrida(client, {
     tenantId: input.tenantId,
     provider: deps.provider,
     model: deps.model,
     turnos: input.turnos,
-    texto: res.text,
+    texto,
     tokensIn: res.tokensIn,
     tokensOut: res.tokensOut,
     latencyMs: Date.now() - inicio,
@@ -692,9 +714,10 @@ export async function conversarConElAgenteGeneral(
 
   return {
     status: 'ok',
-    texto: res.text,
+    texto,
     pasos,
     propuesta,
+    vista,
     tokensIn: res.tokensIn,
     tokensOut: res.tokensOut,
     truncada: Boolean(res.truncada),
