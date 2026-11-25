@@ -70,6 +70,18 @@ async function guardar(headers: Record<string, string>, months: number) {
   });
 }
 
+/**
+ * El estado, con el cuerpo cuando no es 200 (#1385).
+ *
+ * Esta prueba dio un 400 una vez en CI y al relanzarla pasó, y el rojo solo
+ * decía «expected 400 to be 200». El 400 de esta ruta es `RETENTION_INVALID`
+ * con el texto del dominio adentro —qué tope del plan, qué mes—, así que el
+ * próximo rojo lo trae puesto en vez de obligar a adivinar.
+ */
+async function estadoConMotivo(response: Response): Promise<string> {
+  return response.status === 200 ? '200' : `${response.status} ${await response.text()}`;
+}
+
 async function rastros() {
   return (await admin.query(
     `SELECT actor, actor_kind, metadata FROM audit_log
@@ -81,7 +93,7 @@ async function rastros() {
 describe('la retención atribuye el cambio al actor autorizado (#907)', () => {
   it('API key con tenant.settings conserva apikey en el override y en el aviso de purga', async () => {
     const response = await guardar({ 'X-Api-Key': 'retencion-fixture' }, 6);
-    expect(response.status).toBe(200);
+    expect(await estadoConMotivo(response)).toBe('200');
     expect(await response.json()).toMatchObject({ saved: true, purgeNotice: { count: 1 } });
     const audit = await rastros();
     expect(audit).toHaveLength(2);
@@ -103,7 +115,7 @@ describe('la retención atribuye el cambio al actor autorizado (#907)', () => {
 
   it('un usuario sigue siendo user en ambas escrituras de la petición', async () => {
     const response = await guardar({ Authorization: `Bearer ${userId}`, 'X-Tenant-Id': tenantId }, 3);
-    expect(response.status).toBe(200);
+    expect(await estadoConMotivo(response)).toBe('200');
     expect((await rastros()).slice(-2).map(({ actor, actor_kind }) => ({ actor, actor_kind }))).toEqual([
       { actor: userId, actor_kind: 'user' }, { actor: userId, actor_kind: 'user' },
     ]);
