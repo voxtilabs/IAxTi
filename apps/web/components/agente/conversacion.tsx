@@ -27,7 +27,8 @@ import {
   Textarea,
   toast,
 } from '@iaxti/ui/react';
-import { useAgente, type PropuestaDto } from './estado';
+import { useAgente } from './estado';
+import { Propuesta } from './propuesta';
 
 // La vista es la única parte del chat que arrastra JSON Render (~40 kB), y
 // este archivo lo importa el shell de TODAS las páginas a través del popup.
@@ -37,59 +38,6 @@ import { useAgente, type PropuestaDto } from './estado';
 const VistaDelAgente = dynamic(() => import('./vistas').then((m) => m.VistaDelAgente), {
   ssr: false,
 });
-
-/** Lo que el dueño ve de una acción: sus datos, no la ruta. */
-function Propuesta({
-  propuesta,
-  resuelta,
-  onAplicar,
-  aplicando,
-}: {
-  propuesta: PropuestaDto;
-  resuelta?: 'aplicada' | 'descartada';
-  onAplicar: (aplicar: boolean) => void;
-  aplicando: boolean;
-}) {
-  const filas = Object.entries(propuesta.argumentos ?? {});
-  return (
-    <div className="mt-2 flex flex-col gap-3 rounded-tarjeta border border-warn-soft-br bg-warn-soft p-4">
-      <p className="flex flex-wrap items-center gap-2">
-        <strong className="font-display text-dato font-semibold text-ink">
-          {resuelta === 'aplicada'
-            ? 'Hecho'
-            : resuelta === 'descartada'
-              ? 'No se hizo'
-              : 'Necesito tu visto bueno'}
-        </strong>
-        <Badge role={resuelta === 'descartada' ? 'neutral' : resuelta ? 'good' : 'warn'}>
-          {propuesta.descripcion}
-        </Badge>
-      </p>
-      {filas.length > 0 && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-dato">
-          {filas.map(([clave, valor]) => (
-            <div key={clave} className="col-span-2 grid grid-cols-subgrid">
-              <dt className="dato text-rotulo text-warn-text">{clave}</dt>
-              <dd className="dato break-words text-ink">
-                {typeof valor === 'object' ? JSON.stringify(valor) : String(valor)}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {!resuelta && (
-        <span className="flex flex-wrap gap-2">
-          <Button size="chico" disabled={aplicando} onClick={() => onAplicar(true)}>
-            {aplicando ? 'Aplicando…' : 'Hazlo'}
-          </Button>
-          <Button size="chico" variant="secundario" disabled={aplicando} onClick={() => onAplicar(false)}>
-            Mejor no
-          </Button>
-        </span>
-      )}
-    </div>
-  );
-}
 
 /**
  * La espera, contada en voz alta (#688).

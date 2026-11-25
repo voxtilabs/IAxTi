@@ -28,6 +28,8 @@ const AGENTE = [
   'agente-general.tsx',
   join('agente', 'estado.tsx'),
   join('agente', 'conversacion.tsx'),
+  // La tarjeta de la propuesta vive aparte desde #1388.
+  join('agente', 'propuesta.tsx'),
 ]
   .map((f) => readFileSync(join(__dirname, '..', 'components', f), 'utf8'))
   .join('\n');
