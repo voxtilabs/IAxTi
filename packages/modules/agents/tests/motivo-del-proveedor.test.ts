@@ -64,6 +64,25 @@ describe('el motivo del proveedor', () => {
     expect(d.message).toMatch(/configuración del asistente/);
   });
 
+  it('un modelo RETIRADO (410 Gone) es lo mismo que uno inexistente (#1382)', () => {
+    // El texto literal de NVIDIA el 24-11 para `z-ai/glm-5.3`. Antes caía en
+    // `desconocido`: reintentable y sin castigo, así que el respaldo volvía
+    // a meter la cabeza en un modelo que no va a volver nunca.
+    const d = motivoDelProveedor(
+      FalloDelProveedor.de({
+        statusCode: 410,
+        message:
+          "The model 'z-ai/glm-5.3' has reached its end of life on 2026-10-28T08:00:00Z and is no longer available.",
+      }),
+    );
+    expect(d.motivo).toBe('modelo_no_disponible');
+    expect(d.reintentable).toBe(false);
+    // Y sin el estado, por el texto: hay SDK que lo pierden por el camino.
+    expect(
+      motivoDelProveedor(FalloDelProveedor.de({ message: 'Gone: model has reached its end of life' })).motivo,
+    ).toBe('modelo_no_disponible');
+  });
+
   it('el estado anidado también cuenta', () => {
     // Algunos SDK lo dejan en `response` o en `cause`.
     expect(motivoDelProveedor(FalloDelProveedor.de({ response: { status: 429 }, message: 'x' })).motivo).toBe(
