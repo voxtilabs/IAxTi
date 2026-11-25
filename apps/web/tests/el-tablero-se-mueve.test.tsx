@@ -175,10 +175,18 @@ const unTick = () =>
 const montar = async () => {
   prepararRects();
   render(<ProveedorDeArranque><Oportunidades /></ProveedorDeArranque>);
-  await waitFor(() => {
-    expect(screen.getByRole('region', { name: 'Etapa Perdido' })).toBeInTheDocument();
-    expect(screen.getByText('Venta de noviembre')).toBeInTheDocument();
-  });
+  // 5 s y no el segundo de fábrica: con la suite entera corriendo en
+  // paralelo, montar el tablero (embudo, etapas y tarjetas en tres pedidos)
+  // pasó del segundo y la prueba se cayó sin que nada estuviera roto —en
+  // #1388 y #1384—. Aislada tarda ~100 ms. Un tablero que de verdad no
+  // carga sigue dando rojo.
+  await waitFor(
+    () => {
+      expect(screen.getByRole('region', { name: 'Etapa Perdido' })).toBeInTheDocument();
+      expect(screen.getByText('Venta de noviembre')).toBeInTheDocument();
+    },
+    { timeout: 5_000 },
+  );
 };
 
 /** Abre un Select de Radix y elige una opción por su nombre. */
