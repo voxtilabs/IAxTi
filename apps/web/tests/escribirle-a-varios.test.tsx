@@ -77,6 +77,22 @@ describe('el botón de enviar', () => {
     expect(screen.getByText(/personas van a recibir este texto/)).toBeTruthy();
     expect(screen.getByText(/con la ventana de 24 h cerrada/)).toBeTruthy();
     expect(screen.getByText(/que pidió no recibir mensajes/)).toBeTruthy();
+    // El plural va con SU número, no con el total: la captura del día decía
+    // «1 conversaciones que pidió no recibir mensajes».
+    // El número va en su propio <span> mono: se lee el <li> entero.
+    const fuera = screen.getAllByRole('listitem').map((li) => li.textContent?.replace(/\s+/g, ' ').trim());
+    expect(fuera).toContain('1 conversación que pidió no recibir mensajes');
+    expect(fuera).toContain('2 conversaciones con la ventana de 24 h cerrada');
+  });
+
+  it('con varias que se dieron de baja, el verbo también va en plural', async () => {
+    pedir.mockResolvedValueOnce({ ...PREVIA, fuera: [{ motivo: 'se dio de baja', n: 2 }] } as never);
+    render(<EscribirleAVarios abierto onCerrar={vi.fn()} etiquetas={[]} />);
+    fireEvent.change(screen.getByLabelText('El mensaje'), { target: { value: 'Hola' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Ver a quién le llega' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Enviar a 3' })).toBeTruthy());
+    const fuera = screen.getAllByRole('listitem').map((li) => li.textContent?.replace(/\s+/g, ' ').trim());
+    expect(fuera).toContain('2 conversaciones que pidieron no recibir mensajes');
     expect(pedir).toHaveBeenCalledWith(
       contexto.config, contexto.session, contexto.tenant,
       '/conversations/difusion/previa',

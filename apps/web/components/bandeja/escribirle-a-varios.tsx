@@ -54,10 +54,18 @@ interface ResultadoDto {
   destinatarios: DestinatarioDto[];
 }
 
-const MOTIVOS: Record<string, string> = {
-  'ventana cerrada': 'con la ventana de 24 h cerrada',
-  'se dio de baja': 'que pidió no recibir mensajes',
-  'es del equipo': 'que es del equipo',
+/**
+ * Cómo se dice cada motivo, en singular y en plural (#1247).
+ *
+ * Con el verbo adentro, el número manda en los dos lados: «1 conversación
+ * que pidió», «2 conversaciones que pidieron». La primera versión pluralizaba
+ * el sustantivo con el total y dejaba el verbo fijo, y la previa decía
+ * «1 conversaciones que pidió no recibir mensajes».
+ */
+const MOTIVOS: Record<string, [uno: string, varios: string]> = {
+  'ventana cerrada': ['con la ventana de 24 h cerrada', 'con la ventana de 24 h cerrada'],
+  'se dio de baja': ['que pidió no recibir mensajes', 'que pidieron no recibir mensajes'],
+  'es del equipo': ['que es del equipo', 'que son del equipo'],
 };
 
 const ENTREGA: Record<string, { label: string; rol: BadgeRole }> = {
@@ -295,8 +303,8 @@ export function EscribirleAVarios({
                   {previa.fuera.map((f) => (
                     <li key={f.motivo}>
                       <span className="font-mono tabular-nums">{f.n}</span>{' '}
-                      {previa.total + f.n === 1 ? 'conversación' : 'conversaciones'}{' '}
-                      {MOTIVOS[f.motivo] ?? f.motivo}
+                      {f.n === 1 ? 'conversación' : 'conversaciones'}{' '}
+                      {MOTIVOS[f.motivo]?.[f.n === 1 ? 0 : 1] ?? f.motivo}
                     </li>
                   ))}
                 </ul>
@@ -355,7 +363,7 @@ export function EscribirleAVarios({
                     <div className="flex items-center justify-between gap-3">
                       <span className="min-w-0 truncate text-dato">{d.nombre ?? d.telefono ?? 'Contacto sin nombre'}</span>
                       {d.excluido ? (
-                        <span className="shrink-0 text-rotulo text-muted">{MOTIVOS[d.excluido] ?? d.excluido}</span>
+                        <span className="shrink-0 text-rotulo text-muted">{MOTIVOS[d.excluido]?.[0] ?? d.excluido}</span>
                       ) : (
                         <Badge role={ENTREGA[d.deliveryStatus ?? 'queued']?.rol ?? 'neutral'}>
                           {ENTREGA[d.deliveryStatus ?? 'queued']?.label ?? d.deliveryStatus}
