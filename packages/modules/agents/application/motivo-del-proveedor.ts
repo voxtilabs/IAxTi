@@ -207,7 +207,15 @@ export function motivoDelProveedor(error: unknown, quien?: QuienFallo): Diagnost
     };
   }
 
-  if (estado === 404 || /model.*not found|is not supported|unknown model/.test(texto)) {
+  // 410 también (#1382): así contesta NVIDIA cuando RETIRA un modelo —«has
+  // reached its end of life»—, y `z-ai/glm-5.3` pasó de 200 a 410 el 28-10
+  // sin aviso de nuestro lado. Como `desconocido` era reintentable y no
+  // castigaba, el respaldo seguía eligiendo un modelo que no vuelve.
+  if (
+    estado === 404 ||
+    estado === 410 ||
+    /model.*not found|is not supported|unknown model|end of life|no longer available/.test(texto)
+  ) {
     return {
       motivo: 'modelo_no_disponible',
       message: conQuien(

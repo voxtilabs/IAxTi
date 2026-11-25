@@ -8,6 +8,8 @@ import {
   perdonar,
 } from '../application/castigados';
 import { diagnosticarLaIa } from '../application/diagnostico-ia';
+import { FalloDelProveedor } from '../application/fallo-del-proveedor';
+import { motivoDelProveedor } from '../application/motivo-del-proveedor';
 
 /**
  * No volver a elegir al proveedor que acaba de fallar (#855).
@@ -99,6 +101,29 @@ describe('el respaldo salta al que acaba de fallar', () => {
     // Lo que costó la noche: antes volvía a elegir al que acababa de fallar.
     expect(conCastigo.tasks.sugerir.provider).not.toBe(sinCastigo.tasks.sugerir.provider);
     expect(conCastigo.tasks.sugerir.provider).toBe('google');
+  });
+
+  /**
+   * El caso de #1382, de punta a punta: el error real de NVIDIA, clasificado
+   * por el mismo `motivoDelProveedor` que usa el runtime, castiga a GLM.
+   *
+   * Antes el 410 caía en `desconocido` —que no castiga— y el respaldo, con
+   * OpenAI caído, volvía a GLM en cada mensaje para morir otra vez ahí.
+   */
+  it('un modelo retirado (410) aparta a su proveedor del respaldo (#1382)', () => {
+    const hayLlave = SOLO('openai', 'glm', 'google');
+    const pedido = { ia: { tasks: { configuracion_conversada: { provider: 'anthropic', model: 'x' } } } };
+    castigar('openai', 'sin_saldo');
+    expect(iaSettings(pedido, hayLlave, estaCastigado).tasks.configuracion_conversada.provider).toBe('glm');
+
+    const { motivo } = motivoDelProveedor(
+      FalloDelProveedor.de({
+        statusCode: 410,
+        message: "The model 'z-ai/glm-5.3' has reached its end of life on 2026-10-28T08:00:00Z and is no longer available.",
+      }),
+    );
+    expect(castigar('glm', motivo)).toBe(true);
+    expect(iaSettings(pedido, hayLlave, estaCastigado).tasks.configuracion_conversada.provider).toBe('google');
   });
 
   it('pero si el elegido TIENE llave, se usa igual: el castigo mueve el respaldo, no la elección', () => {

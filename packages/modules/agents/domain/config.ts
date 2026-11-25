@@ -357,7 +357,23 @@ export function proveedorPermitidoParaTarea(provider: string, task: AgentTask): 
 export const RESPALDO_POR_PROVEEDOR: Record<string, { liviano: string; pesado: string }> = {
   google: { liviano: 'gemini-flash-latest', pesado: 'gemini-pro-latest' },
   anthropic: { liviano: 'claude-haiku-4-5-20251001', pesado: 'claude-haiku-4-5-20251001' },
-  glm: { liviano: 'z-ai/glm-5.3-flash', pesado: 'z-ai/glm-5.3' },
+  /**
+   * `flash` en las DOS gamas (#1382), igual que Anthropic con Haiku.
+   *
+   * El pesado era `z-ai/glm-5.3`, y NVIDIA lo retiró el 28-10-2026: desde
+   * entonces cada llamada contesta `410 · has reached its end of life`. Nadie
+   * se enteró en casi un mes porque GLM es el SEGUNDO del respaldo y solo se
+   * le habla cuando OpenAI falla. El 24-11 `GET /v1/models` listaba un único
+   * modelo GLM, este.
+   *
+   * Dicho como está: `flash` tampoco contestó ese día (3 intentos, el último
+   * de 240 s sin respuesta). Pero un modelo que el proveedor lista y anda
+   * lento es un respaldo; uno retirado es un error garantizado. Para revisar:
+   *
+   *     curl -s https://integrate.api.nvidia.com/v1/models \
+   *       -H "Authorization: Bearer $GLM_API_KEY" | jq -r '.data[].id' | grep -i glm
+   */
+  glm: { liviano: 'z-ai/glm-5.3-flash', pesado: 'z-ai/glm-5.3-flash' },
   /**
    * Verificados contra el catálogo de la cuenta el 11-10 (#846): 133 modelos,
    * y la familia `gpt-5` está servida —`gpt-5`, `gpt-5-mini`, `gpt-5-nano`—
@@ -644,6 +660,9 @@ const PRECIOS_BASE: Record<string, { in: number; out: number }> = {
   // token del catálogo de NVIDIA no está confirmada para nuestra cuenta
   // (#497 la pide); mientras, la referencia pública de la familia GLM.
   // Se corrige sin deploy por AGENT_PRICES_JSON.
+  // Retirado por NVIDIA el 28-10 (#1382). El precio se queda a propósito: un
+  // negocio que lo dejó fijado a mano sigue intentando con él, y su fila
+  // fallida no tiene por qué perder el costo de referencia.
   'glm:z-ai/glm-5.3': { in: 0.6, out: 2.2 },
   'glm:z-ai/glm-5.3-flash': { in: 0.1, out: 0.4 },
   // Los por defecto desde el 12-10 (#863). Lista de precios pública de
