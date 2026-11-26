@@ -211,13 +211,11 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
               </div>
               {p.id === 'whatsapp_connected' && !p.hecho && !p.bloqueado && (
                 // El botón de invitación era el alta de Zavu y se fue con
-                // Zavu (#1339): con Zernio el número se conecta con un enlace
-                // de Meta que manda el equipo. El paso lleva a la pantalla de
-                // canales, que es donde se ve el estado; el enlace en sí no
-                // puede salir de acá, y prometer una acción que no existe es
-                // el vacío que #509 vino a cerrar, al revés.
+                // Zavu (#1339). Desde #1393 el número se conecta en la app: Canales pide el
+                // enlace de Meta y, al volver, se elige el número. El paso
+                // lleva ahí y se marca solo cuando el canal queda activo.
                 <p className="max-w-prose text-xs text-muted">
-                  El enlace para conectar tu número lo manda el equipo de IAxTi: pídelo y este paso se
+                  Te llevamos a Meta para autorizarlo; tu número sigue en tu teléfono. Este paso se
                   marca solo al conectar.
                 </p>
               )}
