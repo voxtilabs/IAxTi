@@ -40,10 +40,13 @@ export const PASOS: readonly DefinicionDePaso[] = [
     opcional: false,
   },
   {
+    // El id NO se toca aunque el paso ya no hable de lo mismo: es un estado
+    // PERSISTIDO en `tenants.onboarding_state` y en el historial de eventos.
+    // Cambiarlo marcaría «hecho» a todos los negocios viejos de golpe.
     id: 'configured',
-    titulo: 'Cuéntanos de tu negocio',
-    ayuda: 'Describe a qué te dedicas y te armamos el embudo, las respuestas rápidas y las plantillas.',
-    modulo: 'crm',
+    titulo: 'Crea tu asistente',
+    ayuda: 'Cuéntale a IAxTi a qué te dedicas y te arma un asistente que contesta por ti. Antes de que hable con alguien, lo apruebas.',
+    modulo: 'agents',
     ruta: '/ajustes/ia',
     opcional: false,
   },

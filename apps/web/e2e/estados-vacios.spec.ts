@@ -114,7 +114,7 @@ test('reportes explica el período sin actividad y lleva a atender', async ({ pa
 const progreso = {
   estadoRegistrado: 'registered', completo: false, siguiente: 'configured', desfase: [],
   pasos: [
-    { id: 'configured', titulo: 'Cuéntanos de tu negocio', ayuda: 'Describe a qué te dedicas.', opcional: false, hecho: false, bloqueado: false, detalle: null, fuente: 'verificado', ruta: '/ajustes/ia' },
+    { id: 'configured', titulo: 'Crea tu asistente', ayuda: 'Cuéntale a IAxTi a qué te dedicas.', opcional: false, hecho: false, bloqueado: false, detalle: null, fuente: 'verificado', ruta: '/ajustes/ia' },
     { id: 'whatsapp_connected', titulo: 'Conecta tu WhatsApp', ayuda: 'Conecta el número del negocio.', opcional: false, hecho: true, bloqueado: false, detalle: null, fuente: 'verificado', ruta: '/ajustes/canales' },
     { id: 'team_invited', titulo: 'Invita a tu equipo', ayuda: 'Invita a quienes atienden.', opcional: true, hecho: false, bloqueado: false, detalle: null, fuente: 'historial', ruta: '/ajustes/equipo' },
   ],
@@ -153,12 +153,12 @@ test('cambiar de negocio descarta el progreso del anterior', async ({ page }) =>
   ] } }));
   await page.route('**/v1/onboarding', (r) => r.fulfill({ json: r.request().headers()['x-tenant-id'] === segundo ? { ...progreso, siguiente: 'whatsapp_connected', pasos: progreso.pasos.map((p) => ({ ...p, hecho: p.id === 'configured' })) } : progreso }));
   await page.goto('/');
-  await expect(page.getByText('Lo siguiente: cuéntanos de tu negocio.')).toBeVisible();
+  await expect(page.getByText('Lo siguiente: crea tu asistente.')).toBeVisible();
   await page.getByRole('button', { name: 'Mostrar u ocultar el menú' }).click();
   await elegirPorValor(page, { nombre: 'Negocio' }, segundo);
   await page.keyboard.press('Escape');
-  await expect(page.getByText('Lo siguiente: conecta tu whatsapp.')).toBeVisible();
-  await expect(page.getByText('Lo siguiente: cuéntanos de tu negocio.')).toHaveCount(0);
+  await expect(page.getByText('Lo siguiente: conecta tu WhatsApp.')).toBeVisible();
+  await expect(page.getByText('Lo siguiente: crea tu asistente.')).toHaveCount(0);
 });
 
 for (const modo of ['dia', 'noche']) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CATALOGO, herramientasPara, sugerenciasPara } from '../application/catalogo';
-import { SUGERENCIAS, SUGERENCIA_DE_ULTIMO_RECURSO } from '../domain/sugerencias';
+import { SUGERENCIAS, SUGERENCIAS_DE_PRIMERA_VEZ, SUGERENCIA_DE_ULTIMO_RECURSO } from '../domain/sugerencias';
 
 /**
  * Ninguna sugerencia que falle al tocarla (#584).
@@ -53,7 +53,7 @@ describe('toda sugerencia nombra una herramienta que existe', () => {
     expect(nombres.size).toBeGreaterThan(100);
   });
 
-  it.each([...SUGERENCIAS, SUGERENCIA_DE_ULTIMO_RECURSO])(
+  it.each([...SUGERENCIAS, ...SUGERENCIAS_DE_PRIMERA_VEZ, SUGERENCIA_DE_ULTIMO_RECURSO])(
     '«$texto» → $herramienta existe en el catálogo',
     ({ herramienta }) => {
       // Si una herramienta se renombra, esto se cae acá y no en la cara de
@@ -67,7 +67,9 @@ describe('toda sugerencia nombra una herramienta que existe', () => {
     // el tope de cobro—. Ofrecer una de ésas sería una pastilla que ni con
     // todos los permisos funciona.
     const disponibles = new Set(herramientasPara(TODO).map((h) => h.nombre));
-    const imposibles = SUGERENCIAS.filter((s) => !disponibles.has(s.herramienta));
+    const imposibles = [...SUGERENCIAS, ...SUGERENCIAS_DE_PRIMERA_VEZ].filter(
+      (s) => !disponibles.has(s.herramienta),
+    );
     expect(
       imposibles.map((s) => `${s.texto} → ${s.herramienta}`),
       'Estas sugerencias nombran herramientas que el agente no puede llamar ni con todos los ' +
@@ -172,6 +174,46 @@ describe('a cada quien lo que puede (#584)', () => {
 
   it('una pantalla que no existe no revienta: cae al último recurso', () => {
     const s = sugerenciasPara({ pantalla: 'pantalla-inventada', ...TODO });
+    expect(s).toEqual([SUGERENCIA_DE_ULTIMO_RECURSO.texto]);
+  });
+});
+
+describe('la primera vez en «Tu asistente» (#1401)', () => {
+  it('sin asistentes: las de primera vez, y no las de siempre', () => {
+    const s = sugerenciasPara({ pantalla: 'asistente', ...TODO, sinAsistentes: true });
+    expect(s).toEqual([
+      'Ármame un asistente que conteste mi WhatsApp',
+      'Quiero que agende horas',
+      'Quiero que responda mis precios',
+    ]);
+    // Las de siempre suponen que ya hay uno: a quien recién empieza se le
+    // ofrecía su SEGUNDO asistente.
+    expect(s).not.toContain('Quiero un segundo asistente solo para postventa');
+  });
+
+  it('con asistentes, las de siempre: el flag no cambia nada', () => {
+    const s = sugerenciasPara({ pantalla: 'asistente', ...TODO });
+    expect(s).toContain('Quiero un segundo asistente solo para postventa');
+    expect(s).not.toContain('Ármame un asistente que conteste mi WhatsApp');
+  });
+
+  it('en otra pantalla, el flag no toca nada: solo la del asistente es primera vez', () => {
+    // El controlador solo pregunta por asistentes en esa pantalla; si algún
+    // día lo hiciera en más, que el cambio sea deliberado y no de arrastre.
+    const s = sugerenciasPara({ pantalla: 'bandeja', ...TODO, sinAsistentes: true });
+    expect(s).toContain('Contéstale a los que llevan más de un día esperando');
+    expect(s).not.toContain('Ármame un asistente que conteste mi WhatsApp');
+  });
+
+  it('y a quien no puede crear asistentes tampoco se le ofrecen las de primera vez', () => {
+    // La elegibilidad sigue saliendo del catálogo: las tres piden
+    // `agents.configure`, que un vendedor no tiene.
+    const s = sugerenciasPara({
+      pantalla: 'asistente',
+      permisos: DE_UN_VENDEDOR,
+      modulosActivos: TODO.modulosActivos,
+      sinAsistentes: true,
+    });
     expect(s).toEqual([SUGERENCIA_DE_ULTIMO_RECURSO.texto]);
   });
 });

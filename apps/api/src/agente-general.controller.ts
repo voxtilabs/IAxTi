@@ -35,12 +35,12 @@ import { onboardingStatus, type Verificador } from '@iaxti/module-organizations'
 import { listChannelAccounts } from '@iaxti/module-channels';
 import { listSources } from '@iaxti/module-knowledge';
 import { listarEquipo, listarInvitaciones } from '@iaxti/module-identity';
-import { listPipelines } from '@iaxti/module-crm';
 import { huboAlgunaConversacion } from '@iaxti/module-conversations';
 import { listarDisponibilidad } from '@iaxti/module-calendar';
 import { listTemplates, puedeEnviarse } from '@iaxti/module-whatsapp';
 import { listRules, ruleModuleGaps } from '@iaxti/module-automations';
-import { getQuota } from '@iaxti/module-agents';
+import { getQuota, listAgents } from '@iaxti/module-agents';
+import { verificarPasoAsistente } from './verificar-paso-asistente';
 import { z } from 'zod';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
@@ -287,9 +287,10 @@ async function queLeFalta(
  * Los mismos verificadores que la pantalla de puesta en marcha.
  *
  * Repetirlos acá sería tener dos verdades sobre el mismo paso, y la que se
- * quedaría vieja es siempre la segunda. Están duplicados con
- * `onboarding.controller.ts` a la espera de que uno de los dos lo ceda: lo
- * anoto porque es deuda, no diseño.
+ * quedaría vieja es siempre la segunda. Los de una línea siguen duplicados
+ * con `onboarding.controller.ts` a la espera de que uno de los dos lo ceda:
+ * lo anoto porque es deuda, no diseño. El de «Crea tu asistente» ya cedió
+ * (#1400): vive en `verificar-paso-asistente.ts` y lo usan los dos.
  */
 function verificadoresDelOnboarding(
   client: PoolClient,
@@ -297,12 +298,9 @@ function verificadoresDelOnboarding(
 ): Partial<Record<string, Verificador>> {
   const si = (id: string) => registry.isActive(id);
   return {
-    ...(si('crm')
+    ...(si('agents')
       ? {
-          configured: async () => {
-            const pipelines = await listPipelines(client, tenantId);
-            return { hecho: pipelines.length > 0, detalle: `${pipelines.length} embudos` };
-          },
+          configured: verificarPasoAsistente(client, tenantId),
         }
       : {}),
     ...(si('channels')
@@ -483,10 +481,18 @@ export class AgenteGeneralController {
   async sugerencias(@Req() request: WithUser, @Query('pantalla') pantalla?: string) {
     const actor = actorOf(request);
     const sugerencias = await withTenant(pool(), actor.tenantId, async (c) => {
+      // La primera vez en «Tu asistente» (#1401): las sugerencias de esa
+      // pantalla suponen que ya hay un asistente («Quiero un SEGUNDO
+      // asistente…»), y a quien recién empieza le sobran. Solo se pregunta por
+      // la pantalla del asistente: en las demás el estado del negocio no
+      // cambia qué se puede pedir, y sería un viaje a la base de gratis.
+      const sinAsistentes =
+        pantalla === 'asistente' ? (await listAgents(c, actor.tenantId)).every((a) => !a.active) : false;
       return sugerenciasPara({
         pantalla: nombreDePantalla(pantalla) ? (pantalla ?? null) : null,
         permisos: await permisosDelActor(c, actor),
         modulosActivos: modulosActivos(),
+        sinAsistentes,
       });
     });
     return { sugerencias };

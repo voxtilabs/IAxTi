@@ -14,6 +14,7 @@
  * que se aprueba tiene que poder revisarse entero. Una herramienta sin mapa se
  * muestra como siempre: inventar rótulos para algo que no conocemos sería peor.
  */
+import Link from 'next/link';
 import { Badge, Button } from '@iaxti/ui/react';
 import type { PropuestaDto } from './estado';
 
@@ -42,6 +43,20 @@ const LO_QUE_DECIDE: Record<string, Campo[]> = {
   ],
 };
 LO_QUE_DECIDE['agents.update'] = LO_QUE_DECIDE['agents.create'];
+
+/**
+ * Qué ES la acción, dicho para quien la aprueba (#1401).
+ *
+ * El Badge mostraba la descripción de la herramienta —«Crea un asistente
+ * (proveedor y modelo configurables)»—, que es la ficha técnica disfrazada
+ * de frase: al dueño no le importa el proveedor ni que el modelo sea
+ * configurable, le importa que va a crear SU asistente. Para el resto de las
+ * herramientas sigue la descripción del catálogo, que ya viene en palabras.
+ */
+const LO_QUE_ES: Record<string, string> = {
+  'agents.create': 'Crear tu asistente',
+  'agents.update': 'Cambiar tu asistente',
+};
 
 const comoTexto = (valor: unknown) => (typeof valor === 'object' && valor !== null ? JSON.stringify(valor) : String(valor));
 
@@ -97,12 +112,15 @@ export function Propuesta({
   }
 
   return (
+    <>
     <div className="mt-2 flex flex-col gap-3 rounded-tarjeta border border-warn-soft-br bg-warn-soft p-4">
       <p className="flex flex-wrap items-center gap-2">
         <strong className="font-display text-dato font-semibold text-ink">
           {resuelta === 'aplicada' ? 'Hecho' : resuelta === 'descartada' ? 'No se hizo' : 'Necesito tu visto bueno'}
         </strong>
-        <Badge role={resuelta === 'descartada' ? 'neutral' : resuelta ? 'good' : 'warn'}>{propuesta.descripcion}</Badge>
+        <Badge role={resuelta === 'descartada' ? 'neutral' : resuelta ? 'good' : 'warn'}>
+          {LO_QUE_ES[propuesta.herramienta] ?? propuesta.descripcion}
+        </Badge>
       </p>
       {principales.length > 0 && <Filas filas={principales} />}
       {tecnicas.length > 0 && (
@@ -124,5 +142,17 @@ export function Propuesta({
         </span>
       )}
     </div>
+    {resuelta === 'aplicada' && propuesta.herramienta === 'agents.create' && (
+      // Qué sigue tras «Hecho» (#1401): crear el asistente era el paso que
+      // faltaba, no el último. Un asistente sin canal no contesta a nadie, y
+      // la pantalla se quedaba muda justo en el momento en que la dueña
+      // acaba de lograrlo. Enlace y no botón: el primario de la vista es el
+      // «Pedir» del compositor.
+      <p className="mt-2 text-dato text-body">
+        Siguiente: conecta tu WhatsApp para que empiece a contestar.{' '}
+        <Link href="/ajustes/canales" className="text-action-text underline">Conectar WhatsApp</Link>
+      </p>
+    )}
+    </>
   );
 }

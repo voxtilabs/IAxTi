@@ -158,3 +158,24 @@ export const SUGERENCIA_DE_ULTIMO_RECURSO: Sugerencia = {
   texto: '¿Qué me falta configurar?',
   herramienta: 'agents.diagnostico',
 };
+
+/**
+ * Las de la PRIMERA vez en «Tu asistente» (#1401).
+ *
+ * Las de siempre en esa pantalla suponen que el negocio ya tiene asistente:
+ * «Quiero un segundo asistente solo para postventa», «Que sea más breve y
+ * trate de usted». Medido recorriendo el producto como una dueña nueva: se
+ * registra, entra a «Tu asistente» y lo primero que le ofrecemos es su
+ * SEGUNDO asistente.
+ *
+ * La condición la responde quien llama —el controlador mira los asistentes
+ * del negocio— porque el dominio no toca la base. Las tres nombran
+ * `agents.create` a propósito: es lo que las cumple, y así la elegibilidad
+ * sigue saliendo del catálogo y un vendedor sin `agents.configure` no recibe
+ * una pastilla que después no puede tocar.
+ */
+export const SUGERENCIAS_DE_PRIMERA_VEZ: Sugerencia[] = [
+  { pantalla: 'asistente', texto: 'Ármame un asistente que conteste mi WhatsApp', herramienta: 'agents.create' },
+  { pantalla: 'asistente', texto: 'Quiero que agende horas', herramienta: 'agents.create' },
+  { pantalla: 'asistente', texto: 'Quiero que responda mis precios', herramienta: 'agents.create' },
+];
