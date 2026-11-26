@@ -63,8 +63,13 @@ function dependencias(): DependenciasDelAlta {
   let custodia;
   try {
     custodia = secretStoreDelCanal();
-  } catch {
-    console.warn('[conectar-whatsapp] la custodia de secretos no está configurada (GOOGLE_SECRET_DIR / GOOGLE_SECRET_KEY)');
+  } catch (err) {
+    // La CLASE y el motivo, siempre (#1196): «no está configurada» a secas no
+    // separa una variable que falta (`CustodiaIncompleta`, que la nombra) de
+    // un disco sin permiso (`CustodiaSinPermiso`) o una llave mal formada. Ni
+    // el nombre de la clase ni ese mensaje son secretos.
+    const e = err instanceof Error ? err : new Error(String(err));
+    console.warn(`[conectar-whatsapp] la custodia de secretos no está disponible: ${e.name}: ${e.message}`);
     throw new ServiceUnavailableException({
       code: 'WHATSAPP_CONNECT_UNAVAILABLE',
       message: 'Conectar WhatsApp no está disponible en este momento. Escríbenos y lo conectamos contigo.',
