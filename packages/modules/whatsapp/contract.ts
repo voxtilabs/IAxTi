@@ -4,7 +4,7 @@ export const MODULE_ID = 'whatsapp' as const;
 // lo usa el worker de entrada para que la llave de una cuenta de Zernio pueda
 // ir a SU dominio al bajar adjuntos (#1335).
 export { createZernioProvider, entrantesSinTelefono } from './application/zernio';
-export { baseDeZernio } from './application/zernio-base';
+export { baseDeZernio, ErrorDeZernio } from './application/zernio-base';
 export { llamarAZernio } from './application/zernio-base';
 export type { ConfigDeZernio } from './application/zernio-base';
 export {
@@ -57,7 +57,12 @@ export {
   puedeEnviarse,
 } from './domain/plantillas';
 export type { CategoriaPlantilla, EstadoPlantilla, PlantillaBorrador } from './domain/plantillas';
-export { resolveChannelWebhookSecret } from './application/webhook-secret';
+export {
+  resolveChannelWebhookSecret,
+  credencialDeLaCuenta,
+  hayCredencialDeLaCuenta,
+  secretStoreDelCanal,
+} from './application/webhook-secret';
 // Un perfil de Zernio por tenant y la verificación por mensaje (#1321).
 export {
   eventoDeZernioEsDeLaCuenta,
@@ -74,3 +79,10 @@ export {
   ErrorDelAlta,
 } from './application/zernio-perfil';
 export type { VeredictoDelEvento, PerfilDeZernio } from './application/zernio-perfil';
+export {
+  enlaceParaConectarDesdeLaApp,
+  numerosParaConectar,
+  conectarNumeroDesdeLaApp,
+  type DependenciasDelAlta,
+  type NumeroParaConectar,
+} from './application/conectar-desde-la-app';

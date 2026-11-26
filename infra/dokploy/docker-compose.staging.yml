@@ -65,6 +65,13 @@ x-env: &app-env
   # referencia como todo lo demás (SPEC §17); cada cuenta nueva trae sus nombres.
   ZERNIO_LLAVE_VOXTI: ${ZERNIO_LLAVE_VOXTI:-}
   ZERNIO_WEBHOOK_SECRET_VOXTI: ${ZERNIO_WEBHOOK_SECRET_VOXTI:-}
+  # Conectar WhatsApp desde la app (#1393, ADR-0038): la llave del OPERADOR,
+  # con la que se crea la llave restringida de cada negocio. Esa va a la
+  # custodia (GOOGLE_SECRET_*), no acá: un negocio nuevo no toca el despliegue.
+  ZERNIO_API_KEY: ${ZERNIO_API_KEY:-}
+  # Fuera de producción un número de Zernio manda DE VERDAD (#593): conectar
+  # desde la app exige declararlo con ZERNIO_ENVIOS_REALES=1.
+  ZERNIO_ENVIOS_REALES: ${ZERNIO_ENVIOS_REALES:-}
   GOOGLE_SECRET_PROJECT_ID: ${GOOGLE_SECRET_PROJECT_ID:-}
   GOOGLE_SECRET_LOCATION: ${GOOGLE_SECRET_LOCATION:-}
   # ADR-0028: en la v1 la custodia es el disco cifrado del VPS, y Secret

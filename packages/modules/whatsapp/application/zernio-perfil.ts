@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { writeAudit } from '@iaxti/module-audit';
+import { writeAudit, type ActorKind } from '@iaxti/module-audit';
 import { listChannelAccounts, proveedorDe, registerProvider } from '@iaxti/module-channels';
 import type { ChannelAccountRef } from '@iaxti/module-channels';
 import { createZernioProvider } from './zernio';
@@ -221,6 +221,14 @@ async function cuentasDelPerfil(cfg: ConfigDeZernio, profileId: string): Promise
 }
 
 /**
+ * El perfil del tenant si YA existe, sin crearlo: para mirar qué números hay
+ * conectados antes de dar de alta nada (#1393). Un GET no crea perfiles.
+ */
+export async function perfilExistenteDelTenant(cfg: ConfigDeZernio, tenantId: string): Promise<PerfilDeZernio | null> {
+  return unico(await perfilesConExternalId(cfg, tenantId), tenantId);
+}
+
+/**
  * La cuenta de Zernio que se va a dar de alta, comprobada contra el perfil
  * del tenant.
  *
@@ -238,7 +246,7 @@ export async function cuentaDelPerfil(
   if (!suya) {
     throw new ErrorDelAlta(
       `La cuenta ${input.zernioAccountId} no está en el perfil de este negocio. ` +
-        'Conéctala desde el enlace que da este script, que la deja en el perfil correcto.',
+        'Conéctala desde «Conectar» en Ajustes → Canales, que la deja en el perfil correcto.',
     );
   }
   if (suya.platform !== input.plataforma) {
@@ -451,10 +459,14 @@ export async function darDeAltaCuentaDeZernio(
     zernioAccountId: string;
     zernioProfileId: string;
     displayPhone?: string;
-    credentialRef: string;
-    webhookSecretRef: string;
+    /** Las dos, o ninguna y `activar: false` (alta desde la app, #1393). */
+    credentialRef?: string;
+    webhookSecretRef?: string;
+    activar?: boolean;
     enviosReales?: boolean;
     actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
   },
 ): Promise<{ account: ChannelAccountRef }> {
   const { account } = await connectWhatsAppNumber(client, {
@@ -462,21 +474,26 @@ export async function darDeAltaCuentaDeZernio(
     name: input.nombre,
     senderId: `${PREFIJO_EMISOR_ZERNIO}${input.zernioAccountId}`,
     displayPhone: input.displayPhone,
-    credentialRef: input.credentialRef,
-    webhookSecretRef: input.webhookSecretRef,
+    ...(input.credentialRef ? { credentialRef: input.credentialRef } : {}),
+    ...(input.webhookSecretRef ? { webhookSecretRef: input.webhookSecretRef } : {}),
+    ...(input.activar === false ? { activar: false } : {}),
     enviosReales: input.enviosReales,
     provider: 'zernio',
     configDelProveedor: { zernioAccountId: input.zernioAccountId, zernioProfileId: input.zernioProfileId },
+    ...(input.actor ? { actor: input.actor } : {}),
+    ...(input.actorKind ? { actorKind: input.actorKind } : {}),
+    ...(input.requestId ? { requestId: input.requestId } : {}),
   });
   await writeAudit(client, {
     tenantId: input.tenantId,
     actor: input.actor ?? 'system',
-    actorKind: 'system',
+    actorKind: input.actorKind ?? 'system',
     action: 'channel.zernio.connected',
     resource: 'channel_account',
     resourceId: account.id,
     result: 'ok',
     metadata: { zernioAccountId: input.zernioAccountId, zernioProfileId: input.zernioProfileId },
+    ...(input.requestId ? { requestId: input.requestId } : {}),
   });
   return { account };
 }

@@ -27,6 +27,8 @@ import {
   listTemplates,
   listWhatsAppNumbers,
   resumeBusinessSends,
+  credencialDeLaCuenta,
+  hayCredencialDeLaCuenta,
 } from '@iaxti/module-whatsapp';
 import { createWidget, listWidgets, setWidgetActive } from '@iaxti/module-webchat';
 import { z } from 'zod';
@@ -183,9 +185,10 @@ export class ChannelsController {
           ...(process.env.IAXTI_ENV ? { ambiente: process.env.IAXTI_ENV } : {}),
         },
         {
-          // Solo se mira si la variable EXISTE. El valor no sale de acá ni
-          // en el diagnóstico ni en los logs.
-          hayCredencial: (ref) => Boolean(ref && process.env[ref]),
+          // Se LEE la llave —del entorno o de la custodia (#1393)— y solo se
+          // devuelve si hay. El valor no sale de acá ni en el diagnóstico ni
+          // en los logs.
+          hayCredencial: () => hayCredencialDeLaCuenta(cuenta),
           // Se le PREGUNTA al proveedor si el emisor guardado sigue sirviendo
           // (#591). Antes el paso se daba por bueno con que hubiera un string
           // en `config.senderId`, y había un camino donde todo el diagnóstico
@@ -197,9 +200,7 @@ export class ChannelsController {
             ? {
                 emisorEnElProveedor: async () => {
                   const senderId = cuenta.config.senderId;
-                  const apiKey = cuenta.credentialRef
-                    ? process.env[cuenta.credentialRef]
-                    : undefined;
+                  const apiKey = await credencialDeLaCuenta(cuenta).catch(() => undefined);
                   if (typeof senderId !== 'string' || !senderId || !apiKey) return null;
                   // Se le pregunta al proveedor DE LA CUENTA (#1321). Antes
                   // esto llamaba siempre a Zavu, y con una cuenta de Zernio

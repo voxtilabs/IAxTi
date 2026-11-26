@@ -55,6 +55,14 @@ export {
 export type { ClaseDeAdjunto, LimiteDeAdjunto, RevisionDeAdjunto } from './domain/adjuntos';
 
 export { isChannelSecretRef } from './application/webhook-secret';
+export {
+  PREFIJO_CUSTODIA,
+  type SecretoDelCanal,
+  idDeSecretoDelCanal,
+  referenciaEnCustodia,
+  idEnLaReferencia,
+  fijarSecretosDelCanal,
+} from './application/secretos-en-custodia';
 
 // El cupo diario del canal y la parte reservada a las personas (#1248).
 //

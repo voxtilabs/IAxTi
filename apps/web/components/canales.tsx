@@ -2,7 +2,7 @@
 
 import { AvisoResultado, EncabezadoDePagina, EstadoVacio, Formulario } from '@iaxti/ui/react';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Skeleton, useSession } from '@iaxti/ui/react';
 import { MessageSquare } from 'lucide-react';
 import type { BadgeRole } from '@iaxti/ui/react';
@@ -375,6 +375,11 @@ function estadoDelTipo(canales: CanalDto[], widgets: WidgetDto[], tipo: TipoDeCa
   }
   const suyos = canales.filter((c) => c.kind === tipo && c.state !== 'disconnected');
   if (suyos.length === 0) return { conectado: false, rol: 'neutral' as BadgeRole, texto: 'Sin conectar', numero: null };
+  // Un alta que se cortó a mitad (#1393): la cuenta existe pero no manda ni
+  // recibe. Se ofrece «Conectar» para terminarla, no «Administrar».
+  if (suyos.every((c) => c.state === 'connecting')) {
+    return { conectado: false, rol: 'warn' as BadgeRole, texto: 'Sin terminar', numero: null };
+  }
   const conProblema = suyos.find((c) => c.state === 'degraded' || c.numbers.some((n) => n.quality === 'red' || n.businessPausedAt));
   const numero = suyos.flatMap((c) => c.numbers).find((n) => !n.disconnectedAt)?.displayPhone;
   if (conProblema) return { conectado: true, rol: 'warn' as BadgeRole, texto: 'Requiere atención', numero: null };
@@ -420,6 +425,23 @@ function CanalesDelNegocio() {
     }
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
+
+  // Volver de Meta (#1393): el enlace se pidió con vuelta a
+  // /ajustes/canales?whatsapp=volvio. El parámetro se lee UNA vez, al montar,
+  // y se limpia en ese mismo instante —un F5 no tiene que volver a abrir el
+  // diálogo—. La apertura espera a que los canales carguen, para que la lista
+  // no aparezca vacía un instante, y ocurre una sola vez: una recarga
+  // posterior no puede releer un parámetro que ya no está.
+  const volveronDeMeta = useRef(false);
+  useEffect(() => {
+    volveronDeMeta.current = new URLSearchParams(window.location.search).get('whatsapp') === 'volvio';
+    if (volveronDeMeta.current) window.history.replaceState(null, '', '/ajustes/canales');
+  }, []);
+  useEffect(() => {
+    if (!volveronDeMeta.current || canales === null) return;
+    volveronDeMeta.current = false;
+    setAbierto('whatsapp');
+  }, [canales]);
 
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
   const tipoAbierto = TIPOS.find((t) => t.tipo === abierto) ?? null;
@@ -525,12 +547,22 @@ function CanalesDelNegocio() {
               {tipoAbierto.tipo === 'webchat' ? (
                 <DetalleDelWebchat widgets={widgets} onCambio={cargar} onAviso={setAviso} />
               ) : (
-                <DetalleDeCanales
-                  canales={(canales ?? []).filter((c) => c.kind === tipoAbierto.tipo && c.state !== 'disconnected')}
-                  vacio={tipoAbierto.tipo === 'whatsapp' ? <ConectarWhatsApp /> : null}
-                  onCambio={cargar}
-                  onAviso={setAviso}
-                />
+                <>
+                  <DetalleDeCanales
+                    canales={(canales ?? []).filter((c) => c.kind === tipoAbierto.tipo && c.state !== 'disconnected')}
+                    onCambio={cargar}
+                    onAviso={setAviso}
+                  />
+                  {/* Siempre, no solo sin cuentas: así se termina un alta que se
+                      cortó y se suma otro número si el plan lo permite. */}
+                  {tipoAbierto.tipo === 'whatsapp' && (
+                    <ConectarWhatsApp
+                      yaHay={(canales ?? []).some((c) => c.kind === 'whatsapp' && (c.state === 'active' || c.state === 'degraded'))}
+                      onConectado={cargar}
+                      onAviso={setAviso}
+                    />
+                  )}
+                </>
               )}
             </>
           ) : null}
@@ -540,32 +572,161 @@ function CanalesDelNegocio() {
   );
 }
 
+/** Un WhatsApp del perfil del negocio en Zernio, listo para conectar (#1393). */
+interface NumeroParaConectarDto {
+  /** El id de la cuenta en Zernio: es la `cuenta` que se manda al conectar. */
+  cuenta: string;
+  nombre: string;
+  pideReconectar: boolean;
+  yaConectado: boolean;
+}
+
+/** Solo si parece un teléfono: el nombre visible de la cuenta no siempre lo es. */
+function pareceTelefono(valor: string): boolean {
+  return /^\+?\d[\d\s-]{6,}$/.test(valor);
+}
+
 /**
- * Conectar WhatsApp, dicho como es (#1391).
+ * Conectar WhatsApp desde la app (#1393, ADR-0038).
  *
- * El alta de un número hoy corre por `scripts/conectar-zernio.mjs`: la llave
- * del negocio queda en el entorno del despliegue y hace falta desplegar. Hasta
- * que el alta viva en la app —con su almacén cifrado, issue aparte—, este
- * panel no finge un flujo: dice qué pasa y ofrece el camino real.
+ * Antes este panel no fingía un flujo: el alta corría por
+ * `scripts/conectar-zernio.mjs`, con la llave del negocio en el entorno del
+ * despliegue, y lo que quedaba era un «pedir la conexión» por correo. Ahora
+ * el alta sale de acá, contra la API: el enlace de Meta, los números que el
+ * negocio ya autorizó en su perfil y el alta del elegido. La llave del
+ * negocio queda cifrada en la custodia del servidor y nunca pasa por el
+ * navegador.
  */
-function ConectarWhatsApp() {
+function ConectarWhatsApp({
+  yaHay = false,
+  onConectado,
+  onAviso,
+}: {
+  /** El negocio ya tiene un número funcionando: esto pasa a ser «otro número». */
+  yaHay?: boolean;
+  onConectado: () => Promise<void>;
+  onAviso: (texto: string | null) => void;
+}) {
+  const { config, session } = useSession();
+  const tenant = useSelectedTenant();
+  const [numeros, setNumeros] = useState<NumeroParaConectarDto[] | null>(null);
+  const [conectando, setConectando] = useState<string | null>(null);
+  const [abriendoMeta, setAbriendoMeta] = useState(false);
+
+  // Los números que el negocio ya autorizó en su perfil de Meta. Si no
+  // salen, se avisa y se sigue ofreciendo el paso 1: no son requisito para
+  // conectar, son el atajo para quien ya los dejó listos.
+  const cargarNumeros = useCallback(async () => {
+    if (!session || !tenant) return;
+    try {
+      const r = await apiFetch<NumeroParaConectarDto[]>(config, session, tenant, '/channels/whatsapp/numeros');
+      // Una respuesta que no es lista no puede tumbar el diálogo entero.
+      setNumeros(Array.isArray(r) ? r : []);
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+      setNumeros([]);
+    }
+  }, [config, session, tenant, onAviso]);
+  useEffect(() => void cargarNumeros(), [cargarNumeros]);
+
+  const porConectar = (numeros ?? []).filter((n) => !n.yaConectado);
+
+  async function conectarCuenta(cuenta: string) {
+    if (!session || !tenant || conectando) return;
+    onAviso(null);
+    setConectando(cuenta);
+    try {
+      await apiFetch(config, session, tenant, '/channels/whatsapp/conectar', {
+        method: 'POST',
+        // Una llave nueva por intento: el alta es idempotente en la API.
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+        body: JSON.stringify({ cuenta }),
+      });
+      await onConectado();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+    } finally {
+      setConectando(null);
+    }
+  }
+
+  async function abrirMeta() {
+    if (!session || !tenant || abriendoMeta) return;
+    onAviso(null);
+    setAbriendoMeta(true);
+    try {
+      const { url } = await apiFetch<{ url: string }>(config, session, tenant, '/channels/whatsapp/enlace', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+      });
+      // Misma pestaña: al terminar, Meta vuelve con ?whatsapp=volvio y el
+      // diálogo se reabre solo para elegir el número.
+      window.location.assign(url);
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+      setAbriendoMeta(false);
+    }
+  }
+
+  if (numeros === null) return <Skeleton className="h-24" />;
+
   return (
-    <div className="mt-6 flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
-      <p className="font-display font-semibold text-ink">Conecta tu número de WhatsApp Business</p>
-      <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-body">
-        <li>Tu número sigue en tu teléfono: IAxTi se conecta al lado, sin cambiarlo.</li>
-        <li>Te mandamos un enlace de Meta para autorizarlo. Toma unos minutos.</li>
-        <li>Desde ese momento, los mensajes llegan a tu bandeja y tu asistente puede contestar.</li>
-      </ol>
-      <span className="flex flex-wrap gap-2">
+    <div className="mt-6 flex flex-col gap-4">
+      {porConectar.length > 0 && (
+        <ul className="flex flex-col gap-3">
+          {porConectar.map((n, i) => (
+            <li
+              key={n.cuenta}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-tarjeta border border-line bg-raised p-5"
+            >
+              <span className="flex min-w-0 flex-wrap items-center gap-2">
+                {pareceTelefono(n.nombre) ? (
+                  <span className="dato text-ink">{n.nombre}</span>
+                ) : (
+                  <span className="text-sm font-medium text-ink">{n.nombre}</span>
+                )}
+                {n.pideReconectar && <Badge role="warn">Pide reconectar en Meta</Badge>}
+              </span>
+              <Button
+                // Un solo primario por vista (ADR-0034): el primero de la
+                // lista; el resto acompaña con secundario.
+                variant={i === 0 ? 'primario' : 'secundario'}
+                size="chico"
+                disabled={conectando !== null}
+                onClick={() => void conectarCuenta(n.cuenta)}
+              >
+                {conectando === n.cuenta ? 'Conectando…' : 'Conectar este número'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+        <p className="font-display font-semibold text-ink">
+          {yaHay ? 'Conectar otro número' : 'Conecta tu número de WhatsApp Business'}
+        </p>
+        <p className="text-sm text-body">Te llevamos a Meta para autorizarlo. Tu número sigue en tu teléfono.</p>
+        <span className="flex flex-wrap gap-2">
+          <Button
+            variant={porConectar.length > 0 || yaHay ? 'secundario' : 'primario'}
+            onClick={() => void abrirMeta()}
+            disabled={abriendoMeta}
+          >
+            {abriendoMeta ? 'Abriendo Meta…' : porConectar.length > 0 ? 'Conectar otro número' : 'Conectar con Meta'}
+          </Button>
+        </span>
+      </div>
+
+      <p className="text-xs text-muted">
+        ¿Algo no funciona?{' '}
         <a
           href="mailto:soporte@voxtilabs.cl?subject=Conectar%20mi%20WhatsApp%20a%20IAxTi"
-          className="pulso-button inline-flex h-10 items-center rounded-boton bg-action px-4 text-sm font-medium text-white hover:bg-action-hover"
+          className="text-action-text underline"
         >
-          Pedir la conexión
+          Escríbenos
         </a>
-      </span>
-      <p className="text-xs text-muted">Hoy la conexión la hace el equipo de IAxTi contigo, el mismo día.</p>
+      </p>
     </div>
   );
 }
@@ -573,12 +734,10 @@ function ConectarWhatsApp() {
 /** El detalle de las cuentas de un tipo: estado, número, diagnóstico y prueba. */
 function DetalleDeCanales({
   canales,
-  vacio,
   onCambio,
   onAviso,
 }: {
   canales: CanalDto[];
-  vacio?: React.ReactNode;
   onCambio: () => Promise<void>;
   onAviso: (texto: string | null) => void;
 }) {
@@ -613,7 +772,7 @@ function DetalleDeCanales({
     }
   }
 
-  if (canales.length === 0) return <>{vacio}</>;
+  if (canales.length === 0) return null;
 
   return (
     <ul className="mt-6 flex flex-col gap-4">

@@ -2399,6 +2399,58 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ConectarWhatsAppController_conectar": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/whatsapp/conectar",
+    "resumen": "Conecta a este negocio un número de WhatsApp ya autorizado en Meta",
+    "permiso": "channels.manage",
+    "modulo": "whatsapp",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "cuenta": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "nombre": {
+          "type": "string",
+          "maxLength": 80
+        }
+      },
+      "required": [
+        "cuenta"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "ConectarWhatsAppController_enlace": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/whatsapp/enlace",
+    "resumen": "Crea el enlace para conectar un número de WhatsApp a este negocio",
+    "permiso": "channels.manage",
+    "modulo": "whatsapp",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "ConectarWhatsAppController_numeros": {
+    "metodo": "GET",
+    "ruta": "/v1/channels/whatsapp/numeros",
+    "resumen": "Lista los números de WhatsApp listos para conectar a este negocio",
+    "permiso": "channels.manage",
+    "modulo": "whatsapp",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
   "ContactoEmpresaController_asignar": {
     "metodo": "PUT",
     "ruta": "/v1/contacts/{id}/empresa",

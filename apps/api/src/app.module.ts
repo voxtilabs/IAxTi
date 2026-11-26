@@ -97,6 +97,7 @@ import { ContactsController } from './contacts.controller';
 import { DealsController } from './deals.controller';
 import { WebhooksController } from './webhooks.controller';
 import { ChannelsController, WebchatAdminController } from './channels.controller';
+import { ConectarWhatsAppController } from './conectar-whatsapp.controller';
 import { WebchatController } from './webchat.controller';
 import { NotificationsController } from './notifications.controller';
 import { AgentsController } from './agents.controller';
@@ -1274,6 +1275,7 @@ const controllers = [
   DealsController,
   WebhooksController,
   ChannelsController,
+  ConectarWhatsAppController,
   WebchatAdminController,
   WebchatController,
   NotificationsController,
