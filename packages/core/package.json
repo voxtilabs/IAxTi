@@ -22,7 +22,7 @@
   "dependencies": {
     "@iaxti/telemetry": "workspace:*",
     "bullmq": "^6.3.11",
-    "ioredis": "^5.4.0",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.1",
     "yaml": "^2.6.0"
   },
