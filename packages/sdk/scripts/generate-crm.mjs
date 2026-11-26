@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 const document = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-const wanted = ['ContactsController_list', 'DealsController_list', 'TagsController_list', 'TagsController_agregarEnLote'];
+const wanted = ['ContactsController_list', 'ContactsController_create', 'DealsController_list', 'TagsController_list', 'TagsController_agregarEnLote'];
 const routes = {};
 for (const id of wanted) {
   for (const [path, methods] of Object.entries(document.paths)) {

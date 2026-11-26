@@ -4,6 +4,10 @@ export const crmRoutes = {
     "method": "GET",
     "path": "/v1/contacts"
   },
+  "ContactsController_create": {
+    "method": "POST",
+    "path": "/v1/contacts"
+  },
   "DealsController_list": {
     "method": "GET",
     "path": "/v1/deals"

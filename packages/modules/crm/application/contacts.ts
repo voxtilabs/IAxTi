@@ -1,7 +1,8 @@
 import type { PoolClient } from 'pg';
 import { degradarSinRomper } from '@iaxti/db';
-import { listCursor } from './list-cursor';
+import { listCursor, InvalidListQuery } from './list-cursor';
 import { publishEvent } from '@iaxti/core';
+import { writeAudit } from '@iaxti/module-audit';
 import { listCustomFields, validarCustom } from './campos';
 import { isOptOutMessage, normalizePhone, normalizeRut } from '../domain/validation';
 
@@ -12,6 +13,23 @@ export type ContactOrigin =
   | 'manual'
   | 'instagram'
   | 'messenger';
+
+/**
+ * Todos los orígenes que puede tener un contacto (#1395).
+ *
+ * Existe como constante —y no solo como tipo— porque `filter[origen]` de la
+ * lista se valida contra ella y el OpenAPI declara el enum con la misma: dos
+ * listas escritas a mano terminarían aceptando un origen que la base ya no
+ * guarda, o rechazando uno que sí.
+ */
+export const ORIGENES_DE_CONTACTO = [
+  'whatsapp',
+  'webchat',
+  'importado',
+  'manual',
+  'instagram',
+  'messenger',
+] as const satisfies readonly ContactOrigin[];
 
 /** Canales que identifican a un contacto (#74). El simulador imita WhatsApp. */
 export type IdentityChannel = 'whatsapp' | 'webchat' | 'instagram' | 'messenger' | 'simulador';
@@ -394,6 +412,120 @@ export async function ensureContactByPhone(
   return { contact, created: true };
 }
 
+/**
+ * El teléfono que se quiso agregar a mano no es un teléfono (#1395).
+ *
+ * `normalizePhone` lanza un `Error` de dominio pensado para quien lee un log de
+ * importación; la ruta necesita distinguirlo de cualquier otro fallo para
+ * responder 400 y no 500, así que acá se traduce a un error tipado.
+ */
+export class TelefonoInvalido extends Error {
+  constructor() {
+    super('El teléfono no se entiende. Escríbelo con código de país, como +56912345678.');
+    this.name = 'TelefonoInvalido';
+  }
+}
+
+/**
+ * El teléfono ya existe en este negocio (#1395). Lleva el id del contacto
+ * existente: la respuesta se lo devuelve a la interfaz para que ofrezca abrir
+ * esa ficha en vez de insistir con crear otra.
+ */
+export class ContactoDuplicado extends Error {
+  constructor(readonly contactId: string) {
+    super('Ya tienes un contacto con ese teléfono.');
+    this.name = 'ContactoDuplicado';
+  }
+}
+
+/**
+ * Agregar un contacto a mano (#1395).
+ *
+ * El camino de los canales (`ensureContactByPhone`) es para cuando ALGUIEN
+ * ESCRIBIÓ: nace con permiso para responderle. Este es el contrario: la persona
+ * que está atendiendo anota a un cliente que todavía no habló — el clásico
+ * «me pasó su número y lo llamo después». Nace con `origin: 'manual'` y SIN
+ * opt-in, o sea `sin_permiso`: escribirle primero queda bloqueado hasta que él
+ * escriba o dé su consentimiento (SPEC §8). No se le inventa un permiso a
+ * alguien que no lo dio.
+ *
+ * El teléfono ya lo conocemos → `ContactoDuplicado` con el id del que existe.
+ * Se comprueba antes de insertar y, por si dos creaciones paralelas pasan la
+ * comprobación, el INSERT corre bajo un SAVEPOINT: el 23505 del índice único
+ * `contacts_tenant_phone_idx` aborta la transacción entera si se lo deja
+ * pasar, y con el savepoint el caso de uso la deja sana y puede BUSCAR al
+ * ganador de la carrera para devolver su id.
+ */
+export async function agregarContactoAMano(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    phone: string;
+    name?: string;
+    email?: string;
+    actor?: string;
+    actorKind?: 'user' | 'apikey';
+    requestId?: string;
+    ip?: string;
+    userAgent?: string;
+  },
+): Promise<Record<string, unknown>> {
+  let phone: string;
+  try {
+    phone = normalizePhone(input.phone);
+  } catch {
+    throw new TelefonoInvalido();
+  }
+  const encontrado = await contactoPorTelefono(client, { tenantId: input.tenantId, phone });
+  if (encontrado) throw new ContactoDuplicado(encontrado.id);
+
+  await client.query('SAVEPOINT contacto_a_mano');
+  let creado: Contact;
+  try {
+    creado = await createContact(client, {
+      tenantId: input.tenantId,
+      phone,
+      name: input.name,
+      email: input.email,
+      origin: 'manual',
+      actor: input.actor,
+      requestId: input.requestId,
+    });
+  } catch (err) {
+    // Deshace SOLO este intento: sin esto, el 23505 deja la transacción
+    // abortada y la búsqueda del existente de abajo revienta con 25P02.
+    await client.query('ROLLBACK TO SAVEPOINT contacto_a_mano');
+    if ((err as { code?: string }).code === '23505') {
+      const yaExistente = await contactoPorTelefono(client, { tenantId: input.tenantId, phone });
+      if (yaExistente) throw new ContactoDuplicado(yaExistente.id);
+    }
+    throw err;
+  }
+  // La auditoría va EN la misma transacción (SPEC §13): si algo falla, no
+  // queda un «contacto creado» sin contacto. Y el metadata lleva SOLO el
+  // origen: el teléfono y el nombre son datos personales que ya viven en su
+  // fila; repetirlos acá es copiar PII al libro que más gente puede leer.
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor ?? 'system',
+    actorKind: input.actorKind ?? 'user',
+    action: 'contact.created',
+    resource: 'contact',
+    resourceId: creado.id,
+    result: 'ok',
+    requestId: input.requestId,
+    ip: input.ip,
+    userAgent: input.userAgent,
+    metadata: { origin: 'manual' },
+  });
+  await client.query('RELEASE SAVEPOINT contacto_a_mano');
+  // La misma proyección que lee la ficha: quien crea el contacto recibe el
+  // contacto tal como lo va a volver a ver.
+  const ficha = await contactoDeLaFicha(client, input.tenantId, creado.id);
+  if (!ficha) throw new Error('No encontramos ese contacto. Puede que se haya eliminado.');
+  return ficha;
+}
+
 /** Lo mismo que respondía el UPDATE cuando no encontraba la ficha. */
 const CONTACTO_NO_EXISTE = 'No encontramos ese contacto. Puede que se haya eliminado.';
 
@@ -634,11 +766,38 @@ export async function canReceiveBusinessInitiated(
   return permiso === 'opt_in' || permiso === 'escribio_primero';
 }
 
-/** Lista para /contactos (#34): búsqueda por nombre o teléfono, cursor. */
+/**
+ * Los tres valores que acepta `filter[permiso]` en la lista (#1395).
+ *
+ * NO son los motivos de `permisoParaEscribirle`: son lo que quien filtra puede
+ * preguntar. `puede` junta los dos motivos que dejan escribir
+ * (`opt_in` y `escribio_primero`), porque para quien filtra la pregunta es una
+ * sola: «¿a cuáles les puedo escribir?».
+ */
+export const PERMISOS_DE_FILTRO = ['puede', 'sin_permiso', 'baja'] as const;
+export type PermisoDeFiltro = (typeof PERMISOS_DE_FILTRO)[number];
+
+/**
+ * Lista para /contactos (#34): búsqueda por nombre o teléfono, cursor y, desde
+ * #1395, filtros por origen y por permiso para escribirle.
+ *
+ * El filtro de permiso se arma en SQL desde la MISMA `ORIGENES_DE_CANAL` que
+ * lee `permisoParaEscribirle` — con parámetros, nada interpolado— para que la
+ * lista y el envío no puedan discrepar sobre quién escribió primero. La prueba
+ * de la tabla de casos (tests) es la que impide que se separen.
+ */
 export async function listContacts(
   client: PoolClient,
   tenantId: string,
-  filters: { q?: string; cursor?: string; limit?: number; sort?: string; order?: string } = {},
+  filters: {
+    q?: string;
+    cursor?: string;
+    limit?: number;
+    sort?: string;
+    order?: string;
+    origen?: string;
+    permiso?: string;
+  } = {},
 ): Promise<{ items: Array<Contact & { lastActivityAt: Date; permiso: PermisoParaEscribirle }>; nextCursor: string | null }> {
   const params: unknown[] = [tenantId];
   const where = ['tenant_id = $1', 'merged_into IS NULL'];
@@ -646,10 +805,45 @@ export async function listContacts(
     params.push(`%${filters.q.trim()}%`);
     where.push(`(name ILIKE $${params.length} OR phone LIKE $${params.length})`);
   }
+  if (filters.origen !== undefined) {
+    if (!ORIGENES_DE_CONTACTO.includes(filters.origen as ContactOrigin)) {
+      throw new InvalidListQuery(
+        `Ese origen no existe en tus contactos. Los que puedes filtrar son: ${ORIGENES_DE_CONTACTO.join(', ')}.`,
+      );
+    }
+    params.push(filters.origen);
+    where.push(`origin = $${params.length}`);
+  }
+  if (filters.permiso !== undefined) {
+    if (!PERMISOS_DE_FILTRO.includes(filters.permiso as PermisoDeFiltro)) {
+      throw new InvalidListQuery(
+        `Ese filtro de permiso no existe. Los valores son: ${PERMISOS_DE_FILTRO.join(', ')}.`,
+      );
+    }
+    if (filters.permiso === 'baja') {
+      // La baja manda sobre todo (SPEC §8), incluso sobre un opt-in anterior.
+      where.push('opted_out_at IS NOT NULL');
+    } else {
+      // `puede` y `sin_permiso` comparten el mismo bloque «no está de baja»;
+      // los separa si tiene opt_in o escribió primero — la misma regla que
+      // `permisoParaEscribirle`, armada desde SU constante.
+      params.push([...ORIGENES_DE_CANAL]);
+      const canales = `$${params.length}::text[]`;
+      const permiso =
+        filters.permiso === 'puede'
+          ? `(opted_out_at IS NULL AND (opt_in_at IS NOT NULL OR origin = ANY(${canales})))`
+          : `(opted_out_at IS NULL AND opt_in_at IS NULL AND NOT (origin = ANY(${canales})))`;
+      where.push(permiso);
+    }
+  }
   const pagination = listCursor({
     columns: { activity: { sql: 'last_activity_at', type: 'timestamptz' }, name: { sql: 'name', type: 'text' }, phone: { sql: 'phone', type: 'text' }, origin: { sql: 'origin', type: 'text' } },
     defaultSort: 'activity', sort: filters.sort, order: filters.order, cursor: filters.cursor, limit: filters.limit,
-    scope: [tenantId, filters.q?.trim() ?? ''], idColumn: 'id', params,
+    // Los filtros entran al scope del cursor: uno emitido CON un filtro no
+    // puede servir para seguir paginando SIN él, o la segunda página traería
+    // contactos que la primera había excluido.
+    scope: [tenantId, filters.q?.trim() ?? '', filters.origen ?? '', filters.permiso ?? ''],
+    idColumn: 'id', params,
   });
   const { limit } = pagination;
   if (pagination.where) where.push(pagination.where);
@@ -759,4 +953,50 @@ export async function getContactEmail(
   ]);
   const email = ((r.rows[0]?.email as string | null) ?? '').trim();
   return email === '' ? null : email;
+}
+
+/**
+ * El contacto tal como lo muestra la ficha (#32, SPEC §10/§29).
+ *
+ * Va en función aparte —y no dentro de `getContactFicha`— porque desde #1395
+ * la creación a mano devuelve el contacto en ESTA misma forma: quien acaba de
+ * agregar a alguien lo recibe tal como lo va a volver a ver al abrir la ficha.
+ * Dos proyecciones distintas del mismo contacto son dos fichas distintas el
+ * día que una cambie.
+ *
+ * La empresa viaja con la ficha (#460): `contacts.company_id` existía
+ * desde #217 y la ficha no lo proyectaba, así que la pantalla no podía
+ * mostrar de qué empresa es alguien ni ofrecerse a cambiarlo.
+ *
+ * Y el consentimiento viaja COMPLETO (#696). La regla pide fecha, canal y
+ * evidencia; acá se pedía solo la fecha, así que la ficha afirmaba «dio su
+ * consentimiento» sin poder decir a qué. No son equivalentes: quien lo dio por
+ * el formulario del sitio no autorizó recibir WhatsApp. Es el mismo defecto que
+ * #460 —columna escrita, consulta que no la proyecta— en un campo que además
+ * es la evidencia con la que se contesta una reclamación.
+ */
+export async function contactoDeLaFicha(
+  client: PoolClient,
+  tenantId: string,
+  contactId: string,
+): Promise<Record<string, unknown> | null> {
+  const contacto = await client.query(
+    `SELECT c.id, c.phone, c.name, c.email, c.rut, c.origin, c.owner_id, c.custom,
+            c.opt_in_at, c.opt_in_channel, c.opt_in_evidence,
+            c.opted_out_at, c.last_activity_at, c.created_at,
+            c.company_id, e.name AS company_name
+       FROM contacts c
+       LEFT JOIN companies e ON e.id = c.company_id AND e.tenant_id = c.tenant_id
+      WHERE c.tenant_id = $1 AND c.id = $2`,
+    [tenantId, contactId],
+  );
+  const fila = contacto.rows[0];
+  if (!fila) return null;
+  // El permiso lo calcula la MISMA función que consulta el envío (#1395): la
+  // ficha no puede deducirlo con otra regla y contradecir a lo que pasa al
+  // mandar un mensaje.
+  return {
+    ...fila,
+    permiso: permisoParaEscribirle({ optInAt: fila.opt_in_at, optedOutAt: fila.opted_out_at, origin: fila.origin }),
+  };
 }

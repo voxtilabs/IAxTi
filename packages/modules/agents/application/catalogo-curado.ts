@@ -202,6 +202,8 @@ export const SIN_CONFIRMACION = new Set<string>([
 export const DESCRIPCIONES: Record<string, string> = {
   ContactsController_list:
     'Busca contactos del negocio por nombre, teléfono o RUT. Úsala ANTES de crear uno: si la persona ya está, crear otro duplica su historia.',
+  ContactsController_create:
+    'Agrega un contacto que todavía no escribió, con su teléfono. Úsala solo después de buscarlo: nace SIN permiso para escribirle, así que no sirve para iniciar una conversación — solo para tenerlo anotado.',
   PlantillasController_enviar:
     'Manda una plantilla aprobada a una conversación. Es lo ÚNICO que sale cuando pasaron más de 24 h desde el último mensaje del cliente; dentro de la ventana, responde normal.',
   AgendaController_huecos:

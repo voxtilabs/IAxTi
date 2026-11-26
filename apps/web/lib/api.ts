@@ -20,6 +20,15 @@ export class ApiError extends Error {
      * donde ir a buscarlo.
      */
     public readonly requestId: string = '',
+    /**
+     * Los detalles del error, tal como llegaron (#1395).
+     *
+     * El formato único promete `details[]`, y hay respuestas donde lo importante
+     * vive ahí: un `CONTACT_EXISTS` trae el `contactId` del contacto que ya
+     * estaba, y sin leerlo la pantalla solo puede decir «ya existe» sin ofrecer
+     * ir a verlo.
+     */
+    public readonly details: unknown[] = [],
   ) {
     super(message);
   }
@@ -124,12 +133,16 @@ export async function apiFetch<T>(
       code?: string;
       message?: string;
       requestId?: string;
+      details?: unknown[];
     } | null;
     throw new ApiError(
       cuerpo?.code ?? 'ERROR',
       cuerpo?.message ?? 'Algo salió mal. Intenta de nuevo.',
       res.status,
       cuerpo?.requestId ?? '',
+      // `Array.isArray` y no `?? []` a secas: una respuesta malformada —o un
+      // mock que devuelve `{}`— no puede tumbar a la pantalla que la lee.
+      Array.isArray(cuerpo?.details) ? cuerpo.details : [],
     );
   }
   return res.json() as Promise<T>;
@@ -409,6 +422,14 @@ export interface FichaContacto {
     origin: string;
     opt_in_at: string | null;
     opted_out_at: string | null;
+    /**
+     * El permiso calculado con la regla del envío (#1346), si la ficha lo trae.
+     *
+     * La lista lo manda; el detalle puede venir de una API que todavía no lo
+     * proyecta, así que es opcional y la ficha lo deriva de `opt_in_at` y
+     * `opted_out_at` cuando falta.
+     */
+    permiso?: 'baja' | 'opt_in' | 'escribio_primero' | 'sin_permiso';
     last_activity_at: string;
     created_at: string;
     /** Los campos propios del negocio (#34). La API ya los mandaba. */
