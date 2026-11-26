@@ -12,6 +12,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
   IconoCheck,
+  IconoPersona,
+  iniciales,
   Input,
   Select,
   SelectContent,
@@ -27,7 +29,10 @@ import { DerechosDelTitular } from './derechos-del-titular';
 import { usePieza } from '../arranque';
 import { FusionarDuplicado } from './fusionar-duplicado';
 import { HistoriaDeEtapas } from './historia-de-etapas';
-import { apiFetch, fmtClp, type CampoDto, type EtiquetaDto, type FichaContacto as Ficha, mensajeDeError } from '../../lib/api';
+import { Permiso } from './permiso';
+import { CanalDelContacto } from './canal-del-contacto';
+import { apiFetch, fmtClp, type CampoDto, type ConversacionItem, type EtiquetaDto, type FichaContacto as Ficha, mensajeDeError } from '../../lib/api';
+import { telefonoLegible } from '../../lib/telefono';
 
 /** «Sin empresa» necesita un valor: Radix no acepta la cadena vacía. */
 const SIN_EMPRESA = '__sin_empresa__';
@@ -114,6 +119,7 @@ export function FichaContacto({
   precargada,
   etiquetasPrecargadas,
   esperandoPrecarga = false,
+  conversaciones = null,
 }: {
   contactId: string;
   /** true en el panel de la bandeja: sin encabezado grande. */
@@ -142,6 +148,16 @@ export function FichaContacto({
    * bajaban.
    */
   esperandoPrecarga?: boolean;
+  /**
+   * Las conversaciones de la persona, para «Abrir conversación» (#1395).
+   *
+   * Las pide una sola vez quien arma la pantalla (`FichaYConversaciones`) y
+   * baja tanto al botón del encabezado como a la historia: pedirlas acá
+   * también sería un viaje doble para el mismo dato. En el panel de la bandeja
+   * (`compacta`) nadie las pasa y el botón no existe — ahí se está atendiendo
+   * una conversación, no buscándola.
+   */
+  conversaciones?: ConversacionItem[] | null;
 }) {
   const { session, config } = useSession();
   const tenant = useSelectedTenant();
@@ -164,6 +180,8 @@ export function FichaContacto({
   const [titulo, setTitulo] = useState('');
   const [tipo, setTipo] = useState<'llamada' | 'reunion' | 'tarea' | 'nota'>('tarea');
   const [vence, setVence] = useState('');
+  /** El formulario de actividades va desplegado a pedido (#1395). */
+  const [agregandoActividad, setAgregandoActividad] = useState(false);
 
 
   /**
@@ -330,23 +348,79 @@ export function FichaContacto({
 
   const { contact, deals, activities } = ficha;
 
+  /**
+   * El permiso del encabezado (#1395) lo calcula la API con la MISMA función
+   * que consulta el envío. No se deduce acá: una regla propia de la pantalla
+   * —«tiene un mensaje entrante»— diría «escribió primero» de alguien a quien
+   * el envío igual le bloquea, y esa contradicción es peor que no decir nada.
+   */
+  const permiso = contact.permiso;
+  // La primera de la lista es la más reciente: es la que abre el botón.
+  const laMasReciente = conversaciones?.[0] ?? null;
+
+  /** Carga el borrador con lo que hay hoy y despliega el formulario. */
+  function empezarAEditar() {
+    setBorrador({
+      name: contact.name ?? '',
+      email: contact.email ?? '',
+      rut: contact.rut ?? '',
+      custom: { ...(contact.custom ?? {}) },
+    });
+    setEditando(true);
+  }
+
   return (
     <div className={compacta ? '' : 'max-w-2xl'}>
       {!compacta && (
         <>
           <p className="rotulo">Contacto</p>
-          <h2 className="mt-1 text-2xl font-semibold text-ink">{contact.name ?? 'Sin nombre aún'}</h2>
+          <header className="mt-1 flex flex-wrap items-start gap-4">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-rest text-sm font-medium text-body" aria-hidden>
+              {iniciales(contact.name) ?? <IconoPersona className="size-5 text-muted" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              {/* `h2` y no `h1`: el único h1 de una pantalla lo pone
+                  EncabezadoDePagina (#1323), y esta ficha lo comparte con el
+                  panel de la bandeja. */}
+              <h2 className="text-2xl font-semibold text-ink">{contact.name ?? 'Sin nombre aún'}</h2>
+              <p className="dato mt-1 text-body">{telefonoLegible(contact.phone)}</p>
+              <span className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <CanalDelContacto canal={contact.origin} />
+                <Permiso valor={permiso} />
+              </span>
+            </span>
+            {/* En celular las acciones bajan a su propia fila: al lado le
+                quitaban el ancho al nombre, que se partía en tres líneas. */}
+            <span className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              {laMasReciente && (
+                <a
+                  href={`/bandeja?conversationId=${laMasReciente.id}`}
+                  className={editando
+                    ? 'inline-flex min-h-control items-center gap-2 rounded-boton border border-line-strong px-4 text-sm font-medium text-ink transition-colors hover:bg-rest'
+                    : 'inline-flex min-h-control items-center gap-2 rounded-boton bg-action px-4 text-sm font-medium text-white transition-colors hover:bg-action-hover'}
+                >
+                  Abrir conversación
+                </a>
+              )}
+              {!editando && (
+                <Button variant="secundario" onClick={empezarAEditar}>
+                  Corregir los datos
+                </Button>
+              )}
+            </span>
+          </header>
         </>
       )}
 
-      {/* Datos: RUT y teléfono SIEMPRE en mono (§3). */}
+      {/* Datos: RUT y teléfono SIEMPRE en mono (§3). En la ficha completa el
+          canal y el permiso ya están en el encabezado; el teléfono crudo y el
+          rótulo «Origen» quedan para el panel compacto de la bandeja, que no
+          cambió. */}
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-        <dt className="text-muted">Teléfono</dt>
-        <dd className="dato text-ink">{contact.phone}</dd>
+        {compacta && (<><dt className="text-muted">Teléfono</dt><dd className="dato text-ink">{contact.phone}</dd></>)}
         {contact.rut && (<><dt className="text-muted">RUT</dt><dd className="dato text-ink">{contact.rut}</dd></>)}
         {contact.email && (<><dt className="text-muted">Correo</dt><dd className="text-body">{contact.email}</dd></>)}
-        <dt className="text-muted">Origen</dt>
-        <dd><Badge role="neutral">{contact.origin}</Badge></dd>
+        {compacta && (<><dt className="text-muted">Origen</dt><dd><Badge role="neutral">{contact.origin}</Badge></dd></>)}
         <dt className="text-muted">Cliente desde</dt>
         <dd><FechaDato iso={contact.created_at} /></dd>
         {/* De qué empresa es (#460). `PUT /contacts/:id/empresa` existía
@@ -452,7 +526,9 @@ export function FichaContacto({
       {/* Corregir los datos (#480). `PATCH /contacts/:id` existe desde #34
           y no la llamaba nadie: un nombre mal escrito, un correo o un RUT
           solo se arreglaban volviendo a importar la planilla, y los campos
-          propios del negocio solo se podían llenar en la importación. */}
+          propios del negocio solo se podían llenar en la importación. El
+          gatillo vive ahora en el encabezado (#1395) y el formulario se abre
+          acá, bajo él. */}
       {editando ? (
         <Formulario
           className="mt-6 flex flex-col gap-3 rounded-tarjeta border border-line bg-raised p-4"
@@ -548,26 +624,7 @@ export function FichaContacto({
           </span>
         </Formulario>
       ) : (
-        <>
-          <CamposPropios valores={contact.custom} definiciones={campos} />
-          <span className="mt-4 block">
-            <Button
-              variant="secundario"
-              size="chico"
-              onClick={() => {
-                setBorrador({
-                  name: contact.name ?? '',
-                  email: contact.email ?? '',
-                  rut: contact.rut ?? '',
-                  custom: { ...(contact.custom ?? {}) },
-                });
-                setEditando(true);
-              }}
-            >
-              Corregir los datos
-            </Button>
-          </span>
-        </>
+        <CamposPropios valores={contact.custom} definiciones={campos} />
       )}
 
       {/* Oportunidades (montos en mono). */}
@@ -619,49 +676,74 @@ export function FichaContacto({
             </li>
           ))}
         </ul>
-        <Formulario onSubmit={agregarActividad} className="mt-3 flex flex-wrap items-center gap-2">
-          <Select value={tipo} onValueChange={(valor) => setTipo(valor as typeof tipo)}>
-            <SelectTrigger className="h-9 bg-field text-sm" aria-label="Tipo de actividad">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(TIPO_ACTIVIDAD).map(([v, l]) => (
-                <SelectItem key={v} value={v}>{l}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            aria-label="Título de la actividad"
-            placeholder="Nueva actividad"
-            className="h-9 min-w-40 flex-1 text-sm"
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-          />
-          <Input
-            type="datetime-local"
-            aria-label="Vencimiento"
-            className="dato h-9 w-52 text-sm"
-            value={vence}
-            onChange={(e) => setVence(e.target.value)}
-          />
-          <Button type="submit" variant="secundario" size="chico" disabled={!titulo.trim()}>
-            Agregar
+        {/* El formulario de actividades va desplegado a pedido (#1395):
+            desplegado de fábrica sumaba tres controles al primer vistazo de
+            la ficha, y la acción que importa es la lista, no el alta. */}
+        {agregandoActividad ? (
+          <Formulario onSubmit={agregarActividad} className="mt-3 flex flex-wrap items-center gap-2">
+            <Select value={tipo} onValueChange={(valor) => setTipo(valor as typeof tipo)}>
+              <SelectTrigger className="h-9 bg-field text-sm" aria-label="Tipo de actividad">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(TIPO_ACTIVIDAD).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label="Título de la actividad"
+              placeholder="Nueva actividad"
+              className="h-9 min-w-40 flex-1 text-sm"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+            />
+            <Input
+              type="datetime-local"
+              aria-label="Vencimiento"
+              className="dato h-9 w-52 text-sm"
+              value={vence}
+              onChange={(e) => setVence(e.target.value)}
+            />
+            <Button type="submit" variant="secundario" size="chico" disabled={!titulo.trim()}>
+              Agregar
+            </Button>
+            <Button type="button" variant="fantasma" size="chico" onClick={() => setAgregandoActividad(false)}>
+              Cerrar
+            </Button>
+          </Formulario>
+        ) : (
+          <Button variant="fantasma" size="chico" className="mt-3" onClick={() => setAgregandoActividad(true)}>
+            Agregar actividad
           </Button>
-        </Formulario>
+        )}
       </section>
 
-      {/* Los derechos de la persona, en su ficha y no escondidos en un
-          menú: quien recibe la solicitud llega por acá (#447). En el panel
-          de la bandeja no van: ahí se está atendiendo, no administrando. */}
       {/* Fusionar duplicados (#447): pasa todo el tiempo —la misma
           persona escribe por WhatsApp y después por el chat del sitio— y
-          `mergeContacts` existía desde #34 sin puerta. Va acá arriba de los
-          derechos porque es operación diaria, no un trámite. */}
+          `mergeContacts` existía desde #34 sin puerta. Con menos peso desde
+          #1395: es operación diaria, pero no compite con las acciones del
+          encabezado. */}
+      {/* Separado por un filete: lo de abajo es administración de la ficha,
+          no parte de las actividades que quedan justo arriba. */}
+      {!compacta && <hr className="mt-8 mb-2 border-line" />}
       {!compacta && (
         <FusionarDuplicado contactId={contactId} nombre={ficha.contact.name} onFusionado={cargar} />
       )}
 
-      {!compacta && <DerechosDelTitular contactId={contactId} nombre={ficha.contact.name} />}
+      {/* Los derechos de la persona siguen EN la ficha y a un clic (#447,
+          #1395): quien recibe la solicitud llega por acá. Van plegados porque
+          son un trámite que se hace de vez en cuando, no algo que conviva a
+          la vista con las oportunidades y las actividades. En el panel de la
+          bandeja no van: ahí se está atendiendo, no administrando. */}
+      {!compacta && (
+        <details className="mt-3 text-rotulo text-muted">
+          <summary className="cursor-pointer select-none">Privacidad y datos de esta persona</summary>
+          <div className="mt-2">
+            <DerechosDelTitular contactId={contactId} nombre={ficha.contact.name} />
+          </div>
+        </details>
+      )}
 
       {/* Espacio reservado para la IA (Fase 3), con rótulo mono (#32). */}
       <section className="mt-6 rounded-campo border border-line bg-rest p-4">

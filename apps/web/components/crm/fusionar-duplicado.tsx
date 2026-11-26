@@ -108,7 +108,9 @@ export function FusionarDuplicado({
   if (!abierto) {
     return (
       <div className="mt-3">
-        <Button variant="secundario" size="chico" onClick={() => setAbierto(true)}>
+        {/* Fantasma desde #1395: mismo comportamiento, menos peso — el
+            encabezado se quedó con las dos acciones que importan. */}
+        <Button variant="fantasma" size="chico" onClick={() => setAbierto(true)}>
           ¿Es la misma persona que otro contacto?
         </Button>
       </div>

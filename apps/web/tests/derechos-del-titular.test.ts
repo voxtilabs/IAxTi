@@ -44,8 +44,12 @@ describe('ejercer los derechos', () => {
     expect(PANEL).toMatch(/adjuntosR2/);
   });
 
-  it('no aparece en el panel de la bandeja', () => {
-    // Ahí se está atendiendo a alguien, no administrando sus datos.
-    expect(FICHA).toMatch(/!compacta && <DerechosDelTitular/);
+  it('queda en la ficha completa, plegado a un clic, y no en el panel de la bandeja', () => {
+    // Ahí se está atendiendo a alguien, no administrando sus datos. Desde
+    // #1395 van dentro de un <details> cerrado: siguen en la ficha —un clic,
+    // no un menú— sin convivir a la vista con lo que se usa todos los días.
+    expect(FICHA).toMatch(/!compacta && \(\s*<details/);
+    expect(FICHA).toContain('Privacidad y datos de esta persona');
+    expect(FICHA).toContain('<DerechosDelTitular contactId={contactId}');
   });
 });

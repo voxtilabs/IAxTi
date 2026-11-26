@@ -73,7 +73,14 @@ export {
   ensureWebContact,
   contactoPorTelefono,
   contactoPorIdentidad,
+  // El alta a mano (#1395): nace sin permiso para escribirle.
+  agregarContactoAMano,
+  ContactoDuplicado,
+  TelefonoInvalido,
+  ORIGENES_DE_CONTACTO,
+  PERMISOS_DE_FILTRO,
 } from './application/contacts';
+export type { PermisoDeFiltro } from './application/contacts';
 export { mergeContacts, previewImport, confirmImport } from './application/merge';
 export type { ImportPreview, ImportRowResult } from './application/merge';
 export { parseCsv, guessMapping, sniffDelimiter, IMPORT_FIELDS } from './domain/csv';
