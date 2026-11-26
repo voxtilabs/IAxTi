@@ -145,7 +145,14 @@ export async function apiFetch<T>(
       Array.isArray(cuerpo?.details) ? cuerpo.details : [],
     );
   }
-  return res.json() as Promise<T>;
+  // Un 204, o un 200 con el cuerpo vacío, es «no hay nada» y se lee `null`
+  // (#1387). Nest responde así a un handler que devuelve `null` —el
+  // configurador sin propuesta pendiente, que es el caso NORMAL—, y
+  // `res.json()` sobre un cuerpo vacío lanza «Unexpected end of JSON input»:
+  // la pantalla mostraba «Algo falló» a todo negocio sin una propuesta
+  // abierta. Arreglarlo acá cubre a cualquier endpoint que devuelva `null`.
+  const texto = await res.text();
+  return (texto.trim() ? JSON.parse(texto) : null) as T;
 }
 
 /**
