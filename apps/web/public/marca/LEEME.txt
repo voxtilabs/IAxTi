@@ -1,0 +1,8 @@
+Logos de los canales (#1391). No se redibujan: son los archivos oficiales.
+
+- whatsapp-icon.svg: kit de marca de la landing de IAxTi (public/assets/06-marcas).
+- instagram-icon.svg: theSVG (glincker/thesvg@e5957fa7), variante a color, CC0-1.0.
+- messenger-icon.svg: theSVG (glincker/thesvg@e5957fa7), CC0-1.0.
+
+Son marcas registradas de Meta Platforms. Se usan para decir qué canal es,
+como pide su guía de marca; no se alteran colores ni proporciones.

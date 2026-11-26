@@ -3,7 +3,8 @@
 import { AvisoResultado, EncabezadoDePagina, EstadoVacio, Formulario } from '@iaxti/ui/react';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Badge, Button, Input, Skeleton, useSession } from '@iaxti/ui/react';
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Skeleton, useSession } from '@iaxti/ui/react';
+import { MessageSquare } from 'lucide-react';
 import type { BadgeRole } from '@iaxti/ui/react';
 import { useSelectedTenant } from './tenant-switcher';
 import { apiFetch, avisoDe, type Aviso, mensajeDeError } from '../lib/api';
@@ -336,13 +337,74 @@ export function Canales() {
   return <CanalesDelNegocio key={`${tenant}:${session?.access_token}`} />;
 }
 
+/**
+ * Los canales como una grilla, uno por TIPO, con su logo (#1391).
+ *
+ * Antes era una columna de tarjetas casi iguales, cada una con su diagnóstico
+ * y su probador abiertos, y el webchat y el simulador mezclados con los
+ * canales reales: 1.870 px de alto con la demo, y ningún lugar que dijera
+ * «conecta tu WhatsApp». Ahora la pantalla responde una sola pregunta —qué
+ * tengo conectado y qué me falta— y todo lo de revisar o probar vive en el
+ * detalle de cada canal, sin cambios de comportamiento.
+ */
+type TipoDeCanal = 'whatsapp' | 'instagram' | 'messenger' | 'webchat';
+
+interface Tipo {
+  tipo: TipoDeCanal;
+  nombre: string;
+  /** El logo oficial (SVG del kit de marca, sin redibujar). Webchat usa un ícono. */
+  logo: string | null;
+  queEs: string;
+  /** Todavía no se puede conectar desde IAxTi (#74, #158). */
+  pronto?: boolean;
+}
+
+const TIPOS: Tipo[] = [
+  { tipo: 'whatsapp', nombre: 'WhatsApp', logo: '/marca/whatsapp-icon.svg', queEs: 'Tu número de WhatsApp Business: las conversaciones llegan a la bandeja.' },
+  { tipo: 'instagram', nombre: 'Instagram', logo: '/marca/instagram-icon.svg', queEs: 'Los mensajes directos de tu cuenta de Instagram.', pronto: true },
+  { tipo: 'messenger', nombre: 'Messenger', logo: '/marca/messenger-icon.svg', queEs: 'Los mensajes de tu página de Facebook.', pronto: true },
+  { tipo: 'webchat', nombre: 'Chat del sitio', logo: null, queEs: 'Un chat en tu página web que cae en la misma bandeja. Sin número.' },
+];
+
+/** El estado de un tipo de canal, en una frase y un tono. */
+function estadoDelTipo(canales: CanalDto[], widgets: WidgetDto[], tipo: TipoDeCanal) {
+  if (tipo === 'webchat') {
+    const activos = widgets.filter((w) => w.active);
+    if (activos.length === 0) return { conectado: false, rol: 'neutral' as BadgeRole, texto: 'Sin conectar', numero: null };
+    return { conectado: true, rol: 'good' as BadgeRole, texto: activos.length === 1 ? `Activo en ${activos[0].allowedDomain}` : `Activo en ${activos.length} sitios`, numero: null };
+  }
+  const suyos = canales.filter((c) => c.kind === tipo && c.state !== 'disconnected');
+  if (suyos.length === 0) return { conectado: false, rol: 'neutral' as BadgeRole, texto: 'Sin conectar', numero: null };
+  const conProblema = suyos.find((c) => c.state === 'degraded' || c.numbers.some((n) => n.quality === 'red' || n.businessPausedAt));
+  const numero = suyos.flatMap((c) => c.numbers).find((n) => !n.disconnectedAt)?.displayPhone;
+  if (conProblema) return { conectado: true, rol: 'warn' as BadgeRole, texto: 'Requiere atención', numero: null };
+  // El número va en mono (es un dato); sin número, «Conectado» en letra normal.
+  return numero
+    ? { conectado: true, rol: 'good' as BadgeRole, texto: numero, numero }
+    : { conectado: true, rol: 'good' as BadgeRole, texto: suyos.length === 1 ? 'Conectado' : `${suyos.length} cuentas conectadas`, numero: null };
+}
+
+function Logo({ tipo }: { tipo: Tipo }) {
+  return (
+    <span className="flex size-12 shrink-0 items-center justify-center rounded-campo border border-line bg-bg">
+      {tipo.logo ? (
+        // El logo oficial de la marca: es la forma en que la gente reconoce
+        // el canal de un vistazo, que es justo lo que faltaba.
+        <img src={tipo.logo} alt="" className="size-7" />
+      ) : (
+        <MessageSquare className="size-6 text-muted" strokeWidth={1.5} aria-hidden />
+      )}
+    </span>
+  );
+}
+
 function CanalesDelNegocio() {
   const { session, config } = useSession();
   const tenant = useSelectedTenant();
   const [canales, setCanales] = useState<CanalDto[] | null>(null);
   const [widgets, setWidgets] = useState<WidgetDto[]>([]);
-  const [dominio, setDominio] = useState('');
   const [aviso, setAviso] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<TipoDeCanal | null>(null);
 
   const cargar = useCallback(async () => {
     if (!session || !tenant) return;
@@ -359,240 +421,343 @@ function CanalesDelNegocio() {
   }, [config, session, tenant]);
   useEffect(() => void cargar(), [cargar]);
 
-  async function reactivar(numberId: string) {
-    if (!session || !tenant) return;
-    setAviso(null);
-    try {
-      await apiFetch(config, session, tenant, `/whatsapp/numbers/${numberId}/resume`, { method: 'POST' });
-      await cargar();
-    } catch (err) {
-      setAviso(mensajeDeError(err));
-    }
-  }
-
-  // Desconectar ARCHIVA (#600): libera el cupo del plan y el historial se
-  // queda. Se pregunta antes porque apaga los envíos del negocio, y eso se nota
-  // en la cara del cliente que escribe y no recibe respuesta.
-  const [desconectando, setDesconectando] = useState<string | null>(null);
-  async function desconectar(accountId: string) {
-    if (!session || !tenant) return;
-    setAviso(null);
-    setDesconectando(accountId);
-    try {
-      await apiFetch(config, session, tenant, `/channels/${accountId}/desconectar`, { method: 'POST' });
-      await cargar();
-    } catch (err) {
-      setAviso(mensajeDeError(err));
-    } finally {
-      setDesconectando(null);
-    }
-  }
-
   if (!tenant) return <p className="text-muted">Elige un negocio en el selector.</p>;
+  const tipoAbierto = TIPOS.find((t) => t.tipo === abierto) ?? null;
+  // Los canales del simulador no son un tipo que el negocio conecte: son la
+  // demo. Su detalle se abre desde el enlace de abajo, no desde la grilla.
+  const simulados = (canales ?? []).filter((c) => !TIPOS.some((t) => t.tipo === c.kind));
 
   return (
-    <div className="max-w-2xl">
-      <EncabezadoDePagina
-        rotulo="Canales"
-        titulo="Tus canales conectados"
-      />
+    <div className="max-w-4xl">
+      <EncabezadoDePagina rotulo="Canales" titulo="Dónde te escriben tus clientes" />
 
-      {aviso && (
-        <AvisoResultado>
-          {aviso}
-        </AvisoResultado>
-      )}
+      {aviso && <AvisoResultado>{aviso}</AvisoResultado>}
 
       {canales === null ? (
-        <div className="mt-6 flex flex-col gap-3"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>
-      ) : canales.length === 0 ? (
-        // Antes esta pantalla remitía a la conexión guiada y no ofrecía
-        // ninguna acción: un negocio sin canales es un negocio que no recibe
-        // mensajes, y acá era donde se quedaba parado (#509).
-        <EstadoVacio
-          compacto
-          className="mt-6"
-          titulo="Todavía no hay canales"
-          descripcion="Al conectar tu número de WhatsApp aparecerá aquí con su estado y la calidad que Meta le asigna. La puesta en marcha te va guiando paso a paso."
-          accion={{ etiqueta: 'Ir a la puesta en marcha', href: '/' }}
-          pideleAIAxTi="Quiero conectar mi WhatsApp, ¿qué necesito?"
-        />
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Skeleton className="h-40" />
+          <Skeleton className="h-40" />
+        </div>
       ) : (
-        <ul className="mt-6 flex flex-col gap-4">
-          {canales.map((canal) => {
-            const estado = ESTADO_CANAL[canal.state];
+        <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+          {TIPOS.map((tipo) => {
+            const estado = estadoDelTipo(canales, widgets, tipo.tipo);
             return (
-              <li key={canal.id} className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
-                <div className="flex items-center gap-3">
+              <li key={tipo.tipo} className="pulso-panel flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+                <div className="flex items-start gap-4">
+                  <Logo tipo={tipo} />
                   <span className="min-w-0 flex-1">
-                    <span className="block font-display font-semibold text-ink">{canal.name}</span>
-                    <span className="text-sm text-muted">{canal.kind}</span>
+                    <span className="block font-display font-semibold text-ink">{tipo.nombre}</span>
+                    <span className="mt-1 block text-sm text-body">{tipo.queEs}</span>
                   </span>
-                  <Badge role={estado.role}>{estado.label}</Badge>
                 </div>
-                <p className="mt-2 text-sm text-muted">{estado.ayuda}</p>
-
-                <Diagnostico accountId={canal.id} />
-
-                {/* Probar el envío (#587): junto al diagnóstico, porque es la
-                    pregunta siguiente. El diagnóstico dice cómo está
-                    configurado; esto dice si de verdad sale un mensaje. */}
-                {canal.kind !== 'webchat' && <ProbarEnvio key={`${tenant}:${session?.access_token}:${canal.id}`} accountId={canal.id} kind={canal.kind} />}
-
-                {/* Desconectar (#600). Solo en WhatsApp: es el único canal con
-                    cupo de plan. Cambiar el emisor era una ruta de Zavu y se
-                    fue con Zavu (#1339): una cuenta de Zernio queda atada a su
-                    número al conectarla. */}
-                {canal.kind === 'whatsapp' && canal.state !== 'disconnected' && (
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
+                  {tipo.pronto ? (
+                    <Badge role="neutral">Próximamente</Badge>
+                  ) : (
+                    <Badge role={estado.rol}>
+                      {estado.numero ? <span className="dato">{estado.numero}</span> : estado.texto}
+                    </Badge>
+                  )}
+                  {!tipo.pronto && (
                     <Button
-                      variant="fantasma"
+                      // Un solo primario por vista (ADR-0034): el de WhatsApp,
+                      // que es el canal que hay que conectar primero. El resto
+                      // se conecta igual, con el botón secundario.
+                      variant={!estado.conectado && tipo.tipo === 'whatsapp' ? 'primario' : 'secundario'}
                       size="chico"
-                      disabled={desconectando === canal.id}
-                      onClick={() => void desconectar(canal.id)}
+                      onClick={() => setAbierto(tipo.tipo)}
                     >
-                      {desconectando === canal.id ? 'Desconectando…' : 'Desconectar canal'}
+                      {estado.conectado ? 'Administrar' : 'Conectar'}
                     </Button>
-                    <span className="text-xs text-muted">
-                      Libera el cupo de tu plan. Las conversaciones se quedan.
-                    </span>
-                  </div>
-                )}
-
-                {canal.numbers.map((n) => {
-                  const calidad = n.quality ? CALIDAD[n.quality] : null;
-                  return (
-                    <div key={n.id} className="mt-4 rounded-campo border border-line bg-bg p-4">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="dato text-ink">{n.displayPhone ?? n.phoneNumberId}</span>
-                        {calidad && <Badge role={calidad.role}>{calidad.label}</Badge>}
-                        {n.messagingLimit && (
-                          <span className="dato text-muted">{n.messagingLimit}</span>
-                        )}
-                      </div>
-                      {calidad && <p className="mt-2 text-sm text-body">{calidad.ayuda}</p>}
-                      {n.businessPausedAt && (
-                        <div className="mt-3 flex flex-wrap items-center gap-3">
-                          <Badge role="warn">Envíos del negocio pausados</Badge>
-                          <Button
-                            variant="secundario"
-                            size="chico"
-                            onClick={() => void reactivar(n.id)}
-                          >
-                            Reactivar envíos
-                          </Button>
-                          <span className="text-xs text-muted">
-                            No se reactivan solos: tú decides cuándo.
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                  )}
+                </div>
               </li>
             );
           })}
         </ul>
       )}
 
-      {/* Webchat (#46): el widget propio y su snippet de instalación. */}
-      <section className="mt-10">
-        <p className="rotulo">Chat del sitio</p>
-        <h2 className="mt-1 text-lg font-semibold text-ink">Webchat</h2>
-        <p className="mt-1 max-w-prose text-sm text-body">
-          Un chat en tu página que cae en la misma bandeja. Sin número.
-        </p>
-        <Formulario
-          className="mt-4 flex flex-wrap items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!session || !tenant || !dominio.trim()) return;
-            void apiFetch(config, session, tenant, '/webchat/widgets', {
-              method: 'POST',
-              body: JSON.stringify({ allowedDomain: dominio.trim() }),
-            })
-              .then(() => {
-                setDominio('');
-                return cargar();
-              })
-              .catch((err) => setAviso(mensajeDeError(err)));
-          }}
-        >
-          <Input
-            aria-label="Dominio del sitio"
-            placeholder="tunegocio.cl"
-            className="h-9 w-56 text-sm"
-            value={dominio}
-            onChange={(e) => setDominio(e.target.value)}
-          />
-          <Button type="submit" variant="secundario" size="chico" disabled={!dominio.trim()}>
-            Crear widget
-          </Button>
-        </Formulario>
-        {widgets.length === 0 && (
-          // Con cero widgets esta sección quedaba en blanco debajo de un
-          // formulario que nadie sabe para qué es (#588/#1068). El
-          // formulario está justo arriba, así que acá va el para qué.
-          <EstadoVacio
-            compacto
-            className="mt-4"
-            titulo="Todavía no tienes el chat en tu sitio"
-            descripcion="Lo creas con el dominio de tu sitio y pegas el código que te damos."
-            pideleAIAxTi="Créame un widget de chat para el dominio de mi sitio web"
-            accion={{
-              etiqueta: 'Crear el primero',
-              onClick: () => {
-                const campo = document.querySelector<HTMLElement>('[aria-label="Dominio del sitio"]');
-                campo?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                campo?.focus();
-              },
-            }}
-          />
-        )}
-        <ul className="mt-4 flex flex-col gap-3">
-          {widgets.map((w) => (
-            <li key={w.id} className="rounded-campo border border-line bg-raised p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-ink">{w.name}</span>
-                  <span className="dato text-muted">{w.allowedDomain}</span>
-                </span>
-                <Badge role={w.active ? 'good' : 'neutral'}>{w.active ? 'Activo' : 'Apagado'}</Badge>
-                <Button
-                  variant="fantasma"
-                  size="chico"
-                  onClick={() => {
-                    if (!session || !tenant) return;
-                    // El `catch` es lo que hace que un rechazo se vea
-                    // (#588, punto 4). `apiFetch` LANZA con un 4xx o un 5xx,
-                    // así que sin esto la promesa quedaba rechazada sin dueño:
-                    // `cargar()` no corría, la insignia seguía diciendo
-                    // «Activo» y nada explicaba por qué. Alguien aprieta
-                    // «Apagar», el widget sigue encendido y el único mensaje
-                    // está en la consola del navegador.
-                    void apiFetch(config, session, tenant, `/webchat/widgets/${w.id}/toggle`, {
-                      method: 'POST',
-                      body: JSON.stringify({ active: !w.active }),
-                    })
-                      .then(cargar)
-                      .catch((err) => setAviso(mensajeDeError(err)));
-                  }}
-                >
-                  {w.active ? 'Apagar' : 'Encender'}
-                </Button>
-              </div>
-              <p className="mt-2 text-xs text-muted">
-                Pega esto antes de {'</body>'} en tu sitio (el historial queda aunque lo apagues):
-              </p>
-              <pre className="dato mt-1 overflow-x-auto rounded-campo bg-rest p-3 text-xs text-ink">
-{`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/webchat.js" data-widget="${w.id}" async></script>`}
-              </pre>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {canales !== null && canales.length === 0 && widgets.length === 0 && (
+        // El vacío sigue sin ser un callejón (#509): la grilla dice qué
+        // conectar, y esto ofrece por dónde empezar.
+        <EstadoVacio
+          compacto
+          className="mt-6"
+          titulo="Todavía no hay canales"
+          descripcion="Empieza por WhatsApp: es donde te escriben tus clientes. La puesta en marcha te va guiando paso a paso."
+          accion={{ etiqueta: 'Ir a la puesta en marcha', href: '/' }}
+          pideleAIAxTi="Quiero conectar mi WhatsApp, ¿qué necesito?"
+        />
+      )}
 
-      <ProbarSinNumero />
+      {simulados.length > 0 && (
+        <p className="mt-6 text-sm text-muted">
+          También tienes {simulados.length === 1 ? 'un canal' : `${simulados.length} canales`} de demostración para probar sin número real.{' '}
+          <button type="button" className="text-action-text underline" onClick={() => setAbierto('simulador' as TipoDeCanal)}>
+            Abrir el simulador
+          </button>
+        </p>
+      )}
+
+      <Dialog open={abierto !== null} onOpenChange={(v: boolean) => !v && setAbierto(null)}>
+        <DialogContent className="max-h-[88vh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-xl">
+          {abierto === ('simulador' as TipoDeCanal) ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Canales de demostración</DialogTitle>
+                <DialogDescription>Para ver el producto funcionando antes de conectar un número.</DialogDescription>
+              </DialogHeader>
+              <DetalleDeCanales canales={simulados} onCambio={cargar} onAviso={setAviso} />
+              <ProbarSinNumero />
+            </>
+          ) : tipoAbierto ? (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <Logo tipo={tipoAbierto} />
+                  <span>
+                    <DialogTitle>{tipoAbierto.nombre}</DialogTitle>
+                    <DialogDescription>{tipoAbierto.queEs}</DialogDescription>
+                  </span>
+                </div>
+              </DialogHeader>
+              {tipoAbierto.tipo === 'webchat' ? (
+                <DetalleDelWebchat widgets={widgets} onCambio={cargar} onAviso={setAviso} />
+              ) : (
+                <DetalleDeCanales
+                  canales={(canales ?? []).filter((c) => c.kind === tipoAbierto.tipo && c.state !== 'disconnected')}
+                  vacio={tipoAbierto.tipo === 'whatsapp' ? <ConectarWhatsApp /> : null}
+                  onCambio={cargar}
+                  onAviso={setAviso}
+                />
+              )}
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Conectar WhatsApp, dicho como es (#1391).
+ *
+ * El alta de un número hoy corre por `scripts/conectar-zernio.mjs`: la llave
+ * del negocio queda en el entorno del despliegue y hace falta desplegar. Hasta
+ * que el alta viva en la app —con su almacén cifrado, issue aparte—, este
+ * panel no finge un flujo: dice qué pasa y ofrece el camino real.
+ */
+function ConectarWhatsApp() {
+  return (
+    <div className="mt-6 flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+      <p className="font-display font-semibold text-ink">Conecta tu número de WhatsApp Business</p>
+      <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-body">
+        <li>Tu número sigue en tu teléfono: IAxTi se conecta al lado, sin cambiarlo.</li>
+        <li>Te mandamos un enlace de Meta para autorizarlo. Toma unos minutos.</li>
+        <li>Desde ese momento, los mensajes llegan a tu bandeja y tu asistente puede contestar.</li>
+      </ol>
+      <span className="flex flex-wrap gap-2">
+        <a
+          href="mailto:soporte@voxtilabs.cl?subject=Conectar%20mi%20WhatsApp%20a%20IAxTi"
+          className="pulso-button inline-flex h-10 items-center rounded-boton bg-action px-4 text-sm font-medium text-white hover:bg-action-hover"
+        >
+          Pedir la conexión
+        </a>
+      </span>
+      <p className="text-xs text-muted">Hoy la conexión la hace el equipo de IAxTi contigo, el mismo día.</p>
+    </div>
+  );
+}
+
+/** El detalle de las cuentas de un tipo: estado, número, diagnóstico y prueba. */
+function DetalleDeCanales({
+  canales,
+  vacio,
+  onCambio,
+  onAviso,
+}: {
+  canales: CanalDto[];
+  vacio?: React.ReactNode;
+  onCambio: () => Promise<void>;
+  onAviso: (texto: string | null) => void;
+}) {
+  const { session, config } = useSession();
+  const tenant = useSelectedTenant();
+  const [desconectando, setDesconectando] = useState<string | null>(null);
+
+  async function reactivar(numberId: string) {
+    if (!session || !tenant) return;
+    onAviso(null);
+    try {
+      await apiFetch(config, session, tenant, `/whatsapp/numbers/${numberId}/resume`, { method: 'POST' });
+      await onCambio();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+    }
+  }
+
+  // Desconectar ARCHIVA (#600): libera el cupo del plan y el historial se
+  // queda. Apaga los envíos del negocio, y eso se nota en la cara del cliente.
+  async function desconectar(accountId: string) {
+    if (!session || !tenant) return;
+    onAviso(null);
+    setDesconectando(accountId);
+    try {
+      await apiFetch(config, session, tenant, `/channels/${accountId}/desconectar`, { method: 'POST' });
+      await onCambio();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+    } finally {
+      setDesconectando(null);
+    }
+  }
+
+  if (canales.length === 0) return <>{vacio}</>;
+
+  return (
+    <ul className="mt-6 flex flex-col gap-4">
+      {canales.map((canal) => {
+        const estado = ESTADO_CANAL[canal.state];
+        return (
+          <li key={canal.id} className="rounded-tarjeta border border-line bg-raised p-5">
+            <div className="flex items-center gap-3">
+              <span className="min-w-0 flex-1 font-display font-semibold text-ink">{canal.name}</span>
+              <Badge role={estado.role}>{estado.label}</Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted">{estado.ayuda}</p>
+
+            {canal.numbers.map((n) => {
+              const calidad = n.quality ? CALIDAD[n.quality] : null;
+              return (
+                <div key={n.id} className="mt-4 rounded-campo border border-line bg-bg p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="dato text-ink">{n.displayPhone ?? n.phoneNumberId}</span>
+                    {calidad && <Badge role={calidad.role}>{calidad.label}</Badge>}
+                    {n.messagingLimit && <span className="dato text-muted">{n.messagingLimit}</span>}
+                  </div>
+                  {calidad && <p className="mt-2 text-sm text-body">{calidad.ayuda}</p>}
+                  {n.businessPausedAt && (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <Badge role="warn">Envíos del negocio pausados</Badge>
+                      <Button variant="secundario" size="chico" onClick={() => void reactivar(n.id)}>
+                        Reactivar envíos
+                      </Button>
+                      <span className="text-xs text-muted">No se reactivan solos: tú decides cuándo.</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <Diagnostico accountId={canal.id} />
+            {canal.kind !== 'webchat' && <ProbarEnvio key={`${tenant}:${session?.access_token}:${canal.id}`} accountId={canal.id} kind={canal.kind} />}
+
+            {/* Desconectar (#600): solo WhatsApp tiene cupo de plan. */}
+            {canal.kind === 'whatsapp' && canal.state !== 'disconnected' && (
+              <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+                <Button variant="fantasma" size="chico" disabled={desconectando === canal.id} onClick={() => void desconectar(canal.id)}>
+                  {desconectando === canal.id ? 'Desconectando…' : 'Desconectar canal'}
+                </Button>
+                <span className="text-xs text-muted">Libera el cupo de tu plan. Las conversaciones se quedan.</span>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** El webchat (#46): crear el widget, encenderlo o apagarlo, y su snippet. */
+function DetalleDelWebchat({
+  widgets,
+  onCambio,
+  onAviso,
+}: {
+  widgets: WidgetDto[];
+  onCambio: () => Promise<void>;
+  onAviso: (texto: string | null) => void;
+}) {
+  const { session, config } = useSession();
+  const tenant = useSelectedTenant();
+  const [dominio, setDominio] = useState('');
+
+  return (
+    <div className="mt-6">
+      <Formulario
+        className="flex flex-wrap items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!session || !tenant || !dominio.trim()) return;
+          void apiFetch(config, session, tenant, '/webchat/widgets', {
+            method: 'POST',
+            body: JSON.stringify({ allowedDomain: dominio.trim() }),
+          })
+            .then(() => {
+              setDominio('');
+              return onCambio();
+            })
+            .catch((err) => onAviso(mensajeDeError(err)));
+        }}
+      >
+        <Input
+          aria-label="Dominio del sitio"
+          placeholder="tunegocio.cl"
+          className="h-9 w-56 text-sm"
+          value={dominio}
+          onChange={(e) => setDominio(e.target.value)}
+        />
+        <Button type="submit" variant="secundario" size="chico" disabled={!dominio.trim()}>
+          Crear widget
+        </Button>
+      </Formulario>
+      {widgets.length === 0 && (
+        <EstadoVacio
+          compacto
+          className="mt-4"
+          titulo="Todavía no tienes el chat en tu sitio"
+          descripcion="Lo creas con el dominio de tu sitio y pegas el código que te damos."
+          pideleAIAxTi="Créame un widget de chat para el dominio de mi sitio web"
+          accion={{
+            etiqueta: 'Escribir el dominio',
+            onClick: () => document.querySelector<HTMLElement>('[aria-label="Dominio del sitio"]')?.focus(),
+          }}
+        />
+      )}
+      <ul className="mt-4 flex flex-col gap-3">
+        {widgets.map((w) => (
+          <li key={w.id} className="rounded-campo border border-line bg-raised p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-ink">{w.name}</span>
+                <span className="dato text-muted">{w.allowedDomain}</span>
+              </span>
+              <Badge role={w.active ? 'good' : 'neutral'}>{w.active ? 'Activo' : 'Apagado'}</Badge>
+              <Button
+                variant="fantasma"
+                size="chico"
+                onClick={() => {
+                  if (!session || !tenant) return;
+                  // El `catch` hace que un rechazo se vea (#588, punto 4).
+                  void apiFetch(config, session, tenant, `/webchat/widgets/${w.id}/toggle`, {
+                    method: 'POST',
+                    body: JSON.stringify({ active: !w.active }),
+                  })
+                    .then(onCambio)
+                    .catch((err) => onAviso(mensajeDeError(err)));
+                }}
+              >
+                {w.active ? 'Apagar' : 'Encender'}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted">Pega esto antes de {'</body>'} en tu sitio (el historial queda aunque lo apagues):</p>
+            <pre className="dato mt-1 overflow-x-auto rounded-campo bg-rest p-3 text-xs text-ink">
+              {`<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/webchat.js" data-widget="${w.id}" async></script>`}
+            </pre>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
