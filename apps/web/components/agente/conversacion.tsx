@@ -26,7 +26,10 @@ import {
   MessageContent,
   Textarea,
   toast,
+  useSession,
 } from '@iaxti/ui/react';
+import { apiFetch } from '../../lib/api';
+import { selectedTenant } from '../tenant-switcher';
 import { useAgente } from './estado';
 import { Propuesta } from './propuesta';
 
@@ -83,11 +86,55 @@ function Esperando() {
 }
 
 
+/**
+ * El nombre de persona de un paso (#1401).
+ *
+ * Sobre la respuesta se dibujaba el nombre técnico crudo —`agents.objetivos`,
+ * `agents.create`— y encima el módulo (`agents`) en color. Quien atiende un
+ * local no programa: los pasos se cuentan como se cuentan, o no se cuentan.
+ *
+ * Mapa chico a propósito: un paso que no está acá no se muestra. Inventarle
+ * un rótulo a una herramienta que no conocemos sería la jerga de nuevo, con
+ * más palabras. Lo que no se nombra no se pierde: la respuesta ya dice qué
+ * pasó en prosa.
+ */
+const NOMBRE_DEL_PASO: Record<string, string> = {
+  'agents.objetivos': 'Revisé qué puede hacer un asistente',
+  'agents.create': 'Preparé tu asistente',
+  'agents.update': 'Preparé el cambio',
+  'agents.list': 'Revisé tus asistentes',
+};
+
 export function Conversacion({ alto }: { alto?: string }) {
   const {
     turnos, texto, setTexto, pensando, aplicando, aviso, sugerencias,
     pedirSugerencias, preguntar, resolver, campo, iaRota,
   } = useAgente();
+  const { config, session } = useSession();
+  /**
+   * La primera vez, dicha como primera vez (#1401).
+   *
+   * El saludo de siempre («Dime qué necesitas en tus palabras…») presupone
+   * un negocio ya andando; a quien recién se registró se le habla de lo que
+   * falta: el asistente. Se pregunta por `GET /agents` — la ruta que ya usa
+   * la app, no una nueva — y solo mientras el hilo está vacío: con
+   * conversación encima, el saludo ya no se dibuja.
+   */
+  const [sinAsistentes, setSinAsistentes] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!session || turnos.length > 0) return;
+    const tenant = selectedTenant();
+    if (!tenant) return;
+    let vigente = true;
+    void apiFetch<Array<{ active: boolean }>>(config, session, tenant, '/agents')
+      .then((agentes) => {
+        if (vigente) setSinAsistentes(agentes.every((a) => !a.active));
+      })
+      // En silencio: sin saberlo, se muestra el saludo de siempre. Un saludo
+      // caído no puede tapar la conversación, que es el producto.
+      .catch(() => undefined);
+    return () => { vigente = false; };
+  }, [config, session, turnos.length]);
 
   // Las de ESTA pantalla, al montarse. En el popup eso es al abrirlo; en la
   // pantalla, al entrar.
@@ -116,8 +163,9 @@ export function Conversacion({ alto }: { alto?: string }) {
             {turnos.length === 0 && (
               <div className="flex flex-col gap-3">
                 <p className="text-cuerpo text-body">
-                  Dime qué necesitas en tus palabras. Puedo revisar cómo va tu negocio, dejar
-                  reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.
+                  {sinAsistentes
+                    ? 'Cuéntame a qué se dedica tu negocio y te armo un asistente que conteste por ti. Antes de que hable con alguien, lo apruebas.'
+                    : 'Dime qué necesitas en tus palabras. Puedo revisar cómo va tu negocio, dejar reglas que trabajen solas, armar tus embudos o cambiar cómo atiendes.'}
                 </p>
                 {/* Mismo largo y alineadas a la izquierda (#1169): con el
                     ancho del texto, tres de largo distinto en columna se leen
@@ -143,21 +191,27 @@ export function Conversacion({ alto }: { alto?: string }) {
 
             {turnos.map((t, i) => (
               <Message key={`${i}-${t.content.slice(0, 12)}`} from={t.role}>
-                {/* Los pasos: qué herramienta usó y de qué parte del producto.
+                {/* Los pasos: qué se hizo, contado para una persona (#1401).
                     Se muestran ARRIBA de la respuesta porque es el orden en
-                    que pasaron, y porque explican de dónde salió lo que dice. */}
-                {t.pasos && t.pasos.length > 0 && (
+                    que pasaron, y porque explican de dónde salió lo que dice.
+                    Los que no tienen nombre de persona no se dibujan: el
+                    nombre técnico crudo (`agents.objetivos`, `agents.create`)
+                    era jerga justo donde el producto se presenta. */}
+                {t.pasos && t.pasos.some((p) => NOMBRE_DEL_PASO[p.herramienta]) && (
                   <ul className="flex flex-col gap-1">
-                    {t.pasos.map((p, n) => (
-                      <li
-                        key={`${p.herramienta}-${n}`}
-                        className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-campo border border-line bg-rest px-3 py-1.5"
-                      >
-                        <span className="dato text-rotulo text-ink">{p.herramienta}</span>
-                        {p.modulo && <span className="dato text-rotulo text-action-text">{p.modulo}</span>}
-                        {!p.ok && <Badge role="bad">no se pudo</Badge>}
-                      </li>
-                    ))}
+                    {t.pasos.map((p, n) => {
+                      const nombre = NOMBRE_DEL_PASO[p.herramienta];
+                      if (!nombre) return null;
+                      return (
+                        <li
+                          key={`${p.herramienta}-${n}`}
+                          className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-campo border border-line bg-rest px-3 py-1.5"
+                        >
+                          <span className="text-rotulo text-ink">{nombre}</span>
+                          {!p.ok && <Badge role="bad">no se pudo</Badge>}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 <MessageContent>{t.content}</MessageContent>

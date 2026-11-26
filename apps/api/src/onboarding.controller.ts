@@ -6,13 +6,13 @@ import { onboardingStatus, zonaDelTenant, type EstadoOnboarding, type Verificado
 import { listChannelAccounts } from '@iaxti/module-channels';
 import { listSources } from '@iaxti/module-knowledge';
 import { listarEquipo, listarInvitaciones } from '@iaxti/module-identity';
-import { listPipelines } from '@iaxti/module-crm';
 import { huboAlgunaConversacion } from '@iaxti/module-conversations';
 import type { PoolClient } from 'pg';
 import { RequirePermission } from './authz/decorators';
 import type { Actor, WithUser } from './authz/authz.guard';
 import { apiPool } from './db';
 import { registry } from './registry';
+import { verificarPasoAsistente } from './verificar-paso-asistente';
 
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
 
@@ -41,18 +41,15 @@ function pool() {
 function verificadores(client: PoolClient, tenantId: string): Partial<Record<string, Verificador>> {
   const si = (id: string) => registry.isActive(id);
   return {
-    ...(si('crm')
+    ...(si('agents')
       ? {
-          configured: async () => {
-            const pipelines = await listPipelines(client, tenantId);
-            const etapas = pipelines.reduce((a, p) => a + (p.stages?.length ?? 0), 0);
-            return {
-              hecho: pipelines.length > 0,
-              detalle: pipelines.length
-                ? `${pipelines.length} embudo${pipelines.length > 1 ? 's' : ''} con ${etapas} etapas`
-                : 'todavía no hay embudo',
-            };
-          },
+          // El paso que faltaba (#1400): el asistente es lo que vendemos, y
+          // este paso se marcaba con tener un EMBUDO — algo que la dueña
+          // nunca creó a mano y que el configurador armaba por su cuenta.
+          // Volvía del registro a «te faltan 3 pasos» con su asistente ya
+          // aprobado. Ahora mira lo que de verdad existe: el verificador
+          // compartido con el diagnóstico del Agente General.
+          configured: verificarPasoAsistente(client, tenantId),
         }
       : {}),
     ...(si('channels')

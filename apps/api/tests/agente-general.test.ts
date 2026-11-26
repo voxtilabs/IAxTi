@@ -7,7 +7,7 @@ import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } fro
 import { createPool, runMigrations, sinTriggers, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { apagarAgenteGeneral, encenderAgenteGeneral } from '@iaxti/module-platform';
-import { CATALOGO } from '@iaxti/module-agents';
+import { CATALOGO, createAgent } from '@iaxti/module-agents';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
 
@@ -108,6 +108,7 @@ afterEach(async () => {
 
 afterAll(async () => {
   await app.close();
+  await admin.query('DELETE FROM agents WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM agente_general_apagado WHERE tenant_id = $1 OR tenant_id IS NULL', [tenant]);
   await admin.query('DELETE FROM agent_general_runs WHERE tenant_id = $1', [tenant]).catch(() => {});
   await admin.query('DELETE FROM agent_executions WHERE tenant_id = $1', [tenant]);
@@ -204,6 +205,37 @@ describe('el interruptor apaga las DOS puertas (#496)', () => {
     await encenderAgenteGeneral(admin, { tenantId: tenant, adminUser: SOPORTE });
     // 503 y no 409: ya no está apagado, lo que falta es la llave.
     expect((await conversar(duena, UNA_PREGUNTA)).status).toBe(503);
+  });
+});
+
+describe('las sugerencias de la primera vez en «Tu asistente» (#1401)', () => {
+  const pedirSugerencias = () =>
+    pedir(duena, `/agente-general/sugerencias?pantalla=${encodeURIComponent('asistente')}`);
+
+  it('sin asistentes, las de primera vez; con uno, las de siempre', async () => {
+    // Sin asistentes: las de siempre hablan de un SEGUNDO asistente y de
+    // cómo le está yendo al que no existe.
+    const primera = await (await pedirSugerencias()).json();
+    expect(primera.sugerencias).toEqual([
+      'Ármame un asistente que conteste mi WhatsApp',
+      'Quiero que agende horas',
+      'Quiero que responda mis precios',
+    ]);
+
+    await withTenant(admin, tenant, (c) =>
+      createAgent(c, { tenantId: tenant, name: 'Agenda Pelu Ñuñoa', actor: duena }),
+    );
+    const conUno = await (await pedirSugerencias()).json();
+    expect(conUno.sugerencias).toContain('Quiero un segundo asistente solo para postventa');
+    expect(conUno.sugerencias).not.toContain('Ármame un asistente que conteste mi WhatsApp');
+  });
+
+  it('en otra pantalla no pregunta por asistentes: las de siempre', async () => {
+    // El tenant ya tiene asistente del test de arriba; en otra pantalla eso
+    // no cambia qué se ofrece.
+    const r = await pedir(duena, `/agente-general/sugerencias?pantalla=${encodeURIComponent('canales')}`);
+    const s = await r.json();
+    expect(s.sugerencias).toContain('Quiero conectar mi WhatsApp');
   });
 });
 
