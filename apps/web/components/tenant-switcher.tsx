@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, useSession } from '@iaxti/ui/react';
 import { myBusinesses } from '@iaxti/sdk';
 
@@ -42,11 +42,21 @@ export function useSelectedTenant(): string | null {
   return tenant;
 }
 
-/** Selector de negocio: GET /v1/me con el Bearer de la sesión (SPEC §9). */
-export function TenantSwitcher() {
+/**
+ * Los negocios de la sesión, y uno elegido SIEMPRE (#1398).
+ *
+ * Esto vivía dentro del selector de la barra lateral. En el celular la barra
+ * no se monta hasta que se abre el menú, así que quien entraba directo a una
+ * pantalla que no fuera el inicio se quedaba sin negocio elegido: «Tu
+ * asistente» no enviaba nada al apretar «Pedir», sin un error a la vista. Va
+ * en el marco de la app, por encima de la barra, para que corra en cualquier
+ * pantalla y cualquier ancho; el selector solo lo muestra.
+ */
+const Negocios = createContext<Membership[]>([]);
+
+export function ProveedorDeNegocios({ children }: { children: ReactNode }) {
   const { session, config } = useSession();
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [selected, setSelected] = useState<string>('');
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const refresh = () => setRevision((value) => value + 1);
@@ -64,14 +74,23 @@ export function TenantSwitcher() {
         const guardado = selectedTenant();
         const inicial =
           me.tenants.find((t) => t.tenantId === guardado)?.tenantId ?? me.tenants[0]?.tenantId ?? '';
-        setSelected(inicial);
-        selectTenant(inicial || null);
+        // Solo se avisa si cambió: avisar siempre haría recargar cada pantalla
+        // que escucha el cambio de negocio, sin que nada haya cambiado.
+        if ((inicial || null) !== guardado) selectTenant(inicial || null);
       }).catch(() => {
         // El alta tiene su estado de error. Un fallo no prueba que esté vacío
         // ni debe borrar la selección que todavía no se pudo comprobar.
       });
     return () => controller.abort();
   }, [session, config.apiUrl, revision]);
+
+  return <Negocios.Provider value={memberships}>{children}</Negocios.Provider>;
+}
+
+/** Selector de negocio: muestra lo que cargó `ProveedorDeNegocios` (SPEC §9). */
+export function TenantSwitcher() {
+  const memberships = useContext(Negocios);
+  const selected = useSelectedTenant() ?? '';
 
   if (memberships.length === 0) return null;
 
@@ -83,10 +102,7 @@ export function TenantSwitcher() {
     <div className="flex flex-col">
       <Select
         value={selected}
-        onValueChange={(valor) => {
-          setSelected(valor);
-          selectTenant(valor);
-        }}
+        onValueChange={(valor) => selectTenant(valor)}
       >
         <SelectTrigger className="h-control w-full bg-field" aria-label="Negocio">
           <SelectValue />
