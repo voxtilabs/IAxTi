@@ -461,7 +461,10 @@ function CanalesDelNegocio() {
                   )}
                   {!tipo.pronto && (
                     <Button
-                      variant={estado.conectado ? 'secundario' : 'primario'}
+                      // Un solo primario por vista (ADR-0034): el de WhatsApp,
+                      // que es el canal que hay que conectar primero. El resto
+                      // se conecta igual, con el botón secundario.
+                      variant={!estado.conectado && tipo.tipo === 'whatsapp' ? 'primario' : 'secundario'}
                       size="chico"
                       onClick={() => setAbierto(tipo.tipo)}
                     >
