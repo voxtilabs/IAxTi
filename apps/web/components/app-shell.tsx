@@ -59,7 +59,7 @@ import { SoporteAviso } from './soporte-aviso';
 import { PaletaComandos } from './paleta-comandos';
 import { AgenteGeneral } from './agente-general';
 import { ProveedorAgente } from './agente/estado';
-import { TenantSwitcher } from './tenant-switcher';
+import { ProveedorDeNegocios, TenantSwitcher } from './tenant-switcher';
 import { Campana } from './campana';
 import { PestanasAjustes } from './pestanas-ajustes';
 import { destinosQuePuedeAbrir, puedeAbrirLaRuta, queBarraMostrar, type NavItem } from '../lib/nav';
@@ -642,9 +642,14 @@ export function AppShell(props: ShellProps) {
           estado tiene que estar por encima de las dos. Adentro de
           `RequireSession` por lo mismo que el arranque: sin sesión no hay a
           quién preguntarle. */}
-      <ProveedorAgente>
-        <ContenidoShell {...props} />
-      </ProveedorAgente>
+      {/* Los negocios de la sesión se cargan ACÁ y no en la barra (#1398): en
+          el celular la barra no se monta hasta abrir el menú, y sin negocio
+          elegido las pantallas no piden nada. */}
+      <ProveedorDeNegocios>
+        <ProveedorAgente>
+          <ContenidoShell {...props} />
+        </ProveedorAgente>
+      </ProveedorDeNegocios>
     </ProveedorDeArranque>
   </RequireSession></SessionProvider>;
 }
