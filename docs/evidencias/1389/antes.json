@@ -1,0 +1,167 @@
+[
+  {
+    "caso": "peluqueria",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 4,
+    "palabras": 203,
+    "propone": false,
+    "pasa": false,
+    "ms": 6781,
+    "texto": "Buenísimo. Para armarte asistentes que de verdad sirvan, necesito la lista exacta de objetivos que quieres cubrir. Con tus palabras.\n\nPropuesta inicial (tú me dices si va así o ajustamos):\n- Objetivo 1: “Responder precios de cortes, coloración y otros servicios de la pelu”.\n- Objetivo 2: “Proponer y confirmar horas de martes a sábado, entre 10:00 y 19:00, en Ñuñoa”.\n\nPara dejarlos a medida, cuéntame:\n1) Servicios y precios: ¿qué ofreces y cuánto cobra cada uno? Ej: corte mujer, corte hombre, barba, coloración, mechas, alisado, manicure, etc. Si hay desde/hasta o combinados, dilo.\n2) Duración por servicio: cuánto se demora cada uno (para armar bien la agenda).\n3) ¿Cómo hablan ustedes? Ej: cercano y directo; emojis sí/no; trato de “tú”.\n4) ¿Confirmación de horas? ¿Quieres que el asistente solo proponga y tú confirmas, o que pueda dejar la hora “reservada pendiente de confirmación” y tú la validas?\n5) Datos del local: dirección exacta, WhatsApp de contacto y si piden abono o políticas de atraso/cancelación.\n\nApenas me des esos datos, creo dos asistentes separados:\n- Precios: responde tarifas y qué incluye.\n- Agenda: propone bloques disponibles y deja las reservas en modo asistido para tu visto bueno. Luego, si quieres, habilitamos confirmación automática."
+  },
+  {
+    "caso": "peluqueria",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 5,
+    "palabras": 129,
+    "propone": false,
+    "pasa": false,
+    "ms": 5235,
+    "texto": "Perfecto. Para que un asistente te ayude con eso, primero veamos qué objetivos están disponibles y lo dejamos a medida. ¿Qué quieres exactamente que haga? Propón tú la lista con tus palabras. Por ejemplo:\n- Ofrecer horas disponibles y proponer alternativas\n- Confirmar y agendar la hora\n- Informar precios de servicios\n- Cambiar o cancelar horas\n- Enviar recordatorios\n\nMientras, necesito estos datos para la agenda:\n- ¿Qué servicios ofreces y su duración? (ej: corte 45 min, color 90 min)\n- ¿Quieres un “respiro” entre citas? (minutos)\n- ¿Cuánta anticipación mínima para tomar hora? (ej: 2 h)\n- ¿Hay más personas atendiendo o solo tú?\n\nOjo: puedo manejar horas y recordatorios. Para precios, necesito que me des la lista tal cual quieres que se conteste (servicio y precio)."
+  },
+  {
+    "caso": "peluqueria",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 6,
+    "palabras": 173,
+    "propone": false,
+    "pasa": false,
+    "ms": 5146,
+    "texto": "Perfecto. Para dejarte un asistente que realmente sirva, necesito la lista de objetivos tal como quieres que responda. Tú dijiste “contestar horas y precios”; ¿te calza así?\n\n- Objetivo 1: entregar precios de servicios de la peluquería.\n- Objetivo 2: proponer y confirmar horas entre martes y sábado, 10:00 a 19:00.\n\nSi esos son, sigo. Para que quede a tu pinta, cuéntame:\n- Servicios y precios exactos (corte mujer/hombre/niñe, color, brushing, manicure, etc.).\n- ¿Cuánto dura cada servicio? Así calcula bien los bloques de hora.\n- ¿Con quién se agendan? ¿Contigo o hay más estilistas? Nombres y horarios si cambian.\n- ¿Con cuánta antelación mínima y hasta cuánto permite agendar?\n- Cómo hablas a tus clientas: tono (cercano, formal), emojis sí/no.\n- Políticas: atrasos, cancelaciones, garantía, abono si pides.\n- ¿Aceptas agendar por WhatsApp con nombre y teléfono no más, o pides algo más?\n\nApenas me des eso, creo el/los asistentes en modo asistido: ellos proponen, tú confirmas. Si prefieres, parto primero por el de precios mientras me das los datos de agenda."
+  },
+  {
+    "caso": "tortas",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 4,
+    "palabras": 172,
+    "propone": false,
+    "pasa": false,
+    "ms": 3987,
+    "texto": "Perfecto. Para armarte un asistente que responda pedidos como tú, necesito 3 cosas rápidas:\n\n1) Objetivos que quieres que cubra el asistente (elige solo lo necesario para que responda bien):\n- Cotizar tortas y tomar pedidos\n- Confirmar fecha y hora de entrega/retito\n- Enviar medios de pago y confirmar pago\n- Hacer seguimiento del pedido (recordatorios)\n- Responder preguntas frecuentes (sabores, tamaños, tiempos, delivery en Maipú, etc.)\n\n2) Cómo vendes hoy (en tus palabras):\n- Sabores y rellenos disponibles\n- Tamaños/porciones y precios\n- Anticipación mínima para encargar\n- Días y horarios de entrega/retito, ubicación en Maipú y si haces delivery (y a qué sectores)\n- Medios de pago\n\n3) Tono y forma de hablarle a tus clientes:\n- ¿Más cercano y breve, o más detallado?\n- ¿Tratas de “tú” o “usted”? ¿Usas emojis?\n\nCon eso lo dejo en modo asistido: el asistente propone la respuesta y tú confirmas antes de enviar. Si prefieres, partimos solo con “Cotizar tortas y tomar pedidos” y después sumamos lo demás. ¿Qué objetivos marcamos primero?"
+  },
+  {
+    "caso": "tortas",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 200,
+    "propone": false,
+    "pasa": false,
+    "ms": 4683,
+    "texto": "Perfecto. Para armarte un asistente que tome pedidos por WhatsApp y los deje listos para tu visto bueno, necesito tu lista de objetivos tal como tú los dirías. Te doy ejemplos para inspirarte; elige los tuyos con tus palabras:\n\n- Tomar pedidos de tortas por encargo\n- Cotizar según tamaño, sabor y relleno\n- Ofrecer fechas de entrega y horarios de retiro o despacho en Maipú\n- Pedir anticipo y enviar datos de pago\n- Confirmar o reagendar pedidos\n- Responder preguntas frecuentes (sabores, porciones, alergias, plazos)\n- Calcular tiempos mínimos de encargo\n- Enviar estado del pedido\n\nDime:\n1) Tus objetivos exactos (pueden ser 2–4, separados por coma).\n2) Cómo les hablas a tus clientes (cálido, cercano, emojis sí/no, trato tú/usted).\n3) Reglas clave del negocio:\n   - Plazo mínimo para encargar (ej: 48 h).\n   - Días/horarios de retiro y si haces despacho en Maipú (zonas y costo, si corresponde).\n   - Sabores/formatos y precios base por tamaño o porción.\n   - Política de anticipo (monto o % y método de pago).\n   - Restricciones (sin azúcar, sin gluten, decoraciones especiales, etc.).\n\nCon eso te lo dejo creado en modo asistido: el bot propone y tú confirmas cada pedido antes de cerrar. ¿Vamos?"
+  },
+  {
+    "caso": "tortas",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 190,
+    "propone": false,
+    "pasa": false,
+    "ms": 5159,
+    "texto": "Bacán. Para armarte un asistente que responda pedidos de tortas, necesito tu lista de objetivos tal como los dirías tú. Ejemplos típicos (elige y adapta con tus palabras):\n\n- Tomar pedidos por WhatsApp\n- Confirmar fecha y hora de entrega/retiro\n- Ofrecer sabores, tamaños y extras disponibles\n- Cotizar según tamaño/sabor/relleno y método de entrega\n- Pedir adelanto/transferencia y mandar datos de pago\n- Compartir tiempos de elaboración y anticipación mínima\n- Enviar ubicación para retiro y cobertura de despacho en Maipú\n- Avisar plazos de cambio o cancelación\n- Hacer seguimiento: “tu torta está en camino/lista para retiro”\n\nCuéntame:\n- Cómo les hablas a tus clientes (tono y trato).\n- Qué vendes exactamente: sabores, tamaños (porciones), rellenos, extras, precios o cómo cotizas.\n- Anticipación mínima y cupos por día.\n- Días/horarios de entrega o retiro, dirección y si haces despacho en Maipú (zonas y costo).\n- Método de pago y si pides adelanto (cuánto).\n- Política de cambios/cancelaciones.\n- Formato del pedido ideal: nombre, fecha, hora, porciones, diseño, etc.\n\nCon esa info creo el asistente “modo asistido” para que proponga respuestas y tú confirmes antes de enviar. ¿Te parece?"
+  },
+  {
+    "caso": "taller",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 12,
+    "palabras": 165,
+    "propone": false,
+    "pasa": false,
+    "ms": 4395,
+    "texto": "Perfecto. Para crearte un asistente que agende horas para revisiones, necesito definir bien su objetivo y cómo debe hablar.\n\nCuéntame:\n- Objetivo exacto: ¿“Agendar horas para revisión” incluye diagnósticos, mantenciones, alineación/balanceo, o solo revisión general?\n- Horarios: ¿días y rangos en que atienden? ¿bloques de cuánto (30/60 min)?\n- Ubicación y canales: ¿una sola sucursal? ¿agenda por WhatsApp/llamada o también en local?\n- Datos al agendar: ¿qué pides? (patente, modelo, año, nombre, teléfono, correo opcional, síntoma)\n- Confirmación: ¿quieres que el asistente proponga hora y quede “a tu visto”, o que confirme automáticamente dentro de ciertos criterios?\n- Política: ¿cobras por diagnóstico? ¿tolerancia de atraso y cancelación? ¿recordatorio el día anterior?\n- Tono: ¿cómo hablas a clientes? (cercano/serio, “tú/usted”, emojis sí/no)\n\nCon eso lo dejo creado en modo asistido: el bot propone y tú confirmas. Si quieres, partimos solo con “revisión general”, bloques de 60 min, lunes a viernes 9:00–18:00, datos: nombre, WhatsApp, patente, modelo, motivo, y confirmas tú. ¿Te sirve así o prefieres ajustar?"
+  },
+  {
+    "caso": "taller",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 100,
+    "propone": false,
+    "pasa": false,
+    "ms": 7261,
+    "texto": "Perfecto. Podemos crear un asistente con objetivo “Agendar” para que tome horas de revisión por WhatsApp, en modo asistido: propone y tú confirmas.\n\nPara dejarlo a tu medida, cuéntame:\n- Cómo le dicen a la cita: “revisión”, “diagnóstico”, otro.\n- Duración típica por auto.\n- Horarios de atención y días.\n- Anticipación mínima (p. ej., no agendar el mismo día).\n- Qué datos pedir al cliente: nombre, patente, modelo, teléfono alternativo, algo más.\n- Cómo hablas con tus clientes: tono directo, cercano, formal, etc.\n\nCon eso te lo armo y lo dejo listo para empezar a tomar horas. ¿Te parece?"
+  },
+  {
+    "caso": "taller",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 138,
+    "propone": false,
+    "pasa": false,
+    "ms": 5478,
+    "texto": "Perfecto, se puede. Para armarte un asistente que agende horas de revisión, primero definamos bien sus objetivos para que nazca con las herramientas correctas.\n\nDime con tus palabras:\n- Objetivo(s) del asistente: solo “agendar horas” o además confirmar, mover o cancelar citas.\n- Tipo de servicios que quieres agendar: por ejemplo “revisión general”, “cambio de aceite”, “diagnóstico eléctrico”.\n- Cómo le hablas a tus clientes: tono cercano, más formal, emojis sí/no.\n- Horario de atención y duración típica por servicio: ej. revisión general 60 min, L–V 9–18, S 10–14.\n- Ventanas que NO quieres que ofrezca: horas de colación, buffers entre citas, anticipación mínima (ej. no agendar con menos de 2 h).\n\nCon eso lo creo en modo asistido: el asistente propone y tú confirmas. Si prefieres, parto solo con “agendar” y después agregamos mover/cancelar. ¿Cómo lo quieres?"
+  },
+  {
+    "caso": "vago",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 4,
+    "palabras": 159,
+    "propone": false,
+    "pasa": false,
+    "ms": 4034,
+    "texto": "Buenísimo. Para crearlo bien a tu medida, necesito estas 3 cosas:\n\n1) Lista de objetivos que quieres que cubra el asistente\n- Ejemplos: vender por WhatsApp, agendar/confirmar horas, responder estado de pedidos, cobrar, responder dudas frecuentes, derivar a un humano, reportes de ventas.\n- Importante: dime tus objetivos en tus palabras. Yo elijo desde esa lista cuáles van a cada asistente. Mejor varios asistentes, cada uno enfocado en 1 objetivo.\n\n2) Sobre tu negocio\n- ¿A qué te dedicas? (rubros, productos/servicios principales)\n- ¿Cómo le hablas a tus clientes? (tono: cercano, formal, emojis sí/no, “tú/usted”)\n- ¿Qué no puede decir/prometer el asistente? (plazos, precios variables, stock, etc.)\n\n3) Qué quieres lograr en el primer mes\n- 1 meta concreta por asistente. Ej: “cerrar 10 ventas por WhatsApp”, “confirmar 90% de horas”.\n\nCuando me mandes eso, parto por crear el primer asistente en modo asistido (propone, y tú envías). Si prefieres, partimos con uno solo: ¿cuál objetivo es prioridad 1?"
+  },
+  {
+    "caso": "vago",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 4,
+    "palabras": 135,
+    "propone": false,
+    "pasa": false,
+    "ms": 3282,
+    "texto": "¡Buenísimo! Para armarlo bien a tu medida, cuéntame:\n\n- ¿Cuáles son los objetivos del asistente? Ejemplos: vender por WhatsApp, confirmar horas, responder dudas de productos/servicios, cobrar, gestionar reclamos, reportar números del día.\n- ¿A qué se dedica tu negocio y cómo le hablan a sus clientes? (tono, modismos, formalidad)\n- ¿Qué esperas que haga en cada objetivo? Usa tus palabras: qué debe proponer, qué info debe pedir, hasta dónde decide solo y qué te consulta.\n- ¿Hay horarios, zonas o reglas que deba respetar? (ej: “no confirmamos horas sin anticipo”, “solo entregas en Santiago centro”, “respondemos 9 a 19 h”)\n\nO si te sirve, dame una lista de 2 a 4 objetivos y yo te propongo la configuración inicial para cada asistente. Recuerda: mejor varios asistentes, cada uno con su objetivo claro, así rinden más."
+  },
+  {
+    "caso": "vago",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 3,
+    "palabras": 128,
+    "propone": false,
+    "pasa": false,
+    "ms": 3570,
+    "texto": "¡Buenísimo! Antes de crearlo, dame la lista de objetivos que quieres que cumpla tu asistente. Ojo: mejor varios asistentes, cada uno con un objetivo claro, que uno solo con mil tareas.\n\nEjemplos de objetivos (elige y ponlos con tus palabras):\n- Vender por WhatsApp: captar, cotizar y cerrar pedidos.\n- Confirmar y reagendar horas.\n- Responder dudas frecuentes (horarios, dirección, medios de pago).\n- Cobrar: enviar links de pago y recordar saldos.\n- Postventa: coordinar despachos y reclamos.\n- Reportes: cómo vamos en ventas y campañas.\n\nAdemás, cuéntame:\n- ¿A qué se dedica tu negocio?\n- ¿Cómo le hablas a tus clientes? (tono cercano, formal, emojis, etc.)\n- ¿Qué esperas lograr con este asistente el primer mes? (p. ej., “cerrar más cotizaciones”, “bajar no-shows”, “responder en 5 min”)."
+  },
+  {
+    "caso": "ferreteria",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 156,
+    "propone": false,
+    "pasa": false,
+    "ms": 6514,
+    "texto": "Perfecto. Para eso conviene crear un asistente dedicado a “vender”: que responda si hay stock y el precio, en tus palabras, por WhatsApp. Antes de crearlo, necesito tu lista de objetivos tal como los quieres, para elegir de ahí y que nazca con las herramientas correctas.\n\nDime:\n- Objetivos del asistente, con tus palabras. Ejemplos: “responder si hay tal producto y a cuánto”, “ofrecer alternativas si no hay”, “tomar el pedido y datos de despacho”.\n- Cómo le hablas tú a tus clientes (tono): cercano, formal, con emoticones, etc.\n- Qué vende tu ferretería principalmente (para el vocabulario): fierros, electricidad, gasfitería, pintura, tornillería, maderas, etc.\n\nImportante: si hoy tu negocio no tiene conectadas las herramientas de stock y precios, el asistente no va a poder confirmar “tenemos X a $Y” en automático. En ese caso, primero te propongo conectar esas fuentes o cargar tu lista base de productos. ¿Quieres que partamos por eso si hace falta?"
+  },
+  {
+    "caso": "ferreteria",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 147,
+    "propone": false,
+    "pasa": false,
+    "ms": 4460,
+    "texto": "Perfecto. Para armarte un asistente que responda disponibilidad y precios, necesito 3 cosas rápidas:\n\n1) Lista de objetivos tal como los quieres cubrir (con tus palabras). Por ejemplo:\n- “Decir si hay stock de X”\n- “Dar el precio de X por unidad y por caja”\n- “Sugerir alternativas si no hay”\n- “Ofrecer despacho o retiro y el costo”\nEdita esa lista como tú la dirías a tus clientes.\n\n2) Cómo le hablan ustedes a sus clientes (tono y modismos). Ej: cercano, directo, tutear, “compadre/compa”, etc.\n\n3) Rubro/alcance: ¿qué maneja tu ferretería? Ej: tornillos, pernos, PVC, pinturas, herramientas eléctricas, maderas, gasfitería, etc. Si tienes catálogos o listas de productos/PLUs, dime en qué formato están (Excel/Google Sheets/SII/otro) para conectarlos después.\n\nImportante: si tu negocio aún no tiene precios y stock conectados, mejor partimos por eso. Puedo revisar qué les falta y dejar lo primero listo. ¿Te parece?"
+  },
+  {
+    "caso": "ferreteria",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 158,
+    "propone": false,
+    "pasa": false,
+    "ms": 5210,
+    "texto": "Perfecto: para eso te conviene crear un asistente “vender” que responda stock y precios desde tu catálogo.\n\nAntes de crearlo, necesito:\n- Lista de objetivos que quieres cubrir ahora mismo. Para este caso, marca “vender”.\n- Cómo le hablas a tus clientes (tono) y a qué se dedica tu ferretería (ej: ferretería barrial, especialistas en gasfitería, etc.).\n- ¿Qué productos y precios tienes cargados hoy en tu catálogo? Si ya los tienes en IAxTi, estamos listos; si no, te ayudo a subirlos.\n\nCómo funciona:\n- El asistente contesta si hay stock y el precio usando tu catálogo.\n- Nace en modo asistido: propone respuesta y tú apruebas hasta que le tomes confianza.\n- Si un producto no existe en el catálogo, te avisa para que lo carguemos.\n\n¿Te parece si partimos creando el asistente con objetivo “vender”? Dame:\n- Nombre para el asistente.\n- Tono (ej: cercano y directo).\n- Breve descripción de tu ferretería en tus palabras."
+  }
+]
