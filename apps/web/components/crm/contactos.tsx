@@ -203,7 +203,7 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       </div>
     </div>
   );
-  const conFiltros = Boolean(q.trim() || origen !== 'todos' || permisoFiltro !== 'todos');
+  const hayFiltroDeLista = origen !== 'todos' || permisoFiltro !== 'todos';
   const quitarFiltros = () => { setQ(''); setOrigen('todos'); setPermisoFiltro('todos'); firstPage(); };
   return (
     <div className="max-w-5xl" data-densidad="densa">
@@ -259,10 +259,19 @@ function ContactosDelNegocio({ tenant }: { tenant: string }) {
       ) : items.length === 0 ? (
         <>
           {filaDeFiltros('mt-4')}
+          {/* Tres vacíos distintos (#509, #1395): con filtro de canal o
+              permiso, solo con búsqueda, y la cartera vacía de verdad. Cada
+              uno dice qué pasó y ofrece la salida que corresponde. */}
           <EstadoVacio className="mt-6"
-            titulo={conFiltros ? 'Nadie con esos filtros' : 'Aquí empieza tu cartera de contactos'}
-            descripcion={conFiltros ? 'Prueba con otro canal o permiso, o quítalos para ver a toda la cartera.' : 'Cada persona que escriba aparece aquí con su historia. Si ya tienes una planilla, impórtala para empezar.'}
-            accion={conFiltros ? { etiqueta: 'Quitar filtros', onClick: quitarFiltros } : { etiqueta: 'Importar contactos', href: '/contactos/importar' }}
+            titulo={hayFiltroDeLista ? 'Nadie con esos filtros' : q.trim() ? `Nada con “${q.trim()}”` : 'Aquí empieza tu cartera de contactos'}
+            descripcion={hayFiltroDeLista
+              ? 'Prueba con otro canal o permiso, o quítalos para ver a toda la cartera.'
+              : q.trim() ? 'Prueba con el teléfono o con parte del nombre.'
+                : 'Cada persona que escriba aparece aquí con su historia. Si ya tienes una planilla, impórtala para empezar.'}
+            accion={hayFiltroDeLista
+              ? { etiqueta: 'Quitar filtros', onClick: quitarFiltros }
+              : q.trim() ? { etiqueta: 'Limpiar búsqueda', onClick: () => { setQ(''); firstPage(); } }
+                : { etiqueta: 'Importar contactos', href: '/contactos/importar' }}
           />
         </>
       ) : (
