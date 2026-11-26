@@ -34,10 +34,8 @@ test('acceso en horizontal y con altura reducida: controles alcanzables sin reco
   const enviar = page.getByRole('button', { name: 'Enviarme el acceso' });
   await expect(enviar).toBeFocused();
   await expect(enviar).toBeInViewport({ ratio: 1 });
-  await page.keyboard.press('Tab');
-  const google = page.getByRole('button', { name: 'Entrar con Google' });
-  await expect(google).toBeFocused();
-  await expect(google).toBeInViewport({ ratio: 1 });
+  // Sin «Entrar con Google» (26-11): el acceso es solo por correo.
+  await expect(page.getByRole('button', { name: 'Entrar con Google' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const pie = page.locator('.pulso-access-footer');
   await pie.scrollIntoViewIfNeeded();
