@@ -54,12 +54,12 @@ describe('acceso al panel de plataforma (#113)', () => {
     expect(veces, 'las dos instrucciones piden el código').toBe(2);
   });
 
-  it('el botón de Google y la instrucción del enlace cuelgan de la MISMA pregunta', () => {
-    // Eran dos decisiones sueltas con una sola causa. Separadas, apagar una y
-    // olvidar la otra deja al operador exactamente igual de perdido.
-    const usos = [...TARJETA.matchAll(/recibeLosRedirects/g)].length;
-    expect(usos, 'la prop tiene que gobernar los dos caminos').toBeGreaterThanOrEqual(4);
-    expect(TARJETA).toContain('{recibeLosRedirects && (');
+  it('no se entra con Google: un solo camino, el correo y su código', () => {
+    // Decisión de Lino (26-11). Antes el botón dependía de
+    // `recibeLosRedirects` porque en el panel dejaba al operador en la app
+    // de clientes (#113); ahora no existe en ninguna de las dos.
+    expect(TARJETA).not.toContain('signInWithOAuth');
+    expect(TARJETA).not.toMatch(/>\s*Entrar con Google/);
   });
 
   it('el código de 6 dígitos entra por verifyOtp, que no depende de redirects', () => {

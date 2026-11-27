@@ -46,13 +46,6 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
     window.location.href = '/';
   }
 
-  async function conGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
-  }
-
   if (estado === 'enviado' || estado === 'codigo-malo') {
     return (
       <form onSubmit={entrarConCodigo} className="flex flex-col gap-4">
@@ -145,15 +138,8 @@ function Formulario({ recibeLosRedirects }: { recibeLosRedirects: boolean }) {
       >
         Enviarme el acceso
       </button>
-      {recibeLosRedirects && (
-        <button
-          type="button"
-          onClick={() => void conGoogle()}
-          className="h-control rounded-boton border border-line-strong px-8 text-base text-ink"
-        >
-          Entrar con Google
-        </button>
-      )}
+      {/* Sin «Entrar con Google» (decisión de Lino, 26-11): se entra con el
+          correo y su código, un solo camino que funciona en todos lados. */}
     </form>
   );
 }
@@ -171,18 +157,12 @@ export interface LoginCardProps {
    * allowlist. Donde eso no aplica —la app de clientes, que vive en el
    * site_url— todo funciona. En el panel de plataforma, no:
    *
-   * - "Entrar con Google" dejaría al operador en la app de CLIENTES.
    * - Decirle "abre el enlace del correo" lo manda al mismo lugar, y se queda
    *   preguntándose por qué ve una bandeja en vez del panel.
    *
-   * Con `false` desaparece el botón de Google y la instrucción dice lo único
-   * que sí funciona: el código de 6 dígitos, que no pisa ningún redirect.
-   *
-   * Sobre Google en particular, la incertidumbre dicha con todas sus letras:
-   * el comportamiento está reportado para el enlace mágico y no lo pude
-   * comprobar para OAuth. Ofrecer un botón que quizás deja a alguien en la
-   * app equivocada es peor que no ofrecerlo cuando hay otro camino que sí
-   * sabemos que funciona.
+   * Con `false` la instrucción dice lo único que sí funciona: el código de 6
+   * dígitos, que no pisa ningún redirect. (El botón «Entrar con Google» se
+   * quitó del todo el 26-11: un solo camino de entrada, el correo.)
    */
   recibeLosRedirects?: boolean;
 }
