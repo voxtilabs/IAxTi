@@ -179,6 +179,23 @@ async function avisoDe(event: EventEnvelope, client: PoolClient): Promise<Aviso 
         recipients: await admins(client, event.tenantId),
       };
     }
+    case 'whatsapp.historial_listo': {
+      /*
+       * Lo aprendido de los chats quedó listo (#1406, ADR-0039).
+       *
+       * Va a los ADMIN, como el cupo del canal: quien revisa lo aprendido y
+       * decide si el asistente lo usa es quien configura el negocio. El cuerpo
+       * dice QUÉ hay esperando, no «se completó un proceso»: la diferencia es
+       * entre abrir la pantalla ahora y borrar el aviso sin leerlo.
+       */
+      return {
+        type: 'aprendizaje_listo',
+        title: TIPOS_LEGIBLES.aprendizaje_listo,
+        body: 'Revisa las preguntas y respuestas que saqué de tus chats de WhatsApp antes de que tu asistente las use.',
+        link: '/ajustes/conocimiento',
+        recipients: await admins(client, event.tenantId),
+      };
+    }
     case 'tenant.state_changed': {
       // A quién se le avisa: al ADMIN, que es quien puede hacer algo.
       const texto = TEXTO_POR_ESTADO[String(p.to)];
@@ -346,6 +363,8 @@ export const EVENTOS = [
   'tenant.deletion_warned',
   // El cupo diario del canal entrando en la reserva (#1248).
   'channel.quota_threshold',
+  // Lo aprendido de los chats quedó listo para revisar (#1406, ADR-0039).
+  'whatsapp.historial_listo',
 ] as const;
 
 /**

@@ -1129,7 +1129,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
             "transcribir",
             "analizar",
             "configuracion_conversada",
-            "retomar"
+            "retomar",
+            "aprender"
           ]
         },
         "prompt": {
@@ -2399,6 +2400,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ConectarWhatsAppController_autorizarHistorial": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/whatsapp/{id}/historial/autorizar",
+    "resumen": "Autoriza leer los últimos 50 chats del número para aprender de ellos",
+    "permiso": "channels.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ConectarWhatsAppController_conectar": {
     "metodo": "POST",
     "ruta": "/v1/channels/whatsapp/conectar",
@@ -2456,6 +2478,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ConectarWhatsAppController_historial": {
+    "metodo": "GET",
+    "ruta": "/v1/channels/whatsapp/{id}/historial",
+    "resumen": "Estado de la lectura de los chats del número",
+    "permiso": "channels.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ConectarWhatsAppController_numeros": {
     "metodo": "GET",
     "ruta": "/v1/channels/whatsapp/numeros",
@@ -2466,6 +2509,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "argumentos": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "ConectarWhatsAppController_retirarHistorial": {
+    "metodo": "POST",
+    "ruta": "/v1/channels/whatsapp/{id}/historial/retirar",
+    "resumen": "Retira la autorización de leer los chats del número",
+    "permiso": "channels.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
       "additionalProperties": false
     }
   },
@@ -4495,6 +4559,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "KnowledgeController_aprobar": {
+    "metodo": "POST",
+    "ruta": "/v1/knowledge/sources/{id}/aprobar",
+    "resumen": "Aprueba lo aprendido de los chats y lo indexa para el asistente",
+    "permiso": "knowledge.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "KnowledgeController_crearDesdePdf": {
     "metodo": "POST",
     "ruta": "/v1/knowledge/sources/pdf",
@@ -4522,6 +4607,32 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "KnowledgeController_descartarEntrada": {
+    "metodo": "DELETE",
+    "ruta": "/v1/knowledge/sources/{id}/entradas/{entradaId}",
+    "resumen": "Descarta una entrada aprendida: no entrará al conocimiento",
+    "permiso": "knowledge.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "entradaId": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id",
+        "entradaId"
+      ],
+      "additionalProperties": false
+    }
+  },
   "KnowledgeController_destinoDelPdf": {
     "metodo": "POST",
     "ruta": "/v1/knowledge/sources/pdf/destino",
@@ -4545,6 +4656,69 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "required": [
         "filename",
         "sizeBytes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "KnowledgeController_editarEntrada": {
+    "metodo": "PATCH",
+    "ruta": "/v1/knowledge/sources/{id}/entradas/{entradaId}",
+    "resumen": "Corrige una entrada aprendida antes de aprobarla",
+    "permiso": "knowledge.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "entradaId": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        },
+        "respuesta": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 800
+        },
+        "tipo": {
+          "type": "string",
+          "enum": [
+            "precio",
+            "horario",
+            "servicio",
+            "despacho",
+            "pago",
+            "otro"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "entradaId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "KnowledgeController_entradas": {
+    "metodo": "GET",
+    "ruta": "/v1/knowledge/sources/{id}/entradas",
+    "resumen": "Las entradas aprendidas de los chats, para revisarlas",
+    "permiso": "knowledge.manage",
+    "modulo": "knowledge",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
       ],
       "additionalProperties": false
     }
@@ -4887,7 +5061,8 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
             "calidad_numero",
             "pago_recibido",
             "estado_cuenta",
-            "cupo_del_canal"
+            "cupo_del_canal",
+            "aprendizaje_listo"
           ]
         },
         "campana": {

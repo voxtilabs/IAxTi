@@ -75,6 +75,13 @@ export const TASKS = [
   // tiene que decir la verdad: «retomar» y «responder» se arreglan distinto
   // cuando alguna de las dos sale mal.
   'retomar',
+  // Aprender de los chats del negocio (#1406, ADR-0039). Tarea propia y no
+  // `conocer` porque el acta tiene que decir lo que de verdad corrió —una
+  // lectura de los chats del negocio, no una consulta del asistente— y
+  // porque sus DOS reglas no se parecen a las de ninguna otra: lo que entra
+  // ya viene redactado (el dominio lo garantiza) y lo que entra NO se guarda
+  // en la corrida (ADR-0039: los chats no quedan en la base).
+  'aprender',
 ] as const;
 export type AgentTask = (typeof TASKS)[number];
 
@@ -213,6 +220,12 @@ export const DEFAULT_TASK_MODELS: Record<AgentTask, TaskModel> = {
    * Y el dueño esperaba 15 s por un «hola», que es el reporte que abrió esto.
    */
   configuracion_conversada: { provider: 'openai', model: 'gpt-5', esfuerzo: 'minimo' },
+  // Extraer preguntas frecuentes y tono de chats YA redactados (#1406):
+  // es lectura y síntesis, no redacción para un cliente — el mismo modelo del
+  // volumen alcanza. Lo que sale es un JSON que la dueña revisa entrada por
+  // entrada antes de que el asistente lo use, así que el costo de un error
+  // de forma no lo paga nadie en una conversación.
+  aprender: { provider: 'openai', model: 'gpt-5-mini', esfuerzo: 'bajo' },
 };
 
 /**
@@ -252,6 +265,11 @@ export const DEFAULT_TASK_OUTPUT_TOKENS: Record<AgentTask, number> = {
   // mirar un módulo, y preparar la acción. El tope se reparte entre todo
   // eso y la respuesta final, que además explica qué va a hacer.
   configuracion_conversada: 4000,
+  // Hasta 30 entradas con pregunta y respuesta (300 y 800 caracteres de tope
+  // en el dominio) más el tono. Es la respuesta más larga que se pide a una
+  // tarea del volumen, y cortarla acá es dejar la revisión a medias sin que
+  // el modelo pueda avisar.
+  aprender: 3000,
 };
 
 export interface IaSettings {

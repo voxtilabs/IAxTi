@@ -27,6 +27,8 @@ events:
     - tenant.deletion_warned
     # El cupo diario del canal entrando en la reserva (#1248).
     - channel.quota_threshold
+    # Lo aprendido de los chats del negocio quedó listo para revisar (#1406).
+    - whatsapp.historial_listo
 tools: []
 # La página existe desde #55 y no se llegaba a ella por ningún lado: no
 # estaba en ningún `nav` ni enlazada desde otra pantalla. Trabajo terminado

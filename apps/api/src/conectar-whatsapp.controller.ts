@@ -3,19 +3,26 @@ import {
   ConflictException,
   Controller,
   Get,
+  NotFoundException,
+  Param,
   Post,
   Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { createQueue, redisConnection } from '@iaxti/core';
 import { withTenant } from '@iaxti/db';
 import {
   ErrorDeZernio,
+  ErrorDeHistorial,
   ErrorDelAlta,
+  autorizarAprendizajeDeChats,
   baseDeZernio,
   conectarNumeroDesdeLaApp,
   enlaceParaConectarDesdeLaApp,
+  estadoDelHistorial,
   numerosParaConectar,
+  retirarAutorizacionDeChats,
   secretStoreDelCanal,
   type DependenciasDelAlta,
 } from '@iaxti/module-whatsapp';
@@ -126,6 +133,65 @@ function traducir(err: unknown): never {
 
 const actorOf = (request: WithUser): Actor => request.actor as Actor;
 
+function pool() {
+  const p = apiPool();
+  if (!p) {
+    throw new ServiceUnavailableException({
+      code: 'DB_NOT_CONFIGURED',
+      message: 'El servidor aún no tiene base de datos configurada. Intenta más tarde.',
+    });
+  }
+  return p;
+}
+
+/**
+ * La cola de aprender-de-chats (#1406), perezosa: solo se abre si alguien
+ * autoriza la lectura. El `jobId` lleva el instante de la autorización para
+ * que reautorizar después de retirar nazca un job nuevo: el de la corrida
+ * anterior quedó completado en Redis y BullMQ no reusa su id.
+ */
+let colaAprender: ReturnType<typeof createQueue> | null = null;
+function encolarAprendizaje(
+  tenantId: string,
+  accountId: string,
+  requestId: string | undefined,
+  autorizadoEl: string,
+): Promise<void> {
+  colaAprender ??= createQueue('aprender-de-chats', redisConnection());
+  return colaAprender
+    .add(
+      'aprender',
+      {
+        moduleId: 'whatsapp' as const,
+        tenantId,
+        accountId,
+        ...(requestId ? { requestId } : {}),
+        desde: autorizadoEl,
+      },
+      { jobId: `ap-${accountId}-${autorizadoEl}` },
+    )
+    .then(() => undefined);
+}
+
+/** Los errores del historial, con el formato único. */
+function traducirHistorial(err: unknown): never {
+  if (err instanceof ErrorDeHistorial) {
+    const noEsta = err.message === 'No encontramos ese canal.';
+    if (noEsta) {
+      throw new NotFoundException({ code: 'CHANNEL_NOT_FOUND', message: 'No encontramos ese canal.' });
+    }
+    throw new ConflictException({ code: 'WHATSAPP_HISTORY_REJECTED', message: err.message });
+  }
+  if (err instanceof ErrorDeZernio) {
+    console.warn(`[conectar-whatsapp] Zernio respondió ${err.status}${err.code ? ` (${err.code})` : ''}`);
+    throw new BadGatewayException({
+      code: 'WHATSAPP_PROVIDER_FAILED',
+      message: 'El proveedor de WhatsApp no respondió bien. Intenta de nuevo en unos minutos.',
+    });
+  }
+  throw err;
+}
+
 @ApiTags('channels')
 @Controller('channels/whatsapp')
 @RequireModule('channels')
@@ -193,6 +259,82 @@ export class ConectarWhatsAppController {
       return { id: account.id, name: account.name, state: account.state, renovada };
     } catch (err) {
       traducir(err);
+    }
+  }
+
+  /**
+   * Aprender de los chats del número (#1406, ADR-0039): la autorización del
+   * dueño para leer los últimos 50 chats. Los dos módulos que la corrida
+   * necesita — el asistente que aprende y el conocimiento que lo guarda — se
+   * exigen acá: si alguno está apagado, autorizar sería prometer un botón que
+   * no hace nada.
+   */
+  @Post(':id/historial/autorizar')
+  @RequireModule('whatsapp')
+  @RequireModule('knowledge')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Autoriza leer los últimos 50 chats del número para aprender de ellos' })
+  async autorizarHistorial(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, async (c) => {
+        const { autorizadoEl } = await autorizarAprendizajeDeChats(c, {
+          tenantId: actor.tenantId,
+          accountId: id,
+          actor: actor.userId,
+          actorKind: 'user',
+          ...(request.requestId ? { requestId: request.requestId } : {}),
+          encolar: ({ autorizadoEl: cuando }) =>
+            encolarAprendizaje(actor.tenantId, id, request.requestId, cuando),
+        });
+        return { autorizado: true, desde: autorizadoEl };
+      });
+    } catch (err) {
+      traducirHistorial(err);
+    }
+  }
+
+  /** Retira la autorización: el job pendiente termina sin llamar a Zernio. */
+  @Post(':id/historial/retirar')
+  @RequireModule('whatsapp')
+  @RequireModule('knowledge')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Retira la autorización de leer los chats del número' })
+  async retirarHistorial(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    try {
+      await withTenant(pool(), actor.tenantId, (c) =>
+        retirarAutorizacionDeChats(c, {
+          tenantId: actor.tenantId,
+          accountId: id,
+          actor: actor.userId,
+          actorKind: 'user',
+          ...(request.requestId ? { requestId: request.requestId } : {}),
+        }),
+      );
+      return { retirado: true };
+    } catch (err) {
+      traducirHistorial(err);
+    }
+  }
+
+  /**
+   * El estado del historial para la tarjeta de Canales: la marca de la cuenta
+   * y lo que Meta dice de verdad (leído de Zernio con la llave del NEGOCIO).
+   */
+  @Get(':id/historial')
+  @RequireModule('whatsapp')
+  @RequireModule('knowledge')
+  @RequirePermission('channels.manage')
+  @ApiOperation({ summary: 'Estado de la lectura de los chats del número' })
+  async historial(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        estadoDelHistorial(c, { tenantId: actor.tenantId, accountId: id }),
+      );
+    } catch (err) {
+      traducirHistorial(err);
     }
   }
 }

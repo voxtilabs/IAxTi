@@ -13,6 +13,8 @@ export const NOTIFICATION_TYPES = [
   'pago_recibido',
   'estado_cuenta',
   'cupo_del_canal',
+  // Lo aprendido de los chats quedó listo para revisar (#1406, ADR-0039).
+  'aprendizaje_listo',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -35,6 +37,7 @@ export const TIPOS_LEGIBLES: Record<NotificationType, string> = {
   pago_recibido: 'Pago recibido',
   estado_cuenta: 'El estado de tu cuenta cambió',
   cupo_del_canal: 'Cupo diario del canal por agotarse',
+  aprendizaje_listo: 'Lo que aprendí de tus chats está listo para revisar',
 };
 
 export interface Notification {

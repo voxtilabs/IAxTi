@@ -17,6 +17,9 @@ events:
     - template.sent
     - template.status_changed
     - template.submitted
+    # Lo aprendido de los chats quedó listo para revisar (#1406): lo publica
+    # el job de workers y lo oye el módulo de avisos.
+    - whatsapp.historial_listo
   consumes: []
 tools: []
 # La pantalla existe desde #44 en la API y recién ahora en la app: sin
