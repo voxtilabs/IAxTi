@@ -129,7 +129,7 @@ export async function connectWhatsAppNumber(
   const max = await numerosPermitidos(client, input.tenantId);
   if (existentes.rows[0].n >= max) {
     throw new Error(
-      `Tu plan permite ${max} número${max === 1 ? '' : 's'} de WhatsApp. Sube de plan para conectar otro.`,
+      `Tu plan permite ${max} número${max === 1 ? '' : 's'} de WhatsApp. Para contratar otro, escríbenos a services@voxtilabs.cl.`,
     );
   }
 

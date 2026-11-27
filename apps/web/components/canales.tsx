@@ -597,6 +597,11 @@ function pareceTelefono(valor: string): boolean {
  * negocio queda cifrada en la custodia del servidor y nunca pasa por el
  * navegador.
  */
+/** El correo de soporte de IAxTi (decisión de Lino, 26-11). */
+const CORREO_DE_SOPORTE = 'services@voxtilabs.cl';
+const CORREO_AYUDA_CONECTAR = `mailto:${CORREO_DE_SOPORTE}?subject=${encodeURIComponent('Conectar mi WhatsApp a IAxTi')}`;
+const CORREO_OTRO_NUMERO = `mailto:${CORREO_DE_SOPORTE}?subject=${encodeURIComponent('Contratar otro número de WhatsApp en IAxTi')}`;
+
 function ConectarWhatsApp({
   yaHay = false,
   onConectado,
@@ -702,29 +707,39 @@ function ConectarWhatsApp({
         </ul>
       )}
 
-      <div className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
-        <p className="font-display font-semibold text-ink">
-          {yaHay ? 'Conectar otro número' : 'Conecta tu número de WhatsApp Business'}
-        </p>
-        <p className="text-sm text-body">Te llevamos a Meta para autorizarlo. Tu número sigue en tu teléfono.</p>
-        <span className="flex flex-wrap gap-2">
-          <Button
-            variant={porConectar.length > 0 || yaHay ? 'secundario' : 'primario'}
-            onClick={() => void abrirMeta()}
-            disabled={abriendoMeta}
-          >
-            {abriendoMeta ? 'Abriendo Meta…' : porConectar.length > 0 ? 'Conectar otro número' : 'Conectar con Meta'}
-          </Button>
-        </span>
-      </div>
+      {yaHay ? (
+        // Más de un número se contrata con soporte (decisión de Lino, 26-11):
+        // cada número suma costo de Meta y cupo del plan, y eso se conversa.
+        <div className="flex flex-col gap-2 rounded-tarjeta border border-line bg-raised p-5">
+          <p className="font-display font-semibold text-ink">¿Necesitas más de un número?</p>
+          <p className="text-sm text-body">
+            Se contrata con soporte. Escríbenos a{' '}
+            <a href={CORREO_OTRO_NUMERO} className="text-action-text underline">
+              {CORREO_DE_SOPORTE}
+            </a>{' '}
+            y lo dejamos conectado contigo.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
+          <p className="font-display font-semibold text-ink">Conecta tu número de WhatsApp Business</p>
+          <p className="text-sm text-body">Te llevamos a Meta para autorizarlo. Tu número sigue en tu teléfono.</p>
+          <span className="flex flex-wrap gap-2">
+            <Button
+              variant={porConectar.length > 0 ? 'secundario' : 'primario'}
+              onClick={() => void abrirMeta()}
+              disabled={abriendoMeta}
+            >
+              {abriendoMeta ? 'Abriendo Meta…' : porConectar.length > 0 ? 'Conectar otro número' : 'Conectar con Meta'}
+            </Button>
+          </span>
+        </div>
+      )}
 
       <p className="text-xs text-muted">
         ¿Algo no funciona?{' '}
-        <a
-          href="mailto:soporte@voxtilabs.cl?subject=Conectar%20mi%20WhatsApp%20a%20IAxTi"
-          className="text-action-text underline"
-        >
-          Escríbenos
+        <a href={CORREO_AYUDA_CONECTAR} className="text-action-text underline">
+          Escríbenos a {CORREO_DE_SOPORTE}
         </a>
       </p>
     </div>

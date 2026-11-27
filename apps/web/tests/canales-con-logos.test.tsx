@@ -222,7 +222,7 @@ describe('conectar WhatsApp desde la app', () => {
         { cuenta: 'c1', nombre: '+56 9 2201 3949', pideReconectar: false, yaConectado: false },
       ],
       '/channels/whatsapp/conectar': () => {
-        throw new Error('Tu plan permite 1 número de WhatsApp. Sube de plan para conectar otro.');
+        throw new Error('Tu plan permite 1 número de WhatsApp. Para contratar otro, escríbenos a services@voxtilabs.cl.');
       },
     });
     // El aviso va por toast: sin el Toaster montado, el texto no llega al DOM.
@@ -234,7 +234,7 @@ describe('conectar WhatsApp desde la app', () => {
     );
     const detalle = await abrirDialogoDeWhatsApp();
     fireEvent.click(await within(detalle).findByRole('button', { name: 'Conectar este número' }));
-    expect(await screen.findByText('Tu plan permite 1 número de WhatsApp. Sube de plan para conectar otro.')).toBeTruthy();
+    expect(await screen.findByText('Tu plan permite 1 número de WhatsApp. Para contratar otro, escríbenos a services@voxtilabs.cl.')).toBeTruthy();
     // Ni recarga ni apagado del botón: el fallo se puede reintentar.
     expect(pedir.mock.calls.filter((c) => c[3] === '/channels').length).toBe(1);
     expect(within(detalle).getByRole('button', { name: 'Conectar este número' })).toBeTruthy();
@@ -270,5 +270,27 @@ describe('conectar WhatsApp desde la app', () => {
     } finally {
       window.history.replaceState(null, '', '/');
     }
+  });
+});
+
+describe('más de un número', () => {
+  it('con un número ya activo, otro se contrata con soporte y no se ofrece Meta', async () => {
+    servir([WHATSAPP]);
+    render(<Canales />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Administrar' }));
+    const detalle = await screen.findByRole('dialog');
+    expect(await within(detalle).findByText('¿Necesitas más de un número?')).toBeTruthy();
+    const correo = within(detalle).getByRole('link', { name: 'services@voxtilabs.cl' });
+    expect(correo.getAttribute('href')).toMatch(/^mailto:services@voxtilabs\.cl\?subject=Contratar/);
+    expect(within(detalle).queryByRole('button', { name: 'Conectar con Meta' })).toBeNull();
+  });
+
+  it('la ayuda de conectar va al correo de soporte', async () => {
+    servir([]);
+    render(<Canales />);
+    fireEvent.click(within((await screen.findByText('WhatsApp')).closest('li')!).getByRole('button', { name: 'Conectar' }));
+    const detalle = await screen.findByRole('dialog');
+    const ayuda = await within(detalle).findByRole('link', { name: /services@voxtilabs\.cl/ });
+    expect(ayuda.getAttribute('href')).toMatch(/^mailto:services@voxtilabs\.cl/);
   });
 });
