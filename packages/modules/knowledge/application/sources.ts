@@ -30,8 +30,12 @@ export interface Source {
    * es la fuente que no se pudo INDEXAR, que se arregla reintentando— porque la
    * acción que corresponde es otra: volver a subir el documento o terminar de
    * borrar la fuente.
+   *
+   * `por_revisar` es lo aprendido de los chats (#1406, ADR-0039): la dueña lo
+   * revisa antes de que el asistente lo use, así que no tiene embeddings y
+   * `FUENTE_VIGENTE` no lo ve. Aprobarla la deja `active` por el camino normal.
    */
-  status: 'processing' | 'active' | 'expired' | 'failed' | 'delete_failed';
+  status: 'processing' | 'active' | 'expired' | 'failed' | 'delete_failed' | 'por_revisar';
   error: string | null;
   chunkCount?: number;
   createdAt: Date;
@@ -69,7 +73,8 @@ export interface SourceLink {
   sourceId: string | null;
 }
 
-function rowToSource(row: Record<string, unknown>): Source {
+/** La fila de `sources` como la lee el módulo (la usan también las aprendidas). */
+export function rowToSource(row: Record<string, unknown>): Source {
   return {
     id: row.id as string,
     kind: row.kind as SourceKind,

@@ -98,6 +98,17 @@ export { detectEscalation, parseAutonomous, formatoAutonomo } from './domain/esc
 // nadie abre deja de ser una decisión (#664).
 export { tocaPulso, agenteConPulso, textoParaRetomar, negociosDelPulso } from './application/pulso';
 export type { PulsoConfig, MotivoDelPulso } from './application/pulso';
+// Aprender de los chats del negocio (#1406, ADR-0039). El dominio es la
+// ÚNICA puerta de lo que sale hacia el proveedor; el caso de uso lo llama por
+// el mismo camino de IA de siempre, y el job de workers solo mapea lo que
+// trae el canal.
+export {
+  MAX_CHATS,
+  MAX_MENSAJES_POR_CHAT,
+} from './domain/aprender-de-chats';
+export type { ChatParaAprender, MensajeDeChat, LoAprendido } from './domain/aprender-de-chats';
+export { aprenderDeLosChats } from './application/aprender';
+export type { ResultadoDelAprendizaje } from './application/aprender';
 // `gatillosDeLimits` NO sale: lo lee `guardrailLimits` por dentro y su tipo es
 // lo único que un consumidor necesita nombrar (#664).
 export type { EscalationReason, AutonomousPayload, GatillosDelNegocio } from './domain/escalation';

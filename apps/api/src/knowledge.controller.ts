@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   Controller,
   Delete,
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -23,7 +25,12 @@ import {
   listSources,
   processSource,
   searchKnowledge,
+  aprobarFuenteAprendida,
+  descartarEntradaAprendida,
+  editarEntradaAprendida,
+  leerFuenteAprendida,
   type SourceKind,
+  type TipoDeEntrada,
 } from '@iaxti/module-knowledge';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
@@ -49,6 +56,48 @@ function actorOf(request: WithUser): Actor {
 }
 
 const KINDS: SourceKind[] = ['texto', 'pdf', 'url', 'faq', 'catalogo'];
+
+/**
+ * Editar una entrada de lo aprendido (#1406, ADR-0039).
+ *
+ * La respuesta es lo que la IA va a contestar con esa entrada, y el tipo
+ * cambia cómo se trata (una de precio no se afirma sin confirmarla): los
+ * dos los revisa la dueña, y acá se validan antes de tocar la fuente.
+ */
+const EntradaEditada = z
+  .object({
+    respuesta: z.string().trim().min(1, { error: 'La entrada necesita su respuesta.' }).max(800, {
+      error: 'La respuesta puede tener hasta 800 letras.',
+    }),
+    tipo: z.enum(['precio', 'horario', 'servicio', 'despacho', 'pago', 'otro'], {
+      error: 'El tipo es uno de: precio, horario, servicio, despacho, pago, otro.',
+    }),
+  })
+  .partial()
+  .refine((v) => v.respuesta !== undefined || v.tipo !== undefined, {
+    message: 'Dinos qué cambiar: la respuesta o el tipo de la entrada.',
+  });
+
+/** Los errores de lo aprendido, con el formato único. */
+function traducirAprendida(err: unknown): never {
+  const mensaje = (err as Error).message;
+  if (mensaje === 'No encontramos esa fuente.') {
+    throw new NotFoundException({ code: 'SOURCE_NOT_FOUND', message: 'No encontramos esa fuente.' });
+  }
+  if (mensaje === 'No encontramos esa entrada.') {
+    throw new NotFoundException({
+      code: 'ENTRY_NOT_FOUND',
+      message: 'No encontramos esa entrada. Vuelve a abrir la revisión: puede que ya la descartaste.',
+    });
+  }
+  if (
+    mensaje === 'Esa fuente no está por revisar: no hay nada que revisar en ella.' ||
+    mensaje === 'No quedan entradas en esta fuente: bórrala si no quieres mantenerla.'
+  ) {
+    throw new ConflictException({ code: 'SOURCE_NOT_PENDING_REVIEW', message: mensaje });
+  }
+  throw err;
+}
 
 /** Solo PDF, y con tope: es lo que Gemini lee y lo que un negocio sube. */
 const PDF_MAX_MB = 20;
@@ -482,6 +531,112 @@ export class KnowledgeController {
     return withTenant(pool(), actor.tenantId, (c) =>
       searchKnowledge(c, { tenantId: actor.tenantId, query: q ?? '' }),
     );
+  }
+
+  /**
+   * Lo aprendido de los chats, para revisarlo (#1406, ADR-0039): la dueña ve
+   * pregunta, respuesta y tipo de cada entrada antes de que el asistente lo
+   * use. Solo fuentes `por_revisar`: lo aprobado ya es una fuente normal.
+   */
+  @Get('sources/:id/entradas')
+  @RequirePermission('knowledge.manage')
+  @ApiOperation({ summary: 'Las entradas aprendidas de los chats, para revisarlas' })
+  async entradas(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        return await leerFuenteAprendida(c, { tenantId: actor.tenantId, sourceId: id });
+      } catch (err) {
+        traducirAprendida(err);
+      }
+    });
+  }
+
+  @Patch('sources/:id/entradas/:entradaId')
+  @RequirePermission('knowledge.manage')
+  @ApiOperation({ summary: 'Corrige una entrada aprendida antes de aprobarla' })
+  async editarEntrada(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Param('entradaId') entradaId: string,
+    @Cuerpo(EntradaEditada) body: z.infer<typeof EntradaEditada>,
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        return await editarEntradaAprendida(c, {
+          tenantId: actor.tenantId,
+          sourceId: id,
+          entradaId,
+          ...(body.respuesta !== undefined ? { respuesta: body.respuesta } : {}),
+          ...(body.tipo !== undefined ? { tipo: body.tipo as TipoDeEntrada } : {}),
+          actor: actor.userId,
+          ...(request.requestId ? { requestId: request.requestId } : {}),
+        });
+      } catch (err) {
+        traducirAprendida(err);
+      }
+    });
+  }
+
+  @Delete('sources/:id/entradas/:entradaId')
+  @RequirePermission('knowledge.manage')
+  @ApiOperation({ summary: 'Descarta una entrada aprendida: no entrará al conocimiento' })
+  async descartarEntrada(
+    @Req() request: WithUser,
+    @Param('id') id: string,
+    @Param('entradaId') entradaId: string,
+  ) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        const guardado = await descartarEntradaAprendida(c, {
+          tenantId: actor.tenantId,
+          sourceId: id,
+          entradaId,
+          actor: actor.userId,
+          ...(request.requestId ? { requestId: request.requestId } : {}),
+        });
+        return { descartada: entradaId, quedan: guardado.entradas.length };
+      } catch (err) {
+        traducirAprendida(err);
+      }
+    });
+  }
+
+  /**
+   * Aprueba lo aprendido: la fuente entra por el camino normal de
+   * indexación — embeddings incluidos — y queda `active` para el asistente.
+   */
+  @Post('sources/:id/aprobar')
+  @RequirePermission('knowledge.manage')
+  @ApiOperation({ summary: 'Aprueba lo aprendido de los chats y lo indexa para el asistente' })
+  async aprobar(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    if (!embeddingsAvailable()) {
+      throw new ServiceUnavailableException({
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'El proveedor de embeddings aún no tiene llave configurada en este ambiente.',
+      });
+    }
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      try {
+        return await aprobarFuenteAprendida(
+          c,
+          {
+            tenantId: actor.tenantId,
+            sourceId: id,
+            actor: actor.userId,
+            ...(request.requestId ? { requestId: request.requestId } : {}),
+          },
+          // Los PDF de este ambiente no vienen al caso: lo aprendido nace como
+          // texto. El puerto de bajar archivo es el que usa el resto de la API.
+          { bajarArchivo: bajarDelNegocio(actor.tenantId) },
+        );
+      } catch (err) {
+        traducirAprendida(err);
+      }
+    });
   }
 
   @Get('products')

@@ -47,6 +47,13 @@ interface CanalDto {
   numbers: NumeroDto[];
 }
 
+/** Lo que contesta el estado del historial de un número (#1406). */
+interface HistorialDto {
+  coexistencia: boolean;
+  historial: { estado: string; autorizadoPor: string; autorizadoEl: string } | null;
+  deMeta: string | null;
+}
+
 const ESTADO_CANAL: Record<CanalDto['state'], { label: string; role: BadgeRole; ayuda: string }> = {
   connecting: { label: 'Conectando', role: 'neutral', ayuda: 'Terminando la conexión con el proveedor.' },
   active: { label: 'Activo', role: 'good', ayuda: 'Recibiendo y enviando con normalidad.' },
@@ -825,6 +832,157 @@ function ConectarWhatsApp({
   );
 }
 
+/**
+ * «Aprender de tus chats» (#1406, ADR-0039): la tarjeta de la autorización.
+ *
+ * Cada estado de la lectura del historial con su texto y su acción. Lo que
+ * NO hace nunca: ofrecer el botón a un número que no está en coexistencia —
+ * no hay chats que leer y ofrecérselo sería prometer algo imposible.
+ */
+function AprenderDeLosChats({
+  accountId,
+  onCambio,
+  onAviso,
+}: {
+  accountId: string;
+  onCambio: () => Promise<void>;
+  onAviso: (texto: string | null) => void;
+}) {
+  const { config, session } = useSession();
+  const tenant = useSelectedTenant();
+  const [estado, setEstado] = useState<HistorialDto | null>(null);
+  const [trabajando, setTrabajando] = useState(false);
+  // «Ahora no» cierra por sesión y no para siempre: la oferta vuelve la
+  // próxima vez que abra la app.
+  const [porAhoraNo, setPorAhoraNo] = useState(false);
+  const llaveDeSesion = `iaxti-aprender-no-${tenant}-${accountId}`;
+
+  const cargar = useCallback(async () => {
+    if (!session || !tenant) return;
+    try {
+      setEstado(
+        await apiFetch<HistorialDto>(config, session, tenant, `/channels/whatsapp/${accountId}/historial`),
+      );
+    } catch {
+      // Sin poder leer el estado no hay tarjeta: mejor callada que decir algo
+      // sobre los chats de los clientes sin saber cómo están.
+      setEstado(null);
+    }
+  }, [config, session, tenant, accountId]);
+  useEffect(() => void cargar(), [cargar]);
+
+  async function accion(ruta: string) {
+    if (!session || !tenant || trabajando) return;
+    onAviso(null);
+    setTrabajando(true);
+    try {
+      await apiFetch(config, session, tenant, `/channels/whatsapp/${accountId}/historial/${ruta}`, {
+        method: 'POST',
+      });
+      await cargar();
+      await onCambio();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+    } finally {
+      setTrabajando(false);
+    }
+  }
+
+  if (estado === null) return null;
+  const actual = estado.historial?.estado ?? null;
+  if ((porAhoraNo || sessionStorage.getItem(llaveDeSesion) === '1') && actual === null) return null;
+
+  /** La oferta de siempre: para quien aún no autorizó, o su espera venció. */
+  const oferta = (conAhoraNo: boolean) => (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <Button variant="secundario" size="chico" disabled={trabajando} onClick={() => void accion('autorizar')}>
+        {trabajando ? 'Autorizando…' : 'Sí, léelos'}
+      </Button>
+      {conAhoraNo && (
+        <Button
+          variant="fantasma"
+          size="chico"
+          onClick={() => {
+            sessionStorage.setItem(llaveDeSesion, '1');
+            setPorAhoraNo(true);
+          }}
+        >
+          Ahora no
+        </Button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="mt-4 rounded-tarjeta border border-line bg-bg p-4">
+      <p className="font-display font-semibold text-ink">Aprender de tus chats</p>
+      {!estado.coexistencia ? (
+        <p className="mt-1 text-sm text-body">
+          Este número se conectó como número solo para IAxTi: no hay chats anteriores que leer.
+        </p>
+      ) : actual === null ? (
+        <>
+          <p className="mt-1 text-sm text-body">
+            ¿Quieres que lea tus últimos 50 chats para aprender cómo atiendes? Solo lo usa tu
+            asistente, borramos los datos de tus clientes antes y tú revisas lo aprendido antes de
+            que lo use.
+          </p>
+          {oferta(true)}
+        </>
+      ) : actual === 'esperando' || actual === 'requested' ? (
+        <>
+          <p className="mt-1 text-sm text-body">
+            Meta está compartiendo tu historial; puede tardar. Te avisamos.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="quitar" size="chico" disabled={trabajando} onClick={() => void accion('retirar')}>
+              {trabajando ? 'Retirando…' : 'Retirar autorización'}
+            </Button>
+          </div>
+        </>
+      ) : actual === 'listo' ? (
+        <p className="mt-1 text-sm text-body">
+          Lo aprendido ya está cargado:{' '}
+          <a href="/ajustes/conocimiento" className="text-action-text underline">
+            revisa lo aprendido
+          </a>{' '}
+          antes de que tu asistente lo use.
+        </p>
+      ) : actual === 'sin_resultados' ? (
+        <p className="mt-1 text-sm text-body">No encontré preguntas que se repitan en tus chats.</p>
+      ) : actual === 'already_synced' ? (
+        <p className="mt-1 text-sm text-body">
+          Meta ya compartió el historial de este número una vez. Para hacerlo de nuevo: en la app
+          WhatsApp Business, Ajustes → Cuenta → Business Platform, desconecta y vuelve a conectar.
+        </p>
+      ) : actual === 'declined' ? (
+        <p className="mt-1 text-sm text-body">
+          Al conectar el número, en Meta no se compartió el historial. Si cambias de idea,
+          desconecta y vuelve a conectar el número desde la app WhatsApp Business, y autoriza de
+          nuevo.
+        </p>
+      ) : actual === 'refused' ? (
+        <p className="mt-1 text-sm text-body">
+          Meta no compartió el historial de este número. Si quieres intentarlo otra vez,
+          desconecta y vuelve a conectar el número desde la app WhatsApp Business, y autoriza de
+          nuevo.
+        </p>
+      ) : actual === 'vencido' ? (
+        <>
+          <p className="mt-1 text-sm text-body">
+            Meta tardó más de dos días en compartir el historial y dejamos de esperar. Si quieres
+            intentarlo otra vez, autoriza la lectura de nuevo.
+          </p>
+          {oferta(false)}
+        </>
+      ) : (
+        <p className="mt-1 text-sm text-body">La lectura quedó en «{actual}».</p>
+      )}
+    </div>
+  );
+}
+
+
 /** El detalle de las cuentas de un tipo: estado, número, diagnóstico y prueba. */
 function DetalleDeCanales({
   canales,
@@ -902,6 +1060,13 @@ function DetalleDeCanales({
                 </div>
               );
             })}
+
+            {/* Aprender de los chats (#1406): solo WhatsApp, y solo si el
+                número está para algo — la tarjeta consulta el estado y se
+                calla sola si no aplica. */}
+            {canal.kind === 'whatsapp' && canal.state === 'active' && (
+              <AprenderDeLosChats accountId={canal.id} onCambio={onCambio} onAviso={onAviso} />
+            )}
 
             <Diagnostico accountId={canal.id} />
             {canal.kind !== 'webchat' && <ProbarEnvio key={`${tenant}:${session?.access_token}:${canal.id}`} accountId={canal.id} kind={canal.kind} />}

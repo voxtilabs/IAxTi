@@ -99,6 +99,7 @@ bandeja/chat.tsx#herramientas
 bandeja/reasignaciones.tsx#pasos
 bandeja/secuencias-ficha.tsx#inscripciones
 campanas.tsx#valores
+conocimiento.tsx#entradas
 conocimiento.tsx#productos
 consumo-ia.tsx#corridas
 crm/ficha-contacto.tsx#campos

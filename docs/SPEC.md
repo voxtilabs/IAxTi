@@ -511,7 +511,8 @@ la IA no sepan de dónde viene un mensaje.
 
 **Eventos:** `channel.connected`, `channel.degraded`, `channel.disconnected`,
 `template.approved`, `template.rejected`, `number.quality_changed`,
-`channel.quota_threshold`.
+`channel.quota_threshold`, `whatsapp.historial_listo` (lo que la IA aprendió de
+los chats del negocio quedó listo para revisar, #1406).
 
 **Tools para la IA:** `channels.list_templates` (aprobadas), `channels.send_template`
 (con confirmación o en autónomo dentro de reglas).
@@ -877,7 +878,7 @@ conversations   conversation.created · conversation.assigned · conversation.st
                 conversations.retention.purged · conversations.retention.scheduled
 channels        channel.connected · channel.degraded · channel.disconnected
                 template.approved · template.rejected · number.quality_changed
-                channel.quota_threshold
+                channel.quota_threshold · whatsapp.historial_listo (#1406)
 whatsapp        template.sent · template.status_changed · template.submitted
 agents          agent.executed · agent.suggested · agent.acted · agent.escalated
                 agent.failed · agent.quota_threshold

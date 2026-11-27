@@ -86,3 +86,12 @@ export {
   type DependenciasDelAlta,
   type NumeroParaConectar,
 } from './application/conectar-desde-la-app';
+// Aprender de los chats del negocio (#1406, ADR-0039): autorizar y retirar
+// la lectura del historial, y el estado para la pantalla.
+export {
+  ErrorDeHistorial,
+  autorizarAprendizajeDeChats,
+  retirarAutorizacionDeChats,
+  estadoDelHistorial,
+} from './application/aprender-de-chats';
+export type { EstadoDelHistorial, EstadoDeMeta } from './application/aprender-de-chats';

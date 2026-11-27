@@ -63,6 +63,12 @@ export {
   idEnLaReferencia,
   fijarSecretosDelCanal,
 } from './application/secretos-en-custodia';
+// La marca de que el dueño autorizó leer los chats del número, y su avance
+// (#1406, ADR-0039). Única escritura de `config.historial`.
+export {
+  fijarHistorialDeChats,
+} from './application/historial-de-chats';
+export type { HistorialDeChats } from './application/historial-de-chats';
 
 // El cupo diario del canal y la parte reservada a las personas (#1248).
 //

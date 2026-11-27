@@ -29,7 +29,7 @@ interface FuenteDto {
   id: string;
   kind: 'texto' | 'pdf' | 'url' | 'faq' | 'catalogo';
   name: string;
-  status: 'processing' | 'active' | 'expired' | 'failed' | 'delete_failed';
+  status: 'processing' | 'active' | 'expired' | 'failed' | 'delete_failed' | 'por_revisar';
   error: string | null;
   validUntil: string | null;
   chunkCount?: number;
@@ -39,6 +39,16 @@ interface FuenteDto {
   useCount: number;
   /** Los `[[enlaces]]` del markdown, con el destino si ya está cargado (#714). */
   enlaces?: Array<{ nombre: string; sourceId: string | null }>;
+}
+
+/** Una entrada aprendida de los chats, tal como la devuelve la revisión (#1406). */
+interface EntradaAprendidaDto {
+  id: string;
+  pregunta: string;
+  respuesta: string;
+  tipo: 'precio' | 'horario' | 'servicio' | 'despacho' | 'pago' | 'otro';
+  fecha?: string;
+  aviso?: string;
 }
 
 interface ProductoDto {
@@ -75,6 +85,10 @@ const ESTADO: Record<FuenteDto['status'], { label: string; role: 'good' | 'warn'
   // subir el documento o terminar de borrarla—, y «falló» manda a reintentar la
   // indexación, que acá no arregla nada.
   delete_failed: { label: 'Sin su archivo', role: 'bad' },
+  // Lo aprendido de los chats (#1406, ADR-0039): la dueña lo revisa antes de
+  // que el asistente lo use. En aviso y no en neutral porque está esperando
+  // una decisión suya — es lo único pendiente de ella en esta pantalla.
+  por_revisar: { label: 'Por revisar', role: 'warn' },
 };
 
 /**
@@ -108,6 +122,203 @@ interface ResumenImportacion {
   fallidas: Array<{ archivo: string; motivo: string }>;
 }
 
+const TIPO_DE_ENTRADA: Record<EntradaAprendidaDto['tipo'], string> = {
+  precio: 'Precio',
+  horario: 'Horario',
+  servicio: 'Servicio',
+  despacho: 'Despacho',
+  pago: 'Pago',
+  otro: 'Otro',
+};
+
+/**
+ * La revisión de lo aprendido de los chats (#1406, ADR-0039).
+ *
+ * La dueña corrige, descarta o aprueba cada entrada ANTES de que el
+ * asistente la use. El aviso de precio va visible y en tono de aviso: un
+ * precio dicho en un chat puede estar viejo, y la regla de la casa —la IA
+ * no inventa precio— empieza por esta confirmación.
+ */
+function RevisionDeLoAprendido({
+  sourceId,
+  alVolver,
+  onAviso,
+}: {
+  sourceId: string;
+  alVolver: () => Promise<void>;
+  onAviso: (texto: string | null) => void;
+}) {
+  const { config, session } = useSession();
+  const tenant = useSelectedTenant();
+  const [tono, setTono] = useState<string | null>(null);
+  const [entradas, setEntradas] = useState<EntradaAprendidaDto[] | null>(null);
+  const [editadas, setEditadas] = useState<Record<string, string>>({});
+  const [enCurso, setEnCurso] = useState<string | null>(null);
+  const [cerrando, setCerrando] = useState(false);
+
+  const cargar = useCallback(async () => {
+    if (!session || !tenant) return;
+    try {
+      const r = await apiFetch<{ tono: string | null; entradas: EntradaAprendidaDto[] }>(
+        config,
+        session,
+        tenant,
+        `/knowledge/sources/${sourceId}/entradas`,
+      );
+      setTono(r.tono);
+      setEntradas(r.entradas);
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+      setEntradas([]);
+    }
+  }, [config, session, tenant, sourceId, onAviso]);
+  useEffect(() => void cargar(), [cargar]);
+
+  async function guardar(entrada: EntradaAprendidaDto) {
+    if (!session || !tenant) return;
+    onAviso(null);
+    setEnCurso(entrada.id);
+    try {
+      await apiFetch(config, session, tenant, `/knowledge/sources/${sourceId}/entradas/${entrada.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ respuesta: editadas[entrada.id] }),
+      });
+      setEditadas(({ [entrada.id]: _, ...demas }) => demas);
+      await cargar();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+    } finally {
+      setEnCurso(null);
+    }
+  }
+
+  async function descartar(entrada: EntradaAprendidaDto) {
+    if (!session || !tenant) return;
+    onAviso(null);
+    setEnCurso(entrada.id);
+    try {
+      await apiFetch(config, session, tenant, `/knowledge/sources/${sourceId}/entradas/${entrada.id}`, {
+        method: 'DELETE',
+      });
+      await cargar();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+    } finally {
+      setEnCurso(null);
+    }
+  }
+
+  async function aprobar() {
+    if (!session || !tenant) return;
+    onAviso(null);
+    setCerrando(true);
+    try {
+      await apiFetch(config, session, tenant, `/knowledge/sources/${sourceId}/aprobar`, {
+        method: 'POST',
+      });
+      await alVolver();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+      setCerrando(false);
+    }
+  }
+
+  async function borrarTodo() {
+    if (!session || !tenant) return;
+    onAviso(null);
+    setCerrando(true);
+    try {
+      await apiFetch(config, session, tenant, `/knowledge/sources/${sourceId}`, { method: 'DELETE' });
+      await alVolver();
+    } catch (err) {
+      onAviso(mensajeDeError(err));
+      setCerrando(false);
+    }
+  }
+
+  if (entradas === null) return <Skeleton className="mt-6 h-40" />;
+
+  return (
+    <div className="mt-6 flex flex-col gap-4">
+      <div className="pulso-panel rounded-tarjeta border border-line bg-raised p-6">
+        <span className="rotulo">Revisa lo aprendido de tus chats</span>
+        <p className="mt-1 text-sm text-body">
+          Estas preguntas salieron de tus chats de WhatsApp. Corrige lo que no esté dicho como lo
+          dices tú, descarta lo que no quieras y aprueba: recién ahí tu asistente lo usa.
+        </p>
+        {tono && (
+          <p className="mt-2 rounded-campo border border-line bg-bg p-3 text-sm text-body">
+            <span className="font-medium text-ink">Cómo les hablas:</span> {tono}
+          </p>
+        )}
+        {entradas.length === 0 ? (
+          <p className="mt-2 text-sm text-body">
+            No quedan entradas por revisar. Si no quieres mantener la fuente, bórrala.
+          </p>
+        ) : (
+          <ul className="mt-4 flex flex-col gap-4">
+            {entradas.map((entrada) => (
+              <li key={entrada.id} className="rounded-campo border border-line bg-bg p-4">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <p className="min-w-0 flex-1 text-sm font-semibold text-ink">{entrada.pregunta}</p>
+                  <Badge role="neutral">{TIPO_DE_ENTRADA[entrada.tipo]}</Badge>
+                  {entrada.fecha && <span className="dato text-muted">{entrada.fecha}</span>}
+                </div>
+                <Textarea
+                  aria-label={`Respuesta a ${entrada.pregunta}`}
+                  className="mt-2 text-sm"
+                  rows={3}
+                  value={editadas[entrada.id] ?? entrada.respuesta}
+                  onChange={(e) => setEditadas((v) => ({ ...v, [entrada.id]: e.target.value }))}
+                />
+                {entrada.aviso && (
+                  <p className="mt-2 rounded-campo border border-warn-soft-br bg-warn-soft px-3 py-2 text-sm text-warn-text">
+                    {entrada.aviso}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {editadas[entrada.id] !== undefined && editadas[entrada.id] !== entrada.respuesta && (
+                    <Button
+                      variant="secundario"
+                      size="chico"
+                      disabled={enCurso === entrada.id}
+                      onClick={() => void guardar(entrada)}
+                    >
+                      {enCurso === entrada.id ? 'Guardando…' : 'Guardar'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="quitar"
+                    size="chico"
+                    disabled={enCurso === entrada.id}
+                    onClick={() => void descartar(entrada)}
+                  >
+                    {enCurso === entrada.id ? 'Descartando…' : 'Descartar'}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {/* El primario de esta vista: aprobar es la salida, y es lo único que
+            deja lo aprendido al servicio del asistente. */}
+        <Button disabled={cerrando || entradas.length === 0} onClick={() => void aprobar()}>
+          {cerrando ? 'Guardando…' : 'Aprobar y usar'}
+        </Button>
+        <Button variant="quitar" size="chico" disabled={cerrando} onClick={() => void borrarTodo()}>
+          Borrar todo lo aprendido
+        </Button>
+        <span className="text-xs text-muted">
+          Aprobar indexa las entradas; borrar elimina la fuente por el camino de siempre.
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function Conocimiento() {
   const { session, config } = useSession();
   const tenant = useSelectedTenant();
@@ -125,6 +336,8 @@ export function Conocimiento() {
   // Qué fuente se está reindexando (#447): reindexar dos veces la misma es
   // pagarle dos veces al proveedor de embeddings por lo mismo.
   const [reindexando, setReindexando] = useState<string | null>(null);
+  /** La fuente aprendida que se está revisando (#1406): es otra vista. */
+  const [revisando, setRevisando] = useState<string | null>(null);
   /** Lo que la IA encontraría como PRODUCTO, con precio y stock (#447). */
   const [productos, setProductos] = useState<ProductoDto[] | null>(null);
   const [resultado, setResultado] = useState<BusquedaDto | null>(null);
@@ -263,6 +476,25 @@ export function Conocimiento() {
         rotulo="Conocimiento"
         titulo="Lo que tu negocio dice"
       />
+      {revisando !== null ? (
+        <>
+          {/* La revisión reemplaza la pantalla: una decisión por vista, un
+              primario por vista (ADR-0034). Volver la trae de vuelta tal cual. */}
+          <Button variant="fantasma" size="chico" className="mt-4" onClick={() => setRevisando(null)}>
+            Volver a las fuentes
+          </Button>
+          <RevisionDeLoAprendido
+            sourceId={revisando}
+            alVolver={async () => {
+              setRevisando(null);
+              await cargar();
+            }}
+            onAviso={setAviso}
+          />
+          {aviso && <AvisoResultado>{aviso}</AvisoResultado>}
+        </>
+      ) : (
+      <>
       <p className="mt-2 text-sm text-muted">
         La IA responde SOLO con lo que cargues acá, y cita la fuente. Las que tienen vigencia
         vencida dejan de usarse solas.
@@ -445,6 +677,17 @@ export function Conocimiento() {
                   )}
                 </div>
                 <Badge role={ESTADO[f.status].role}>{ESTADO[f.status].label}</Badge>
+                {/* Lo aprendido de los chats (#1406): entra a su revisión, y
+                    de ahí salen aprobar, descartar y borrar. Acá no se ofrece
+                    ni reindexar (aún no tiene nada indexado) ni eliminar
+                    directo: la revisión es la única puerta, para que la
+                    decisión de qué entra al asistente se tome viendo las
+                    entradas. */}
+                {f.status === 'por_revisar' && (
+                  <Button variant="secundario" size="chico" onClick={() => setRevisando(f.id)}>
+                    Revisar lo aprendido
+                  </Button>
+                )}
                 {/* Reindexar (#447): la ruta existía y no la llamaba nadie,
                     así que una fuente que falló o que venció solo se podía
                     arreglar borrándola y volviendo a subirla — perdiendo
@@ -466,10 +709,12 @@ export function Conocimiento() {
                     —el archivo ya no está, el borrado completa— y subir el
                     documento de nuevo, que es el control que está arriba en
                     esta misma pantalla. */}
+                {f.status !== 'por_revisar' && (
                 <Button
                       variant="quitar" size="chico" onClick={() => void eliminar(f.id)}>
                   {f.status === 'delete_failed' ? 'Terminar de borrar' : 'Eliminar'}
                 </Button>
+                )}
               </li>
               );
             })}
@@ -540,6 +785,8 @@ export function Conocimiento() {
         <AvisoResultado>
           {aviso}
         </AvisoResultado>
+      )}
+      </>
       )}
     </div>
   );

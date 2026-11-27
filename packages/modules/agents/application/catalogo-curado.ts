@@ -71,6 +71,16 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
   ConectarWhatsAppController_conectar:
     'Conectar un número hace que el negocio mande WhatsApp de verdad, y lo autoriza el dueño en Meta: es de sus manos (#1393).',
 
+  // Aprender de los chats del negocio (#1406, ADR-0039). La regla 1 del ADR
+  // es que se pregunta ANTES, y «quién pregunta» importa tanto como el cuándo:
+  // los chats que se leerían son de los CLIENTES de la pyme, y darles esa
+  // decisión a un asistente que conversa con ellos sería la puerta giratoria
+  // de la autorización.
+  ConectarWhatsAppController_autorizarHistorial:
+    'Autorizar que IAxTi lea los chats de los clientes es una decisión del dueño, no de un asistente (#1406, ADR-0039).',
+  ConectarWhatsAppController_retirarHistorial:
+    'Retirar esa autorización es la misma decisión al revés: la toma el dueño en Canales (#1406, ADR-0039).',
+
   // Subir un archivo es de las manos de una persona, no de un agente (#522).
   // El tope de cobro del vendedor: es un ajuste de gobierno, no una acción del
   // día (#535). Leerlo no molesta a nadie, pero la ESCRITURA es justo el límite

@@ -79,6 +79,7 @@ import {
   sweepDueActivities,
 } from './sweeps';
 import { createZernioProvider, enviarPlantilla, getTemplate, listWhatsAppNumbers } from '@iaxti/module-whatsapp';
+import { EsperandoAMetaError, NOMBRE_DEL_JOB, processAprender, type JobAprender } from './aprender-de-chats';
 import { proveedorDe, proveedoresDeCuentas, proveedoresSinAdaptador, registerProvider, simuladorProvider } from '@iaxti/module-channels';
 import { canReceiveBusinessInitiated, markStalledDeals } from '@iaxti/module-crm';
 import {
@@ -1051,6 +1052,36 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
     );
     trabajadores.push({ nombre: 'cola automations', worker: automationsWorker });
     console.log('workers: worker de cola automations activo');
+
+    /**
+     * Aprender de los chats del negocio (#1406, ADR-0039).
+     *
+     * La dispara la autorización del dueño en Canales, no un barrido: sin
+     * `config.historial` vigente el job termina sin llamar a Zernio. Mientras
+     * Meta no comparta el historial, el MISMO job se replaza en delayed — el
+     * patrón del silencio de la cola outbound — con tope de 48 h.
+     */
+    const aprenderWorker = createModuleWorker(
+      'aprender-de-chats',
+      registry,
+      async (job, token) => {
+        if (job.name !== NOMBRE_DEL_JOB) return { ignorado: job.name };
+        try {
+          return await processAprender(pool, job as unknown as JobAprender, {
+            activo: (m) => registry.isActive(m),
+          });
+        } catch (err) {
+          if (err instanceof EsperandoAMetaError) {
+            await job.moveToDelayed(Date.now() + err.ms, token);
+            throw new DelayedError();
+          }
+          throw err;
+        }
+      },
+      redisConnection(),
+    );
+    trabajadores.push({ nombre: 'cola aprender-de-chats', worker: aprenderWorker });
+    console.log('workers: worker de cola aprender-de-chats activo');
   } else {
     console.log('workers: sin REDIS_URL; colas BullMQ esperan configuración');
   }

@@ -61,6 +61,7 @@ const EN_CASTELLANO: Record<AgentTask, string> = {
   transcribir: 'entender un audio que mandó un cliente',
   analizar: 'contestarle al dueño sobre sus números',
   configuracion_conversada: 'el Agente General',
+  aprender: 'aprender de los chats del negocio',
 } as Record<AgentTask, string>;
 
 export function diagnosticarLaIa(input: {

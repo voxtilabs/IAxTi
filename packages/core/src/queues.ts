@@ -12,7 +12,7 @@ import type { ModuleRegistry } from './registry';
  */
 const LLAVE_TRAZA = '__traza';
 
-/** Las seis colas por naturaleza (SPEC §28). */
+/** Las colas por naturaleza (SPEC §28), más la de aprendizaje de chats. */
 export const QUEUE_NAMES = [
   'inbound',
   'outbound',
@@ -20,6 +20,14 @@ export const QUEUE_NAMES = [
   'sync',
   'scheduled',
   'agents',
+  // Aprender de los chats del negocio (#1406, ADR-0039). Va en su propia
+  // cola y no en `agents` porque no es una respuesta a nadie: son 50 chats
+  // que leer, una generación larga y una espera de Meta que puede tardar
+  // horas — compartir fila con las sugerencias atrasaría a los clientes que
+  // acaban de escribir, que es justo lo que #1214 vino a arreglar. Y en la
+  // `scheduled` no cabe porque no es un barrido: la dispara la autorización
+  // del dueño.
+  'aprender-de-chats',
 ] as const;
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
