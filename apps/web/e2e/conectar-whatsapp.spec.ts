@@ -10,6 +10,10 @@ import { join } from 'node:path';
  * camino de la pantalla —la tarjeta, el diálogo, el número para conectar— y
  * que el pedido de alta sale con su `Idempotency-Key`. Con `CAPTURAS=1`
  * deja día y noche, en escritorio y celular.
+ *
+ * Desde #1405 el flujo empieza con la elección de la dueña —cómo usa hoy ese
+ * número— que viaja al enlace de Meta y sobrevive la vuelta para el alta: la
+ * «Meta» de mentira está en el mismo origen para que el sessionStorage cruce.
  */
 const auth = JSON.parse(readFileSync(join(__dirname, '.auth.json'), 'utf8'));
 const DESTINO = join(__dirname, '..', '..', '..', 'docs', 'evidencias', '1393');
@@ -35,6 +39,20 @@ for (const [modo, ancho, alto] of [['dia', 1280, 900], ['noche', 1280, 900], ['d
     await page.route('**/v1/channels/whatsapp/numeros', (r) =>
       r.fulfill({ json: [{ cuenta: 'acc_demo', nombre: '+56 9 2201 3949', pideReconectar: false, yaConectado: false }] }),
     );
+    // El enlace de Meta (#1405): la elección de la dueña viaja en el cuerpo.
+    // La «Meta» de mentira vive en el mismo origen de la app para que el
+    // sessionStorage —donde sobrevive la elección— cruce el pase y la vuelta.
+    let enlace: { cuerpo: unknown } | null = null;
+    await page.route('**/v1/channels/whatsapp/enlace', async (r) => {
+      enlace = { cuerpo: r.request().postDataJSON() };
+      await r.fulfill({ json: { url: new URL('/meta-de-mentira', page.url()).toString() } });
+    });
+    await page.route('**/meta-de-mentira', (r) =>
+      r.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><html lang="es"><title>Meta de mentira</title><p>Aquí autorizas tu número.</p></html>',
+      }),
+    );
     let alta: { cuerpo: unknown; llave: string | undefined } | null = null;
     await page.route('**/v1/channels/whatsapp/conectar', async (r) => {
       alta = { cuerpo: r.request().postDataJSON(), llave: r.request().headers()['idempotency-key'] };
@@ -51,6 +69,10 @@ for (const [modo, ancho, alto] of [['dia', 1280, 900], ['noche', 1280, 900], ['d
 
     await tarjeta.getByRole('button', { name: 'Conectar' }).click();
     const dialogo = page.getByRole('dialog');
+    await expect(dialogo.getByText('¿Cómo usas hoy ese número?')).toBeVisible();
+    // Antes de ir a Meta, la dueña dice cómo usa hoy ese número (#1405). Sin
+    // elección el botón no se aprieta, así que acá se elige la coexistencia.
+    await dialogo.getByRole('button', { name: 'Lo uso en la app WhatsApp Business del teléfono' }).click();
     await expect(dialogo.getByRole('button', { name: 'Conectar este número' })).toBeVisible();
     await expect(dialogo.getByRole('button', { name: 'Conectar otro número' })).toBeVisible();
     if (process.env.CAPTURAS) {
@@ -59,9 +81,18 @@ for (const [modo, ancho, alto] of [['dia', 1280, 900], ['noche', 1280, 900], ['d
       await page.screenshot({ path: join(DESTINO, `conectar-${modo}-${ancho}.png`) });
     }
 
-    await dialogo.getByRole('button', { name: 'Conectar este número' }).click();
+    await dialogo.getByRole('button', { name: 'Conectar otro número' }).click();
+    await page.waitForURL('**/meta-de-mentira');
+    expect(enlace!.cuerpo).toEqual({ modo: 'coexistencia' });
+
+    // La vuelta de Meta (?whatsapp=volvio) reabre el diálogo, y el alta manda
+    // el modo que quedó guardado: la cuenta sabe que convive con la app.
+    await page.goto('/ajustes/canales?whatsapp=volvio');
+    const dialogoDeVuelta = page.getByRole('dialog');
+    await expect(dialogoDeVuelta.getByRole('button', { name: 'Conectar este número' })).toBeVisible();
+    await dialogoDeVuelta.getByRole('button', { name: 'Conectar este número' }).click();
     await expect.poll(() => alta).not.toBeNull();
-    expect(alta!.cuerpo).toEqual({ cuenta: 'acc_demo' });
+    expect(alta!.cuerpo).toEqual({ cuenta: 'acc_demo', modo: 'coexistencia' });
     expect(alta!.llave).toMatch(/^[0-9a-f-]{36}$/);
   });
 }

@@ -52,11 +52,34 @@ describe('conectar WhatsApp desde la app: la API', () => {
   });
 
   it('sin la llave del operador responde 503 y no nombra variables ni secretos', async () => {
-    const res = await fetch(`${base}/v1/channels/whatsapp/enlace`, { method: 'POST', headers: identidad('ADMIN') });
+    // Con el cuerpo válido: sin modo el 400 de validación llega primero
+    // (el pipe de `@Cuerpo` corre antes que el método) y el 503 no se prueba.
+    const res = await fetch(`${base}/v1/channels/whatsapp/enlace`, {
+      method: 'POST',
+      headers: identidad('ADMIN'),
+      body: JSON.stringify({ modo: 'coexistencia' }),
+    });
     expect(res.status).toBe(503);
     const cuerpo = await res.json();
     expect(cuerpo.code).toBe('WHATSAPP_CONNECT_UNAVAILABLE');
     expect(cuerpo.message).not.toMatch(/ZERNIO|API_URL|GOOGLE_SECRET/);
+  });
+
+  it('el enlace sin modo es 400, antes de mirar la configuración', async () => {
+    // Acá tampoco está la llave del operador: si el 400 llega igual, la
+    // validación del cuerpo corrió antes que `dependencias()` — el pipe de
+    // `@Cuerpo` es de parámetro y Nest lo corre antes de entrar al método.
+    for (const cuerpo of [JSON.stringify({}), JSON.stringify({ modo: 'en la app' })]) {
+      const res = await fetch(`${base}/v1/channels/whatsapp/enlace`, {
+        method: 'POST',
+        headers: identidad('ADMIN'),
+        body: cuerpo,
+      });
+      expect(res.status, cuerpo).toBe(400);
+      expect((await res.json()).message).toBe(
+        'Elige cómo usas hoy ese número: en la app WhatsApp Business del teléfono, o solo para IAxTi.',
+      );
+    }
   });
 
   it('conectar sin elegir número es 400, antes de tocar nada', async () => {

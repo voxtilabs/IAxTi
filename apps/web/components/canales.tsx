@@ -602,6 +602,31 @@ const CORREO_DE_SOPORTE = 'services@voxtilabs.cl';
 const CORREO_AYUDA_CONECTAR = `mailto:${CORREO_DE_SOPORTE}?subject=${encodeURIComponent('Conectar mi WhatsApp a IAxTi')}`;
 const CORREO_OTRO_NUMERO = `mailto:${CORREO_DE_SOPORTE}?subject=${encodeURIComponent('Contratar otro número de WhatsApp en IAxTi')}`;
 
+/**
+ * Dónde sobrevive la elección de la dueña entre el pase por Meta y la vuelta
+ * (#1405). Va en `sessionStorage` y envuelto en try/catch: sin almacenamiento
+ * (modo privado, cuota llena) la conexión sigue —solo que el alta no sabrá el
+ * modo y no se escribe en la cuenta.
+ */
+const CLAVE_MODO_WHATSAPP = 'iaxti-modo-whatsapp';
+
+function guardarModoDeWhatsApp(modo: 'coexistencia' | 'api'): void {
+  try {
+    sessionStorage.setItem(CLAVE_MODO_WHATSAPP, modo);
+  } catch {
+    // No hay dónde guardarla: se elige de nuevo al conectar.
+  }
+}
+
+function modoGuardadoDeWhatsApp(): 'coexistencia' | 'api' | null {
+  try {
+    const guardado = sessionStorage.getItem(CLAVE_MODO_WHATSAPP);
+    return guardado === 'coexistencia' || guardado === 'api' ? guardado : null;
+  } catch {
+    return null;
+  }
+}
+
 function ConectarWhatsApp({
   yaHay = false,
   onConectado,
@@ -617,6 +642,9 @@ function ConectarWhatsApp({
   const [numeros, setNumeros] = useState<NumeroParaConectarDto[] | null>(null);
   const [conectando, setConectando] = useState<string | null>(null);
   const [abriendoMeta, setAbriendoMeta] = useState(false);
+  // Cómo usa hoy ese número (#1405). Sin valor por defecto a propósito: es
+  // decisión de la dueña, y «Conectar con Meta» no se aprieta sin ella.
+  const [modo, setModo] = useState<'coexistencia' | 'api' | null>(null);
 
   // Los números que el negocio ya autorizó en su perfil de Meta. Si no
   // salen, se avisa y se sigue ofreciendo el paso 1: no son requisito para
@@ -640,12 +668,16 @@ function ConectarWhatsApp({
     if (!session || !tenant || conectando) return;
     onAviso(null);
     setConectando(cuenta);
+    const modoGuardado = modoGuardadoDeWhatsApp();
     try {
       await apiFetch(config, session, tenant, '/channels/whatsapp/conectar', {
         method: 'POST',
         // Una llave nueva por intento: el alta es idempotente en la API.
         headers: { 'Idempotency-Key': crypto.randomUUID() },
-        body: JSON.stringify({ cuenta }),
+        // El modo que la dueña eligió antes de ir a Meta, si quedó guardado:
+        // con él la cuenta sabe si convive con la app del teléfono (#1405).
+        // Sin él no se manda y la API no escribe el campo.
+        body: JSON.stringify({ cuenta, ...(modoGuardado ? { modo: modoGuardado } : {}) }),
       });
       await onConectado();
     } catch (err) {
@@ -656,14 +688,21 @@ function ConectarWhatsApp({
   }
 
   async function abrirMeta() {
-    if (!session || !tenant || abriendoMeta) return;
+    if (!session || !tenant || abriendoMeta || !modo) return;
     onAviso(null);
     setAbriendoMeta(true);
     try {
       const { url } = await apiFetch<{ url: string }>(config, session, tenant, '/channels/whatsapp/enlace', {
         method: 'POST',
         headers: { 'Idempotency-Key': crypto.randomUUID() },
+        // El modo va en el cuerpo (#1405): Zernio asume coexistencia cuando
+        // el enlace no lo dice, y un número que no vive en la app entraría al
+        // flujo equivocado de Meta.
+        body: JSON.stringify({ modo }),
       });
+      // La elección tiene que sobrevivir el pase por Meta: al volver
+      // (?whatsapp=volvio), el alta la usa para marcar la cuenta.
+      guardarModoDeWhatsApp(modo);
       // Misma pestaña: al terminar, Meta vuelve con ?whatsapp=volvio y el
       // diálogo se reabre solo para elegir el número.
       window.location.assign(url);
@@ -723,12 +762,52 @@ function ConectarWhatsApp({
       ) : (
         <div className="flex flex-col gap-4 rounded-tarjeta border border-line bg-raised p-5">
           <p className="font-display font-semibold text-ink">Conecta tu número de WhatsApp Business</p>
-          <p className="text-sm text-body">Te llevamos a Meta para autorizarlo. Tu número sigue en tu teléfono.</p>
+          <p className="text-sm text-body">Te llevamos a Meta para autorizarlo.</p>
+          {/* La pregunta va ANTES de ir a Meta (#1405): lo que la dueña
+              contesta acá es lo que Zernio abre en el Embedded Signup, y
+              sin contestarlo no se sigue adelante. Elección de dos, como las
+              otras del producto: grupo de Button con aria-pressed. */}
+          <fieldset className="flex flex-col gap-3">
+            <legend className="text-sm font-medium text-ink">¿Cómo usas hoy ese número?</legend>
+            {(
+              [
+                {
+                  valor: 'coexistencia',
+                  titulo: 'Lo uso en la app WhatsApp Business del teléfono',
+                  detalle:
+                    'Sigues contestando desde tu teléfono y IAxTi trabaja al lado. Podemos traer tus chats anteriores.',
+                },
+                {
+                  valor: 'api',
+                  titulo: 'Es un número nuevo o solo para IAxTi',
+                  detalle: 'El número no queda en la app del teléfono: se atiende desde IAxTi.',
+                },
+              ] as const
+            ).map((opcion) => (
+              // Dos tarjetas iguales y la elegida en el azul de acción: con un
+              // botón con borde al lado de uno fantasma, la otra opción se leía
+              // como texto suelto y no como una alternativa del mismo rango.
+              <button
+                key={opcion.valor}
+                type="button"
+                aria-pressed={modo === opcion.valor}
+                aria-label={opcion.titulo}
+                aria-describedby={`modo-${opcion.valor}`}
+                onClick={() => setModo(opcion.valor)}
+                className={`flex w-full flex-col items-start gap-1 rounded-campo border p-3 text-left transition-colors ${
+                  modo === opcion.valor ? 'border-action bg-action-soft' : 'border-line bg-bg hover:bg-rest'
+                }`}
+              >
+                <span className="text-sm font-medium text-ink">{opcion.titulo}</span>
+                <span id={`modo-${opcion.valor}`} className="text-xs text-muted">{opcion.detalle}</span>
+              </button>
+            ))}
+          </fieldset>
           <span className="flex flex-wrap gap-2">
             <Button
               variant={porConectar.length > 0 ? 'secundario' : 'primario'}
               onClick={() => void abrirMeta()}
-              disabled={abriendoMeta}
+              disabled={abriendoMeta || modo === null}
             >
               {abriendoMeta ? 'Abriendo Meta…' : porConectar.length > 0 ? 'Conectar otro número' : 'Conectar con Meta'}
             </Button>
