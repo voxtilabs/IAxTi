@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import type { ActorKind } from '@iaxti/module-audit';
 import {
   createChannelAccount,
   setChannelState,
@@ -83,8 +84,13 @@ export async function connectWhatsAppNumber(
     phoneNumberId?: string;
     wabaId?: string;
     displayPhone?: string;
-    credentialRef: string;
-    webhookSecretRef: string;
+    /**
+     * Sin referencias solo con `activar: false`: el alta desde la app (#1393)
+     * crea la cuenta primero —el webhook necesita su id— y la apunta a sus
+     * secretos y la activa en una segunda transacción.
+     */
+    credentialRef?: string;
+    webhookSecretRef?: string;
     /** El onboarding activa solo después de custodiar y confirmar su webhook. */
     activar?: boolean;
     /**
@@ -100,8 +106,15 @@ export async function connectWhatsAppNumber(
     provider?: string;
     /** Ids públicos del proveedor que la cuenta guarda además del emisor. Nunca secretos. */
     configDelProveedor?: Record<string, unknown>;
+    /** Quién conecta: la reserva del emisor queda a su nombre en audit (#1393). */
+    actor?: string;
+    actorKind?: ActorKind;
+    requestId?: string;
   },
 ): Promise<{ number: WhatsAppNumber; account: ChannelAccountRef }> {
+  if ((!input.credentialRef || !input.webhookSecretRef) && input.activar !== false) {
+    throw new Error('Un canal no se activa sin su credencial y el secreto de su webhook.');
+  }
   await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`whatsapp-numbers:${input.tenantId}`]);
   const propietario = await tenantDelEmisor(client, input.senderId);
   if (propietario && propietario !== input.tenantId) throw new Error('Ese emisor pertenece a otro negocio.');
@@ -116,7 +129,7 @@ export async function connectWhatsAppNumber(
   const max = await numerosPermitidos(client, input.tenantId);
   if (existentes.rows[0].n >= max) {
     throw new Error(
-      `Tu plan permite ${max} número${max === 1 ? '' : 's'} de WhatsApp. Sube de plan para conectar otro.`,
+      `Tu plan permite ${max} número${max === 1 ? '' : 's'} de WhatsApp. Para contratar otro, escríbenos a services@voxtilabs.cl.`,
     );
   }
 
@@ -124,8 +137,8 @@ export async function connectWhatsAppNumber(
     tenantId: input.tenantId,
     kind: 'whatsapp',
     name: input.name,
-    credentialRef: input.credentialRef,
-    webhookSecretRef: input.webhookSecretRef,
+    ...(input.credentialRef ? { credentialRef: input.credentialRef } : {}),
+    ...(input.webhookSecretRef ? { webhookSecretRef: input.webhookSecretRef } : {}),
     ...(input.provider ? { provider: input.provider } : {}),
     config: {
       // Primero lo del proveedor, para que no pueda pisar el emisor ni la
@@ -159,7 +172,14 @@ export async function connectWhatsAppNumber(
     }
     throw err;
   }
-  await reservarEmisor(client, { tenantId: input.tenantId, senderId: input.senderId, accountId: account.id });
+  await reservarEmisor(client, {
+    tenantId: input.tenantId,
+    senderId: input.senderId,
+    accountId: account.id,
+    ...(input.actor ? { actor: input.actor } : {}),
+    ...(input.actorKind ? { actorKind: input.actorKind } : {}),
+    ...(input.requestId ? { requestId: input.requestId } : {}),
+  });
   // Con webhook verificado el canal queda activo; #45 lo degrada por calidad.
   const activa = input.activar === false ? account : await setChannelState(client, {
     tenantId: input.tenantId,

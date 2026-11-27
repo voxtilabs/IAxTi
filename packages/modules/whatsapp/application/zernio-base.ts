@@ -1,3 +1,4 @@
+import { credencialDeLaCuenta } from './webhook-secret';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { textoDeEntorno } from '@iaxti/core';
 import { ErrorPermanente } from './outbound';
@@ -141,14 +142,18 @@ export class ErrorDeZernio extends Error {
 
 /**
  * La llave de la cuenta, por referencia: la cuenta guarda el NOMBRE de la
- * variable, nunca el valor (mismo contrato que seguía Zavu, SPEC §17).
+ * variable o la referencia a la custodia, nunca el valor (SPEC §17, #1393).
  */
-export function llaveDeLaCuenta(credentialRef: string | null, cuentaId: string): string {
-  const apiKey = credentialRef ? process.env[credentialRef] : undefined;
+export async function llaveDeLaCuenta(account: {
+  tenantId: string;
+  id: string;
+  credentialRef: string | null;
+}): Promise<string> {
+  const apiKey = await credencialDeLaCuenta(account);
   if (!apiKey) {
     throw new ErrorPermanente(
       'Este canal no tiene su credencial configurada. Un administrador tiene que reconectarlo en Canales.',
-      `La cuenta ${cuentaId} no tiene su llave de Zernio en el entorno.`,
+      `La cuenta ${account.id} no tiene su llave de Zernio (ni en el entorno ni en la custodia).`,
     );
   }
   return apiKey;

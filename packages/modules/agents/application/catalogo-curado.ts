@@ -62,6 +62,15 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
     'Webhook de pagos: el agente podría dar por pagado un cobro que nadie pagó (#61).',
   WebchatController_config: 'La llama el widget del sitio del cliente, no una persona (#46).',
 
+  // Conectar WhatsApp desde la app (#1393, ADR-0038). El asistente sí ayuda
+  // —manda a Ajustes → Canales—, pero el alta es de las manos del dueño.
+  ConectarWhatsAppController_enlace:
+    'El enlace de Meta lleva un token de conexión: no pasa por el proveedor de IA. El asistente manda a Ajustes → Canales (#1393).',
+  ConectarWhatsAppController_numeros:
+    'Es el paso 2 de la pantalla de conexión; sin el paso 1 (que no es herramienta) no sirve de nada (#1393).',
+  ConectarWhatsAppController_conectar:
+    'Conectar un número hace que el negocio mande WhatsApp de verdad, y lo autoriza el dueño en Meta: es de sus manos (#1393).',
+
   // Subir un archivo es de las manos de una persona, no de un agente (#522).
   // El tope de cobro del vendedor: es un ajuste de gobierno, no una acción del
   // día (#535). Leerlo no molesta a nadie, pero la ESCRITURA es justo el límite

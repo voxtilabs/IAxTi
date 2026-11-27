@@ -212,7 +212,7 @@ export function createZernioProvider(
      */
 
     async send(account: ChannelAccountRef, message: OutboundMessage) {
-      const apiKey = llaveDeLaCuenta(account.credentialRef, account.id);
+      const apiKey = await llaveDeLaCuenta(account);
       const cfg: ConfigDeZernio = { apiKey, apiBase, fetchImpl };
       // El `accountId` de Zernio, no el nuestro: es la cuenta conectada allá
       // que responde por este número. Mismo papel que tenía `senderId` en Zavu.

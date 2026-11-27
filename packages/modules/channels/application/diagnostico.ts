@@ -3,6 +3,7 @@ import { refParaMostrar } from '@iaxti/core';
 import { rastroDeWebhook, type RastroDeWebhook } from './rastro';
 import { findAccountById } from './accounts';
 import type { ChannelAccountRef } from '../domain/port';
+import { PREFIJO_CUSTODIA } from './secretos-en-custodia';
 
 /**
  * Por qué no llegan los mensajes (#434).
@@ -58,7 +59,8 @@ export async function diagnosticarCanal(
   },
   deps: {
     /** ¿Existe la variable de entorno con ese nombre? El VALOR no se mira. */
-    hayCredencial: (ref: string | null) => boolean;
+    /** Puede LEER la llave (custodia, #1393): por eso es asíncrona. */
+    hayCredencial: (ref: string | null) => boolean | Promise<boolean>;
     /** Cuántas plantillas aprobadas tiene el negocio. Solo WhatsApp. */
     plantillasAprobadas?: () => Promise<number>;
     /** ¿Hay un número conectado? Solo WhatsApp. */
@@ -94,7 +96,7 @@ export async function diagnosticarCanal(
   // un mensaje no salió, hay que decirle que lo que escriba SALE DE VERDAD.
   const avisoReal = pasoDeEnviosReales(cuenta, input.ambiente);
   if (avisoReal) pasos.unshift(avisoReal);
-  pasos.push(pasoDeLaCredencial(cuenta, deps.hayCredencial));
+  pasos.push(await pasoDeLaCredencial(cuenta, deps.hayCredencial));
   pasos.push(pasoDelWebhook(rastro, ahora));
   const sinTelefono = pasoDeLosSinTelefono(rastro, ahora);
   if (sinTelefono) pasos.push(sinTelefono);
@@ -310,10 +312,10 @@ async function pasoDelEmisor(
   };
 }
 
-function pasoDeLaCredencial(
+async function pasoDeLaCredencial(
   cuenta: ChannelAccountRef,
-  hayCredencial: (ref: string | null) => boolean,
-): PasoDelDiagnostico {
+  hayCredencial: (ref: string | null) => boolean | Promise<boolean>,
+): Promise<PasoDelDiagnostico> {
   const ref = cuenta.credentialRef;
   if (!ref) {
     return {
@@ -324,7 +326,18 @@ function pasoDeLaCredencial(
       queHacer: 'Vuelve a conectar el canal para que quede guardada la referencia.',
     };
   }
-  const hay = hayCredencial(ref);
+  const hay = await hayCredencial(ref);
+  if (ref.startsWith(PREFIJO_CUSTODIA)) {
+    // Guardada por el alta desde la app (#1393): no hay variable que nombrar
+    // ni despliegue que tocar. Si no se puede leer, se reconecta.
+    return {
+      id: 'credencial',
+      titulo: 'Credencial del proveedor',
+      estado: hay ? 'bien' : 'mal',
+      detalle: hay ? 'Guardada cifrada en IAxTi.' : 'Está guardada, pero no la pudimos leer.',
+      ...(hay ? {} : { queHacer: 'Vuelve a conectar el número desde Ajustes → Canales: se guarda una llave nueva.' }),
+    };
+  }
   return {
     id: 'credencial',
     titulo: 'Credencial del proveedor',

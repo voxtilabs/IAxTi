@@ -9,6 +9,7 @@ import {
   baseDeZernio,
   downloadAttachmentsToR2,
   type AdjuntoEntrante,
+  credencialDeLaCuenta,
 } from '@iaxti/module-whatsapp';
 
 /**
@@ -80,7 +81,9 @@ export async function processInbound(
     if (conMedia && data.channelAccountId) {
       try {
         const account = await findAccountById(client, data.channelAccountId);
-        const apiKey = account?.credentialRef ? process.env[account.credentialRef] : undefined;
+        // Del entorno o de la custodia (#1393): un fallo de la custodia es
+        // «sin llave», que abajo se dice en voz alta.
+        const apiKey = account ? await credencialDeLaCuenta(account).catch(() => undefined) : undefined;
         const storage = storageFromEnv();
         // Por qué NO se baja, dicho en voz alta.
         //

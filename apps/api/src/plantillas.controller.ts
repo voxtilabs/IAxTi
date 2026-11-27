@@ -24,6 +24,7 @@ import {
   marcarEnviadaARevision,
   updateTemplate,
   type EstadoPlantilla,
+  hayCredencialDeLaCuenta,
 } from '@iaxti/module-whatsapp';
 import { canReceiveBusinessInitiated } from '@iaxti/module-crm';
 import { sendMessage } from '@iaxti/module-conversations';
@@ -73,9 +74,11 @@ async function cuentaDeWhatsApp(
   if (!cuenta) {
     throw new Error('Primero conecta el número de WhatsApp del negocio en Ajustes → Canales.');
   }
-  if (!cuenta.credentialRef || !process.env[cuenta.credentialRef]) {
+  if (!(await hayCredencialDeLaCuenta(cuenta))) {
     throw new Error(
-      `Falta la variable ${refParaMostrar(cuenta.credentialRef)} en este ambiente (credenciales por referencia).`,
+      cuenta.credentialRef?.startsWith('cu:')
+        ? 'No pudimos leer la llave de este canal. Reconéctalo en Ajustes → Canales.'
+        : `Falta la variable ${refParaMostrar(cuenta.credentialRef)} en este ambiente (credenciales por referencia).`,
     );
   }
   if (!cuenta.config.senderId) throw new Error('La cuenta de WhatsApp no tiene senderId configurado.');
