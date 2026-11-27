@@ -38,10 +38,14 @@ export function FichaYConversaciones({ contactId }: { contactId: string }) {
   }, [config, session, tenant, contactId]);
   useEffect(() => void cargar(), [cargar]);
 
+  // En el celular las conversaciones van PRIMERO (#1412): son lo segundo más
+  // importante de la ficha —quién es y cómo hablarle— y caían al fondo después
+  // de toda la administración. En escritorio la ficha queda a la izquierda,
+  // como en toda la app (la bandeja también tiene la ficha a la derecha).
   return (
     <div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
-      <div className="flex-1"><FichaContacto contactId={contactId} conversaciones={conversaciones} /></div>
-      <aside className="lg:w-96"><HistoriaConversaciones items={conversaciones} /></aside>
+      <div className="order-last min-w-0 flex-1 lg:order-none"><FichaContacto contactId={contactId} conversaciones={conversaciones} /></div>
+      <aside className="order-first lg:order-none w-full lg:w-96 lg:shrink-0"><HistoriaConversaciones items={conversaciones} /></aside>
     </div>
   );
 }
