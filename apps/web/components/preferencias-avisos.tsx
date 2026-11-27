@@ -36,6 +36,8 @@ const NOMBRES: Record<string, string> = {
   // mostraba la llave cruda («estado_cuenta») como nombre (#1346).
   estado_cuenta: 'El estado de tu cuenta cambió',
   cupo_del_canal: 'Cupo diario del canal por agotarse',
+  // Lo aprendido de los chats quedó por revisar (#1406, ADR-0039).
+  aprendizaje_listo: 'Lo que aprendí de tus chats está listo para revisar',
 };
 
 /**
