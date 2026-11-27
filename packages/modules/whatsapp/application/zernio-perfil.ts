@@ -459,6 +459,13 @@ export async function darDeAltaCuentaDeZernio(
     zernioAccountId: string;
     zernioProfileId: string;
     displayPhone?: string;
+    /**
+     * Si ese número vive también en la app WhatsApp Business del teléfono
+     * (#1405). Dato público —lo elige la dueña en la pantalla— y va en el
+     * `config` de la cuenta junto a los ids de Zernio. Sin él no se escribe:
+     * no hay de dónde saberlo.
+     */
+    coexistencia?: boolean;
     /** Las dos, o ninguna y `activar: false` (alta desde la app, #1393). */
     credentialRef?: string;
     webhookSecretRef?: string;
@@ -479,7 +486,11 @@ export async function darDeAltaCuentaDeZernio(
     ...(input.activar === false ? { activar: false } : {}),
     enviosReales: input.enviosReales,
     provider: 'zernio',
-    configDelProveedor: { zernioAccountId: input.zernioAccountId, zernioProfileId: input.zernioProfileId },
+    configDelProveedor: {
+      zernioAccountId: input.zernioAccountId,
+      zernioProfileId: input.zernioProfileId,
+      ...(input.coexistencia !== undefined ? { coexistencia: input.coexistencia } : {}),
+    },
     ...(input.actor ? { actor: input.actor } : {}),
     ...(input.actorKind ? { actorKind: input.actorKind } : {}),
     ...(input.requestId ? { requestId: input.requestId } : {}),

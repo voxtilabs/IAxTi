@@ -37,6 +37,8 @@ let custodia: GoogleSecretStore;
 interface Llamada {
   metodo: string;
   ruta: string;
+  /** El query string, aparte: el `onboarding` del enlace vive ahí (#1405). */
+  busqueda: string;
   llave: string;
   cuerpo: Record<string, unknown> | null;
 }
@@ -51,7 +53,7 @@ function zernioFalso(opciones: { cuentas: Array<{ _id: string; displayName: stri
     const metodo = init.method ?? 'GET';
     const llave = String((init.headers as Record<string, string>).authorization).replace('Bearer ', '');
     const cuerpo = init.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
-    llamadas.push({ metodo, ruta: u.pathname, llave, cuerpo });
+    llamadas.push({ metodo, ruta: u.pathname, busqueda: u.search, llave, cuerpo });
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
     if (u.pathname === '/v1/profiles' && metodo === 'GET') {
@@ -105,8 +107,15 @@ function dependencias(
   };
 }
 
-const conectar = (deps: DependenciasDelAlta, tenantId: string, cuenta: string) =>
-  conectarNumeroDesdeLaApp(deps, { tenantId, cuenta, actor: 'usuario-1393', actorKind: 'user', requestId: 'req_1393' });
+const conectar = (deps: DependenciasDelAlta, tenantId: string, cuenta: string, modo?: 'coexistencia' | 'api') =>
+  conectarNumeroDesdeLaApp(deps, {
+    tenantId,
+    cuenta,
+    ...(modo ? { modo } : {}),
+    actor: 'usuario-1393',
+    actorKind: 'user',
+    requestId: 'req_1393',
+  });
 
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
@@ -148,7 +157,7 @@ describe('conectar WhatsApp desde la app', () => {
   it('el número queda activo, y su llave vive en la custodia y en ningún otro lado', async () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: '+56 9 2201 3949' }] });
     const deps = dependencias(z);
-    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería' });
+    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería', modo: 'api' });
 
     const { account, renovada } = await conectar(deps, tenant, 'acc_1393_a');
     expect(renovada).toBe(false);
@@ -190,7 +199,7 @@ describe('conectar WhatsApp desde la app', () => {
   it('una cuenta que no está en el perfil de ESTE negocio no se conecta', async () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: 'Peluquería' }] });
     const deps = dependencias(z);
-    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería' });
+    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería', modo: 'api' });
     await expect(conectar(deps, tenant, 'acc_de_otro')).rejects.toBeInstanceOf(ErrorDelAlta);
     const n = await admin.query('SELECT count(*)::int AS n FROM channel_accounts WHERE tenant_id = $1', [tenant]);
     expect(n.rows[0].n).toBe(0);
@@ -200,7 +209,7 @@ describe('conectar WhatsApp desde la app', () => {
   it('fuera de producción, sin declarar envíos reales, no llama a Zernio', async () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: 'Peluquería' }] });
     const deps = dependencias(z, { produccion: false, enviosRealesDeclarados: false });
-    await expect(enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'x' })).rejects.toThrow(
+    await expect(enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'x', modo: 'api' })).rejects.toThrow(
       /ZERNIO_ENVIOS_REALES/,
     );
     await expect(conectar(deps, tenant, 'acc_1393_a')).rejects.toThrow(/ZERNIO_ENVIOS_REALES/);
@@ -210,7 +219,7 @@ describe('conectar WhatsApp desde la app', () => {
   it('declarado fuera de producción, el canal queda marcado como de envíos reales', async () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: 'Peluquería' }] });
     const deps = dependencias(z, { produccion: false, enviosRealesDeclarados: true });
-    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería' });
+    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería', modo: 'api' });
     const { account } = await conectar(deps, tenant, 'acc_1393_a');
     expect(account.config.enviosReales).toBe(true);
   });
@@ -218,7 +227,7 @@ describe('conectar WhatsApp desde la app', () => {
   it('reconectar reusa el canal, cambia la llave y destruye la anterior de la custodia', async () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: 'Peluquería' }] });
     const deps = dependencias(z);
-    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería' });
+    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería', modo: 'api' });
     const primera = await conectar(deps, tenant, 'acc_1393_a');
     const antes = (await admin.query('SELECT credential_ref FROM channel_accounts WHERE id = $1', [primera.account.id])).rows[0];
 
@@ -236,7 +245,7 @@ describe('conectar WhatsApp desde la app', () => {
   it('si el alta se corta a mitad, el canal no queda activo y no deja secretos ni llaves vivas', async () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: 'Peluquería' }], fallaWebhook: true });
     const deps = dependencias(z);
-    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería' });
+    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería', modo: 'api' });
     await expect(conectar(deps, tenant, 'acc_1393_a')).rejects.toThrow();
     const fila = (await admin.query('SELECT state, credential_ref FROM channel_accounts WHERE tenant_id = $1', [tenant])).rows[0];
     expect(fila.state).toBe('connecting');
@@ -260,7 +269,7 @@ describe('conectar WhatsApp desde la app', () => {
   it('una referencia copiada a la cuenta de OTRO negocio no se resuelve', async () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: 'Peluquería' }] });
     const deps = dependencias(z);
-    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería' });
+    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería', modo: 'api' });
     const { account } = await conectar(deps, tenant, 'acc_1393_a');
     const fila = (
       await admin.query('SELECT credential_ref, webhook_secret_ref FROM channel_accounts WHERE id = $1', [account.id])
@@ -280,5 +289,45 @@ describe('conectar WhatsApp desde la app', () => {
     const z = zernioFalso({ cuentas: [{ _id: 'acc_1393_a', displayName: 'Peluquería' }] });
     expect(await numerosParaConectar(dependencias(z), { tenantId: tenant })).toEqual([]);
     expect(z.llamadas.some((l) => l.metodo !== 'GET')).toBe(false);
+  });
+
+  it('coexistencia: el enlace le dice a Zernio onboarding=business_app, el flujo de la app del teléfono', async () => {
+    const z = zernioFalso({ cuentas: [{ _id: 'acc_1405_a', displayName: '+56 9 2201 4050' }] });
+    await enlaceParaConectarDesdeLaApp(dependencias(z), {
+      tenantId: tenant,
+      nombreDelNegocio: 'Peluquería',
+      modo: 'coexistencia',
+    });
+    const enlace = z.llamadas.find((l) => l.ruta === '/v1/connect/whatsapp')!;
+    expect(new URLSearchParams(enlace.busqueda).get('onboarding')).toBe('business_app');
+  });
+
+  it('número solo para IAxTi: el enlace le dice a Zernio onboarding=api', async () => {
+    const z = zernioFalso({ cuentas: [{ _id: 'acc_1405_a', displayName: '+56 9 2201 4050' }] });
+    await enlaceParaConectarDesdeLaApp(dependencias(z), {
+      tenantId: tenant,
+      nombreDelNegocio: 'Peluquería',
+      modo: 'api',
+    });
+    const enlace = z.llamadas.find((l) => l.ruta === '/v1/connect/whatsapp')!;
+    expect(new URLSearchParams(enlace.busqueda).get('onboarding')).toBe('api');
+  });
+
+  it('conectar con modo deja dicho en la cuenta si el número convive con la app; sin modo no se escribe', async () => {
+    const z = zernioFalso({
+      cuentas: [
+        { _id: 'acc_1405_a', displayName: '+56 9 2201 4050' },
+        { _id: 'acc_1405_b', displayName: '+56 9 2201 4051' },
+        { _id: 'acc_1405_c', displayName: '+56 9 2201 4052' },
+      ],
+    });
+    const deps = dependencias(z);
+    await enlaceParaConectarDesdeLaApp(deps, { tenantId: tenant, nombreDelNegocio: 'Peluquería', modo: 'coexistencia' });
+    const convive = await conectar(deps, tenant, 'acc_1405_a', 'coexistencia');
+    expect(convive.account.config.coexistencia).toBe(true);
+    const solo = await conectar(deps, tenant, 'acc_1405_b', 'api');
+    expect(solo.account.config.coexistencia).toBe(false);
+    const sinDecir = await conectar(deps, tenant, 'acc_1405_c');
+    expect(sinDecir.account.config.coexistencia).toBeUndefined();
   });
 });

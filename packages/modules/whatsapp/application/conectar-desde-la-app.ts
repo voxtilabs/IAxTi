@@ -71,15 +71,25 @@ function exigirAmbiente(deps: DependenciasDelAlta): { enviosReales: boolean } {
   return { enviosReales: true };
 }
 
-/** Paso 1: el enlace para conectar el número EN el perfil de este negocio. */
+/**
+ * Paso 1: el enlace para conectar el número EN el perfil de este negocio.
+ *
+ * `modo` (#1405) es la respuesta de la dueña ANTES de ir a Meta: si el número
+ * vive en la app WhatsApp Business del teléfono (`coexistencia`) o si es un
+ * número nuevo o solo para IAxTi (`api`). Zernio asume coexistencia cuando el
+ * enlace no lo dice, y un número que no está en la app entra al flujo
+ * equivocado de Meta: por eso el modo es obligatorio y se traduce al
+ * `onboarding` de la spec (`business_app` / `api`).
+ */
 export async function enlaceParaConectarDesdeLaApp(
   deps: DependenciasDelAlta,
-  input: { tenantId: string; nombreDelNegocio: string; volverA?: string },
+  input: { tenantId: string; nombreDelNegocio: string; modo: 'coexistencia' | 'api'; volverA?: string },
 ): Promise<{ url: string }> {
   exigirAmbiente(deps);
   const { perfil } = await perfilDelTenant(deps.zernio, { tenantId: input.tenantId, nombre: input.nombreDelNegocio });
   const url = await enlaceParaConectar(deps.zernio, {
     profileId: perfil._id,
+    modo: input.modo === 'coexistencia' ? 'business_app' : 'api',
     ...(input.volverA ? { redirectUrl: input.volverA } : {}),
   });
   return { url };
@@ -149,6 +159,14 @@ export async function conectarNumeroDesdeLaApp(
     tenantId: string;
     cuenta: string;
     nombre?: string;
+    /**
+     * Cómo usa el negocio ese número hoy (#1405). Si viene, la cuenta queda
+     * con `config.coexistencia` —un dato público, no secreto— para que
+     * Canales y el paso del historial sepan qué tipo de conexión es. Sin él
+     * no se escribe el campo: el criterio honesto es lo que la dueña eligió
+     * en la pantalla, no lo que adivinemos del proveedor.
+     */
+    modo?: 'coexistencia' | 'api';
     actor: string;
     actorKind: ActorKind;
     requestId?: string;
@@ -180,6 +198,7 @@ export async function conectarNumeroDesdeLaApp(
       zernioAccountId: input.cuenta,
       zernioProfileId: perfil._id,
       ...(telefono ? { displayPhone: telefono } : {}),
+      ...(input.modo ? { coexistencia: input.modo === 'coexistencia' } : {}),
       activar: false,
       enviosReales,
       actor: input.actor,
