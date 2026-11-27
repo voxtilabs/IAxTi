@@ -190,6 +190,13 @@
         "archivo": "apps/web/components/webhooks-salientes.tsx",
         "fragmento": "Todavía no hay webhooks."
       }
+    },
+    "conocimiento.tsx#entradas": {
+      "motivo": "La revisión de lo aprendido de los chats (#1406, ADR-0039) muestra el estado vacío cuando la dueña descarta la última entrada: sin esto quedaría una tarjeta sin contenido y sin salida clara. La salida que ofrece es borrar la fuente, que es el camino de siempre (SPEC §39).",
+      "evidencia": {
+        "archivo": "apps/web/components/conocimiento.tsx",
+        "fragmento": "No quedan entradas por revisar. Si no quieres mantener la fuente, bórrala."
+      }
     }
   }
 }

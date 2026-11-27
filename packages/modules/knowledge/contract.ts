@@ -50,3 +50,19 @@ export {
 } from './application/embeddings';
 export type { EmbedPort, PdfTextPort, UrlTextPort, RolDelTexto } from './application/embeddings';
 export { splitIntoChunks, stripHtml, hashQuery } from './domain/chunking';
+// Lo aprendido de los chats del negocio (#1406, ADR-0039): la fuente nace
+// `por_revisar`, la dueña la revisa entrada por entrada y al aprobar entra
+// por el camino de siempre. La crea el job de workers; el resto lo maneja
+// la pantalla de Conocimiento.
+export {
+  crearFuenteAprendida,
+  leerFuenteAprendida,
+  editarEntradaAprendida,
+  descartarEntradaAprendida,
+  aprobarFuenteAprendida,
+} from './application/aprendidas';
+export type {
+  EntradaAprendida,
+  LoAprendidoGuardado,
+  TipoDeEntrada,
+} from './application/aprendidas';
