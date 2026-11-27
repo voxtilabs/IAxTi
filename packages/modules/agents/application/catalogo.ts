@@ -1,5 +1,5 @@
 import { OPERACIONES_DE_LA_API, type OperacionDeLaApi } from './catalogo.generated';
-import { SUGERENCIAS, SUGERENCIA_DE_ULTIMO_RECURSO } from '../domain/sugerencias';
+import { SUGERENCIAS, SUGERENCIAS_DE_PRIMERA_VEZ, SUGERENCIA_DE_ULTIMO_RECURSO } from '../domain/sugerencias';
 import { DESCRIPCIONES, NO_SON_HERRAMIENTA, SIN_CONFIRMACION } from './catalogo-curado';
 
 /**
@@ -122,11 +122,21 @@ export function sugerenciasPara(input: {
   pantalla: string | null;
   permisos: ReadonlySet<string>;
   modulosActivos: ReadonlySet<string>;
+  /**
+   * El negocio no tiene asistentes: la primera vez en «Tu asistente» (#1401).
+   * Solo cambia lo que se ofrece en esa pantalla; lo responde quien llama,
+   * mirando la base, porque el dominio no la toca.
+   */
+  sinAsistentes?: boolean;
   /** Cuántas devolver. Tres o cuatro: más es un menú, y un menú no invita. */
   cuantas?: number;
 }): string[] {
   const puede = new Set(herramientasPara(input).map((h) => h.nombre));
-  const deLaPantalla = SUGERENCIAS.filter(
+  // La primera vez se juega con otro mazo: las de siempre de esa pantalla
+  // hablan de un asistente que todavía no existe.
+  const base =
+    input.sinAsistentes && input.pantalla === 'asistente' ? SUGERENCIAS_DE_PRIMERA_VEZ : SUGERENCIAS;
+  const deLaPantalla = base.filter(
     (s) => s.pantalla === input.pantalla && puede.has(s.herramienta),
   );
   // Sin ninguna de su pantalla, el último recurso: «¿qué me falta configurar?»

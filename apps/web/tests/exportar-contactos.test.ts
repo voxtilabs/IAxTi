@@ -14,14 +14,15 @@ const CONTACTOS = readFileSync(join(__dirname, '..', 'components', 'crm', 'conta
 const API = readFileSync(join(__dirname, '..', 'lib', 'api.ts'), 'utf8');
 
 describe('exportar la cartera', () => {
-  it('el botón vive junto a Importar', () => {
+  it('las exportaciones viven en el menú de importar o exportar (#1395)', () => {
     expect(CONTACTOS).toContain("'/contacts/exportar'");
-    // Decía 'Exportar CSV'. Desde #709 el botón principal es Excel y el CSV
-    // queda al lado, en fantasma: el CSV sirve para importar a otro sistema,
-    // pero casi siempre lo que se quiere es ABRIR la lista — y ahí el CSV falla
-    // por el separador y por no tener tipos.
-    expect(CONTACTOS).toContain('Exportar Excel');
-    expect(CONTACTOS, 'el CSV sigue estando').toMatch(/onClick=\{\(\) => void exportar\(\)\}/);
+    // Desde #1395 los tres movimientos de datos —importar, Excel, CSV— bajaron
+    // a un solo menú secundario, porque el primario de la vista es crear un
+    // contacto a mano. Los rótulos llevan verbo: «Exportar a Excel», «Exportar
+    // en CSV», que es lo que #1118 pedía para el fantasma de antes.
+    expect(CONTACTOS).toContain('Exportar a Excel');
+    expect(CONTACTOS).toContain('Exportar en CSV');
+    expect(CONTACTOS, 'el CSV sigue estando').toMatch(/onSelect=\{\(\) => void exportar\(\)\}/);
   });
 
   it('y la planilla sale por su propia ruta, con su propio ayudante (#709)', () => {

@@ -69,4 +69,18 @@ describe('la propuesta de crear un asistente', () => {
     expect(screen.getByText('fooBar')).toBeTruthy();
     expect(screen.getByText('x')).toBeTruthy();
   });
+
+  it('la etiqueta dice qué ES: crear tu asistente, no la ficha de la herramienta (#1401)', () => {
+    // «Crea un asistente (proveedor y modelo configurables)» es la
+    // descripción del catálogo: le importa a quien programa. En el momento
+    // de aprobar, la dueña decide sobre SU asistente.
+    montar();
+    expect(screen.getByText('Crear tu asistente')).toBeTruthy();
+    expect(screen.queryByText('Crea un asistente (proveedor y modelo configurables)')).toBeNull();
+  });
+
+  it('la de cambiar dice «Cambiar tu asistente»', () => {
+    montar({ ...CREAR_ASISTENTE, herramienta: 'agents.update' });
+    expect(screen.getByText('Cambiar tu asistente')).toBeTruthy();
+  });
 });

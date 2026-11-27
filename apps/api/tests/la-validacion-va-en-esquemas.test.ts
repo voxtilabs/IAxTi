@@ -46,7 +46,11 @@ const CON_MOTIVO: Record<string, number> = {
   // Relevo del dominio: el mensaje lo arma comparando `custom` contra los
   // campos que DECLARÓ ese negocio (tipo, obligatoriedad, opciones de lista).
   // El esquema no sabe qué declaró cada tenant.
-  'contacts.controller.ts': 1,
+  // Y relevo del teléfono a mano (#1395): `normalizePhone` valida contra el
+  // plan de numeración real (libphonenumber); duplicar esa regla en un esquema
+  // zod dejaría dos validaciones de teléfono que discrepan el día que el país
+  // agrega un bloque. El módulo ya lanza el error tipado con su mensaje.
+  'contacts.controller.ts': 2,
   // Mixtos: un relevo y validaciones que necesitan la zona del negocio. La
   // cuarta es el rango de los motivos de cancelación (#700): son parámetros de
   // query y `@Cuerpo` solo cubre cuerpos.

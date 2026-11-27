@@ -1,0 +1,167 @@
+[
+  {
+    "caso": "peluqueria",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 111,
+    "propone": true,
+    "pasa": true,
+    "ms": 13309,
+    "texto": "Perfecto. Te propongo dos asistentes separados: uno para agendar y otro para precios. Parto por el de agendar.\n\nDejé lista la creación del asistente de horas — en modo asistido — con estos detalles:\n- Atiende WhatsApp para agendar cortes, color y peinados.\n- Martes a sábado, 10:00 a 19:00.\n- Siempre consulta huecos antes de ofrecer hora y confirma la cita.\n- Escala a humano si es fuera de horario o algo especial.\n- Asumo que hablas de tú; lo cambias cuando quieras.\n\n¿Lo activo así? Si sí, después cargo tu disponibilidad de martes a sábado y dejamos definias las duraciones base.\n\nSi prefieres partir por precios, lo hago primero."
+  },
+  {
+    "caso": "peluqueria",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 79,
+    "propone": true,
+    "pasa": true,
+    "ms": 5945,
+    "texto": "Buenísimo. Te propuse un asistente para tu peluquería que:\n- Agenda horas y responde precios conocidos.\n- Atiende mar–sáb, 10:00 a 19:00.\n- Nace en modo asistido, tono cercano chileno.\n\nQuedó esperando tu visto bueno para crearlo. ¿Le damos?\n\nSiguiente paso (te lo dejo listo apenas confirmes este): cargar la disponibilidad de agenda con bloques y duración de servicios. ¿Usan, por ejemplo, cortes de 45 min y color de 90? Si no, me dices tus tiempos y lo configuro."
+  },
+  {
+    "caso": "peluqueria",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 105,
+    "propone": true,
+    "pasa": true,
+    "ms": 12098,
+    "texto": "Perfecto. Propongo partir con dos asistentes separados: uno para agendar horas y otro para precios. Primero te dejo listo el de agenda y después te propongo el de precios.\n\nAcabo de dejar propuesta lista del asistente “Asistente Agenda Peluquería Ñuñoa”, en modo asistido. Atiende de martes a sábado, 10:00 a 19:00, y usa horarios disponibles al momento de ofrecer horas. Asumo trato de tú; lo cambias cuando quieras. ¿Lo activo así?\n\nSi te parece, en la siguiente te dejo listo el de precios. También puedo cargar tu disponibilidad con bloques de 30 min y 5 min de respiro, ¿te funciona esa duración o prefieres otra?"
+  },
+  {
+    "caso": "tortas",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 64,
+    "propone": true,
+    "pasa": true,
+    "ms": 9151,
+    "texto": "Perfecto. Te propuse un asistente para “vender”: que tome y responda pedidos de tortas por WhatsApp, pida lo justo (fecha/hora, tamaño/porciones, sabor, relleno, decoración/dedicación, nombre y teléfono), y deje el pedido anotado en el CRM. Quedó listo esperando tu visto bueno para crearlo.\n\n¿Entregas solo en Maipú o también haces delivery a comunas cercanas? Si haces delivery, ¿quieres que pregunte dirección y franja horaria?"
+  },
+  {
+    "caso": "tortas",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 93,
+    "propone": true,
+    "pasa": true,
+    "ms": 10468,
+    "texto": "Perfecto. Te propuse crear un asistente de ventas para responder y tomar pedidos de tortas por encargo en Maipú. Quedó listo para tu visto bueno.\n\nDetalles que configuré:\n- Objetivo: vender (responder y tomar pedidos).\n- Flujo: pide sabor/relleno, tamaño/porciones, fecha y horario, retiro o despacho en Maipú. No inventa precios; ofrece cotización y escala si hay algo raro.\n- Tono: cercano, rápido, chileno, con tuteo. Asumo WhatsApp.\n\n¿Lo dejo creado así? Si quieres, después cargamos tu carta de sabores, tamaños y precios en el conocimiento del negocio para que cotice más preciso."
+  },
+  {
+    "caso": "tortas",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 104,
+    "propone": true,
+    "pasa": true,
+    "ms": 8150,
+    "texto": "Te propuse un asistente para vender: responde y toma pedidos de tortas por WhatsApp en Maipú. Quedó listo para tu visto bueno.\n\nQué hace:\n- Pide sabor, tamaño/porciones, fecha y hora, retiro o despacho (dirección si es en Maipú), nombre y teléfono.\n- Si hay lista de precios, la usa; si no, anota y pasa al equipo para cotizar.\n- Pide 50% de abono para reservar.\n- Urgencias <48 h: avisa recargo y escala.\n- Escala diseños complejos.\n\nAsumo que hablas de tú; lo cambiamos cuando quieras.\n¿Lo dejo creado así y después cargamos tus sabores, tamaños y precios en el conocimiento del negocio?"
+  },
+  {
+    "caso": "taller",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 78,
+    "propone": true,
+    "pasa": true,
+    "ms": 7243,
+    "texto": "Perfecto. Te propuse un asistente para agendar horas de revisión en tu taller. Quedó listo para que lo apruebes y nazca en modo asistido.\n\nAsumo:\n- Atienden en español chileno y de tú.\n- Primero pide patente, motivo/síntoma y preferencia de horario; ofrece huecos reales del día.\n- Confirma dirección del taller y sugiere llegar 5 min antes.\n\n¿Lo activo así? Si quieres, después cargamos horarios exactos del equipo y tipos de revisión en el conocimiento del negocio."
+  },
+  {
+    "caso": "taller",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 67,
+    "propone": true,
+    "pasa": true,
+    "ms": 8205,
+    "texto": "Perfecto. Te propuse crear un asistente dedicado a agendar revisiones del taller: pide patente y modelo, ofrece huecos reales y confirma, o escala al equipo si hay dudas. Quedó esperando tu visto bueno para crearlo.\n\n¿A nombre de quién agendamos las horas del taller? Si no tienes calendario aún, asumo horario lun-vie 9:00–18:00, citas de 60 min y 10 min de respiro; lo ajustamos después. ¿Te parece?"
+  },
+  {
+    "caso": "taller",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 88,
+    "propone": true,
+    "pasa": true,
+    "ms": 7626,
+    "texto": "Perfecto. Te propuse crear un asistente dedicado a agendar horas de revisión y mantención para tu taller; quedó esperando tu visto bueno para activarlo. Asumo trato de tú y WhatsApp como canal principal. Pide lo mínimo: patente, tipo de servicio y franja (mañana/tarde), y ofrece huecos reales.\n\n¿Quieres que lo active así, o cambio algo en el detalle?\n\nSiguiente paso sugerido: dejo cargados tus horarios de atención para que ofrezca horas reales. ¿De lunes a viernes, de qué hora a qué hora y cada cuánto dura una cita?"
+  },
+  {
+    "caso": "vago",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 32,
+    "propone": false,
+    "pasa": true,
+    "ms": 1394,
+    "texto": "Bacán. Para proponerte uno al tiro: ¿a qué se dedica tu negocio y por dónde atiendes más (WhatsApp, Instagram, web)? Con eso te lo dejo creado en modo asistido y afinamos después."
+  },
+  {
+    "caso": "vago",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 30,
+    "propone": false,
+    "pasa": true,
+    "ms": 1378,
+    "texto": "¡Buena! Te lo dejo listo, pero antes: ¿a qué se dedica tu negocio y por dónde atienden más (WhatsApp, Instagram, web)? Con eso te propongo el primer asistente ya configurado."
+  },
+  {
+    "caso": "vago",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 2,
+    "palabras": 28,
+    "propone": false,
+    "pasa": true,
+    "ms": 1444,
+    "texto": "¡De una! Para proponerte el asistente correcto, cuéntame en una línea:\n- ¿A qué se dedica tu negocio?\n- ¿Tus clientes te hablan de tú o de usted?"
+  },
+  {
+    "caso": "ferreteria",
+    "vuelta": 1,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 57,
+    "propone": true,
+    "pasa": true,
+    "ms": 9132,
+    "texto": "Perfecto para una ferretería. Te propuse crear un asistente enfocado en “vender”: que responda si hay stock y el precio, pida medida/marca cuando falte, y no invente datos. Quedó listo para tu visto bueno.\n\n¿Lo activamos así? Si tu catálogo aún no está cargado, después te ayudo a subir productos, precios y stock para que responda bien."
+  },
+  {
+    "caso": "ferreteria",
+    "vuelta": 2,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 65,
+    "propone": true,
+    "pasa": true,
+    "ms": 6674,
+    "texto": "Perfecto para una ferretería. Te propuse un asistente dedicado a vender: responde si hay stock y el precio, y sugiere alternativas si no hay. Parte en modo asistido y usa tu catálogo de productos para no inventar nada. Asumo que hablas de tú; lo cambias cuando quieras.\n\n¿Lo dejo creado así? Si sí, después cargamos tu listado de productos y precios para que responda bien."
+  },
+  {
+    "caso": "ferreteria",
+    "vuelta": 3,
+    "status": 201,
+    "preguntas": 1,
+    "palabras": 59,
+    "propone": true,
+    "pasa": true,
+    "ms": 7341,
+    "texto": "Perfecto para una ferretería. Te propuse un asistente dedicado a “stock y precios” que responde si hay disponibilidad y cuánto cuesta, y sugiere alternativas si falta. Quedó listo esperando tu visto bueno para crearlo. Asumo que les hablas de tú; lo cambias cuando quieras.\n\n¿Le damos ok para crearlo? Luego cargamos o conectamos tu catálogo si aún no está."
+  }
+]

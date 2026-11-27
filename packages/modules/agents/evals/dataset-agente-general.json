@@ -1,0 +1,13 @@
+{
+  "task": "agente-general",
+  "version": 1,
+  "descripcion": "Primer mensaje de una dueña de pyme al Agente General pidiendo un asistente (#1389). Se mide por el puerto del producto con scripts/medir-agente-general.mjs: cada respuesta PASA si propone el asistente (hay propuesta esperando visto bueno) o si hace a lo más 2 preguntas en a lo más 60 palabras, y nunca nombra herramientas, rutas ni permisos. Cambiar la instrucción del Agente General exige correrlo antes y después y dejar los números en el PR.",
+  "criterio": { "maxPreguntas": 2, "maxPalabras": 60, "prohibido": ["tool", "/v1/", "permission", "knowledge.", "crm.", "agents."] },
+  "casos": [
+    { "id": "peluqueria", "texto": "Tengo una peluquería en Ñuñoa, abro de martes a sábado de 10 a 19. Quiero que conteste horas y precios." },
+    { "id": "tortas", "texto": "Vendo tortas por encargo en Maipú. Quiero que responda los pedidos." },
+    { "id": "taller", "texto": "Tengo un taller mecánico y quiero que agende horas para revisión." },
+    { "id": "vago", "texto": "Quiero un asistente para mi negocio." },
+    { "id": "ferreteria", "texto": "Tengo una ferretería. Quiero que conteste si tenemos los productos y cuánto cuestan." }
+  ]
+}

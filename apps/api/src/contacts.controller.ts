@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Controller,
   Get,
   NotFoundException,
@@ -19,8 +20,10 @@ import { withTenant } from '@iaxti/db';
 import { z } from 'zod';
 import {
   ActivityReferenceError,
+  agregarContactoAMano,
   completeActivity,
   confirmImport,
+  ContactoDuplicado,
   createActivity,
   exportarContactos,
   exportarTitular,
@@ -29,8 +32,11 @@ import {
   listActivities,
   listContacts,
   mergeContacts,
+  ORIGENES_DE_CONTACTO,
+  PERMISOS_DE_FILTRO,
   previewImport,
   suprimirTitular,
+  TelefonoInvalido,
   updateContact,
 } from '@iaxti/module-crm';
 import type { ActivityType, ImportField } from '@iaxti/module-crm';
@@ -95,6 +101,105 @@ const DuplicadoAFusionar = z.object({
   duplicateId: textoRequerido('Indica el contacto duplicado que se fusiona en este.'),
 });
 
+/** La forma de un correo, igual que la de las invitaciones de equipo (#902). */
+const CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/**
+ * El contacto que se agrega a mano (#1395).
+ *
+ * El teléfono es lo único obligatorio — es con lo que el canal después lo va a
+ * encontrar. La validación de E.164 de verdad la hace el caso de uso con
+ * `normalizePhone`, que conoce el plan de numeración; el esquema solo asegura
+ * que viene algo escrito. Sin correo no hay problema: quien solo deja su
+ * número es el caso más común.
+ */
+const ContactoNuevo = z.object({
+  phone: textoRequerido('Escribe el teléfono con código de país, como +56912345678.'),
+  name: z
+    .string({ error: 'El nombre va en texto.' })
+    .trim()
+    .max(120, 'El nombre no puede pasar de 120 caracteres; el resto se lo cuentas cuando te escriba.')
+    .optional(),
+  email: z
+    .string({ error: 'Escribe un correo válido, como ana@ejemplo.cl.' })
+    .trim()
+    .toLowerCase()
+    .regex(CORREO, 'Escribe un correo válido, como ana@ejemplo.cl.')
+    .max(200, 'El correo no puede pasar de 200 caracteres.')
+    .optional(),
+});
+
+/**
+ * Los filtros de la lista llegan como `?filter[origen]=...` (#1395).
+ *
+ * Express 5 parsea el querystring con `simple`: `filter[origen]` entra como UNA
+ * llave plana del objeto, no como `filter.origen` anidado. Se aceptan las dos
+ * formas —la plana de este despliegue y la anidada que armaría un parser
+ * `qs`— y cualquier otra cosa que empiece con «filter» se RECHAZA en vez de
+ * ignorarse en silencio: un filtro que se cae sin aviso es la lista equivocada
+ * con cara de correcta, que es justo lo que #546 cazó en auditoría.
+ */
+const CAMPOS_DE_FILTRO = ['origen', 'permiso'] as const;
+
+function valorDeFiltro(valor: unknown, campo: string): string | undefined {
+  if (valor === undefined || valor === '') return undefined;
+  if (typeof valor !== 'string') {
+    throw new InvalidListQuery(`El filtro «${campo}» va con un solo valor.`);
+  }
+  return valor;
+}
+
+function campoDesconocido(campo: string): InvalidListQuery {
+  return new InvalidListQuery(
+    `No conocemos el filtro «${campo}». Los que puedes usar son: ${CAMPOS_DE_FILTRO.join(' y ')}.`,
+  );
+}
+
+function filtrosDeLista(query: Record<string, unknown>): { origen?: string; permiso?: string } {
+  const filtros: { origen?: string; permiso?: string } = {};
+  const conocidos = CAMPOS_DE_FILTRO as readonly string[];
+  for (const [clave, valor] of Object.entries(query)) {
+    if (clave === 'filter') {
+      // Forma anidada (`filter.origen`): solo la produce un parser `qs`.
+      if (valor === null || typeof valor !== 'object') throw campoDesconocido('filter');
+      for (const [campo, anidado] of Object.entries(valor as Record<string, unknown>)) {
+        if (!conocidos.includes(campo)) throw campoDesconocido(campo);
+        const texto = valorDeFiltro(anidado, campo);
+        if (texto !== undefined) filtros[campo as (typeof CAMPOS_DE_FILTRO)[number]] = texto;
+      }
+      continue;
+    }
+    const plano = /^filter\[([a-z_]+)\]$/.exec(clave);
+    if (plano) {
+      const campo = plano[1];
+      if (!conocidos.includes(campo)) throw campoDesconocido(campo);
+      const texto = valorDeFiltro(valor, campo);
+      if (texto !== undefined) filtros[campo as (typeof CAMPOS_DE_FILTRO)[number]] = texto;
+      continue;
+    }
+    if (clave.startsWith('filter')) {
+      throw campoDesconocido(clave);
+    }
+  }
+  return filtros;
+}
+
+/**
+ * Un valor de query que viaja solo: texto, o nada si no vino.
+ *
+ * Un valor REPETIDO (`?q=a&q=b`) llega como arreglo, y ignorarlo en silencio
+ * devolvería la lista completa con cara de haberla filtrado — el mismo defecto
+ * de #546. Se rechaza: mejor un 400 que una respuesta que miente.
+ */
+function textoDeQuery(query: Record<string, unknown>, campo: string): string | undefined {
+  const valor = query[campo];
+  if (valor === undefined) return undefined;
+  if (typeof valor !== 'string') {
+    throw new InvalidListQuery(`El parámetro «${campo}» va con un solo valor.`);
+  }
+  return valor === '' ? undefined : valor;
+}
+
 const CorreccionDeContacto = z.object({
   // Nulables a propósito: mandar `null` BORRA y no mandar el campo lo deja
   // como estaba (#480). Un esquema que solo aceptara texto dejaría otra vez
@@ -136,28 +241,109 @@ const NuevaActividad = z.object({
 export class ContactsController {
   @Get()
   @RequirePermission('crm.contacts.read')
-  @ApiOperation({ summary: 'Contactos con búsqueda y cursor' })
+  @ApiOperation({ summary: 'Contactos con búsqueda, filtros y cursor' })
   @ApiQuery({ name: 'sort', required: false, enum: ['activity', 'name', 'phone', 'origin'] })
   @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'] })
   @ApiQuery({ name: 'cursor', required: false, type: String })
   @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 25 } })
   @ApiQuery({ name: 'q', required: false, type: String })
+  @ApiQuery({
+    name: 'filter[origen]',
+    required: false,
+    enum: [...ORIGENES_DE_CONTACTO],
+    description: 'Por dónde entró el contacto: manual, importado o algún canal.',
+  })
+  @ApiQuery({
+    name: 'filter[permiso]',
+    required: false,
+    enum: [...PERMISOS_DE_FILTRO],
+    description: 'Si el negocio le puede escribir primero: puede, sin_permiso o baja.',
+  })
   async list(
     @Req() request: WithUser,
-    @Query('q') q?: string,
-    @Query('sort') sort?: string,
-    @Query('order') order?: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
+    @Query() query: Record<string, unknown>,
   ) {
     const actor = actorOf(request);
     try {
+      // Dentro del try a propósito: un filtro o un parámetro mal escrito
+      // también es un INVALID_LIST_QUERY, y si esto fuera afuera saldría
+      // como 500.
+      const filtros = filtrosDeLista(query);
+      const limit = textoDeQuery(query, 'limit');
       return await withTenant(pool(), actor.tenantId, (c) =>
-        listContacts(c, actor.tenantId, { q, sort, order, cursor, limit: limit ? Number(limit) : undefined }),
+        listContacts(c, actor.tenantId, {
+          q: textoDeQuery(query, 'q'),
+          sort: textoDeQuery(query, 'sort'),
+          order: textoDeQuery(query, 'order'),
+          cursor: textoDeQuery(query, 'cursor'),
+          limit: limit ? Number(limit) : undefined,
+          origen: filtros.origen,
+          permiso: filtros.permiso,
+        }),
       );
     } catch (e) {
       if (e instanceof InvalidListQuery) throw new BadRequestException({ code: 'INVALID_LIST_QUERY', message: e.message });
       throw e;
+    }
+  }
+
+  /**
+   * Agregar un contacto a mano (#1395).
+   *
+   * El camino de siempre crea contactos cuando ALGUIEN ESCRIBE; este es para
+   * la persona que está atendiendo y anota a un cliente que todavía no habló.
+   * Nace con `origin: 'manual'` y SIN permiso para escribirle — escribirle
+   * primero queda bloqueado hasta que él escriba o dé su opt-in (SPEC §8).
+   *
+   * Se llama `create` y no `crear` porque `crear` ya existe y crea una
+   * ACTIVIDAD (`POST /contacts/:id/activities`): el operationId
+   * `ContactsController_create` es el que el catálogo de la IA y el SDK
+   * derivan, y repetirlo habría colado dos rutas con el mismo nombre.
+   */
+  @Post()
+  @RequirePermission('crm.contacts.create')
+  @ApiOperation({ summary: 'Agrega un contacto a mano (nace sin permiso para escribirle)' })
+  async create(
+    @Req() request: WithUser,
+    @Cuerpo(ContactoNuevo) body: z.infer<typeof ContactoNuevo>,
+  ) {
+    const actor = actorOf(request);
+    try {
+      return await withTenant(pool(), actor.tenantId, (c) =>
+        agregarContactoAMano(c, {
+          tenantId: actor.tenantId,
+          phone: body.phone,
+          name: body.name || undefined,
+          email: body.email || undefined,
+          actor: actor.userId,
+          // La API key tiene identidad de servicio; en el libro de auditoría
+          // no puede figurar como una persona.
+          actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
+          requestId: request.requestId,
+          ip: request.ip,
+          userAgent: request.headers['user-agent'],
+        }),
+      );
+    } catch (err) {
+      // El teléfono ya estaba: 409 y el id del existente, para que la
+      // interfaz ofrezca ABRIR esa ficha en vez de insistir con crear otra.
+      if (err instanceof ContactoDuplicado) {
+        throw new ConflictException({
+          code: 'CONTACT_EXISTS',
+          message: err.message,
+          details: [{ contactId: err.contactId }],
+        });
+      }
+      // El caso de uso tradujo el rechazo de `normalizePhone`; el campo va en
+      // los details para que la pantalla ponga el foco donde corresponde.
+      if (err instanceof TelefonoInvalido) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: err.message,
+          details: [{ field: 'phone', message: err.message }],
+        });
+      }
+      throw err;
     }
   }
 

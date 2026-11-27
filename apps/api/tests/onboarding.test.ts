@@ -7,7 +7,7 @@ import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, jwtVerify } fro
 import { createPool, runMigrations, withTenant } from '@iaxti/db';
 import { createInvitation, acceptInvitation } from '@iaxti/module-identity';
 import { createChannelAccount, setChannelState } from '@iaxti/module-channels';
-import { createPipeline } from '@iaxti/module-crm';
+import { createAgent, listAgents, updateAgent } from '@iaxti/module-agents';
 import { olvidarZonas } from '@iaxti/module-organizations';
 import { createApp } from '../src/main';
 import { dbRoleResolver } from '../src/auth/role-resolver';
@@ -72,7 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  for (const tabla of ['conversations', 'contacts', 'channel_accounts', 'stages', 'pipelines', 'user_roles', 'invitations', 'outbox']) {
+  for (const tabla of ['conversations', 'contacts', 'channel_accounts', 'agents', 'user_roles', 'invitations', 'outbox']) {
     await admin.query(`DELETE FROM ${tabla} WHERE tenant_id = $1`, [tenant]);
   }
   await admin.end();
@@ -86,11 +86,15 @@ describe('GET /v1/onboarding', () => {
     expect(e.estadoRegistrado).toBe('registered');
     expect(e.completo).toBe(false);
     expect(e.siguiente).toBe('configured');
-    // Los pasos vienen con su ayuda en la voz de Pulso: qué hay que hacer,
-    // no un rótulo suelto que el frontend tenga que traducir.
+    // El paso habla del ASISTENTE y no del embudo (#1400): el asistente es lo
+    // que vendemos, y el embudo lo armaba el configurador sin que la dueña
+    // pasara por acá — el paso quedaba hecho por algo que ella nunca supo
+    // que era el paso.
     const conf = e.pasos.find((p: { id: string }) => p.id === 'configured');
-    expect(conf.ayuda).toContain('Describe a qué te dedicas');
-    expect(conf.detalle).toContain('todavía no hay embudo');
+    expect(conf.titulo).toBe('Crea tu asistente');
+    expect(conf.ayuda).toContain('te arma un asistente que contesta por ti');
+    expect(conf.hecho).toBe(false);
+    expect(conf.detalle).toBe('todavía no tienes asistente');
     expect(conf.fuente).toBe('verificado');
     // El equipo ya tiene a alguien más que la dueña: ese paso está hecho.
     const equipo = e.pasos.find((p: { id: string }) => p.id === 'team_invited');
@@ -120,18 +124,17 @@ describe('GET /v1/onboarding', () => {
     expect(wa.detalle).toContain('todavía no hay número');
   });
 
-  it('con el embudo y el número de verdad, avanza', async () => {
+  it('con el asistente y el número de verdad, avanza', async () => {
     await withTenant(admin, tenant, (c) =>
-      createPipeline(c, {
-        tenantId: tenant,
-        name: 'Ventas',
-        stages: [
-          { name: 'Nuevo', type: 'open' },
-          { name: 'Ganado', type: 'won' },
-          { name: 'Perdido', type: 'lost' },
-        ],
-      }),
+      createAgent(c, { tenantId: tenant, name: 'Agenda Pelu Ñuñoa', actor: dueña }),
     );
+    // El criterio de #1400, en su orden: la dueña crea el asistente desde la
+    // puesta en marcha y, al volver, el paso está Listo y lo que sigue es
+    // WhatsApp — no «te faltan 3 pasos» con el asistente ya aprobado.
+    const conAsistente = await (await pedir(dueña)).json();
+    expect(conAsistente.pasos.find((p: { id: string }) => p.id === 'configured').hecho).toBe(true);
+    expect(conAsistente.siguiente).toBe('whatsapp_connected');
+
     const cuenta = await withTenant(admin, tenant, (c) =>
       createChannelAccount(c, {
         tenantId: tenant,
@@ -145,12 +148,38 @@ describe('GET /v1/onboarding', () => {
       setChannelState(c, { tenantId: tenant, accountId: cuenta.id, state: 'active' }),
     );
     const e = await (await pedir(dueña)).json();
-    expect(e.pasos.find((p: { id: string }) => p.id === 'configured').hecho).toBe(true);
+    const conf = e.pasos.find((p: { id: string }) => p.id === 'configured');
+    expect(conf.hecho).toBe(true);
+    // Con UNO, el nombre: es lo que la dueña puso y lo que reconoce.
+    expect(conf.detalle).toBe('Asistente «Agenda Pelu Ñuñoa»');
     const wa = e.pasos.find((p: { id: string }) => p.id === 'whatsapp_connected');
     expect(wa.hecho).toBe(true);
     expect(wa.detalle).toContain('1 número activo');
     // Lo único obligatorio que queda es el primer mensaje.
     expect(e.siguiente).toBe('first_message');
+  });
+
+  it('con más de uno, el detalle cuenta; y un asistente apagado no cuenta', async () => {
+    // El plural del paso: «2 asistentes» dice cuántos hay sin listarlos.
+    await withTenant(admin, tenant, (c) =>
+      createAgent(c, { tenantId: tenant, name: 'Postventa', actor: dueña }),
+    );
+    const conDos = await (await pedir(dueña)).json();
+    expect(conDos.pasos.find((p: { id: string }) => p.id === 'configured').detalle).toBe('2 asistentes');
+
+    // `listAgents` trae también los apagados: una fila apagada es una fila,
+    // no un asistente. Contarla marcaría el paso sobre un negocio que no
+    // tiene a nadie contestando.
+    const agentes = await withTenant(admin, tenant, (c) => listAgents(c, tenant));
+    for (const a of agentes) {
+      await withTenant(admin, tenant, (c) =>
+        updateAgent(c, { tenantId: tenant, agentId: a.id, active: false, actor: dueña }),
+      );
+    }
+    const e = await (await pedir(dueña)).json();
+    const conf = e.pasos.find((p: { id: string }) => p.id === 'configured');
+    expect(conf.hecho).toBe(false);
+    expect(conf.detalle).toBe('todavía no tienes asistente');
   });
 
   it('sin permiso de ajustes del tenant: 403 con el formato único', async () => {

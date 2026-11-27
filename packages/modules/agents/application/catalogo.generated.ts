@@ -2599,6 +2599,36 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ContactsController_create": {
+    "metodo": "POST",
+    "ruta": "/v1/contacts",
+    "resumen": "Agrega un contacto a mano (nace sin permiso para escribirle)",
+    "permiso": "crm.contacts.create",
+    "modulo": "crm",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+        }
+      },
+      "required": [
+        "phone"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ContactsController_exportar": {
     "metodo": "GET",
     "ruta": "/v1/contacts/exportar",
@@ -2730,30 +2760,66 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
   "ContactsController_list": {
     "metodo": "GET",
     "ruta": "/v1/contacts",
-    "resumen": "Contactos con búsqueda y cursor",
+    "resumen": "Contactos con búsqueda, filtros y cursor",
     "permiso": "crm.contacts.read",
     "modulo": "crm",
     "soloSesion": false,
     "argumentos": {
       "type": "object",
       "properties": {
+        "filter[permiso]": {
+          "enum": [
+            "puede",
+            "sin_permiso",
+            "baja"
+          ],
+          "type": "string",
+          "description": "Si el negocio le puede escribir primero: puede, sin_permiso o baja.",
+          "x-iaxti-en": "query"
+        },
+        "filter[origen]": {
+          "enum": [
+            "whatsapp",
+            "webchat",
+            "importado",
+            "manual",
+            "instagram",
+            "messenger"
+          ],
+          "type": "string",
+          "description": "Por dónde entró el contacto: manual, importado o algún canal.",
+          "x-iaxti-en": "query"
+        },
         "q": {
           "type": "string",
           "x-iaxti-en": "query"
         },
-        "sort": {
-          "type": "string",
-          "x-iaxti-en": "query"
-        },
-        "order": {
-          "type": "string",
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
           "x-iaxti-en": "query"
         },
         "cursor": {
           "type": "string",
           "x-iaxti-en": "query"
         },
-        "limit": {
+        "order": {
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "type": "string",
+          "x-iaxti-en": "query"
+        },
+        "sort": {
+          "enum": [
+            "activity",
+            "name",
+            "phone",
+            "origin"
+          ],
           "type": "string",
           "x-iaxti-en": "query"
         }

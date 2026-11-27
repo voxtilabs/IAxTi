@@ -147,7 +147,12 @@ describe('varios asistentes', () => {
       join(__dirname, '..', '..', '..', 'packages', 'modules', 'agents', 'application', 'agente-general.ts'),
       'utf8',
     );
-    expect(AG).toContain('pide la lista de objetivos y elige de ahí');
+    // Los consulta él con la herramienta y elige de ahí. La redacción vieja
+    // —«pide la lista de objetivos»— el modelo la leía como «pídesela a la
+    // dueña», y respondía con un cuestionario (#1389).
+    expect(AG).toContain('Los objetivos posibles los consultas TÚ con buscar_herramienta');
+    expect(AG).toContain('No se los pidas a la persona');
+    expect(AG).toContain('Si inventas un objetivo');
     expect(AG).toContain('No pidas el');
   });
 });

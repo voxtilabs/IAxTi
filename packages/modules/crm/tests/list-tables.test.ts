@@ -20,7 +20,10 @@ beforeAll(async () => {
   admin = createPool(url); await runMigrations(admin);
   await admin.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'iaxti_app') THEN CREATE ROLE iaxti_app LOGIN PASSWORD 'iaxti_app'; END IF; END $$`);
   await admin.query('GRANT USAGE ON SCHEMA public TO iaxti_app');
-  await admin.query('GRANT SELECT, INSERT, UPDATE ON contacts, pipelines, stages, deals, tags, contact_tags, deal_stage_history TO iaxti_app');
+  // `activities` también: `listDeals` la lee desde #1302, y sin este GRANT la
+  // prueba pasaba solo si otra del módulo se lo había dejado antes al rol
+  // (#1395 lo vio caer en una base limpia, según el orden de ejecución).
+  await admin.query('GRANT SELECT, INSERT, UPDATE ON contacts, pipelines, stages, deals, tags, contact_tags, deal_stage_history, activities TO iaxti_app');
   await admin.query('GRANT SELECT, INSERT ON outbox, audit_log TO iaxti_app');
   await admin.query('GRANT USAGE ON SEQUENCE audit_log_id_seq TO iaxti_app');
   app = createPool(url.replace(/\/\/[^@]+@/, '//iaxti_app:iaxti_app@'));

@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { publishEvent } from '@iaxti/core';
 import { writeAudit, type ActorKind } from '@iaxti/module-audit';
+import { contactoDeLaFicha } from './contacts';
 
 // Actividades del CRM (#32, SPEC §10): llamada, reunión, tarea o nota.
 // El aviso de vencida se publica una sola vez por el barrido programado.
@@ -225,6 +226,7 @@ export async function markDueActivities(
   return r.rows.map((row) => row.id);
 }
 
+
 /** La ficha (#32): el contacto con sus oportunidades y actividades. */
 export async function getContactFicha(
   client: PoolClient,
@@ -235,27 +237,8 @@ export async function getContactFicha(
   deals: Array<Record<string, unknown>>;
   activities: Activity[];
 }> {
-  // La empresa viaja con la ficha (#460): `contacts.company_id` existía
-  // desde #217 y la ficha no lo proyectaba, así que la pantalla no podía
-  // mostrar de qué empresa es alguien ni ofrecerse a cambiarlo.
-  //
-  // Y el consentimiento viaja COMPLETO (#696). La regla pide fecha, canal y
-  // evidencia; acá se pedía solo la fecha, así que la ficha afirmaba «dio su
-  // consentimiento» sin poder decir a qué. No son equivalentes: quien lo dio por
-  // el formulario del sitio no autorizó recibir WhatsApp. Es el mismo defecto que
-  // #460 —columna escrita, consulta que no la proyecta— en un campo que además
-  // es la evidencia con la que se contesta una reclamación.
-  const contacto = await client.query(
-    `SELECT c.id, c.phone, c.name, c.email, c.rut, c.origin, c.owner_id, c.custom,
-            c.opt_in_at, c.opt_in_channel, c.opt_in_evidence,
-            c.opted_out_at, c.last_activity_at, c.created_at,
-            c.company_id, e.name AS company_name
-       FROM contacts c
-       LEFT JOIN companies e ON e.id = c.company_id AND e.tenant_id = c.tenant_id
-      WHERE c.tenant_id = $1 AND c.id = $2`,
-    [tenantId, contactId],
-  );
-  if (contacto.rowCount === 0) throw new Error('No encontramos ese contacto. Puede que se haya eliminado.');
+  const contacto = await contactoDeLaFicha(client, tenantId, contactId);
+  if (!contacto) throw new Error('No encontramos ese contacto. Puede que se haya eliminado.');
   // El cierre viaja con la ficha (#695). `won_at` y `lost_at` se escribían
   // desde el día uno y esta consulta no los proyectaba: la ficha mostraba
   // «Perdida» sin poder decir cuándo ni desde qué etapa, que es justo lo que
@@ -285,7 +268,7 @@ export async function getContactFicha(
     [tenantId, contactId],
   );
   const activities = await listActivitiesByContact(client, tenantId, contactId);
-  return { contact: contacto.rows[0], deals: deals.rows, activities };
+  return { contact: contacto, deals: deals.rows, activities };
 }
 
 /**

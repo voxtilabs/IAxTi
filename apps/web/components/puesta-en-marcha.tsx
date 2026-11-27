@@ -203,8 +203,13 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
                     : p.ayuda}
                 </span>
                 {p.detalle && <span className="text-xs text-muted">{p.detalle}</span>}
-                {p.hecho && p.fuente === 'historial' && (
-                  // No es lo mismo "lo comprobamos" que "quedó anotado".
+                {p.hecho && p.fuente === 'historial' && p.id !== 'registered' && (
+                  // No es lo mismo "lo comprobamos" que "quedó anotado". El
+                  // paso de la cuenta NO la lleva (#1400): es el único que no
+                  // tiene verificador por diseño —nadie va a re-comprobar que
+                  // la dueña se registró, acaba de hacerlo— y leer «no lo
+                  // comprobamos ahora» en el primer paso del primer día
+                  // sonaba a que el registro estaba en duda.
                   <span className="text-xs text-muted">Quedó anotado; no lo comprobamos ahora.</span>
                 )}
               </div>
@@ -245,7 +250,8 @@ function AvanceDelNegocio({ tenant, widgets }: { tenant: string; widgets: Widget
 
       {!estado.completo && siguiente?.ruta && (
         <p className="text-xs text-muted">
-          Lo siguiente: {siguiente.titulo.toLowerCase()}.
+          {/* Solo la primera letra (#1400): bajar el título entero dejaba «conecta tu whatsapp». */}
+          Lo siguiente: {siguiente.titulo.charAt(0).toLowerCase() + siguiente.titulo.slice(1)}.
         </p>
       )}
     </section>

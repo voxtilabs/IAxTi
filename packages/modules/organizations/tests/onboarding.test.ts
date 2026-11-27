@@ -121,7 +121,10 @@ describe('el onboarding avanza con lo que de verdad pasa', () => {
 });
 
 describe('dónde va el negocio DE VERDAD (#56)', () => {
-  const TODOS = ['crm', 'whatsapp', 'knowledge', 'identity', 'conversations'];
+  // `agents` desde #1400: el paso `configured` pasó a ser «Crea tu
+  // asistente» y lo resuelve ese módulo. Sin él en la lista, el paso saldría
+  // `bloqueado` y estas pruebas dejarían de medir lo que miden.
+  const TODOS = ['agents', 'whatsapp', 'knowledge', 'identity', 'conversations'];
 
   async function estadoDe(tenantId: string, verificadores = {}, activos = TODOS) {
     return withTenant(admin, tenantId, (c) =>
@@ -153,7 +156,7 @@ describe('dónde va el negocio DE VERDAD (#56)', () => {
     // esto el flujo guiado deja de pedirlo para siempre.
     const e = await estadoDe(id, {
       whatsapp_connected: async () => ({ hecho: false, detalle: 'todavía no hay número conectado' }),
-      configured: async () => ({ hecho: true, detalle: '1 embudo con 5 etapas' }),
+      configured: async () => ({ hecho: true, detalle: 'Asistente «Agenda Pelu»' }),
     });
     const wa = e.pasos.find((p) => p.id === 'whatsapp_connected')!;
     expect(wa.hecho).toBe(false);
@@ -187,7 +190,7 @@ describe('dónde va el negocio DE VERDAD (#56)', () => {
     const id = t.rows[0].id;
     // Sin `whatsapp`: mandarlo a conectar un número que este tenant no
     // puede conectar es mandarlo a una pared.
-    const e = await estadoDe(id, { configured: async () => ({ hecho: true }) }, ['crm', 'conversations']);
+    const e = await estadoDe(id, { configured: async () => ({ hecho: true }) }, ['agents', 'conversations']);
     const wa = e.pasos.find((p) => p.id === 'whatsapp_connected')!;
     expect(wa.bloqueado).toBe(true);
     expect(e.siguiente).toBe('first_message');
