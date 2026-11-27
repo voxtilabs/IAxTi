@@ -421,13 +421,12 @@ export function FichaContacto({
         {contact.rut && (<><dt className="text-muted">RUT</dt><dd className="dato text-ink">{contact.rut}</dd></>)}
         {contact.email && (<><dt className="text-muted">Correo</dt><dd className="text-body">{contact.email}</dd></>)}
         {compacta && (<><dt className="text-muted">Origen</dt><dd><Badge role="neutral">{contact.origin}</Badge></dd></>)}
-        <dt className="text-muted">Cliente desde</dt>
-        <dd><FechaDato iso={contact.created_at} /></dd>
+        {compacta && (<><dt className="text-muted">Cliente desde</dt><dd><FechaDato iso={contact.created_at} /></dd></>)}
         {/* De qué empresa es (#460). `PUT /contacts/:id/empresa` existía
             desde #217 y no la llamaba nadie: las empresas se creaban y
             ningún contacto se podía colgar de una, así que la pantalla de
             Empresas mostraba fichas vacías para siempre. */}
-        <dt className="text-muted">Empresa</dt>
+        {compacta && (<><dt className="text-muted">Empresa</dt>
         <dd className="flex flex-wrap items-center gap-2">
           <Select
             value={contact.company_id ?? SIN_EMPRESA}
@@ -460,7 +459,7 @@ export function FichaContacto({
               Ver la empresa
             </a>
           )}
-        </dd>
+        </dd></>)}
       </dl>
 
       {/* Etiquetar desde la ficha (#480). `PUT /tags/contacto/:contactId`
@@ -745,14 +744,6 @@ export function FichaContacto({
         </details>
       )}
 
-      {/* Espacio reservado para la IA (Fase 3), con rótulo mono (#32). */}
-      <section className="mt-6 rounded-campo border border-line bg-rest p-4">
-        <p className="rotulo">Acciones de la IA</p>
-        <p className="mt-1 text-sm text-muted">
-          Cuando conectes el asistente, aquí queda cada acción que tome con este contacto, con su
-          explicación.
-        </p>
-      </section>
     </div>
   );
 }
