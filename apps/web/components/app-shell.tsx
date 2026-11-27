@@ -778,8 +778,15 @@ function ContenidoShell({ nav: navDelServidor, sinMargen, altoCompleto, children
                 del contenido. El título de la página gana; la barra se queda
                 con el menú y los controles. */}
             <CabezaDelCelular>
-            <header className="pulso-topbar flex items-center gap-3 border-b border-line px-6 py-3">
+            <header className="pulso-topbar flex items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
               <SidebarTrigger />
+              {/* El negocio elegido, a la mano en el celular (#1398): en la
+                  barra lateral vive el mismo selector, pero abrir el menú para
+                  cambiar de negocio era un paso escondido. En escritorio no se
+                  duplica: ahí el de la barra está siempre visible. */}
+              <div className="min-w-0 flex-1 sm:hidden">
+                <TenantSwitcher />
+              </div>
               <div className="ml-auto flex items-center gap-3">
                 {/* IAxTi va en la barra de TODA la app y no en una pantalla
                     suya: configurar conversando solo sirve si está donde

@@ -24,6 +24,14 @@ interface PrefDto {
   whatsappNoAplica: boolean;
 }
 
+/** La casilla lleva su nombre al lado: «Campana» no se entiende (#1410). */
+const ETIQUETAS_DE_CANAL: Record<'campana' | 'correo' | 'push' | 'whatsapp', string> = {
+  campana: 'Aviso',
+  correo: 'Correo',
+  push: 'Celular',
+  whatsapp: 'WhatsApp',
+};
+
 const NOMBRES: Record<string, string> = {
   conversacion_sin_dueno: 'Conversación nueva sin dueño',
   sla_vencido: 'Primera respuesta fuera de plazo',
@@ -334,7 +342,12 @@ export function PreferenciasAvisos() {
         rotulo="Notificaciones"
         titulo="Qué avisos recibes"
       />
-      <p className="mt-1 text-sm text-body">Elige por tipo y por canal. El correo llega cuando el negocio tenga su remitente configurado.</p>
+      <p className="mt-1 text-sm text-body">
+        Elige dónde te enteras de cada cosa. <strong className="font-medium text-ink">Aviso</strong> te
+        avisa aquí dentro, <strong className="font-medium text-ink">Correo</strong> a tu email,{' '}
+        <strong className="font-medium text-ink">Celular</strong> aunque tengas IAxTi cerrado, y{' '}
+        <strong className="font-medium text-ink">WhatsApp</strong> solo manda lo crítico, a tu número del perfil.
+      </p>
 
       {aviso && (
         <AvisoResultado>
@@ -342,51 +355,44 @@ export function PreferenciasAvisos() {
         </AvisoResultado>
       )}
 
-      <div className="mt-6 overflow-hidden rounded-tarjeta border border-line">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-rest">
-              <th className="rotulo px-4 py-2 text-left">Aviso</th>
-              <th className="rotulo px-4 py-2">Campana</th>
-              <th className="rotulo px-4 py-2">Correo</th>
-              <th className="rotulo px-4 py-2">Push</th>
-              <th className="rotulo px-4 py-2">WhatsApp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {prefs.map((p) => (
-              <tr key={p.type} className="border-t border-line">
-                <td className="px-4 py-3 text-body">
-                  {NOMBRES[p.type] ?? p.type}
-                  {p.bloqueada && <Badge role="warn" className="ml-2">Crítico</Badge>}
-                </td>
-                {(['campana', 'correo', 'push', 'whatsapp'] as const).map((campo) => (
-                  <td key={campo} className="px-4 py-3 text-center">
-                    {campo === 'whatsapp' && p.whatsappNoAplica ? (
-                      // Por WhatsApp solo salen los críticos: un guion es más
-                      // honesto que una casilla que no hace nada.
+      {/* Filas, no tabla (#1410): a 390 px la tabla cortaba la columna de
+          WhatsApp — `overflow-hidden` la escondía y no había forma de verla ni
+          de usarla. Cada aviso es una fila con sus cuatro casillas al lado, que
+          es como se lee en el celular sin esconder nada. */}
+      <ul className="mt-6 flex flex-col gap-3">
+        {prefs.map((p) => (
+          <li key={p.type} className="rounded-tarjeta border border-line bg-raised p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="min-w-0 flex-1 text-sm font-medium text-ink">{NOMBRES[p.type] ?? p.type}</span>
+              {p.bloqueada && <Badge role="warn">Crítico</Badge>}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:flex sm:flex-wrap sm:gap-x-6">
+              {(['campana', 'correo', 'push', 'whatsapp'] as const).map((campo) => {
+                const sinWhatsApp = campo === 'whatsapp' && p.whatsappNoAplica;
+                return (
+                  <label key={campo} className="flex items-center gap-2 text-sm text-body">
+                    {sinWhatsApp ? (
                       <span className="text-muted" title="Por WhatsApp solo salen los avisos críticos">
                         —
                       </span>
                     ) : (
                       <Checkbox
-                        aria-label={`${campo} para ${NOMBRES[p.type] ?? p.type}`}
                         checked={p[campo]}
                         disabled={p.bloqueada && campo !== 'push' && campo !== 'whatsapp'}
                         onCheckedChange={(marcado) => void guardar(p, campo, marcado === true)}
                       />
                     )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    {ETIQUETAS_DE_CANAL[campo]}
+                  </label>
+                );
+              })}
+            </div>
+          </li>
+        ))}
+      </ul>
       <p className="mt-3 text-xs text-muted">
-        Los avisos críticos para quien administra no se pueden silenciar en campana y correo:
-        protegen el negocio. El push depende de un permiso del navegador que puedes quitar cuando
-        quieras, y por WhatsApp solo salen los críticos, a tu número del perfil.
+        Los avisos críticos para quien administra no se pueden silenciar en aviso ni correo:
+        protegen el negocio.
       </p>
       <PermisoPush />
     </div>
