@@ -2417,6 +2417,13 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
         "nombre": {
           "type": "string",
           "maxLength": 80
+        },
+        "modo": {
+          "type": "string",
+          "enum": [
+            "coexistencia",
+            "api"
+          ]
         }
       },
       "required": [
@@ -2434,7 +2441,18 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "soloSesion": false,
     "argumentos": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "modo": {
+          "type": "string",
+          "enum": [
+            "coexistencia",
+            "api"
+          ]
+        }
+      },
+      "required": [
+        "modo"
+      ],
       "additionalProperties": false
     }
   },

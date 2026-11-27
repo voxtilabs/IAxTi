@@ -42,6 +42,28 @@ const ConectarNumero = z.object({
     .min(1, 'Elige el número que quieres conectar.')
     .max(64, 'Elige el número que quieres conectar.'),
   nombre: z.string().trim().max(80, 'El nombre del canal puede tener hasta 80 letras.').optional(),
+  /**
+   * Cómo usa el negocio ese número hoy (#1405). Opcional a propósito: la
+   * pantalla lo manda cuando la dueña lo eligió antes de ir a Meta, y si no
+   * viene no se escribe nada en la cuenta — no se adivina.
+   */
+  modo: z
+    .enum(['coexistencia', 'api'], {
+      error: 'Elige cómo usas hoy ese número: en la app WhatsApp Business del teléfono, o solo para IAxTi.',
+    })
+    .optional(),
+});
+
+/**
+ * El paso 1 ya no va a ciegas (#1405): el modo es obligatorio porque Zernio
+ * asume coexistencia cuando el enlace no lo dice, y un número que no vive en
+ * la app del teléfono entra al flujo equivocado de Meta. Sin modo, 400 y el
+ * mensaje que explica las dos opciones.
+ */
+const EnlaceDeConexion = z.object({
+  modo: z.enum(['coexistencia', 'api'], {
+    error: 'Elige cómo usas hoy ese número: en la app WhatsApp Business del teléfono, o solo para IAxTi.',
+  }),
 });
 
 function dependencias(): DependenciasDelAlta {
@@ -113,7 +135,7 @@ export class ConectarWhatsAppController {
   @RequireModule('whatsapp')
   @RequirePermission('channels.manage')
   @ApiOperation({ summary: 'Crea el enlace para conectar un número de WhatsApp a este negocio' })
-  async enlace(@Req() request: WithUser): Promise<{ url: string }> {
+  async enlace(@Req() request: WithUser, @Cuerpo(EnlaceDeConexion) body: z.infer<typeof EnlaceDeConexion>): Promise<{ url: string }> {
     const actor = actorOf(request);
     const deps = dependencias();
     const nombre = await deps.conTenant(actor.tenantId, async (c) => {
@@ -125,6 +147,7 @@ export class ConectarWhatsAppController {
       return await enlaceParaConectarDesdeLaApp(deps, {
         tenantId: actor.tenantId,
         nombreDelNegocio: nombre,
+        modo: body.modo,
         // A dónde vuelve después de Meta. Sale del entorno, nunca del pedido:
         // un `redirect_url` del cliente sería una redirección abierta.
         ...(web ? { volverA: `${web.replace(/\/+$/, '')}/ajustes/canales?whatsapp=volvio` } : {}),
@@ -160,6 +183,7 @@ export class ConectarWhatsAppController {
         tenantId: actor.tenantId,
         cuenta: body.cuenta,
         ...(body.nombre ? { nombre: body.nombre } : {}),
+        ...(body.modo ? { modo: body.modo } : {}),
         actor: actor.userId,
         actorKind: 'user',
         ...(request.requestId ? { requestId: request.requestId } : {}),

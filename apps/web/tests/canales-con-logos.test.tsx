@@ -85,7 +85,12 @@ function remplazarLocation(assign: (url: string) => void) {
   return () => Object.defineProperty(window, 'location', original);
 }
 
-beforeEach(() => pedir.mockReset());
+beforeEach(() => {
+  pedir.mockReset();
+  // La elección del modo sobrevive en sessionStorage entre pruebas del mismo
+  // archivo: sin limpiarla, una prueba que eligió contaminaría a la siguiente.
+  sessionStorage.clear();
+});
 
 describe('la grilla de canales', () => {
   it('una tarjeta por canal, con el logo oficial de cada marca', async () => {
@@ -168,16 +173,84 @@ describe('conectar WhatsApp desde la app', () => {
     try {
       render(<Canales />);
       const detalle = await abrirDialogoDeWhatsApp();
-      fireEvent.click(await within(detalle).findByRole('button', { name: 'Conectar con Meta' }));
+      fireEvent.click(
+        await within(detalle).findByRole('button', { name: 'Lo uso en la app WhatsApp Business del teléfono' }),
+      );
+      fireEvent.click(within(detalle).getByRole('button', { name: 'Conectar con Meta' }));
       await waitFor(() => expect(asignar).toHaveBeenCalledWith('https://zernio.test/embed/alta?perfil=p1'));
       const enlace = pedir.mock.calls.find((c) => c[3] === '/channels/whatsapp/enlace')!;
       const init = enlace[4]!;
       expect(init).toMatchObject({ method: 'POST' });
-      expect(init.body).toBeUndefined();
+      // El modo elegido va en el cuerpo: el enlace ya no sale a ciegas (#1405).
+      expect(JSON.parse(init.body as string)).toEqual({ modo: 'coexistencia' });
       // La cabecera existe y es un UUID: la API exige idempotencia en el alta.
       expect(new Headers(init.headers).get('Idempotency-Key')).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
+    } finally {
+      restaurar();
+    }
+  });
+
+  it('sin elegir cómo usa hoy el número, «Conectar con Meta» no se aprieta', async () => {
+    servir([], [], { '/channels/whatsapp/numeros': [] });
+    render(<Canales />);
+    const detalle = await abrirDialogoDeWhatsApp();
+    await within(detalle).findByText('¿Cómo usas hoy ese número?');
+    // La pregunta es de la dueña y no tiene respuesta por defecto (#1405).
+    expect(within(detalle).getByRole('button', { name: 'Conectar con Meta' })).toBeDisabled();
+    expect(pedir.mock.calls.some((c) => c[3] === '/channels/whatsapp/enlace')).toBe(false);
+    fireEvent.click(within(detalle).getByRole('button', { name: 'Es un número nuevo o solo para IAxTi' }));
+    expect(within(detalle).getByRole('button', { name: 'Conectar con Meta' })).toBeEnabled();
+  });
+
+  it('la segunda opción —número nuevo o solo para IAxTi— manda modo api en el enlace', async () => {
+    servir([], [], {
+      '/channels/whatsapp/numeros': [],
+      '/channels/whatsapp/enlace': { url: 'https://zernio.test/embed/alta?perfil=p1' },
+    });
+    const asignar = vi.fn();
+    const restaurar = remplazarLocation(asignar);
+    try {
+      render(<Canales />);
+      const detalle = await abrirDialogoDeWhatsApp();
+      fireEvent.click(await within(detalle).findByRole('button', { name: 'Es un número nuevo o solo para IAxTi' }));
+      fireEvent.click(within(detalle).getByRole('button', { name: 'Conectar con Meta' }));
+      await waitFor(() => expect(asignar).toHaveBeenCalled());
+      const enlace = pedir.mock.calls.find((c) => c[3] === '/channels/whatsapp/enlace')!;
+      expect(JSON.parse(enlace[4]!.body as string)).toEqual({ modo: 'api' });
+    } finally {
+      restaurar();
+    }
+  });
+
+  it('al volver de Meta, el alta manda el modo que la dueña eligió antes de irse', async () => {
+    servir([], [], {
+      '/channels/whatsapp/numeros': [
+        { cuenta: 'cuenta-z1', nombre: '+56 9 2201 3949', pideReconectar: false, yaConectado: false },
+      ],
+      '/channels/whatsapp/enlace': { url: 'https://zernio.test/embed/alta?perfil=p1' },
+      '/channels/whatsapp/conectar': { id: 'wa9', name: 'WhatsApp', state: 'connecting', renovada: false },
+    });
+    const asignar = vi.fn();
+    const restaurar = remplazarLocation(asignar);
+    try {
+      render(<Canales />);
+      const detalle = await abrirDialogoDeWhatsApp();
+      fireEvent.click(
+        await within(detalle).findByRole('button', { name: 'Lo uso en la app WhatsApp Business del teléfono' }),
+      );
+      // Se fue a Meta: la elección quedó guardada para la vuelta.
+      fireEvent.click(within(detalle).getByRole('button', { name: 'Conectar otro número' }));
+      await waitFor(() => expect(asignar).toHaveBeenCalled());
+      // Volvió: el número autorizado se conecta con el modo guardado, y así
+      // la cuenta queda marcada como coexistencia (#1405).
+      fireEvent.click(within(detalle).getByRole('button', { name: 'Conectar este número' }));
+      await waitFor(() => {
+        expect(pedir.mock.calls.filter((c) => c[3] === '/channels').length).toBe(2);
+      });
+      const alta = pedir.mock.calls.find((c) => c[3] === '/channels/whatsapp/conectar')!;
+      expect(JSON.parse(alta[4]!.body as string)).toEqual({ cuenta: 'cuenta-z1', modo: 'coexistencia' });
     } finally {
       restaurar();
     }
@@ -199,6 +272,7 @@ describe('conectar WhatsApp desde la app', () => {
     });
     const alta = pedir.mock.calls.find((c) => c[3] === '/channels/whatsapp/conectar')!;
     const altaInit = alta[4]!;
+    // Sin elección guardada no se manda el modo: la API no escribe el campo.
     expect(JSON.parse(altaInit.body as string)).toEqual({ cuenta: 'cuenta-z1' });
     expect(new Headers(altaInit.headers).get('Idempotency-Key')).toBeTruthy();
   });
