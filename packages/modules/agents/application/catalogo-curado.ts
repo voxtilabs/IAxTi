@@ -62,6 +62,9 @@ export const NO_SON_HERRAMIENTA: Record<string, string> = {
     'Webhook de pagos: el agente podría dar por pagado un cobro que nadie pagó (#61).',
   WebchatController_config: 'La llama el widget del sitio del cliente, no una persona (#46).',
 
+  ConversationsController_archivar:
+    'Archivar una conversación es la decisión de quien atiende (#1417 pulido). El asistente manda a la bandeja.',
+
   // Conectar WhatsApp desde la app (#1393, ADR-0038). El asistente sí ayuda
   // —manda a Ajustes → Canales—, pero el alta es de las manos del dueño.
   ConectarWhatsAppController_enlace:

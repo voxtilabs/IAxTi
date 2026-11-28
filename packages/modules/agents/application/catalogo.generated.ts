@@ -3057,6 +3057,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ConversationsController_archivar": {
+    "metodo": "POST",
+    "ruta": "/v1/conversations/{id}/archivar",
+    "resumen": "Archiva una conversación resuelta: sale de la lista, queda buscable",
+    "permiso": "conversations.reply",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ConversationsController_asignaciones": {
     "metodo": "GET",
     "ruta": "/v1/conversations/{id}/asignaciones",
