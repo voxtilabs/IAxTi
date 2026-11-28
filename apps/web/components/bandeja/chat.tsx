@@ -479,10 +479,15 @@ export function Chat({
           )}
           {/* El estado al lado del nombre en el celular (#1414): como badge
               suelto en la fila de botones empujaba a Copiloto/Ficha/Acciones a
-              una tercera fila y la cabecera se comía media pantalla. En
-              escritorio sigue donde estaba, en la fila de controles. */}
-          <span className="sm:hidden"><Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge></span>
+              una tercera fila y la cabecera se comía media pantalla. Va junto
+              al nombre SOLO si hay nombre: para quien se identifica por su
+              teléfono, el bloque tiene que seguir diciendo el teléfono UNA vez
+              (el-telefono-una-vez). En escritorio sigue donde estaba. */}
+          {detalle.contactName && (
+            <span className="sm:hidden"><Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge></span>
+          )}
         </div>
+        <Badge role={ESTADOS[detalle.state].role} className="hidden sm:inline-flex">{ESTADOS[detalle.state].label}</Badge>
         {modo !== null && modo !== 'off' && (
           <Button
             // Un interruptor, no la acción de la vista (Mesón): encendido se
