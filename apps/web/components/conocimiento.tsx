@@ -580,9 +580,7 @@ export function Conocimiento() {
       <div className="mt-4 pulso-panel rounded-tarjeta border border-line bg-raised p-6">
         <span className="rotulo">Traer archivos markdown</span>
         <p className="mt-1 text-sm text-body">
-          El nombre sale del <code className="font-mono">title</code>, del primer encabezado o
-          del archivo, en ese orden. Los enlaces <code className="font-mono">[[así]]</code> se
-          conservan.
+          El nombre sale del contenido del archivo, y los enlaces entre páginas se conservan.
         </p>
         {/* Por la primitiva (#1144): el nativo decía «Choose Files · No file
             chosen», en inglés, en medio de una pantalla en español. */}
