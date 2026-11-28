@@ -12,6 +12,7 @@ function props(channel: string, abierta: boolean): ChatProps {
       contactOptInAt: null, contactOptInChannel: null, contactOptInEvidence: null, contactOptedOutAt: null, firstResponseAt: null },
     mensajes: [], atajos: [], sugerencia: null, sinSugerencia: null, modo: 'off', miId: 'operador', aviso: null,
     limitesDeAdjunto: { canal: channel, limites: [] }, reintentando: null, plantillas: [],
+    pausaElegida: 'turno', onPausaElegida: vi.fn(),
     onVolver: vi.fn(), onVerFicha: vi.fn(), onResponder: vi.fn().mockResolvedValue(true), onAsignar: vi.fn(), onEstado: vi.fn(),
     onPrioridad: vi.fn(), onSugerencia: vi.fn(), onReintentar: vi.fn(), onModo: vi.fn(), onCobrar: vi.fn(),
     onCrearOportunidad: vi.fn(), onCargarPlantillas: vi.fn(), onEnviarPlantilla: vi.fn(), onAbrirAdjunto: vi.fn(),

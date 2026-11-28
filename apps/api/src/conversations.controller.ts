@@ -50,6 +50,8 @@ import {
   porQueNoHaySugerencia,
   resolveSuggestion,
   setConversationMode,
+  conversationMode,
+  pausarAutonomoPorEscritura,
 } from '@iaxti/module-agents';
 import { RequireModule, RequirePermission } from './authz/decorators';
 import { Cuerpo, textoRequerido } from './validar';
@@ -86,6 +88,8 @@ interface EntregaInput {
   /** Lo que se subió a R2 antes de responder (#458): llave, nombre y tipo. */
   adjuntos?: Array<{ key: string; filename?: string; contentType?: string }>;
   requestId?: string;
+  /** La regla de #1416, solo para personas (#1416). */
+  pausaIa?: 'turno' | '1h' | 'hasta_volver';
 }
 
 /** El flujo de responder (reply y "Enviar sugerencia" comparten camino). */
@@ -94,6 +98,20 @@ async function entregarRespuesta(
   input: EntregaInput,
 ) {
   const { actor, conversation, conversationId } = input;
+  // La regla de #1416: si una PERSONA escribe en una conversación autónoma,
+  // la IA se apaga ANTES de guardar el mensaje — en la misma transacción.
+  if (actor.kind !== 'apikey' && input.pausaIa) {
+    const modo = await conversationMode(c, actor.tenantId, conversationId);
+    if (modo === 'autonomous') {
+      await pausarAutonomoPorEscritura(c, {
+        tenantId: actor.tenantId,
+        conversationId,
+        duracion: input.pausaIa,
+        actor: actor.userId,
+        requestId: input.requestId,
+      });
+    }
+  }
   // Responder desde la cola es tomarla: dueño + new → open (SPEC §11).
   if (conversation.ownerId === null) {
     await assignConversation(c, {
@@ -150,6 +168,8 @@ export function notFound(): never {
 
 /** Responder: el texto, el adjunto, o los dos (#458). */
 const Respuesta = z.object({
+  // La regla de #1416: con el modo en autónomo, escribir apaga la IA.
+  pausa_ia: z.enum(['turno', '1h', 'hasta_volver']).optional(),
   // Ni el texto ni el adjunto son obligatorios por separado —una foto sola es
   // un mensaje completo—, así que el «manda algo» se queda como `if` abajo.
   body: z.string().optional(),
@@ -410,6 +430,8 @@ export class ConversationsController {
         texto: body.body?.trim() ?? '',
         type: (body.type as MessageType) ?? 'texto',
         ...(adjuntos.length ? { adjuntos } : {}),
+        // Solo personas: la integración escribe y la IA sigue (#1416).
+        ...(actor.kind !== 'apikey' && body.pausa_ia ? { pausaIa: body.pausa_ia } : {}),
         requestId: request.requestId,
       });
     });

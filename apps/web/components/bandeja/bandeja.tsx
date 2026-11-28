@@ -202,6 +202,8 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [enVivo, setEnVivo] = useState(false);
   /** Si además ya pasó la gracia, o sea: vale la pena decirlo. */
   const [decirSinVivo, setDecirSinVivo] = useState(false);
+  /** La duración de la pausa de la IA para el próximo envío (#1416). */
+  const [pausaElegida, setPausaElegida] = useState<'turno' | '1h' | 'hasta_volver' | null>('turno');
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
   /** Plantillas del negocio; null hasta que alguien abra el selector (#460). */
   const [plantillas, setPlantillas] = useState<PlantillaDto[] | null>(null);
@@ -932,6 +934,8 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
             }
           }}
           modo={analisis?.mode ?? null}
+          pausaElegida={pausaElegida}
+          onPausaElegida={setPausaElegida}
           miId={miId}
           aviso={aviso}
           onSugerencia={async (accion, extra) => {
@@ -1037,7 +1041,13 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
                 return false;
               }
             }
-            return accion('/messages', { body: texto, ...(adjuntos ? { adjuntos } : {}) });
+            return accion('/messages', {
+              body: texto,
+              ...(adjuntos ? { adjuntos } : {}),
+              // La regla de #1416: si la conversación está en autónomo y una
+              // persona escribe, la IA se apaga con la duración elegida.
+              ...(analisis?.mode === 'autonomous' && pausaElegida ? { pausa_ia: pausaElegida } : {}),
+            });
           }}
           onAsignar={(aQuien, motivo) => accion('/assign', { toOwnerId: aQuien, reason: motivo })}
           onEstado={(estado, hasta) => accion('/state', { state: estado, snoozedUntil: hasta })}

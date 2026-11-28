@@ -83,6 +83,9 @@ export type { TranscribePort } from './application/models';
 export {
   conversationMode,
   setConversationMode,
+  pausarAutonomoPorEscritura,
+  restaurarPausasVencidas,
+  type PausaPorEscritura,
   effectiveMode,
   inAutonomousHours,
   guardrailLimits,
