@@ -462,7 +462,7 @@ export function Chat({
             </p>
           </div>
         )}
-      <header className="pulso-chat-header flex shrink-0 flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+      <header className="pulso-chat-header flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
         <Button variant="fantasma" size="icono" className="lg:hidden" aria-label="Volver a la lista" onClick={onVolver}>
           <IconoVolver className="h-4 w-4" />
         </Button>
@@ -477,6 +477,11 @@ export function Chat({
           {segundaLinea({ name: detalle.contactName, phone: detalle.contactPhone, channel: detalle.channel }) && (
             <p className="dato truncate text-muted">{detalle.contactPhone}</p>
           )}
+          {/* El estado al lado del nombre en el celular (#1414): como badge
+              suelto en la fila de botones empujaba a Copiloto/Ficha/Acciones a
+              una tercera fila y la cabecera se comía media pantalla. En
+              escritorio sigue donde estaba, en la fila de controles. */}
+          <span className="sm:hidden"><Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge></span>
         </div>
         {modo !== null && modo !== 'off' && (
           <Button
@@ -498,7 +503,10 @@ export function Chat({
             {modo === 'autonomous' ? 'Piloto automático' : 'Copiloto'}
           </Button>
         )}
-        <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
+        {/* El estado junto al nombre en el celular (#1414): como badge suelto
+            empujaba a Copiloto/Ficha/Acciones a una tercera fila y la cabecera
+            se comía media pantalla. En pantallas anchas sigue en su sitio. */}
+
         {/* La ventana de 24 h (#1085), como la pide `ui-pulso.md`: `warn` a
             menos de 2 h con lo que queda, `bad` cerrada. Sale de `cierraA`,
             que la API calculaba para esto y nadie leía. Mismo criterio que la
