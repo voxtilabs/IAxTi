@@ -26,7 +26,7 @@ for (const identity of auth.registrations) {
     await page.getByLabel('Tu nombre', { exact: true }).fill('Ana');
     await page.getByLabel('Nombre del negocio', { exact: true }).fill(`Negocio ${identity.mode}`);
     await page.getByLabel('Descripción del negocio', { exact: true }).fill('Barbería con reservas de hora en Ñuñoa.');
-    await page.getByRole('combobox', { name: 'Rubro' }).focus();
+    await page.getByRole('combobox', { name: 'A qué se dedica' }).focus();
     await page.keyboard.press('Enter');
     await page.getByRole('option', { name: 'Belleza y estética' }).click();
     await page.getByRole('textbox', { name: 'Descripción del negocio', exact: true }).focus();
