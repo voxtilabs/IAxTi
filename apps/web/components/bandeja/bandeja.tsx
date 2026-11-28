@@ -1100,6 +1100,22 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           detalle={detalle}
           notas={notas}
           analisis={analisis}
+          modo={analisis?.mode ?? null}
+          onModo={async (modo) => {
+            // El mismo cambio que hace el interruptor del chat (#1408), desde
+            // la ficha: en el celular este panel reemplaza al chat y el único
+            // control quedaba del otro lado.
+            if (!session || !tenant || !seleccion) return;
+            try {
+              await apiFetch(config, session, tenant, `/conversations/${seleccion}/agent-mode`, {
+                method: 'POST',
+                body: JSON.stringify({ mode: modo }),
+              });
+              setAnalisis((a) => (a ? { ...a, mode: modo } : a));
+            } catch (err) {
+              setAviso(avisoDe(err));
+            }
+          }}
           fichaDelContacto={fichaDelContacto}
           etiquetasDelContacto={etiquetasDelContacto}
           secuencias={secuencias}
