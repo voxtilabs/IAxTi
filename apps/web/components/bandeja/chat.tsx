@@ -484,9 +484,15 @@ export function Chat({
               teléfono, el bloque tiene que seguir diciendo el teléfono UNA vez
               (el-telefono-una-vez). En escritorio sigue donde estaba. */}
           {detalle.contactName && (
+            {/* El estado junto al nombre SOLO si hay nombre (#1414): para quien
+              se identifica por su teléfono, el bloque tiene que decir el
+              teléfono UNA vez (el-telefono-una-vez). */}
+          {detalle.contactName && (
             <span className="sm:hidden"><Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge></span>
           )}
+          )}
         </div>
+        <Badge role={ESTADOS[detalle.state].role} className="hidden sm:inline-flex">{ESTADOS[detalle.state].label}</Badge>
         <Badge role={ESTADOS[detalle.state].role} className="hidden sm:inline-flex">{ESTADOS[detalle.state].label}</Badge>
         {modo !== null && modo !== 'off' && (
           <Button
