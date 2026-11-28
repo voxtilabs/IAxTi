@@ -5,6 +5,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button, Dialog, DialogContent, DialogTitle, DialogDescription, toast,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
   Avatar,
   EstadoVacio,
   Badge,
@@ -215,6 +216,9 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [decirSinVivo, setDecirSinVivo] = useState(false);
   /** La duración de la pausa de la IA para el próximo envío (#1416). */
   const [pausaElegida, setPausaElegida] = useState<'turno' | '1h' | 'hasta_volver' | null>('turno');
+  /** El menú de click derecho sobre una conversación de la lista (#1417 pulido). */
+  const [menuContextual, setMenuContextual] = useState<{ id: string; x: number; y: number; resuelta: boolean } | null>(null);
+  const [archivando, setArchivando] = useState(false);
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
   /** Plantillas del negocio; null hasta que alguien abra el selector (#460). */
   const [plantillas, setPlantillas] = useState<PlantillaDto[] | null>(null);
@@ -658,7 +662,60 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const miId = session?.user?.id ?? '';
 
   return (
-    <div className="pulso-inbox relative flex h-full min-h-0 overflow-hidden">
+    <div
+      className="pulso-inbox relative flex h-full min-h-0 overflow-hidden"
+      onClick={() => setMenuContextual(null)}
+    >
+      {menuContextual && (
+        <div
+          className="fixed z-50"
+          style={{ left: menuContextual.x, top: menuContextual.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DropdownMenu open onOpenChange={(abierto) => { if (!abierto) setMenuContextual(null); }}>
+            <DropdownMenuTrigger className="sr-only" aria-hidden>
+              <span />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="right">
+              <DropdownMenuItem
+                onSelect={() => {
+                  const id = menuContextual.id;
+                  setMenuContextual(null);
+                  setSeleccion(id);
+                  setPane('chat');
+                }}
+              >
+                Abrir
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={!menuContextual.resuelta || archivando}
+                onSelect={() => {
+                  const id = menuContextual.id;
+                  setMenuContextual(null);
+                  setArchivando(true);
+                  void accion('/archivar', {}).finally(() => setArchivando(false));
+                  void id;
+                }}
+              >
+                {archivando ? 'Archivando…' : 'Archivar (queda buscable)'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  const id = menuContextual.id;
+                  setMenuContextual(null);
+                  setSeleccion(id);
+                  setPane('chat');
+                  // Resolver por el mismo camino del menú de Acciones del chat.
+                  setTimeout(() => { void accion('/state', { state: 'resolved' }); }, 150);
+                }}
+              >
+                Resolver
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <Dialog open={ayuda} onOpenChange={setAyuda}><DialogContent onCloseAutoFocus={(e) => { e.preventDefault(); ayudaTrigger.current?.focus(); }}>
         <DialogTitle>Atajos de la bandeja</DialogTitle>
         <DialogDescription>Funcionan cuando no estás escribiendo en un campo.</DialogDescription>
@@ -779,11 +836,19 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         ) : (
           <ul className="flex flex-col gap-0.5 p-2">
             {items.map((c) => (
-              <li key={c.id}>
+              <li
+                key={c.id}
+                onContextMenu={(e) => {
+                  // Click derecho: las acciones de la conversación donde está
+                  // el cursor. El click izquierdo en cualquier lugar cierra.
+                  e.preventDefault();
+                  setMenuContextual({ id: c.id, x: e.clientX, y: e.clientY, resuelta: c.state === 'resolved' });
+                }}
+              >
                 <button
                   type="button"
                   aria-current={seleccion === c.id ? 'true' : undefined}
-                  onClick={() => { setSeleccion(c.id); setPane('chat'); }}
+                  onClick={() => { setMenuContextual(null); setSeleccion(c.id); setPane('chat'); }}
                   className={cn(
                     // Mesón: filas sueltas con radio, no una tabla con filetes.
                     // La activa es la tarjeta con su filete; el azul no la pinta.
