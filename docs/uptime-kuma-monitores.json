@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "exported_at": "2026-11-28T00:00:00.000Z",
+  "monitors": [
+    {
+      "name": "IAxTi API (staging)",
+      "type": "http",
+      "url": "https://api-staging.iaxti.cl/health",
+      "method": "GET",
+      "interval": 60,
+      "retryInterval": 60,
+      "maxretries": 2,
+      "keyword": "\"status\":\"ok\"",
+      "invertKeyword": false,
+      "upsideDown": false,
+      "accepted_statuscodes": [
+        "200-299"
+      ]
+    },
+    {
+      "name": "IAxTi Web (staging)",
+      "type": "http",
+      "url": "https://app-staging.iaxti.cl/health",
+      "method": "GET",
+      "interval": 60,
+      "retryInterval": 60,
+      "maxretries": 2,
+      "accepted_statuscodes": [
+        "200-299"
+      ]
+    }
+  ]
+}
