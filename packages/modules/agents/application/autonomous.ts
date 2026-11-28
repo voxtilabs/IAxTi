@@ -607,3 +607,71 @@ export function firmaDelAgente(agent: Agent): string {
   if (propia !== null) return propia;
   return `${agent.name} — asistente virtual. Escribe "humano" y te paso con una persona.`;
 }
+
+
+/**
+ * La regla de #1416: escribir de humano apaga la IA, con duración elegida.
+ *
+ * No es una preferencia: es lo que impide que el asistente pise la respuesta
+ * de la dueña con la suya. La escritura corre en la MISMA transacción que el
+ * mensaje humano, así que ningún despacho posterior ve `autonomous` con el
+ * mensaje humano ya guardado.
+ *
+ * - `1h` / `turno`: `vuelve_el` queda escrito; el barrido de `agents.pulso`
+ *   restaura `autonomous` cuando vence, auditando el regreso.
+ * - `hasta_volver`: sin vencimiento; se reactiva con el interruptor.
+ */
+export type PausaPorEscritura = 'turno' | '1h' | 'hasta_volver';
+
+export async function pausarAutonomoPorEscritura(
+  client: PoolClient,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    duracion: PausaPorEscritura;
+    actor: string;
+    requestId?: string;
+  },
+): Promise<{ vuelveEl: Date | null }> {
+  const vuelveEl =
+    input.duracion === 'hasta_volver'
+      ? null
+      : new Date(Date.now() + 60 * 60_000);
+  await setConversationMode(client, {
+    tenantId: input.tenantId,
+    conversationId: input.conversationId,
+    mode: 'assist',
+    actor: input.actor,
+    requestId: input.requestId,
+  });
+  await client.query(
+    `UPDATE agent_conversation_modes SET vuelve_el = $3
+      WHERE tenant_id = $1 AND conversation_id = $2`,
+    [input.tenantId, input.conversationId, vuelveEl],
+  );
+  return { vuelveEl };
+}
+
+/** Las pausas ya vencidas que el barrido restaura a `autonomous`. */
+export async function restaurarPausasVencidas(client: PoolClient, tenantId: string): Promise<number> {
+  const r = await client.query(
+    `UPDATE agent_conversation_modes
+        SET mode = 'autonomous', set_by = 'system', vuelve_el = NULL, updated_at = now()
+      WHERE tenant_id = $1 AND mode = 'assist' AND vuelve_el IS NOT NULL AND vuelve_el <= now()
+      RETURNING conversation_id`,
+    [tenantId],
+  );
+  for (const fila of r.rows) {
+    await writeAudit(client, {
+      tenantId,
+      actor: 'system',
+      actorKind: 'system',
+      action: 'agents.conversation_mode.restaurado',
+      resource: 'conversation',
+      resourceId: fila.conversation_id as string,
+      result: 'ok',
+      metadata: { motivo: 'pausa por escritura vencida' },
+    });
+  }
+  return r.rowCount ?? 0;
+}

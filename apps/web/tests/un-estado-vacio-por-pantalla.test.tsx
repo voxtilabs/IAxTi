@@ -76,6 +76,8 @@ describe('la bandeja vacía no pide elegir de una lista que no tiene nada (#1326
       <Chat
         detalle={null}
         listaVacia
+        pausaElegida="turno"
+        onPausaElegida={() => {}}
         mensajes={null}
         atajos={[]}
         sugerencia={null}
@@ -113,6 +115,8 @@ describe('la bandeja vacía no pide elegir de una lista que no tiene nada (#1326
       <Chat
         detalle={null}
         listaVacia={false}
+        pausaElegida="turno"
+        onPausaElegida={() => {}}
         mensajes={null}
         atajos={[]}
         sugerencia={null}

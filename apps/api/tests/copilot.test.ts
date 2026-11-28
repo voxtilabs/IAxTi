@@ -186,6 +186,29 @@ describe('el copiloto por API (#48)', () => {
     expect(analisis.acciones.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('escribir de humano en autónomo apaga la IA con la duración elegida (#1416)', async () => {
+    // Encender el autónomo.
+    await pedir(`/conversations/${conversacion}/agent-mode`, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'autonomous' }),
+    });
+    // Escribir de humano, pidiendo una hora de pausa.
+    const r = await pedir(`/conversations/${conversacion}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body: 'Te agendo el jueves a las 16:00', pausa_ia: '1h' }),
+    });
+    expect([200, 201]).toContain(r.status);
+    const analisis = await (await pedir(`/conversations/${conversacion}/analisis`)).json();
+    // La regla: el modo cayó a assist. La IA no puede contestar después de
+    // la humana.
+    expect(analisis.mode).toBe('assist');
+    const vuelve = await admin.query(
+      `SELECT vuelve_el FROM agent_conversation_modes WHERE tenant_id = $1 AND conversation_id = $2`,
+      [tenant, conversacion],
+    );
+    expect(vuelve.rows[0].vuelve_el).toBeInstanceOf(Date);
+  });
+
   it('el piloto automático por conversación se enciende a mano y se refleja (#49)', async () => {
     const malo = await pedir(`/conversations/${conversacion}/agent-mode`, {
       method: 'POST',

@@ -66,6 +66,7 @@ import {
   conversationMode,
   listAgents,
   negociosDelPulso,
+  restaurarPausasVencidas,
   objetivoConsumers,
   purgarHilosViejos,
   tocaPulso,
@@ -685,6 +686,8 @@ const ESPERA_PARA_TERMINAR_MS = enteroDeEntorno('AGENTS_ESPERA_MS', 5_000);
           const porMotivo: Record<string, number> = {};
           for (const tenantId of negocios) {
             const pendientes = await withTenant(pool, tenantId, async (c) => {
+              // Las pausas por escritura vencidas vuelven a autonomous (#1416).
+              await restaurarPausasVencidas(c, tenantId);
               const conPulso = agenteConPulso(await listAgents(c, tenantId));
               if (!conPulso) return [];
               // La zona del negocio (#1225): el horario del pulso se escribe en

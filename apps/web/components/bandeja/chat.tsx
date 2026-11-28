@@ -133,6 +133,9 @@ export interface ChatProps {
    * bueno desde acá y el borrador se borraba de todas formas (#560).
    */
   onResponder: (texto: string, adjunto?: File) => Promise<boolean>;
+  /** La duración de la pausa elegida para el próximo envío (#1416). */
+  pausaElegida: 'turno' | '1h' | 'hasta_volver' | null;
+  onPausaElegida: (d: 'turno' | '1h' | 'hasta_volver' | null) => void;
   // Como `onResponder`, devuelven si salió: la bandeja ya sabe distinguirlo y
   // esconderlo acá era lo que hacía que un fallo se viera como un éxito (#560).
   onAsignar: (aQuien: string, motivo?: string) => Promise<boolean>;
@@ -242,7 +245,7 @@ export function Chat({
   detalle, abriendo, listaVacia, mensajes, atajos, sugerencia, sinSugerencia, modo, miId, aviso,
   hayAnteriores, trayendoAnteriores, onVerAnteriores,
   onReintentar, reintentando,
-  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onPrioridad, onSugerencia, onModo, onCobrar, onCrearOportunidad,
+  onVolver, onVerFicha, onResponder, onAsignar, onEstado, onPrioridad, onSugerencia, onModo, onCobrar, onCrearOportunidad, pausaElegida, onPausaElegida,
   plantillas, onCargarPlantillas, onEnviarPlantilla, onAbrirAdjunto, limitesDeAdjunto,
 }: ChatProps) {
   const [motivoAbajo, setMotivoAbajo] = useState(false);
@@ -958,6 +961,30 @@ export function Chat({
               onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
             />
           </label>}
+          {modo === 'autonomous' && (
+            // La regla de #1416, dicha ANTES de escribir: si tú mandas esto, la
+            // IA se apaga y tú eliges por cuánto tiempo.
+            <div className="flex flex-wrap items-center gap-1 text-xs text-muted">
+              <span>Al escribir, la IA se apaga:</span>
+              {([
+                ['turno', 'por una hora'],
+                ['hasta_volver', 'hasta que la vuelvas a prender'],
+              ] as const).map(([valor, texto]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  aria-pressed={pausaElegida === valor}
+                  onClick={() => onPausaElegida(pausaElegida === valor ? null : valor)}
+                  className={`rounded-campo border px-2 py-1 text-xs transition-colors ${
+                    pausaElegida === valor ? 'border-action bg-action-soft text-action-text' : 'border-line text-body hover:bg-rest'
+                  }`}
+                >
+                  {texto}
+                </button>
+              ))}
+              {pausaElegida === null && <span className="text-muted">por una hora, por defecto</span>}
+            </div>
+          )}
           <Textarea
             aria-label="Mensaje"
             placeholder="Escribe tu respuesta"

@@ -3270,6 +3270,14 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
           "type": "string",
           "x-iaxti-en": "ruta"
         },
+        "pausa_ia": {
+          "type": "string",
+          "enum": [
+            "turno",
+            "1h",
+            "hasta_volver"
+          ]
+        },
         "body": {
           "type": "string"
         },
