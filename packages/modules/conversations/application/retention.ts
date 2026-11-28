@@ -197,7 +197,7 @@ export async function purgeTenantRetention(
       // texto en una tabla que nadie purga. Entró recién cuando la tabla tuvo
       // `conversation_id`: antes no había por dónde, y esa era justamente la
       // razón para no guardar el contexto.
-      for (const tabla of ['internal_notes', 'assignments', 'suggestions', 'agent_conversation_modes', 'sequence_enrollments', 'response_samples', 'agent_executions', 'messages']) {
+      for (const tabla of ['internal_notes', 'assignments', 'suggestions', 'agent_conversation_modes', 'sequence_enrollments', 'response_samples', 'agent_executions', 'difusion_destinatarios', 'messages']) {
         await c.query(`DELETE FROM ${tabla} WHERE tenant_id = $1 AND conversation_id = ANY($2::uuid[])`, [tenantId, ids]);
       }
       await c.query(`DELETE FROM conversations WHERE tenant_id = $1 AND id = ANY($2::uuid[])`, [tenantId, ids]);

@@ -23,7 +23,7 @@ export type {
 // `quienEs` queda interno: todo lo de afuera resuelve varios ids de una vez con
 // `quienesSon` + `quienFue`, y publicar lo que nadie abre convierte el contrato
 // en un trámite (#664).
-export { quienesSon, quienesSonEnLaPlataforma, quienFue } from './application/quien';
+export { quienesSon, quienesSonEnLaPlataforma, quienFue, telefonosDelEquipo } from './application/quien';
 export type { Quien } from './application/quien';
 export {
   iniciarConsentimientoGoogle, consumirConsentimientoGoogle, grantGoogleDelUsuario,

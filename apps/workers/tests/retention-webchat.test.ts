@@ -24,9 +24,11 @@ beforeAll(async () => {
   // «permission denied for table …», que es exactamente lo que tiene que
   // pasar. `agent_executions` entró en #1079. Esto cazó ese olvido, así que
   // no se cambie por un GRANT genérico.
+  // `difusion_destinatarios` entró en #1247: la difusión apunta a la
+  // conversación, y sin borrarla primero su llave foránea traba la purga.
   await owner.query(`GRANT DELETE ON conversations, messages, internal_notes, assignments,
     suggestions, agent_conversation_modes, sequence_enrollments, response_samples,
-    agent_executions TO iaxti_retention_test`);
+    agent_executions, difusion_destinatarios TO iaxti_retention_test`);
   await owner.query('GRANT UPDATE ON webchat_sessions, tenants, conversations TO iaxti_retention_test');
   await owner.query('GRANT INSERT ON audit_log, outbox TO iaxti_retention_test');
   const url = new URL(process.env.DATABASE_URL ?? 'postgres://iaxti:iaxti@127.0.0.1:5432/iaxti');
