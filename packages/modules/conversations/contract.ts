@@ -66,7 +66,7 @@ export {
   CONVERSATION_STATES,
 } from './domain/state';
 export type { ConversationState, DeliveryStatus } from './domain/state';
-export { autoResolveTenant, archiveTenant } from './application/cierre';
+export { autoResolveTenant, archiveTenant, archivarUna } from './application/cierre';
 export type { RunResult } from './application/cierre';
 export { cierreSettings } from './domain/cierre';
 export type { CierreSettings } from './domain/cierre';
@@ -100,3 +100,18 @@ export { datosParaSuprimirTitular, exportarDatosDelTitular, suprimirDatosDelTitu
 
 // Cuánto cupo diario del canal se gastó hoy (#1248).
 export { salientesDelDia } from './application/conversations';
+
+// Escribirle de una vez a todos los que conversaron (#1247).
+export {
+  DifusionError,
+  previsualizarDifusion,
+  enviarDifusion,
+  resultadoDifusion,
+  reintentarDifusion,
+} from './application/difusion';
+export type {
+  MotivoDeExclusion,
+  FiltroDeDifusion,
+  PreviaDeDifusion,
+  DestinatarioDeDifusion,
+} from './application/difusion';

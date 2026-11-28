@@ -102,3 +102,34 @@ export async function archiveTenant(
   }
   return { count: ids.length, ids };
 }
+
+/**
+ * Archivar UNA conversación a mano (#1417 de pulido). Nada se borra (SPEC
+ * §39): `archived_at` la saca de la lista y la deja buscable en «archivadas».
+ * Solo una conversación RESUELTA se archiva a mano — una abierta se resuelve
+ * primero, que es la decisión que importa.
+ */
+export async function archivarUna(
+  client: PoolClient,
+  input: { tenantId: string; conversationId: string; actor: string; requestId?: string },
+): Promise<void> {
+  const r = await client.query(
+    `UPDATE conversations SET archived_at = now(), updated_at = now()
+      WHERE tenant_id = $1 AND id = $2 AND state = 'resolved' AND archived_at IS NULL
+      RETURNING id`,
+    [input.tenantId, input.conversationId],
+  );
+  if (r.rowCount === 0) {
+    throw new Error('Solo se puede archivar una conversación resuelta. Resuélvela primero.');
+  }
+  await writeAudit(client, {
+    tenantId: input.tenantId,
+    actor: input.actor,
+    actorKind: 'user',
+    action: 'conversation.archived',
+    resource: 'conversation',
+    resourceId: input.conversationId,
+    result: 'ok',
+    requestId: input.requestId,
+  });
+}

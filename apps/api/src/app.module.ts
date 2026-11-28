@@ -83,6 +83,7 @@ import { ArranqueController } from './arranque.controller';
 import { registry } from './registry';
 import { SimuladorController } from './simulador.controller';
 import { ConversationsController } from './conversations.controller';
+import { DifusionController } from './difusion.controller';
 import { CamposController } from './campos.controller';
 import { PlantillasController } from './plantillas.controller';
 import { CampanasController } from './campanas.controller';
@@ -1259,6 +1260,7 @@ const controllers = [
   SupportStatusController,
   DemoController,
   ConversationsController,
+  DifusionController,
   CamposController,
   PlantillasController,
   CampanasController,

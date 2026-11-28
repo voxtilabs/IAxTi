@@ -5,6 +5,7 @@ import { AvisoResultado, EncabezadoDePagina } from '@iaxti/ui/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button, Dialog, DialogContent, DialogTitle, DialogDescription, toast,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
   Avatar,
   EstadoVacio,
   Badge,
@@ -21,8 +22,9 @@ import {
   nombreVisible,
 } from '@iaxti/ui/react';
 import { estaEscribiendo } from '../../lib/teclado';
-import { usePieza, type Pieza } from '../arranque';
+import { useArranque, usePieza, type Pieza } from '../arranque';
 import type { SecuenciaDto, InscripcionDto } from './secuencias-ficha';
+import { EscribirleAVarios } from './escribirle-a-varios';
 import { ListaDeAtajos } from './atajos-de-la-bandeja';
 import { useSelectedTenant } from '../tenant-switcher';
 import {
@@ -181,6 +183,16 @@ export function Bandeja() {
 
 function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDesdeUrl: boolean }) {
   const { supabase, session, config } = useSession();
+  const { arranque } = useArranque();
+  const etiquetasDelArranque = usePieza('etiquetas');
+  const etiquetas = (etiquetasDelArranque.dato as Array<{ id: string; name: string }> | undefined) ?? [];
+  /**
+   * «Escribirle a varios» es del ADMIN (#1247): manda WhatsApp de verdad a
+   * mucha gente de una vez. Sin el permiso no se ofrece la acción — llegaría
+   * a un 403 después de escribir el texto.
+   */
+  const puedeDifundir = arranque?.permisos?.includes('conversations.broadcast') ?? false;
+  const [varios, setVarios] = useState(false);
   const ayudaTrigger = useRef<HTMLButtonElement>(null);
   const [ayuda, setAyuda] = useState(false);
   const atajoEnCurso = useRef(false);
@@ -204,6 +216,9 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const [decirSinVivo, setDecirSinVivo] = useState(false);
   /** La duración de la pausa de la IA para el próximo envío (#1416). */
   const [pausaElegida, setPausaElegida] = useState<'turno' | '1h' | 'hasta_volver' | null>('turno');
+  /** El menú de click derecho sobre una conversación de la lista (#1417 pulido). */
+  const [menuContextual, setMenuContextual] = useState<{ id: string; x: number; y: number; resuelta: boolean } | null>(null);
+  const [archivando, setArchivando] = useState(false);
   const [atajos, setAtajos] = useState<QuickReplyDto[]>([]);
   /** Plantillas del negocio; null hasta que alguien abra el selector (#460). */
   const [plantillas, setPlantillas] = useState<PlantillaDto[] | null>(null);
@@ -647,12 +662,73 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
   const miId = session?.user?.id ?? '';
 
   return (
-    <div className="pulso-inbox relative flex h-full min-h-0 overflow-hidden">
+    <div
+      className="pulso-inbox relative flex h-full min-h-0 overflow-hidden"
+      onClick={() => setMenuContextual(null)}
+    >
+      {menuContextual && (
+        <div
+          className="fixed z-50"
+          style={{ left: menuContextual.x, top: menuContextual.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DropdownMenu open onOpenChange={(abierto) => { if (!abierto) setMenuContextual(null); }}>
+            <DropdownMenuTrigger className="sr-only" aria-hidden>
+              <span />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="right">
+              <DropdownMenuItem
+                onSelect={() => {
+                  const id = menuContextual.id;
+                  setMenuContextual(null);
+                  setSeleccion(id);
+                  setPane('chat');
+                }}
+              >
+                Abrir
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={!menuContextual.resuelta || archivando}
+                onSelect={() => {
+                  const id = menuContextual.id;
+                  setMenuContextual(null);
+                  setArchivando(true);
+                  void accion('/archivar', {}).finally(() => setArchivando(false));
+                  void id;
+                }}
+              >
+                {archivando ? 'Archivando…' : 'Archivar (queda buscable)'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  const id = menuContextual.id;
+                  setMenuContextual(null);
+                  setSeleccion(id);
+                  setPane('chat');
+                  // Resolver por el mismo camino del menú de Acciones del chat.
+                  setTimeout(() => { void accion('/state', { state: 'resolved' }); }, 150);
+                }}
+              >
+                Resolver
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <Dialog open={ayuda} onOpenChange={setAyuda}><DialogContent onCloseAutoFocus={(e) => { e.preventDefault(); ayudaTrigger.current?.focus(); }}>
         <DialogTitle>Atajos de la bandeja</DialogTitle>
         <DialogDescription>Funcionan cuando no estás escribiendo en un campo.</DialogDescription>
         <div className="mt-4"><ListaDeAtajos /></div>
       </DialogContent></Dialog>
+      {puedeDifundir && (
+        <EscribirleAVarios
+          abierto={varios}
+          onCerrar={() => setVarios(false)}
+          etiquetas={etiquetas}
+          onTermino={cargarLista}
+        />
+      )}
       {/* Panel 1 · Lista (--bg-raised) */}
       <section
         aria-label="Conversaciones"
@@ -663,7 +739,14 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         )}
       >
         <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-raised p-4">
-          <EncabezadoDePagina titulo="Bandeja" className="mb-0" accion={<Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button>} />
+          <EncabezadoDePagina titulo="Bandeja" className="mb-0" accion={
+            <>
+              {puedeDifundir && (
+                <Button variant="fantasma" size="chico" onClick={() => setVarios(true)}>Escribirle a varios</Button>
+              )}
+              <Button ref={ayudaTrigger} variant="fantasma" size="chico" onClick={() => setAyuda(true)} aria-label="Ayuda de atajos (?)">?</Button>
+            </>
+          } />
           <Tabs value={vista} onValueChange={(v) => setVista(v as Vista)} className="mt-3">
             {/* Sin `flex-1` (#1111): repartir tercios iguales daba 96 px por
                 pestaña y «Sin responder» se partía en dos líneas, que es de
@@ -753,11 +836,19 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
         ) : (
           <ul className="flex flex-col gap-0.5 p-2">
             {items.map((c) => (
-              <li key={c.id}>
+              <li
+                key={c.id}
+                onContextMenu={(e) => {
+                  // Click derecho: las acciones de la conversación donde está
+                  // el cursor. El click izquierdo en cualquier lugar cierra.
+                  e.preventDefault();
+                  setMenuContextual({ id: c.id, x: e.clientX, y: e.clientY, resuelta: c.state === 'resolved' });
+                }}
+              >
                 <button
                   type="button"
                   aria-current={seleccion === c.id ? 'true' : undefined}
-                  onClick={() => { setSeleccion(c.id); setPane('chat'); }}
+                  onClick={() => { setMenuContextual(null); setSeleccion(c.id); setPane('chat'); }}
                   className={cn(
                     // Mesón: filas sueltas con radio, no una tabla con filetes.
                     // La activa es la tarjeta con su filete; el azul no la pinta.
@@ -1074,6 +1165,22 @@ function BandejaDelNegocio({ tenant, abrirDesdeUrl }: { tenant: string; abrirDes
           detalle={detalle}
           notas={notas}
           analisis={analisis}
+          modo={analisis?.mode ?? null}
+          onModo={async (modo) => {
+            // El mismo cambio que hace el interruptor del chat (#1408), desde
+            // la ficha: en el celular este panel reemplaza al chat y el único
+            // control quedaba del otro lado.
+            if (!session || !tenant || !seleccion) return;
+            try {
+              await apiFetch(config, session, tenant, `/conversations/${seleccion}/agent-mode`, {
+                method: 'POST',
+                body: JSON.stringify({ mode: modo }),
+              });
+              setAnalisis((a) => (a ? { ...a, mode: modo } : a));
+            } catch (err) {
+              setAviso(avisoDe(err));
+            }
+          }}
           fichaDelContacto={fichaDelContacto}
           etiquetasDelContacto={etiquetasDelContacto}
           secuencias={secuencias}

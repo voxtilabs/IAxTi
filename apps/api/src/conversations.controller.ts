@@ -35,6 +35,7 @@ import {
   OutboundRetryError,
   sendMessage,
   updateDeliveryStatus,
+  archivarUna,
 } from '@iaxti/module-conversations';
 import type {
   Channel,
@@ -519,6 +520,23 @@ export class ConversationsController {
         actorKind: actor.kind === 'apikey' ? 'apikey' : 'user',
         requestId: request.requestId,
       });
+    });
+  }
+
+  @Post(':id/archivar')
+  @RequirePermission('conversations.reply')
+  @ApiOperation({ summary: 'Archiva una conversación resuelta: sale de la lista, queda buscable' })
+  async archivar(@Req() request: WithUser, @Param('id') id: string) {
+    const actor = actorOf(request);
+    return withTenant(pool(), actor.tenantId, async (c) => {
+      await getConversation(c, actor.tenantId, id).catch(notFound);
+      await archivarUna(c, {
+        tenantId: actor.tenantId,
+        conversationId: id,
+        actor: actor.userId,
+        requestId: request.requestId,
+      });
+      return { ok: true };
     });
   }
 

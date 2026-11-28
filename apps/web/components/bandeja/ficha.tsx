@@ -45,6 +45,8 @@ export function Ficha({
   detalle,
   notas,
   analisis,
+  modo,
+  onModo,
   onVolver,
   onAgregarNota,
   fichaDelContacto,
@@ -55,6 +57,10 @@ export function Ficha({
   detalle: ConversacionDetalle | null;
   notas: NotaDto[];
   analisis: AnalisisDto | null;
+  /** El modo de la IA de esta conversación (#1408): el interruptor vive
+      también en la ficha, que en el celular reemplaza al chat. */
+  modo: 'assist' | 'autonomous' | 'off' | null;
+  onModo: (modo: 'assist' | 'autonomous') => Promise<void>;
   onVolver: () => void;
   onAgregarNota: (texto: string) => Promise<void>;
   /**
@@ -131,6 +137,27 @@ export function Ficha({
         )}
         <Fila rotulo="Estado">
           <Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge>
+          {/* El interruptor del modo vive TAMBIÉN acá (#1408): en el celular la
+              ficha reemplaza al chat, y el único control quedaba del otro lado.
+              Si el modo está apagado u off, nada que cambiar acá. */}
+          {modo !== null && modo !== 'off' && (
+            <Button
+              variant="secundario"
+              className={modo === 'autonomous' ? 'border-action-soft-br bg-action-soft text-action-text hover:bg-action-soft' : undefined}
+              size="chico"
+              data-testid="piloto-automatico-ficha"
+              aria-pressed={modo === 'autonomous'}
+              title={
+                modo === 'autonomous'
+                  ? 'La IA responde sola en esta conversación. Toca para retomar el control.'
+                  : 'La IA solo sugiere. Toca para dejarla responder sola aquí.'
+              }
+              onClick={() => void onModo(modo === 'autonomous' ? 'assist' : 'autonomous')}
+            >
+              <Bot className="size-3.5" aria-hidden />{' '}
+              {modo === 'autonomous' ? 'IA contesta sola' : 'La IA solo sugiere'}
+            </Button>
+          )}
         </Fila>
         {/* La prioridad, solo si no es normal (#550). Acá va con su fila
             rotulada: la ficha es donde se mira el detalle, así que el rótulo

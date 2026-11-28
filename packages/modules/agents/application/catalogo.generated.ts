@@ -3057,6 +3057,27 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
       "additionalProperties": false
     }
   },
+  "ConversationsController_archivar": {
+    "metodo": "POST",
+    "ruta": "/v1/conversations/{id}/archivar",
+    "resumen": "Archiva una conversación resuelta: sale de la lista, queda buscable",
+    "permiso": "conversations.reply",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
   "ConversationsController_asignaciones": {
     "metodo": "GET",
     "ruta": "/v1/conversations/{id}/asignaciones",
@@ -4002,6 +4023,102 @@ export const OPERACIONES_DE_LA_API: Record<string, OperacionDeLaApi> = {
     "argumentos": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false
+    }
+  },
+  "DifusionController_enviar": {
+    "metodo": "POST",
+    "ruta": "/v1/conversations/difusion",
+    "resumen": "Envía la difusión de la previsualización, un mensaje por destinatario",
+    "permiso": "conversations.broadcast",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "previaId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "previaId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DifusionController_previa": {
+    "metodo": "POST",
+    "ruta": "/v1/conversations/difusion/previa",
+    "resumen": "A quién le llegaría: conteo, muestra y quienes quedan fuera, sin mandar nada",
+    "permiso": "conversations.broadcast",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "texto": {
+          "type": "string",
+          "minLength": 1
+        },
+        "filtro": {
+          "type": "object",
+          "properties": {
+            "estado": {
+              "type": "string"
+            },
+            "etiquetaId": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "texto"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DifusionController_reintentar": {
+    "metodo": "POST",
+    "ruta": "/v1/conversations/difusion/{id}/reintentar",
+    "resumen": "Reintenta los fallidos sin repetirle a quien ya recibió",
+    "permiso": "conversations.broadcast",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "DifusionController_resultado": {
+    "metodo": "GET",
+    "ruta": "/v1/conversations/difusion/{id}",
+    "resumen": "Qué pasó con cada destinatario: estado de entrega y motivo del fallo",
+    "permiso": "conversations.broadcast",
+    "modulo": "conversations",
+    "soloSesion": false,
+    "argumentos": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-iaxti-en": "ruta"
+        }
+      },
+      "required": [
+        "id"
+      ],
       "additionalProperties": false
     }
   },

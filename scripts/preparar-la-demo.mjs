@@ -126,6 +126,13 @@ async function limpiar(tenantId, sinteticos) {
   // borra es EXACTAMENTE la que se mostró arriba. Repetir el LIKE abriría la
   // puerta a que entre algo que la vista previa no mostró.
   const borrados = await withTenant(pool, tenantId, async (c) => {
+    // Lo que apunta a la conversación va primero: una difusión de prueba
+    // (#1247) a uno de estos contactos traba el borrado por su llave foránea.
+    await c.query(
+      `DELETE FROM difusion_destinatarios WHERE tenant_id = $1 AND conversation_id IN
+         (SELECT id FROM conversations WHERE tenant_id = $1 AND contact_id = ANY($2::uuid[]))`,
+      [tenantId, ids],
+    );
     const m = await c.query(
       `DELETE FROM messages WHERE tenant_id = $1 AND conversation_id IN
          (SELECT id FROM conversations WHERE tenant_id = $1 AND contact_id = ANY($2::uuid[]))`,
