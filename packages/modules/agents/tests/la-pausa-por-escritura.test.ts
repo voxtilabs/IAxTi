@@ -18,7 +18,9 @@ const convs: string[] = [];
 beforeAll(async () => {
   admin = createPool(ADMIN_URL);
   await runMigrations(admin);
-  tenant = (await admin.query("INSERT INTO tenants (name) VALUES ('pausa-1416') RETURNING id")).rows[0].id;
+  tenant = (
+    await admin.query(`INSERT INTO tenants (name) VALUES ('pausa-1416-${Date.now()}') RETURNING id`)
+  ).rows[0].id;
   // `conversations` exige un contacto: uno compartido alcanza para las cuatro.
   const contacto = (await admin.query('INSERT INTO contacts (tenant_id, phone) VALUES ($1, $2) RETURNING id', [tenant, '+56900001416'])).rows[0].id;
   for (let i = 0; i < 4; i++) {
@@ -27,14 +29,13 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Los audit del pulso pueden llegar DESPUÉS de la última prueba (el barrido
-  // corre cada minuto sobre todos los tenants): una sola pasada, sin catch,
-  // y el tenant al final de todo.
-  await admin.query('DELETE FROM audit_log WHERE tenant_id = $1', [tenant]);
+  // audit_log es append-only con trigger: no se borra ni en pruebas (en CI el
+  // rol no es superusuario y `audit_log_inmutable` lo rechaza). El tenant
+  // queda con sus filas de auditoría y un nombre único por corrida — la
+  // base de pruebas lo acumula a propósito (SPEC §39 es para producción).
   await admin.query('DELETE FROM agent_conversation_modes WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM conversations WHERE tenant_id = $1', [tenant]);
   await admin.query('DELETE FROM contacts WHERE tenant_id = $1', [tenant]);
-  await admin.query('DELETE FROM tenants WHERE id = $1', [tenant]);
   await admin.end();
 });
 
