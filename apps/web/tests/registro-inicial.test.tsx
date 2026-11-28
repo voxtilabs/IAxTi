@@ -48,7 +48,7 @@ it('membresía existente selecciona negocio sin formulario ni POST', async () =>
 it('campos etiquetados, datos conservados tras error y una sola llave al reintentar', async () => {
   mocks.registerBusiness.mockRejectedValueOnce(new Error('No pudimos crear tu negocio.')).mockResolvedValueOnce({ tenantId: 'new' });
   render(<RegistroInicial />); const user = await fill();
-  expect(screen.getByRole('combobox', { name: 'Rubro' })).toBeEnabled();
+  expect(screen.getByRole('combobox', { name: "A qué se dedica" })).toBeEnabled();
   await user.click(screen.getByRole('button', { name: 'Crear mi negocio' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos crear tu negocio');
   expect(screen.getByRole('textbox', { name: 'Nombre del negocio' })).toHaveValue('Barbería Ana');

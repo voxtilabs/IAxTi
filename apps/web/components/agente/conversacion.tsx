@@ -161,7 +161,11 @@ export function Conversacion({ alto }: { alto?: string }) {
           )}
         >
             {turnos.length === 0 && (
-              <div className="flex flex-col gap-3">
+              // El saludo y sus sugerencias en UN bloque con fondo (#1417 de
+              // pulido): flotando sueltos sobre el vacío se leían como texto
+              // de sistema; con la superficie, es la tarjeta que invita a
+              // escribir.
+              <div className="flex flex-col gap-3 rounded-tarjeta border border-line bg-raised p-5">
                 <p className="text-cuerpo text-body">
                   {sinAsistentes
                     ? 'Cuéntame a qué se dedica tu negocio y te armo un asistente que conteste por ti. Antes de que hable con alguien, lo apruebas.'

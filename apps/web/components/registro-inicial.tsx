@@ -73,12 +73,12 @@ function RegistroConSesion() {
         });
     }}>
       <label className="flex flex-col gap-1 text-sm text-body">Tu nombre
-        <Input autoComplete="name" required maxLength={100} disabled={saving} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
+        <Input autoComplete="name" required maxLength={100} placeholder="Carolina Muñoz" disabled={saving} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
       </label>
       <label className="flex flex-col gap-1 text-sm text-body">Nombre del negocio
-        <Input autoComplete="organization" required maxLength={100} disabled={saving} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <Input autoComplete="organization" required maxLength={100} placeholder="Peluquería Caro" disabled={saving} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
       </label>
-      <div className="flex flex-col gap-1 text-sm text-body"><label htmlFor="registro-rubro">Rubro</label>
+      <div className="flex flex-col gap-1 text-sm text-body"><label htmlFor="registro-rubro">A qué se dedica</label>
         <Select value={form.vertical} disabled={saving} onValueChange={(value) => setForm({ ...form, vertical: value as BusinessRegistration['vertical'] })}>
           <SelectTrigger id="registro-rubro"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -89,8 +89,21 @@ function RegistroConSesion() {
         </Select>
       </div>
       <label className="flex flex-col gap-1 text-sm text-body">Descripción del negocio
-        <Textarea required minLength={10} maxLength={4000} rows={4} disabled={saving} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        <Textarea
+          required
+          minLength={10}
+          maxLength={4000}
+          rows={4}
+          placeholder={'Peluquería en Ñuñoa. Cortes, color y peinados. Atendemos de martes a sábado de 10 a 19.'}
+          disabled={saving}
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          aria-describedby="registro-descripcion-ayuda"
+        />
       </label>
+      <p id="registro-descripcion-ayuda" className="text-xs text-muted">
+        Con esto tu asistente sabe contestar quién eres y cuándo atiendes.
+      </p>
       {error && <div role="alert" className="text-bad-text"><p>{error.texto}</p>{error.rastro && <p className="dato mt-2 break-all text-xs">{error.rastro}</p>}</div>}
       <Button type="submit" disabled={saving}>{saving ? 'Creando tu negocio…' : 'Crear mi negocio'}</Button>
     </Formulario>

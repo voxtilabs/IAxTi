@@ -260,7 +260,7 @@ export function Automatizaciones() {
       >
         <span className="rotulo">Una regla tuya</span>
         <label className="text-sm">
-          Cómo la vas a reconocer
+          ¿Cuándo se activa?
           <Input
             className="mt-1"
             value={nueva.name}
