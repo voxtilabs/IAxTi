@@ -490,7 +490,16 @@ export function Chat({
             <span className="sm:hidden"><Badge role={ESTADOS[detalle.state].role}>{ESTADOS[detalle.state].label}</Badge></span>
           )}
         </div>
-        <Badge role={ESTADOS[detalle.state].role} className="hidden sm:inline-flex">{ESTADOS[detalle.state].label}</Badge>
+        {/* En el celular el badge vive junto al nombre SOLO si hay nombre
+            (#1414); sin nombre, sigue en esta fila — si se ocultara, «En
+            curso» desaparecería entero para quien se identifica por teléfono
+            (bandeja.spec lo exige visible). */}
+        <Badge
+          role={ESTADOS[detalle.state].role}
+          className={detalle.contactName ? 'hidden sm:inline-flex' : undefined}
+        >
+          {ESTADOS[detalle.state].label}
+        </Badge>
         {modo !== null && modo !== 'off' && (
           <Button
             // Un interruptor, no la acción de la vista (Mesón): encendido se
